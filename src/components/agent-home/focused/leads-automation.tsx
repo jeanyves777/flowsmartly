@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type DragEvent, type ReactNode, type Mouse
 import {
   Mail, MessageCircle, GitBranch, CheckSquare, CalendarDays, Sparkles,
   GripVertical, Pause, Play, Repeat, X, Plus, AlertTriangle, Zap, Printer, Clock,
-  Check, ChevronDown, Download, Folder as FolderIcon,
+  Check, ChevronDown, Download, Folder as FolderIcon, FileText,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
@@ -87,7 +87,9 @@ const STATUS_PILL: Record<Status, string> = {
 };
 const STATUS_LABEL: Record<Status, string> = { ready: "Ready", blocked: "Blocked", paused: "Paused", waiting: "Waiting", smart: "Smart" };
 
-/** Map a UI step to the persisted step config the engine runs (delay from `when`). */
+/** Map a UI step to the persisted step config the engine runs (delay from `when`).
+ * Preserves the agent-written copy (subject/body) and the attached pitchId so an
+ * autosave round-trip never wipes what the agent wrote into the step. */
 function toCfg(s: Step) {
   const m = /(\d+)/.exec(s.when || "");
   return {
@@ -95,6 +97,7 @@ function toCfg(s: Step) {
     delayDays: (s.when || "").includes("day") && m ? Number(m[0]) : 0,
     requires: s.kind === "cond" ? "whatsapp" : undefined,
     status: s.status,
+    subject: s.subject, body: s.body, pitchId: s.pitchId,
   };
 }
 
@@ -397,7 +400,7 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
           {(writingStep === step.id || step.body) && (
             <>
               <div className="ms-6 h-4 w-0.5 bg-gradient-to-b from-brand-500/50 to-violet-500/40" />
-              <ResultCard step={step} writing={writingStep === step.id} onUpdate={(patch) => updateStep(step.id, patch)} />
+              <ResultCard step={step} writing={writingStep === step.id} onUpdate={(patch) => updateStep(step.id, patch)} onAsk={onAsk} listName={listName} agentBusy={agentBusy} />
             </>
           )}
         </div>
@@ -482,11 +485,10 @@ function StepBrief({ step, connected, onAsk, onWrite, hasList }: { step: Step; c
 }
 
 /** The agent-written draft — shown in the playground (never the chat), editable + savable, collapsible. */
-function ResultCard({ step, writing, onUpdate }: { step: Step; writing: boolean; onUpdate: (p: Partial<Step>) => void }) {
+function ResultCard({ step, writing, onUpdate, onAsk, listName, agentBusy }: { step: Step; writing: boolean; onUpdate: (p: Partial<Step>) => void; onAsk: (p: string) => void; listName?: string; agentBusy?: boolean }) {
   const [open, setOpen] = useState(true);
   const [subject, setSubject] = useState(step.subject || "");
   const [body, setBody] = useState(step.body || "");
-  const [downloading, setDownloading] = useState(false);
   useEffect(() => { setSubject(step.subject || ""); setBody(step.body || ""); }, [step.id, step.subject, step.body]);
   const isEmail = step.kind === "email" || step.kind === "book";
 
@@ -498,17 +500,6 @@ function ResultCard({ step, writing, onUpdate }: { step: Step; writing: boolean;
       </div>
     );
   }
-  const downloadPdf = async () => {
-    if (!step.pitchId) return;
-    setDownloading(true);
-    try {
-      const res = await fetch(`/api/pitch/${step.pitchId}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pdfOnly: true }) });
-      if (!res.ok) return;
-      const blob = await res.blob(); const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url; a.download = `${step.title.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.pdf`;
-      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    } catch { /* ignore */ } finally { setDownloading(false); }
-  };
   return (
     <div className="rounded-2xl border border-border bg-card">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-4 py-3 text-start">
@@ -529,12 +520,122 @@ function ResultCard({ step, writing, onUpdate }: { step: Step; writing: boolean;
           <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={8} className={cn(FLD, "resize-y leading-relaxed")} />
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button onClick={() => onUpdate({ subject, body })} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white">Save</button>
-            {step.pitchId && <button onClick={downloadPdf} disabled={downloading} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 disabled:opacity-50"><Download className="h-4 w-4" /> {downloading ? "Preparing…" : "Download PDF"}</button>}
           </div>
+          {/* Editable, collapsible PITCH PDF attachment — only on email steps. */}
+          {isEmail && <PitchPanel step={step} listName={listName} onAsk={onAsk} agentBusy={agentBusy} />}
         </div>
       )}
     </div>
   );
+}
+
+/** The branded pitch PDF attached to an email step — generate via the agent, then
+ * see/edit/save/download it right here (collapsible), instead of dumping in chat. */
+function PitchPanel({ step, listName, onAsk, agentBusy }: { step: Step; listName?: string; onAsk: (p: string) => void; agentBusy?: boolean }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [pitch, setPitch] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [requested, setRequested] = useState(false);
+
+  // Fetch the pitch content the first time the panel is expanded.
+  useEffect(() => {
+    if (!open || !step.pitchId || pitch) return;
+    setLoading(true);
+    fetch(`/api/pitch/${step.pitchId}`).then((r) => r.json()).then((j) => { if (j?.success) setPitch((j.data?.pitch?.pitchContent as Record<string, unknown>) || {}); }).catch(() => {}).finally(() => setLoading(false));
+  }, [open, step.pitchId, pitch]);
+  // A new pitch was attached → drop the cache so the editor re-hydrates, and open.
+  useEffect(() => { setPitch(null); if (step.pitchId && requested) { setRequested(false); setOpen(true); } }, [step.pitchId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Clear the generating state if the agent finished without attaching one.
+  const wasBusy = useRef(false);
+  useEffect(() => { const done = wasBusy.current && !agentBusy; wasBusy.current = !!agentBusy; if (done && requested && !step.pitchId) setRequested(false); }, [agentBusy, requested, step.pitchId]);
+
+  const set = (k: string, v: unknown) => setPitch((p) => ({ ...(p || {}), [k]: v }));
+  const str = (k: string) => (typeof pitch?.[k] === "string" ? (pitch[k] as string) : "");
+  const bullets = Array.isArray(pitch?.solutionBullets) ? (pitch!.solutionBullets as string[]) : [];
+
+  const save = async () => {
+    if (!step.pitchId || !pitch) return;
+    setSaving(true);
+    const j = await fetch(`/api/pitch/${step.pitchId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pitchContent: pitch }) }).then((r) => r.json()).catch(() => null);
+    setSaving(false);
+    toast(j?.success ? { title: "Pitch saved", description: "Your edits to the attached pitch PDF are saved." } : { title: "Couldn't save the pitch", description: "Please try again in a moment." });
+  };
+  const download = async () => {
+    if (!step.pitchId) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/pitch/${step.pitchId}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pdfOnly: true }) });
+      if (res.ok) {
+        const blob = await res.blob(); const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = `${(step.title || "pitch").replace(/[^a-z0-9]/gi, "-").toLowerCase()}.pdf`;
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      }
+    } catch { /* ignore */ } finally { setDownloading(false); }
+  };
+  const generate = () => {
+    setRequested(true);
+    onAsk(`Create a branded pitch PDF for the "${listName || "lead"}" audience and ATTACH it to the "${step.title}" email step (stepId: ${step.id}) — call create_pitch (draw from my Brand Kit), then call build_sequence_step with stepId="${step.id}" and the new pitchId so the pitch lands on this step. Don't paste it in the chat.`);
+  };
+
+  // Not attached yet → CTA (or a generating state while the agent builds it).
+  if (!step.pitchId) {
+    return (
+      <div className="mt-3 rounded-xl border border-dashed border-border p-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <FileText className="h-4 w-4 shrink-0 text-brand-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[12.5px] font-semibold">Attach a pitch PDF</p>
+            <p className="text-[11.5px] text-muted-foreground">A branded one-pager the agent writes from your Brand Kit — sent with this email.</p>
+          </div>
+          <button onClick={generate} disabled={requested} className="inline-flex shrink-0 items-center gap-1.5 rounded-[9px] border border-border px-3 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 disabled:opacity-60">
+            {requested ? <FlowLoader size={13} /> : <Sparkles className="h-3.5 w-3.5" />} {requested ? "Generating…" : "Generate pitch"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Attached → collapsible editor.
+  return (
+    <div className="mt-3 rounded-xl border border-border">
+      <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 px-3.5 py-2.5 text-start">
+        <FileText className="h-4 w-4 shrink-0 text-brand-500" />
+        <b className="text-[12.5px]">Pitch PDF attached</b>
+        <span className="hidden text-[11px] text-muted-foreground sm:inline">— edit the attachment, save, or download</span>
+        <ChevronDown className={cn("ms-auto h-4 w-4 text-muted-foreground transition", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="border-t border-border p-3.5">
+          {loading || !pitch ? (
+            <div className="grid place-items-center py-8"><FlowLoader size={22} withMark /></div>
+          ) : (
+            <div className="space-y-3">
+              <PL label="PDF subject line"><input value={str("subject")} onChange={(e) => set("subject", e.target.value)} className={FLD} /></PL>
+              <PL label="Headline"><input value={str("headline")} onChange={(e) => set("headline", e.target.value)} className={FLD} /></PL>
+              <PL label="Opening hook"><textarea rows={2} value={str("personalizedHook")} onChange={(e) => set("personalizedHook", e.target.value)} className={cn(FLD, "resize-y")} /></PL>
+              <PL label="What you'll do (one per line)"><textarea rows={4} value={bullets.join("\n")} onChange={(e) => set("solutionBullets", e.target.value.split("\n").map((s) => s.trim()).filter(Boolean))} className={cn(FLD, "resize-y")} /></PL>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <PL label="Call to action"><input value={str("ctaText")} onChange={(e) => set("ctaText", e.target.value)} className={FLD} /></PL>
+                <PL label="Closing line"><input value={str("closingLine")} onChange={(e) => set("closingLine", e.target.value)} className={FLD} /></PL>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white disabled:opacity-60">{saving ? <FlowLoader size={13} tone="white" /> : <Check className="h-4 w-4" />} Save pitch</button>
+                <button onClick={download} disabled={downloading} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 disabled:opacity-50"><Download className="h-4 w-4" /> {downloading ? "Preparing…" : "Download PDF"}</button>
+                <button onClick={generate} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><Sparkles className="h-3.5 w-3.5" /> Regenerate</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PL({ label, children }: { label: string; children: ReactNode }) {
+  return <div><label className="mb-1 block text-[11px] font-bold text-muted-foreground">{label}</label>{children}</div>;
 }
 
 function WaitEditor() {

@@ -13,7 +13,7 @@ import type { FlowAgentTool } from "../registry";
 export const buildSequenceStep: FlowAgentTool = {
   name: "build_sequence_step",
   description:
-    "Write/draft the copy for ONE step of the user's outreach AUTOMATION and deliver it into the builder (the step's card), NOT as a chat message. Use whenever the user asks you to write or improve a step (initial pitch, a follow-up, the WhatsApp/SMS nudge, the booking ask). Compose the message yourself in the user's brand voice, personalized to the target list's industry/clients, then call this with the automation's `listId` (from the surface context) and the `stepId`, plus the `subject` (email only) + `body`. The draft then shows in the step card for the user to edit + approve. Do NOT paste the full email into the chat.",
+    "Write/draft the copy for ONE step of the user's outreach AUTOMATION and deliver it into the builder (the step's card), NOT as a chat message. Use whenever the user asks you to write or improve a step (initial pitch, a follow-up, the WhatsApp/SMS nudge, the booking ask). Compose the message yourself in the user's brand voice, personalized to the target list's industry/clients, then call this with the automation's `listId` (from the surface context) and the `stepId`, plus the `subject` (email only) + `body`. ALSO use this to ATTACH a branded pitch PDF to an email step: after create_pitch returns a pitchId, call this with the stepId + that `pitchId` so the pitch lands on the step's card (the user can then edit/download it there). The draft/pitch then shows in the step card for the user to edit + approve. Do NOT paste the full email or pitch into the chat.",
   input_schema: {
     type: "object",
     properties: {
@@ -21,9 +21,10 @@ export const buildSequenceStep: FlowAgentTool = {
       sequenceId: { type: "string", description: "The sequence id, if known (alternative to listId)." },
       stepId: { type: "string", description: "The id of the step to write (from the surface context)." },
       subject: { type: "string", description: "Email subject line (omit for SMS/WhatsApp)." },
-      body: { type: "string", description: "The message body you composed, in the user's brand voice, personalized to the audience." },
+      body: { type: "string", description: "The message body you composed, in the user's brand voice, personalized to the audience. Omit if you're only attaching a pitch." },
+      pitchId: { type: "string", description: "Id of a Pitch (from create_pitch) to ATTACH to this email step so the user can edit/download the PDF on the card." },
     },
-    required: ["stepId", "body"],
+    required: ["stepId"],
   },
   plans: null,
   costKey: "AGENT_TOOL_CALL_BASE",
@@ -31,7 +32,9 @@ export const buildSequenceStep: FlowAgentTool = {
   handler: async (input, ctx) => {
     const stepId = typeof input.stepId === "string" ? input.stepId : "";
     const body = typeof input.body === "string" ? input.body.trim() : "";
-    if (!stepId || !body) return { ok: false, error_code: "missing_input", message: "stepId and body are required." };
+    const pitchId = typeof input.pitchId === "string" ? input.pitchId.trim() : "";
+    if (!stepId) return { ok: false, error_code: "missing_input", message: "stepId is required." };
+    if (!body && !pitchId) return { ok: false, error_code: "missing_input", message: "Provide the body (the copy you wrote) and/or a pitchId to attach." };
 
     const seq = typeof input.sequenceId === "string" && input.sequenceId
       ? await prisma.outreachSequence.findFirst({ where: { id: input.sequenceId, userId: ctx.userId } })
@@ -45,18 +48,25 @@ export const buildSequenceStep: FlowAgentTool = {
     const idx = steps.findIndex((s) => s?.id === stepId);
     if (idx < 0) return { ok: false, error_code: "not_found", message: `Step "${stepId}" is not in this automation.` };
 
+    // If a pitchId was given, verify it belongs to the user before attaching.
+    if (pitchId) {
+      const owned = await prisma.pitch.findFirst({ where: { id: pitchId, userId: ctx.userId }, select: { id: true } });
+      if (!owned) return { ok: false, error_code: "not_found", message: `Pitch "${pitchId}" was not found — create it with create_pitch first, then attach its pitchId.` };
+    }
+
     steps[idx] = {
       ...steps[idx],
-      subject: typeof input.subject === "string" ? input.subject.slice(0, 200) : steps[idx].subject,
-      body: body.slice(0, 4000),
-      status: "ready",
+      ...(typeof input.subject === "string" ? { subject: input.subject.slice(0, 200) } : {}),
+      ...(body ? { body: body.slice(0, 4000), status: "ready" } : {}),
+      ...(pitchId ? { pitchId } : {}),
     };
     await prisma.outreachSequence.update({ where: { id: seq.id }, data: { steps: JSON.stringify(steps) } });
     ctx.emit({ type: "canvas_update", patch: { __leads: { sequenceStep: stepId } } });
 
+    const what = body && pitchId ? "wrote the copy and attached the pitch PDF to" : pitchId ? "attached the pitch PDF to" : "wrote";
     return {
       ok: true,
-      data: { stepId, title: steps[idx].title, userMessage: `Wrote "${steps[idx].title as string}" into the automation builder — the user can review + edit it on the step card.` },
+      data: { stepId, title: steps[idx].title, userMessage: `${what[0].toUpperCase()}${what.slice(1)} "${steps[idx].title as string}" in the automation builder — the user can review, edit + download it on the step card.` },
       resultRefType: "OutreachSequence",
       resultRefId: seq.id,
     };
