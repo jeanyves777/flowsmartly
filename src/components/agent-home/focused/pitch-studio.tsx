@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FileText, Download, Sparkles, Plus, RotateCcw, X, GripVertical } from "lucide-react";
+import { FileText, Download, Sparkles, Plus, RotateCcw, X, GripVertical, ChevronDown, Check, Images, Mail } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { getProposalTheme, isServiceProposalContent } from "@/lib/pitch/proposal-detail-helpers";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
 import { PitchDocument, Editable } from "./pitch-document";
-import { ProposalDeckPreview } from "@/components/pitch/proposal-deck-preview";
+import { VisualDocument } from "./visual-document";
 
 /**
  * Pitch Studio — the branded proposal PLAYGROUND for one lead (per the approved
@@ -22,6 +22,12 @@ import { ProposalDeckPreview } from "@/components/pitch/proposal-deck-preview";
 interface PitchTarget { leadId?: string; leadName?: string; pitchId?: string }
 interface PitchRecord { id: string; businessName: string; businessUrl?: string | null; documentType: string; content: ServiceProposalContent }
 
+const PITCH_TYPES: { id: "deck" | "visual" | "email"; label: string; desc: string; icon: typeof FileText }[] = [
+  { id: "deck", label: "Proposal deck", desc: "Clean, text-forward branded proposal.", icon: FileText },
+  { id: "visual", label: "Visual deck", desc: "Image-rich, branded — business-type visuals baked in.", icon: Images },
+  { id: "email", label: "Cold pitch email", desc: "Short, high-energy outreach email with the PDF attached.", icon: Mail },
+];
+
 export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: PitchTarget | null; onAsk: (p: string) => void; refreshKey?: number }) {
   const { toast } = useToast();
   const [pitch, setPitch] = useState<PitchRecord | null>(null);
@@ -29,6 +35,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
   const [downloading, setDownloading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [docType, setDocType] = useState<"deck" | "visual" | "email">("deck");
+  const [typeOpen, setTypeOpen] = useState(false);
   const [tab, setTab] = useState<"design" | "sections" | "type">("design");
   const [ai, setAi] = useState<{ field: string; current: string } | null>(null);
   const [aiInstruction, setAiInstruction] = useState("");
@@ -181,17 +188,9 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
       return <EmailPreview content={pitch.content} theme={theme} businessName={pitch.businessName} brandName={brandName || "Your brand"} logoUrl={logoUrl} onChange={commit} onEditWithAI={editWithAI} onPunchUp={() => onAsk(`Rewrite the COLD PITCH EMAIL for "${displayName}" (pitchId: ${pitch!.id}) — make it high-energy and punchy: a bold one-line hook, 2-3 crisp benefit lines, and a confident CTA (NOT the long formal proposal summary). Keep it short. Save the new opener to the proposal's executiveSummary and the subject via edit_pitch_field (fields "subject" and "executiveSummary"). Don't paste it in chat.`)} />;
     }
     if (docType === "visual") {
-      // The image-rich 16:9 slide deck — the on-screen twin of the PDF. Read-only
-      // here; edit the copy on the Proposal-deck tab (it shares the same content).
-      return (
-        <div className="min-h-full overflow-x-auto bg-[#0b0d12] px-4 py-6">
-          <div className="mx-auto flex max-w-[1180px] items-center justify-between pb-3">
-            <span className="text-[11.5px] text-muted-foreground">The branded visual deck (matches the PDF). Edit the copy on the Proposal-deck tab — it updates here.</span>
-            <button onClick={() => onAsk(`Regenerate the branded VISUAL assets (cover/about/impact images) for the "${displayName}" proposal (pitchId: ${pitch!.id}) — pick on-brand images that fit the business type and attach them so the visual deck refreshes. Don't paste in chat.`)} className="inline-flex items-center gap-1.5 rounded-[9px] border border-violet-500/40 px-2.5 py-1.5 text-[11.5px] font-semibold text-violet-300 hover:bg-violet-500/10"><Sparkles className="h-3.5 w-3.5" /> Regenerate visuals</button>
-          </div>
-          <ProposalDeckPreview proposal={pitch.content} brandName={brandName || "Your brand"} businessUrl={pitch.businessUrl || undefined} theme={theme} />
-        </div>
-      );
+      // The image-rich, FULLY-EDITABLE, flowing visual document (no page breaks —
+      // only the exported PDF paginates). Same branded content, image-forward.
+      return <div className="px-4 py-6 sm:px-6"><VisualDocument content={pitch.content} theme={theme} brandName={brandName || "Your brand"} businessName={pitch.businessName} logoUrl={logoUrl} onChange={commit} onEditWithAI={editWithAI} onReplaceImage={(slot) => onAsk(`Replace the ${slot} image on the "${displayName}" proposal (pitchId: ${pitch!.id}) — generate or pick an on-brand ${slot} visual that fits the business type, then attach it to the proposal so it updates here. Don't paste it in chat.`)} /></div>;
     }
     return <div className="px-4 py-6 sm:px-6"><PitchDocument content={pitch.content} theme={theme} brandName={brandName || "Your brand"} businessName={pitch.businessName} logoUrl={logoUrl} onChange={commit} onEditWithAI={editWithAI} /></div>;
   })();
@@ -205,13 +204,35 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
           <div className="truncate text-[13px] font-bold leading-tight">Pitch Studio</div>
           <div className="truncate text-[11px] text-muted-foreground">{brandName ? `${brandName} → ` : ""}{displayName} · branded to your Brand Kit</div>
         </div>
-        {pitch && (
-          <select value={docType} onChange={(e) => setDocType(e.target.value as "deck" | "visual" | "email")} className="ml-2 rounded-[9px] border border-border bg-background px-2.5 py-1.5 text-[12px] font-bold outline-none focus:border-brand-500/60">
-            <option value="deck">📄 Proposal deck</option>
-            <option value="visual">🖼️ Visual deck (images)</option>
-            <option value="email">✉️ Cold pitch email</option>
-          </select>
-        )}
+        {pitch && (() => {
+          const cur = PITCH_TYPES.find((t) => t.id === docType) || PITCH_TYPES[0];
+          const CurIcon = cur.icon;
+          return (
+            <div className="relative ml-2">
+              <button onClick={() => setTypeOpen((v) => !v)} className={cn("inline-flex items-center gap-2 rounded-[10px] border bg-card px-3 py-1.5 text-[12px] font-semibold transition-colors", typeOpen ? "border-brand-500/50" : "border-border hover:border-brand-500/40")}>
+                <CurIcon className="h-3.5 w-3.5 text-brand-500" /> {cur.label}
+                <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition", typeOpen && "rotate-180")} />
+              </button>
+              {typeOpen && (
+                <>
+                  <button aria-label="Close" onClick={() => setTypeOpen(false)} className="fixed inset-0 z-20 cursor-default" />
+                  <div className="absolute left-0 top-full z-30 mt-1.5 w-64 rounded-xl border border-border bg-popover p-1.5 shadow-2xl">
+                    {PITCH_TYPES.map((t) => {
+                      const Icon = t.icon;
+                      return (
+                        <button key={t.id} onClick={() => { setDocType(t.id); setTypeOpen(false); }} className={cn("flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted", docType === t.id && "bg-brand-500/[0.08]")}>
+                          <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", docType === t.id ? "text-brand-500" : "text-muted-foreground")} />
+                          <span className="min-w-0 flex-1"><span className="block text-[12.5px] font-semibold">{t.label}</span><span className="block text-[11px] text-muted-foreground">{t.desc}</span></span>
+                          {docType === t.id && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
         <div className="ms-auto flex items-center gap-2">
           {pitch && canGenerate && <button onClick={generate} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" /> Regenerate</button>}
           {pitch && <button onClick={downloadPdf} disabled={downloading} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 disabled:opacity-50">{downloading ? <FlowLoader size={13} /> : <Download className="h-3.5 w-3.5" />} PDF</button>}
@@ -301,17 +322,18 @@ function SectionsTab({ content, onChange, onAsk, pitchId }: { content: ServicePr
 }
 
 function TypeTab({ docType, setDocType }: { docType: "deck" | "visual" | "email"; setDocType: (t: "deck" | "visual" | "email") => void }) {
-  const opts: { id: "deck" | "visual" | "email"; label: string; desc: string }[] = [
-    { id: "deck", label: "📄 Proposal deck", desc: "Clean, text-forward branded proposal — PDF-ready." },
-    { id: "visual", label: "🖼️ Visual deck (images)", desc: "Image-rich style with the business-type asset images baked in — replace or regenerate any with AI." },
-    { id: "email", label: "✉️ Cold pitch email", desc: "Short, high-energy outreach email with the proposal attached." },
-  ];
   return (
     <div className="space-y-2">
       <p className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Pitch type</p>
-      {opts.map((o) => (
-        <button key={o.id} onClick={() => setDocType(o.id)} className={cn("w-full rounded-[10px] border p-3 text-left", docType === o.id ? "border-brand-500 bg-brand-500/10" : "border-border")}><div className="text-[13px] font-bold">{o.label}</div><div className="text-[11px] text-muted-foreground">{o.desc}</div></button>
-      ))}
+      {PITCH_TYPES.map((o) => {
+        const Icon = o.icon;
+        return (
+          <button key={o.id} onClick={() => setDocType(o.id)} className={cn("flex w-full items-start gap-2.5 rounded-[10px] border p-3 text-left", docType === o.id ? "border-brand-500 bg-brand-500/10" : "border-border")}>
+            <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", docType === o.id ? "text-brand-500" : "text-muted-foreground")} />
+            <span className="min-w-0"><span className="block text-[13px] font-bold">{o.label}</span><span className="block text-[11px] text-muted-foreground">{o.desc}</span></span>
+          </button>
+        );
+      })}
       <p className="text-[11px] leading-relaxed text-muted-foreground">“Use in automation” drops this into the initial-pitch email step, with the proposal PDF attached.</p>
     </div>
   );

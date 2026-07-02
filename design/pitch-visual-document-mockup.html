@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Visual deck — flowing editable</title>
+<style>
+  :root{--p:#0ea5e9;--s:#0b1f3a;--a:#f59e0b;--ink:#0b1220}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0d12;padding:26px;font:14px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  h1.t{color:#e7ebf3;font-size:15px;margin:0 0 4px}.sub{color:#8b93a4;font-size:12px;margin:0 0 16px}
+  .doc{position:relative;max-width:1000px;margin:0 auto;background:#fff;color:var(--ink);border-radius:16px;overflow:hidden;box-shadow:0 20px 60px #000a}
+  .grid-motif{position:absolute;inset:0;pointer-events:none;background:linear-gradient(105deg,transparent 0 18%,rgba(226,232,240,.5) 18.2%,transparent 18.6% 34%,rgba(226,232,240,.5) 34.2%,transparent 34.6% 100%)}
+  .circ{position:absolute;border-radius:50%;pointer-events:none}
+  .z{position:relative;z-index:1}
+  .cover{display:grid;grid-template-columns:1fr .85fr;gap:32px;align-items:center;padding:40px}
+  .brand{font-size:22px;font-weight:900}
+  .pf{margin-top:22px;font-size:13px;font-weight:600;color:#64748b}
+  h1{font-size:38px;font-weight:900;line-height:1.08;margin:14px 0 0}
+  .subt{margin-top:14px;font-size:19px;font-weight:700;color:#475569}
+  .pill{display:inline-block;margin-top:22px;border-radius:999px;padding:12px 24px;font-size:15px;font-weight:900;color:#fff;background:var(--p)}
+  .img{display:grid;place-items:center}.img img,.imgph{width:100%;border-radius:12px}
+  .imgph{min-height:200px;display:grid;place-items:center;color:#94a3b8;font-size:12px;background:rgba(14,165,233,.05)}
+  .sec{position:relative;border-top:1px solid #f1f5f9;padding:32px 40px}
+  .kick{font-size:11px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--p);margin-bottom:12px}
+  h2{font-size:27px;font-weight:900;margin:0}
+  p{font-size:15px;line-height:1.9;color:#334155;margin:12px 0 0}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+  .card{border:1px solid #e2e8f0;border-radius:12px;padding:16px}
+  .ci{height:32px;width:32px;border-radius:9px;display:grid;place-items:center;color:#fff;background:var(--p)}
+  .card h4{margin:8px 0 0;font-size:14px;font-weight:900}.card p{margin:2px 0 0;font-size:13px;color:#475569}
+  ul{list-style:none;padding:0;margin:0}
+  li.b{display:flex;gap:12px;align-items:flex-start;font-size:15px;color:#334155;margin-top:12px}
+  li.b .dot{margin-top:7px;height:10px;width:10px;border-radius:50%;flex:0 0 auto;background:var(--p)}
+  .two{display:grid;grid-template-columns:1fr .7fr;gap:32px;align-items:start}
+  .rings{display:flex;flex-wrap:wrap;gap:24px;margin-top:20px}
+  .ring{width:112px;text-align:center}
+  .ringc{height:96px;width:96px;border-radius:50%;border:7px solid;background:#fff;display:grid;place-items:center;margin:0 auto;font-size:20px;font-weight:900}
+  .ring small{display:block;margin-top:8px;font-size:11px;font-weight:600;color:#475569}
+  .tl{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  .tlc{border:1px solid #e2e8f0;border-radius:12px;padding:12px}
+  .tlc .l{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--p)}
+  .tlc .ti{margin-top:4px;font-size:12.5px;font-weight:700}
+  .price{display:flex;flex-wrap:wrap;align-items:center;gap:16px;border-radius:16px;padding:20px 24px;color:#fff;background:var(--s)}
+  .price .amt{margin-left:auto;font-size:30px;font-weight:900}
+  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+  h3{font-size:19px;font-weight:900;margin:0}
+  li.chk{display:flex;gap:8px;align-items:flex-start;font-size:14px;color:#334155;margin-top:10px}
+  li.chk .c{margin-top:1px;color:#10b981}
+  li.step{display:flex;gap:12px;align-items:flex-start;font-size:14px;color:#334155;margin-top:12px}
+  .num{height:28px;width:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:900;color:#fff;background:var(--p);flex:0 0 auto}
+  .contact{border:1px solid #e2e8f0;background:#f8fafc;border-radius:16px;padding:20px}
+  .contact .nm{font-size:16px;font-weight:900}.contact div{font-size:13px;color:#475569;margin-top:4px}
+  .legend{color:#8b93a4;font-size:12px;margin:14px auto 0;max-width:1000px}.legend b{color:#e7ebf3}
+  .editnote{color:#8b93a4;font-size:11px;max-width:1000px;margin:0 auto 8px}
+</style></head>
+<body>
+  <h1 class="t">Visual deck — flowing, fully editable (only the PDF paginates)</h1>
+  <p class="sub">Same image-rich branded language as the PDF, but one continuous click-to-edit document with separation lines between sections. Branded to the user's theme.</p>
+  <div class="doc">
+    <div class="grid-motif"></div>
+    <div class="circ" style="right:-80px;top:-80px;height:256px;width:256px;background:rgba(245,158,11,.12)"></div>
+    <div class="circ" style="left:-64px;bottom:-96px;height:224px;width:224px;background:rgba(14,165,233,.07)"></div>
+    <div class="z">
+      <!-- COVER -->
+      <div class="cover">
+        <div>
+          <div class="brand">Integrity Tax Service</div>
+          <div class="pf">Prepared for JAF Contracting · July 2, 2026</div>
+          <h1>Streamlined Accounting &amp; Tax Management for JAF Contracting</h1>
+          <div class="subt">Professional bookkeeping &amp; tax planning</div>
+          <span class="pill">Get started →</span>
+        </div>
+        <div class="img"><div class="imgph" style="min-height:230px">cover image</div></div>
+      </div>
+      <!-- OVERVIEW -->
+      <div class="sec"><div class="kick">The opportunity</div>
+        <h2>Why JAF Contracting needs professional accounting</h2>
+        <p>As a roofing and general contracting company, you face unique financial challenges: seasonal fluctuations, materials and equipment costs, payroll management, and federal and state tax compliance.</p>
+      </div>
+      <!-- ABOUT -->
+      <div class="sec"><div class="kick">About Integrity Tax Service</div>
+        <div class="two" style="grid-template-columns:.85fr 1fr;align-items:center">
+          <div class="img"><div class="imgph">about image</div></div>
+          <p style="margin:0">We handle the accounting so you can focus on what you do best — quality contracting work. 17+ years serving Pittsfield with a 100% compliance focus.</p>
+        </div>
+      </div>
+      <!-- DELIVERABLES -->
+      <div class="sec"><div class="kick">What you'll get</div>
+        <h2>Deliverables</h2>
+        <div class="cards">
+          <div class="card"><div class="ci">✓</div><h4>Monthly bookkeeping</h4><p>Reconciliation tailored to your roofing business.</p></div>
+          <div class="card"><div class="ci">✓</div><h4>Quarterly tax planning</h4><p>Reviews to identify deductions and cut liability.</p></div>
+          <div class="card"><div class="ci">✓</div><h4>Business tax filing</h4><p>Federal, state and local — full compliance.</p></div>
+          <div class="card"><div class="ci">✓</div><h4>Payroll processing</h4><p>Tax withholding management for your team.</p></div>
+        </div>
+      </div>
+      <!-- BENEFITS bullets -->
+      <div class="sec"><div class="kick">The impact</div>
+        <ul>
+          <li class="b"><span class="dot"></span><span>Reduce administrative burden by 15–20 hours monthly</span></li>
+          <li class="b"><span class="dot"></span><span>Capture all available tax deductions — potentially saving thousands annually</span></li>
+          <li class="b"><span class="dot"></span><span>Gain real-time financial visibility through QuickBooks</span></li>
+        </ul>
+      </div>
+      <!-- PROOF rings + timeline + image -->
+      <div class="sec"><div class="kick">Proof</div>
+        <div class="two">
+          <div>
+            <h2>Results we drive</h2>
+            <div class="rings">
+              <div class="ring"><div class="ringc" style="border-color:var(--p)">17+</div><small>Serving Pittsfield</small></div>
+              <div class="ring"><div class="ringc" style="border-color:var(--s)">15-20</div><small>Monthly time saved</small></div>
+              <div class="ring"><div class="ringc" style="border-color:var(--a)">100%</div><small>Compliance focus</small></div>
+              <div class="ring"><div class="ringc" style="border-color:#dc2626">1</div><small>Contracting expertise</small></div>
+            </div>
+            <h3 style="margin-top:28px">Launch timeline</h3>
+            <div class="tl">
+              <div class="tlc"><div class="l">Week 1</div><div class="ti">Onboarding &amp; setup</div></div>
+              <div class="tlc"><div class="l">Week 2–3</div><div class="ti">QuickBooks configuration</div></div>
+              <div class="tlc"><div class="l">Week 4</div><div class="ti">First month bookkeeping</div></div>
+              <div class="tlc"><div class="l">Months 2–12</div><div class="ti">Ongoing monthly &amp; quarterly</div></div>
+            </div>
+          </div>
+          <div class="img"><div class="imgph">impact image</div></div>
+        </div>
+      </div>
+      <!-- PRICING -->
+      <div class="sec"><div class="kick">Investment</div>
+        <div class="price"><div><div style="font-size:16px;font-weight:900">Comprehensive Tax &amp; Accounting Package</div><div style="font-size:13px;opacity:.8">Everything above · month-to-month</div></div><div class="amt">$349<span style="font-size:15px;font-weight:600">/month</span></div></div>
+      </div>
+      <!-- TERMS + NEXT STEPS -->
+      <div class="sec"><div class="kick">What happens next</div>
+        <div class="cols2">
+          <div><h3>Terms</h3><ul>
+            <li class="chk"><span class="c">✔</span><span>Service activation after access + onboarding questionnaire</span></li>
+            <li class="chk"><span class="c">✔</span><span>Billed on the 1st for the upcoming month</span></li>
+            <li class="chk"><span class="c">✔</span><span>30 days' written notice to cancel</span></li>
+          </ul></div>
+          <div><h3>Next steps</h3><ul>
+            <li class="step"><span class="num">1</span><span>Confirm proposal acceptance.</span></li>
+            <li class="step"><span class="num">2</span><span>Share the required profile access.</span></li>
+            <li class="step"><span class="num">3</span><span>Complete onboarding details.</span></li>
+          </ul></div>
+        </div>
+      </div>
+      <!-- CLOSING / CONTACT -->
+      <div class="sec"><div class="kick">Let's get started</div>
+        <div class="two" style="align-items:center">
+          <div>
+            <h2>Ready to get started?</h2>
+            <p>Contact Integrity Tax Service to schedule your consultation and get started.</p>
+            <span class="pill">Get started →</span>
+          </div>
+          <div class="contact"><div class="nm">Integrity Tax Service</div><div>info@integritytaxgroups.com</div><div>+1 413 841 7016</div><div style="color:var(--p)">integritytaxgroups.com</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="legend"><b>Fully editable + flowing:</b> every heading, paragraph, bullet, deliverable card, metric ring, timeline card, pricing and contact is click-to-edit with an Edit-with-AI chip; images hover to Replace. Sections are separated by thin lines and flow continuously — no page breaks in the editor. Only the exported PDF splits into pages.</p>
+</body></html>

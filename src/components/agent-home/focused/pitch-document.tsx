@@ -199,7 +199,7 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
 /* ── Section shell ── */
 /* ── A branded image slot — shows the proposal's business-type asset image, or a
  * placeholder; hover to replace (agent picks/generates an on-brand one). ── */
-function ImageSlot({ url, alt, theme, onReplace }: { url?: string; alt: string; theme: { primary: string; secondary: string }; onReplace?: () => void }) {
+export function ImageSlot({ url, alt, theme, onReplace }: { url?: string; alt: string; theme: { primary: string; secondary: string }; onReplace?: () => void }) {
   return (
     <div className="group/img relative min-h-[150px] overflow-hidden rounded-xl" style={{ background: `linear-gradient(135deg, ${theme.primary}14, ${theme.secondary}14)` }}>
       {url
