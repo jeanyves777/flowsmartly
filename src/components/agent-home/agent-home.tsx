@@ -133,7 +133,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   automations: { label: "Follow-ups", subtitle: "Automated follow-up sequences", icon: Workflow },
   customers: { label: "Customers", subtitle: "Your store buyers — orders, spend, last purchase", icon: Users },
   reviews: { label: "Reviews", subtitle: "Reviews & local SEO presence", icon: Star },
-  leads: { label: "Lead finder", subtitle: "Find local businesses to pitch or propose to", icon: Search },
+  leads: { label: "Lead Studio", subtitle: "Find → automate → close", icon: Search },
   compose: { label: "Compose", subtitle: "Write, schedule & publish a post", icon: SquarePen },
   email: { label: "Email", subtitle: "Email campaigns & performance", icon: Mail },
   sms: { label: "SMS", subtitle: "SMS campaigns & delivery", icon: MessageSquare },
