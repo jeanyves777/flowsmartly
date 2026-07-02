@@ -22,7 +22,7 @@ import { LeadsAutomation } from "./leads-automation";
 
 type Screen = "find" | "contacts" | "companies" | "pipeline" | "roi" | "library";
 interface LeadList { id: string; name: string; category?: string | null; leadCount?: number; updatedAt?: string }
-interface SavedLead { id: string; name: string; title?: string | null; category?: string | null; email?: string | null; phone?: string | null; enrichedAt?: string | null; status?: string; listName?: string }
+interface SavedLead { id: string; name: string; title?: string | null; category?: string | null; email?: string | null; phone?: string | null; enrichedAt?: string | null; status?: string; listName?: string; socials?: string | null }
 const PAGE_SIZES = [25, 50, 100];
 
 const SENIORITY = ["Owner", "C-level", "VP", "Director", "Manager"];
@@ -65,7 +65,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
     if (l.enrichedAt) return;
     setEnrichingIds((prev) => new Set(prev).add(l.id));
     onAsk(
-      `Enrich the saved lead "${l.name}" (leadId: ${l.id})${l.category ? ` at ${l.category}` : ""}. Call propose_plan (1 lead × AI_WEB_SEARCH) so I can approve, then web-search their work email, phone and LinkedIn and call enrich_lead with the confirmed planId and leadId="${l.id}" to save it INTO their row. Do NOT print the contact details in the chat.`,
+      `Enrich the saved lead "${l.name}" (leadId: ${l.id})${l.category ? ` at ${l.category}` : ""}. Call propose_plan (2 × AI_WEB_SEARCH — the web search + the enrich save) so I can approve, then web-search and PRIORITIZE their WORK EMAIL and PHONE (LinkedIn alone isn't enough), and call enrich_lead with the confirmed planId, leadId="${l.id}", and every field you found (email, phone, title, linkedin) to save it INTO their row. Do NOT print the contact details in the chat.`,
     );
   }, [onAsk]);
 
@@ -75,7 +75,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
     setEnrichingIds((prev) => { const n = new Set(prev); targets.forEach((l) => n.add(l.id)); return n; });
     const idList = targets.map((l) => `${l.name} → ${l.id}`).join("; ");
     onAsk(
-      `Enrich all ${targets.length} un-enriched leads ${label}. FIRST call propose_plan (one AI_WEB_SEARCH per lead) so I can approve the total cost. Then for EACH lead, web-search their work email, phone and LinkedIn and call enrich_lead with the SAME confirmed planId and that lead's exact leadId so it saves INTO their row. If you reach the per-turn web-search limit, enrich everyone you found so far, then tell me you'll continue the rest next — do NOT loop retrying the same call. Do NOT paste any contact details in the chat — every result must land in its row. The leads (name → leadId) are: ${idList}.`,
+      `Enrich all ${targets.length} un-enriched leads ${label}. FIRST call propose_plan (two AI_WEB_SEARCH per lead — the web search to find them + the enrich save) so I can approve the total cost. Then for EACH lead, web-search and PRIORITIZE their WORK EMAIL and a PHONE number (a LinkedIn alone isn't enough to reach them), and call enrich_lead with the SAME confirmed planId, that lead's exact leadId, and EVERY field you found (email, phone, title, linkedin) so it saves INTO their row. If you reach the per-turn web-search limit, enrich everyone you found so far, then tell me you'll continue the rest next — do NOT loop retrying the same call. Do NOT paste any contact details in the chat — every result must land in its row. The leads (name → leadId) are: ${idList}.`,
     );
   }, [onAsk]);
 
@@ -362,7 +362,7 @@ function LeadTable({ leads, enrichingIds, onEnrich }: { leads: SavedLead[]; enri
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card">
       <table className="w-full text-[12.5px]">
-        <thead className="text-left text-[11px] text-muted-foreground"><tr>{["Name", "Title", "Company", "Email", ""].map((h, i) => <th key={i} className="border-b border-border px-4 py-2.5 font-medium">{h}</th>)}</tr></thead>
+        <thead className="text-left text-[11px] text-muted-foreground"><tr>{["Name", "Title", "Company", "Contact", ""].map((h, i) => <th key={i} className="border-b border-border px-4 py-2.5 font-medium">{h}</th>)}</tr></thead>
         <tbody>
           {leads.map((l) => {
             const enriching = enrichingIds.has(l.id);
@@ -371,7 +371,7 @@ function LeadTable({ leads, enrichingIds, onEnrich }: { leads: SavedLead[]; enri
                 <td className="px-4 py-2.5 font-semibold">{l.name}</td>
                 <td className="px-4 py-2.5 text-muted-foreground">{l.title || "—"}</td>
                 <td className="px-4 py-2.5">{l.category || "—"}</td>
-                <td className="px-4 py-2.5">{l.enrichedAt && l.email ? <span className="inline-flex items-center gap-1">{l.email} <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /></span> : enriching ? <span className="inline-flex items-center gap-1.5 text-muted-foreground"><FlowLoader size={12} /> finding…</span> : <span className="select-none text-muted-foreground blur-[3px]">•••@•••.com</span>}</td>
+                <td className="px-4 py-2.5"><ContactCell l={l} enriching={enriching} /></td>
                 <td className="px-4 py-2.5 text-end">
                   {l.enrichedAt ? (
                     <span className="text-[11.5px] text-emerald-500">Enriched</span>
@@ -386,6 +386,27 @@ function LeadTable({ leads, enrichingIds, onEnrich }: { leads: SavedLead[]; enri
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function parseLinkedin(s?: string | null): string | null {
+  if (!s) return null;
+  try { const o = JSON.parse(s) as Record<string, unknown>; return typeof o?.linkedin === "string" ? o.linkedin : null; } catch { return null; }
+}
+
+/** The "Contact" cell — reveals whatever the agent actually found once enriched
+ * (email, phone, or at least a LinkedIn), or says so; blurred until then. */
+function ContactCell({ l, enriching }: { l: SavedLead; enriching: boolean }) {
+  if (enriching) return <span className="inline-flex items-center gap-1.5 text-muted-foreground"><FlowLoader size={12} /> finding…</span>;
+  if (!l.enrichedAt) return <span className="select-none text-muted-foreground blur-[3px]">•••@•••.com</span>;
+  const linkedin = parseLinkedin(l.socials);
+  if (!l.email && !l.phone && !linkedin) return <span className="text-[11.5px] text-muted-foreground">Enriched · no email/phone found</span>;
+  return (
+    <div className="flex flex-col gap-0.5">
+      {l.email && <span className="inline-flex items-center gap-1">{l.email} <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /></span>}
+      {l.phone && <span className="text-muted-foreground">{l.phone}</span>}
+      {!l.email && !l.phone && linkedin && <a href={linkedin} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-500 hover:underline">LinkedIn ↗</a>}
     </div>
   );
 }

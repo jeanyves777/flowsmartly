@@ -150,8 +150,11 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   // dispatch a handler for them; we just iterate past their `server_tool_use`
   // + `web_search_tool_result` blocks. Always registered: the ANTHROPIC_API_KEY
   // gates the whole agent, so there's no extra cred to check.
+  // max_uses caps searches PER TURN. 5 was too low for lead work (bulk enrich
+  // needs ~1 search per lead, so it stalled after 5); 20 lets a typical batch
+  // (e.g. enrich 20 leads) finish in one turn while still bounding runaway spend.
   const serverToolDefs: Anthropic.WebSearchTool20250305[] = [
-    { type: "web_search_20250305", name: "web_search", max_uses: 5 },
+    { type: "web_search_20250305", name: "web_search", max_uses: 20 },
   ];
   // Join client tools + server tools into the single `tools` array the
   // Messages API expects. The discriminated `ToolUnion` covers both —
