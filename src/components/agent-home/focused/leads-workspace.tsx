@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
 import {
   Search, Users, Building2, BarChart3, Folder, FolderPlus, Sparkles, Upload, X,
-  CheckCircle2, Workflow, ArrowRight, ChevronLeft,
+  CheckCircle2, Workflow, ArrowRight, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -22,7 +22,8 @@ import { LeadsAutomation } from "./leads-automation";
 
 type Screen = "find" | "contacts" | "companies" | "pipeline" | "roi" | "library";
 interface LeadList { id: string; name: string; category?: string | null; leadCount?: number; updatedAt?: string }
-interface SavedLead { id: string; name: string; title?: string | null; category?: string | null; email?: string | null; phone?: string | null; enrichedAt?: string | null; status?: string }
+interface SavedLead { id: string; name: string; title?: string | null; category?: string | null; email?: string | null; phone?: string | null; enrichedAt?: string | null; status?: string; listName?: string }
+const PAGE_SIZES = [25, 50, 100];
 
 const SENIORITY = ["Owner", "C-level", "VP", "Director", "Manager"];
 const SIZES = ["Any", "1–10", "11–50", "51–200", "200+"];
@@ -30,6 +31,7 @@ const REVS = ["Any", "<$1M", "$1M–$10M", "$10M+"];
 const COUNTS = ["25", "50", "100"];
 const INDUSTRY_CHIPS = ["Dental", "Med spa", "Law", "SaaS", "Real estate"];
 const FLD = "w-full rounded-[9px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
+const SEL = "rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12px] outline-none focus:border-brand-500/60";
 
 export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy }: { refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean }) {
   const { toast } = useToast();
@@ -93,7 +95,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
     const ls: LeadList[] = j?.data?.lists || [];
     const chunks = await Promise.all(ls.map((l) => fetch(`/api/leads/lists/${l.id}`).then((r) => r.json()).catch(() => null)));
     const leads: SavedLead[] = [];
-    chunks.forEach((c) => (c?.data?.leads || []).forEach((x: SavedLead) => leads.push(x)));
+    ls.forEach((l, i) => (chunks[i]?.data?.leads || []).forEach((x: SavedLead) => leads.push({ ...x, listName: l.name })));
     setAllLeads(leads); setLoadedLeads(true);
   }, []);
   useEffect(() => { if ((screen === "contacts" || screen === "companies") && !loadedLeads) loadAllLeads(); }, [screen, loadedLeads, loadAllLeads]);
@@ -134,7 +136,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
       const allLists: LeadList[] = j?.data?.lists || [];
       const chunks = await Promise.all(allLists.map((l) => fetch(`/api/leads/lists/${l.id}`).then((r) => r.json()).catch(() => null)));
       const fresh: SavedLead[] = [];
-      chunks.forEach((c) => (c?.data?.leads || []).forEach((x: SavedLead) => fresh.push(x)));
+      allLists.forEach((l, i) => (chunks[i]?.data?.leads || []).forEach((x: SavedLead) => fresh.push({ ...x, listName: l.name })));
       setAllLeads(fresh); setLoadedLeads(true);
       if (resultList) {
         const rl = chunks.find((c) => c?.data?.list?.id === resultList.id);
@@ -389,32 +391,115 @@ function LeadTable({ leads, enrichingIds, onEnrich }: { leads: SavedLead[]; enri
 
 /* ── Contacts ── */
 function ContactsScreen({ leads, loaded, enrichingIds, onEnrich }: { leads: SavedLead[]; loaded: boolean; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void }) {
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<"all" | "enriched" | "new">("all");
+  const [listFilter, setListFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  const listOptions = useMemo(() => Array.from(new Set(leads.map((l) => l.listName).filter((n): n is string => !!n))).sort(), [leads]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return leads.filter((l) => {
+      if (status === "enriched" && !l.enrichedAt) return false;
+      if (status === "new" && l.enrichedAt) return false;
+      if (listFilter !== "all" && l.listName !== listFilter) return false;
+      if (!q) return true;
+      return [l.name, l.title, l.category, l.email, l.listName].some((s) => (s || "").toLowerCase().includes(q));
+    });
+  }, [leads, query, status, listFilter]);
+
+  useEffect(() => { setPage(1); }, [query, status, listFilter, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageC = Math.min(page, totalPages);
+  const paged = filtered.slice((pageC - 1) * pageSize, pageC * pageSize);
+  const start = filtered.length ? (pageC - 1) * pageSize + 1 : 0;
+  const end = Math.min(pageC * pageSize, filtered.length);
+  const activeFilter = query.trim() !== "" || status !== "all" || listFilter !== "all";
+
   if (!loaded) return <div className="grid place-items-center py-16"><FlowLoader size={22} label="Loading contacts…" /></div>;
   return (
     <>
-      <p className="mb-3 text-[12px] text-muted-foreground">Everyone you've saved across all lists — {leads.length} contacts. Enrich them to reveal email + phone, or add to an automation.</p>
-      <LeadTable leads={leads} enrichingIds={enrichingIds} onEnrich={onEnrich} />
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[200px] flex-1">
+          <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, company, email…" className="w-full rounded-[9px] border border-input bg-background py-2 pe-3 ps-8 text-[12.5px] outline-none focus:border-brand-500/60" />
+        </div>
+        <select value={status} onChange={(e) => setStatus(e.target.value as "all" | "enriched" | "new")} className={SEL}>
+          <option value="all">All statuses</option>
+          <option value="enriched">Enriched</option>
+          <option value="new">Not enriched</option>
+        </select>
+        {listOptions.length > 1 && (
+          <select value={listFilter} onChange={(e) => setListFilter(e.target.value)} className={SEL}>
+            <option value="all">All lists</option>
+            {listOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        )}
+      </div>
+      <p className="mb-3 text-[12px] text-muted-foreground">
+        {filtered.length === 0 ? "No contacts match your filters." : <>Showing <b className="text-foreground">{start}–{end}</b> of {filtered.length}{activeFilter ? ` (filtered from ${leads.length})` : " contacts"} — enrich to reveal email + phone.</>}
+      </p>
+      <LeadTable leads={paged} enrichingIds={enrichingIds} onEnrich={onEnrich} />
+      <Pagination page={pageC} totalPages={totalPages} pageSize={pageSize} onPage={setPage} onPageSize={setPageSize} />
     </>
+  );
+}
+
+/* Shared pagination footer for the browse tables. */
+function Pagination({ page, totalPages, pageSize, onPage, onPageSize }: { page: number; totalPages: number; pageSize: number; onPage: (p: number) => void; onPageSize: (s: number) => void }) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted-foreground">
+      <label className="flex items-center gap-1.5">Rows
+        <select value={pageSize} onChange={(e) => onPageSize(Number(e.target.value))} className="rounded-[8px] border border-input bg-background px-2 py-1 text-[12px] outline-none focus:border-brand-500/60">
+          {PAGE_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </label>
+      <div className="flex items-center gap-2">
+        <button onClick={() => onPage(page - 1)} disabled={page <= 1} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2.5 py-1 font-semibold hover:text-foreground disabled:opacity-40"><ChevronLeft className="h-3.5 w-3.5" /> Prev</button>
+        <span className="tabular-nums">Page {page} of {totalPages}</span>
+        <button onClick={() => onPage(page + 1)} disabled={page >= totalPages} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2.5 py-1 font-semibold hover:text-foreground disabled:opacity-40">Next <ChevronRight className="h-3.5 w-3.5" /></button>
+      </div>
+    </div>
   );
 }
 
 /* ── Companies ── */
 function CompaniesScreen({ companies, loaded }: { companies: { name: string; count: number }[]; loaded: boolean }) {
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const filtered = useMemo(() => { const q = query.trim().toLowerCase(); return q ? companies.filter((c) => c.name.toLowerCase().includes(q)) : companies; }, [companies, query]);
+  useEffect(() => { setPage(1); }, [query, pageSize]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageC = Math.min(page, totalPages);
+  const paged = filtered.slice((pageC - 1) * pageSize, pageC * pageSize);
+  const start = filtered.length ? (pageC - 1) * pageSize + 1 : 0;
+  const end = Math.min(pageC * pageSize, filtered.length);
+
   if (!loaded) return <div className="grid place-items-center py-16"><FlowLoader size={22} label="Loading companies…" /></div>;
   return (
     <>
-      <p className="mb-3 text-[12px] text-muted-foreground">Company records derived from your saved leads.</p>
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[200px] flex-1">
+          <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search companies…" className="w-full rounded-[9px] border border-input bg-background py-2 pe-3 ps-8 text-[12.5px] outline-none focus:border-brand-500/60" />
+        </div>
+        <span className="text-[12px] text-muted-foreground">{filtered.length ? <>Showing <b className="text-foreground">{start}–{end}</b> of {filtered.length}</> : "No companies match."}</span>
+      </div>
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         <table className="w-full text-[12.5px]">
           <thead className="text-left text-[11px] text-muted-foreground"><tr>{["Company", "Contacts"].map((h) => <th key={h} className="border-b border-border px-4 py-2.5 font-medium">{h}</th>)}</tr></thead>
           <tbody>
-            {companies.map((c) => (
+            {paged.map((c) => (
               <tr key={c.name} className="border-t border-border hover:bg-muted/20"><td className="px-4 py-2.5 font-semibold">{c.name}</td><td className="px-4 py-2.5 text-muted-foreground">{c.count}</td></tr>
             ))}
             {!companies.length && <tr><td colSpan={2} className="px-4 py-8 text-center text-[12.5px] text-muted-foreground">No companies yet — find or upload some leads.</td></tr>}
           </tbody>
         </table>
       </div>
+      <Pagination page={pageC} totalPages={totalPages} pageSize={pageSize} onPage={setPage} onPageSize={setPageSize} />
     </>
   );
 }
