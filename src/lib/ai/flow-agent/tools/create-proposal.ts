@@ -35,7 +35,7 @@ const BUILDER_TYPES = new Set<ProposalBuilderType>([
 export const createProposal: FlowAgentTool = {
   name: "create_proposal",
   description:
-    "Generate a branded, PDF-ready service PROPOSAL for a specific prospect/client, using the user's OWN brand + services (from their Brand Kit). Use this when the user wants to pitch/propose THEIR services to a business (e.g. 'create a proposal for Yafoye Immo offering our social media management'). The offerings come from the logged-in user's Brand Kit products — you don't invent services. Runs in the background (multi-agent: research + copy + visual deck) and lands on the Pitch Board. Pass `planId` from a confirmed propose_plan. Needs a configured Brand Kit. builderType: 'visual-sales-deck' (default) | 'professional-services' | 'process-framework'.",
+    "Generate a branded, PDF-ready service PROPOSAL for a specific prospect/client, using the user's OWN brand + services (from their Brand Kit). Use this when the user wants to pitch/propose THEIR services to a business (e.g. 'create a proposal for Yafoye Immo offering our social media management'). The offerings come from the logged-in user's Brand Kit products — you don't invent services. Runs in the background (multi-agent: research + copy + visual deck) and lands on the Pitch Board. Pass `planId` from a confirmed propose_plan. If the client is already a deal in the pipeline, pass its `opportunityId` so the proposal is attached to that deal and shows on its timeline. Needs a configured Brand Kit. builderType: 'visual-sales-deck' (default) | 'professional-services' | 'process-framework'.",
   input_schema: {
     type: "object",
     properties: {
@@ -52,6 +52,7 @@ export const createProposal: FlowAgentTool = {
       billingInterval: { type: "string", description: "'month' | 'project' | 'year' | 'one-time'." },
       recipientName: { type: "string", description: "Optional — person to address it to." },
       recipientEmail: { type: "string", description: "Optional recipient email." },
+      opportunityId: { type: "string", description: "Optional — link this proposal to a deal in the pipeline. When set, the proposal is attached to the deal and logged on its activity timeline." },
     },
     required: ["planId", "targetName", "serviceTitle", "serviceDescription"],
   },
@@ -96,6 +97,11 @@ export const createProposal: FlowAgentTool = {
         Array.isArray(input.services) && input.services.length > 0
           ? input.services.map((s) => clean(s, 180)).filter(Boolean).slice(0, 12)
           : brandProducts.slice(0, 12);
+
+      // Optionally link to a pipeline deal (validate ownership up front).
+      const linkedOpp = typeof input.opportunityId === "string" && input.opportunityId
+        ? await prisma.opportunity.findFirst({ where: { id: input.opportunityId, userId: ctx.userId }, select: { id: true, savedLeadId: true } })
+        : null;
 
       const cost = await getDynamicCreditCost("AI_SERVICE_PROPOSAL");
       if (!ctx.isAdmin) {
@@ -205,6 +211,14 @@ export const createProposal: FlowAgentTool = {
                 },
               }),
             ]);
+          }
+
+          // Link to the deal + log it on the pipeline timeline.
+          if (linkedOpp) {
+            await prisma.opportunity.update({ where: { id: linkedOpp.id }, data: { pitchId: pitch.id } }).catch(() => {});
+            await prisma.activity.create({
+              data: { userId: ctx.userId, type: "proposal", subject: `Proposal ready for ${targetName}`, body: `/pitch-board?pitch=${pitch.id}`, opportunityId: linkedOpp.id, savedLeadId: linkedOpp.savedLeadId },
+            }).catch(() => {});
           }
 
           await notifyAgentTaskComplete({

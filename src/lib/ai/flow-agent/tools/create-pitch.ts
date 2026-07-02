@@ -23,7 +23,7 @@ const PITCH_COST = 15;
 export const createPitch: FlowAgentTool = {
   name: "create_pitch",
   description:
-    "Research a prospect business (its website + Google Business Profile) and write a personalized outreach PITCH selling the user's services. Use this for first-touch cold outreach ('write a pitch to reach out to X', 'research this business and pitch them'). For a full branded proposal on a warm deal, use create_proposal instead. Runs in the background on the Pitch Board. Pass `planId` from a confirmed propose_plan. Needs a configured Brand Kit. Cost: 15 credits.",
+    "Research a prospect business (its website + Google Business Profile) and write a personalized outreach PITCH selling the user's services. Use this for first-touch cold outreach ('write a pitch to reach out to X', 'research this business and pitch them'). For a full branded proposal on a warm deal, use create_proposal instead. Runs in the background on the Pitch Board. Pass `planId` from a confirmed propose_plan. If the prospect is already a deal in the pipeline, pass its `opportunityId` so the pitch is attached to that deal and shows on its timeline. Needs a configured Brand Kit. Cost: 15 credits.",
   input_schema: {
     type: "object",
     properties: {
@@ -32,6 +32,7 @@ export const createPitch: FlowAgentTool = {
       businessUrl: { type: "string", description: "Optional prospect website — improves the research." },
       recipientName: { type: "string", description: "Optional — person to address the pitch to." },
       recipientEmail: { type: "string", description: "Optional recipient email." },
+      opportunityId: { type: "string", description: "Optional — link this pitch to a deal in the pipeline. When set, the pitch is attached to the deal and logged on its activity timeline." },
     },
     required: ["planId", "businessName"],
   },
@@ -45,6 +46,11 @@ export const createPitch: FlowAgentTool = {
         return { ok: false, error_code: "missing_input", message: "businessName is required." };
       }
       const businessUrl = cleanUrl(input.businessUrl);
+
+      // Optionally link to a pipeline deal (validate ownership up front).
+      const linkedOpp = typeof input.opportunityId === "string" && input.opportunityId
+        ? await prisma.opportunity.findFirst({ where: { id: input.opportunityId, userId: ctx.userId }, select: { id: true, savedLeadId: true } })
+        : null;
 
       const brandKit = await prisma.brandKit.findFirst({
         where: { userId: ctx.userId },
@@ -131,6 +137,13 @@ export const createPitch: FlowAgentTool = {
               });
             }
             if (row.status === "READY") {
+              // Link to the deal + log it on the pipeline timeline.
+              if (linkedOpp) {
+                await prisma.opportunity.update({ where: { id: linkedOpp.id }, data: { pitchId: pitch.id } }).catch(() => {});
+                await prisma.activity.create({
+                  data: { userId: ctx.userId, type: "pitch", subject: `Pitch ready for ${businessName}`, body: `/pitch-board?pitch=${pitch.id}`, opportunityId: linkedOpp.id, savedLeadId: linkedOpp.savedLeadId },
+                }).catch(() => {});
+              }
               await notifyAgentTaskComplete({
                 userId: ctx.userId,
                 taskId,

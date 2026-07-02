@@ -1,16 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { Loader2, Trophy, Building2, User, Plus, GripVertical, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { DealDrawer, type DealOpp } from "./deal-drawer";
 
 interface Stage { id: string; name: string; order: number; isWon: boolean; isLost: boolean }
-interface Opp {
-  id: string; title: string; value: number; currency: string; stageId: string | null; status: string;
-  probability: number; expectedCloseAt: string | null; closedAt: string | null;
-  savedLead?: { id: string; name: string; title: string | null } | null;
-  company?: { id: string; name: string } | null;
-}
+type Opp = DealOpp;
 
 const usd = (n: number) => `$${(n || 0).toLocaleString()}`;
 
@@ -25,6 +21,8 @@ export function PipelineBoard({ refreshKey, onAsk }: { refreshKey?: number; onAs
   const [loading, setLoading] = useState(true);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const draggingRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -82,9 +80,10 @@ export function PipelineBoard({ refreshKey, onAsk }: { refreshKey?: number; onAs
                   <div
                     key={o.id}
                     draggable
-                    onDragStart={() => setDragId(o.id)}
-                    onDragEnd={() => { setDragId(null); setOverStage(null); }}
-                    className={cn("group cursor-grab rounded-xl border border-border bg-card p-2.5 shadow-sm active:cursor-grabbing", dragId === o.id && "opacity-50")}
+                    onDragStart={() => { draggingRef.current = true; setDragId(o.id); }}
+                    onDragEnd={() => { setDragId(null); setOverStage(null); draggingRef.current = false; }}
+                    onClick={() => { if (!draggingRef.current) setDetailId(o.id); }}
+                    className={cn("group cursor-pointer rounded-xl border border-border bg-card p-2.5 shadow-sm hover:border-brand-500/40 active:cursor-grabbing", dragId === o.id && "opacity-50")}
                   >
                     <div className="flex items-start gap-1.5">
                       <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
@@ -114,6 +113,12 @@ export function PipelineBoard({ refreshKey, onAsk }: { refreshKey?: number; onAs
           <button onClick={() => onAsk("Create an opportunity/deal in my pipeline for the lead I'm working — set a stage and estimated value.")} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Plus className="h-4 w-4" /> Add a deal</button>
         </div>
       )}
+
+      {detailId && (() => {
+        const opp = opps.find((o) => o.id === detailId);
+        if (!opp) return null;
+        return <DealDrawer opp={opp} stages={stages} onClose={() => setDetailId(null)} onChanged={load} onAsk={onAsk} />;
+      })()}
     </div>
   );
 }
