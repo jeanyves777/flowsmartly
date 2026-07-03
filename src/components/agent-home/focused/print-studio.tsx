@@ -423,65 +423,80 @@ interface ProductDef {
   colors: string[];
   defaultColor: string;
   placements: PlacementDef[];
-  // The garment/object artwork, drawn behind the print area; `color` tints it.
+  // Realistic photographic mockups (xAI-generated, background-removed) shown
+  // behind the print area — front + optional back. When `tint` is set, the
+  // selected color is multiply-blended onto the garment (works on white/light bases).
+  images: { front: string; back?: string };
+  tint?: boolean;
+  // Flat-SVG fallback (only used if the image fails to load).
   Svg: (p: { color: string; face: "front" | "back" }) => React.ReactElement;
 }
 
-const GARMENT_COLORS = ["#2563eb", "#111827", "#f5d90a", "#10b981", "#e5e7eb", "#dc2626", "#7c3aed"];
 
+const M = "/print-mockups";
 const PRODUCTS: Record<ProductKind, ProductDef> = {
   tee: {
-    label: "T-shirt", Icon: Shirt, faces: ["front", "back"], colors: GARMENT_COLORS, defaultColor: "#111827",
+    label: "T-shirt", Icon: Shirt, faces: ["front", "back"], defaultColor: "#f4f4f5", tint: true,
+    colors: ["#f4f4f5", "#1f2937", "#1e3a8a", "#b91c1c", "#166534", "#1d4ed8", "#9ca3af"],
+    images: { front: `${M}/tee.webp`, back: `${M}/tee-back.webp` },
     placements: [
-      { key: "left-chest", label: "Left chest", hint: "logo · 3 in", face: "front", area: { l: 55, t: 25, w: 15, h: 12 } },
-      { key: "full-front", label: "Full front", hint: "11 × 14 in", face: "front", area: { l: 31, t: 30, w: 38, h: 40 } },
-      { key: "full-back", label: "Full back", hint: "12 × 16 in", face: "back", area: { l: 29, t: 22, w: 42, h: 46 } },
+      { key: "left-chest", label: "Left chest", hint: "logo · 3 in", face: "front", area: { l: 54, t: 22, w: 15, h: 12 } },
+      { key: "full-front", label: "Full front", hint: "11 × 14 in", face: "front", area: { l: 33, t: 26, w: 34, h: 36 } },
+      { key: "full-back", label: "Full back", hint: "12 × 16 in", face: "back", area: { l: 31, t: 18, w: 38, h: 44 } },
     ],
     Svg: TeeSvg,
   },
   hoodie: {
-    label: "Hoodie", Icon: Shirt, faces: ["front", "back"], colors: GARMENT_COLORS, defaultColor: "#334155",
+    label: "Hoodie", Icon: Shirt, faces: ["front", "back"], defaultColor: "#9aa0a8", tint: true,
+    colors: ["#9aa0a8", "#374151", "#1e3a8a", "#7f1d1d", "#166534"],
+    images: { front: `${M}/hoodie.webp`, back: `${M}/hoodie-back.webp` },
     placements: [
-      { key: "left-chest", label: "Left chest", hint: "logo", face: "front", area: { l: 54, t: 33, w: 15, h: 11 } },
-      { key: "full-front", label: "Front (above pocket)", hint: "10 × 12 in", face: "front", area: { l: 33, t: 34, w: 34, h: 24 } },
-      { key: "full-back", label: "Full back", hint: "12 × 15 in", face: "back", area: { l: 30, t: 26, w: 40, h: 42 } },
+      { key: "left-chest", label: "Left chest", hint: "logo", face: "front", area: { l: 54, t: 34, w: 14, h: 10 } },
+      { key: "full-front", label: "Front (above pocket)", hint: "10 × 12 in", face: "front", area: { l: 34, t: 37, w: 32, h: 22 } },
+      { key: "full-back", label: "Full back", hint: "12 × 15 in", face: "back", area: { l: 30, t: 26, w: 40, h: 40 } },
     ],
     Svg: HoodieSvg,
   },
   vest: {
-    label: "Hi-vis vest", Icon: HardHat, faces: ["front", "back"], colors: ["#f5d90a", "#f97316", "#2563eb", "#10b981", "#dc2626"], defaultColor: "#f5d90a",
+    label: "Hi-vis vest", Icon: HardHat, faces: ["front", "back"], defaultColor: "#f5d90a", colors: ["#f5d90a"],
+    images: { front: `${M}/vest.webp`, back: `${M}/vest-back.webp` },
     placements: [
-      { key: "left-chest", label: "Left chest", hint: "logo", face: "front", area: { l: 54, t: 37, w: 15, h: 10 } },
-      { key: "full-back", label: "Full back", hint: "large", face: "back", area: { l: 30, t: 28, w: 40, h: 34 } },
+      { key: "left-chest", label: "Left chest", hint: "logo", face: "front", area: { l: 55, t: 30, w: 14, h: 10 } },
+      { key: "full-back", label: "Full back", hint: "large", face: "back", area: { l: 30, t: 30, w: 40, h: 26 } },
     ],
     Svg: VestSvg,
   },
   cap: {
-    label: "Cap", Icon: Shirt, faces: ["front"], colors: GARMENT_COLORS, defaultColor: "#111827",
+    label: "Cap", Icon: Shirt, faces: ["front"], defaultColor: "#111827", colors: ["#111827"],
+    images: { front: `${M}/cap.webp` },
     placements: [
-      { key: "front", label: "Front panel", hint: "embroidery", face: "front", area: { l: 34, t: 33, w: 32, h: 26 } },
+      { key: "front", label: "Front panel", hint: "embroidery", face: "front", area: { l: 35, t: 30, w: 30, h: 26 } },
     ],
     Svg: CapSvg,
   },
   tote: {
-    label: "Tote bag", Icon: ShoppingBag, faces: ["front"], colors: ["#d6c8a8", "#e5e7eb", "#111827", "#2563eb", "#10b981"], defaultColor: "#d6c8a8",
+    label: "Tote bag", Icon: ShoppingBag, faces: ["front"], defaultColor: "#d6c8a8", colors: ["#d6c8a8"],
+    images: { front: `${M}/tote.webp` },
     placements: [
-      { key: "center", label: "Center", hint: "main", face: "front", area: { l: 29, t: 40, w: 42, h: 36 } },
+      { key: "center", label: "Center", hint: "main", face: "front", area: { l: 28, t: 38, w: 44, h: 40 } },
     ],
     Svg: ToteSvg,
   },
   mug: {
-    label: "Mug", Icon: Coffee, faces: ["front"], colors: ["#e5e7eb", "#111827", "#2563eb", "#dc2626", "#10b981"], defaultColor: "#e5e7eb",
+    label: "Mug", Icon: Coffee, faces: ["front"], defaultColor: "#f4f4f5", tint: true,
+    colors: ["#f4f4f5", "#1f2937", "#1e3a8a", "#b91c1c", "#166534"],
+    images: { front: `${M}/mug.webp` },
     placements: [
-      { key: "wrap", label: "Wrap-around", hint: "full", face: "front", area: { l: 26, t: 36, w: 40, h: 34 } },
-      { key: "badge", label: "Badge", hint: "small", face: "front", area: { l: 34, t: 42, w: 24, h: 22 } },
+      { key: "wrap", label: "Wrap-around", hint: "full", face: "front", area: { l: 22, t: 32, w: 38, h: 40 } },
+      { key: "badge", label: "Badge", hint: "small", face: "front", area: { l: 30, t: 38, w: 24, h: 26 } },
     ],
     Svg: MugSvg,
   },
   bottle: {
-    label: "Water bottle", Icon: Coffee, faces: ["front"], colors: ["#2563eb", "#111827", "#e5e7eb", "#dc2626", "#10b981"], defaultColor: "#2563eb",
+    label: "Water bottle", Icon: Coffee, faces: ["front"], defaultColor: "#c7ccd1", colors: ["#c7ccd1"],
+    images: { front: `${M}/bottle.webp` },
     placements: [
-      { key: "body", label: "Body label", hint: "wrap", face: "front", area: { l: 38, t: 34, w: 24, h: 40 } },
+      { key: "body", label: "Body label", hint: "wrap", face: "front", area: { l: 39, t: 34, w: 24, h: 34 } },
     ],
     Svg: BottleSvg,
   },
@@ -514,6 +529,7 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
   const facePlacements = def.placements.filter((p) => p.face === st.face);
   const area = placement.area;
   const artwork = st.face === "front" ? st.artworkFront : st.artworkBack;
+  const mockupImg = st.face === "back" && def.images.back ? def.images.back : def.images.front;
 
   // Apply a UI patch to the product. Switching kind/face re-homes the placement
   // to a valid one for the new state; an `artworkUrl` targets the current face.
@@ -587,7 +603,17 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
           <div className="relative grid min-h-0 flex-1 place-items-center overflow-auto p-6" style={{ background: "radial-gradient(420px 260px at 35% 0%, hsl(var(--primary)/.14), transparent 70%)" }}>
             <div>
               <div className="relative mx-auto" style={{ width: 460, maxWidth: "82vw" }}>
-                <def.Svg color={st.color} face={st.face} />
+                {/* realistic photographic mockup (xAI, bg-removed) + optional color tint */}
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={mockupImg} alt={def.label} className="block w-full select-none" draggable={false} style={{ filter: "drop-shadow(0 20px 44px rgba(0,0,0,.5))" }} />
+                  {def.tint && (
+                    <div
+                      className="pointer-events-none absolute inset-0"
+                      style={{ backgroundColor: st.color, mixBlendMode: "multiply", WebkitMaskImage: `url("${mockupImg}")`, maskImage: `url("${mockupImg}")`, WebkitMaskSize: "100% 100%", maskSize: "100% 100%", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat" }}
+                    />
+                  )}
+                </div>
                 {/* print area */}
                 <div
                   className="absolute grid place-items-center overflow-hidden rounded-[4px] border-2 border-dashed border-sky-400/80 bg-sky-400/[0.06]"
@@ -606,8 +632,9 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
                 {(Object.keys(PRODUCTS) as ProductKind[]).map((k) => {
                   const P = PRODUCTS[k];
                   return (
-                    <button key={k} onClick={() => setKind(k)} title={P.label} className={cn("grid h-14 w-14 place-items-center rounded-xl border p-1.5 transition [&>svg]:max-h-[38px] [&>svg]:w-auto", st.kind === k ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
-                      <P.Svg color={P.defaultColor} face="front" />
+                    <button key={k} onClick={() => setKind(k)} title={P.label} className={cn("grid h-14 w-14 place-items-center rounded-xl border p-1.5 transition", st.kind === k ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={P.images.front} alt={P.label} className="max-h-[40px] w-auto object-contain" draggable={false} />
                     </button>
                   );
                 })}
@@ -634,13 +661,15 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
               {def.faces.length > 1 && <p className="mt-1.5 text-[10.5px] text-muted-foreground">Switch front/back in the header to print on both sides.</p>}
             </ControlGroup>
 
-            <ControlGroup title="Garment colour">
-              <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                {def.colors.map((c) => (
-                  <button key={c} onClick={() => setColor(c)} className={cn("h-6 w-6 rounded-lg border-2", st.color === c ? "border-foreground" : "border-transparent")} style={{ background: c }} aria-label={c} />
-                ))}
-              </div>
-            </ControlGroup>
+            {def.colors.length > 1 && (
+              <ControlGroup title="Garment colour">
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  {def.colors.map((c) => (
+                    <button key={c} onClick={() => setColor(c)} className={cn("h-6 w-6 rounded-lg border-2 shadow-sm", st.color === c ? "border-foreground" : "border-black/20")} style={{ background: c }} aria-label={c} />
+                  ))}
+                </div>
+              </ControlGroup>
+            )}
 
             <ControlGroup title="Artwork">
               <div className="mt-1.5 flex flex-wrap gap-1.5">
