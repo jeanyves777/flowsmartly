@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { Sparkles, CalendarClock, RotateCcw, Check, ImageIcon, Trash2, Plus, Pencil, CalendarDays } from "lucide-react";
+import { Sparkles, CalendarClock, RotateCcw, Check, ImageIcon, Trash2, Plus, Pencil, X } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -70,6 +70,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   const [perWeek, setPerWeek] = useState(3);
   const [tone, setTone] = useState("casual");
   const [imageMode, setImageMode] = useState<"ai" | "none">("ai");
+  const [briefOpen, setBriefOpen] = useState(false);
 
   const loadStudio = useCallback(async (id: string): Promise<boolean> => {
     const d = await fetch(`/api/content/campaigns/${id}/studio`).then((r) => r.json()).catch(() => null);
@@ -103,6 +104,9 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
     })();
     return () => { cancel = true; };
   }, [target, loadStudio]);
+
+  // Open the brief modal automatically for a fresh studio (no campaign yet).
+  useEffect(() => { setBriefOpen(!target?.campaignId); }, [target]);
 
   // while generating: adopt the freshly-created campaign, then keep refreshing so
   // posts appear as they're written; clear when the agent turn ends (refreshKey).
@@ -140,6 +144,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
     baselineRef.current = null;
     (async () => { baselineRef.current = await newestCampaign(); setGenerating(true); })();
     onAsk(`Create a content campaign in Campaign Studio. Call propose_plan first (it generates ${Math.min(30, Math.round((days / 7) * perWeek))} posts) so I can approve, then call create_content_campaign with name="${name.trim()}", brief="${brief.trim().replace(/"/g, "'")}", platforms=${JSON.stringify(platforms)}, days=${days}, postsPerWeek=${perWeek}, tone="${tone}", imageMode="${imageMode}". Don't paste the posts in chat — they open here in the studio.`);
+    setBriefOpen(false);
     toast({ title: "Building your campaign", description: "The agent is drafting the posts — they'll appear here." });
   };
 
@@ -187,24 +192,12 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      {/* action bar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
-        <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><CalendarDays className="h-4 w-4" /></span>
-        <div className="min-w-0">
-          <div className="truncate text-[13px] font-bold leading-tight">Campaign Studio</div>
-          <div className="truncate text-[11px] text-muted-foreground">{campaign ? `${campaign.name} · ${posts.length} posts` : "Plan & schedule a content campaign"}</div>
-        </div>
-        <div className="ms-auto flex items-center gap-2">
-          {campaign && <button onClick={regenerate} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" /> Regenerate</button>}
-        </div>
-      </div>
-
       <div className="flex min-h-0 flex-1">
         <div className="min-h-0 flex-1 overflow-y-auto">
           {loading ? (
             <div className="grid h-full place-items-center"><FlowLoader size={28} withMark label="Opening Campaign Studio…" /></div>
           ) : isNew ? (
-            <BriefForm {...{ name, setName, brief, setBrief, platforms, togglePlat, connectedPlatforms, days, setDays, perWeek, setPerWeek, tone, setTone, imageMode, setImageMode, onGenerate: startGenerate, generating }} />
+            <EmptyPlayground onPlan={() => setBriefOpen(true)} />
           ) : generating && posts.length === 0 ? (
             <div className="grid h-full place-items-center p-8 text-center">
               <div className="max-w-sm"><div className="mx-auto w-fit"><FlowLoader size={40} withMark /></div>
@@ -219,12 +212,20 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
                 <span className="text-[12.5px] text-muted-foreground">{campaign.brief}</span>
                 {generating && <FlowLoader size={14} />}
               </div>
-              <div className="space-y-3">
+              {/* dotted timeline of scheduled posts */}
+              <div className="relative space-y-3 ps-6">
+                <span className="pointer-events-none absolute bottom-3 start-[9px] top-3 w-px bg-gradient-to-b from-brand-500/40 via-border to-border" />
                 {posts.map((p) => (
-                  <PostCard key={p.id} post={p} onCaption={(v) => patchPost(p.id, { caption: v }, "Caption saved")} onReschedule={(iso) => patchPost(p.id, { scheduledAt: iso }, "Rescheduled")} onRemove={() => removePost(p.id)} onAiCaption={() => aiCaption(p)} onNewImage={() => newImage(p)} />
+                  <div key={p.id} className="relative">
+                    <span className="absolute top-5 h-3 w-3 rounded-full bg-brand-500 ring-4 ring-background" style={{ insetInlineStart: "-19px" }} />
+                    <PostCard post={p} onCaption={(v) => patchPost(p.id, { caption: v }, "Caption saved")} onReschedule={(iso) => patchPost(p.id, { scheduledAt: iso }, "Rescheduled")} onRemove={() => removePost(p.id)} onAiCaption={() => aiCaption(p)} onNewImage={() => newImage(p)} />
+                  </div>
                 ))}
                 {posts.length === 0 && <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No posts yet — the agent is still drafting, or none were generated.</p>}
-                <button onClick={() => onAsk(`Add one more post to the "${campaign.name}" campaign (campaignId: ${campaign.id}) — draft an on-brand caption + image and schedule it in the window. Use create_content_campaign's per-post approach or schedule_social_post linked to this campaign.`)} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-2.5 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> Add a post (agent fills it)</button>
+                <div className="relative">
+                  <span className="absolute top-4 h-3 w-3 rounded-full border-2 border-border bg-background" style={{ insetInlineStart: "-19px" }} />
+                  <button onClick={() => onAsk(`Add one more post to the "${campaign.name}" campaign (campaignId: ${campaign.id}) — draft an on-brand caption + image and schedule it in the window. Use schedule_social_post linked to this campaign.`)} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-2.5 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> Add a post (agent fills it)</button>
+                </div>
               </div>
             </div>
           ) : (
@@ -244,7 +245,8 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
                 return <span key={p} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2 py-1 text-[11px] font-medium"><span className="grid h-4 w-4 place-items-center rounded text-[8px] font-bold text-white" style={{ background: m.bg }}>{m.label}</span>{p === "feed" ? "Feed" : p.charAt(0).toUpperCase() + p.slice(1)}</span>;
               })}
             </div>
-            <p className="mt-4 text-[11px] leading-relaxed text-muted-foreground">Captions + on-brand images come from your Brand Kit. Edit any post above, then approve to schedule + auto-publish.</p>
+            <button onClick={regenerate} className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" /> Regenerate campaign</button>
+            <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">Captions + on-brand images come from your Brand Kit. Edit any post above, then approve to schedule + auto-publish.</p>
           </aside>
         )}
       </div>
@@ -264,51 +266,93 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
           {onOpenView && <button onClick={() => onOpenView("publish")} className="ms-auto text-brand-500 hover:underline">View in Publish →</button>}
         </div>
       )}
+
+      {/* BRIEF — bottom-sheet modal (matches the Lead Studio Search brief) */}
+      {briefOpen && (
+        <div className="absolute inset-0 z-40">
+          <button aria-label="Close" onClick={() => setBriefOpen(false)} className="absolute inset-0 bg-black/45" />
+          <div className="absolute inset-x-3 bottom-3 flex max-h-[86%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+            <div className="relative border-b border-border px-5 pb-3 pt-4">
+              <span className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full bg-border" />
+              <h4 className="flex items-center gap-2 text-[15px] font-bold"><Sparkles className="h-4 w-4 text-brand-500" /> Campaign brief</h4>
+              <p className="mt-0.5 text-[11.5px] text-muted-foreground">Tell the agent the goal — it drafts a calendar of on-brand posts (captions + images) you review, then approve to auto-publish.</p>
+              <button onClick={() => setBriefOpen(false)} className="absolute end-4 top-4 grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Field label="Campaign name">
+                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Spring Skincare Launch" className={FLD} />
+                </Field>
+                <Field label="What's it about? (goal)" span>
+                  <input value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="Introduce the new botanical serum, drive launch-week sales with 15% off." className={FLD} />
+                </Field>
+                <Field label="Post to" span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {["feed", ...PLATS.map((p) => p.id).filter((p) => p !== "feed" && connectedPlatforms.includes(p))].map((p) => (
+                      <Chip key={p} label={p === "feed" ? "Feed" : p.charAt(0).toUpperCase() + p.slice(1)} active={platforms.includes(p)} onClick={() => togglePlat(p)} />
+                    ))}
+                  </div>
+                  {connectedPlatforms.length === 0 && <p className="mt-1 text-[11px] text-muted-foreground">No social accounts connected — you can still post to your feed.</p>}
+                </Field>
+                <Field label="Duration">
+                  <select value={days} onChange={(e) => setDays(Number(e.target.value))} className={FLD}>{DURATIONS.map((d) => <option key={d.v} value={d.v}>{d.label}</option>)}</select>
+                </Field>
+                <Field label="Cadence">
+                  <select value={perWeek} onChange={(e) => setPerWeek(Number(e.target.value))} className={FLD}>{CADENCES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}</select>
+                </Field>
+                <Field label="Images">
+                  <div className="flex flex-wrap gap-1.5"><Chip label="AI (on-brand)" active={imageMode === "ai"} onClick={() => setImageMode("ai")} /><Chip label="Text-only" active={imageMode === "none"} onClick={() => setImageMode("none")} /></div>
+                </Field>
+                <Field label="Tone" span>
+                  <div className="flex flex-wrap gap-1.5">{["casual", "professional", "playful", "bold"].map((t) => <Chip key={t} label={t[0].toUpperCase() + t.slice(1)} active={tone === t} onClick={() => setTone(t)} />)}</div>
+                </Field>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 border-t border-border px-5 py-3.5">
+              <button onClick={startGenerate} disabled={generating} className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60">
+                {generating ? <FlowLoader size={15} tone="white" /> : <Sparkles className="h-4 w-4" />} Generate {Math.min(30, Math.max(1, Math.round((days / 7) * perWeek)))} posts
+              </button>
+              <span className="text-[11.5px] text-muted-foreground">The agent drafts each post + on-brand image and streams them onto the page.</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ── new-campaign brief form ── */
-function BriefForm({ name, setName, brief, setBrief, platforms, togglePlat, connectedPlatforms, days, setDays, perWeek, setPerWeek, tone, setTone, imageMode, setImageMode, onGenerate, generating }: {
-  name: string; setName: (v: string) => void; brief: string; setBrief: (v: string) => void;
-  platforms: string[]; togglePlat: (p: string) => void; connectedPlatforms: string[];
-  days: number; setDays: (v: number) => void; perWeek: number; setPerWeek: (v: number) => void;
-  tone: string; setTone: (v: string) => void; imageMode: "ai" | "none"; setImageMode: (v: "ai" | "none") => void;
-  onGenerate: () => void; generating: boolean;
-}) {
-  const pickable = ["feed", ...PLATS.map((p) => p.id).filter((p) => p !== "feed" && connectedPlatforms.includes(p))];
-  const count = Math.min(30, Math.max(1, Math.round((days / 7) * perWeek)));
+const FLD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
+function Field({ label, children, span }: { label: string; children: ReactNode; span?: boolean }) {
+  return <div className={span ? "sm:col-span-2 lg:col-span-3" : ""}><p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>{children}</div>;
+}
+
+/* ── empty playground: the dotted timeline before any posts exist ── */
+function EmptyPlayground({ onPlan }: { onPlan: () => void }) {
   return (
-    <div className="mx-auto max-w-[560px] px-4 py-8">
-      <div className="text-center">
-        <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><CalendarDays className="h-7 w-7" /></span>
-        <h3 className="mt-3 text-[16px] font-bold">Plan a content campaign</h3>
-        <p className="mx-auto mt-1 max-w-sm text-[12.5px] text-muted-foreground">Tell the agent the goal — it drafts a calendar of on-brand posts (captions + images) you review, then approve to auto-publish.</p>
+    <div className="px-4 py-6 sm:px-6">
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="text-[20px] font-black text-muted-foreground/70">Your calendar</span>
+        <span className="text-[12.5px] text-muted-foreground">— posts will land here once the agent drafts them.</span>
       </div>
-      <div className="mt-5 space-y-3.5">
-        <div><label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Campaign name</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Spring Skincare Launch" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" /></div>
-        <div><label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">What's it about? (goal)</label>
-          <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={3} placeholder="Introduce the new botanical serum, drive launch-week sales with 15% off." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] leading-relaxed outline-none focus:border-brand-500/60" /></div>
-        <div><label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Post to</label>
-          <div className="flex flex-wrap gap-1.5">
-            {pickable.map((p) => <Chip key={p} label={p === "feed" ? "Feed" : p.charAt(0).toUpperCase() + p.slice(1)} active={platforms.includes(p)} onClick={() => togglePlat(p)} />)}
+      <div className="relative space-y-3 ps-6">
+        <span className="pointer-events-none absolute bottom-3 start-[9px] top-3 w-px bg-gradient-to-b from-brand-500/30 via-border to-border" />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="relative">
+            <span className="absolute top-6 h-3 w-3 rounded-full border-2 border-border bg-background" style={{ insetInlineStart: "-19px" }} />
+            <div className="flex items-center gap-3 rounded-2xl border border-dashed border-border/70 bg-muted/20 p-4">
+              <div className="grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-muted/40 text-muted-foreground/50"><ImageIcon className="h-6 w-6" /></div>
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="h-2.5 w-2/3 rounded-full bg-muted/60" />
+                <div className="h-2.5 w-5/6 rounded-full bg-muted/40" />
+                <div className="h-2.5 w-1/2 rounded-full bg-muted/40" />
+              </div>
+            </div>
           </div>
-          {connectedPlatforms.length === 0 && <p className="mt-1 text-[11px] text-muted-foreground">No social accounts connected — you can still post to your feed.</p>}
+        ))}
+        <div className="relative">
+          <span className="absolute top-4 h-3 w-3 rounded-full border-2 border-border bg-background" style={{ insetInlineStart: "-19px" }} />
+          <button onClick={onPlan} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-brand-500/40 bg-brand-500/5 py-3 text-[12.5px] font-semibold text-brand-500 hover:bg-brand-500/10"><Sparkles className="h-4 w-4" /> Open the brief to plan your campaign</button>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div><label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Duration</label>
-            <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60">{DURATIONS.map((d) => <option key={d.v} value={d.v}>{d.label}</option>)}</select></div>
-          <div><label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Cadence</label>
-            <select value={perWeek} onChange={(e) => setPerWeek(Number(e.target.value))} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60">{CADENCES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}</select></div>
-        </div>
-        <div><label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Tone</label>
-          <div className="flex flex-wrap gap-1.5">{["casual", "professional", "playful", "bold"].map((t) => <Chip key={t} label={t[0].toUpperCase() + t.slice(1)} active={tone === t} onClick={() => setTone(t)} />)}</div></div>
-        <div><label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Images</label>
-          <div className="flex flex-wrap gap-1.5"><Chip label="AI (on-brand)" active={imageMode === "ai"} onClick={() => setImageMode("ai")} /><Chip label="Text-only" active={imageMode === "none"} onClick={() => setImageMode("none")} /></div></div>
-        <button onClick={onGenerate} disabled={generating} className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60">
-          {generating ? <FlowLoader size={15} tone="white" /> : <Sparkles className="h-4 w-4" />} Generate {count} posts
-        </button>
       </div>
     </div>
   );

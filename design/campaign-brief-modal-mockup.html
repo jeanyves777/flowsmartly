@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Campaign brief modal</title>
+<style>
+  :root{--b:#6d5cff;--b2:#8b5cf6}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0d12;color:#e7ebf3;font:14px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  .surface{position:relative;height:100vh;overflow:hidden}
+  /* empty dotted playground behind */
+  .pg{padding:22px 26px}
+  .pg h2{font-size:20px;font-weight:900;color:#8b93a4;margin:0 0 16px}
+  .pg h2 span{color:#6b7280;font-weight:600;font-size:12.5px}
+  .rail{position:relative;padding-left:22px}
+  .rail:before{content:"";position:absolute;left:9px;top:10px;bottom:60px;width:1px;background:linear-gradient(#6d5cff55,#222a3a)}
+  .node{position:absolute;left:-19px;height:12px;width:12px;border-radius:50%;border:2px solid #222a3a;background:#0b0d12;margin-top:24px}
+  .ghost{display:flex;gap:12px;align-items:center;border:1px dashed #2a3346;background:#12151f55;border-radius:16px;padding:16px;margin-bottom:12px}
+  .ghost .im{height:64px;width:64px;border-radius:12px;background:#1a2030;display:grid;place-items:center;color:#3a4658}
+  .ln{height:10px;border-radius:999px;background:#222a3a;margin:7px 0}
+  /* modal */
+  .ov{position:absolute;inset:0;background:#0007}
+  .sheet{position:absolute;left:20px;right:20px;bottom:16px;max-height:86%;display:flex;flex-direction:column;background:#12141c;border:1px solid #222a3a;border-radius:16px;box-shadow:0 30px 80px #000b}
+  .hd{position:relative;border-bottom:1px solid #222a3a;padding:16px 20px 12px}
+  .grip{position:absolute;left:50%;top:6px;transform:translateX(-50%);height:4px;width:40px;border-radius:999px;background:#2a3346}
+  .hd h4{margin:0;font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px}
+  .hd p{margin:2px 0 0;font-size:11.5px;color:#8b93a4}
+  .x{position:absolute;right:16px;top:16px;height:28px;width:28px;border-radius:9px;border:1px solid #222a3a;background:transparent;color:#8b93a4;cursor:pointer}
+  .bd{flex:1;overflow:auto;padding:20px}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px 24px}
+  .fld .lab{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8b93a4;margin-bottom:6px}
+  .fld input,.fld select{width:100%;background:#0e111a;border:1px solid #222a3a;border-radius:10px;padding:9px 12px;color:#e7ebf3;font-size:13px;outline:none}
+  .span{grid-column:span 3}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid #222a3a;background:#0e111a;color:#8b93a4;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .chip.on{border-color:#6d5cff99;background:#6d5cff1f;color:#c4b5fd}
+  .note{font-size:11px;color:#8b93a4;margin-top:6px}
+  .ft{display:flex;align-items:center;gap:12px;border-top:1px solid #222a3a;padding:14px 20px}
+  .gen{border:0;border-radius:10px;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff;font-size:13px;font-weight:700;padding:9px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;box-shadow:0 8px 24px #6d5cff44}
+  .ft span{font-size:11.5px;color:#8b93a4}
+  svg{display:block}
+</style></head>
+<body>
+<div class="surface">
+  <!-- empty dotted playground behind the modal -->
+  <div class="pg">
+    <h2>Your calendar <span>— posts will land here once the agent drafts them.</span></h2>
+    <div class="rail">
+      <div style="position:relative"><span class="node"></span>
+        <div class="ghost"><div class="im"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></div>
+          <div style="flex:1"><div class="ln" style="width:66%"></div><div class="ln" style="width:84%"></div><div class="ln" style="width:50%"></div></div></div></div>
+      <div style="position:relative"><span class="node"></span>
+        <div class="ghost"><div class="im"></div><div style="flex:1"><div class="ln" style="width:70%"></div><div class="ln" style="width:88%"></div><div class="ln" style="width:46%"></div></div></div></div>
+      <div style="position:relative"><span class="node"></span>
+        <div class="ghost"><div class="im"></div><div style="flex:1"><div class="ln" style="width:60%"></div><div class="ln" style="width:80%"></div><div class="ln" style="width:52%"></div></div></div></div>
+    </div>
+  </div>
+
+  <!-- brief modal (matches Lead Studio Search brief) -->
+  <div class="ov"></div>
+  <div class="sheet">
+    <div class="hd"><span class="grip"></span>
+      <h4><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b78ff" stroke-width="2"><path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/></svg> Campaign brief</h4>
+      <p>Tell the agent the goal — it drafts a calendar of on-brand posts (captions + images) you review, then approve to auto-publish.</p>
+      <button class="x">✕</button>
+    </div>
+    <div class="bd">
+      <div class="grid">
+        <div class="fld"><div class="lab">Campaign name</div><input value="Spring Skincare Launch"/></div>
+        <div class="fld" style="grid-column:span 2"><div class="lab">What's it about? (goal)</div><input value="Introduce the new botanical serum, drive launch-week sales with 15% off."/></div>
+        <div class="fld span"><div class="lab">Post to</div><div class="chips"><span class="chip on">✓ Feed</span><span class="chip on">✓ Instagram</span><span class="chip on">✓ Facebook</span></div><div class="note">Colours, logo &amp; voice come from your Brand Kit.</div></div>
+        <div class="fld"><div class="lab">Duration</div><select><option>2 weeks</option></select></div>
+        <div class="fld"><div class="lab">Cadence</div><select><option>3 posts / week</option></select></div>
+        <div class="fld"><div class="lab">Images</div><div class="chips"><span class="chip on">AI (on-brand)</span><span class="chip">Text-only</span></div></div>
+        <div class="fld span"><div class="lab">Tone</div><div class="chips"><span class="chip on">Casual</span><span class="chip">Professional</span><span class="chip">Playful</span><span class="chip">Bold</span></div></div>
+      </div>
+    </div>
+    <div class="ft">
+      <button class="gen"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/></svg> Generate 6 posts</button>
+      <span>The agent drafts each post + on-brand image and streams them onto the page.</span>
+    </div>
+  </div>
+</div>
+</body></html>
