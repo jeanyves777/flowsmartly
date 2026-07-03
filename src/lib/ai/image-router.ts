@@ -3,7 +3,8 @@ import { geminiImageClient, sizeToAspectRatioGemini } from "./gemini-image-clien
 import { XAI_IMAGE_MODEL, xaiClient, sizeToAspectRatio } from "./xai-client";
 import { flowImageClient } from "./flow-image-client";
 import type { ImageProvider } from "@/lib/constants/design-presets";
-import { imageChain, IMAGE_MODEL_IDS, type ImageRole } from "./media-models";
+import { IMAGE_MODEL_IDS, type ImageRole } from "./media-models";
+import { resolveImageChain } from "./media-policy";
 import { isOpenAiImageDown, isOpenAiQuotaError, markOpenAiImageDown, withoutDownOpenAi } from "./openai-image-health";
 import { isBlankImageBase64 } from "@/lib/media/image-quality-guard";
 
@@ -296,7 +297,7 @@ export async function generateImageForRole(
   options: { quality?: "low" | "medium" | "high"; transparent?: boolean } = {},
 ): Promise<RoutedImageResult> {
   let lastError: unknown = null;
-  const chain = imageChain(role);
+  const chain = await resolveImageChain(role);
   const hasNonOpenAi = chain.some((s) => s.provider !== "openai");
   for (const step of chain) {
     // Skip OpenAI while it's in quota cooldown (as long as another provider exists).
@@ -343,7 +344,7 @@ export async function editImagesForRole(
   if (sourceBuffers.length === 0) throw new Error("At least one image is required for edit");
 
   let lastError: unknown = null;
-  let editChain = imageChain(role);
+  let editChain = await resolveImageChain(role);
   // Allow a caller to push a specific provider to the FRONT of the edit chain —
   // used to escalate a repeat edit to xAI (Grok), which is strong at editing.
   if (options.preferProvider) {

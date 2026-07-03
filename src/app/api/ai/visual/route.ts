@@ -8,6 +8,8 @@ import {
   type ImageEditIntent,
 } from "@/lib/ai/image-router";
 import { imageGenerateRole, imageEditRole } from "@/lib/ai/media-models";
+import { getRecipeConfig } from "@/lib/ai/media-policy";
+import { buildArtDirection } from "@/lib/ai/image-recipe";
 import { currentDateDirective } from "@/lib/ai/date-context";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
@@ -1192,12 +1194,18 @@ ${params.ctaText ? `- CTA BUTTON: Rounded or pill-shaped button with bold contra
 - Geometric shapes, patterns, or decorative elements for visual interest`;
   }
 
-  // Brand identity — logo is composited on top after generation, AI doesn't need to reserve space
+  // Brand identity — logo is composited on top after generation, AI doesn't need to reserve space.
+  // Fetch the recipe here so the BRAND rules and the appended art-direction agree.
   const hasLogo = !!params.brandLogo;
+  const recipe = await getRecipeConfig();
   designPrompt += `\n\nBRAND:`;
   if (hasLogo) {
-    designPrompt += `\n- REAL LOGO LOCK: The user's real brand logo is supplied separately and FlowSmartly may composite it after generation. Do NOT draw, approximate, invent, stylize, or copy any logo, icon mark, seal, monogram, badge, mascot, wordmark, or fake brand emblem anywhere in the design. Do NOT keep or copy a logo from a selected template image. Do NOT create a visible blank logo area, white rectangle, dashed placeholder, label, watermark, frame, or logo-space indicator; keep the underlying design natural.`;
-    if (showBrandName && brandName) {
+    designPrompt += `\n- REAL LOGO LOCK: The user's real brand logo is supplied separately and FlowSmartly composites it after generation exactly once. Do NOT draw, approximate, invent, stylize, or copy any logo, icon mark, seal, monogram, badge, mascot, wordmark, or fake brand emblem anywhere in the design. Do NOT keep or copy a logo from a selected template image. Do NOT create a visible blank logo area, white rectangle, dashed placeholder, label, watermark, frame, or logo-space indicator; keep the underlying design natural.`;
+    // With the single-logo recipe on, the model must draw NO brand-name lettering
+    // either (the real logo — which usually carries the name — is composited on).
+    // Emitting a "brand name may appear as text" hint here is exactly what caused
+    // the DUPLICATE wordmark + logo. Only allow it when the recipe is off.
+    if (!recipe.singleLogo && showBrandName && brandName) {
       const logoHasName = await logoContainsBrandName(params.brandLogo!, brandName);
       if (!logoHasName) {
         designPrompt += `\n- Brand name text: "${brandName}" may appear as plain readable text only if needed; do not pair it with an invented symbol or fake logo mark.`;
@@ -1276,6 +1284,12 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 - Do NOT include any watermarks, AI-related text, image dimensions, pixel sizes, or technical metadata on the design
 - Do NOT render the design on a background or inside any container — the design IS the full image
 - The design must bleed to all 4 edges with no margin, border, or shadow around it`;
+
+  // Append the centralized, Control-Hub-tunable ART-DIRECTION RECIPE — the proven
+  // quality layer that lifts every provider to the agency-grade bar (full-bleed +
+  // premium polish + exact copy) and enforces a SINGLE real logo (model draws none;
+  // the real logo is composited once below). Uses the `recipe` fetched above.
+  designPrompt += `\n\n${buildArtDirection({ recipe, hasLogo, premiumTier: params.tier === "premium" })}`;
 
   // ── Resolve reference image (if any) ──
 
