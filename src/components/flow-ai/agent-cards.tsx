@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils/cn";
 import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { createSpeechPlayer, type SpeechPlayer } from "./use-tts";
 import { RichText } from "./rich-text";
+import { useAgentNav } from "./agent-nav-context";
 
 /**
  * Small "Copy" button shown under an assistant text reply so the user can
@@ -558,6 +559,28 @@ export function PlanProposalCard({
 
 // ─── Task card — background job status with inline media when done ────
 
+/**
+ * "Open" deep-link for a produced result. Inside agent-home it switches the
+ * focused surface IN PLACE via the AgentNav context (no full-page reload); when
+ * no handler is present (widget/shell) it behaves as a normal link.
+ */
+function OpenLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
+  const nav = useAgentNav();
+  return (
+    <a
+      href={href}
+      onClick={(e) => {
+        // Only intercept plain left-clicks (let ⌘/ctrl-click open a new tab).
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+        if (nav && nav(href)) e.preventDefault();
+      }}
+      className={className}
+    >
+      {children}
+    </a>
+  );
+}
+
 export function TaskCard({ task }: { task: AgentTaskCardData }) {
   const [lightbox, setLightbox] = useState<string | null>(null);
   const kindLabel = humanizeTaskKind(task.kind);
@@ -680,12 +703,12 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
                 <span className="text-[10px] text-muted-foreground capitalize">{task.output.tier} tier</span>
               )}
               {resultLink && (
-                <a
+                <OpenLink
                   href={resultLink}
                   className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-sm shadow-blue-500/20 transition-colors"
                 >
                   Open in studio <ExternalLink className="h-3.5 w-3.5" />
-                </a>
+                </OpenLink>
               )}
             </div>
           </div>
@@ -696,12 +719,12 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
           {resultLink ? (
             <>
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Ready</span>
-              <a
+              <OpenLink
                 href={resultLink}
                 className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-sm shadow-blue-500/20 transition-colors"
               >
                 Open <ExternalLink className="h-3.5 w-3.5" />
-              </a>
+              </OpenLink>
             </>
           ) : (
             <span className="text-xs text-muted-foreground">Done.</span>

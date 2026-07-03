@@ -78,6 +78,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   const [videoSecs, setVideoSecs] = useState(8);
   const [briefOpen, setBriefOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(true);
+  const [campaignList, setCampaignList] = useState<{ id: string; name: string; status: string; updatedAt?: string }[]>([]);
 
   const loadStudio = useCallback(async (id: string): Promise<number | null> => {
     const d = await fetch(`/api/content/campaigns/${id}/studio`).then((r) => r.json()).catch(() => null);
@@ -101,6 +102,21 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
       if (j?.success && Array.isArray(j.data?.platforms)) setAccounts(j.data.platforms as Acc[]);
     }).catch(() => {});
   }, [refreshKey]);
+
+  // Campaign library — return to any previous campaign from the right rail.
+  const loadCampaigns = useCallback(() => {
+    fetch("/api/content/campaigns").then((r) => r.json()).then((j) => {
+      if (j?.success && Array.isArray(j.data?.campaigns)) setCampaignList(j.data.campaigns as { id: string; name: string; status: string; updatedAt?: string }[]);
+    }).catch(() => {});
+  }, []);
+  useEffect(() => { loadCampaigns(); }, [loadCampaigns, refreshKey, campaign?.id]);
+
+  // Open another campaign from the library (in place — no page reload).
+  const openFromLibrary = useCallback(async (id: string) => {
+    setBriefOpen(false); setGenerating(false); setLoading(true);
+    await loadStudio(id);
+    setLoading(false);
+  }, [loadStudio]);
 
   // resolve the target campaign
   useEffect(() => {
@@ -271,30 +287,59 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
           )}
         </div>
 
-        {/* right rail: brief summary — collapsible */}
-        {campaign && (railOpen ? (
-          <aside className="hidden w-[248px] shrink-0 flex-col overflow-y-auto border-s border-border bg-card/40 p-3.5 lg:flex">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Campaign brief</p>
+        {/* right rail: a MENU — campaign library (return to any past campaign) + the
+            open campaign's brief/actions. Collapsible. */}
+        {railOpen ? (
+          <aside className="hidden w-[260px] shrink-0 flex-col border-s border-border bg-card/40 lg:flex">
+            <div className="flex items-center justify-between border-b border-border px-3.5 py-2.5">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/70">Campaign Studio</p>
               <button onClick={() => setRailOpen(false)} title="Collapse" className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
             </div>
-            <div className="rounded-[10px] border border-border bg-card p-2.5 text-[12px] leading-relaxed">{campaign.brief || "—"}</div>
-            <p className="mb-2 mt-4 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Posting to</p>
-            <div className="flex flex-wrap gap-1.5">
-              {(campaign.platforms.length ? campaign.platforms : ["feed"]).map((p) => {
-                const m = platMeta(p);
-                return <span key={p} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2 py-1 text-[11px] font-medium"><span className="grid h-4 w-4 place-items-center rounded text-[8px] font-bold text-white" style={{ background: m.bg }}>{m.label}</span>{p === "feed" ? "Feed" : p.charAt(0).toUpperCase() + p.slice(1)}</span>;
-              })}
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              {/* Campaigns library */}
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Campaigns</p>
+                <button onClick={() => { setName(""); setBrief(""); setBriefOpen(true); }} className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-500 hover:underline"><Plus className="h-3 w-3" /> New</button>
+              </div>
+              <div className="space-y-1">
+                {campaignList.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border px-2.5 py-3 text-center text-[11px] text-muted-foreground">No campaigns yet.</p>
+                ) : campaignList.map((c) => {
+                  const active = campaign?.id === c.id;
+                  return (
+                    <button key={c.id} onClick={() => openFromLibrary(c.id)} className={cn("flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] transition", active ? "bg-brand-500/10 text-brand-500" : "hover:bg-muted/60")}>
+                      <CalendarClock className={cn("h-3.5 w-3.5 shrink-0", active ? "text-brand-500" : "text-muted-foreground")} />
+                      <span className="min-w-0 flex-1 truncate font-medium">{c.name}</span>
+                      <span className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase", c.status === "ACTIVE" ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{c.status === "ACTIVE" ? "Live" : "Draft"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Open campaign's brief + actions */}
+              {campaign && (
+                <>
+                  <p className="mb-1.5 mt-4 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Brief</p>
+                  <div className="rounded-[10px] border border-border bg-card p-2.5 text-[12px] leading-relaxed">{campaign.brief || "—"}</div>
+                  <p className="mb-2 mt-3 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Posting to</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(campaign.platforms.length ? campaign.platforms : ["feed"]).map((p) => {
+                      const m = platMeta(p);
+                      return <span key={p} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2 py-1 text-[11px] font-medium"><span className="grid h-4 w-4 place-items-center rounded text-[8px] font-bold text-white" style={{ background: m.bg }}>{m.label}</span>{p === "feed" ? "Feed" : p.charAt(0).toUpperCase() + p.slice(1)}</span>;
+                    })}
+                  </div>
+                  <button onClick={regenerate} className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" /> Regenerate campaign</button>
+                </>
+              )}
             </div>
-            <button onClick={regenerate} className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" /> Regenerate campaign</button>
-            <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">Captions + on-brand images come from your Brand Kit. Edit any post above, then approve to schedule + auto-publish.</p>
+            <p className="border-t border-border p-3 text-[11px] leading-relaxed text-muted-foreground">Captions + on-brand media come from your Brand Kit. Edit a post, generate its media, then approve to schedule + auto-publish.</p>
           </aside>
         ) : (
-          <button onClick={() => setRailOpen(true)} title="Show campaign brief" className="hidden shrink-0 flex-col items-center gap-2 border-s border-border bg-card/40 px-1.5 py-3 text-muted-foreground hover:text-foreground lg:flex">
+          <button onClick={() => setRailOpen(true)} title="Show menu" className="hidden shrink-0 flex-col items-center gap-2 border-s border-border bg-card/40 px-1.5 py-3 text-muted-foreground hover:text-foreground lg:flex">
             <PanelRight className="h-4 w-4" />
-            <span className="text-[10px] font-semibold uppercase tracking-wide [writing-mode:vertical-rl]">Brief</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide [writing-mode:vertical-rl]">Menu</span>
           </button>
-        ))}
+        )}
       </div>
 
       {/* footer: approve & schedule */}

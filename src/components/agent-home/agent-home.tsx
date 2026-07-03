@@ -17,6 +17,7 @@ import { WORKSPACES } from "./workspaces";
 import { BrandMark, BrandWordmark } from "./brand-mark";
 import { LanguageSwitcher } from "./language-switcher";
 import { useHomeAgent, type ConversationSummary } from "./use-home-agent";
+import { AgentNavContext } from "@/components/flow-ai/agent-nav-context";
 import { HomeMessageView } from "./home-message";
 import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
@@ -661,6 +662,39 @@ export function AgentHome() {
   const openPitchStudio = (t: { leadId?: string; leadName?: string; pitchId?: string }) => { setPitchTarget(t); setHistoryOpen(false); setPanelKey(null); setFocused("pitchstudio"); setDrawerOpen(false); };
   // Open Campaign Studio (empty target = start a new campaign).
   const openCampaignStudio = (t?: { campaignId?: string; brief?: string }) => { setCampaignTarget(t ?? {}); setHistoryOpen(false); setPanelKey(null); setFocused("campaign"); setDrawerOpen(false); };
+  // Load a produced design into the Create canvas (shared by ?design= deep-link
+  // and the task-card "Open in studio" client-side nav).
+  const openDesignById = (designId: string) => {
+    fetch(`/api/designs/${designId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const doc = j?.data?.design?.doc as DesignDoc | undefined;
+        if (!doc) return;
+        const d = { ...doc, generating: false, building: false };
+        setDesign(d); savedDesignRef.current = d; setActiveWs("create"); setFocused("create");
+      })
+      .catch(() => { /* ignore */ });
+  };
+  // Client-side "Open" from an agent task card / notification: switch the
+  // focused surface IN PLACE instead of a full-page reload. Returns true when it
+  // handled the link (the card's OpenLink then preventDefaults); false lets the
+  // browser follow the href. [[agent-writes-into-ui-element-not-chat]]
+  const navigateInApp = (href: string): boolean => {
+    try {
+      const url = new URL(href, window.location.origin);
+      if (!url.pathname.startsWith("/home")) return false;
+      const pitchId = url.searchParams.get("pitch");
+      if (pitchId) { guardNav(() => openPitchStudio({ pitchId })); return true; }
+      const campaignId = url.searchParams.get("campaign");
+      if (campaignId) { guardNav(() => openCampaignStudio({ campaignId })); return true; }
+      const designId = url.searchParams.get("design");
+      if (designId) { guardNav(() => openDesignById(designId)); return true; }
+      const seg = url.pathname.replace(/^\/home\/?/, "").split("/")[0];
+      if (seg && FOCUS_VIEWS.has(seg)) { guardNav(() => openView(seg)); return true; }
+      if (!seg) { guardNav(() => setFocused(null)); return true; }
+      return false;
+    } catch { return false; }
+  };
   // A button-driven agent action: the instruction is INTERNAL (not shown as a
   // user message) — the user just sees the agent work + respond. Carries the
   // current surface context so the agent acts in place.
@@ -714,6 +748,7 @@ export function AgentHome() {
   }
 
   return (
+    <AgentNavContext.Provider value={navigateInApp}>
     <div
       dir={dir}
       className="flex h-[100dvh] flex-col bg-background text-foreground"
@@ -1241,6 +1276,7 @@ export function AgentHome() {
         </div>
       )}
     </div>
+    </AgentNavContext.Provider>
   );
 }
 
