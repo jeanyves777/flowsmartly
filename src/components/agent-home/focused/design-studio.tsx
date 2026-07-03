@@ -1432,29 +1432,34 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const selQr = sel?.kind === "qr" ? qrs.find((q) => q.id === sel.id) : null;
   const selTable = sel?.kind === "table" ? tables.find((t) => t.id === sel.id) : null;
 
+  // One tidy, grouped, single-line cluster (never a wrapping pile). Groups are
+  // separated by thin dividers: [history] · [add] · [name] · [file/export].
+  const Divider = () => <span className="mx-0.5 h-5 w-px shrink-0 bg-border" />;
   const toolbar = (
-    <>
+    <div className="flex items-center gap-1.5">
       {onBack && (
         <>
           <button onClick={onBack} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[12px] text-muted-foreground hover:text-foreground" title="Back to print formats"><ChevronLeft className="h-3.5 w-3.5" /> Formats</button>
-          {formatLabel && <span className="hidden rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground sm:inline-block">{formatLabel}</span>}
-          <span className="mx-0.5 h-5 w-px bg-border" />
+          {formatLabel && <span className="hidden rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground xl:inline-block">{formatLabel}</span>}
+          <Divider />
         </>
       )}
-      <button onClick={undo} disabled={!canUndo} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground" title="Undo (Ctrl/⌘+Z)"><Undo2 className="h-4 w-4" /></button>
-      <button onClick={redo} disabled={!canRedo} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground" title="Redo (Ctrl/⌘+Shift+Z)"><Redo2 className="h-4 w-4" /></button>
-      <button onClick={addText} className="ms-1 inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Add a text element"><Plus className="h-3.5 w-3.5" /> Text</button>
-      <button onClick={openLibrary} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Open your saved designs"><FolderOpen className="h-3.5 w-3.5" /> Designs</button>
-      <input value={designName} onChange={(e) => setDesignName(e.target.value)} title="Design name" placeholder="Untitled design" className="ms-1 hidden min-w-0 max-w-[150px] rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[12.5px] font-medium outline-none hover:border-border focus:border-brand-500/60 md:inline-block" />
+      <button onClick={undo} disabled={!canUndo} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground" title="Undo (Ctrl/⌘+Z)"><Undo2 className="h-4 w-4" /></button>
+      <button onClick={redo} disabled={!canRedo} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground" title="Redo (Ctrl/⌘+Shift+Z)"><Redo2 className="h-4 w-4" /></button>
+      <Divider />
+      <button onClick={addText} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Add a text element"><Plus className="h-3.5 w-3.5" /> Text</button>
+      <button onClick={openLibrary} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Open your saved designs"><FolderOpen className="h-3.5 w-3.5" /> Designs</button>
       {guides && (
-        <button onClick={() => setShowGuides((v) => !v)} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px]", showGuides ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:text-foreground")} title="Toggle bleed / safe-area / fold guides"><Ruler className="h-3.5 w-3.5" /> Guides</button>
+        <button onClick={() => setShowGuides((v) => !v)} className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px]", showGuides ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:text-foreground")} title="Toggle bleed / safe-area / fold guides"><Ruler className="h-3.5 w-3.5" /> Guides</button>
       )}
-      <button onClick={saveDesign} disabled={saveState === "saving"} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] disabled:opacity-70", saveState === "saved" ? "border-brand-500/60 text-brand-500" : "border-border hover:text-foreground")} title="Save to your design library">
-        {saveState === "saving" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saveState === "saved" ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />} {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}
+      <input value={designName} onChange={(e) => setDesignName(e.target.value)} title="Design name" placeholder="Untitled design" className="hidden min-w-0 max-w-[130px] rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[12.5px] font-medium outline-none hover:border-border focus:border-brand-500/60 xl:inline-block" />
+      <Divider />
+      <button onClick={saveDesign} disabled={saveState === "saving"} className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] disabled:opacity-70", saveState === "saved" ? "border-brand-500/60 text-brand-500" : "border-border hover:text-foreground")} title="Save to your design library">
+        {saveState === "saving" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saveState === "saved" ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />} <span className="hidden sm:inline">{saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}</span>
       </button>
-      <button onClick={exportImage} disabled={!value.imageUrl} title={value.imageUrl ? "Open the rendered image" : "Generate the design first"} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"><Download className="h-3.5 w-3.5" /> Export</button>
-      <button onClick={() => setToolsOpen((o) => !o)} className={cn("grid h-8 w-8 place-items-center rounded-lg border border-border", toolsOpen ? "text-brand-500" : "text-muted-foreground hover:text-foreground")} title="Toggle controls"><PanelRight className="h-4 w-4" /></button>
-    </>
+      <button onClick={exportImage} disabled={!value.imageUrl} title={value.imageUrl ? "Open the rendered image" : "Generate the design first"} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"><Download className="h-3.5 w-3.5" /> Export</button>
+      <button onClick={() => setToolsOpen((o) => !o)} className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border", toolsOpen ? "text-brand-500" : "text-muted-foreground hover:text-foreground")} title="Toggle controls"><PanelRight className="h-4 w-4" /></button>
+    </div>
   );
 
   return (
