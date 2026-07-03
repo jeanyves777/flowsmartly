@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Campaign PostCard — loader + view-large</title>
+<style>
+  :root{ --bg:#0b1120; --card:#0f1729; --border:#1e293b; --muted:#94a3b8; --fg:#e2e8f0; --brand:#6d5cff; --violet:#8b5cf6; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:28px}
+  h1{font-size:15px;margin:0 0 4px}
+  p.sub{color:var(--muted);margin:0 0 22px;font-size:12.5px}
+  .row{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:1180px}
+  .col-h{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+  .card{border:1px solid var(--border);border-radius:16px;background:var(--card);overflow:hidden}
+  .card .top{display:flex;align-items:center;gap:8px;border-bottom:1px solid #1e293bb3;padding:8px 14px;font-size:11.5px}
+  .pill{border-radius:999px;padding:2px 8px;font-size:10px;font-weight:800}
+  .pill.draft{background:#1e293b;color:var(--muted)} .pill.amber{background:#f59e0b1a;color:#f59e0b}
+  .plat{margin-left:auto;display:grid;place-items:center;height:20px;width:20px;border-radius:6px;font-size:9px;font-weight:800;color:#fff;background:linear-gradient(135deg,#6d5cff,#8b5cf6)}
+  .body{display:grid;grid-template-columns:110px 1fr;gap:12px;padding:14px}
+  .tile{position:relative;height:110px;border-radius:12px;border:1px dashed var(--border);background:#0b122033;overflow:hidden}
+  .ph{display:grid;place-items:center;gap:4px;height:100%;color:#94a3b899}
+  .ph .lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  .tile img{height:100%;width:100%;object-fit:cover;border-radius:11px;display:block}
+  .busy{position:absolute;inset:0;display:grid;place-items:center;gap:5px;background:#0b1220e6;text-align:center}
+  .busy .sp{height:20px;width:20px;border-radius:50%;border:2.5px solid #ffffff33;border-top-color:#fff;animation:spin .8s linear infinite}
+  .busy .t{font-size:8.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:#ffffffe6}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .hover{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr}
+  .hover button{border:0;background:#0b1220cc;color:#fff;display:grid;place-items:center;cursor:pointer}
+  .hover button:last-child{border-left:1px solid #ffffff26}
+  .hover .ic{display:inline-flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;font-weight:800}
+  .cap{font-size:12.5px;color:#e2e8f0e6;padding:4px}
+  .promptbox{margin-top:8px;border:1px dashed var(--border);background:#0b122033;border-radius:8px;padding:8px}
+  .promptbox .h{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:4px}
+  .promptbox .p{font-size:11.5px;color:var(--muted);line-height:1.35}
+  .foot{display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-top:1px solid #1e293bb3;padding:8px 14px}
+  .tierbox{display:inline-flex;overflow:hidden;border-radius:8px;border:1px solid var(--border)}
+  .tierbox button{padding:4px 8px;font-size:10.5px;font-weight:700;text-transform:capitalize;border:0;background:transparent;color:var(--muted);cursor:pointer}
+  .tierbox button.on{background:#6d5cff26;color:#a78bfa}
+  .gen{display:inline-flex;align-items:center;gap:4px;border-radius:8px;background:linear-gradient(90deg,var(--brand),var(--violet));padding:5px 10px;font-size:11px;font-weight:800;color:#fff;border:0;cursor:pointer}
+  .gen[disabled]{opacity:.7}
+  .act{display:inline-flex;align-items:center;gap:4px;border-radius:8px;border:1px solid var(--border);padding:5px 8px;font-size:11px;font-weight:700;color:var(--muted);background:transparent;cursor:pointer}
+  .act.ai{border-color:#6d5cff66;color:#a78bfa}
+  .genning{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:11px;font-weight:700;color:var(--muted)}
+  .genning .sp{height:12px;width:12px;border:2px solid #94a3b855;border-top-color:#94a3b8;border-radius:50%;animation:spin .8s linear infinite}
+  svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  /* lightbox */
+  .lb{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:32px}
+  .lb .scrim{position:absolute;inset:0;background:#000c}
+  .lb .in{position:relative;z-index:10;display:flex;flex-direction:column;align-items:center}
+  .lb img{max-height:70vh;max-width:100%;border-radius:12px;object-fit:contain}
+  .lb .btns{margin-top:12px;display:flex;gap:8px}
+  .lb .btns a,.lb .btns button{display:inline-flex;align-items:center;gap:6px;border:1px solid #ffffff40;background:#ffffff1a;color:#fff;border-radius:10px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none}
+</style></head>
+<body>
+  <h1>Campaign PostCard — per-post generate loader + view-large</h1>
+  <p class="sub">Three states of the media tile, plus the full-size viewer opened by the “View” button.</p>
+  <div class="row">
+    <!-- 1: planned -->
+    <div>
+      <p class="col-h">1 · Planned (not generated)</p>
+      <div class="card">
+        <div class="top"><svg><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b style="font-size:11.5px">Sat, Jul 4, 9:00 AM</b><span class="pill draft">Draft</span><span class="pill amber">Image · not generated</span><span class="plat">F</span></div>
+        <div class="body">
+          <div class="tile"><div class="ph"><svg style="width:22px;height:22px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5L5 21"/></svg><span class="lbl">planned</span></div></div>
+          <div><div class="cap">Your growth team doesn’t sleep — and now neither does your workflow. 🚀</div>
+          <div class="promptbox"><div class="h">Image prompt</div><div class="p">On-brand social image: clean, scroll-stopping, brand colours. No text overlays.</div></div></div>
+        </div>
+        <div class="foot"><div class="tierbox"><button class="on">standard</button><button>premium</button></div><button class="gen"><svg><path d="M12 3v18M3 12h18"/></svg> Generate image</button><button class="act ai"><svg><path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5z"/></svg> Rewrite caption</button></div>
+      </div>
+    </div>
+    <!-- 2: generating -->
+    <div>
+      <p class="col-h">2 · Generating (live loader)</p>
+      <div class="card">
+        <div class="top"><svg><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b style="font-size:11.5px">Sat, Jul 4, 9:00 AM</b><span class="pill draft">Draft</span><span class="pill amber">Image · not generated</span><span class="plat">F</span></div>
+        <div class="body">
+          <div class="tile"><div class="ph"><svg style="width:22px;height:22px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5L5 21"/></svg><span class="lbl">planned</span></div>
+            <div class="busy"><span class="sp"></span><span class="t">Generating image…</span></div></div>
+          <div><div class="cap">Your growth team doesn’t sleep — and now neither does your workflow. 🚀</div>
+          <div class="promptbox"><div class="h">Image prompt</div><div class="p">On-brand social image: clean, scroll-stopping, brand colours. No text overlays.</div></div></div>
+        </div>
+        <div class="foot"><div class="tierbox"><button class="on" style="opacity:.5">standard</button><button style="opacity:.5">premium</button></div><button class="gen" disabled><span class="genning" style="border:0;padding:0;color:#fff"><span class="sp" style="border-color:#ffffff55;border-top-color:#fff"></span></span> Generating…</button></div>
+      </div>
+    </div>
+    <!-- 3: generated -->
+    <div>
+      <p class="col-h">3 · Generated (hover = View / New)</p>
+      <div class="card">
+        <div class="top"><svg><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><b style="font-size:11.5px">Sat, Jul 4, 9:00 AM</b><span class="pill draft">Draft</span><span class="plat">F</span></div>
+        <div class="body">
+          <div class="tile"><img src="https://picsum.photos/seed/flowsmartly/220/220" alt="">
+            <div class="hover"><button><span class="ic"><svg><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg> View</span></button><button><span class="ic"><svg><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg> New</span></button></div></div>
+          <div><div class="cap">Your growth team doesn’t sleep — and now neither does your workflow. 🚀</div></div>
+        </div>
+        <div class="foot"><button class="act"><svg><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg> View</button><button class="act"><svg><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg> New image</button><button class="act ai"><svg><path d="M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5z"/></svg> Rewrite caption</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- lightbox open -->
+  <div class="lb">
+    <div class="scrim"></div>
+    <div class="in">
+      <img src="https://picsum.photos/seed/flowsmartly/900/900" alt="">
+      <div class="btns"><a href="#"><svg><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Download</a><button><svg><path d="M18 6 6 18M6 6l12 12"/></svg> Close</button></div>
+    </div>
+  </div>
+</body></html>

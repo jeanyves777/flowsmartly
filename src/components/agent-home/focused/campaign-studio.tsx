@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { Sparkles, CalendarClock, RotateCcw, Check, ImageIcon, Trash2, Plus, Pencil, X, ChevronRight, PanelRight, Film, RefreshCw } from "lucide-react";
+import { Sparkles, CalendarClock, RotateCcw, Check, ImageIcon, Trash2, Plus, Pencil, X, ChevronRight, PanelRight, Film, RefreshCw, Maximize2, Download } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -79,6 +79,11 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   const [briefOpen, setBriefOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(true);
   const [campaignList, setCampaignList] = useState<{ id: string; name: string; status: string; updatedAt?: string }[]>([]);
+  // Per-post media generation — drives the in-card loader on the exact post the
+  // agent is working on. Cleared when the turn ends (media landed) or on timeout.
+  const [genBusy, setGenBusy] = useState<Record<string, "image" | "video">>({});
+  // Full-size viewer for a generated image/video.
+  const [lightbox, setLightbox] = useState<{ url: string; video: boolean } | null>(null);
 
   const loadStudio = useCallback(async (id: string): Promise<number | null> => {
     const d = await fetch(`/api/content/campaigns/${id}/studio`).then((r) => r.json()).catch(() => null);
@@ -158,11 +163,37 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   }, [generating, campaign, refreshKey]);
 
   // agent turn ended → reload the open campaign so agent edits show (do NOT clear
-  // `generating` here — the poll above owns that).
+  // `generating` here — the poll above owns that). Per-post media tools run in the
+  // foreground, so once the turn ends the media has landed → clear the per-post
+  // loaders AFTER the reload so the fresh media + spinner swap in the same frame.
   useEffect(() => {
-    if (campaign && !generating) loadStudio(campaign.id);
+    if (campaign && !generating) loadStudio(campaign.id).then(() => setGenBusy({}));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
+
+  // Precise clear: as soon as a busy post's media lands in a reload, drop its
+  // loader (snappier than waiting for the turn-end sweep above).
+  useEffect(() => {
+    setGenBusy((prev) => {
+      const ids = Object.keys(prev);
+      if (!ids.length) return prev;
+      let changed = false;
+      const next = { ...prev };
+      for (const id of ids) {
+        const p = posts.find((x) => x.id === id);
+        const m = p?.mediaUrls?.[0];
+        if (p && m && !(p.mediaType || "").startsWith("planned")) { delete next[id]; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [posts]);
+
+  // Safety backstop: never leave a spinner stuck if a turn silently fails.
+  useEffect(() => {
+    if (!Object.keys(genBusy).length) return;
+    const t = setTimeout(() => setGenBusy({}), 180000);
+    return () => clearTimeout(t);
+  }, [genBusy]);
 
   const connectedPlatforms = accounts.filter((a) => a.connected || (a.connectedCount ?? 0) > 0).map((a) => a.platform);
   const togglePlat = (p: string) => setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
@@ -210,6 +241,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   // Generate (or regenerate) ONE post's media from its prompt, at the chosen tier.
   const genMedia = (p: CampaignPost, kind: "image" | "video", tier: "standard" | "premium") => {
     const tool = kind === "video" ? "regenerate_post_video" : "regenerate_post_image";
+    setGenBusy((b) => ({ ...b, [p.id]: kind }));
     onAsk(`In Campaign Studio, generate the ${kind} for post ${p.id} in the "${campaign?.name}" campaign using its media prompt — call ${tool} with postId="${p.id}", tier="${tier}". It attaches live to the card; don't paste it in chat.${kind === "video" ? ` (Video costs ~${tier === "premium" ? 60 : 30} credits.)` : ""}`);
     toast({ title: kind === "video" ? "Rendering video" : "Generating image", description: `${tier[0].toUpperCase() + tier.slice(1)} — the agent is creating it for this post.` });
   };
@@ -272,6 +304,8 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
                       onAiCaption={() => aiCaption(p)}
                       onRedraft={() => redraftPost(p)}
                       onGenerate={(kind, tier) => genMedia(p, kind, tier)}
+                      busy={genBusy[p.id] ?? null}
+                      onView={(url, video) => setLightbox({ url, video })}
                     />
                   </div>
                 ))}
@@ -440,6 +474,25 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
           </div>
         </div>
       )}
+
+      {/* Full-size viewer for a generated image/video */}
+      {lightbox && (
+        <div className="absolute inset-0 z-[60] grid place-items-center p-4 sm:p-8">
+          <button aria-label="Close" onClick={() => setLightbox(null)} className="absolute inset-0 bg-black/80" />
+          <div className="relative z-10 flex max-h-full flex-col items-center">
+            {lightbox.video ? (
+              <video src={lightbox.url} controls autoPlay className="max-h-[80vh] w-auto rounded-xl bg-black" />
+            ) : (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={lightbox.url} alt="Generated media" className="max-h-[80vh] max-w-full rounded-xl object-contain" />
+            )}
+            <div className="mt-3 flex items-center gap-2">
+              <a href={lightbox.url} download target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-[10px] border border-white/25 bg-white/10 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-white/20"><Download className="h-3.5 w-3.5" /> Download</a>
+              <button onClick={() => setLightbox(null)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-white/25 bg-white/10 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-white/20"><X className="h-3.5 w-3.5" /> Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -483,9 +536,10 @@ function EmptyPlayground({ onPlan }: { onPlan: () => void }) {
 
 /* ── a reviewable post card: plan first (caption + media prompt), then generate
  *  the image/video on demand at a chosen tier, then approve. ── */
-function PostCard({ post, onCaption, onPrompt, onReschedule, onRemove, onAiCaption, onRedraft, onGenerate }: {
+function PostCard({ post, onCaption, onPrompt, onReschedule, onRemove, onAiCaption, onRedraft, onGenerate, busy, onView }: {
   post: CampaignPost; onCaption: (v: string) => void; onPrompt: (v: string) => void; onReschedule: (iso: string) => void;
   onRemove: () => void; onAiCaption: () => void; onRedraft: () => void; onGenerate: (kind: "image" | "video", tier: "standard" | "premium") => void;
+  busy?: "image" | "video" | null; onView: (url: string, video: boolean) => void;
 }) {
   const media = post.mediaUrls?.[0];
   const planned = (post.mediaType || "").startsWith("planned") || !!post.mediaPlan;
@@ -514,7 +568,8 @@ function PostCard({ post, onCaption, onPrompt, onReschedule, onRemove, onAiCapti
         <span className="ms-auto flex gap-1">{plats.map((p) => { const m = platMeta(p); return <span key={p} className="grid h-5 w-5 place-items-center rounded-md text-[9px] font-bold text-white" style={{ background: m.bg }}>{m.label}</span>; })}</span>
       </div>
       <div className="grid gap-3 p-3.5 sm:grid-cols-[110px_1fr]">
-        {/* media tile: placeholder while planned, the real media once generated */}
+        {/* media tile: placeholder while planned, the real media once generated.
+            Click a generated tile (or its View button) to see it full-size. */}
         <div className="group/img relative h-[110px] overflow-hidden rounded-xl border border-dashed border-border bg-muted/30">
           {hasMedia ? (
             kind === "video" ? <video src={media} className="h-full w-full rounded-[11px] object-cover" muted playsInline loop /> : <Image src={media!} alt="" width={110} height={110} className="h-full w-full rounded-[11px] object-cover" unoptimized />
@@ -524,7 +579,20 @@ function PostCard({ post, onCaption, onPrompt, onReschedule, onRemove, onAiCapti
               <span className="text-[9px] font-semibold uppercase tracking-wide">{planned ? "planned" : "text-only"}</span>
             </div>
           )}
-          {hasMedia && <button onClick={() => onGenerate(kind, tier)} className="absolute inset-0 hidden place-items-center bg-[#0b1220cc] text-white group-hover/img:grid"><span className="inline-flex items-center gap-1 text-[11px] font-bold"><RotateCcw className="h-3.5 w-3.5" /> New</span></button>}
+          {/* generating this post's media — live loader on the exact card */}
+          {busy && (
+            <div className="absolute inset-0 z-10 grid place-items-center gap-1 bg-[#0b1220e6] text-center">
+              <FlowLoader size={20} tone="white" />
+              <span className="text-[8.5px] font-bold uppercase tracking-wide text-white/90">Generating {busy}…</span>
+            </div>
+          )}
+          {/* View (full-size) + New (regenerate) on hover once media exists */}
+          {hasMedia && !busy && (
+            <div className="absolute inset-0 hidden grid-cols-2 group-hover/img:grid">
+              <button onClick={() => onView(media!, kind === "video")} title="View full size" className="grid place-items-center bg-[#0b1220cc] text-white hover:bg-[#0b1220ee]"><span className="inline-flex flex-col items-center gap-0.5 text-[10px] font-bold"><Maximize2 className="h-3.5 w-3.5" /> View</span></button>
+              <button onClick={() => onGenerate(kind, tier)} title="Generate a new one" className="grid place-items-center border-s border-white/15 bg-[#0b1220cc] text-white hover:bg-[#0b1220ee]"><span className="inline-flex flex-col items-center gap-0.5 text-[10px] font-bold"><RotateCcw className="h-3.5 w-3.5" /> New</span></button>
+            </div>
+          )}
         </div>
         {/* caption + media prompt */}
         <div className="space-y-2">
@@ -566,13 +634,22 @@ function PostCard({ post, onCaption, onPrompt, onReschedule, onRemove, onAiCapti
             <>
               <div className="inline-flex overflow-hidden rounded-[8px] border border-border">
                 {(["standard", "premium"] as const).map((t) => (
-                  <button key={t} onClick={() => setTier(t)} className={cn("px-2 py-1 text-[10.5px] font-semibold capitalize", tier === t ? "bg-brand-500/15 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{t}</button>
+                  <button key={t} disabled={!!busy} onClick={() => setTier(t)} className={cn("px-2 py-1 text-[10.5px] font-semibold capitalize disabled:opacity-50", tier === t ? "bg-brand-500/15 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{t}</button>
                 ))}
               </div>
-              <button onClick={() => onGenerate(kind, tier)} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[11px] font-bold text-white"><Sparkles className="h-3 w-3" /> Generate {kind}</button>
+              <button disabled={!!busy} onClick={() => onGenerate(kind, tier)} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[11px] font-bold text-white disabled:opacity-70">
+                {busy ? <><RefreshCw className="h-3 w-3 animate-spin" /> Generating…</> : <><Sparkles className="h-3 w-3" /> Generate {kind}</>}
+              </button>
             </>
           ) : hasMedia ? (
-            <Act icon={RotateCcw} label={kind === "video" ? "New video" : "New image"} onClick={() => onGenerate(kind, tier)} />
+            <>
+              <Act icon={Maximize2} label="View" onClick={() => onView(media!, kind === "video")} />
+              {busy ? (
+                <span className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground"><RefreshCw className="h-3 w-3 animate-spin" /> Generating…</span>
+              ) : (
+                <Act icon={RotateCcw} label={kind === "video" ? "New video" : "New image"} onClick={() => onGenerate(kind, tier)} />
+              )}
+            </>
           ) : null}
           <Act icon={Sparkles} label="Rewrite caption" onClick={onAiCaption} ai />
           <Act icon={RefreshCw} label="Redraft post" onClick={onRedraft} />
