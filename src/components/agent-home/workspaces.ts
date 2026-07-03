@@ -9,6 +9,7 @@ import {
   Search,
   SlidersHorizontal,
   Printer,
+  CalendarClock,
   type LucideIcon,
 } from "lucide-react";
 
@@ -69,6 +70,15 @@ export const WORKSPACES: Workspace[] = [
       { label: "Social accounts", route: "/social-accounts", viewKey: "connections", desc: "Connect Instagram, Facebook, X & more" },
       { label: "Posts", route: "/posts", viewKey: "publish", desc: "Draft, schedule & track your posts" },
       { label: "Content calendar", route: "/content", viewKey: "calendar", desc: "See what’s going out, and when" },
+    ],
+  },
+  {
+    key: "campaign",
+    label: "Campaign",
+    icon: CalendarClock,
+    route: "/home/campaign",
+    items: [
+      { label: "Campaign studio", route: "/home/campaign", viewKey: "campaign", desc: "Plan, generate & schedule a content campaign" },
     ],
   },
   {

@@ -637,6 +637,8 @@ export function AgentHome() {
     if (key === "leads") { guardNav(() => openFocused("leads")); return; }
     // Print opens the studio directly (its hero IS the format chooser), not a panel.
     if (key === "print") { guardNav(() => openFocused("print")); return; }
+    // Campaign opens the studio directly on a fresh brief (its hero IS the brief form).
+    if (key === "campaign") { guardNav(() => { setCampaignTarget({}); openFocused("campaign"); }); return; }
     // Browsing a category just opens its menu panel on the RIGHT — it does NOT
     // leave the current focused view (the view stays mounted behind the panel).
     // Only picking an item (onOpenView) or Home/Leads actually navigates away, so

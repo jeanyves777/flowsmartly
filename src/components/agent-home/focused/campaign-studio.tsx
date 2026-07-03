@@ -181,11 +181,9 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
     } finally { setApproving(false); }
   };
 
-  if (!target) return <div className="grid min-h-0 flex-1 place-items-center p-8 text-center text-[13px] text-muted-foreground">Open Campaign Studio from Publish to plan a content campaign.</div>;
-
   const draftCount = posts.filter((p) => p.status === "DRAFT").length;
   const scheduledCount = posts.filter((p) => p.status === "SCHEDULED").length;
-  const isNew = !target.campaignId && !campaign;
+  const isNew = !target?.campaignId && !campaign;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
