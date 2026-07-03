@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, type ReactNode } from "react";
 import Image from "next/image";
 import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square, ThumbsUp, ThumbsDown, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { createSpeechPlayer, type SpeechPlayer } from "./use-tts";
 import { RichText } from "./rich-text";
 
@@ -587,7 +587,12 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
   const objectIsBg = (task.output as { objectType?: string } | null | undefined)?.objectType === "background";
 
   return (
-    <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+    <div className={cn(
+      "w-full max-w-md rounded-2xl border bg-white dark:bg-gray-900 overflow-hidden transition-shadow",
+      isRunning
+        ? "border-brand-500/40 shadow-[0_0_0_1px_rgba(109,92,255,0.25),0_10px_34px_-8px_rgba(109,92,255,0.4)]"
+        : "border-border shadow-sm",
+    )}>
       <div className="px-3.5 py-2.5 border-b border-border flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           {isRunning ? (
@@ -613,19 +618,13 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
         </span>
       </div>
       {isRunning && (
-        <div className="px-3.5 py-3 space-y-2">
-          <p className="text-xs text-muted-foreground">
-            {task.progressMessage ?? task.summary ?? "Working…"}
-          </p>
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-300"
-              style={{ width: `${Math.min(100, Math.max(6, task.progress ?? 30))}%` }}
-            />
-          </div>
-          <p className="text-[10px] text-muted-foreground/70">
-            You can leave this chat — we&apos;ll notify you when it&apos;s ready.
-          </p>
+        <div className="px-3.5 py-4">
+          <AIGenerationLoader
+            compact
+            currentStep={task.progressMessage ?? task.summary ?? "Working…"}
+            progress={typeof task.progress === "number" ? task.progress : undefined}
+            subtitle="You can leave this chat — we'll notify you when it's ready."
+          />
         </div>
       )}
       {isDone && isCanvasObject && objectUrl && (
@@ -948,6 +947,11 @@ export function MessageBlocks({
   const taskMap = new Map((agentTasks ?? []).map((t) => [t.id, t]));
 
   const rows: ReactNode[] = [];
+  // Task cards (a background job's live status) are deferred to the END of the
+  // message so they read as the MOST-CURRENT item — the agent emits task_started
+  // BEFORE its final text, but the running/completed card should sit BELOW the
+  // "…it's generating" message, not above it.
+  const taskRows: ReactNode[] = [];
   let i = 0;
   while (i < blocks.length) {
     const b = blocks[i];
@@ -1010,7 +1014,7 @@ export function MessageBlocks({
     } else if (b.type === "task") {
       const t = taskMap.get(b.id);
       if (t) {
-        rows.push(
+        taskRows.push(
           <div key={`task-${i}`} className="flex flex-col items-start">
             <TaskCard task={t} />
           </div>,
@@ -1039,6 +1043,9 @@ export function MessageBlocks({
       i += 1;
     }
   }
+
+  // Task cards last — the live/most-current status sits below the message text.
+  rows.push(...taskRows);
 
   return <div className="flex flex-col items-start gap-2">{rows}</div>;
 }
