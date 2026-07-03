@@ -1043,7 +1043,7 @@ export function AgentHome() {
                 ) : focused === "domains" ? (
                   <FocusedDomains refreshKey={actionCount} />
                 ) : focused === "pitch" ? (
-                  <FocusedPitch onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedPitch onAsk={sendAction} refreshKey={actionCount} onOpenStudio={(pitchId) => guardNav(() => openPitchStudio(pitchId ? { pitchId } : {}))} />
                 ) : focused === "forms" ? (
                   <FocusedForms onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "automations" ? (

@@ -39,6 +39,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
   const [tab, setTab] = useState<"design" | "sections" | "type">("design");
   const [ai, setAi] = useState<{ field: string; current: string } | null>(null);
   const [aiInstruction, setAiInstruction] = useState("");
+  const [newBrief, setNewBrief] = useState("");
   const [imgBusy, setImgBusy] = useState<Record<string, boolean>>({});
   const baselineRef = useRef<string | null>(null);
   const dirtyRef = useRef(false);
@@ -66,6 +67,13 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
     return match?.id ?? null;
   }, []);
 
+  // Newest proposal overall — used when drafting a brand-new proposal from the
+  // Studio (no lead yet) so the freshly-generated doc loads in place.
+  const newestProposal = useCallback(async (): Promise<string | null> => {
+    const r = await fetch(`/api/pitch?documentType=service_proposal&limit=1`).then((x) => x.json()).catch(() => null);
+    return r?.data?.pitches?.[0]?.id ?? null;
+  }, []);
+
   // Resolve which pitch to show when the target changes.
   useEffect(() => {
     let cancelled = false;
@@ -80,14 +88,15 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
     return () => { cancelled = true; };
   }, [target, loadById, newestForLead]);
 
-  // Poll for a freshly-generated proposal (background task); only clear the state on a real load.
+  // Poll for a freshly-generated proposal (background task); only clear the state
+  // on a real load. Works for a lead-based generate AND a brand-new draft (no lead).
   useEffect(() => {
-    if (!generating || !target?.leadId) return;
-    const leadId = target.leadId, leadName = target.leadName || "";
+    if (!generating) return;
+    const leadId = target?.leadId, leadName = target?.leadName || "";
     let stop = false;
     const tick = async () => {
       if (stop) return;
-      const id = await newestForLead(leadId, leadName);
+      const id = leadId ? await newestForLead(leadId, leadName) : await newestProposal();
       if (id && id !== baselineRef.current) { const ok = await loadById(id); if (ok && !stop) setGenerating(false); }
     };
     void tick();
@@ -171,6 +180,15 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
     onAsk(`Create a branded proposal for the lead "${target.leadName}" (savedLeadId: ${target.leadId}) in Pitch Studio — draw the services + value from my Brand Kit. Call propose_plan first (AI_SERVICE_PROPOSAL) so I can approve, then call create_proposal with savedLeadId="${target.leadId}", targetName="${target.leadName}", and a fitting serviceTitle + serviceDescription. Don't paste the proposal in the chat — it opens here in the studio.`);
   };
 
+  // Draft a brand-new proposal from scratch (New proposal → blank Studio).
+  const startNewProposal = async () => {
+    const brief = newBrief.trim();
+    if (!brief) return;
+    baselineRef.current = await newestProposal();
+    setGenerating(true);
+    onAsk(`Create a branded proposal in Pitch Studio for this brief: "${brief}". Draw the services + value from my Brand Kit. Call propose_plan first (AI_SERVICE_PROPOSAL) so I can approve, then call create_proposal with a fitting targetName, serviceTitle and serviceDescription (infer the client from the brief). Don't paste the proposal in the chat — it opens here in the studio.`);
+  };
+
   const downloadPdf = async () => {
     if (!pitch) return;
     setDownloading(true);
@@ -191,7 +209,8 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
   };
 
   if (!target) return <div className="grid min-h-0 flex-1 place-items-center p-8 text-center text-[13px] text-muted-foreground">Open Pitch Studio from a lead to draft a tailored proposal.</div>;
-  const displayName = target.leadName || pitch?.businessName || "this lead";
+  const isNew = !target.pitchId && !target.leadId;
+  const displayName = target.leadName || pitch?.businessName || (isNew ? "your client" : "this lead");
   const canGenerate = !!target.leadId;
 
   // Body states: loading / generating / empty.
@@ -208,7 +227,12 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
     if (!pitch || !theme) return (
       <div className="grid h-full place-items-center p-8 text-center">
         <div className="max-w-md"><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><FileText className="h-7 w-7" /></span>
-          {canGenerate ? (<>
+          {isNew ? (<>
+            <h3 className="mt-4 text-[15px] font-bold">Draft a new proposal</h3>
+            <p className="mx-auto mt-1.5 max-w-sm text-[12.5px] text-muted-foreground">Tell the agent who this is for and what you're offering — it researches them and builds a branded, PDF-ready proposal from your Brand Kit, right here.</p>
+            <textarea autoFocus value={newBrief} onChange={(e) => setNewBrief(e.target.value)} rows={3} placeholder="e.g. A proposal for Riverside Dental offering our social-media management + monthly content package." className="mt-3 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
+            <button onClick={startNewProposal} disabled={!newBrief.trim()} className="mt-3 inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60"><Sparkles className="h-4 w-4" /> Generate proposal</button>
+          </>) : canGenerate ? (<>
             <h3 className="mt-4 text-[15px] font-bold">Draft a proposal for {displayName}</h3>
             <p className="mt-1.5 text-[12.5px] text-muted-foreground">The agent researches this prospect and builds a branded, PDF-ready proposal from your Brand Kit. Edit every block here and attach it to your outreach.</p>
             <button onClick={generate} className="mt-4 inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Generate proposal</button>
