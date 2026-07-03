@@ -130,8 +130,8 @@ export function PitchDocument({ content, theme, brandName, businessName, logoUrl
         )}
 
         {/* ── COMMITMENTS / BENEFITS (bullets) ── */}
-        {commitments.length > 0 && <BulletSection kicker={Kick("commitments", "Our commitment")} accent={theme.primary} items={commitments} onChange={(v) => set("commitments", v)} onAI={() => onEditWithAI("commitments", commitments.join("\n"))} />}
-        {benefits.length > 0 && <BulletSection kicker={Kick("benefits", "The impact")} accent={theme.primary} items={benefits} onChange={(v) => set("benefits", v)} onAI={() => onEditWithAI("benefits", benefits.join("\n"))} />}
+        {commitments.length > 0 && <BulletSection kicker={Kick("commitments", "Our commitment")} accent={primaryInk} items={commitments} onChange={(v) => set("commitments", v)} onAI={() => onEditWithAI("commitments", commitments.join("\n"))} />}
+        {benefits.length > 0 && <BulletSection kicker={Kick("benefits", "The impact")} accent={primaryInk} items={benefits} onChange={(v) => set("benefits", v)} onAI={() => onEditWithAI("benefits", benefits.join("\n"))} />}
 
         {/* ── PROOF metrics ── */}
         {proof.length > 0 && (
@@ -276,7 +276,7 @@ export function Editable({ as: Tag = "p", value, onCommit, onAI, className, styl
   // Render as a loose element type so the same ref works for any tag (h1…span).
   const Comp = Tag as React.ElementType;
 
-  const start = () => {
+  const start = (x?: number, y?: number) => {
     if (editing) return;
     setEditing(true);
     requestAnimationFrame(() => {
@@ -284,11 +284,28 @@ export function Editable({ as: Tag = "p", value, onCommit, onAI, className, styl
       if (!el) return;
       el.focus();
       const sel = window.getSelection();
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false); // caret at end
-      sel?.removeAllRanges();
-      sel?.addRange(range);
+      if (!sel) return;
+      let range: Range | null = null;
+      // Drop the caret where the user actually clicked, not always at the end.
+      if (typeof x === "number" && typeof y === "number") {
+        const doc = document as Document & {
+          caretRangeFromPoint?: (x: number, y: number) => Range | null;
+          caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+        };
+        if (doc.caretRangeFromPoint) range = doc.caretRangeFromPoint(x, y);
+        else if (doc.caretPositionFromPoint) {
+          const pos = doc.caretPositionFromPoint(x, y);
+          if (pos) { range = document.createRange(); range.setStart(pos.offsetNode, pos.offset); range.collapse(true); }
+        }
+      }
+      // Fallback (keyboard entry, or click point outside our text): caret at end.
+      if (!range || !el.contains(range.startContainer)) {
+        range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+      }
+      sel.removeAllRanges();
+      sel.addRange(range);
     });
   };
   const commit = () => {
@@ -306,7 +323,7 @@ export function Editable({ as: Tag = "p", value, onCommit, onAI, className, styl
       spellCheck={editing}
       role={!editing ? "button" : undefined}
       tabIndex={!editing ? 0 : undefined}
-      onClick={start}
+      onClick={(e: React.MouseEvent) => start(e.clientX, e.clientY)}
       onKeyDown={(e: React.KeyboardEvent) => {
         if (!editing) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); start(); } return; }
         if (e.key === "Enter" && !multiline && !e.shiftKey) { e.preventDefault(); (e.currentTarget as HTMLElement).blur(); }

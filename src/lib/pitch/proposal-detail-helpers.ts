@@ -58,9 +58,11 @@ export function visibleOnWhite(hex: string): string {
   return rgbHex(r, g, b);
 }
 
-/** Pick ink or white text for legibility on a given background colour. */
+/** Pick ink or white text for legibility on a given background colour. The
+ *  0.45 threshold flips to dark ink once a background is light enough that white
+ *  text would be low-contrast (e.g. a pale brand colour darkened to ~0.5). */
 export function textOnColor(bgHex: string, ink = "#0f172a"): string {
-  return colorLuminance(bgHex) > 0.55 ? ink : "#ffffff";
+  return colorLuminance(bgHex) > 0.45 ? ink : "#ffffff";
 }
 
 export function cloneContent<T>(content: T): T {

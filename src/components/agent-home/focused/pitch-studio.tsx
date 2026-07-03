@@ -5,7 +5,7 @@ import { FileText, Download, Sparkles, Plus, RotateCcw, X, GripVertical, Chevron
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
-import { getProposalTheme, isServiceProposalContent } from "@/lib/pitch/proposal-detail-helpers";
+import { getProposalTheme, isServiceProposalContent, visibleOnWhite } from "@/lib/pitch/proposal-detail-helpers";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
 import { PitchDocument, Editable } from "./pitch-document";
 import { VisualDocument } from "./visual-document";
@@ -386,6 +386,10 @@ function EmailPreview({ content, theme, businessName, brandName, logoUrl, onChan
   const bullets = (content.commitments?.length ? content.commitments : content.benefits || []).slice(0, 3);
   const to = content.preparedFor || businessName;
   const set = (k: keyof ServiceProposalContent, v: string) => onChange({ ...content, [k]: v });
+  // Brand colours darkened so the header band, bullets, CTA and attachment chip
+  // stay visible on the white email — a pale brand no longer washes out.
+  const primaryInk = visibleOnWhite(theme.primary);
+  const secondaryInk = visibleOnWhite(theme.secondary);
   return (
     <div className="px-4 py-6 sm:px-6">
       <div className="mx-auto flex max-w-[640px] items-center justify-between pb-3">
@@ -394,7 +398,7 @@ function EmailPreview({ content, theme, businessName, brandName, logoUrl, onChan
       </div>
       <div className="mx-auto max-w-[640px] overflow-hidden rounded-2xl bg-white shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
         {/* branded header band */}
-        <div className="flex items-center gap-3 px-7 py-4 text-white" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})` }}>
+        <div className="flex items-center gap-3 px-7 py-4 text-white" style={{ background: `linear-gradient(135deg, ${primaryInk}, ${secondaryInk})` }}>
           {logoUrl ? <img src={logoUrl} alt={brandName} className="h-6 w-auto object-contain" /> : <span className="text-[14px] font-extrabold tracking-wide" style={{ fontFamily: "Arial, sans-serif" }}>{brandName}</span>}
           <span className="ms-auto rounded-full bg-white/15 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-wide" style={{ fontFamily: "Arial, sans-serif" }}>Quick note for {to}</span>
         </div>
@@ -406,14 +410,14 @@ function EmailPreview({ content, theme, businessName, brandName, logoUrl, onChan
           {bullets.length > 0 && (
             <ul className="mt-3 space-y-1.5">
               {bullets.map((b, i) => (
-                <li key={i} className="flex items-start gap-2 text-[14px] text-[#1f2937]"><span className="mt-[3px] grid h-4 w-4 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: theme.primary }}>✓</span><span>{b}</span></li>
+                <li key={i} className="flex items-start gap-2 text-[14px] text-[#1f2937]"><span className="mt-[3px] grid h-4 w-4 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: primaryInk }}>✓</span><span>{b}</span></li>
               ))}
             </ul>
           )}
-          <div className="mt-5"><span className="inline-block rounded-full px-5 py-2.5 text-[13.5px] font-extrabold text-white shadow-sm" style={{ background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})` }}>Grab a 15-min call →</span></div>
+          <div className="mt-5"><span className="inline-block rounded-full px-5 py-2.5 text-[13.5px] font-extrabold text-white shadow-sm" style={{ background: `linear-gradient(135deg, ${primaryInk}, ${secondaryInk})` }}>Grab a 15-min call →</span></div>
           <p className="mt-4 text-[13.5px] text-[#6a7280]">Talk soon,<br/><b style={{ color: theme.ink }}>{brandName}</b></p>
-          <div className="mt-5 flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5" style={{ borderColor: `${theme.primary}55`, background: `${theme.primary}0d` }}>
-            <span className="grid h-8 w-8 place-items-center rounded-lg text-white" style={{ background: theme.primary }}>📎</span>
+          <div className="mt-5 flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5" style={{ borderColor: `${primaryInk}55`, background: `${primaryInk}0d` }}>
+            <span className="grid h-8 w-8 place-items-center rounded-lg text-white" style={{ background: primaryInk }}>📎</span>
             <div className="text-[12.5px]"><b>{businessName.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-proposal.pdf</b><div className="text-[11.5px] text-[#6a7280]">The full branded proposal — edit it on the Proposal-deck tab.</div></div>
           </div>
         </div>

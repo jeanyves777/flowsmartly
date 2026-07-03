@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
-import { visibleOnWhite } from "@/lib/pitch/proposal-detail-helpers";
+import { visibleOnWhite, textOnColor } from "@/lib/pitch/proposal-detail-helpers";
 import { Editable } from "./pitch-document";
 
 /**
@@ -297,7 +297,7 @@ function VImg({ kind, url, theme, onGenerate, onUpload, busy, big }: {
   const actions = interactive && !busy && (
     <div className="flex flex-wrap items-center justify-center gap-2">
       {onGenerate && (
-        <button onClick={() => onGenerate(kind)} className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-bold text-white shadow-lg" style={{ background: theme.primary }}>
+        <button onClick={() => onGenerate(kind)} className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[12.5px] font-bold shadow-lg" style={{ background: theme.primary, color: textOnColor(theme.primary) }}>
           <Sparkles className="h-4 w-4" /> {url ? "Regenerate" : "Generate"} with AI
         </button>
       )}
