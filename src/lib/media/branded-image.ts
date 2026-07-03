@@ -139,36 +139,35 @@ export async function generateBrandedImage(
       }
     : null;
 
-  // Same policy scaffolding the Studio Create modal uses so quality matches the
-  // product page (logo lock + anti-invention + exact-reference handling).
-  const logoPolicy = hasBrandLogo
-    ? "Logo lock: do NOT draw, redraw, or invent any logo, wordmark, emblem, seal, crest, mascot, or monogram — the user's REAL logo is composited on afterward, SMALL, in one TOP corner. RESERVE a calm clear corner for it: keep the TOP-LEFT and TOP-RIGHT corners (about the top 16% of the height) free of headline text, faces, and key graphics — quiet background only — so the small logo drops in cleanly without covering anything. Do NOT add a placeholder box, frame, label, or watermark; just keep those corners uncluttered, and do NOT spell out the brand name as a wordmark."
-    : "Do not invent a logo, icon, seal, crest, monogram, mascot, or brand mark the user did not provide. Use plain brand-name text only if the prompt asks for it.";
+  // NOTE: logo-lock, full-bleed, typography, and single-logo rules are NO LONGER
+  // repeated here — they come from the shared art-direction recipe
+  // (buildArtDirection) applied in the pipeline. Duplicating them blew the prompt
+  // past xAI's 8000-char limit, silently dropping Standard from xAI to a fallback
+  // model. Keep THIS prompt to the creative brief + brand facts only.
+  // [[image-pipeline-providers]]
   const exactReferencePolicy = referenceImageUrls.length
-    ? "Exact reference handling: the uploaded photo(s) are the REAL subject. Preserve the real person's face and identity exactly — do NOT synthesize a similar-looking or different person. Integrate them naturally into the design."
+    ? "The uploaded photo(s) are the REAL subject — preserve the real person's face/identity exactly (no lookalike) and integrate them naturally."
     : null;
-  const brandDisplayPolicy = [
-    !hasBrandLogo && brandKit?.name
-      ? `Show the brand name "${brandKit.name}" as a clear, readable text header at the TOP of the design.`
-      : null,
-    contactLine
-      ? `Include these REAL contact details in small, legible text near the bottom (copy them exactly, do not invent any): ${contactLine}.`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const brandNameHeader = !hasBrandLogo && brandKit?.name
+    ? `Show the brand name "${brandKit.name}" as a clear header at the top.`
+    : null;
+  const contactRule = contactLine
+    ? `Include these REAL contact details, copied exactly (never invent): ${contactLine}.`
+    : null;
   const antiInventionPolicy =
-    "Content rule: render ONLY the messaging, names, dates, and visuals the user provided in the prompt, brand kit, or uploaded references. Do not invent extra products, people, prices, dates, claims, or testimonials.";
+    "Render ONLY the messaging, names, dates, and visuals provided. Do not invent products, people, prices, dates, claims, or testimonials.";
+  // The template contributes LAYOUT/COPY direction as text; cap it so a verbose
+  // template can't push us over the provider prompt limit.
+  const templateDirection = agentTemplate ? buildAgentDesignTemplatePrompt(agentTemplate).slice(0, 1400) : null;
 
   const imagePrompt = withLanguagePrefix(
     [
       promptText,
-      agentTemplate ? buildAgentDesignTemplatePrompt(agentTemplate) : null,
+      templateDirection,
       exactReferencePolicy,
-      brandDisplayPolicy || null,
-      logoPolicy,
+      brandNameHeader,
+      contactRule,
       antiInventionPolicy,
-      "Keep the final visual sharp, high-resolution, and readable.",
     ]
       .filter(Boolean)
       .join("\n\n"),
@@ -203,7 +202,15 @@ export async function generateBrandedImage(
     contactInfo,
     referenceImageUrl: referenceImageUrls[0] || null,
     referenceImageUrls,
-    templateImageUrl: agentTemplate?.imageUrl || null,
+    // Do NOT hand the auto-chosen template as a PIXEL reference: that pushes the
+    // raw_brand pipeline onto the edit chain (Nano Banana reproducing the
+    // template — generic art, garbled text, and the template's wordmark colliding
+    // with the composited real logo = the duplicate-logo bug). The template's
+    // LAYOUT/COPY DIRECTION is already carried as TEXT via buildAgentDesignTemplatePrompt
+    // + agentDesignTemplate, so we generate from scratch through the design_generate
+    // chain (xAI grok-imagine @2K) which is the proven quality path.
+    // [[image-pipeline-providers]]
+    templateImageUrl: null,
     agentDesignTemplate: agentTemplate ? serializeAgentDesignTemplateForTool(agentTemplate) : null,
     compositeReferenceSubject: false,
     qualityCheckEnabled: input.qualityCheck === true,
