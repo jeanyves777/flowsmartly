@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/client";
 import { runVisualForUser } from "@/app/api/ai/visual/route";
 import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
+import { nameBrandColors } from "@/lib/media/color-names";
 
 /**
  * generateBrandedImage — the ONE place that turns a creative brief + a user's
@@ -82,6 +83,16 @@ export async function generateBrandedImage(
   const brandLogo = brandKit?.logo || brandKit?.iconLogo || null;
   const hasBrandLogo = Boolean(brandLogo);
 
+  // Describe the palette with human color NAMES, never raw hex — xAI renders a
+  // hex string literally as visible text (the "#a441e8" leak). The real hex is
+  // still passed to the engine separately for accurate on-brand coloring.
+  const colorNames = await nameBrandColors({ primary: colors?.primary, secondary: colors?.secondary, accent: colors?.accent });
+  const palette = [
+    colorNames.primary ? `primary ${colorNames.primary}` : null,
+    colorNames.secondary ? `secondary ${colorNames.secondary}` : null,
+    colorNames.accent ? `accent ${colorNames.accent}` : null,
+  ].filter(Boolean).join(", ") || undefined;
+
   const contactInfo = brandKit
     ? { email: brandKit.email, phone: brandKit.phone, website: brandKit.website, address: brandKit.address }
     : null;
@@ -102,7 +113,9 @@ export async function generateBrandedImage(
         products: parseJson<unknown[]>(brandKit.products, []),
         keywords: parseJson<unknown[]>(brandKit.keywords, []),
         hashtags: parseJson<unknown[]>(brandKit.hashtags, []),
-        colors,
+        // NOTE: color NAMES only (no raw hex) so the model can't render the hex
+        // as literal text on the design. Real hex still flows via visualBody.brandColors.
+        palette,
         handles,
         website: brandKit.website || null,
         email: brandKit.email || null,
