@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type PointerEvent as RPointerEvent } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { Megaphone, Sparkles, ExternalLink, Coins, Eye, MousePointerClick, TrendingUp, CheckCircle2, Clock, XCircle, Image as ImageIcon, Target, Plus, Link2, LayoutGrid, Rocket, Package, PenLine, ArrowRight, ArrowLeft, ArrowLeftRight, Wand2, Trash2, Pause, Play, X, Check, GripVertical } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -119,6 +120,10 @@ type CanvasBridge = { getContext: () => string; applyPatch: (patch: Record<strin
 
 export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { refreshKey?: number; onAsk?: (prompt: string) => void; agentBusy?: boolean; canvasRef?: { current: CanvasBridge | null } }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  // Portal the header actions into the FocusedView shell header (#fv-header-slot)
+  // so there's ONE top bar instead of a second full-width toolbar under it.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
   const [stats, setStats] = useState<Stats>({});
   const [hasRoas, setHasRoas] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -591,17 +596,21 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/* compact header — campaign name + actions (providers live in the Goal & placement step) */}
-      <div className="z-10 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border bg-card/40 px-4 py-2 backdrop-blur">
-        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] bg-brand-500/10 text-brand-500"><Megaphone className="h-4 w-4" /></span>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="w-[200px] min-w-0 rounded-[8px] border border-transparent bg-transparent px-2 py-1 text-[14px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background" />
-        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-amber-500">Draft</span>
-        <div className="ms-auto flex items-center gap-2">
-          <button onClick={buildWithAI} disabled={!onAsk} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build with AI</button>
-          <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><LayoutGrid className="h-3.5 w-3.5" /> Library{total > 0 ? ` · ${total}` : ""}</button>
-          <button onClick={newCampaign} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> New</button>
-        </div>
-      </div>
+      {/* Header actions live in the shell header (#fv-header-slot) — one top bar. */}
+      {(() => {
+        const header = (
+          <>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="w-[180px] min-w-0 rounded-[8px] border border-transparent bg-transparent px-2 py-1 text-[13.5px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background" />
+            <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-amber-500">Draft</span>
+            <button onClick={buildWithAI} disabled={!onAsk} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build with AI</button>
+            <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><LayoutGrid className="h-3.5 w-3.5" /> Library{total > 0 ? ` · ${total}` : ""}</button>
+            <button onClick={newCampaign} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> New</button>
+          </>
+        );
+        return headerSlot ? createPortal(header, headerSlot) : (
+          <div className="z-10 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border bg-card/40 px-4 py-2 backdrop-blur">{header}</div>
+        );
+      })()}
       {notice && <p className="mx-4 mb-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-[12px] text-emerald-500">{notice}</p>}
 
       {/* horizontal node canvas */}

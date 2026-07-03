@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   Clapperboard, Sparkles, Type as TypeIcon, X, Coins, Play,
@@ -133,6 +134,10 @@ function clipBadge(status: ClipStatus): { label: string; cls: string; icon: Elem
 
 export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  // Portal the header actions into the FocusedView shell header (#fv-header-slot)
+  // so there's ONE top bar instead of a second full-width toolbar under it.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [play, setPlay] = useState<{ url: string; title?: string; poster?: string | null } | null>(null);
@@ -222,21 +227,25 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/* toolbar */}
-      <div className="z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-2.5 backdrop-blur">
-        <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold"><Clapperboard className="h-4 w-4 text-brand-500" /> Video playground</span>
-        <span className="hidden items-center gap-2 text-[11.5px] text-muted-foreground sm:inline-flex">
-          <Dot /> {stats.total} renders <Dot /> {stats.ready} ready <Dot /> {stats.rendering} rendering
-        </span>
-        <div className="ms-auto flex items-center gap-2">
-          <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground" title="Browse all your videos">
-            <FolderOpen className="h-3.5 w-3.5" /> Library{stats.total > 0 ? ` · ${stats.total}` : ""}
-          </button>
-          <button onClick={openSheet} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
-            <Sparkles className="h-3.5 w-3.5" /> New video
-          </button>
-        </div>
-      </div>
+      {/* Header actions live in the shell header (#fv-header-slot) — one top bar. */}
+      {(() => {
+        const header = (
+          <>
+            <span className="hidden items-center gap-2 text-[11.5px] text-muted-foreground sm:inline-flex">
+              <Dot /> {stats.total} renders <Dot /> {stats.ready} ready <Dot /> {stats.rendering} rendering
+            </span>
+            <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground" title="Browse all your videos">
+              <FolderOpen className="h-3.5 w-3.5" /> Library{stats.total > 0 ? ` · ${stats.total}` : ""}
+            </button>
+            <button onClick={openSheet} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
+              <Sparkles className="h-3.5 w-3.5" /> New video
+            </button>
+          </>
+        );
+        return headerSlot ? createPortal(header, headerSlot) : (
+          <div className="z-10 flex flex-wrap items-center gap-2 border-b border-border bg-card/40 px-4 py-2.5 backdrop-blur">{header}</div>
+        );
+      })()}
 
       {/* dotted canvas */}
       <div

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, Square, Circle, Search, Shapes, Minus, RectangleHorizontal, Star, Heart, ArrowRight, Sun, Zap, Crown, Award, ShieldCheck, Gift, ThumbsUp, Flame, Quote, Smile, QrCode, Table2, type LucideIcon } from "lucide-react";
 import QRCode from "qrcode";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -979,6 +980,10 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const [designId, setDesignId] = useState<string | null>(null);
   const [designName, setDesignName] = useState("Untitled design");
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  // Portal the toolbar into the FocusedView shell header (#fv-header-slot) so
+  // there's ONE top bar, not a second full-width toolbar under it.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
   const [libOpen, setLibOpen] = useState(false);
   const [libDesigns, setLibDesigns] = useState<SavedDesign[]>([]);
   const [libLoading, setLibLoading] = useState(false);
@@ -1427,32 +1432,38 @@ export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onB
   const selQr = sel?.kind === "qr" ? qrs.find((q) => q.id === sel.id) : null;
   const selTable = sel?.kind === "table" ? tables.find((t) => t.id === sel.id) : null;
 
+  const toolbar = (
+    <>
+      {onBack && (
+        <>
+          <button onClick={onBack} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[12px] text-muted-foreground hover:text-foreground" title="Back to print formats"><ChevronLeft className="h-3.5 w-3.5" /> Formats</button>
+          {formatLabel && <span className="hidden rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground sm:inline-block">{formatLabel}</span>}
+          <span className="mx-0.5 h-5 w-px bg-border" />
+        </>
+      )}
+      <button onClick={undo} disabled={!canUndo} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground" title="Undo (Ctrl/⌘+Z)"><Undo2 className="h-4 w-4" /></button>
+      <button onClick={redo} disabled={!canRedo} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground" title="Redo (Ctrl/⌘+Shift+Z)"><Redo2 className="h-4 w-4" /></button>
+      <button onClick={addText} className="ms-1 inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Add a text element"><Plus className="h-3.5 w-3.5" /> Text</button>
+      <button onClick={openLibrary} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Open your saved designs"><FolderOpen className="h-3.5 w-3.5" /> Designs</button>
+      <input value={designName} onChange={(e) => setDesignName(e.target.value)} title="Design name" placeholder="Untitled design" className="ms-1 hidden min-w-0 max-w-[150px] rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[12.5px] font-medium outline-none hover:border-border focus:border-brand-500/60 md:inline-block" />
+      {guides && (
+        <button onClick={() => setShowGuides((v) => !v)} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px]", showGuides ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:text-foreground")} title="Toggle bleed / safe-area / fold guides"><Ruler className="h-3.5 w-3.5" /> Guides</button>
+      )}
+      <button onClick={saveDesign} disabled={saveState === "saving"} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] disabled:opacity-70", saveState === "saved" ? "border-brand-500/60 text-brand-500" : "border-border hover:text-foreground")} title="Save to your design library">
+        {saveState === "saving" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saveState === "saved" ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />} {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}
+      </button>
+      <button onClick={exportImage} disabled={!value.imageUrl} title={value.imageUrl ? "Open the rendered image" : "Generate the design first"} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"><Download className="h-3.5 w-3.5" /> Export</button>
+      <button onClick={() => setToolsOpen((o) => !o)} className={cn("grid h-8 w-8 place-items-center rounded-lg border border-border", toolsOpen ? "text-brand-500" : "text-muted-foreground hover:text-foreground")} title="Toggle controls"><PanelRight className="h-4 w-4" /></button>
+    </>
+  );
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-card/30 px-3 py-2">
-        {onBack && (
-          <>
-            <button onClick={onBack} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[12px] text-muted-foreground hover:text-foreground" title="Back to print formats"><ChevronLeft className="h-3.5 w-3.5" /> Formats</button>
-            {formatLabel && <span className="hidden rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground sm:inline-block">{formatLabel}</span>}
-            <span className="mx-0.5 h-5 w-px bg-border" />
-          </>
-        )}
-        <button onClick={undo} disabled={!canUndo} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground" title="Undo (Ctrl/⌘+Z)"><Undo2 className="h-4 w-4" /></button>
-        <button onClick={redo} disabled={!canRedo} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground" title="Redo (Ctrl/⌘+Shift+Z)"><Redo2 className="h-4 w-4" /></button>
-        <button onClick={addText} className="ms-1 inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Add a text element"><Plus className="h-3.5 w-3.5" /> Text</button>
-        <button onClick={openLibrary} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Open your saved designs"><FolderOpen className="h-3.5 w-3.5" /> Designs</button>
-        <input value={designName} onChange={(e) => setDesignName(e.target.value)} title="Design name" placeholder="Untitled design" className="ms-1 hidden min-w-0 max-w-[160px] rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[12.5px] font-medium outline-none hover:border-border focus:border-brand-500/60 md:inline-block" />
-        <div className="ms-auto flex items-center gap-1.5">
-          {guides && (
-            <button onClick={() => setShowGuides((v) => !v)} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px]", showGuides ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:text-foreground")} title="Toggle bleed / safe-area / fold guides"><Ruler className="h-3.5 w-3.5" /> Guides</button>
-          )}
-          <button onClick={saveDesign} disabled={saveState === "saving"} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] disabled:opacity-70", saveState === "saved" ? "border-emerald-500/60 text-emerald-500" : "border-border hover:text-foreground")} title="Save to your design library">
-            {saveState === "saving" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saveState === "saved" ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />} {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}
-          </button>
-          <button onClick={exportImage} disabled={!value.imageUrl} title={value.imageUrl ? "Open the rendered image" : "Generate the design first"} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"><Download className="h-3.5 w-3.5" /> Export</button>
-          <button onClick={() => setToolsOpen((o) => !o)} className={cn("grid h-8 w-8 place-items-center rounded-lg border border-border", toolsOpen ? "text-brand-500" : "text-muted-foreground hover:text-foreground")} title="Toggle controls"><PanelRight className="h-4 w-4" /></button>
-        </div>
-      </div>
+      {/* One top bar: the toolbar lives in the FocusedView shell header. Fallback
+          to an inline bar only if the slot isn't available. */}
+      {headerSlot ? createPortal(toolbar, headerSlot) : (
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-card/30 px-3 py-2">{toolbar}</div>
+      )}
 
       <div className="relative flex min-h-0 flex-1">
         {/* canvas COLUMN — the design area + the multi-page strip below it */}

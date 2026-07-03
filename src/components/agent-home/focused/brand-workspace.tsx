@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ElementType, type MutableRefObject, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Save, Check, Plus, X, Palette } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
@@ -70,6 +71,10 @@ export function FocusedBrand({ dirtyRef, saverRef, refreshKey = 0 }: {
   refreshKey?: number;
 }) {
   const [kit, setKit] = useState<Kit>(EMPTY);
+  // Portal the save action into the FocusedView shell header (#fv-header-slot) so
+  // there's ONE top bar instead of a second full-width toolbar under it.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
@@ -162,16 +167,21 @@ export function FocusedBrand({ dirtyRef, saverRef, refreshKey = 0 }: {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* toolbar */}
-      <div className="flex items-center gap-2 border-b border-border bg-card/30 px-4 py-2">
-        <span className="text-[12px] text-muted-foreground">{kit.name ? "Editing" : "New brand"}{dirty ? " · unsaved" : ""}</span>
-        <div className="ms-auto flex items-center gap-2">
-          {savedToast && <span className="inline-flex items-center gap-1 text-[12px] font-medium text-emerald-500"><Check className="h-3.5 w-3.5" /> Saved</span>}
-          <button onClick={save} disabled={saving || !kit.name.trim() || !dirty} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50">
-            {saving ? <FlowLoader size={15} tone="white" /> : <Save className="h-3.5 w-3.5" />} Save brand
-          </button>
-        </div>
-      </div>
+      {/* Save action lives in the shell header (#fv-header-slot) — one top bar. */}
+      {(() => {
+        const header = (
+          <>
+            <span className="text-[12px] text-muted-foreground">{kit.name ? "Editing" : "New brand"}{dirty ? " · unsaved" : ""}</span>
+            {savedToast && <span className="inline-flex items-center gap-1 text-[12px] font-medium text-brand-500"><Check className="h-3.5 w-3.5" /> Saved</span>}
+            <button onClick={save} disabled={saving || !kit.name.trim() || !dirty} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50">
+              {saving ? <FlowLoader size={15} tone="white" /> : <Save className="h-3.5 w-3.5" />} Save brand
+            </button>
+          </>
+        );
+        return headerSlot ? createPortal(header, headerSlot) : (
+          <div className="flex items-center gap-2 border-b border-border bg-card/30 px-4 py-2">{header}</div>
+        );
+      })()}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl space-y-4">

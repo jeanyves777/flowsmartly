@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FileText, Mail, CreditCard, Tent, BookOpen, Newspaper, Shirt, HardHat, Coffee, ShoppingBag, Sparkles, Send, ArrowRight, ChevronLeft, Upload, Wand2, Image as ImageIcon, Loader2, type LucideIcon } from "lucide-react";
+import { FileText, Mail, CreditCard, Tent, BookOpen, Newspaper, Shirt, HardHat, Coffee, ShoppingBag, Sparkles, Send, ArrowRight, ChevronLeft, ChevronRight, PanelRight, Upload, Wand2, Image as ImageIcon, Loader2, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { FocusedDesignStudio, type DesignDoc, type BrandContact, type SizePreset, type PrintGuides, type ElementKey, type ImageLayer, type ShapeLayer } from "./design-studio";
 
@@ -483,6 +483,7 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
   const def0 = PRODUCTS[initialKind];
   const [st, setSt] = useState<ProductState>({ kind: initialKind, color: def0.defaultColor, face: "front", placement: def0.placements[0].key });
   const [dir, setDir] = useState("");
+  const [railOpen, setRailOpen] = useState(true); // desktop rail collapse
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const def = PRODUCTS[st.kind];
@@ -592,8 +593,12 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
           </div>
         </div>
 
-        {/* right controls */}
-        <div className="z-30 flex w-full shrink-0 flex-col bg-muted/30 max-lg:absolute max-lg:inset-y-0 max-lg:end-0 max-lg:w-[280px] max-lg:max-w-[86%] max-lg:border-s max-lg:border-border max-lg:shadow-2xl lg:static lg:w-[272px] lg:border-s lg:border-border">
+        {/* right controls — collapsible on desktop; stays a drawer on mobile */}
+        <div className={cn("z-30 flex w-full shrink-0 flex-col bg-muted/30 max-lg:absolute max-lg:inset-y-0 max-lg:end-0 max-lg:w-[280px] max-lg:max-w-[86%] max-lg:border-s max-lg:border-border max-lg:shadow-2xl lg:static lg:border-s lg:border-border", railOpen ? "lg:w-[272px]" : "lg:hidden")}>
+          <div className="hidden items-center justify-between border-b border-border px-3 py-2 lg:flex">
+            <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/70">Product controls</span>
+            <button onClick={() => setRailOpen(false)} title="Collapse" className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
+          </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3.5">
             <ControlGroup title="Print placement">
               <div className="mt-1.5 grid grid-cols-2 gap-1.5">
@@ -636,6 +641,13 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
             <button onClick={() => askPlace()} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-2 text-[12px] font-semibold text-white shadow-sm"><Wand2 className="h-3.5 w-3.5" /> Place on product</button>
           </div>
         </div>
+        {/* collapsed strip (desktop) — reopen the controls */}
+        {!railOpen && (
+          <button onClick={() => setRailOpen(true)} title="Show controls" className="hidden shrink-0 flex-col items-center gap-2 border-s border-border bg-muted/30 px-1.5 py-3 text-muted-foreground hover:text-foreground lg:flex">
+            <PanelRight className="h-4 w-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wide [writing-mode:vertical-rl]">Controls</span>
+          </button>
+        )}
       </div>
 
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ""; }} />
