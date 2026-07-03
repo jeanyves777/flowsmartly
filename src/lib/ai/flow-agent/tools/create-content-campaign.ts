@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/db/client";
 import { generateAutomationCopy } from "@/lib/content/automation-copy-generator";
 import { generateAutomationMedia } from "@/lib/content/automation-media-generator";
+import { generateVideoForRole } from "@/lib/ai/video-router";
+import { uploadToS3 } from "@/lib/utils/s3-client";
+import { creditService } from "@/lib/credits";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
@@ -22,6 +26,14 @@ import { notifyAgentTaskComplete } from "../notify-task-complete";
 
 const PLATFORMS = new Set(["feed", "instagram", "facebook", "twitter", "linkedin", "tiktok", "youtube", "pinterest", "threads", "whatsapp"]);
 const POST_HOURS = [9, 12, 17]; // rotate morning / midday / evening
+const MEDIA_MODES = new Set(["ai", "video", "mix", "none"]);
+// Video "types" → a prompt-style hint fed to the video generator.
+const VIDEO_STYLES: Record<string, string> = {
+  reel: "a fast-paced vertical social reel with dynamic motion and bold on-theme visuals",
+  slideshow: "a clean slideshow-style montage of on-brand product and lifestyle shots with smooth transitions",
+  cinematic: "a cinematic, premium ad-style clip with smooth camera motion and rich lighting",
+  product: "a crisp product-showcase clip highlighting the product from a few flattering angles",
+};
 
 function clean(v: unknown, max: number): string {
   return String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -56,7 +68,7 @@ function splitHashtags(caption: string): { body: string; tags: string[] } {
 export const createContentCampaign: FlowAgentTool = {
   name: "create_content_campaign",
   description:
-    "Generate a full CONTENT CAMPAIGN — a batch of scheduled social posts (captions + on-brand images) spread over a date window — into the Campaign Studio for the user to review, then approve to auto-publish. Use when the user wants to 'run a campaign', 'schedule a week/month of posts', 'plan content about X', etc. Draws voice + visuals from the Brand Kit. Pass: name (campaign title), brief (what it's about + the goal), platforms (which connected socials to post to), days (window length, default 14), postsPerWeek (cadence, default 3), tone, imageMode ('ai' on-brand images | 'none' text-only). Runs in the background (generates each post) and lands in Campaign Studio. Pass planId from a confirmed propose_plan. Needs a Brand Kit.",
+    "Generate a full CONTENT CAMPAIGN — a batch of scheduled social posts (captions + on-brand images OR videos) spread over a date window — into the Campaign Studio for the user to review, then approve to auto-publish. Use when the user wants to 'run a campaign', 'schedule a week/month of posts', 'plan content about X', etc. Draws voice + visuals from the Brand Kit. Pass: name (campaign title), brief (what it's about + the goal), platforms (which connected socials to post to), days (window length, default 14), postsPerWeek (cadence, default 3), tone, mediaMode ('ai' on-brand images [default] | 'video' AI videos | 'mix' images+videos | 'none' text-only) and, for video/mix, videoType ('reel' | 'slideshow' | 'cinematic' | 'product'). NOTE: video posts cost ~30 credits EACH (images are much cheaper) — reflect that in propose_plan. Runs in the background (generates each post) and lands in Campaign Studio. Pass planId from a confirmed propose_plan. Needs a Brand Kit.",
   input_schema: {
     type: "object",
     properties: {
@@ -68,7 +80,8 @@ export const createContentCampaign: FlowAgentTool = {
       days: { type: "number", description: "How many days the campaign runs. Default 14." },
       postsPerWeek: { type: "number", description: "Cadence — posts per week. Default 3. (Total posts = days/7 × postsPerWeek, capped at 30.)" },
       tone: { type: "string", description: "Voice for the captions (e.g. 'casual', 'professional', 'playful'). Optional." },
-      imageMode: { type: "string", description: "'ai' = generate an on-brand image per post (default), 'none' = text-only." },
+      mediaMode: { type: "string", description: "'ai' = an on-brand image per post (default), 'video' = an AI video per post, 'mix' = alternate images + videos, 'none' = text-only. Video costs ~30 credits per post." },
+      videoType: { type: "string", description: "For video/mix: 'reel' (default), 'slideshow', 'cinematic', or 'product'." },
       hashtags: { type: "array", items: { type: "string" }, description: "Optional fixed hashtags to use on every post (else the agent picks brand-aware ones)." },
     },
     required: ["planId", "name", "brief"],
@@ -101,7 +114,10 @@ export const createContentCampaign: FlowAgentTool = {
       const postsPerWeek = clampInt(input.postsPerWeek, 1, 14, 3);
       const count = Math.min(30, Math.max(1, Math.round((days / 7) * postsPerWeek)));
       const tone = clean(input.tone, 60) || (brandKit.voiceTone || "");
-      const imageMode = input.imageMode === "none" ? "none" : "ai";
+      const mediaMode = typeof input.mediaMode === "string" && MEDIA_MODES.has(input.mediaMode)
+        ? input.mediaMode
+        : (input.imageMode === "none" ? "none" : "ai"); // back-compat with old imageMode
+      const videoType = typeof input.videoType === "string" && VIDEO_STYLES[input.videoType] ? input.videoType : "reel";
       const fixedTags = (Array.isArray(input.hashtags) ? input.hashtags : []).map((t) => clean(t, 40).replace(/^#/, "")).filter(Boolean).slice(0, 8);
 
       const startMs = (() => {
@@ -142,7 +158,7 @@ export const createContentCampaign: FlowAgentTool = {
           aiTone: tone || null,
           hashtags: JSON.stringify(fixedTags),
           platforms: JSON.stringify(platforms),
-          mediaMode: imageMode === "ai" ? "AI_AT_POST_TIME" : "NONE",
+          mediaMode: mediaMode === "none" ? "NONE" : "AI_AT_POST_TIME",
           reviewStatus: "APPROVED",
           enabled: false,
           status: "COMPLETED",
@@ -157,10 +173,11 @@ export const createContentCampaign: FlowAgentTool = {
         conversationId: ctx.conversationId,
         messageId: ctx.messageId,
         kind: "create_content_campaign",
-        input: { name, count, platforms, imageMode },
+        input: { name, count, platforms, mediaMode, videoType },
         creditCost: 0,
         worker: async (taskId) => {
           let made = 0;
+          const videoCost = await getDynamicCreditCost("AI_VIDEO_LITE");
           for (let i = 0; i < schedule.length; i++) {
             publishTaskEvent({ type: "progress", taskId, progress: Math.round((i / schedule.length) * 90) + 5, message: `Writing post ${i + 1} of ${schedule.length}…` });
             const iso = new Date(schedule[i]).toISOString();
@@ -174,12 +191,33 @@ export const createContentCampaign: FlowAgentTool = {
             const { body, tags } = splitHashtags(caption);
             const hashtags = fixedTags.length ? fixedTags : tags;
 
-            // On-brand image (optional; text-only on failure so a post never blocks).
+            // On-brand media (optional; text-only on failure so a post never blocks).
+            // mix → alternate image / video; video → all videos; ai → all images.
+            const wantsVideo = mediaMode === "video" || (mediaMode === "mix" && i % 2 === 1);
+            const wantsImage = mediaMode === "ai" || (mediaMode === "mix" && i % 2 === 0);
             let mediaUrl: string | null = null;
-            if (imageMode === "ai") {
+            let mType: string | null = null;
+            if (wantsVideo) {
+              const bal = ctx.isAdmin ? Infinity : await creditService.getBalance(ctx.userId);
+              if (bal >= videoCost) {
+                try {
+                  publishTaskEvent({ type: "progress", taskId, progress: Math.round((i / schedule.length) * 90) + 5, message: `Rendering video ${i + 1} of ${schedule.length}… (this takes a bit)` });
+                  const prompt = `${VIDEO_STYLES[videoType]}. ${body.slice(0, 160)}. On-brand for ${brandKit.name}. No text overlays, no captions.`;
+                  const v = await generateVideoForRole("video_standard", { prompt, durationSeconds: 8, aspectRatio: "9:16", resolution: "720p" });
+                  if (v.videoBuffer) {
+                    const key = `campaigns/${ctx.userId}/${Date.now()}-${i}.mp4`;
+                    mediaUrl = await uploadToS3(key, v.videoBuffer, "video/mp4");
+                    mType = "video";
+                    if (!ctx.isAdmin && videoCost > 0) {
+                      await creditService.deductCredits({ userId: ctx.userId, amount: videoCost, type: "USAGE", description: `Campaign video: ${name}`, referenceType: "flow_ai_tool", referenceId: campaign.id }).catch(() => {});
+                    }
+                  }
+                } catch (e) { console.warn("[create_content_campaign] video failed:", e); }
+              }
+            } else if (wantsImage) {
               try {
                 const m = await generateAutomationMedia({ userId: ctx.userId, automationId: container.id, aspect: "square", tier: "standard", keyTag: "campaigns" });
-                mediaUrl = m.url;
+                mediaUrl = m.url; mType = "image";
               } catch (e) { console.warn("[create_content_campaign] image failed:", e); }
             }
 
@@ -191,7 +229,7 @@ export const createContentCampaign: FlowAgentTool = {
                 platforms: JSON.stringify(platforms),
                 mediaUrl: mediaUrl || null,
                 mediaMeta: mediaUrl ? JSON.stringify([mediaUrl]) : null,
-                mediaType: mediaUrl ? "image" : null,
+                mediaType: mType,
                 status: "DRAFT",
                 scheduledAt: new Date(schedule[i]),
                 contentAutomationId: container.id,

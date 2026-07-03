@@ -19,9 +19,10 @@ import { BriefSuggest, type BriefProposal } from "./brief-suggest";
 
 interface CampaignTarget { campaignId?: string; brief?: string }
 interface CampaignPost {
-  id: string; caption: string | null; mediaUrls?: string[]; hashtags?: string[];
+  id: string; caption: string | null; mediaUrls?: string[]; mediaType?: string | null; hashtags?: string[];
   platforms?: string[]; status: string; scheduledAt?: string | null; publishedAt?: string | null;
 }
+const isVideoUrl = (u?: string) => !!u && (/\.(mp4|webm|mov)/i.test(u));
 interface CampaignMeta { id: string; name: string; brief: string; status: string; startDate?: string | null; endDate?: string | null; tone: string; platforms: string[] }
 interface Acc { platform: string; connected?: boolean; connectedCount?: number; username?: string | null }
 
@@ -70,7 +71,8 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   const [days, setDays] = useState(14);
   const [perWeek, setPerWeek] = useState(3);
   const [tone, setTone] = useState("casual");
-  const [imageMode, setImageMode] = useState<"ai" | "none">("ai");
+  const [mediaMode, setMediaMode] = useState<"ai" | "video" | "mix" | "none">("ai");
+  const [videoType, setVideoType] = useState("reel");
   const [briefOpen, setBriefOpen] = useState(false);
 
   const loadStudio = useCallback(async (id: string): Promise<boolean> => {
@@ -151,7 +153,9 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
     if (!brief.trim() || !name.trim()) { toast({ title: "Add a name + brief", description: "Tell the agent what the campaign is about." }); return; }
     baselineRef.current = null;
     (async () => { baselineRef.current = await newestCampaign(); setGenerating(true); })();
-    onAsk(`Create a content campaign in Campaign Studio. Call propose_plan first (it generates ${Math.min(30, Math.round((days / 7) * perWeek))} posts) so I can approve, then call create_content_campaign with name="${name.trim()}", brief="${brief.trim().replace(/"/g, "'")}", platforms=${JSON.stringify(platforms)}, days=${days}, postsPerWeek=${perWeek}, tone="${tone}", imageMode="${imageMode}". Don't paste the posts in chat — they open here in the studio.`);
+    const nPosts = Math.min(30, Math.round((days / 7) * perWeek));
+    const videoNote = mediaMode === "video" ? ` — note: video posts cost ~30 credits each (${nPosts} videos)` : mediaMode === "mix" ? ` — note: about half are videos (~30 credits each)` : "";
+    onAsk(`Create a content campaign in Campaign Studio. Call propose_plan first (it generates ${nPosts} posts${videoNote}) so I can approve, then call create_content_campaign with name="${name.trim()}", brief="${brief.trim().replace(/"/g, "'")}", platforms=${JSON.stringify(platforms)}, days=${days}, postsPerWeek=${perWeek}, tone="${tone}", mediaMode="${mediaMode}", videoType="${videoType}". Don't paste the posts in chat — they open here in the studio.`);
     setBriefOpen(false);
     toast({ title: "Building your campaign", description: "The agent is drafting the posts — they'll appear here." });
   };
@@ -159,7 +163,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   const regenerate = () => {
     if (!campaign) return;
     baselineRef.current = campaign.id; setGenerating(true);
-    onAsk(`Regenerate the "${campaign.name}" content campaign (campaignId: ${campaign.id}) with fresh captions${imageMode === "ai" ? " + images" : ""} — call create_content_campaign again with an improved brief for the same goal. It reopens here.`);
+    onAsk(`Regenerate the "${campaign.name}" content campaign (campaignId: ${campaign.id}) with fresh captions${mediaMode !== "none" ? " + media" : ""} — call create_content_campaign again with an improved brief for the same goal. It reopens here.`);
   };
 
   // ── per-post edits (direct API + agent) ──
@@ -312,9 +316,26 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
                 <Field label="Cadence">
                   <select value={perWeek} onChange={(e) => setPerWeek(Number(e.target.value))} className={FLD}>{CADENCES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}</select>
                 </Field>
-                <Field label="Images" span>
-                  <div className="flex flex-wrap gap-1.5"><Chip label="AI (on-brand)" active={imageMode === "ai"} onClick={() => setImageMode("ai")} /><Chip label="Text-only" active={imageMode === "none"} onClick={() => setImageMode("none")} /></div>
+                <Field label="Content" span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Chip label="AI images" active={mediaMode === "ai"} onClick={() => setMediaMode("ai")} />
+                    <Chip label="AI video" active={mediaMode === "video"} onClick={() => setMediaMode("video")} />
+                    <Chip label="Mix (image + video)" active={mediaMode === "mix"} onClick={() => setMediaMode("mix")} />
+                    <Chip label="Text-only" active={mediaMode === "none"} onClick={() => setMediaMode("none")} />
+                  </div>
+                  {(mediaMode === "video" || mediaMode === "mix") && (
+                    <p className="mt-1.5 text-[11px] text-amber-500">Video posts cost ~30 credits each — the plan will show the total before you confirm.</p>
+                  )}
                 </Field>
+                {(mediaMode === "video" || mediaMode === "mix") && (
+                  <Field label="Video style" span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[["reel", "Reel"], ["slideshow", "Slideshow"], ["cinematic", "Cinematic"], ["product", "Product"]].map(([v, l]) => (
+                        <Chip key={v} label={l} active={videoType === v} onClick={() => setVideoType(v)} />
+                      ))}
+                    </div>
+                  </Field>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3 border-t border-border px-5 py-3.5">
@@ -390,8 +411,12 @@ function PostCard({ post, onCaption, onReschedule, onRemove, onAiCaption, onNewI
       </div>
       <div className="grid gap-3 p-3.5 sm:grid-cols-[110px_1fr]">
         <div className="group/img relative h-[110px] overflow-hidden rounded-xl bg-muted/40">
-          {media ? <Image src={media} alt="" width={110} height={110} className="h-full w-full object-cover" unoptimized /> : <div className="grid h-full place-items-center text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>}
-          <button onClick={onNewImage} className="absolute inset-0 hidden place-items-center bg-[#0b1220cc] text-white group-hover/img:grid"><span className="inline-flex items-center gap-1 text-[11px] font-bold"><Sparkles className="h-3.5 w-3.5" /> New image</span></button>
+          {media
+            ? (post.mediaType === "video" || isVideoUrl(media)
+                ? <video src={media} className="h-full w-full object-cover" muted playsInline loop />
+                : <Image src={media} alt="" width={110} height={110} className="h-full w-full object-cover" unoptimized />)
+            : <div className="grid h-full place-items-center text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>}
+          <button onClick={onNewImage} className="absolute inset-0 hidden place-items-center bg-[#0b1220cc] text-white group-hover/img:grid"><span className="inline-flex items-center gap-1 text-[11px] font-bold"><Sparkles className="h-3.5 w-3.5" /> New</span></button>
         </div>
         <div>
           {editing ? (
