@@ -1013,7 +1013,15 @@ async function runPipelineWithOptionalQualityCheck(
 }
 
 async function runRawBrandPipeline(params: PipelineParams) {
-  const promptUsed = buildRawBrandPrompt(params);
+  // Apply the SAME art-direction recipe as the direct pipeline so the raw_brand
+  // path (used by Campaign Studio posts, content automations, the scheduler)
+  // hits the full-bleed / quality / single-logo bar too — not just the Studio
+  // "direct" path. singleLogo(model draws none) only when we post-composite the
+  // real logo; when the logo is handed to the model as a generation reference
+  // (logoReferenceUrl) the model must place THAT logo, so hasLogo=false.
+  const recipe = await getRecipeConfig();
+  const willCompositeLogo = !!params.brandLogo && !params.logoReferenceUrl;
+  const promptUsed = `${buildRawBrandPrompt(params)}\n\n${buildArtDirection({ recipe, hasLogo: willCompositeLogo })}`;
   console.log(`[Visual] Raw brand pipeline via ${params.provider}`);
   let base64: string | null;
   let model: string;
@@ -1289,7 +1297,7 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
   // quality layer that lifts every provider to the agency-grade bar (full-bleed +
   // premium polish + exact copy) and enforces a SINGLE real logo (model draws none;
   // the real logo is composited once below). Uses the `recipe` fetched above.
-  designPrompt += `\n\n${buildArtDirection({ recipe, hasLogo, premiumTier: params.tier === "premium" })}`;
+  designPrompt += `\n\n${buildArtDirection({ recipe, hasLogo })}`;
 
   // ── Resolve reference image (if any) ──
 

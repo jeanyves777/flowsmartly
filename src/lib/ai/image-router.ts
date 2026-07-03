@@ -72,9 +72,12 @@ export async function generateImageWithProvider(
       const xaiModel = options.model || XAI_IMAGE_MODEL;
       const wants2k = options.quality === "high" && /quality/.test(xaiModel);
       return {
+        // Pass the resolved model so the Control-Hub/chain selection actually
+        // reaches the API and the 2K gate keys on the model that is really sent.
         base64: await xaiClient.generateImage(prompt, {
           aspectRatio,
           resolution: wants2k ? "2k" : undefined,
+          model: xaiModel,
         }),
         model: xaiModel,
         provider,

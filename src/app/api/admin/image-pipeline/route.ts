@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSession } from "@/lib/admin/auth";
+import { getAdminSession, requirePermission } from "@/lib/admin/auth";
 import {
   getImagePipelinePolicy,
   setImagePipelinePolicy,
@@ -25,9 +25,8 @@ function providerAvailability() {
 
 export async function GET() {
   const session = await getAdminSession();
-  if (!session) {
-    return NextResponse.json({ success: false, error: { message: "Admin access required" } }, { status: 403 });
-  }
+  const denied = requirePermission(session, "EDIT_SETTINGS");
+  if (denied) return denied;
   const policy = await getImagePipelinePolicy();
   return NextResponse.json({
     success: true,
@@ -42,9 +41,8 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   const session = await getAdminSession();
-  if (!session) {
-    return NextResponse.json({ success: false, error: { message: "Admin access required" } }, { status: 403 });
-  }
+  const denied = requirePermission(session, "EDIT_SETTINGS");
+  if (denied) return denied;
   let body: unknown;
   try {
     body = await request.json();
@@ -52,6 +50,6 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: false, error: { message: "Invalid JSON body" } }, { status: 400 });
   }
   const policyInput = (body && typeof body === "object" && "policy" in body ? (body as { policy: unknown }).policy : body);
-  const saved = await setImagePipelinePolicy(policyInput, session.adminId ?? null);
+  const saved = await setImagePipelinePolicy(policyInput, session?.adminId ?? null);
   return NextResponse.json({ success: true, data: { policy: saved } });
 }

@@ -17,7 +17,6 @@ import type { RecipeConfig } from "./media-policy";
 export function buildArtDirection(opts: {
   recipe: RecipeConfig;
   hasLogo: boolean;
-  premiumTier?: boolean;
 }): string {
   const { recipe, hasLogo } = opts;
   const parts: string[] = ["ART DIRECTION — hold every rule below:"];
@@ -40,7 +39,10 @@ export function buildArtDirection(opts: {
   }
   if (recipe.enforceExactCopy) {
     parts.push(
-      "• TYPOGRAPHY & COPY: ultra-crisp, vector-sharp, PERFECTLY SPELLED. Render the provided words EXACTLY — never misspell, duplicate, garble, truncate, or invent text. Kerned and grid-aligned with a clear headline → subhead → body → footer scale. Premium sans-serif. No lorem ipsum, no gibberish micro-text.",
+      "• TYPOGRAPHY & COPY: ultra-crisp, vector-sharp, PERFECTLY SPELLED. Render ONLY the actual marketing copy provided, EXACTLY — never misspell, duplicate, garble, truncate, or invent text. Kerned and grid-aligned with a clear headline → subhead → body → footer scale. Premium sans-serif. No lorem ipsum, no gibberish micro-text.",
+    );
+    parts.push(
+      "• NO DESIGN-SPEC ANNOTATIONS: this is a finished piece, not a design mockup. Do NOT render any font names, hex color codes (e.g. #E0D1FF), pt/px sizes, color names, measurements, rulers, spec labels, or annotation callouts anywhere — only the real copy.",
     );
   }
   if (recipe.singleLogo) {

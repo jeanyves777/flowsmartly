@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSession } from "@/lib/admin/auth";
+import { getAdminSession, requirePermission } from "@/lib/admin/auth";
 import { generateImageWithProvider, type RoutedImageProvider } from "@/lib/ai/image-router";
 import { buildArtDirection } from "@/lib/ai/image-recipe";
 import { DEFAULT_RECIPE, type RecipeConfig } from "@/lib/ai/media-policy";
@@ -11,15 +11,18 @@ import { DEFAULT_RECIPE, type RecipeConfig } from "@/lib/ai/media-policy";
  * side-by-side comparison. Admin-only; does not touch user credits.
  */
 
-const VALID: ReadonlySet<string> = new Set(["xai", "openai", "gemini", "flow"]);
+// Only the design-capable providers can be test-generated from the hub; "flow"
+// (self-hosted Stable Diffusion) is intentionally excluded so a large size can't
+// be aimed at it.
+const VALID: ReadonlySet<string> = new Set(["xai", "openai", "gemini"]);
+const MAX_DIM = 2048;
 
 interface Target { provider: string; model?: string; label?: string }
 
 export async function POST(request: NextRequest) {
   const session = await getAdminSession();
-  if (!session) {
-    return NextResponse.json({ success: false, error: { message: "Admin access required" } }, { status: 403 });
-  }
+  const denied = requirePermission(session, "EDIT_SETTINGS");
+  if (denied) return denied;
 
   let body: { prompt?: string; size?: string; targets?: Target[]; recipe?: Partial<RecipeConfig>; hasLogo?: boolean };
   try {
@@ -32,7 +35,10 @@ export async function POST(request: NextRequest) {
   if (!prompt) {
     return NextResponse.json({ success: false, error: { message: "A brief/prompt is required." } }, { status: 400 });
   }
-  const [w, h] = (typeof body.size === "string" && /^\d+x\d+$/.test(body.size) ? body.size : "1024x1024").split("x").map(Number);
+  const [rawW, rawH] = (typeof body.size === "string" && /^\d+x\d+$/.test(body.size) ? body.size : "1024x1024").split("x").map(Number);
+  // Clamp so an admin can't aim an enormous canvas at a provider.
+  const w = Math.min(MAX_DIM, Math.max(256, rawW || 1024));
+  const h = Math.min(MAX_DIM, Math.max(256, rawH || 1024));
   const targets = (Array.isArray(body.targets) ? body.targets : [])
     .filter((t) => t && typeof t.provider === "string" && VALID.has(t.provider))
     .slice(0, 6);
