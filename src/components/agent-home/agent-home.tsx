@@ -1103,17 +1103,17 @@ export function AgentHome() {
                 )
               }
             />
-          ) : empty ? (
-            /* Fresh chat — greeting + composer + suggestions centered together (no dead gap). */
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-[clamp(16px,6vw,110px)]">
-              <section className="mx-auto my-auto w-full max-w-[780px]">
+          ) : (
+            <>
+          <div className="flex-1 overflow-y-auto px-4 pb-44 pt-6 sm:px-[clamp(16px,6vw,110px)] md:pb-40">
+            {empty ? (
+              <section className="mx-auto mt-[6vh] max-w-[780px]">
                 <h1 className="text-[26px] font-extrabold leading-[1.12] tracking-tight sm:text-[31px]">
                   {greeting} <span className="bg-gradient-to-r from-brand-500 to-violet-500 bg-clip-text text-transparent">{s.accent}</span>
                 </h1>
-                <p className="mb-5 mt-2 text-[14px] leading-relaxed text-muted-foreground sm:text-[15px]">{s.sub}</p>
-                <Composer onSend={send} sending={sending} placeholder={s.placeholder} />
-                <p className="mt-2 text-center text-[11px] text-muted-foreground">{s.hint}</p>
-                <div className="mt-5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <p className="mb-6 mt-2 text-[14px] leading-relaxed text-muted-foreground sm:text-[15px]">{s.sub}</p>
+
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   {(suggestions.length ? suggestions : s.fallbackChips.map((label, i) => ({ label, hint: "", icon: ["palette", "calendar", "video", "bag"][i], prompt: label }))).map((sug, i) => {
                     const Icon = SUG_ICON[sug.icon] ?? FALLBACK_ICONS[i] ?? Sparkles;
                     return (
@@ -1131,24 +1131,24 @@ export function AgentHome() {
                   <div className="mt-3"><FlowLoader size={24} withMark label="Personalizing suggestions…" /></div>
                 )}
               </section>
+            ) : (
+              <div>
+                {messages.map((m) => (
+                  <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} />
+                ))}
+                <div ref={bottomRef} />
+              </div>
+            )}
+          </div>
+
+          {/* composer */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/90 to-transparent px-3 pb-4 pt-3 sm:px-[clamp(16px,6vw,110px)] sm:pb-5">
+            <div className="pointer-events-auto mx-auto max-w-[840px]">
+              <Composer onSend={send} sending={sending} placeholder={s.placeholder} />
             </div>
-          ) : (
-            <>
-              <div className="flex-1 overflow-y-auto px-4 pb-44 pt-6 sm:px-[clamp(16px,6vw,110px)] md:pb-40">
-                <div>
-                  {messages.map((m) => (
-                    <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} />
-                  ))}
-                  <div ref={bottomRef} />
-                </div>
-              </div>
-              {/* composer — pinned to the bottom for the scrolling conversation */}
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/90 to-transparent px-3 pb-4 pt-3 sm:px-[clamp(16px,6vw,110px)] sm:pb-5">
-                <div className="pointer-events-auto mx-auto max-w-[840px]">
-                  <Composer onSend={send} sending={sending} placeholder={s.placeholder} />
-                </div>
-                <p className="mx-auto mt-2 hidden max-w-[840px] text-center text-[11px] text-muted-foreground sm:block">{s.hint}</p>
-              </div>
+            <p className="mx-auto mt-2 hidden max-w-[840px] text-center text-[11px] text-muted-foreground sm:block">{s.hint}</p>
+          </div>
+
             </>
           )}
 
