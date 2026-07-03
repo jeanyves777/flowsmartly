@@ -344,7 +344,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
                     <button key={c.id} onClick={() => openFromLibrary(c.id)} className={cn("flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] transition", active ? "bg-brand-500/10 text-brand-500" : "hover:bg-muted/60")}>
                       <CalendarClock className={cn("h-3.5 w-3.5 shrink-0", active ? "text-brand-500" : "text-muted-foreground")} />
                       <span className="min-w-0 flex-1 truncate font-medium">{c.name}</span>
-                      <span className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase", c.status === "ACTIVE" ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{c.status === "ACTIVE" ? "Live" : "Draft"}</span>
+                      <span className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase", c.status === "ACTIVE" ? "bg-brand-500/10 text-brand-500" : "bg-muted text-muted-foreground")}>{c.status === "ACTIVE" ? "Live" : "Draft"}</span>
                     </button>
                   );
                 })}
@@ -380,13 +380,13 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
       {campaign && draftCount > 0 && (
         <div className="flex flex-wrap items-center gap-3 border-t border-border px-4 py-2.5">
           <span className="text-[11.5px] text-muted-foreground">{draftCount} draft post{draftCount === 1 ? "" : "s"} · approving schedules them to auto-publish to your connected accounts.</span>
-          <button onClick={approve} disabled={approving} className="ms-auto inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2 text-[12.5px] font-bold text-white shadow-sm disabled:opacity-60">
+          <button onClick={approve} disabled={approving} className="ms-auto inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-bold text-white shadow-sm shadow-brand-500/20 disabled:opacity-60">
             {approving ? <FlowLoader size={14} tone="white" /> : <Check className="h-4 w-4" />} Approve &amp; schedule {draftCount} post{draftCount === 1 ? "" : "s"}
           </button>
         </div>
       )}
       {campaign && draftCount === 0 && scheduledCount > 0 && (
-        <div className="flex items-center gap-2 border-t border-border px-4 py-2.5 text-[11.5px] text-emerald-600 dark:text-emerald-400">
+        <div className="flex items-center gap-2 border-t border-border px-4 py-2.5 text-[11.5px] text-brand-500">
           <Check className="h-4 w-4" /> {scheduledCount} post{scheduledCount === 1 ? "" : "s"} scheduled — they'll auto-publish at their times.
           {onOpenView && <button onClick={() => onOpenView("publish")} className="ms-auto text-brand-500 hover:underline">View in Publish →</button>}
         </div>
@@ -563,7 +563,7 @@ function PostCard({ post, onCaption, onPrompt, onReschedule, onRemove, onAiCapti
       <div className="flex items-center gap-2 border-b border-border/70 px-3.5 py-2">
         <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-[11.5px] font-bold">{fmtWhen(post.scheduledAt)}</span>
-        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", st === "SCHEDULED" ? "bg-brand-500/10 text-brand-500" : st === "PUBLISHED" ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{st === "SCHEDULED" ? "Scheduled" : st === "PUBLISHED" ? "Published" : "Draft"}</span>
+        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", st === "SCHEDULED" ? "bg-brand-500/10 text-brand-500" : st === "PUBLISHED" ? "bg-brand-500 text-white" : "bg-muted text-muted-foreground")}>{st === "SCHEDULED" ? "Scheduled" : st === "PUBLISHED" ? "Published" : "Draft"}</span>
         {planned && <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-500">{kind === "video" ? "Video" : "Image"} · not generated</span>}
         <span className="ms-auto flex gap-1">{plats.map((p) => { const m = platMeta(p); return <span key={p} className="grid h-5 w-5 place-items-center rounded-md text-[9px] font-bold text-white" style={{ background: m.bg }}>{m.label}</span>; })}</span>
       </div>
