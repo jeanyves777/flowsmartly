@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { createPortal } from "react-dom";
 import { FileText, Download, Sparkles, Plus, RotateCcw, X, GripVertical, ChevronDown, Check, Images, Mail } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
@@ -42,6 +43,10 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
   const [aiInstruction, setAiInstruction] = useState("");
   const [newBrief, setNewBrief] = useState("");
   const [imgBusy, setImgBusy] = useState<Record<string, boolean>>({});
+  // The shared FocusedView header exposes a slot we portal our toolbar into, so
+  // there's ONE header row instead of a duplicated title bar.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, [target]);
   const baselineRef = useRef<string | null>(null);
   const dirtyRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -261,48 +266,44 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleFile} />
-      {/* action bar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
-        <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><FileText className="h-4 w-4" /></span>
-        <div className="min-w-0">
-          <div className="truncate text-[13px] font-bold leading-tight">Pitch Studio</div>
-          <div className="truncate text-[11px] text-muted-foreground">{brandName ? `${brandName} → ` : ""}{displayName} · branded to your Brand Kit</div>
-        </div>
-        {pitch && (() => {
-          const cur = PITCH_TYPES.find((t) => t.id === docType) || PITCH_TYPES[0];
-          const CurIcon = cur.icon;
-          return (
-            <div className="relative ml-2">
-              <button onClick={() => setTypeOpen((v) => !v)} className={cn("inline-flex items-center gap-2 rounded-[10px] border bg-card px-3 py-1.5 text-[12px] font-semibold transition-colors", typeOpen ? "border-brand-500/50" : "border-border hover:border-brand-500/40")}>
-                <CurIcon className="h-3.5 w-3.5 text-brand-500" /> {cur.label}
-                <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition", typeOpen && "rotate-180")} />
-              </button>
-              {typeOpen && (
-                <>
-                  <button aria-label="Close" onClick={() => setTypeOpen(false)} className="fixed inset-0 z-20 cursor-default" />
-                  <div className="absolute left-0 top-full z-30 mt-1.5 w-64 rounded-xl border border-border bg-popover p-1.5 shadow-2xl">
-                    {PITCH_TYPES.map((t) => {
-                      const Icon = t.icon;
-                      return (
-                        <button key={t.id} onClick={() => { setDocType(t.id); setTypeOpen(false); }} className={cn("flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted", docType === t.id && "bg-brand-500/[0.08]")}>
-                          <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", docType === t.id ? "text-brand-500" : "text-muted-foreground")} />
-                          <span className="min-w-0 flex-1"><span className="block text-[12.5px] font-semibold">{t.label}</span><span className="block text-[11px] text-muted-foreground">{t.desc}</span></span>
-                          {docType === t.id && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-          );
-        })()}
-        <div className="ms-auto flex items-center gap-2">
-          {pitch && canGenerate && <button onClick={generate} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" /> Regenerate</button>}
-          {pitch && <button onClick={downloadPdf} disabled={downloading} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 disabled:opacity-50">{downloading ? <FlowLoader size={13} /> : <Download className="h-3.5 w-3.5" />} PDF</button>}
-          {pitch && <button onClick={useInAutomation} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white"><Plus className="h-3.5 w-3.5" /> Use in automation</button>}
-        </div>
-      </div>
+      {/* toolbar — portaled into the shared FocusedView header (one header row, no duplicate title) */}
+      {headerSlot && pitch && createPortal(
+        <>
+          {(() => {
+            const cur = PITCH_TYPES.find((t) => t.id === docType) || PITCH_TYPES[0];
+            const CurIcon = cur.icon;
+            return (
+              <div className="relative">
+                <button onClick={() => setTypeOpen((v) => !v)} className={cn("inline-flex items-center gap-2 rounded-[10px] border bg-card px-3 py-1.5 text-[12px] font-semibold transition-colors", typeOpen ? "border-brand-500/50" : "border-border hover:border-brand-500/40")}>
+                  <CurIcon className="h-3.5 w-3.5 text-brand-500" /> {cur.label}
+                  <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition", typeOpen && "rotate-180")} />
+                </button>
+                {typeOpen && (
+                  <>
+                    <button aria-label="Close" onClick={() => setTypeOpen(false)} className="fixed inset-0 z-20 cursor-default" />
+                    <div className="absolute right-0 top-full z-30 mt-1.5 w-64 rounded-xl border border-border bg-popover p-1.5 shadow-2xl">
+                      {PITCH_TYPES.map((t) => {
+                        const Icon = t.icon;
+                        return (
+                          <button key={t.id} onClick={() => { setDocType(t.id); setTypeOpen(false); }} className={cn("flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted", docType === t.id && "bg-brand-500/[0.08]")}>
+                            <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", docType === t.id ? "text-brand-500" : "text-muted-foreground")} />
+                            <span className="min-w-0 flex-1"><span className="block text-[12.5px] font-semibold">{t.label}</span><span className="block text-[11px] text-muted-foreground">{t.desc}</span></span>
+                            {docType === t.id && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+          {canGenerate && <button onClick={generate} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" /> Regenerate</button>}
+          <button onClick={downloadPdf} disabled={downloading} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 disabled:opacity-50">{downloading ? <FlowLoader size={13} /> : <Download className="h-3.5 w-3.5" />} PDF</button>
+          <button onClick={useInAutomation} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white"><Plus className="h-3.5 w-3.5" /> Use in automation</button>
+        </>,
+        headerSlot,
+      )}
 
       {/* document + right rail */}
       <div className="flex min-h-0 flex-1">
