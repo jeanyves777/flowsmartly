@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { Sparkles, CalendarClock, RotateCcw, Check, ImageIcon, Trash2, Plus, Pencil, X, ChevronRight, PanelRight } from "lucide-react";
+import { Sparkles, CalendarClock, RotateCcw, Check, ImageIcon, Trash2, Plus, Pencil, X, ChevronRight, PanelRight, Film, RefreshCw } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -21,6 +21,7 @@ interface CampaignTarget { campaignId?: string; brief?: string }
 interface CampaignPost {
   id: string; caption: string | null; mediaUrls?: string[]; mediaType?: string | null; hashtags?: string[];
   platforms?: string[]; status: string; scheduledAt?: string | null; publishedAt?: string | null;
+  mediaPlan?: { kind: string; prompt: string } | null;
 }
 const isVideoUrl = (u?: string) => !!u && (/\.(mp4|webm|mov)/i.test(u));
 interface CampaignMeta { id: string; name: string; brief: string; status: string; startDate?: string | null; endDate?: string | null; tone: string; platforms: string[] }
@@ -190,13 +191,16 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
     onAsk(`Rewrite the caption for post ${p.id} in the "${campaign?.name}" campaign — make it sharper + on-brand, keep it to the same idea, and call update_post with postId="${p.id}" and the new caption. Don't paste it in chat; it updates on the card.`);
     toast({ title: "On it", description: "The agent is rewriting this caption." });
   };
-  const newImage = (p: CampaignPost) => {
-    onAsk(`Generate a fresh on-brand image for post ${p.id} in the "${campaign?.name}" campaign and attach it — call regenerate_post_image with postId="${p.id}". Fit the caption + my Brand Kit. Don't paste it in chat; it updates on the card.`);
-    toast({ title: "Generating image", description: "The agent is creating a new image for this post." });
+  // Generate (or regenerate) ONE post's media from its prompt, at the chosen tier.
+  const genMedia = (p: CampaignPost, kind: "image" | "video", tier: "standard" | "premium") => {
+    const tool = kind === "video" ? "regenerate_post_video" : "regenerate_post_image";
+    onAsk(`In Campaign Studio, generate the ${kind} for post ${p.id} in the "${campaign?.name}" campaign using its media prompt — call ${tool} with postId="${p.id}", tier="${tier}". It attaches live to the card; don't paste it in chat.${kind === "video" ? ` (Video costs ~${tier === "premium" ? 60 : 30} credits.)` : ""}`);
+    toast({ title: kind === "video" ? "Rendering video" : "Generating image", description: `${tier[0].toUpperCase() + tier.slice(1)} — the agent is creating it for this post.` });
   };
-  const newVideo = (p: CampaignPost) => {
-    onAsk(`Generate a fresh on-brand video for post ${p.id} in the "${campaign?.name}" campaign and attach it — call regenerate_post_video with postId="${p.id}". Match the campaign's video style + my Brand Kit. Don't paste it in chat; it updates on the card. (Video costs ~30 credits.)`);
-    toast({ title: "Rendering video", description: "The agent is creating a new video — this takes a bit." });
+  // Re-draft ONE post's caption + media prompt (a fresh proposal for that slot).
+  const redraftPost = (p: CampaignPost) => {
+    onAsk(`Re-draft post ${p.id} in the "${campaign?.name}" campaign — write a fresh on-brand caption AND a new media prompt for the same slot/theme, then save them: call update_post with postId="${p.id}" and the new caption, and set its media prompt. Don't paste it in chat; it updates on the card.`);
+    toast({ title: "Re-drafting post", description: "The agent is proposing a fresh caption + media prompt." });
   };
 
   const approve = async () => {
@@ -243,7 +247,16 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
                 {posts.map((p) => (
                   <div key={p.id} className="relative">
                     <span className="absolute top-5 h-3 w-3 rounded-full bg-brand-500 ring-4 ring-background" style={{ insetInlineStart: "-19px" }} />
-                    <PostCard post={p} onCaption={(v) => patchPost(p.id, { caption: v }, "Caption saved")} onReschedule={(iso) => patchPost(p.id, { scheduledAt: iso }, "Rescheduled")} onRemove={() => removePost(p.id)} onAiCaption={() => aiCaption(p)} onNewImage={() => newImage(p)} onNewVideo={() => newVideo(p)} />
+                    <PostCard
+                      post={p}
+                      onCaption={(v) => patchPost(p.id, { caption: v }, "Caption saved")}
+                      onPrompt={(v) => patchPost(p.id, { mediaPrompt: v }, "Prompt saved")}
+                      onReschedule={(iso) => patchPost(p.id, { scheduledAt: iso }, "Rescheduled")}
+                      onRemove={() => removePost(p.id)}
+                      onAiCaption={() => aiCaption(p)}
+                      onRedraft={() => redraftPost(p)}
+                      onGenerate={(kind, tier) => genMedia(p, kind, tier)}
+                    />
                   </div>
                 ))}
                 {posts.length === 0 && <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No posts yet — the agent is still drafting, or none were generated.</p>}
@@ -423,18 +436,26 @@ function EmptyPlayground({ onPlan }: { onPlan: () => void }) {
   );
 }
 
-/* ── a reviewable post card ── */
-function PostCard({ post, onCaption, onReschedule, onRemove, onAiCaption, onNewImage, onNewVideo }: {
-  post: CampaignPost; onCaption: (v: string) => void; onReschedule: (iso: string) => void; onRemove: () => void; onAiCaption: () => void; onNewImage: () => void; onNewVideo: () => void;
+/* ── a reviewable post card: plan first (caption + media prompt), then generate
+ *  the image/video on demand at a chosen tier, then approve. ── */
+function PostCard({ post, onCaption, onPrompt, onReschedule, onRemove, onAiCaption, onRedraft, onGenerate }: {
+  post: CampaignPost; onCaption: (v: string) => void; onPrompt: (v: string) => void; onReschedule: (iso: string) => void;
+  onRemove: () => void; onAiCaption: () => void; onRedraft: () => void; onGenerate: (kind: "image" | "video", tier: "standard" | "premium") => void;
 }) {
   const media = post.mediaUrls?.[0];
-  const isVid = post.mediaType === "video" || isVideoUrl(media);
-  const onNewMedia = isVid ? onNewVideo : onNewImage;
+  const planned = (post.mediaType || "").startsWith("planned") || !!post.mediaPlan;
+  const kind: "image" | "video" = (post.mediaPlan?.kind === "video" || post.mediaType === "planned_video" || post.mediaType === "video" || isVideoUrl(media)) ? "video" : "image";
+  const hasMedia = !!media && !planned;
+
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.caption || "");
   const [resch, setResch] = useState(false);
   const [when, setWhen] = useState(toLocalInput(post.scheduledAt));
+  const [tier, setTier] = useState<"standard" | "premium">("standard");
+  const [editPrompt, setEditPrompt] = useState(false);
+  const [pDraft, setPDraft] = useState(post.mediaPlan?.prompt || "");
   useEffect(() => { setDraft(post.caption || ""); }, [post.caption]);
+  useEffect(() => { setPDraft(post.mediaPlan?.prompt || ""); }, [post.mediaPlan?.prompt]);
   const plats = (post.platforms ?? []).filter((p) => p);
   const st = post.status?.toUpperCase();
 
@@ -444,18 +465,24 @@ function PostCard({ post, onCaption, onReschedule, onRemove, onAiCaption, onNewI
         <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-[11.5px] font-bold">{fmtWhen(post.scheduledAt)}</span>
         <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", st === "SCHEDULED" ? "bg-brand-500/10 text-brand-500" : st === "PUBLISHED" ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{st === "SCHEDULED" ? "Scheduled" : st === "PUBLISHED" ? "Published" : "Draft"}</span>
+        {planned && <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-500">{kind === "video" ? "Video" : "Image"} · not generated</span>}
         <span className="ms-auto flex gap-1">{plats.map((p) => { const m = platMeta(p); return <span key={p} className="grid h-5 w-5 place-items-center rounded-md text-[9px] font-bold text-white" style={{ background: m.bg }}>{m.label}</span>; })}</span>
       </div>
       <div className="grid gap-3 p-3.5 sm:grid-cols-[110px_1fr]">
-        <div className="group/img relative h-[110px] overflow-hidden rounded-xl bg-muted/40">
-          {media
-            ? (post.mediaType === "video" || isVideoUrl(media)
-                ? <video src={media} className="h-full w-full object-cover" muted playsInline loop />
-                : <Image src={media} alt="" width={110} height={110} className="h-full w-full object-cover" unoptimized />)
-            : <div className="grid h-full place-items-center text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>}
-          <button onClick={onNewMedia} className="absolute inset-0 hidden place-items-center bg-[#0b1220cc] text-white group-hover/img:grid"><span className="inline-flex items-center gap-1 text-[11px] font-bold"><Sparkles className="h-3.5 w-3.5" /> New</span></button>
+        {/* media tile: placeholder while planned, the real media once generated */}
+        <div className="group/img relative h-[110px] overflow-hidden rounded-xl border border-dashed border-border bg-muted/30">
+          {hasMedia ? (
+            kind === "video" ? <video src={media} className="h-full w-full rounded-[11px] object-cover" muted playsInline loop /> : <Image src={media!} alt="" width={110} height={110} className="h-full w-full rounded-[11px] object-cover" unoptimized />
+          ) : (
+            <div className="grid h-full place-items-center gap-1 text-center text-muted-foreground/60">
+              {kind === "video" ? <Film className="h-6 w-6" /> : <ImageIcon className="h-6 w-6" />}
+              <span className="text-[9px] font-semibold uppercase tracking-wide">{planned ? "planned" : "text-only"}</span>
+            </div>
+          )}
+          {hasMedia && <button onClick={() => onGenerate(kind, tier)} className="absolute inset-0 hidden place-items-center bg-[#0b1220cc] text-white group-hover/img:grid"><span className="inline-flex items-center gap-1 text-[11px] font-bold"><RotateCcw className="h-3.5 w-3.5" /> New</span></button>}
         </div>
-        <div>
+        {/* caption + media prompt */}
+        <div className="space-y-2">
           {editing ? (
             <div>
               <textarea autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} rows={4} className="w-full resize-y rounded-[8px] border border-brand-500/50 bg-background px-2.5 py-1.5 text-[12.5px] leading-relaxed outline-none" />
@@ -463,6 +490,22 @@ function PostCard({ post, onCaption, onReschedule, onRemove, onAiCaption, onNewI
             </div>
           ) : (
             <p onClick={() => setEditing(true)} className="cursor-text whitespace-pre-wrap rounded-[6px] p-1 text-[12.5px] leading-relaxed text-foreground/90 transition hover:shadow-[inset_0_0_0_1.5px_rgba(109,92,255,.35)]">{post.caption || <span className="text-muted-foreground">Click to add a caption…</span>}</p>
+          )}
+          {planned && (
+            <div className="rounded-[8px] border border-dashed border-border bg-muted/20 p-2">
+              <div className="mb-1 flex items-center gap-1.5">
+                <span className="text-[9.5px] font-bold uppercase tracking-wide text-muted-foreground">{kind === "video" ? "Video" : "Image"} prompt</span>
+                {!editPrompt && <button onClick={() => setEditPrompt(true)} className="ms-auto text-[10.5px] font-semibold text-brand-500 hover:underline">edit</button>}
+              </div>
+              {editPrompt ? (
+                <div>
+                  <textarea autoFocus value={pDraft} onChange={(e) => setPDraft(e.target.value)} rows={2} className="w-full resize-y rounded-[6px] border border-brand-500/50 bg-background px-2 py-1 text-[11.5px] leading-snug outline-none" />
+                  <div className="mt-1 flex gap-1.5"><button onClick={() => { onPrompt(pDraft); setEditPrompt(false); }} className="rounded-[6px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-0.5 text-[11px] font-semibold text-white">Save</button><button onClick={() => { setPDraft(post.mediaPlan?.prompt || ""); setEditPrompt(false); }} className="rounded-[6px] border border-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">Cancel</button></div>
+                </div>
+              ) : (
+                <p onClick={() => setEditPrompt(true)} className="cursor-text text-[11.5px] leading-snug text-muted-foreground hover:text-foreground">{post.mediaPlan?.prompt || "No prompt yet — click to add one."}</p>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -473,10 +516,21 @@ function PostCard({ post, onCaption, onReschedule, onRemove, onAiCaption, onNewI
           <button onClick={() => setResch(false)} className="text-[11.5px] text-muted-foreground">Cancel</button>
         </div>
       ) : (
-        <div className="flex flex-wrap gap-1.5 border-t border-border/70 px-3.5 py-2">
-          <Act icon={Sparkles} label="Edit with AI" onClick={onAiCaption} ai />
-          <Act icon={Pencil} label="Edit" onClick={() => setEditing(true)} />
-          <Act icon={RotateCcw} label={isVid ? "New video" : "New image"} onClick={onNewMedia} />
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-border/70 px-3.5 py-2">
+          {planned ? (
+            <>
+              <div className="inline-flex overflow-hidden rounded-[8px] border border-border">
+                {(["standard", "premium"] as const).map((t) => (
+                  <button key={t} onClick={() => setTier(t)} className={cn("px-2 py-1 text-[10.5px] font-semibold capitalize", tier === t ? "bg-brand-500/15 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{t}</button>
+                ))}
+              </div>
+              <button onClick={() => onGenerate(kind, tier)} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[11px] font-bold text-white"><Sparkles className="h-3 w-3" /> Generate {kind}</button>
+            </>
+          ) : hasMedia ? (
+            <Act icon={RotateCcw} label={kind === "video" ? "New video" : "New image"} onClick={() => onGenerate(kind, tier)} />
+          ) : null}
+          <Act icon={Sparkles} label="Rewrite caption" onClick={onAiCaption} ai />
+          <Act icon={RefreshCw} label="Redraft post" onClick={onRedraft} />
           <Act icon={CalendarClock} label="Reschedule" onClick={() => { setWhen(toLocalInput(post.scheduledAt)); setResch(true); }} />
           <button onClick={onRemove} className="ms-auto inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-rose-500 hover:border-rose-500/50"><Trash2 className="h-3 w-3" /> Remove</button>
         </div>

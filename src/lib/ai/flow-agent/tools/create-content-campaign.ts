@@ -1,10 +1,5 @@
 import { prisma } from "@/lib/db/client";
 import { generateAutomationCopy } from "@/lib/content/automation-copy-generator";
-import { generateAutomationMedia } from "@/lib/content/automation-media-generator";
-import { generateVideoForRole } from "@/lib/ai/video-router";
-import { uploadToS3 } from "@/lib/utils/s3-client";
-import { creditService } from "@/lib/credits";
-import { getDynamicCreditCost } from "@/lib/credits/costs";
 import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
@@ -68,7 +63,7 @@ function splitHashtags(caption: string): { body: string; tags: string[] } {
 export const createContentCampaign: FlowAgentTool = {
   name: "create_content_campaign",
   description:
-    "Generate a full CONTENT CAMPAIGN — a batch of scheduled social posts (captions + on-brand images OR videos) spread over a date window — into the Campaign Studio for the user to review, then approve to auto-publish. Use when the user wants to 'run a campaign', 'schedule a week/month of posts', 'plan content about X', etc. Draws voice + visuals from the Brand Kit. Pass: name (campaign title), brief (what it's about + the goal), platforms (which connected socials to post to), days (window length, default 14), postsPerWeek (cadence, default 3), tone, mediaMode ('ai' on-brand images [default] | 'video' AI videos | 'mix' images+videos | 'none' text-only) and, for video/mix, videoType ('reel' | 'slideshow' | 'cinematic' | 'product'). NOTE: video posts cost ~30 credits EACH (images are much cheaper) — reflect that in propose_plan. Runs in the background (generates each post) and lands in Campaign Studio. Pass planId from a confirmed propose_plan. Needs a Brand Kit.",
+    "PLAN a full CONTENT CAMPAIGN — a batch of scheduled social posts with captions + dates + a per-post media PROMPT — into the Campaign Studio for the user to review + edit, then generate each image/video ON DEMAND and approve. This does NOT generate images/videos (that happens per-post after review), so it's fast + cheap (only captions). Use when the user wants to 'run a campaign', 'plan a week/month of posts', 'plan content about X', etc. Draws voice from the Brand Kit. Pass: name (campaign title), brief (what it's about + the goal), platforms, days (window, default 14), postsPerWeek (cadence, default 3), tone, mediaMode ('ai' plan images [default] | 'video' plan videos | 'mix' | 'none' text-only) and, for video/mix, videoType ('reel' | 'slideshow' | 'cinematic' | 'product'). The plan streams into Campaign Studio. Pass planId from a confirmed propose_plan. Needs a Brand Kit.",
   input_schema: {
     type: "object",
     properties: {
@@ -180,9 +175,8 @@ export const createContentCampaign: FlowAgentTool = {
         creditCost: 0,
         worker: async (taskId) => {
           let made = 0;
-          const videoCost = await getDynamicCreditCost("AI_VIDEO_LITE");
           for (let i = 0; i < schedule.length; i++) {
-            publishTaskEvent({ type: "progress", taskId, progress: Math.round((i / schedule.length) * 90) + 5, message: `Writing post ${i + 1} of ${schedule.length}…` });
+            publishTaskEvent({ type: "progress", taskId, progress: Math.round((i / schedule.length) * 90) + 5, message: `Planning post ${i + 1} of ${schedule.length}…` });
             const iso = new Date(schedule[i]).toISOString();
 
             // Caption (brand-aware; falls back to the brief inside the generator).
@@ -194,34 +188,18 @@ export const createContentCampaign: FlowAgentTool = {
             const { body, tags } = splitHashtags(caption);
             const hashtags = fixedTags.length ? fixedTags : tags;
 
-            // On-brand media (optional; text-only on failure so a post never blocks).
-            // mix → alternate image / video; video → all videos; ai → all images.
-            const wantsVideo = mediaMode === "video" || (mediaMode === "mix" && i % 2 === 1);
-            const wantsImage = mediaMode === "ai" || (mediaMode === "mix" && i % 2 === 0);
-            let mediaUrl: string | null = null;
-            let mType: string | null = null;
-            if (wantsVideo) {
-              const bal = ctx.isAdmin ? Infinity : await creditService.getBalance(ctx.userId);
-              if (bal >= videoCost) {
-                try {
-                  publishTaskEvent({ type: "progress", taskId, progress: Math.round((i / schedule.length) * 90) + 5, message: `Rendering video ${i + 1} of ${schedule.length}… (this takes a bit)` });
-                  const prompt = `${VIDEO_STYLES[videoType]}. ${body.slice(0, 160)}. On-brand for ${brandKit.name}. No text overlays, no captions.`;
-                  const v = await generateVideoForRole("video_standard", { prompt, durationSeconds: videoSeconds, aspectRatio: "9:16", resolution: "720p" });
-                  if (v.videoBuffer) {
-                    const key = `campaigns/${ctx.userId}/${Date.now()}-${i}.mp4`;
-                    mediaUrl = await uploadToS3(key, v.videoBuffer, "video/mp4");
-                    mType = "video";
-                    if (!ctx.isAdmin && videoCost > 0) {
-                      await creditService.deductCredits({ userId: ctx.userId, amount: videoCost, type: "USAGE", description: `Campaign video: ${name}`, referenceType: "flow_ai_tool", referenceId: campaign.id }).catch(() => {});
-                    }
-                  }
-                } catch (e) { console.warn("[create_content_campaign] video failed:", e); }
-              }
-            } else if (wantsImage) {
-              try {
-                const m = await generateAutomationMedia({ userId: ctx.userId, automationId: container.id, aspect: "square", tier: "standard", keyTag: "campaigns" });
-                mediaUrl = m.url; mType = "image";
-              } catch (e) { console.warn("[create_content_campaign] image failed:", e); }
+            // PLAN the media — write a PROMPT, do NOT generate the image/video yet.
+            // The user reviews + edits the prompt on the card, then generates each
+            // one on demand (approve-per-post). Keeps Generate fast + cheap.
+            const isVideo = mediaMode === "video" || (mediaMode === "mix" && i % 2 === 1);
+            let mediaType: string | null = null;
+            let mediaMeta: string | null = null;
+            if (mediaMode !== "none") {
+              const prompt = isVideo
+                ? `${VIDEO_STYLES[videoType]}. ${body.slice(0, 160)}. On-brand for ${brandKit.name}. No text overlays, no captions.`
+                : `On-brand social image for: ${body.slice(0, 180)}. Clean, scroll-stopping, uses the brand's colours + style. No text overlays.`;
+              mediaType = isVideo ? "planned_video" : "planned_image";
+              mediaMeta = JSON.stringify({ prompt });
             }
 
             await prisma.post.create({
@@ -230,9 +208,9 @@ export const createContentCampaign: FlowAgentTool = {
                 caption: hashtags.length ? `${body}\n\n${hashtags.map((h) => `#${h}`).join(" ")}` : body,
                 hashtags: JSON.stringify(hashtags),
                 platforms: JSON.stringify(platforms),
-                mediaUrl: mediaUrl || null,
-                mediaMeta: mediaUrl ? JSON.stringify([mediaUrl]) : null,
-                mediaType: mType,
+                mediaUrl: null,
+                mediaMeta,
+                mediaType,
                 status: "DRAFT",
                 scheduledAt: new Date(schedule[i]),
                 contentAutomationId: container.id,
@@ -248,8 +226,8 @@ export const createContentCampaign: FlowAgentTool = {
             taskId,
             kind: "create_content_campaign",
             ok: true,
-            summary: `Your "${name}" campaign is ready — ${made} posts drafted`,
-            detail: "Open Campaign Studio to review, edit, and approve them to auto-publish.",
+            summary: `Your "${name}" campaign plan is ready — ${made} posts drafted`,
+            detail: "Open Campaign Studio to review + edit each post, generate its image/video, then approve to auto-publish.",
             deepLink: `/home/campaign?campaign=${campaign.id}`,
           });
 
@@ -261,7 +239,7 @@ export const createContentCampaign: FlowAgentTool = {
         },
       });
 
-      ctx.emit({ type: "task_started", taskId, kind: "create_content_campaign", summary: `Building a ${count}-post "${name}" campaign — captions + on-brand images. I'll open it in Campaign Studio when it's ready.` });
+      ctx.emit({ type: "task_started", taskId, kind: "create_content_campaign", summary: `Planning a ${count}-post "${name}" campaign — captions + dates + media prompts. It opens in Campaign Studio for you to review; images/videos are generated per-post after you approve them.` });
 
       return {
         ok: true,
@@ -270,7 +248,7 @@ export const createContentCampaign: FlowAgentTool = {
           campaignId: campaign.id,
           plannedPosts: count,
           platforms,
-          userMessage: `Started a ${count}-post "${name}" campaign across ${platforms.join(", ")}. It generates in the background and lands in Campaign Studio for review + approval. Tell the user you'll notify them when it's ready.`,
+          userMessage: `Planning a ${count}-post "${name}" campaign across ${platforms.join(", ")} — captions + dates + a media prompt per post (no images/videos generated yet; that's per-post after review). It streams into Campaign Studio. Tell the user to review, tweak, then generate + approve each post.`,
         },
       };
     } catch (e) {

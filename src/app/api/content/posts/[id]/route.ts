@@ -30,7 +30,7 @@ export async function PATCH(
     const { id } = await params;
     const existing = await prisma.post.findFirst({
       where: { id, userId: session.userId, deletedAt: null },
-      select: { id: true, mediaUrl: true },
+      select: { id: true, mediaUrl: true, mediaType: true },
     });
 
     if (!existing) {
@@ -49,6 +49,12 @@ export async function PATCH(
 
     if (body.platforms !== undefined) {
       updateData.platforms = JSON.stringify(parseJsonArray(body.platforms, ["feed"]));
+    }
+
+    // Campaign Studio: edit a PLANNED post's media prompt (stored in mediaMeta as
+    // { prompt } until the image/video is generated). Only for planned posts.
+    if (typeof body.mediaPrompt === "string" && (existing.mediaType || "").startsWith("planned")) {
+      updateData.mediaMeta = JSON.stringify({ prompt: body.mediaPrompt.slice(0, 1500) });
     }
 
     if (body.mediaUrls !== undefined) {
