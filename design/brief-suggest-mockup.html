@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI Suggest helper</title>
+<style>
+  :root{--b:#6d5cff;--b2:#8b5cf6}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0d12;color:#e7ebf3;font:14px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:22px}
+  .h{font-size:13px;color:#8b93a4;margin:0 0 10px}
+  .wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .card{background:#12141c;border:1px solid #222a3a;border-radius:14px;padding:16px}
+  /* suggest bar (collapsed) */
+  .sg{border:1px solid #6d5cff4d;background:linear-gradient(135deg,#6d5cff12,#8b5cf60d);border-radius:12px;padding:12px}
+  .row{display:flex;align-items:center;gap:10px}
+  .ic{height:28px;width:28px;border-radius:9px;display:grid;place-items:center;background:#6d5cff26;color:#a99bff}
+  .t1{font-size:12.5px;font-weight:800}.t2{font-size:11.5px;color:#8b93a4}
+  .btn{border:0;border-radius:10px;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff;font-size:12px;font-weight:700;padding:7px 12px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  /* proposals */
+  .head{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;font-weight:800}
+  .more{margin-left:auto;font-size:11.5px;color:#8b93a4;font-weight:600}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .p{border:1px solid #222a3a;background:#0e111a;border-radius:10px;padding:10px;text-align:left;cursor:pointer}
+  .p.on{border-color:#6d5cff;background:#6d5cff1a}
+  .p .pt{font-size:12.5px;font-weight:800;display:flex;align-items:center;gap:6px}
+  .p .ps{font-size:11px;color:#8b93a4;margin-top:3px;line-height:1.35}
+  .p .pp{font-size:10.5px;color:#a99bff;font-weight:700;margin-top:7px}
+  .ok{margin-top:8px;font-size:11px;color:#34d399;font-weight:600}
+  .fields{margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .lab{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#8b93a4;margin-bottom:5px}
+  .in{background:#0e111a;border:1px solid #222a3a;border-radius:9px;padding:8px 10px;font-size:12.5px;color:#e7ebf3}
+  svg{display:block}
+</style></head>
+<body>
+  <p class="h">The AI "Suggest ideas" helper — appears at the top of every brief (Campaign · Lead search · Proposal). Reads the brand → proposes 2-3 → pick → fills the form.</p>
+  <div class="wrap">
+    <!-- collapsed -->
+    <div class="card">
+      <p class="h" style="margin:0 0 10px">1 · Collapsed — one click to ask the agent</p>
+      <div class="sg"><div class="row">
+        <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/></svg></span>
+        <div style="flex:1"><div class="t1">Not sure where to start?</div><div class="t2">Let the agent suggest campaign ideas from your brand — pick one and it fills the form.</div></div>
+        <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/></svg> Suggest ideas</button>
+      </div></div>
+    </div>
+    <!-- proposals -->
+    <div class="card">
+      <p class="h" style="margin:0 0 10px">2 · Proposals — pick one, form auto-fills</p>
+      <div class="sg">
+        <div class="head"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a99bff" stroke-width="2"><path d="M12 3l1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/></svg> Pick an idea — the agent fills the rest <span class="more">↻ More ideas</span></div>
+        <div class="grid">
+          <div class="p on"><div class="pt">Spring Glow Launch <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b78ff" stroke-width="3" style="margin-left:auto"><path d="M20 6 9 17l-5-5"/></svg></div><div class="ps">Ride the seasonal shift to introduce the serum with fresh, bright creative.</div><div class="pp">Spring Skincare Launch · casual</div></div>
+          <div class="p"><div class="pt">Founder Story Week</div><div class="ps">Build trust with behind-the-brand posts on why the botanicals matter.</div><div class="pp">Meet the Makers · professional</div></div>
+          <div class="p"><div class="pt">15%-Off Countdown</div><div class="ps">Urgency-driven launch-week push to convert followers into buyers.</div><div class="pp">Launch Week Deal · bold</div></div>
+        </div>
+        <div class="ok">✓ Applied — tweak anything below, then continue.</div>
+      </div>
+      <div class="fields">
+        <div><div class="lab">Campaign name</div><div class="in">Spring Skincare Launch</div></div>
+        <div><div class="lab">Tone</div><div class="in" style="color:#c4b5fd">Casual</div></div>
+      </div>
+    </div>
+  </div>
+</body></html>

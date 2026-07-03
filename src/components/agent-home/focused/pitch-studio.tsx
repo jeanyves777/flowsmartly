@@ -9,6 +9,7 @@ import { getProposalTheme, isServiceProposalContent, visibleOnWhite } from "@/li
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
 import { PitchDocument, Editable } from "./pitch-document";
 import { VisualDocument } from "./visual-document";
+import { BriefSuggest } from "./brief-suggest";
 
 /**
  * Pitch Studio — the branded proposal PLAYGROUND for one lead (per the approved
@@ -230,6 +231,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
           {isNew ? (<>
             <h3 className="mt-4 text-[15px] font-bold">Draft a new proposal</h3>
             <p className="mx-auto mt-1.5 max-w-sm text-[12.5px] text-muted-foreground">Tell the agent who this is for and what you're offering — it researches them and builds a branded, PDF-ready proposal from your Brand Kit, right here.</p>
+            <div className="mt-3 text-left"><BriefSuggest kind="proposal" onApply={(p) => { if (typeof p.brief === "string" && p.brief.trim()) setNewBrief(p.brief.trim()); }} /></div>
             <textarea autoFocus value={newBrief} onChange={(e) => setNewBrief(e.target.value)} rows={3} placeholder="e.g. A proposal for Riverside Dental offering our social-media management + monthly content package." className="mt-3 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
             <button onClick={startNewProposal} disabled={!newBrief.trim()} className="mt-3 inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60"><Sparkles className="h-4 w-4" /> Generate proposal</button>
           </>) : canGenerate ? (<>

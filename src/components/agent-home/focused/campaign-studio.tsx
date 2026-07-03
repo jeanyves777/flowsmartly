@@ -6,6 +6,7 @@ import { Sparkles, CalendarClock, RotateCcw, Check, ImageIcon, Trash2, Plus, Pen
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import { BriefSuggest, type BriefProposal } from "./brief-suggest";
 
 /**
  * Campaign Studio — the content-campaign playground (per the approved mock,
@@ -138,6 +139,13 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
 
   const connectedPlatforms = accounts.filter((a) => a.connected || (a.connectedCount ?? 0) > 0).map((a) => a.platform);
   const togglePlat = (p: string) => setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
+
+  // AI "Suggest ideas" → fill the brief from the chosen proposal.
+  const applyCampaignProposal = (p: BriefProposal) => {
+    if (typeof p.name === "string" && p.name.trim()) setName(p.name.trim());
+    if (typeof p.brief === "string" && p.brief.trim()) setBrief(p.brief.trim());
+    if (typeof p.tone === "string" && ["casual", "professional", "playful", "bold"].includes(p.tone)) setTone(p.tone);
+  };
 
   const startGenerate = () => {
     if (!brief.trim() || !name.trim()) { toast({ title: "Add a name + brief", description: "Tell the agent what the campaign is about." }); return; }
@@ -278,13 +286,17 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
               <p className="mt-0.5 text-[11.5px] text-muted-foreground">Tell the agent the goal — it drafts a calendar of on-brand posts (captions + images) you review, then approve to auto-publish.</p>
               <button onClick={() => setBriefOpen(false)} className="absolute end-4 top-4 grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
-              <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+              <BriefSuggest kind="campaign" context={brief} onApply={applyCampaignProposal} />
+              <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
                 <Field label="Campaign name">
                   <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Spring Skincare Launch" className={FLD} />
                 </Field>
+                <Field label="Tone">
+                  <div className="flex flex-wrap gap-1.5">{["casual", "professional", "playful", "bold"].map((t) => <Chip key={t} label={t[0].toUpperCase() + t.slice(1)} active={tone === t} onClick={() => setTone(t)} />)}</div>
+                </Field>
                 <Field label="What's it about? (goal)" span>
-                  <input value={brief} onChange={(e) => setBrief(e.target.value)} placeholder="Introduce the new botanical serum, drive launch-week sales with 15% off." className={FLD} />
+                  <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={2} placeholder="Introduce the new botanical serum, drive launch-week sales with 15% off." className={cn(FLD, "resize-none leading-relaxed")} />
                 </Field>
                 <Field label="Post to" span>
                   <div className="flex flex-wrap gap-1.5">
@@ -300,11 +312,8 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
                 <Field label="Cadence">
                   <select value={perWeek} onChange={(e) => setPerWeek(Number(e.target.value))} className={FLD}>{CADENCES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}</select>
                 </Field>
-                <Field label="Images">
+                <Field label="Images" span>
                   <div className="flex flex-wrap gap-1.5"><Chip label="AI (on-brand)" active={imageMode === "ai"} onClick={() => setImageMode("ai")} /><Chip label="Text-only" active={imageMode === "none"} onClick={() => setImageMode("none")} /></div>
-                </Field>
-                <Field label="Tone" span>
-                  <div className="flex flex-wrap gap-1.5">{["casual", "professional", "playful", "bold"].map((t) => <Chip key={t} label={t[0].toUpperCase() + t.slice(1)} active={tone === t} onClick={() => setTone(t)} />)}</div>
                 </Field>
               </div>
             </div>

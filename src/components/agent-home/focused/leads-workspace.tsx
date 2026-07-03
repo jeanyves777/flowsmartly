@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { RoiDashboard } from "./roi-dashboard";
 import { LeadsAutomation } from "./leads-automation";
+import { BriefSuggest, type BriefProposal } from "./brief-suggest";
 
 /**
  * Lead Studio — the approved find → automate → close surface (see
@@ -195,6 +196,17 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
   };
   const toggleSeniority = (s: string) => setBrief((b) => ({ ...b, seniority: b.seniority.includes(s) ? b.seniority.filter((x) => x !== s) : [...b.seniority, s] }));
 
+  // AI "Suggest ideas" → fill the search brief from the chosen target segment.
+  const applyLeadProposal = (p: BriefProposal) => {
+    setBrief((b) => ({
+      ...b,
+      industry: typeof p.industry === "string" && p.industry.trim() ? p.industry.trim() : b.industry,
+      title: typeof p.jobTitle === "string" && p.jobTitle.trim() ? p.jobTitle.trim() : b.title,
+      seniority: Array.isArray(p.seniority) ? (p.seniority as unknown[]).filter((s): s is string => typeof s === "string" && SENIORITY.includes(s)) : b.seniority,
+      keywords: typeof p.keywords === "string" && p.keywords.trim() ? p.keywords.trim() : b.keywords,
+    }));
+  };
+
   const buildAutomation = (l: LeadList) => { setActiveList(l); setScreen("pipeline"); };
 
   const importPaste = async () => {
@@ -274,7 +286,8 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
               <p className="mt-0.5 text-[11.5px] text-muted-foreground">Tell the agent who to find — it searches the web (directories, Google Business, LinkedIn) and brings back real matches you can save.</p>
               <button onClick={() => setBriefOpen(false)} className="absolute end-4 top-4 grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+              <BriefSuggest kind="leads" onApply={applyLeadProposal} />
               <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
                 <Field label="Industry">
                   <input value={brief.industry} onChange={(e) => setBrief((b) => ({ ...b, industry: e.target.value }))} placeholder="e.g. Dental, SaaS, Real estate" className={FLD} />
