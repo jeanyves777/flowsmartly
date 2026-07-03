@@ -48,7 +48,7 @@ export function buildArtDirection(opts: {
   if (recipe.singleLogo) {
     parts.push(
       hasLogo
-        ? "• LOGO — DRAW NONE: do NOT render any logo, wordmark, emblem, icon mark, seal, crest, monogram, mascot, or brand-name lettering ANYWHERE. The user's REAL logo is composited on afterward exactly once, so keep the top-left header area clean, calm, and uncluttered (no placeholder box, frame, label, or watermark). Exactly one brand mark will exist — the real one added later."
+        ? "• LOGO — DRAW NONE, RESERVE TOP-LEFT: do NOT render any logo, wordmark, emblem, icon mark, seal, crest, monogram, mascot, or brand-name lettering ANYWHERE. The user's REAL logo is composited on afterward exactly once IN THE TOP-LEFT CORNER, so keep that corner (roughly the top 16% of the height and left 30% of the width) as clean, calm background only — no headline, no text, no key graphics, no placeholder box/frame/label/watermark there. Start the headline below or to the right of that reserved corner. Exactly one brand mark will exist — the real one added later."
         : "• ONE brand mark only: if a brand name is shown, render it a SINGLE time in the header as clean text — never repeat it, and never invent a logo symbol, emblem, seal, or monogram the brand did not provide.",
     );
   }

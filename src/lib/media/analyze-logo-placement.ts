@@ -58,9 +58,11 @@ async function shrinkForVision(buffer: Buffer): Promise<{ base64: string; mediaT
   return { base64: working.toString("base64"), mediaType: "image/jpeg" };
 }
 
+// Convention: brand logos sit in the TOP-LEFT. Default there unless the left
+// corner is genuinely occupied (vision decides).
 const FALLBACK: LogoPlacement = {
-  corner: "top-right",
-  ...CORNER_TO_PLACEMENT["top-right"],
+  corner: "top-left",
+  ...CORNER_TO_PLACEMENT["top-left"],
   source: "fallback",
 };
 
@@ -88,7 +90,9 @@ export async function analyzeLogoPlacement(
     return FALLBACK;
   }
 
-  const prompt = `Find the SAFER of the TWO TOP corners of this image to drop a SMALL brand logo (about 15% of the image width, positioned 3-5% from the chosen edges).
+  const prompt = `Pick the TOP corner to drop a SMALL brand logo (about 15% of the image width, positioned 3-5% from the chosen edges).
+
+CONVENTION: brand logos belong in the TOP-LEFT. Strongly PREFER top-left. Only choose top-right if the top-left corner is genuinely occupied — i.e. the small logo there would overlap a headline, other text, a face, or the main subject. When in doubt, or if both corners are equally clear, choose top-left.
 
 The logo MUST NOT overlap with ANY of the following in the chosen corner area:
 - ANY text, anywhere, of any kind (headline, body copy, captions, contact info, brand names, wordmarks, decorative typography, callouts, labels, numbers, dates, hex codes, watermarks)
@@ -98,9 +102,7 @@ The logo MUST NOT overlap with ANY of the following in the chosen corner area:
 
 Choose ONLY between top-left and top-right — bottom corners are reserved for other elements and are not options.
 
-Return strict JSON ONLY (no preamble, no markdown): {"corner": "top-left" | "top-right", "reason": "short one-line explanation describing what's in that corner"}.
-
-Pick the corner with the LOWEST visual detail — blank space, soft gradient, sky, plain wall, shadow. If both top corners contain text or subjects, pick the one with LESS text overlap. If both are equally safe, prefer top-right.`;
+Return strict JSON ONLY (no preamble, no markdown): {"corner": "top-left" | "top-right", "reason": "short one-line explanation describing what's in that corner"}.`;
 
   for (const client of clients) {
     try {
