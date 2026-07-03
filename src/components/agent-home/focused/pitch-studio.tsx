@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
-import { FileText, Download, Sparkles, Plus, RotateCcw, X, GripVertical, ChevronDown, Check, Images, Mail } from "lucide-react";
+import { FileText, Download, Sparkles, Plus, RotateCcw, X, GripVertical, ChevronDown, ChevronRight, PanelRight, Check, Images, Mail } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -39,6 +39,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
   const [docType, setDocType] = useState<"deck" | "visual" | "email">("deck");
   const [typeOpen, setTypeOpen] = useState(false);
   const [tab, setTab] = useState<"design" | "sections" | "type">("design");
+  const [railOpen, setRailOpen] = useState(true);
   const [ai, setAi] = useState<{ field: string; current: string } | null>(null);
   const [aiInstruction, setAiInstruction] = useState("");
   const [newBrief, setNewBrief] = useState("");
@@ -308,18 +309,24 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
       {/* document + right rail */}
       <div className="flex min-h-0 flex-1">
         <div className="min-h-0 flex-1 overflow-y-auto">{body}</div>
-        {pitch && theme && (
+        {pitch && theme && (railOpen ? (
           <aside className="hidden w-[248px] shrink-0 flex-col border-s border-border bg-card/40 lg:flex">
-            <div className="flex border-b border-border">
+            <div className="flex items-center border-b border-border">
               {(["design", "sections", "type"] as const).map((t) => (
                 <button key={t} onClick={() => setTab(t)} className={cn("flex-1 py-2.5 text-[12px] font-bold capitalize", tab === t ? "border-b-2 border-brand-500 text-foreground" : "text-muted-foreground")}>{t}</button>
               ))}
+              <button onClick={() => setRailOpen(false)} title="Collapse panel" className="grid h-9 w-8 shrink-0 place-items-center text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3.5">
               {tab === "design" ? <DesignTab theme={theme} content={pitch.content} /> : tab === "sections" ? <SectionsTab content={pitch.content} onChange={commit} onAsk={onAsk} pitchId={pitch.id} /> : <TypeTab docType={docType} setDocType={setDocType} />}
             </div>
           </aside>
-        )}
+        ) : (
+          <button onClick={() => setRailOpen(true)} title="Show panel" className="hidden shrink-0 flex-col items-center gap-2 border-s border-border bg-card/40 px-1.5 py-3 text-muted-foreground hover:text-foreground lg:flex">
+            <PanelRight className="h-4 w-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wide [writing-mode:vertical-rl]">Design</span>
+          </button>
+        ))}
       </div>
 
       {/* Edit-with-AI popover */}
