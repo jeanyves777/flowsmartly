@@ -353,10 +353,15 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
               </div>
             </div>
             <div className="flex items-center gap-3 border-t border-border px-5 py-3.5">
-              <button onClick={startGenerate} disabled={generating} className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60">
-                {generating ? <FlowLoader size={15} tone="white" /> : <Sparkles className="h-4 w-4" />} Generate {Math.min(30, Math.max(1, Math.round((days / 7) * perWeek)))} posts
-              </button>
-              <span className="text-[11.5px] text-muted-foreground">The agent drafts each post + on-brand image and streams them onto the page.</span>
+              {(() => {
+                const ready = !!name.trim() && !!brief.trim() && platforms.length > 0;
+                return (
+                  <button onClick={startGenerate} disabled={generating || !ready} className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:cursor-not-allowed disabled:opacity-50">
+                    {generating ? <FlowLoader size={15} tone="white" /> : <Sparkles className="h-4 w-4" />} Generate {Math.min(30, Math.max(1, Math.round((days / 7) * perWeek)))} posts
+                  </button>
+                );
+              })()}
+              <span className="text-[11.5px] text-muted-foreground">{!name.trim() || !brief.trim() ? "Add a campaign name + goal to continue." : platforms.length === 0 ? "Pick at least one destination." : "The agent drafts each post + on-brand media and streams them onto the page."}</span>
             </div>
           </div>
         </div>
