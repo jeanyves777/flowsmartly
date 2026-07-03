@@ -82,6 +82,7 @@ export const createContentCampaign: FlowAgentTool = {
       tone: { type: "string", description: "Voice for the captions (e.g. 'casual', 'professional', 'playful'). Optional." },
       mediaMode: { type: "string", description: "'ai' = an on-brand image per post (default), 'video' = an AI video per post, 'mix' = alternate images + videos, 'none' = text-only. Video costs ~30 credits per post." },
       videoType: { type: "string", description: "For video/mix: 'reel' (default), 'slideshow', 'cinematic', or 'product'." },
+      videoSeconds: { type: "number", description: "For video/mix: target clip length in seconds (default 8; 8-15 typical for social)." },
       hashtags: { type: "array", items: { type: "string" }, description: "Optional fixed hashtags to use on every post (else the agent picks brand-aware ones)." },
     },
     required: ["planId", "name", "brief"],
@@ -118,6 +119,7 @@ export const createContentCampaign: FlowAgentTool = {
         ? input.mediaMode
         : (input.imageMode === "none" ? "none" : "ai"); // back-compat with old imageMode
       const videoType = typeof input.videoType === "string" && VIDEO_STYLES[input.videoType] ? input.videoType : "reel";
+      const videoSeconds = clampInt(input.videoSeconds, 5, 20, 8);
       const fixedTags = (Array.isArray(input.hashtags) ? input.hashtags : []).map((t) => clean(t, 40).replace(/^#/, "")).filter(Boolean).slice(0, 8);
 
       const startMs = (() => {
@@ -159,6 +161,7 @@ export const createContentCampaign: FlowAgentTool = {
           hashtags: JSON.stringify(fixedTags),
           platforms: JSON.stringify(platforms),
           mediaMode: mediaMode === "none" ? "NONE" : "AI_AT_POST_TIME",
+          aiMediaConfig: JSON.stringify({ mode: mediaMode, videoType, videoSeconds }),
           reviewStatus: "APPROVED",
           enabled: false,
           status: "COMPLETED",
@@ -203,7 +206,7 @@ export const createContentCampaign: FlowAgentTool = {
                 try {
                   publishTaskEvent({ type: "progress", taskId, progress: Math.round((i / schedule.length) * 90) + 5, message: `Rendering video ${i + 1} of ${schedule.length}… (this takes a bit)` });
                   const prompt = `${VIDEO_STYLES[videoType]}. ${body.slice(0, 160)}. On-brand for ${brandKit.name}. No text overlays, no captions.`;
-                  const v = await generateVideoForRole("video_standard", { prompt, durationSeconds: 8, aspectRatio: "9:16", resolution: "720p" });
+                  const v = await generateVideoForRole("video_standard", { prompt, durationSeconds: videoSeconds, aspectRatio: "9:16", resolution: "720p" });
                   if (v.videoBuffer) {
                     const key = `campaigns/${ctx.userId}/${Date.now()}-${i}.mp4`;
                     mediaUrl = await uploadToS3(key, v.videoBuffer, "video/mp4");

@@ -73,6 +73,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   const [tone, setTone] = useState("casual");
   const [mediaMode, setMediaMode] = useState<"ai" | "video" | "mix" | "none">("ai");
   const [videoType, setVideoType] = useState("reel");
+  const [videoSecs, setVideoSecs] = useState(8);
   const [briefOpen, setBriefOpen] = useState(false);
 
   const loadStudio = useCallback(async (id: string): Promise<boolean> => {
@@ -155,7 +156,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
     (async () => { baselineRef.current = await newestCampaign(); setGenerating(true); })();
     const nPosts = Math.min(30, Math.round((days / 7) * perWeek));
     const videoNote = mediaMode === "video" ? ` — note: video posts cost ~30 credits each (${nPosts} videos)` : mediaMode === "mix" ? ` — note: about half are videos (~30 credits each)` : "";
-    onAsk(`Create a content campaign in Campaign Studio. Call propose_plan first (it generates ${nPosts} posts${videoNote}) so I can approve, then call create_content_campaign with name="${name.trim()}", brief="${brief.trim().replace(/"/g, "'")}", platforms=${JSON.stringify(platforms)}, days=${days}, postsPerWeek=${perWeek}, tone="${tone}", mediaMode="${mediaMode}", videoType="${videoType}". Don't paste the posts in chat — they open here in the studio.`);
+    onAsk(`Create a content campaign in Campaign Studio. Call propose_plan first (it generates ${nPosts} posts${videoNote}) so I can approve, then call create_content_campaign with name="${name.trim()}", brief="${brief.trim().replace(/"/g, "'")}", platforms=${JSON.stringify(platforms)}, days=${days}, postsPerWeek=${perWeek}, tone="${tone}", mediaMode="${mediaMode}", videoType="${videoType}", videoSeconds=${videoSecs}. Don't paste the posts in chat — they open here in the studio.`);
     setBriefOpen(false);
     toast({ title: "Building your campaign", description: "The agent is drafting the posts — they'll appear here." });
   };
@@ -184,6 +185,10 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   const newImage = (p: CampaignPost) => {
     onAsk(`Generate a fresh on-brand image for post ${p.id} in the "${campaign?.name}" campaign and attach it — call regenerate_post_image with postId="${p.id}". Fit the caption + my Brand Kit. Don't paste it in chat; it updates on the card.`);
     toast({ title: "Generating image", description: "The agent is creating a new image for this post." });
+  };
+  const newVideo = (p: CampaignPost) => {
+    onAsk(`Generate a fresh on-brand video for post ${p.id} in the "${campaign?.name}" campaign and attach it — call regenerate_post_video with postId="${p.id}". Match the campaign's video style + my Brand Kit. Don't paste it in chat; it updates on the card. (Video costs ~30 credits.)`);
+    toast({ title: "Rendering video", description: "The agent is creating a new video — this takes a bit." });
   };
 
   const approve = async () => {
@@ -230,7 +235,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
                 {posts.map((p) => (
                   <div key={p.id} className="relative">
                     <span className="absolute top-5 h-3 w-3 rounded-full bg-brand-500 ring-4 ring-background" style={{ insetInlineStart: "-19px" }} />
-                    <PostCard post={p} onCaption={(v) => patchPost(p.id, { caption: v }, "Caption saved")} onReschedule={(iso) => patchPost(p.id, { scheduledAt: iso }, "Rescheduled")} onRemove={() => removePost(p.id)} onAiCaption={() => aiCaption(p)} onNewImage={() => newImage(p)} />
+                    <PostCard post={p} onCaption={(v) => patchPost(p.id, { caption: v }, "Caption saved")} onReschedule={(iso) => patchPost(p.id, { scheduledAt: iso }, "Rescheduled")} onRemove={() => removePost(p.id)} onAiCaption={() => aiCaption(p)} onNewImage={() => newImage(p)} onNewVideo={() => newVideo(p)} />
                   </div>
                 ))}
                 {posts.length === 0 && <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No posts yet — the agent is still drafting, or none were generated.</p>}
@@ -328,13 +333,22 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
                   )}
                 </Field>
                 {(mediaMode === "video" || mediaMode === "mix") && (
-                  <Field label="Video style" span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[["reel", "Reel"], ["slideshow", "Slideshow"], ["cinematic", "Cinematic"], ["product", "Product"]].map(([v, l]) => (
-                        <Chip key={v} label={l} active={videoType === v} onClick={() => setVideoType(v)} />
-                      ))}
-                    </div>
-                  </Field>
+                  <>
+                    <Field label="Video style">
+                      <div className="flex flex-wrap gap-1.5">
+                        {[["reel", "Reel"], ["slideshow", "Slideshow"], ["cinematic", "Cinematic"], ["product", "Product"]].map(([v, l]) => (
+                          <Chip key={v} label={l} active={videoType === v} onClick={() => setVideoType(v)} />
+                        ))}
+                      </div>
+                    </Field>
+                    <Field label="Video length">
+                      <div className="flex flex-wrap gap-1.5">
+                        {[[8, "~8s"], [15, "~15s"]].map(([v, l]) => (
+                          <Chip key={v} label={l as string} active={videoSecs === v} onClick={() => setVideoSecs(v as number)} />
+                        ))}
+                      </div>
+                    </Field>
+                  </>
                 )}
               </div>
             </div>
@@ -389,10 +403,12 @@ function EmptyPlayground({ onPlan }: { onPlan: () => void }) {
 }
 
 /* ── a reviewable post card ── */
-function PostCard({ post, onCaption, onReschedule, onRemove, onAiCaption, onNewImage }: {
-  post: CampaignPost; onCaption: (v: string) => void; onReschedule: (iso: string) => void; onRemove: () => void; onAiCaption: () => void; onNewImage: () => void;
+function PostCard({ post, onCaption, onReschedule, onRemove, onAiCaption, onNewImage, onNewVideo }: {
+  post: CampaignPost; onCaption: (v: string) => void; onReschedule: (iso: string) => void; onRemove: () => void; onAiCaption: () => void; onNewImage: () => void; onNewVideo: () => void;
 }) {
   const media = post.mediaUrls?.[0];
+  const isVid = post.mediaType === "video" || isVideoUrl(media);
+  const onNewMedia = isVid ? onNewVideo : onNewImage;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.caption || "");
   const [resch, setResch] = useState(false);
@@ -416,7 +432,7 @@ function PostCard({ post, onCaption, onReschedule, onRemove, onAiCaption, onNewI
                 ? <video src={media} className="h-full w-full object-cover" muted playsInline loop />
                 : <Image src={media} alt="" width={110} height={110} className="h-full w-full object-cover" unoptimized />)
             : <div className="grid h-full place-items-center text-muted-foreground"><ImageIcon className="h-5 w-5" /></div>}
-          <button onClick={onNewImage} className="absolute inset-0 hidden place-items-center bg-[#0b1220cc] text-white group-hover/img:grid"><span className="inline-flex items-center gap-1 text-[11px] font-bold"><Sparkles className="h-3.5 w-3.5" /> New</span></button>
+          <button onClick={onNewMedia} className="absolute inset-0 hidden place-items-center bg-[#0b1220cc] text-white group-hover/img:grid"><span className="inline-flex items-center gap-1 text-[11px] font-bold"><Sparkles className="h-3.5 w-3.5" /> New</span></button>
         </div>
         <div>
           {editing ? (
@@ -439,7 +455,7 @@ function PostCard({ post, onCaption, onReschedule, onRemove, onAiCaption, onNewI
         <div className="flex flex-wrap gap-1.5 border-t border-border/70 px-3.5 py-2">
           <Act icon={Sparkles} label="Edit with AI" onClick={onAiCaption} ai />
           <Act icon={Pencil} label="Edit" onClick={() => setEditing(true)} />
-          <Act icon={RotateCcw} label="New image" onClick={onNewImage} />
+          <Act icon={RotateCcw} label={isVid ? "New video" : "New image"} onClick={onNewMedia} />
           <Act icon={CalendarClock} label="Reschedule" onClick={() => { setWhen(toLocalInput(post.scheduledAt)); setResch(true); }} />
           <button onClick={onRemove} className="ms-auto inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-rose-500 hover:border-rose-500/50"><Trash2 className="h-3 w-3" /> Remove</button>
         </div>
