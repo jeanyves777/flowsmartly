@@ -1,26 +1,20 @@
 import { prisma } from "@/lib/db/client";
 import { runVisualForUser } from "@/app/api/ai/visual/route";
 import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
-import {
-  buildAgentDesignTemplatePrompt,
-  chooseAgentDesignTemplate,
-  getAgentDesignTemplateById,
-  serializeAgentDesignTemplateForTool,
-  type AgentDesignChannel,
-  type AgentDesignTemplate,
-} from "@/lib/ai/flow-agent/design-templates";
 
 /**
  * generateBrandedImage — the ONE place that turns a creative brief + a user's
  * Brand Kit into a finished, on-brand image. Every branded-image surface
  * (Flow-AI's create_branded_design, content-automation pre-generate, the
  * scheduler, manual runs) calls this so they all share the SAME engine, prompt,
- * provider policy, logo composite, date handling, and anti-card composition —
- * instead of each maintaining its own divergent generator.
+ * provider policy, logo composite, date handling, and anti-card composition.
  *
- * It assembles the FlowCreative `/api/ai/visual` body (brand identity, colors,
- * logo, contact, optional agent design template) and delegates to
- * `runVisualForUser`, which does generation → logo composite → persistence.
+ * TEMPLATE-FREE: the new backend generates purely from the creative brief +
+ * Brand Kit + the shared art-direction recipe on the fixed xAI@2K path — NO
+ * design templates (they forced the edit chain / template reproduction and hurt
+ * quality). It assembles the FlowCreative `/api/ai/visual` body and delegates to
+ * `runVisualForUser` (generation → logo composite → persistence).
+ * [[image-pipeline-providers]]
  *
  * Billing: by default the engine charges AI_VISUAL_DESIGN. Pass
  * `skipCredits: true` when the CALLER bills itself (automation/scheduler charge
@@ -49,8 +43,6 @@ export interface GenerateBrandedImageInput {
   /** Uploaded reference photos (real person/product) whose identity is preserved. */
   referenceImageUrls?: string[];
   ctaText?: string | null;
-  /** Pin a specific agent design template; otherwise one is auto-chosen. */
-  templateId?: string | null;
   category?: string;
   /** Caller handles billing — engine skips its own gate + deduction. */
   skipCredits?: boolean;
@@ -63,7 +55,6 @@ export interface GenerateBrandedImageResult {
   imageUrl?: string;
   designId?: string;
   creditsUsed?: number;
-  agentTemplate?: { id: string; name: string; industry: string; metaTags: string[] } | null;
   error?: string;
   errorCode?: string;
 }
@@ -90,23 +81,6 @@ export async function generateBrandedImage(
   const handles = parseJson<Record<string, string> | null>(brandKit?.handles, null);
   const brandLogo = brandKit?.logo || brandKit?.iconLogo || null;
   const hasBrandLogo = Boolean(brandLogo);
-
-  const requestedTemplateId =
-    typeof input.templateId === "string" && input.templateId.trim() ? input.templateId.trim() : null;
-  const autoTemplate = chooseAgentDesignTemplate({
-    industry: brandKit?.industry || brandKit?.niche || null,
-    query: [promptText, input.style, input.ctaText].filter((i) => typeof i === "string" && i.trim()).join(" "),
-    channel: orientationToTemplateChannel(input.orientation, promptText),
-    limit: 1,
-  });
-  const agentTemplate = requestedTemplateId ? getAgentDesignTemplateById(requestedTemplateId) : autoTemplate;
-  if (requestedTemplateId && !agentTemplate) {
-    return {
-      ok: false,
-      error: `Agent design template "${requestedTemplateId}" was not found.`,
-      errorCode: "not_found",
-    };
-  }
 
   const contactInfo = brandKit
     ? { email: brandKit.email, phone: brandKit.phone, website: brandKit.website, address: brandKit.address }
@@ -135,7 +109,6 @@ export async function generateBrandedImage(
         phone: brandKit.phone || null,
         address: brandKit.address || null,
         hasLogo: hasBrandLogo,
-        agentDesignTemplate: agentTemplate ? compactAgentTemplateForPrompt(agentTemplate) : null,
       }
     : null;
 
@@ -156,14 +129,10 @@ export async function generateBrandedImage(
     : null;
   const antiInventionPolicy =
     "Render ONLY the messaging, names, dates, and visuals provided. Do not invent products, people, prices, dates, claims, or testimonials.";
-  // The template contributes LAYOUT/COPY direction as text; cap it so a verbose
-  // template can't push us over the provider prompt limit.
-  const templateDirection = agentTemplate ? buildAgentDesignTemplatePrompt(agentTemplate).slice(0, 1400) : null;
 
   const imagePrompt = withLanguagePrefix(
     [
       promptText,
-      templateDirection,
       exactReferencePolicy,
       brandNameHeader,
       contactRule,
@@ -178,9 +147,9 @@ export async function generateBrandedImage(
   const style = typeof input.style === "string" && input.style.trim() ? input.style.trim() : "modern";
   const ctaText = typeof input.ctaText === "string" && input.ctaText.trim() ? input.ctaText.trim() : null;
 
-  // Mirror the Studio Create modal's /api/ai/visual body — same raw_brand
-  // pipeline, reference handling, and logo overlay. The provider is chosen by
-  // the role-based media-model policy inside the engine (Nano Banana for
+  // /api/ai/visual body — raw_brand pipeline, reference handling, logo overlay.
+  // TEMPLATE-FREE: no templateImageUrl / agentDesignTemplate. The provider is
+  // chosen by the role-based media-model policy (xAI grok-imagine @2K for
   // Standard), so we deliberately do NOT pass a provider/strictProvider knob.
   const visualBody = {
     prompt: imagePrompt,
@@ -202,16 +171,7 @@ export async function generateBrandedImage(
     contactInfo,
     referenceImageUrl: referenceImageUrls[0] || null,
     referenceImageUrls,
-    // Do NOT hand the auto-chosen template as a PIXEL reference: that pushes the
-    // raw_brand pipeline onto the edit chain (Nano Banana reproducing the
-    // template — generic art, garbled text, and the template's wordmark colliding
-    // with the composited real logo = the duplicate-logo bug). The template's
-    // LAYOUT/COPY DIRECTION is already carried as TEXT via buildAgentDesignTemplatePrompt
-    // + agentDesignTemplate, so we generate from scratch through the design_generate
-    // chain (xAI grok-imagine @2K) which is the proven quality path.
-    // [[image-pipeline-providers]]
     templateImageUrl: null,
-    agentDesignTemplate: agentTemplate ? serializeAgentDesignTemplateForTool(agentTemplate) : null,
     compositeReferenceSubject: false,
     qualityCheckEnabled: input.qualityCheck === true,
     ctaText,
@@ -252,14 +212,6 @@ export async function generateBrandedImage(
     imageUrl,
     designId,
     creditsUsed: resBody.data.creditsUsed,
-    agentTemplate: agentTemplate
-      ? {
-          id: agentTemplate.id,
-          name: agentTemplate.name,
-          industry: agentTemplate.industryLabel,
-          metaTags: agentTemplate.metaTags,
-        }
-      : null,
   };
 }
 
@@ -268,31 +220,6 @@ export function orientationToSize(orientation: unknown): string {
   if (o === "portrait" || o === "story" || o === "reel" || o === "9:16") return "1080x1920";
   if (o === "landscape" || o === "wide" || o === "16:9") return "1920x1080";
   return "1080x1080";
-}
-
-function orientationToTemplateChannel(orientation: unknown, prompt: string): AgentDesignChannel {
-  const o = typeof orientation === "string" ? orientation.toLowerCase() : "";
-  const p = prompt.toLowerCase();
-  if (o === "landscape" || o === "wide" || o === "16:9") return "ad";
-  if (/\b(event|open house|webinar|workshop|conference|service|concert|invite|invitation|rsvp)\b/.test(p)) return "poster";
-  if (o === "portrait" || o === "story" || o === "reel" || o === "9:16") return "flyer";
-  return "social_post";
-}
-
-function compactAgentTemplateForPrompt(template: AgentDesignTemplate) {
-  return {
-    id: template.id,
-    name: template.name,
-    industry: template.industryLabel,
-    useCase: template.useCase,
-    metaTags: template.metaTags.slice(0, 12),
-    layout: template.layout,
-    imageDirection: template.imageDirection,
-    copySlots: template.copySlots,
-    ctaStyle: template.ctaStyle,
-    imageUrl: template.imageUrl,
-    thumbnailUrl: template.thumbnailUrl,
-  };
 }
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {

@@ -95,7 +95,6 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { listScheduledPosts } = await import("./tools/list-scheduled-posts");
   const { cancelScheduledPost } = await import("./tools/cancel-scheduled-post");
   const { generateImage } = await import("./tools/generate-image");
-  const { presentDesignTemplates } = await import("./tools/present-design-templates");
   const { askChoice } = await import("./tools/ask-choice");
   const { createBrandedDesign } = await import("./tools/create-branded-design");
   const { addCanvasObject } = await import("./tools/add-canvas-object");
@@ -173,10 +172,9 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(listScheduledPosts);
   flowAgentTools.register(cancelScheduledPost);
   flowAgentTools.register(generateImage);
-  // NOTE: list_agent_design_templates (text-only lookup) is intentionally NOT
-  // registered — the agent must use present_design_templates so the user gets
-  // the clickable VISUAL picker instead of a plain text list.
-  flowAgentTools.register(presentDesignTemplates);
+  // Design TEMPLATES are removed from the new system: create_branded_design
+  // generates from the brief + brand kit on the fixed xAI@2K recipe, so neither
+  // present_design_templates nor list_agent_design_templates is registered.
   flowAgentTools.register(askChoice);
   flowAgentTools.register(createBrandedDesign);
   flowAgentTools.register(addCanvasObject);
