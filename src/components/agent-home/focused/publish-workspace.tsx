@@ -81,7 +81,7 @@ function toLocalInput(iso?: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function FocusedPublish({ onConnect, onOpenView, refreshKey }: { onConnect: () => void; onOpenView: (key: string) => void; refreshKey?: number }) {
+export function FocusedPublish({ onConnect, onOpenView, onNewCampaign, refreshKey }: { onConnect: () => void; onOpenView: (key: string) => void; onNewCampaign?: () => void; refreshKey?: number }) {
   const [status, setStatus] = useState<Status>("ALL");
   const [posts, setPosts] = useState<Post[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
@@ -191,6 +191,14 @@ export function FocusedPublish({ onConnect, onOpenView, refreshKey }: { onConnec
           >
             <Sparkles className="h-4 w-4" /> New post
           </button>
+          {onNewCampaign && (
+            <button
+              onClick={onNewCampaign}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-border px-3.5 py-2.5 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground"
+            >
+              <CalendarClock className="h-4 w-4 text-brand-500" /> New campaign
+            </button>
+          )}
 
           {/* summary stats */}
           <div className="grid grid-cols-3 gap-2">

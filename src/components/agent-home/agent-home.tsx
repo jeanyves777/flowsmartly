@@ -41,6 +41,7 @@ import { FocusedCustomers } from "./focused/customers-workspace";
 import { FocusedReviews } from "./focused/reviews-workspace";
 import { FocusedLeads } from "./focused/leads-workspace";
 import { FocusedPitchStudio } from "./focused/pitch-studio";
+import { FocusedCampaignStudio } from "./focused/campaign-studio";
 import { FocusedCompose } from "./focused/compose-workspace";
 import { FocusedEmail } from "./focused/email-workspace";
 import { FocusedSms } from "./focused/sms-workspace";
@@ -136,6 +137,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   reviews: { label: "Reviews", subtitle: "Reviews & local SEO presence", icon: Star },
   leads: { label: "Lead Studio", subtitle: "Find → automate → close", icon: Search },
   pitchstudio: { label: "Pitch Studio", subtitle: "Branded proposal — edit & attach", icon: FileText },
+  campaign: { label: "Campaign Studio", subtitle: "Plan, generate & schedule content", icon: CalendarDays },
   compose: { label: "Compose", subtitle: "Write, schedule & publish a post", icon: SquarePen },
   email: { label: "Email", subtitle: "Email campaigns & performance", icon: Mail },
   sms: { label: "SMS", subtitle: "SMS campaigns & delivery", icon: MessageSquare },
@@ -234,13 +236,15 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
       return `The user is in their ${focused === "profile" ? "Profile" : "Account & settings"}. Help with account, profile, or settings changes.`;
     case "pitchstudio":
       return `The user is in **Pitch Studio** — a branded proposal playground for ONE lead. When they ask you to create or improve the proposal, use create_proposal (pass the lead's savedLeadId so it links to them, draw services + value from their Brand Kit) — the result opens IN the studio, NEVER as a chat dump. To rewrite a specific section, edit that section's content and save it; do not paste the proposal in chat.`;
+    case "campaign":
+      return `The user is in **Campaign Studio** — a content-campaign playground. To build a campaign, use create_content_campaign (name, brief/goal, platforms, days, postsPerWeek, tone, imageMode) — it generates a batch of concrete scheduled posts (captions + on-brand images) that open IN the studio for review, NEVER as a chat dump. To fix one post, use update_post (caption/schedule/platforms) or regenerate_post_image (a fresh on-brand image) — the change lands on that post's card. Approving in the UI schedules them to auto-publish; you don't publish them yourself.`;
     default:
       return undefined;
   }
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
@@ -286,6 +290,8 @@ export function AgentHome() {
   const [settingsInitialTab, setSettingsInitialTab] = useState<string | undefined>(undefined);
   // The lead / pitch whose Pitch Studio is open (carried into the focused surface).
   const [pitchTarget, setPitchTarget] = useState<{ leadId?: string; leadName?: string; pitchId?: string } | null>(null);
+  // The content campaign whose Campaign Studio is open (empty object = new).
+  const [campaignTarget, setCampaignTarget] = useState<{ campaignId?: string; brief?: string } | null>(null);
   const [leaveAction, setLeaveAction] = useState<{ run: () => void } | null>(null);
   const [panelKey, setPanelKey] = useState<string | null>(null);
   // Rail category to restore when a browse panel is closed WITHOUT navigating —
@@ -441,6 +447,10 @@ export function AgentHome() {
     // notification's "Open", new-design only — never the legacy pitch board).
     const openPitchId = searchParams.get("pitch");
     if (openPitchId) { setPitchTarget({ pitchId: openPitchId }); setFocused("pitchstudio"); }
+    // ?campaign=<id> — open Campaign Studio on a specific content campaign (from
+    // the create_content_campaign task card / notification's "Open").
+    const openCampaignId = searchParams.get("campaign");
+    if (openCampaignId) { setCampaignTarget({ campaignId: openCampaignId }); setFocused("campaign"); }
     // ?design=<id> — load a produced design into the Create canvas so "Open in
     // studio" from a task card continues editing it (chat carries over via cid).
     const designId = searchParams.get("design");
@@ -647,6 +657,8 @@ export function AgentHome() {
   // Open Pitch Studio for a lead — set the target BEFORE switching surfaces so the
   // child mounts with it. Keeps the current rail (Leads).
   const openPitchStudio = (t: { leadId?: string; leadName?: string; pitchId?: string }) => { setPitchTarget(t); setHistoryOpen(false); setPanelKey(null); setFocused("pitchstudio"); setDrawerOpen(false); };
+  // Open Campaign Studio (empty target = start a new campaign).
+  const openCampaignStudio = (t?: { campaignId?: string; brief?: string }) => { setCampaignTarget(t ?? {}); setHistoryOpen(false); setPanelKey(null); setFocused("campaign"); setDrawerOpen(false); };
   // A button-driven agent action: the instruction is INTERNAL (not shown as a
   // user message) — the user just sees the agent work + respond. Carries the
   // current surface context so the agent acts in place.
@@ -1029,7 +1041,7 @@ export function AgentHome() {
                 ) : focused === "plans" ? (
                   <FocusedPlans onBack={() => openView("billing")} refreshKey={actionCount} />
                 ) : focused === "publish" ? (
-                  <FocusedPublish onConnect={openConnections} onOpenView={openView} refreshKey={actionCount} />
+                  <FocusedPublish onConnect={openConnections} onOpenView={openView} onNewCampaign={() => openCampaignStudio()} refreshKey={actionCount} />
                 ) : focused === "connections" ? (
                   <FocusedConnections refreshKey={actionCount} />
                 ) : focused === "sell" ? (
@@ -1056,6 +1068,8 @@ export function AgentHome() {
                   <FocusedLeads onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} onOpenPitch={(pitchId) => guardNav(() => openPitchStudio({ pitchId }))} />
                 ) : focused === "pitchstudio" ? (
                   <FocusedPitchStudio target={pitchTarget} onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "campaign" ? (
+                  <FocusedCampaignStudio target={campaignTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} />
                 ) : focused === "compose" ? (
                   <FocusedCompose onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "email" ? (
