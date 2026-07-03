@@ -19,7 +19,7 @@ import { FocusedDesignStudio, type DesignDoc, type BrandContact, type SizePreset
  * [[new-design-no-legacy]] [[agent-operates-account-full-crud]]
  */
 
-export type ProductKind = "tee" | "vest" | "mug" | "tote";
+export type ProductKind = "tee" | "hoodie" | "vest" | "cap" | "tote" | "mug" | "bottle";
 
 export interface PrintFormat {
   key: string;
@@ -109,9 +109,9 @@ export const PRINT_FORMATS: PrintFormat[] = [
     defaultStyle: "bold", guides: { bleed: true, safe: true },
   },
   // ── Product prints — open the mockup stage (place artwork on the object).
-  { key: "apparel", name: "Apparel & T-shirts", group: "product", Icon: Shirt, desc: "Drop your design onto a front/back print area on a real garment mockup.", chips: ["Tee", "Tote", "Front + Back"], sizes: [{ label: "Tee", v: "1080×1080" }], productKind: "tee" },
-  { key: "workwear", name: "Workwear & hi-vis", group: "product", Icon: HardHat, desc: "Safety vests & uniforms — left-chest logo + a big back-panel print zone.", chips: ["Hi-vis vest", "Front + Back"], sizes: [{ label: "Vest", v: "1080×1080" }], productKind: "vest" },
-  { key: "drinkware", name: "Drinkware & gifts", group: "product", Icon: Coffee, desc: "Mugs & merch — a wrap-around print area with safe margins.", chips: ["Mug", "Wrap"], sizes: [{ label: "Mug", v: "1080×1080" }], productKind: "mug" },
+  { key: "apparel", name: "Apparel & wearables", group: "product", Icon: Shirt, desc: "T-shirts, hoodies & caps — drop your logo on a real garment mockup, front or back.", chips: ["Tee", "Hoodie", "Cap"], sizes: [{ label: "Tee", v: "1080×1080" }], productKind: "tee" },
+  { key: "workwear", name: "Workwear & hi-vis", group: "product", Icon: HardHat, desc: "Safety vests & uniforms — left-chest logo + a big reflective back-panel print zone.", chips: ["Hi-vis vest", "Reflective"], sizes: [{ label: "Vest", v: "1080×1080" }], productKind: "vest" },
+  { key: "drinkware", name: "Drinkware & gifts", group: "product", Icon: Coffee, desc: "Mugs, bottles & tote bags — a wrap-around print area with safe margins.", chips: ["Mug", "Bottle", "Tote"], sizes: [{ label: "Mug", v: "1080×1080" }], productKind: "mug" },
 ];
 
 // A format-appropriate, FULLY-BUILT starter design loaded when a paper format is
@@ -439,28 +439,51 @@ const PRODUCTS: Record<ProductKind, ProductDef> = {
     ],
     Svg: TeeSvg,
   },
-  vest: {
-    label: "Hi-vis vest", Icon: HardHat, faces: ["front", "back"], colors: ["#2563eb", "#f5d90a", "#f97316", "#10b981", "#dc2626"], defaultColor: "#2563eb",
+  hoodie: {
+    label: "Hoodie", Icon: Shirt, faces: ["front", "back"], colors: GARMENT_COLORS, defaultColor: "#334155",
     placements: [
-      { key: "left-chest", label: "Left chest", hint: "logo", face: "front", area: { l: 54, t: 33, w: 16, h: 11 } },
-      { key: "full-back", label: "Full back", hint: "large", face: "back", area: { l: 30, t: 26, w: 40, h: 30 } },
+      { key: "left-chest", label: "Left chest", hint: "logo", face: "front", area: { l: 54, t: 33, w: 15, h: 11 } },
+      { key: "full-front", label: "Front (above pocket)", hint: "10 × 12 in", face: "front", area: { l: 33, t: 34, w: 34, h: 24 } },
+      { key: "full-back", label: "Full back", hint: "12 × 15 in", face: "back", area: { l: 30, t: 26, w: 40, h: 42 } },
+    ],
+    Svg: HoodieSvg,
+  },
+  vest: {
+    label: "Hi-vis vest", Icon: HardHat, faces: ["front", "back"], colors: ["#f5d90a", "#f97316", "#2563eb", "#10b981", "#dc2626"], defaultColor: "#f5d90a",
+    placements: [
+      { key: "left-chest", label: "Left chest", hint: "logo", face: "front", area: { l: 54, t: 37, w: 15, h: 10 } },
+      { key: "full-back", label: "Full back", hint: "large", face: "back", area: { l: 30, t: 28, w: 40, h: 34 } },
     ],
     Svg: VestSvg,
   },
-  mug: {
-    label: "Mug", Icon: Coffee, faces: ["front"], colors: ["#e5e7eb", "#111827", "#2563eb", "#dc2626", "#10b981"], defaultColor: "#e5e7eb",
+  cap: {
+    label: "Cap", Icon: Shirt, faces: ["front"], colors: GARMENT_COLORS, defaultColor: "#111827",
     placements: [
-      { key: "wrap", label: "Wrap-around", hint: "full", face: "front", area: { l: 30, t: 36, w: 40, h: 34 } },
-      { key: "badge", label: "Badge", hint: "small", face: "front", area: { l: 38, t: 42, w: 24, h: 22 } },
+      { key: "front", label: "Front panel", hint: "embroidery", face: "front", area: { l: 34, t: 33, w: 32, h: 26 } },
     ],
-    Svg: MugSvg,
+    Svg: CapSvg,
   },
   tote: {
-    label: "Tote bag", Icon: ShoppingBag, faces: ["front"], colors: ["#e5e7eb", "#d6c8a8", "#111827", "#2563eb", "#10b981"], defaultColor: "#d6c8a8",
+    label: "Tote bag", Icon: ShoppingBag, faces: ["front"], colors: ["#d6c8a8", "#e5e7eb", "#111827", "#2563eb", "#10b981"], defaultColor: "#d6c8a8",
     placements: [
       { key: "center", label: "Center", hint: "main", face: "front", area: { l: 29, t: 40, w: 42, h: 36 } },
     ],
     Svg: ToteSvg,
+  },
+  mug: {
+    label: "Mug", Icon: Coffee, faces: ["front"], colors: ["#e5e7eb", "#111827", "#2563eb", "#dc2626", "#10b981"], defaultColor: "#e5e7eb",
+    placements: [
+      { key: "wrap", label: "Wrap-around", hint: "full", face: "front", area: { l: 26, t: 36, w: 40, h: 34 } },
+      { key: "badge", label: "Badge", hint: "small", face: "front", area: { l: 34, t: 42, w: 24, h: 22 } },
+    ],
+    Svg: MugSvg,
+  },
+  bottle: {
+    label: "Water bottle", Icon: Coffee, faces: ["front"], colors: ["#2563eb", "#111827", "#e5e7eb", "#dc2626", "#10b981"], defaultColor: "#2563eb",
+    placements: [
+      { key: "body", label: "Body label", hint: "wrap", face: "front", area: { l: 38, t: 34, w: 24, h: 40 } },
+    ],
+    Svg: BottleSvg,
   },
 };
 
@@ -578,13 +601,13 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
                   )}
                 </div>
               </div>
-              {/* variant switcher */}
-              <div className="mt-5 flex items-center justify-center gap-2">
+              {/* variant switcher — shows the actual product mockup for each type */}
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
                 {(Object.keys(PRODUCTS) as ProductKind[]).map((k) => {
                   const P = PRODUCTS[k];
                   return (
-                    <button key={k} onClick={() => setKind(k)} title={P.label} className={cn("grid h-11 w-11 place-items-center rounded-xl border transition", st.kind === k ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40 hover:text-foreground")}>
-                      <P.Icon className="h-[22px] w-[22px]" />
+                    <button key={k} onClick={() => setKind(k)} title={P.label} className={cn("grid h-14 w-14 place-items-center rounded-xl border p-1.5 transition [&>svg]:max-h-[38px] [&>svg]:w-auto", st.kind === k ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
+                      <P.Svg color={P.defaultColor} face="front" />
                     </button>
                   );
                 })}
@@ -670,28 +693,63 @@ function shade(hex: string, amt: number): string {
 
 function TeeSvg({ color, face }: { color: string; face: "front" | "back" }) {
   const stroke = shade(color, -40);
-  const collar = face === "front"
-    ? "M104 16 C112 40 188 40 196 16"
-    : "M104 16 C112 30 188 30 196 16";
   return (
     <svg viewBox="0 0 300 348" className="block w-full" style={{ filter: "drop-shadow(0 18px 40px rgba(0,0,0,.45))" }} xmlns="http://www.w3.org/2000/svg">
-      <path d="M104 16 L150 36 L196 16 L240 38 L276 96 L232 126 L224 114 L224 330 L76 330 L76 114 L68 126 L24 96 L60 38 Z" fill={color} stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" />
-      <path d={collar} fill="none" stroke={stroke} strokeWidth="2.5" />
+      <path d="M104 18 L150 40 L196 18 L242 40 L280 100 L238 132 L226 118 L226 330 L74 330 L74 118 L62 132 L20 100 L58 40 Z" fill={color} stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" />
+      <path d={face === "front" ? "M104 18 C114 46 186 46 196 18" : "M104 18 C112 30 188 30 196 18"} fill="none" stroke={stroke} strokeWidth="2.5" />
+    </svg>
+  );
+}
+
+function HoodieSvg({ color, face }: { color: string; face: "front" | "back" }) {
+  const stroke = shade(color, -40);
+  return (
+    <svg viewBox="0 0 300 360" className="block w-full" style={{ filter: "drop-shadow(0 18px 40px rgba(0,0,0,.45))" }} xmlns="http://www.w3.org/2000/svg">
+      <path d="M100 40 L150 34 L200 40 L246 60 L284 120 L242 150 L230 136 L230 340 L70 340 L70 136 L58 150 L16 120 L54 60 Z" fill={color} stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" />
+      {/* hood */}
+      <path d="M100 40 C104 92 196 92 200 40 C184 24 116 24 100 40 Z" fill={shade(color, -22)} stroke={stroke} strokeWidth="2" />
+      {face === "front" && (
+        <>
+          {/* drawstrings + kangaroo pocket */}
+          <path d="M126 86 l-8 40 M174 86 l8 40" stroke={stroke} strokeWidth="4" strokeLinecap="round" />
+          <path d="M108 250 h84 v54 q-42 16 -84 0 Z" fill="none" stroke={stroke} strokeWidth="2.5" opacity="0.7" />
+        </>
+      )}
+      {/* ribbed hem */}
+      <path d="M74 320 h156" stroke={stroke} strokeWidth="8" opacity="0.5" />
     </svg>
   );
 }
 
 function VestSvg({ color, face }: { color: string; face: "front" | "back" }) {
-  const stroke = shade(color, -50);
-  const strip = "#dfe7ef";
+  const stroke = shade(color, -55);
+  const strip = "#e8eef6";
   return (
     <svg viewBox="0 0 300 348" className="block w-full" style={{ filter: "drop-shadow(0 18px 40px rgba(0,0,0,.45))" }} xmlns="http://www.w3.org/2000/svg">
-      <path d="M95 22 L60 42 L30 96 L60 126 L82 110 L82 330 L218 330 L218 110 L240 126 L270 96 L240 42 L205 22 C190 48 110 48 95 22 Z" fill={color} stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" />
-      {/* reflective strips */}
-      <rect x="104" y="128" width="18" height="200" fill={strip} opacity="0.92" />
-      <rect x="178" y="128" width="18" height="200" fill={strip} opacity="0.92" />
-      <rect x="82" y="176" width="136" height="16" fill={strip} opacity="0.92" />
-      {face === "front" && <line x1="150" y1="48" x2="150" y2="330" stroke={stroke} strokeWidth="2" />}
+      {/* sleeveless hi-vis vest: scooped armholes, open front */}
+      <path d="M116 40 L96 34 L74 44 L66 92 Q62 118 84 132 L84 322 L216 322 L216 132 Q238 118 234 92 L226 44 L204 34 L184 40 L150 58 Z" fill={color} stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" />
+      <path d="M116 40 L150 58 L184 40" fill="none" stroke={stroke} strokeWidth="2.5" />
+      {face === "front" && <line x1="150" y1="58" x2="150" y2="322" stroke={stroke} strokeWidth="3" />}
+      {/* reflective bands: 2 horizontal + 2 vertical over the shoulders */}
+      <rect x="84" y="150" width="132" height="17" fill={strip} opacity="0.95" />
+      <rect x="84" y="236" width="132" height="17" fill={strip} opacity="0.95" />
+      <rect x="108" y="70" width="16" height="183" fill={strip} opacity="0.95" />
+      <rect x="176" y="70" width="16" height="183" fill={strip} opacity="0.95" />
+    </svg>
+  );
+}
+
+function CapSvg({ color }: { color: string; face: "front" | "back" }) {
+  const stroke = shade(color, -45);
+  return (
+    <svg viewBox="0 0 300 240" className="block w-full" style={{ filter: "drop-shadow(0 16px 34px rgba(0,0,0,.45))" }} xmlns="http://www.w3.org/2000/svg">
+      {/* rounded crown */}
+      <path d="M58 150 Q54 66 150 62 Q246 66 242 150 Q150 172 58 150 Z" fill={color} stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" />
+      {/* panel seams + button */}
+      <path d="M150 62 V150 M104 66 Q120 118 128 158 M196 66 Q180 118 172 158" fill="none" stroke={stroke} strokeWidth="1.6" opacity="0.55" />
+      <circle cx="150" cy="64" r="6" fill={shade(color, -30)} stroke={stroke} strokeWidth="1.5" />
+      {/* curved bill */}
+      <path d="M60 150 Q150 138 240 150 Q246 176 210 190 Q150 204 90 190 Q54 176 60 150 Z" fill={shade(color, -18)} stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -714,6 +772,20 @@ function ToteSvg({ color }: { color: string; face: "front" | "back" }) {
       <path d="M70 92 L62 304 H238 L230 92 Z" fill={color} stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" />
       <path d="M104 92 V66 a46 46 0 0 1 92 0 V92" fill="none" stroke={stroke} strokeWidth="9" strokeLinecap="round" />
       <path d="M70 92 H230" stroke={stroke} strokeWidth="2" opacity=".6" />
+    </svg>
+  );
+}
+
+function BottleSvg({ color }: { color: string; face: "front" | "back" }) {
+  const stroke = shade(color === "#e5e7eb" ? "#cbd5e1" : color, -50);
+  return (
+    <svg viewBox="0 0 300 360" className="block w-full" style={{ filter: "drop-shadow(0 18px 34px rgba(0,0,0,.4))" }} xmlns="http://www.w3.org/2000/svg">
+      {/* cap */}
+      <rect x="128" y="24" width="44" height="34" rx="6" fill={shade(color, -30)} stroke={stroke} strokeWidth="2.5" />
+      <rect x="134" y="54" width="32" height="12" fill={shade(color, -16)} stroke={stroke} strokeWidth="2" />
+      {/* body: shoulders taper to straight sides */}
+      <path d="M134 66 Q108 78 100 118 L100 316 a20 20 0 0 0 20 20 h60 a20 20 0 0 0 20 -20 L200 118 Q192 78 166 66 Z" fill={color} stroke={stroke} strokeWidth="2.5" strokeLinejoin="round" />
+      <path d="M100 118 H200" stroke={stroke} strokeWidth="1.6" opacity="0.45" />
     </svg>
   );
 }
