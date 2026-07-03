@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { Sparkles, CalendarClock, RotateCcw, Check, ImageIcon, Trash2, Plus, Pencil, X } from "lucide-react";
+import { Sparkles, CalendarClock, RotateCcw, Check, ImageIcon, Trash2, Plus, Pencil, X, ChevronRight, PanelRight } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -63,6 +63,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   const [approving, setApproving] = useState(false);
   const [accounts, setAccounts] = useState<Acc[]>([]);
   const baselineRef = useRef<string | null>(null);
+  const plannedRef = useRef(0); // how many posts the current generation should produce
 
   // ── new-campaign brief form ──
   const [name, setName] = useState("");
@@ -75,15 +76,17 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   const [videoType, setVideoType] = useState("reel");
   const [videoSecs, setVideoSecs] = useState(8);
   const [briefOpen, setBriefOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(true);
 
-  const loadStudio = useCallback(async (id: string): Promise<boolean> => {
+  const loadStudio = useCallback(async (id: string): Promise<number | null> => {
     const d = await fetch(`/api/content/campaigns/${id}/studio`).then((r) => r.json()).catch(() => null);
     if (d?.success && d.data?.campaign) {
       setCampaign(d.data.campaign as CampaignMeta);
-      setPosts(Array.isArray(d.data.posts) ? d.data.posts : []);
-      return true;
+      const ps = Array.isArray(d.data.posts) ? (d.data.posts as CampaignPost[]) : [];
+      setPosts(ps);
+      return ps.length;
     }
-    return false;
+    return null;
   }, []);
 
   const newestCampaign = useCallback(async (): Promise<string | null> => {
@@ -112,31 +115,35 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   // Open the brief modal automatically for a fresh studio (no campaign yet).
   useEffect(() => { setBriefOpen(!target?.campaignId); }, [target]);
 
-  // while generating: adopt the freshly-created campaign, then keep refreshing so
-  // posts appear as they're written; clear when the agent turn ends (refreshKey).
+  // While generating: adopt the freshly-created campaign, then keep polling so
+  // posts stream in live. Clear ONLY when all planned posts have landed (or a
+  // safety timeout) — NOT on the agent turn end, because the create_content_campaign
+  // turn ends the instant the BACKGROUND task starts (posts arrive after that).
   useEffect(() => {
     if (!generating) return;
     let stop = false;
     const tick = async () => {
       if (stop) return;
-      if (!campaign) {
+      let cid = campaign?.id;
+      if (!cid) {
         const id = await newestCampaign();
-        if (id && id !== baselineRef.current) await loadStudio(id);
-      } else {
-        await loadStudio(campaign.id);
+        if (id && id !== baselineRef.current) cid = id;
       }
+      if (!cid) return;
+      const n = await loadStudio(cid);
+      if (typeof n === "number" && plannedRef.current > 0 && n >= plannedRef.current) setGenerating(false);
     };
     void tick();
     const iv = setInterval(tick, 4000);
-    const t = setTimeout(() => setGenerating(false), 240000);
+    const t = setTimeout(() => setGenerating(false), 300000);
     return () => { stop = true; clearInterval(iv); clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generating, campaign, refreshKey]);
 
-  // agent turn ended → reload + stop the generating loader
+  // agent turn ended → reload the open campaign so agent edits show (do NOT clear
+  // `generating` here — the poll above owns that).
   useEffect(() => {
-    if (campaign) loadStudio(campaign.id);
-    if (generating) setGenerating(false);
+    if (campaign && !generating) loadStudio(campaign.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
@@ -154,7 +161,8 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
     if (!brief.trim() || !name.trim()) { toast({ title: "Add a name + brief", description: "Tell the agent what the campaign is about." }); return; }
     baselineRef.current = null;
     (async () => { baselineRef.current = await newestCampaign(); setGenerating(true); })();
-    const nPosts = Math.min(30, Math.round((days / 7) * perWeek));
+    const nPosts = Math.min(30, Math.max(1, Math.round((days / 7) * perWeek)));
+    plannedRef.current = nPosts;
     const videoNote = mediaMode === "video" ? ` — note: video posts cost ~30 credits each (${nPosts} videos)` : mediaMode === "mix" ? ` — note: about half are videos (~30 credits each)` : "";
     onAsk(`Create a content campaign in Campaign Studio. Call propose_plan first (it generates ${nPosts} posts${videoNote}) so I can approve, then call create_content_campaign with name="${name.trim()}", brief="${brief.trim().replace(/"/g, "'")}", platforms=${JSON.stringify(platforms)}, days=${days}, postsPerWeek=${perWeek}, tone="${tone}", mediaMode="${mediaMode}", videoType="${videoType}", videoSeconds=${videoSecs}. Don't paste the posts in chat — they open here in the studio.`);
     setBriefOpen(false);
@@ -163,7 +171,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
 
   const regenerate = () => {
     if (!campaign) return;
-    baselineRef.current = campaign.id; setGenerating(true);
+    baselineRef.current = campaign.id; plannedRef.current = Math.max(1, posts.length); setGenerating(true);
     onAsk(`Regenerate the "${campaign.name}" content campaign (campaignId: ${campaign.id}) with fresh captions${mediaMode !== "none" ? " + media" : ""} — call create_content_campaign again with an improved brief for the same goal. It reopens here.`);
   };
 
@@ -213,8 +221,6 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
         <div className="min-h-0 flex-1 overflow-y-auto">
           {loading ? (
             <div className="grid h-full place-items-center"><FlowLoader size={28} withMark label="Opening Campaign Studio…" /></div>
-          ) : isNew ? (
-            <EmptyPlayground onPlan={() => setBriefOpen(true)} />
           ) : generating && posts.length === 0 ? (
             <div className="grid h-full place-items-center p-8 text-center">
               <div className="max-w-sm"><div className="mx-auto w-fit"><FlowLoader size={40} withMark /></div>
@@ -222,6 +228,8 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
                 <p className="mt-1.5 text-[12.5px] text-muted-foreground">The agent is writing each post + its on-brand image and dropping them on the calendar. They'll appear here as they're ready.</p>
               </div>
             </div>
+          ) : isNew ? (
+            <EmptyPlayground onPlan={() => setBriefOpen(true)} />
           ) : campaign ? (
             <div className="px-4 py-5 sm:px-6">
               <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -250,10 +258,13 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
           )}
         </div>
 
-        {/* right rail: brief summary */}
-        {campaign && (
-          <aside className="hidden w-[248px] shrink-0 flex-col border-s border-border bg-card/40 p-3.5 lg:flex">
-            <p className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Campaign brief</p>
+        {/* right rail: brief summary — collapsible */}
+        {campaign && (railOpen ? (
+          <aside className="hidden w-[248px] shrink-0 flex-col overflow-y-auto border-s border-border bg-card/40 p-3.5 lg:flex">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Campaign brief</p>
+              <button onClick={() => setRailOpen(false)} title="Collapse" className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
+            </div>
             <div className="rounded-[10px] border border-border bg-card p-2.5 text-[12px] leading-relaxed">{campaign.brief || "—"}</div>
             <p className="mb-2 mt-4 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Posting to</p>
             <div className="flex flex-wrap gap-1.5">
@@ -265,7 +276,12 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
             <button onClick={regenerate} className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" /> Regenerate campaign</button>
             <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">Captions + on-brand images come from your Brand Kit. Edit any post above, then approve to schedule + auto-publish.</p>
           </aside>
-        )}
+        ) : (
+          <button onClick={() => setRailOpen(true)} title="Show campaign brief" className="hidden shrink-0 flex-col items-center gap-2 border-s border-border bg-card/40 px-1.5 py-3 text-muted-foreground hover:text-foreground lg:flex">
+            <PanelRight className="h-4 w-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wide [writing-mode:vertical-rl]">Brief</span>
+          </button>
+        ))}
       </div>
 
       {/* footer: approve & schedule */}
