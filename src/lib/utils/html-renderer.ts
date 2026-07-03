@@ -146,6 +146,55 @@ async function renderOnce(html: string, opts: RenderHtmlOptions): Promise<Buffer
   }
 }
 
+export interface RenderPdfOptions {
+  /** "A4" (default) | "Letter" — jsPDF-free page size. */
+  format?: "A4" | "Letter";
+  /** Extra wait after networkidle so images/fonts finish painting. */
+  fontLoadDelayMs?: number;
+}
+
+/**
+ * Render a full HTML document to a PDF Buffer via headless Chrome. Used to
+ * produce proposal PDFs from the SAME HTML the Pitch Studio renders, so the
+ * downloaded/emailed PDF matches the on-screen design exactly. Reuses the shared
+ * browser + concurrency semaphore; retries once on a Chromium connection loss.
+ */
+export async function renderHtmlToPdf(html: string, opts: RenderPdfOptions = {}): Promise<Buffer> {
+  await acquireRenderSlot();
+  try {
+    return await renderPdfOnce(html, opts);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/Connection closed|Target closed|disconnected|Protocol error/i.test(msg)) {
+      console.warn(`[html-renderer] pdf render failed (${msg}) — relaunching Chromium and retrying once`);
+      browserPromise = null;
+      return await renderPdfOnce(html, opts);
+    }
+    throw err;
+  } finally {
+    releaseRenderSlot();
+  }
+}
+
+async function renderPdfOnce(html: string, opts: RenderPdfOptions): Promise<Buffer> {
+  const { format = "A4", fontLoadDelayMs = 1500 } = opts;
+  const browser = await getBrowser();
+  const page = await browser.newPage();
+  try {
+    await page.setContent(html, { waitUntil: "networkidle0", timeout: 30_000 });
+    if (fontLoadDelayMs > 0) await new Promise((r) => setTimeout(r, fontLoadDelayMs));
+    const pdf = await page.pdf({
+      format,
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: "0", right: "0", bottom: "0", left: "0" },
+    });
+    return Buffer.from(pdf);
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 /**
  * Cleanly tear down the shared browser. Mostly useful for tests or
  * graceful shutdown hooks. Production processes generally don't call

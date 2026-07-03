@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { generatePitchPDF, generateServiceProposalPDF } from "@/lib/pitch/pdf-generator";
+import { renderProposalHtml } from "@/lib/pitch/proposal-html";
+import { renderHtmlToPdf } from "@/lib/utils/html-renderer";
 import { sendPitchEmail } from "@/lib/email";
 import { createTransporter, sendViaMailgunApi } from "@/lib/email/marketing-sender";
 import { getPresignedUrl } from "@/lib/utils/s3-client";
@@ -212,12 +214,24 @@ export async function POST(
       emailPitchContent = pitchContent;
     }
 
-    // Generate PDF
+    // Generate PDF. For service PROPOSALS we render the SAME HTML the Pitch
+    // Studio shows (via headless Chrome) so the PDF matches what the user edited
+    // — same theme, section labels (content.headings), images and a logo that
+    // never lands on a black background. jsPDF stays as a fallback if Chromium
+    // is unavailable.
     let pdfBuffer: Buffer | undefined;
     try {
-      pdfBuffer = proposalContent
-        ? await generateServiceProposalPDF(proposalContent, brand)
-        : await generatePitchPDF(emailPitchContent, research, pitch.businessName, brand);
+      if (proposalContent) {
+        try {
+          const html = renderProposalHtml(proposalContent, { logoDataUri: brand.logo, brandName: brand.name });
+          pdfBuffer = await renderHtmlToPdf(html, { format: "A4" });
+        } catch (htmlErr) {
+          console.warn("[send pitch] HTML→PDF failed, falling back to jsPDF:", htmlErr);
+          pdfBuffer = await generateServiceProposalPDF(proposalContent, brand);
+        }
+      } else {
+        pdfBuffer = await generatePitchPDF(emailPitchContent, research, pitch.businessName, brand);
+      }
     } catch (pdfErr) {
       console.error("[send pitch] PDF generation failed:", pdfErr);
       if (proposalContent) {
