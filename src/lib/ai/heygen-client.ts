@@ -1,0 +1,260 @@
+/**
+ * HeyGen Avatar Video Client
+ *
+ * Pay-as-you-go talking-avatar video generation + avatar/voice listing.
+ * Mirrors the create → poll → download lifecycle of grok-video-client so the
+ * same restart-recovery pattern (onJobId + pollOnce) applies.
+ *
+ * API endpoints (v2 generate, v1 status):
+ *   POST https://api.heygen.com/v2/video/generate      — create avatar video → { data: { video_id } }
+ *   GET  https://api.heygen.com/v1/video_status.get     — poll status → { data: { status, video_url, thumbnail_url } }
+ *   GET  https://api.heygen.com/v2/avatars              — list avatars (stock + your clones)
+ *   GET  https://api.heygen.com/v2/voices               — list voices
+ *
+ * Auth: `X-Api-Key: <HEYGEN_API_KEY>` header on every request.
+ * Degrades gracefully when the key is absent (isAvailable() === false) instead
+ * of throwing at import — same contract as veo/grok clients. [[dev-env-and-testing]]
+ */
+
+const HEYGEN_BASE = "https://api.heygen.com";
+const GENERATE_URL = `${HEYGEN_BASE}/v2/video/generate`;
+const STATUS_URL = `${HEYGEN_BASE}/v1/video_status.get`;
+const AVATARS_URL = `${HEYGEN_BASE}/v2/avatars`;
+const VOICES_URL = `${HEYGEN_BASE}/v2/voices`;
+
+export type AvatarAspect = "9:16" | "1:1" | "16:9";
+export type AvatarQuality = "standard" | "avatar_iv";
+
+/** Pixel dimensions HeyGen expects for each aspect ratio. */
+const DIMENSIONS: Record<AvatarAspect, { width: number; height: number }> = {
+  "9:16": { width: 720, height: 1280 },
+  "1:1": { width: 1080, height: 1080 },
+  "16:9": { width: 1280, height: 720 },
+};
+
+export interface HeyGenAvatar {
+  id: string;
+  name: string;
+  previewUrl?: string;
+  gender?: string;
+  isCustom: boolean;
+}
+
+export interface HeyGenVoice {
+  id: string;
+  name: string;
+  language?: string;
+  gender?: string;
+  previewUrl?: string;
+}
+
+export interface HeyGenVideoResult {
+  videoId: string;
+  videoBuffer: Buffer;
+  thumbnailUrl?: string;
+  duration: number;
+}
+
+interface GenerateOptions {
+  avatarId: string;
+  voiceId: string;
+  script: string;
+  aspect?: AvatarAspect;
+  quality?: AvatarQuality;
+  /** Persist the upstream video_id the moment the job is created, so a restart
+   *  mid-poll can resume instead of losing a render the provider is billing. */
+  onJobId?: (videoId: string) => void | Promise<void>;
+  onStatus?: (message: string) => void;
+  timeoutMs?: number;
+}
+
+class HeyGenClient {
+  private static instance: HeyGenClient;
+  private apiKey: string;
+
+  private constructor() {
+    this.apiKey = process.env.HEYGEN_API_KEY || "";
+    if (!this.apiKey) {
+      console.warn("[HeyGen] No HEYGEN_API_KEY found — avatar video generation will not work");
+    }
+  }
+
+  static getInstance(): HeyGenClient {
+    if (!HeyGenClient.instance) HeyGenClient.instance = new HeyGenClient();
+    return HeyGenClient.instance;
+  }
+
+  isAvailable(): boolean {
+    return !!this.apiKey;
+  }
+
+  private headers(): Record<string, string> {
+    return { "Content-Type": "application/json", "X-Api-Key": this.apiKey };
+  }
+
+  /**
+   * Create an avatar video from a script + avatar + voice, poll until done,
+   * and return the downloaded MP4 buffer. `quality: "avatar_iv"` selects the
+   * photoreal talking-photo character type.
+   */
+  async generateAvatarVideo(options: GenerateOptions): Promise<HeyGenVideoResult> {
+    if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
+
+    const { avatarId, voiceId, script, aspect = "9:16", quality = "standard", onJobId, onStatus, timeoutMs } = options;
+    const dimension = DIMENSIONS[aspect] ?? DIMENSIONS["9:16"];
+
+    const character =
+      quality === "avatar_iv"
+        ? { type: "talking_photo", talking_photo_id: avatarId }
+        : { type: "avatar", avatar_id: avatarId, avatar_style: "normal" };
+
+    const body = {
+      video_inputs: [
+        {
+          character,
+          voice: { type: "text", input_text: script.slice(0, 3500), voice_id: voiceId },
+        },
+      ],
+      dimension,
+    };
+
+    const res = await fetch(GENERATE_URL, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const errBody = await res.text();
+      throw new Error(`HeyGen generate error (${res.status}): ${errBody}`);
+    }
+    const data = await res.json();
+    const videoId = data?.data?.video_id || data?.video_id;
+    if (!videoId) throw new Error("HeyGen did not return a video_id");
+
+    try { await onJobId?.(videoId); } catch { /* persistence best-effort */ }
+    onStatus?.("Avatar render started. Waiting for HeyGen to finish…");
+
+    const done = await this.pollUntilDone(videoId, timeoutMs, onStatus);
+    onStatus?.("Avatar rendered. Downloading the MP4…");
+    const videoBuffer = await this.downloadVideo(done.url);
+    return { videoId, videoBuffer, thumbnailUrl: done.thumbnailUrl, duration: done.duration };
+  }
+
+  /** Single non-blocking status check — used by a recovery cron to resume a job. */
+  async pollOnce(
+    videoId: string,
+  ): Promise<{ state: "pending" | "done" | "failed"; url?: string; thumbnailUrl?: string; duration?: number; error?: string }> {
+    if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
+    const res = await fetch(`${STATUS_URL}?video_id=${encodeURIComponent(videoId)}`, { headers: this.headers() });
+    if (!res.ok) return { state: "failed", error: `status ${res.status}` };
+    const data = await res.json();
+    const d = data?.data ?? data;
+    const status = String(d?.status || "").toLowerCase();
+    if (status === "completed" || status === "done") {
+      const url = d?.video_url;
+      if (!url) return { state: "pending" };
+      return { state: "done", url, thumbnailUrl: d?.thumbnail_url, duration: d?.duration || 0 };
+    }
+    if (status === "failed" || status === "error") {
+      const rawErr = d?.error ?? d?.message ?? "HeyGen render failed";
+      const error = typeof rawErr === "string" ? rawErr : rawErr?.message || JSON.stringify(rawErr).slice(0, 300);
+      return { state: "failed", error };
+    }
+    return { state: "pending" };
+  }
+
+  /** Public download wrapper for recovery flows. */
+  async fetchVideoBuffer(url: string): Promise<Buffer> {
+    return this.downloadVideo(url);
+  }
+
+  private async pollUntilDone(
+    videoId: string,
+    timeoutMs = 600000, // 10 min
+    onStatus?: (message: string) => void,
+  ): Promise<{ url: string; thumbnailUrl?: string; duration: number }> {
+    const pollInterval = 4000;
+    const startTime = Date.now();
+    let attempts = 0;
+    while (Date.now() - startTime < timeoutMs) {
+      await new Promise((r) => setTimeout(r, pollInterval));
+      attempts++;
+      const result = await this.pollOnce(videoId);
+      if (result.state === "done" && result.url) {
+        return { url: result.url, thumbnailUrl: result.thumbnailUrl, duration: result.duration || 0 };
+      }
+      if (result.state === "failed") {
+        throw new Error(`HeyGen render failed for ${videoId}: ${result.error || "unknown error"}`);
+      }
+      if (attempts % 5 === 0) onStatus?.(`HeyGen is still rendering (${attempts * 4}s elapsed)…`);
+    }
+    throw new Error(`HeyGen render timed out for ${videoId} after ${timeoutMs / 1000}s`);
+  }
+
+  private async downloadVideo(url: string): Promise<Buffer> {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to download HeyGen video (${res.status})`);
+    const arrayBuffer = await res.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
+  /** List avatars — stock + the account's custom clones. Empty array on any error. */
+  async listAvatars(): Promise<HeyGenAvatar[]> {
+    if (!this.apiKey) return [];
+    try {
+      const res = await fetch(AVATARS_URL, { headers: this.headers() });
+      if (!res.ok) return [];
+      const data = await res.json();
+      const avatars = (data?.data?.avatars ?? []) as Array<Record<string, unknown>>;
+      const talkingPhotos = (data?.data?.talking_photos ?? []) as Array<Record<string, unknown>>;
+      const out: HeyGenAvatar[] = [];
+      for (const a of avatars) {
+        out.push({
+          id: String(a.avatar_id ?? ""),
+          name: String(a.avatar_name ?? "Avatar"),
+          previewUrl: (a.preview_image_url as string) || undefined,
+          gender: (a.gender as string) || undefined,
+          isCustom: false,
+        });
+      }
+      for (const p of talkingPhotos) {
+        out.push({
+          id: String(p.talking_photo_id ?? ""),
+          name: String(p.talking_photo_name ?? "Photo avatar"),
+          previewUrl: (p.preview_image_url as string) || undefined,
+          isCustom: true,
+        });
+      }
+      return out.filter((a) => a.id);
+    } catch (e) {
+      console.error("[HeyGen] listAvatars failed:", e);
+      return [];
+    }
+  }
+
+  /** List voices. Empty array on any error. */
+  async listVoices(): Promise<HeyGenVoice[]> {
+    if (!this.apiKey) return [];
+    try {
+      const res = await fetch(VOICES_URL, { headers: this.headers() });
+      if (!res.ok) return [];
+      const data = await res.json();
+      const voices = (data?.data?.voices ?? []) as Array<Record<string, unknown>>;
+      return voices
+        .map((v) => ({
+          id: String(v.voice_id ?? ""),
+          name: String(v.name ?? "Voice"),
+          language: (v.language as string) || undefined,
+          gender: (v.gender as string) || undefined,
+          previewUrl: (v.preview_audio as string) || undefined,
+        }))
+        .filter((v) => v.id);
+    } catch (e) {
+      console.error("[HeyGen] listVoices failed:", e);
+      return [];
+    }
+  }
+}
+
+export const heygenClient = HeyGenClient.getInstance();
+export { HeyGenClient };
