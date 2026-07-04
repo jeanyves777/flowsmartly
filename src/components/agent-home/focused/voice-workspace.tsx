@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, Sparkles, Loader2, Trash2, Headphones, AudioLines, Plus, Star, Upload, Wand2, Save } from "lucide-react";
+import { Mic, Sparkles, Loader2, Trash2, Headphones, AudioLines, Plus, Upload, Wand2, Save, X, ChevronRight, PanelRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
@@ -13,10 +13,11 @@ import { FlowLoader } from "@/components/shared/flow-loader";
 import { AgentWorkingCard } from "./agent-working-card";
 
 /**
- * Voice Studio — new-system surface for AI voiceovers, narration & voice cloning.
- * A pure UI re-shell over the existing /api/ai/voice-studio/* endpoints (xAI/
- * OpenAI TTS + ElevenLabs/OpenAI cloning) — no backend changes. Three tabs:
- * Create voiceover · Library · My Voices. [[new-design-no-legacy]]
+ * Voice Studio — AI voiceovers, narration & voice cloning. Same design language
+ * as the Campaign Studio: a canvas (the result) + a collapsible right-rail menu
+ * (Library + My Voices) + a brief bottom-sheet modal for the create inputs. A
+ * pure UI re-shell over /api/ai/voice-studio/* (xAI/OpenAI TTS + ElevenLabs/
+ * OpenAI cloning) — no backend changes. [[new-design-no-legacy]]
  * [[surface-buttons-are-ui-actions]] [[credit-based-not-plan-based]]
  */
 
@@ -37,7 +38,9 @@ const DURATIONS = [30, 60, 90, 120];
 
 export function FocusedVoice({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
   const { toast } = useToast();
-  const [view, setView] = useState<"create" | "library" | "voices">("create");
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(true);
+  const openedOnce = useRef(false);
   const [loading, setLoading] = useState(true);
 
   // voice params
@@ -117,6 +120,11 @@ export function FocusedVoice({ refreshKey, onAsk, working }: { refreshKey?: numb
     if (armed && history.length > prevGen.current) setArmed(false);
     prevGen.current = history.length;
   }, [history.length, armed]);
+
+  // Open the brief automatically on a fresh, empty studio (matches Campaign Studio).
+  useEffect(() => {
+    if (!loading && !openedOnce.current) { openedOnce.current = true; if (history.length === 0) setBriefOpen(true); }
+  }, [loading, history.length]);
 
   const wordCount = script.trim() ? script.trim().split(/\s+/).length : 0;
   const speakSecs = Math.round((wordCount / 150) * 60);
@@ -213,7 +221,7 @@ export function FocusedVoice({ refreshKey, onAsk, working }: { refreshKey?: numb
     if (p.accent) setAccent(p.accent as VoiceAccent);
     if (p.style) setStyle(p.style as VoiceStyle);
     setUseCloned(p.type === "cloned" && !!(p.openaiVoiceId || p.elevenLabsVoiceId));
-    setView("create");
+    setBriefOpen(true);
   };
 
   const cloneVoice = async () => {
@@ -254,17 +262,9 @@ export function FocusedVoice({ refreshKey, onAsk, working }: { refreshKey?: numb
     } else {
       setCloneFile(new File([blob], `sample.${ext}`, { type: blob.type }));
       setRecorderOpen(false);
-      toast({ title: "Sample ready", description: `${fmt(secs)} captured — name it and click Clone.` });
+      toast({ title: "Sample ready", description: `${Math.floor(secs / 60)}:${(secs % 60).toString().padStart(2, "0")} captured — name it and click Clone.` });
     }
   }, [recorderMode, toast]);
-
-  const reuse = (g: VoiceGenItem) => {
-    setScript(g.script);
-    if (g.gender) setGender(g.gender as VoiceGender);
-    if (g.accent) setAccent(g.accent as VoiceAccent);
-    if (g.style) setStyle(g.style as VoiceStyle);
-    setAudio(null); setView("create");
-  };
 
   const startClone = () => {
     if (cloneProvider === "openai" && !consentFile) { setRecorderMode("consent"); } else { setRecorderMode("sample"); }
@@ -275,209 +275,174 @@ export function FocusedVoice({ refreshKey, onAsk, working }: { refreshKey?: numb
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Setting up your voice studio…" /></div>;
   }
 
-  const TABS = [
-    { k: "create" as const, label: "Create voiceover", Icon: Mic },
-    { k: "library" as const, label: "Library", Icon: Headphones },
-    { k: "voices" as const, label: "My Voices", Icon: AudioLines },
-  ];
+  const savedVoices = [...cloned, ...presets];
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
-      <div className="mx-auto max-w-5xl">
-        {/* tabs */}
-        <div className="flex flex-wrap gap-1.5 pb-4">
-          {TABS.map((t) => (
-            <button key={t.k} onClick={() => setView(t.k)} className={cn("inline-flex items-center gap-2 rounded-[11px] border px-4 py-2 text-[13px] font-semibold transition", view === t.k ? "border-brand-500/40 bg-gradient-to-r from-brand-500/15 to-violet-500/10 text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
-              <t.Icon className="h-4 w-4" /> {t.label}
-            </button>
-          ))}
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1">
+        {/* MAIN CANVAS — the voiceover result / empty playground */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {generating && !audio ? (
+            <div className="grid h-full place-items-center p-8 text-center">
+              <div className="max-w-sm"><div className="mx-auto w-fit"><FlowLoader size={40} withMark /></div>
+                <h3 className="mt-4 text-[15px] font-bold">Generating your voiceover…</h3>
+                <p className="mt-1.5 text-[12.5px] text-muted-foreground">Rendering studio-quality audio — it'll play here in a moment.</p>
+              </div>
+            </div>
+          ) : armed && !audio ? (
+            <div className="grid h-full place-items-center p-8"><div className="w-full max-w-md"><AgentWorkingCard working={working} title="Generating your voiceover" sub={working ? "The agent is creating your audio — it'll play here." : "Answer the agent in the chat and your voiceover will land here."} /></div></div>
+          ) : audio ? (
+            <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-[16px] font-black">Your voiceover</h3>
+                <button onClick={() => { setAudio(null); setBriefOpen(true); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> New voiceover</button>
+              </div>
+              <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                <AudioPlayer audioUrl={audio.url} />
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  <input value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Save this voice as…" className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
+                  <button onClick={saveProfile} disabled={!profileName.trim() || savingProfile} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 disabled:opacity-60">{savingProfile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save voice</button>
+                </div>
+              </section>
+            </div>
+          ) : (
+            <div className="grid h-full place-items-center p-8 text-center">
+              <div className="max-w-md">
+                <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Mic className="h-7 w-7" /></span>
+                <h3 className="mt-4 text-[15px] font-bold">Create a voiceover</h3>
+                <p className="mx-auto mt-1.5 max-w-sm text-[12.5px] text-muted-foreground">Write a script and pick a voice — the agent renders studio-quality audio, right here. Voiceovers save to your Library and Media library.</p>
+                <button onClick={() => setBriefOpen(true)} className="mt-4 inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* CREATE */}
-        {view === "create" && (
-          <div className="grid gap-4 lg:grid-cols-[1.7fr_1fr]">
-            {/* left: script + result */}
-            <div className="space-y-4">
-              <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                <h3 className="text-[13.5px] font-bold">Script</h3>
-                <p className="mb-3 text-[12px] text-muted-foreground">Write your voiceover, or let the agent draft it for you.</p>
-                <textarea value={script} onChange={(e) => setScript(e.target.value.slice(0, 5000))} rows={6} placeholder="e.g. Introducing General Computing Solutions — enterprise IT support that just works…" className="w-full resize-y rounded-xl border border-input bg-background px-3.5 py-3 text-[14px] leading-relaxed outline-none focus:border-brand-500/60" />
-                <div className="mt-2 flex flex-wrap gap-4 text-[11.5px] text-muted-foreground">
-                  <span><b className="text-foreground">{wordCount}</b> words</span>
-                  <span><b className="text-foreground">{script.length}</b> chars</span>
-                  <span>≈ <b className="text-foreground">{fmt(speakSecs)}</b> speaking time</span>
-                </div>
-
-                {/* AI draft */}
-                <div className="mt-3 rounded-xl border border-brand-500/25 bg-gradient-to-b from-brand-500/[0.06] to-transparent p-3">
-                  <button onClick={() => setAiOpen((o) => !o)} className="flex w-full items-center gap-2 text-[12.5px] font-bold text-brand-500">
-                    <Sparkles className="h-4 w-4" /> Generate with AI
-                    {scriptCost != null && <span className="ms-auto rounded-full bg-brand-500/15 px-2 py-0.5 text-[10.5px] font-bold text-brand-500">{scriptCost} credits</span>}
+        {/* RIGHT RAIL — a MENU: Library (past voiceovers) + My Voices. Collapsible. */}
+        {railOpen ? (
+          <aside className="hidden w-[284px] shrink-0 flex-col border-s border-border bg-card/40 lg:flex">
+            <div className="flex items-center justify-between border-b border-border px-3.5 py-2.5">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/70">Voice Studio</p>
+              <button onClick={() => setRailOpen(false)} title="Collapse" className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              {/* Library */}
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Library</p>
+                <button onClick={() => { setAudio(null); setBriefOpen(true); }} className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-500 hover:underline"><Plus className="h-3 w-3" /> New</button>
+              </div>
+              <div className="space-y-1">
+                {history.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border px-2.5 py-3 text-center text-[11px] text-muted-foreground">No voiceovers yet.</p>
+                ) : history.map((g) => (
+                  <button key={g.id} onClick={() => g.audioUrl && setAudio({ url: g.audioUrl, durationMs: g.durationMs ?? 0, generationId: g.id })} className={cn("flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] transition", audio?.generationId === g.id ? "bg-brand-500/10 text-brand-500" : "hover:bg-muted/60")}>
+                    <Headphones className={cn("h-3.5 w-3.5 shrink-0", audio?.generationId === g.id ? "text-brand-500" : "text-muted-foreground")} />
+                    <span className="min-w-0 flex-1 truncate">{g.script}</span>
+                    {g.durationMs != null && <span className="shrink-0 text-[10px] text-muted-foreground">{fmt(Math.round(g.durationMs / 1000))}</span>}
                   </button>
+                ))}
+              </div>
+
+              {/* My Voices */}
+              <p className="mb-1.5 mt-4 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">My Voices</p>
+              <div className="space-y-1">
+                {savedVoices.length === 0 && <p className="rounded-lg border border-dashed border-border px-2.5 py-3 text-center text-[11px] text-muted-foreground">No saved voices yet.</p>}
+                {savedVoices.map((p) => (
+                  <div key={p.id} className="group flex items-center gap-2 rounded-lg px-2.5 py-2 text-[12px] hover:bg-muted/60">
+                    {p.type === "cloned" ? <AudioLines className="h-3.5 w-3.5 shrink-0 text-violet-400" /> : <Headphones className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                    <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
+                    <button onClick={() => selectProfile(p)} className="shrink-0 rounded-md bg-brand-500/10 px-2 py-0.5 text-[10.5px] font-bold text-brand-500 opacity-0 transition group-hover:opacity-100">Use</button>
+                    <button onClick={() => deleteProfile(p.id)} title="Delete" className="shrink-0 text-muted-foreground opacity-0 transition hover:text-rose-500 group-hover:opacity-100"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Clone a voice */}
+              <p className="mb-1.5 mt-4 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Clone a voice</p>
+              {cloneAvailable ? (
+                <div className="space-y-2 rounded-[10px] border border-border bg-card p-2.5">
+                  <input value={cloneName} onChange={(e) => setCloneName(e.target.value)} placeholder="Voice name…" className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+                  <div className="flex gap-1.5">
+                    <button onClick={startClone} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60"><Mic className="h-3.5 w-3.5" /> Record</button>
+                    <button onClick={() => cloneUpRef.current?.click()} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60"><Upload className="h-3.5 w-3.5" /> Upload</button>
+                  </div>
+                  {cloneFile && <p className="text-[10.5px] text-emerald-500">✓ Sample ready{cloneProvider === "openai" && !consentFile ? " (consent needed)" : ""}</p>}
+                  <button onClick={cloneVoice} disabled={!cloneFile || !cloneName.trim() || cloning || (cloneProvider === "openai" && !consentFile)} className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-50">{cloning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <>Clone{cloneCost != null && <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-bold">{cloneCost} cr</span>}</>}</button>
+                  <input ref={cloneUpRef} type="file" accept="audio/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) setCloneFile(f); e.target.value = ""; }} />
+                </div>
+              ) : (
+                <p className="rounded-lg border border-dashed border-border px-2.5 py-3 text-[11px] text-muted-foreground">Add an ElevenLabs or OpenAI API key to enable voice cloning.</p>
+              )}
+            </div>
+            <p className="border-t border-border p-3 text-[11px] leading-relaxed text-muted-foreground">Voiceovers use xAI/OpenAI TTS or your cloned voice. Each one saves here + to your Media library.</p>
+          </aside>
+        ) : (
+          <button onClick={() => setRailOpen(true)} title="Show menu" className="hidden shrink-0 flex-col items-center gap-2 border-s border-border bg-card/40 px-1.5 py-3 text-muted-foreground hover:text-foreground lg:flex">
+            <PanelRight className="h-4 w-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wide [writing-mode:vertical-rl]">Library</span>
+          </button>
+        )}
+      </div>
+
+      {/* BRIEF — bottom-sheet modal (matches Campaign Studio) */}
+      {briefOpen && (
+        <div className="absolute inset-0 z-40">
+          <button aria-label="Close" onClick={() => setBriefOpen(false)} className="absolute inset-0 bg-black/45" />
+          <div className="absolute inset-x-3 bottom-3 flex max-h-[88%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+            <div className="relative border-b border-border px-5 pb-3 pt-4">
+              <span className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full bg-border" />
+              <h4 className="flex items-center gap-2 text-[15px] font-bold"><Mic className="h-4 w-4 text-brand-500" /> Voiceover brief</h4>
+              <p className="mt-0.5 text-[11.5px] text-muted-foreground">Write your script and pick a voice — the agent renders it into studio-quality audio that lands in your Library.</p>
+              <button onClick={() => setBriefOpen(false)} className="absolute end-4 top-4 grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+              {/* Script */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-[11.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Script</label>
+                  <span className="text-[11px] text-muted-foreground"><b className="text-foreground">{wordCount}</b> words · ≈ <b className="text-foreground">{fmt(speakSecs)}</b></span>
+                </div>
+                <textarea value={script} onChange={(e) => setScript(e.target.value.slice(0, 5000))} rows={4} placeholder="e.g. Introducing General Computing Solutions — enterprise IT support that just works…" className="w-full resize-y rounded-xl border border-input bg-background px-3.5 py-3 text-[14px] leading-relaxed outline-none focus:border-brand-500/60" />
+                <div className="mt-2 rounded-xl border border-brand-500/25 bg-gradient-to-b from-brand-500/[0.06] to-transparent p-3">
+                  <button onClick={() => setAiOpen((o) => !o)} className="flex w-full items-center gap-2 text-[12.5px] font-bold text-brand-500"><Sparkles className="h-4 w-4" /> Generate with AI{scriptCost != null && <span className="ms-auto rounded-full bg-brand-500/15 px-2 py-0.5 text-[10.5px] font-bold text-brand-500">{scriptCost} credits</span>}</button>
                   {aiOpen && (
                     <div className="mt-3 space-y-2.5">
                       <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What's it about? e.g. “a 30-sec promo for our new managed-IT plan”" className="w-full rounded-lg border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
-                      <div>
-                        <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Tone</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {TONES.map((t) => <Chip key={t} on={tone === t} onClick={() => setTone(t)}>{t}</Chip>)}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Length</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {DURATIONS.map((d) => <Chip key={d} on={duration === d} onClick={() => setDuration(d)}>{d}s</Chip>)}
-                        </div>
-                      </div>
-                      <button onClick={draftScript} disabled={!topic.trim() || genScript || scriptCost == null} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 disabled:opacity-60">
-                        {genScript ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5 text-brand-500" />} Draft my script
-                      </button>
+                      <div><p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Tone</p><div className="flex flex-wrap gap-1.5">{TONES.map((t) => <Chip key={t} on={tone === t} onClick={() => setTone(t)}>{t}</Chip>)}</div></div>
+                      <div><p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Length</p><div className="flex flex-wrap gap-1.5">{DURATIONS.map((d) => <Chip key={d} on={duration === d} onClick={() => setDuration(d)}>{d}s</Chip>)}</div></div>
+                      <button onClick={draftScript} disabled={!topic.trim() || genScript || scriptCost == null} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 disabled:opacity-60">{genScript ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5 text-brand-500" />} Draft my script</button>
                     </div>
                   )}
                 </div>
-              </section>
+              </div>
 
-              {/* result */}
-              {(audio || generating || armed) && (
-                <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                  <h3 className="mb-3 text-[13.5px] font-bold">Result</h3>
-                  {armed && !audio ? (
-                    <AgentWorkingCard working={working} title="Generating your voiceover" sub={working ? "The agent is creating your audio — it'll play here in a moment." : "Answer the agent in the chat and your voiceover will land here."} compact />
-                  ) : generating ? (
-                    <div className="flex items-center gap-3 rounded-xl border border-brand-500/25 bg-brand-500/[0.06] px-4 py-4"><FlowLoader size={28} withMark /><div><p className="text-[13px] font-semibold">Generating your voiceover…</p><p className="text-[11.5px] text-muted-foreground">Rendering the audio — a few seconds.</p></div></div>
-                  ) : audio ? (
-                    <div>
-                      <AudioPlayer audioUrl={audio.url} />
-                      <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                        <input value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Save this voice as…" className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
-                        <button onClick={saveProfile} disabled={!profileName.trim() || savingProfile} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 disabled:opacity-60">{savingProfile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save voice</button>
-                      </div>
-                    </div>
-                  ) : null}
-                </section>
-              )}
-            </div>
-
-            {/* right: voice + generate */}
-            <div className="space-y-4">
-              <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                <h3 className="text-[13.5px] font-bold">Voice</h3>
-                <p className="mb-3 text-[12px] text-muted-foreground">Pick a preset or fine-tune the sound.</p>
-                <Group label="Quick presets">
-                  <div className="flex flex-wrap gap-1.5">
-                    {VOICE_PRESETS.map((p) => <Chip key={p.id} on={presetId === p.id} onClick={() => applyPreset(p)}>{p.name}</Chip>)}
-                  </div>
-                </Group>
-                <Group label="Gender">
-                  <div className="inline-flex overflow-hidden rounded-lg border border-border">
-                    {GENDERS.map((g) => <button key={g.id} onClick={() => { setGender(g.id); setPresetId(null); }} className={cn("px-4 py-1.5 text-[12.5px] font-semibold", gender === g.id ? "bg-brand-500/15 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{g.label}</button>)}
-                  </div>
-                </Group>
-                <Group label="Accent">
-                  <div className="flex flex-wrap gap-1.5">
-                    {ACCENTS.map((a) => <Chip key={a.id} on={accent === a.id} onClick={() => { setAccent(a.id); setPresetId(null); }}>{a.label}</Chip>)}
-                  </div>
-                </Group>
-                <Group label="Style">
-                  <div className="flex flex-wrap gap-1.5">
-                    {STYLES.map((s) => <Chip key={s.id} on={style === s.id} onClick={() => { setStyle(s.id); setPresetId(null); }}>{s.label}</Chip>)}
-                  </div>
-                </Group>
-                <Group label={`Speed · ${speed.toFixed(2)}×`}>
-                  <input type="range" min={0.5} max={2} step={0.25} value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="w-full accent-brand-500" />
-                </Group>
+              {/* Voice */}
+              <div>
+                <label className="mb-2 block text-[11.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Voice</label>
+                <Group label="Quick presets"><div className="flex flex-wrap gap-1.5">{VOICE_PRESETS.map((p) => <Chip key={p.id} on={presetId === p.id} onClick={() => applyPreset(p)}>{p.name}</Chip>)}</div></Group>
+                <div className="grid gap-x-6 sm:grid-cols-2">
+                  <Group label="Gender"><div className="inline-flex overflow-hidden rounded-lg border border-border">{GENDERS.map((g) => <button key={g.id} onClick={() => { setGender(g.id); setPresetId(null); }} className={cn("px-4 py-1.5 text-[12.5px] font-semibold", gender === g.id ? "bg-brand-500/15 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{g.label}</button>)}</div></Group>
+                  <Group label={`Speed · ${speed.toFixed(2)}×`}><input type="range" min={0.5} max={2} step={0.25} value={speed} onChange={(e) => setSpeed(parseFloat(e.target.value))} className="w-full accent-brand-500" /></Group>
+                </div>
+                <Group label="Accent"><div className="flex flex-wrap gap-1.5">{ACCENTS.map((a) => <Chip key={a.id} on={accent === a.id} onClick={() => { setAccent(a.id); setPresetId(null); }}>{a.label}</Chip>)}</div></Group>
+                <Group label="Style"><div className="flex flex-wrap gap-1.5">{STYLES.map((s) => <Chip key={s.id} on={style === s.id} onClick={() => { setStyle(s.id); setPresetId(null); }}>{s.label}</Chip>)}</div></Group>
                 {cloned.length > 0 && (
                   <label className="mt-3 flex cursor-pointer items-center justify-between rounded-xl border border-border bg-background px-3 py-2.5">
                     <span><span className="block text-[12.5px] font-semibold">Use a cloned voice</span><span className="block text-[11px] text-muted-foreground">Speak in your own or a saved voice</span></span>
                     <input type="checkbox" checked={useCloned} onChange={(e) => { setUseCloned(e.target.checked); if (e.target.checked && !profileId && cloned[0]) setProfileId(cloned[0].id); }} className="h-4 w-4 accent-brand-500" />
                   </label>
                 )}
-                {useCloned && cloned.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {cloned.map((p) => <Chip key={p.id} on={profileId === p.id} onClick={() => setProfileId(p.id)}>{p.name}</Chip>)}
-                  </div>
-                )}
-              </section>
-
-              <button onClick={generate} disabled={!script.trim() || generating || genCost == null} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-3 text-[13.5px] font-bold text-white shadow-lg shadow-brand-500/25 disabled:opacity-60">
-                {generating ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : <><Mic className="h-4 w-4" /> Generate voiceover {genCost != null && <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold">{genCost} credits</span>}</>}
-              </button>
-
-              {onAsk && (
-                <div className="rounded-xl border border-brand-500/20 bg-brand-500/[0.05] p-3 text-[11.5px] text-muted-foreground">
-                  💬 Or ask the agent: <button onClick={() => { setArmed(true); onAsk("Write a short voiceover script for me and generate it in the Voice Studio — ask me the topic, vibe and voice if you need to."); }} className="font-semibold text-brand-500 hover:underline">“make a warm 30-sec voiceover for our new plan”</button> — it drafts & generates the audio right here.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* LIBRARY */}
-        {view === "library" && (
-          <div>
-            {history.length === 0 ? (
-              <Empty icon={Headphones} title="No voiceovers yet" sub="Generate a voiceover and it'll show up here to replay, download & reuse." onClick={() => setView("create")} cta="Create a voiceover" />
-            ) : (
-              <div className="grid gap-3">
-                {history.map((g) => (
-                  <div key={g.id} className="rounded-2xl border border-border bg-card p-4">
-                    <p className="mb-2 line-clamp-2 text-[13px]">{g.script}</p>
-                    {g.audioUrl && <AudioPlayer audioUrl={g.audioUrl} />}
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      {g.gender && <Badge>{g.gender}</Badge>}
-                      {g.accent && <Badge>{g.accent}</Badge>}
-                      {g.style && <Badge>{g.style}</Badge>}
-                      {g.voiceProfile && <Badge violet>🗣️ {g.voiceProfile.name}</Badge>}
-                      {g.durationMs != null && <Badge>{fmt(Math.round(g.durationMs / 1000))}</Badge>}
-                      <button onClick={() => reuse(g)} className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60">↺ Reuse</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* MY VOICES */}
-        {view === "voices" && (
-          <div className="space-y-5">
-            <div>
-              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Cloned voices</p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {cloned.map((p) => <VoiceCard key={p.id} p={p} onUse={() => selectProfile(p)} onDelete={() => deleteProfile(p.id)} />)}
-                <div className="rounded-2xl border border-dashed border-border bg-gradient-to-b from-violet-500/[0.06] to-transparent p-5 text-center">
-                  <div className="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Plus className="h-5 w-5" /></div>
-                  <p className="mt-2 text-[13px] font-bold">Clone a voice</p>
-                  <p className="mx-auto mt-0.5 max-w-[220px] text-[11.5px] text-muted-foreground">{cloneAvailable ? "Record ~30s (with a consent line) or upload a sample." : "Add an ElevenLabs or OpenAI API key to enable cloning."}</p>
-                  {cloneName || cloneFile ? null : null}
-                  {cloneAvailable && (
-                    <div className="mt-3 space-y-2">
-                      <input value={cloneName} onChange={(e) => setCloneName(e.target.value)} placeholder="Voice name…" className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
-                      <div className="flex justify-center gap-2">
-                        <button onClick={startClone} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60"><Mic className="h-3.5 w-3.5" /> Record</button>
-                        <button onClick={() => cloneUpRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60"><Upload className="h-3.5 w-3.5" /> Upload</button>
-                      </div>
-                      {cloneFile && <p className="text-[11px] text-emerald-500">✓ Sample ready {cloneProvider === "openai" && !consentFile ? "(consent needed)" : ""}</p>}
-                      <button onClick={cloneVoice} disabled={!cloneFile || !cloneName.trim() || cloning || (cloneProvider === "openai" && !consentFile)} className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12.5px] font-bold text-white disabled:opacity-50">
-                        {cloning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <>Clone voice {cloneCost != null && <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-bold">{cloneCost} cr</span>}</>}
-                      </button>
-                    </div>
-                  )}
-                  <input ref={cloneUpRef} type="file" accept="audio/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) setCloneFile(f); e.target.value = ""; }} />
-                </div>
+                {useCloned && cloned.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{cloned.map((p) => <Chip key={p.id} on={profileId === p.id} onClick={() => setProfileId(p.id)}>{p.name}</Chip>)}</div>}
               </div>
             </div>
-            {presets.length > 0 && (
-              <div>
-                <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Preset voices</p>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {presets.map((p) => <VoiceCard key={p.id} p={p} onUse={() => selectProfile(p)} onDelete={() => deleteProfile(p.id)} />)}
-                </div>
-              </div>
-            )}
+
+            {/* footer: Generate */}
+            <div className="border-t border-border p-4">
+              <button onClick={() => { setBriefOpen(false); generate(); }} disabled={!script.trim() || genCost == null} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-3 text-[13.5px] font-bold text-white shadow-lg shadow-brand-500/25 disabled:opacity-60"><Mic className="h-4 w-4" /> Generate voiceover {genCost != null && <span className="rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-bold">{genCost} credits</span>}</button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <VoiceRecorderModal isOpen={recorderOpen} onClose={() => setRecorderOpen(false)} onRecordingComplete={onRecording} mode={recorderMode} />
     </div>
@@ -489,36 +454,4 @@ function Chip({ on, onClick, children }: { on?: boolean; onClick?: () => void; c
 }
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="mt-3.5"><p className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>{children}</div>;
-}
-function Badge({ children, violet }: { children: React.ReactNode; violet?: boolean }) {
-  return <span className={cn("rounded-full border px-2 py-0.5 text-[10.5px] font-semibold capitalize", violet ? "border-violet-500/40 text-violet-400" : "border-border text-muted-foreground")}>{children}</span>;
-}
-function VoiceCard({ p, onUse, onDelete }: { p: VoiceProfile; onUse: () => void; onDelete: () => void }) {
-  const provider = p.elevenLabsVoiceId ? "ElevenLabs" : p.openaiVoiceId ? "OpenAI" : null;
-  return (
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 place-items-center rounded-[10px] bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500">{p.type === "cloned" ? <AudioLines className="h-[18px] w-[18px]" /> : <Headphones className="h-[18px] w-[18px]" />}</span>
-        <div className="min-w-0">
-          <p className="flex items-center gap-1 truncate text-[13.5px] font-bold">{p.name}{p.isDefault && <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />}</p>
-          {p.type === "cloned" && <span className="text-[10.5px] font-semibold text-violet-400">cloned{provider ? ` · ${provider}` : ""}</span>}
-        </div>
-      </div>
-      <p className="mt-2 text-[11.5px] capitalize text-muted-foreground">{[p.gender, p.accent?.replace(/_/g, " "), p.style].filter(Boolean).join(" · ")}</p>
-      <div className="mt-3 flex gap-2">
-        <button onClick={onUse} className="rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white">Use</button>
-        <button onClick={onDelete} className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
-      </div>
-    </div>
-  );
-}
-function Empty({ icon: Icon, title, sub, onClick, cta }: { icon: typeof Mic; title: string; sub: string; onClick: () => void; cta: string }) {
-  return (
-    <div className="rounded-2xl border border-dashed border-border px-4 py-12 text-center">
-      <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Icon className="h-7 w-7" /></span>
-      <p className="mt-3 text-[14px] font-semibold">{title}</p>
-      <p className="mx-auto mt-1 max-w-sm text-[12.5px] leading-relaxed text-muted-foreground">{sub}</p>
-      <button onClick={onClick} className="mt-3 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-lg shadow-brand-500/30"><Mic className="h-4 w-4" /> {cta}</button>
-    </div>
-  );
 }
