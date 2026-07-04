@@ -24,6 +24,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -183,9 +184,10 @@ function gpsCoords(lat?: number | null, lng?: number | null): string {
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
-export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+export function FocusedDelivery({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
   const [store, setStore] = useState<StoreData | null>(null);
   const [hasStore, setHasStore] = useState<boolean | null>(null);
+  const [armed, setArmed] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,6 +231,9 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
     loadData().finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [loadData, refreshKey]);
+
+  // Clear the "agent is working" card once the store actually lands (hasStore flips true).
+  useEffect(() => { if (armed && hasStore) setArmed(false); }, [hasStore, armed]);
 
   const assignDriver = async (orderId: string, driverId: string) => {
     setBusy(orderId); setRowError("");
@@ -344,9 +349,18 @@ export function FocusedDelivery({ refreshKey, onAsk }: { refreshKey?: number; on
           <h2 className="mt-4 text-[20px] font-extrabold">No store to deliver for yet</h2>
           <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted-foreground">Set up your online store first — then orders, drivers, and delivery tracking all live here.</p>
           {onAsk && (
-            <button onClick={() => onAsk("Help me build my online store — ask me what I sell, my products and prices, then create the store.")} className="mt-4 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
+            <button onClick={() => { setArmed(true); onAsk("Help me build my online store — ask me what I sell, my products and prices, then create the store."); }} className="mt-4 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
               <Sparkles className="h-4 w-4" /> Create my store
             </button>
+          )}
+          {armed && (
+            <div className="mt-5 text-left">
+              <AgentWorkingCard
+                working={working}
+                title="Setting up your store"
+                sub={working ? "The agent is creating your store — it'll appear here." : "Answer the agent's questions in the chat and your store will land here."}
+              />
+            </div>
           )}
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
 import Image from "next/image";
 import {
   ImagePlay, Image as ImageIcon, Film, Play, ExternalLink, X, FileText, Music, LayoutGrid, Sparkles,
@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
+import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -106,8 +107,11 @@ function typeIcon(t: string): ElementType {
 
 const BULK_MAX = 50; // server caps /api/media/bulk at 50 ids per request
 
-export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+export function FocusedMedia({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
   const [items, setItems] = useState<MediaItem[]>([]);
+  // Agent "working" loader — armed by the empty-state CTA, cleared when a new asset lands.
+  const [armed, setArmed] = useState(false);
+  const prevTotal = useRef(0);
   const [folders, setFolders] = useState<MediaFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -201,6 +205,9 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
 
   // Reset lightbox-local editors (rename / tag input) whenever a new file opens.
   useEffect(() => { setRenamingFile(false); setFileRenameValue(""); setTagInput(""); setConfirmDeleteFile(null); }, [lightbox?.id]);
+
+  // Clear the agent loader once a freshly generated asset appears in the library.
+  useEffect(() => { if (armed && items.length > prevTotal.current) setArmed(false); prevTotal.current = items.length; }, [items.length, armed]);
 
   const counts = useMemo(() => {
     const by: Record<string, number> = {};
@@ -857,6 +864,11 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+              {armed && (
+                <div className="mb-5">
+                  <AgentWorkingCard working={working} title="Creating your images" sub={working ? "The agent is generating your images — they'll appear here." : "Answer the agent's questions in the chat and your images will land here."} />
+                </div>
+              )}
               <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><ImagePlay className="h-7 w-7" /></span>
               <p className="mt-3 text-[13px] font-medium">
                 {searching ? `No files match “${debouncedSearch}”`
@@ -874,7 +886,7 @@ export function FocusedMedia({ refreshKey, onAsk }: { refreshKey?: number; onAsk
               <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                 <button onClick={() => setUploadOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><ImagePlay className="h-4 w-4" /> Upload media</button>
                 {onAsk && !globalView && (
-                  <button onClick={() => onAsk("Create some images for my brand — ask me what I need (product shots, social posts, a logo), then generate them and save them to my media library.")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Sparkles className="h-4 w-4" /> Create with the agent</button>
+                  <button onClick={() => { setArmed(true); onAsk("Create some images for my brand — ask me what I need (product shots, social posts, a logo), then generate them and save them to my media library."); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Sparkles className="h-4 w-4" /> Create with the agent</button>
                 )}
               </div>
             </div>

@@ -1082,11 +1082,11 @@ export function AgentHome() {
                 ) : focused === "connections" ? (
                   <FocusedConnections refreshKey={actionCount} />
                 ) : focused === "sell" ? (
-                  <FocusedSell onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} />
+                  <FocusedSell onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "web" ? (
-                  <FocusedWeb onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedWeb onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "landing" ? (
-                  <FocusedLanding onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedLanding onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "outreach" ? (
                   <FocusedOutreach onOpenView={openView} refreshKey={actionCount} />
                 ) : focused === "domains" ? (
@@ -1094,7 +1094,7 @@ export function AgentHome() {
                 ) : focused === "pitch" ? (
                   <FocusedPitch onAsk={sendAction} refreshKey={actionCount} onOpenStudio={(pitchId) => guardNav(() => openPitchStudio(pitchId ? { pitchId } : {}))} />
                 ) : focused === "forms" ? (
-                  <FocusedForms onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedForms onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "automations" ? (
                   <FocusedAutomations onAsk={sendAction} refreshKey={actionCount} agentBusy={sending} canvasRef={followupOpsRef} />
                 ) : focused === "customers" ? (
@@ -1110,29 +1110,29 @@ export function AgentHome() {
                 ) : focused === "compose" ? (
                   <FocusedCompose onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "email" ? (
-                  <FocusedEmail onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedEmail onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "sms" ? (
-                  <FocusedSms onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedSms onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "whatsapp" ? (
-                  <FocusedWhatsApp onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedWhatsApp onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "teams" ? (
                   <FocusedTeams refreshKey={actionCount} />
                 ) : focused === "referrals" ? (
                   <FocusedReferrals refreshKey={actionCount} />
                 ) : focused === "media" ? (
-                  <FocusedMedia onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedMedia onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "logo" ? (
                   <FocusedLogo onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "video" ? (
                   <FocusedVideo onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (
-                  <FocusedDelivery onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedDelivery onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "adbuilder" ? (
                   <FocusedAdBuilder onAsk={sendAction} refreshKey={actionCount} agentBusy={sending} canvasRef={adOpsRef} />
                 ) : focused === "storyad" ? (
-                  <FocusedStoryAd onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedStoryAd onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "calendar" ? (
-                  <FocusedCalendar onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} />
+                  <FocusedCalendar onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : (
                   <FocusedComingSoon label={fLabel} description={WS_DESC[focused] ?? ""} items={fws?.items ?? []} onAsk={(label) => { setFocused(null); setActiveWs("home"); send(`Open ${label} and help me get started.`, false, undefined, undefined, { hidden: true }); }} />
                 )

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type ElementType, type ReactN
 import Image from "next/image";
 import { MessageCircle, Plus, RefreshCw, Sparkles, Zap, MessagesSquare, FileText, CheckCircle2, Power, ArrowRight, ChevronRight, Pencil, Trash2, Check, AlertTriangle, X, Send, Inbox } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -147,7 +148,7 @@ function timeLabel(iso?: string | null): string {
 
 type Section = "inbox" | "automations" | "templates";
 
-export function FocusedWhatsApp({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+export function FocusedWhatsApp({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
   const [accounts, setAccounts] = useState<WaAccount[]>([]);
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -182,6 +183,9 @@ export function FocusedWhatsApp({ refreshKey, onAsk }: { refreshKey?: number; on
   const [tmplNotice, setTmplNotice] = useState<string | null>(null);
   const [tmplDeleteId, setTmplDeleteId] = useState<string | null>(null);
   const [tmplForm, setTmplForm] = useState({ name: "", category: "MARKETING", language: "en", headerText: "", bodyText: "", footerText: "" });
+  // Agent "draft broadcast" armed state — clears when a new template lands.
+  const [broadcastArmed, setBroadcastArmed] = useState(false);
+  const prevTmplCount = useRef(0);
 
   // ── inbox ─────────────────────────────────────────────────────────────────────
   const [conversations, setConversations] = useState<ConversationRow[]>([]);
@@ -213,6 +217,18 @@ export function FocusedWhatsApp({ refreshKey, onAsk }: { refreshKey?: number; on
     load().finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [load, refreshKey]);
+
+  // Clear the "drafting broadcast" indicator once a new template lands.
+  useEffect(() => {
+    if (broadcastArmed && templates.length > prevTmplCount.current) setBroadcastArmed(false);
+    prevTmplCount.current = templates.length;
+  }, [templates.length, broadcastArmed]);
+
+  // Arm the in-view indicator, then hand the broadcast build to the agent.
+  const draftBroadcast = () => {
+    setBroadcastArmed(true);
+    onAsk?.("Help me send a WhatsApp broadcast — ask me the audience, the message, and any media, then draft an approved message template and schedule it.");
+  };
 
   const connect = () => { window.location.href = "/api/social/whatsapp/connect"; };
 
@@ -866,7 +882,7 @@ export function FocusedWhatsApp({ refreshKey, onAsk }: { refreshKey?: number; on
                   {tmplCreating ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />} {tmplCreating ? "Cancel" : "New template"}
                 </button>
                 {onAsk && (
-                  <button onClick={() => onAsk("Help me send a WhatsApp broadcast — ask me the audience, the message, and any media, then draft an approved message template and schedule it.")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                  <button onClick={draftBroadcast} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
                     <Sparkles className="h-3.5 w-3.5" /> Draft broadcast
                   </button>
                 )}
@@ -891,6 +907,8 @@ export function FocusedWhatsApp({ refreshKey, onAsk }: { refreshKey?: number; on
                   <Check className="h-4 w-4 shrink-0" /> {tmplNotice}
                 </div>
               ) : null}
+
+              {broadcastArmed && <AgentWorkingCard working={working} title="Drafting your broadcast" sub={working ? "The agent is drafting your message template — it'll appear here." : "Answer the agent's questions in the chat and your template will land here."} compact />}
 
               {/* create form */}
               {tmplCreating ? (

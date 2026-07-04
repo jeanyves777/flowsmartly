@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } f
 import { ClipboardList, FileText, MessageSquareText, Sparkles, Send, Inbox, ExternalLink, ChevronDown, ChevronRight, Power, PowerOff, Mail, Phone, User, Star, Plus, Pencil, Trash2, Save, X, ArrowUp, ArrowDown, AlertTriangle, ListChecks, Search, Link2, QrCode, Code2, Copy, Check, Users, UserPlus, ArrowLeft, ArrowRight } from "lucide-react";
 import QRCode from "qrcode";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -169,10 +170,13 @@ const STATUS_META: Record<string, { label: string; tone: string }> = {
 
 type Panel = "entries" | "edit" | "send" | "share" | "sync";
 
-export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+export function FocusedForms({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  // In-view "agent is drafting" indicator, armed on Draft-with-AI. [[agent-writes-into-ui-element-not-chat]]
+  const [armed, setArmed] = useState(false);
+  const prevCount = useRef(0);
 
   // Which item is expanded, and which panel within it (submissions / edit / send).
   const [openId, setOpenId] = useState<string | null>(null);
@@ -247,6 +251,12 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     load().finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [load, refreshKey]);
+
+  // Clear the drafting indicator only when a new form/survey actually lands.
+  useEffect(() => {
+    if (armed && items.length > prevCount.current) setArmed(false);
+    prevCount.current = items.length;
+  }, [items.length, armed]);
 
   // Lazily load marketing readiness + contact lists the first time a Send panel opens.
   const ensureSendData = useCallback(async () => {
@@ -458,6 +468,7 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   // the agent (genuinely generative). Closes the builder so its task surfaces.
   const draftWithAi = useCallback((kind: Kind) => {
     setCreating(null);
+    setArmed(true);
     onAsk?.(kind === "form"
       ? "Create a new lead-capture form to collect contact details from my audience. Suggest the right fields and a thank-you message."
       : "Create a new survey to gather feedback from my audience. Suggest the right questions and a thank-you message.");
@@ -561,6 +572,8 @@ export function FocusedForms({ refreshKey, onAsk }: { refreshKey?: number; onAsk
               </div>
 
               {notice && <p className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-[12px] text-emerald-600 dark:text-emerald-400">{notice}</p>}
+
+              {armed && !creating && <AgentWorkingCard working={working} title="Drafting your form" sub={working ? "The agent is designing your fields — it'll appear here." : "Answer the agent's questions in the chat and your form will land here."} compact />}
 
           {loadError ? (
             <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">

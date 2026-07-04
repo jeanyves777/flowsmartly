@@ -7,6 +7,7 @@ import {
   RefreshCw, Trash2, Pencil, ChevronDown, FileText, AlertTriangle, Check, X, Link2, Rocket, ArrowLeft,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -33,11 +34,13 @@ const WB_FIELD = "w-full rounded-[10px] border border-input bg-background px-3 p
 const isBuildingStatus = (s?: string) => s === "building" || s === "deploying";
 
 /* ── Websites ─────────────────────────────────────────────────────────── */
-export function FocusedWeb({ refreshKey, onAsk, onOpenView }: { refreshKey?: number; onAsk: (prompt: string) => void; onOpenView?: (key: string) => void }) {
+export function FocusedWeb({ refreshKey, onAsk, onOpenView, working }: { refreshKey?: number; onAsk: (prompt: string) => void; onOpenView?: (key: string) => void; working?: boolean }) {
   const [sites, setSites] = useState<Website[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
   const [building, setBuilding] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const prevCount = useRef(0);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async (): Promise<Website[]> => {
@@ -74,6 +77,12 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView }: { refreshKey?: num
     })();
     return () => { alive = false; if (pollRef.current) clearInterval(pollRef.current); };
   }, [refreshKey, load, startPoll]);
+
+  // Clear the "agent is working" card once a new site lands in the list.
+  useEffect(() => {
+    if (armed && sites.length > prevCount.current) setArmed(false);
+    prevCount.current = sites.length;
+  }, [sites.length, armed]);
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your websites…" /></div>;
@@ -129,8 +138,10 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView }: { refreshKey?: num
         {/* RIGHT: the website list OR the inline brief builder, full width */}
         <div className="min-w-0 flex-1 space-y-4">
           {building ? (
-            <WebsiteBuilder onCancel={() => setBuilding(false)} onBuild={(prompt) => { setBuilding(false); onAsk(prompt); }} />
+            <WebsiteBuilder onCancel={() => setBuilding(false)} onBuild={(prompt) => { setBuilding(false); setArmed(true); onAsk(prompt); }} />
           ) : (
+          <>
+          {armed && <AgentWorkingCard working={working} title="Building your website" sub={working ? "The agent is building your site — it'll appear here." : "Answer the agent's questions in the chat and your site will land here."} compact />}
           <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-3 flex items-center gap-2">
               <Globe className="h-4 w-4 text-brand-500" />
@@ -155,6 +166,7 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView }: { refreshKey?: num
               <Empty title="No website yet" sub="Tell us a few details and the agent builds a branded multi-page site." cta="Create a website" onCta={() => setBuilding(true)} />
             )}
           </section>
+          </>
           )}
         </div>
       </div>
@@ -515,10 +527,12 @@ function EditCore({ site, onCancel, onSaved, onBuildStarted }: {
 }
 
 /* ── Landing pages ────────────────────────────────────────────────────── */
-export function FocusedLanding({ refreshKey, onAsk }: { refreshKey?: number; onAsk: (prompt: string) => void }) {
+export function FocusedLanding({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk: (prompt: string) => void; working?: boolean }) {
   const [pages, setPages] = useState<Landing[]>([]);
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const prevCount = useRef(0);
 
   useEffect(() => {
     let alive = true;
@@ -529,6 +543,12 @@ export function FocusedLanding({ refreshKey, onAsk }: { refreshKey?: number; onA
     });
     return () => { alive = false; };
   }, [refreshKey]);
+
+  // Clear the "agent is working" card once a new page lands in the grid.
+  useEffect(() => {
+    if (armed && pages.length > prevCount.current) setArmed(false);
+    prevCount.current = pages.length;
+  }, [pages.length, armed]);
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your landing pages…" /></div>;
@@ -576,8 +596,10 @@ export function FocusedLanding({ refreshKey, onAsk }: { refreshKey?: number; onA
         {/* RIGHT: the landing-page grid OR the inline brief builder, full width */}
         <div className="min-w-0 flex-1 space-y-4">
           {building ? (
-            <LandingBuilder onCancel={() => setBuilding(false)} onBuild={(prompt) => { setBuilding(false); onAsk(prompt); }} />
+            <LandingBuilder onCancel={() => setBuilding(false)} onBuild={(prompt) => { setBuilding(false); setArmed(true); onAsk(prompt); }} />
           ) : (
+          <>
+          {armed && <AgentWorkingCard working={working} title="Building your landing page" sub={working ? "The agent is building your page — it'll appear here." : "Answer the agent's questions in the chat and your page will land here."} compact />}
           <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-3 flex items-center gap-2">
               <LayoutTemplate className="h-4 w-4 text-brand-500" />
@@ -609,6 +631,7 @@ export function FocusedLanding({ refreshKey, onAsk }: { refreshKey?: number; onA
               <Empty title="No landing pages yet" sub="Spin up a high-converting page for a campaign or offer." cta="Create a landing page" onCta={() => setBuilding(true)} />
             )}
           </section>
+          </>
           )}
         </div>
       </div>
