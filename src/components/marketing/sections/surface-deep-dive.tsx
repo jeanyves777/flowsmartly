@@ -3,16 +3,27 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, ArrowLeft, Check, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowLeft, Check, FileCheck2, Ruler, Sparkles, SwatchBook } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuroraBackdrop, GradientText, Magnetic, Parallax, Reveal, RevealGroup, RevealItem } from "@/components/marketing/motion";
 import { SURFACES, SURFACE_BY_KEY, type Surface } from "@/components/marketing/surfaces";
 import { FinalCta } from "@/components/marketing/sections/final-cta";
 import { cn } from "@/lib/utils/cn";
 
+const printProofItems = [
+  { icon: Ruler, label: "Bleed guides" },
+  { icon: SwatchBook, label: "Color proof" },
+  { icon: FileCheck2, label: "Export ready" },
+];
+
+const galleryLabels: Record<string, string[]> = {
+  print: ["Flyer proof", "Card system", "Brochure + product"],
+};
+
 /** A floating, parallaxed illustration for the surface (generated art, full-bleed). */
 function FloatingArt({ surface }: { surface: Surface }) {
   const reduced = useReducedMotion();
+  const isPrint = surface.key === "print";
   return (
     <Parallax speed={0.14} className="relative">
       <motion.div
@@ -20,18 +31,39 @@ function FloatingArt({ surface }: { surface: Surface }) {
         animate={reduced ? undefined : { y: [0, -12, 0] }}
         transition={reduced ? undefined : { duration: 6, repeat: Infinity, ease: "easeInOut" }}
       >
-        {surface.video ? (
-          // eslint-disable-next-line jsx-a11y/media-has-caption
-          <video autoPlay muted loop playsInline poster={surface.image} className="h-full w-full object-cover">
-            <source src={surface.video} type="video/mp4" />
-          </video>
-        ) : (
-          <Image src={surface.image} alt={`${surface.label} illustration`} fill unoptimized sizes="440px" className="object-cover" priority />
-        )}
-        {surface.video && (
-          <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-400" /> Live preview
-          </span>
+        <Image src={surface.image} alt={`${surface.label} illustration`} fill unoptimized sizes="440px" className="object-cover" priority />
+        <motion.div
+          aria-hidden
+          className="absolute inset-0 bg-[linear-gradient(115deg,transparent_20%,rgba(255,255,255,0.28)_45%,transparent_68%)]"
+          animate={reduced ? undefined : { x: ["-120%", "120%"] }}
+          transition={reduced ? undefined : { duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> Generated preview
+        </span>
+        {isPrint && (
+          <>
+            <div className="absolute left-4 top-4 rounded-2xl border border-white/55 bg-white/82 px-3 py-2 text-xs font-bold text-slate-900 shadow-lg backdrop-blur">
+              300 DPI proof
+            </div>
+            <div className="absolute bottom-4 right-4 grid gap-2">
+              {printProofItems.map((item, index) => {
+                const ItemIcon = item.icon;
+                return (
+                  <motion.div
+                    key={item.label}
+                    initial={reduced ? false : { opacity: 0, x: 16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.25 + index * 0.08 }}
+                    className="flex items-center gap-2 rounded-xl border border-white/50 bg-slate-950/72 px-3 py-2 text-[11px] font-semibold text-white shadow-lg backdrop-blur"
+                  >
+                    <ItemIcon className="h-3.5 w-3.5 text-cyan-200" />
+                    {item.label}
+                  </motion.div>
+                );
+              })}
+            </div>
+          </>
         )}
       </motion.div>
     </Parallax>
@@ -45,6 +77,7 @@ export function SurfaceDeepDive({ surfaceKey }: { surfaceKey: string }) {
   const others = SURFACES.filter((s) => s.key !== surface.key);
   const Icon = surface.icon;
   const gallery = [1, 2, 3].map((n) => `/marketing/generated/gallery-${surface.key}-${n}.webp`);
+  const labels = galleryLabels[surface.key] || surface.samples.slice(0, 3);
 
   return (
     <>
@@ -71,6 +104,19 @@ export function SurfaceDeepDive({ surfaceKey }: { surfaceKey: string }) {
                 <span key={s} className="rounded-full border border-border bg-card/70 px-3 py-1.5 text-xs font-semibold text-foreground backdrop-blur">{s}</span>
               ))}
             </div>
+            {surface.key === "print" && (
+              <div className="mt-5 grid max-w-xl gap-2 sm:grid-cols-3">
+                {printProofItems.map((item) => {
+                  const ItemIcon = item.icon;
+                  return (
+                    <div key={item.label} className="flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/8 px-3 py-2 text-xs font-bold text-foreground backdrop-blur">
+                      <ItemIcon className="h-4 w-4 text-cyan-500" />
+                      {item.label}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Magnetic>
                 <Button asChild size="lg" className="min-h-13 gap-2 rounded-2xl bg-gradient-to-r from-brand-500 to-accent-purple px-7 font-bold text-white hover:opacity-90">
@@ -117,6 +163,10 @@ export function SurfaceDeepDive({ surfaceKey }: { surfaceKey: string }) {
                 <div className="group relative aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-muted shadow-sm">
                   <Image src={src} alt={`${surface.label} sample ${i + 1}`} fill unoptimized sizes="(min-width:1024px) 30vw, 90vw" className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
                   <span className={cn("absolute left-3 top-3 grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br text-white shadow", surface.accent)}><Icon className="h-4 w-4" /></span>
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/82 via-slate-950/30 to-transparent p-4 text-white opacity-95">
+                    <p className="text-sm font-bold">{labels[i] || surface.samples[i] || "Sample output"}</p>
+                    <p className="mt-1 text-xs text-white/75">{surface.key === "print" ? "Generated print proof with safe-zone aware composition." : "Generated by the FlowSmartly agent."}</p>
+                  </div>
                 </div>
               </RevealItem>
             ))}
