@@ -52,10 +52,13 @@ trap voice_up EXIT
 # --- 1. sync code to the target ref -------------------------------------------
 log "Fetching ${DEPLOY_REF}"
 git fetch --prune origin
-PREV_LOCK_HASH="$(git hash-object package-lock.json 2>/dev/null || echo none)"
+# Sign BOTH the lockfile and .npmrc — an .npmrc change (e.g. legacy-peer-deps)
+# also requires a reinstall, and skipping it left the tree missing deps.
+dep_sig() { { git hash-object package-lock.json 2>/dev/null; [ -f .npmrc ] && git hash-object .npmrc 2>/dev/null; } | sha1sum | awk '{print $1}'; }
+PREV_LOCK_HASH="$(dep_sig)"
 log "Hard-reset working tree to ${DEPLOY_REF}"
 git reset --hard "${DEPLOY_REF}"
-NEW_LOCK_HASH="$(git hash-object package-lock.json 2>/dev/null || echo none)"
+NEW_LOCK_HASH="$(dep_sig)"
 echo "Now at: $(git rev-parse --short HEAD) — $(git log -1 --pretty=%s)"
 
 # --- 1b. refresh the branded maintenance page Nginx falls back to when the app is
@@ -75,9 +78,9 @@ sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
 grep -q 'provider = "postgresql"' prisma/schema.prisma \
   || { echo "FATAL: Prisma provider patch did not apply"; exit 1; }
 
-# --- 3. install deps only if the lockfile changed -----------------------------
+# --- 3. install deps only if the lockfile / .npmrc changed --------------------
 if [ "$PREV_LOCK_HASH" != "$NEW_LOCK_HASH" ]; then
-  log "package-lock.json changed — running npm install"
+  log "package-lock.json / .npmrc changed — running npm install"
   npm install --no-audit --no-fund
 else
   echo "Dependencies unchanged — skipping npm install"
