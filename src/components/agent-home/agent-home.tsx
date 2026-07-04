@@ -1122,7 +1122,7 @@ export function AgentHome() {
                 ) : focused === "media" ? (
                   <FocusedMedia onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "logo" ? (
-                  <FocusedLogo onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedLogo onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "video" ? (
                   <FocusedVideo onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (
