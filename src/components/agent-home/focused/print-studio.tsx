@@ -413,15 +413,26 @@ export interface ProductState {
   placement: string;
   artworkFront?: string;
   artworkBack?: string;
+  // Free-form placement rect (percent of the mockup box) the user has dragged /
+  // resized the artwork to, per face. Falls back to the selected placement's
+  // area when unset. This is the PRECISE coordinate the agent prints to.
+  designFront?: Rect;
+  designBack?: Rect;
 }
 
-interface PlacementDef { key: string; label: string; hint?: string; face: "front" | "back"; area: { l: number; t: number; w: number; h: number } }
+/** A print rectangle in PERCENT of the mockup box: left, top, width, height. */
+export type Rect = { l: number; t: number; w: number; h: number };
+interface PlacementDef { key: string; label: string; hint?: string; face: "front" | "back"; area: Rect }
 interface ProductDef {
   label: string;
   Icon: LucideIcon;
   faces: ("front" | "back")[];
   colors: string[];
   defaultColor: string;
+  // On-screen preview WIDTH (px) for this product's mockup. Tall/narrow objects
+  // (a water bottle is ~0.34 aspect) must render narrower than a wide t-shirt,
+  // otherwise a width-locked mockup balloons vertically off the stage.
+  previewW?: number;
   placements: PlacementDef[];
   // Realistic photographic mockups (xAI-generated, background-removed) shown
   // behind the print area — front + optional back. When `tint` is set, the
@@ -436,7 +447,7 @@ interface ProductDef {
 const M = "/print-mockups";
 const PRODUCTS: Record<ProductKind, ProductDef> = {
   tee: {
-    label: "T-shirt", Icon: Shirt, faces: ["front", "back"], defaultColor: "#f4f4f5", tint: true,
+    label: "T-shirt", Icon: Shirt, faces: ["front", "back"], defaultColor: "#f4f4f5", tint: true, previewW: 440,
     colors: ["#f4f4f5", "#1f2937", "#1e3a8a", "#b91c1c", "#166534", "#1d4ed8", "#9ca3af"],
     images: { front: `${M}/tee.webp`, back: `${M}/tee-back.webp` },
     placements: [
@@ -447,7 +458,7 @@ const PRODUCTS: Record<ProductKind, ProductDef> = {
     Svg: TeeSvg,
   },
   hoodie: {
-    label: "Hoodie", Icon: Shirt, faces: ["front", "back"], defaultColor: "#9aa0a8", tint: true,
+    label: "Hoodie", Icon: Shirt, faces: ["front", "back"], defaultColor: "#9aa0a8", tint: true, previewW: 400,
     colors: ["#9aa0a8", "#374151", "#1e3a8a", "#7f1d1d", "#166534"],
     images: { front: `${M}/hoodie.webp`, back: `${M}/hoodie-back.webp` },
     placements: [
@@ -458,7 +469,7 @@ const PRODUCTS: Record<ProductKind, ProductDef> = {
     Svg: HoodieSvg,
   },
   vest: {
-    label: "Hi-vis vest", Icon: HardHat, faces: ["front", "back"], defaultColor: "#f5d90a", colors: ["#f5d90a"],
+    label: "Hi-vis vest", Icon: HardHat, faces: ["front", "back"], defaultColor: "#f5d90a", colors: ["#f5d90a"], previewW: 400,
     images: { front: `${M}/vest.webp`, back: `${M}/vest-back.webp` },
     placements: [
       { key: "left-chest", label: "Left chest", hint: "logo", face: "front", area: { l: 55, t: 30, w: 14, h: 10 } },
@@ -467,7 +478,7 @@ const PRODUCTS: Record<ProductKind, ProductDef> = {
     Svg: VestSvg,
   },
   cap: {
-    label: "Cap", Icon: Shirt, faces: ["front"], defaultColor: "#111827", colors: ["#111827"],
+    label: "Cap", Icon: Shirt, faces: ["front"], defaultColor: "#111827", colors: ["#111827"], previewW: 380,
     images: { front: `${M}/cap.webp` },
     placements: [
       { key: "front", label: "Front panel", hint: "embroidery", face: "front", area: { l: 35, t: 30, w: 30, h: 26 } },
@@ -475,7 +486,7 @@ const PRODUCTS: Record<ProductKind, ProductDef> = {
     Svg: CapSvg,
   },
   tote: {
-    label: "Tote bag", Icon: ShoppingBag, faces: ["front"], defaultColor: "#d6c8a8", colors: ["#d6c8a8"],
+    label: "Tote bag", Icon: ShoppingBag, faces: ["front"], defaultColor: "#d6c8a8", colors: ["#d6c8a8"], previewW: 280,
     images: { front: `${M}/tote.webp` },
     placements: [
       { key: "center", label: "Center", hint: "main", face: "front", area: { l: 28, t: 38, w: 44, h: 40 } },
@@ -483,7 +494,7 @@ const PRODUCTS: Record<ProductKind, ProductDef> = {
     Svg: ToteSvg,
   },
   mug: {
-    label: "Mug", Icon: Coffee, faces: ["front"], defaultColor: "#f4f4f5", tint: true,
+    label: "Mug", Icon: Coffee, faces: ["front"], defaultColor: "#f4f4f5", tint: true, previewW: 380,
     colors: ["#f4f4f5", "#1f2937", "#1e3a8a", "#b91c1c", "#166534"],
     images: { front: `${M}/mug.webp` },
     placements: [
@@ -493,7 +504,7 @@ const PRODUCTS: Record<ProductKind, ProductDef> = {
     Svg: MugSvg,
   },
   bottle: {
-    label: "Water bottle", Icon: Coffee, faces: ["front"], defaultColor: "#c7ccd1", colors: ["#c7ccd1"],
+    label: "Water bottle", Icon: Coffee, faces: ["front"], defaultColor: "#c7ccd1", colors: ["#c7ccd1"], previewW: 165,
     images: { front: `${M}/bottle.webp` },
     placements: [
       { key: "body", label: "Body label", hint: "wrap", face: "front", area: { l: 39, t: 34, w: 24, h: 34 } },
@@ -509,6 +520,61 @@ async function uploadArtwork(file: File): Promise<string | null> {
     const j = await r.json().catch(() => null);
     return (r.ok && (j?.data?.file?.url || j?.data?.url)) || null;
   } catch { return null; }
+}
+
+/** Keep a placement rect inside the mockup box with a sane minimum size (percent). */
+function clampRect(r: Rect): Rect {
+  const w = Math.max(4, Math.min(100, r.w));
+  const h = Math.max(4, Math.min(100, r.h));
+  const l = Math.max(0, Math.min(100 - w, r.l));
+  const t = Math.max(0, Math.min(100 - h, r.t));
+  const round = (n: number) => Math.round(n * 10) / 10;
+  return { l: round(l), t: round(t), w: round(w), h: round(h) };
+}
+
+/**
+ * DraggableArtwork — the placed design on the mockup, freely draggable and
+ * resizable (corner handle). Position/size are kept in PERCENT of the mockup box
+ * (`boxRef`) so they survive product/zoom changes and are exactly what the agent
+ * prints to. Pointer capture on the wrapper keeps the drag smooth even when the
+ * cursor leaves the element; the corner handle switches to resize.
+ */
+function DraggableArtwork({ url, rect, onChange, boxRef }: {
+  url: string;
+  rect: Rect;
+  onChange: (r: Rect) => void;
+  boxRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  const drag = useRef<{ px: number; py: number; rect: Rect; mode: "move" | "resize" } | null>(null);
+  const onDown = (e: React.PointerEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const mode = (e.target as HTMLElement).dataset.rz !== undefined ? "resize" : "move";
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    drag.current = { px: e.clientX, py: e.clientY, rect, mode };
+  };
+  const onMove = (e: React.PointerEvent) => {
+    const d = drag.current, box = boxRef.current?.getBoundingClientRect();
+    if (!d || !box || !box.width || !box.height) return;
+    const dx = ((e.clientX - d.px) / box.width) * 100;
+    const dy = ((e.clientY - d.py) / box.height) * 100;
+    let { l, t, w, h } = d.rect;
+    if (d.mode === "move") { l = l + dx; t = t + dy; }
+    else { w = w + dx; h = h + dy; }
+    onChange(clampRect({ l, t, w, h }));
+  };
+  const onUp = (e: React.PointerEvent) => { drag.current = null; try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {} };
+  return (
+    <div
+      className="group absolute cursor-move touch-none select-none rounded-[3px] outline outline-1 outline-brand-400/60 hover:outline-2 hover:outline-brand-400"
+      style={{ left: `${rect.l}%`, top: `${rect.t}%`, width: `${rect.w}%`, height: `${rect.h}%` }}
+      onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
+      title="Drag to move · drag the corner to resize"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt="artwork" className="pointer-events-none h-full w-full select-none object-contain" draggable={false} />
+      <span data-rz className="absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 cursor-se-resize rounded-full border-2 border-white bg-brand-500 shadow opacity-0 transition group-hover:opacity-100" />
+    </div>
+  );
 }
 
 function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
@@ -530,36 +596,52 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
   const area = placement.area;
   const artwork = st.face === "front" ? st.artworkFront : st.artworkBack;
   const mockupImg = st.face === "back" && def.images.back ? def.images.back : def.images.front;
+  // The effective print rectangle: what the user dragged/resized (per face), else
+  // the selected placement zone. This is the precise coord the agent prints to.
+  const design: Rect = (st.face === "front" ? st.designFront : st.designBack) ?? area;
+  const setDesign = (r: Rect) => setSt((s) => (s.face === "front" ? { ...s, designFront: r } : { ...s, designBack: r }));
+  // Pixel box the % rect is measured against (drag → percent conversion).
+  const stageBoxRef = useRef<HTMLDivElement>(null);
 
   // Apply a UI patch to the product. Switching kind/face re-homes the placement
   // to a valid one for the new state; an `artworkUrl` targets the current face.
-  const patchProduct = (patch: Partial<ProductState> & { artworkUrl?: string }) => {
+  const patchProduct = (patch: Partial<ProductState> & { artworkUrl?: string; area?: Rect }) => {
     setSt((s) => {
-      const { artworkUrl, ...rest } = patch;
+      const { artworkUrl, area: newArea, ...rest } = patch;
       const next: ProductState = { ...s, ...rest };
       const d = PRODUCTS[next.kind];
       if (rest.kind && !d.faces.includes(next.face)) next.face = d.faces[0];
       const valid = d.placements.some((p) => p.key === next.placement && p.face === next.face);
       if (!valid) next.placement = (d.placements.find((p) => p.face === next.face) ?? d.placements[0]).key;
+      // Switching product invalidates any dragged rects (tuned for the old mockup).
+      if (rest.kind && rest.kind !== s.kind) { next.designFront = undefined; next.designBack = undefined; }
       if (artworkUrl) { if (next.face === "front") next.artworkFront = artworkUrl; else next.artworkBack = artworkUrl; }
+      // Precise placement coords (percent of the mockup box) — from a drag/resize,
+      // a placement preset, or the agent placing at exact coordinates.
+      if (newArea) { if (next.face === "front") next.designFront = clampRect(newArea); else next.designBack = clampRect(newArea); }
       return next;
     });
   };
   // Validate + coerce the agent's loose patch, then apply it (place_design_on_product).
   const applyAgentPatch = (raw: Record<string, unknown>) => {
-    const p: Partial<ProductState> & { artworkUrl?: string } = {};
-    if (typeof raw.kind === "string" && (["tee", "vest", "mug", "tote"] as string[]).includes(raw.kind)) p.kind = raw.kind as ProductKind;
+    const p: Partial<ProductState> & { artworkUrl?: string; area?: Rect } = {};
+    if (typeof raw.kind === "string" && (Object.keys(PRODUCTS) as string[]).includes(raw.kind)) p.kind = raw.kind as ProductKind;
     if (raw.face === "front" || raw.face === "back") p.face = raw.face;
     if (typeof raw.placement === "string") p.placement = raw.placement;
     if (typeof raw.color === "string") p.color = raw.color;
     if (typeof raw.artworkUrl === "string") p.artworkUrl = raw.artworkUrl;
+    const a = raw.area as Record<string, unknown> | undefined;
+    if (a && typeof a === "object" && (["l", "t", "w", "h"] as const).every((k) => typeof a[k] === "number")) {
+      p.area = { l: a.l as number, t: a.t as number, w: a.w as number, h: a.h as number };
+    }
     patchProduct(p);
   };
   // Expose to the agent (place_design_on_product routes here).
   useEffect(() => { if (productOpsRef) productOpsRef.current = { setProduct: applyAgentPatch }; });
 
   const setFace = (face: "front" | "back") => patchProduct({ face });
-  const setPlacement = (key: string) => { const p = def.placements.find((x) => x.key === key); patchProduct({ placement: key, ...(p ? { face: p.face } : {}) }); };
+  // Choosing a placement preset SNAPS the draggable design to that print zone.
+  const setPlacement = (key: string) => { const p = def.placements.find((x) => x.key === key); patchProduct({ placement: key, ...(p ? { face: p.face, area: p.area } : {}) }); };
   const setKind = (kind: ProductKind) => patchProduct({ kind });
   const setColor = (color: string) => patchProduct({ color });
   const setArtwork = (url: string | undefined) => setSt((s) => (s.face === "front" ? { ...s, artworkFront: url } : { ...s, artworkBack: url }));
@@ -575,8 +657,10 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
   };
 
   const askPlace = (extra?: string) => {
+    const r = design;
+    const a = `{ l: ${Math.round(r.l)}, t: ${Math.round(r.t)}, w: ${Math.round(r.w)}, h: ${Math.round(r.h)} }`;
     onAsk(
-      `I'm in the Print Studio designing a ${def.label} (${st.face}). Generate an on-brand design/logo and place it on the ${placement.label.toLowerCase()} print area with place_design_on_product (product "${st.kind}", face "${st.face}", placement "${placement.key}"). ${extra ?? dir.trim()} Generate the artwork first (transparent PNG if it's a logo/graphic), then place it. Confirm in one short sentence.`.trim(),
+      `I'm in the Print Studio designing a ${def.label} (${st.face} side). Generate a fully on-brand, print-ready design/logo and place it EXACTLY where I positioned the print box on the mockup — area ${a} in percent of the mockup. Call place_design_on_product with product "${st.kind}", face "${st.face}", and area ${a} so the artwork lands at those precise coordinates${artwork ? " (replace what's there)" : ""}. ${extra ?? dir.trim()} Generate the artwork first (a transparent PNG for a logo/graphic), then place it at that area. Confirm in one short sentence.`.trim(),
     );
     setDir("");
   };
@@ -602,7 +686,7 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="relative grid min-h-0 flex-1 place-items-center overflow-auto p-6" style={{ background: "radial-gradient(420px 260px at 35% 0%, hsl(var(--primary)/.14), transparent 70%)" }}>
             <div>
-              <div className="relative mx-auto" style={{ width: 460, maxWidth: "82vw" }}>
+              <div ref={stageBoxRef} className="relative mx-auto touch-none" style={{ width: def.previewW ?? 440, maxWidth: "82vw" }}>
                 {/* realistic photographic mockup (xAI, bg-removed) + optional color tint */}
                 <div className="relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -614,18 +698,17 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
                     />
                   )}
                 </div>
-                {/* print area */}
+                {/* print-area guide — the recommended zone; dims once a design is placed */}
                 <div
-                  className="absolute grid place-items-center overflow-hidden rounded-[4px] border-2 border-dashed border-sky-400/80 bg-sky-400/[0.06]"
-                  style={{ left: `${area.l}%`, top: `${area.t}%`, width: `${area.w}%`, height: `${area.h}%` }}
+                  className="pointer-events-none absolute grid place-items-center rounded-[4px] border-2 border-dashed border-sky-400/70 bg-sky-400/[0.06]"
+                  style={{ left: `${area.l}%`, top: `${area.t}%`, width: `${area.w}%`, height: `${area.h}%`, opacity: artwork ? 0.22 : 1 }}
                 >
-                  {artwork ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={artwork} alt="artwork" className="h-full w-full object-contain" />
-                  ) : (
-                    <span className="px-1 text-center text-[10px] font-bold leading-tight text-sky-500/90">{placement.face === "back" ? "ADD YOUR DESIGN" : "LOGO / DESIGN"}<span className="block text-[8.5px] font-semibold opacity-70">drop · upload · generate</span></span>
+                  {!artwork && (
+                    <span className="px-1 text-center text-[10px] font-bold leading-tight text-sky-500/90">{placement.face === "back" ? "ADD YOUR DESIGN" : "LOGO / DESIGN"}<span className="block text-[8.5px] font-semibold opacity-70">drop · upload · generate · drag</span></span>
                   )}
                 </div>
+                {/* draggable + resizable artwork — the precise placement the agent prints to */}
+                {artwork && <DraggableArtwork url={artwork} rect={design} onChange={setDesign} boxRef={stageBoxRef} />}
               </div>
               {/* variant switcher — shows the actual product mockup for each type */}
               <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
