@@ -50,6 +50,7 @@ export const WORKSPACES: Workspace[] = [
       { label: "Logo generator", route: "/logo-generator", viewKey: "logo", desc: "Generate a logo for your brand" },
       { label: "Video studio", route: "/video-studio", viewKey: "video", desc: "Make ads, promos, reels & animations" },
       { label: "Media library", route: "/media", viewKey: "media", desc: "All your images & videos in one place" },
+      { label: "Voice studio", route: "/voice-studio", viewKey: "voice", desc: "Voiceovers, narration & voice cloning" },
     ],
   },
   {

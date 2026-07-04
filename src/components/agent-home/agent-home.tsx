@@ -6,7 +6,7 @@ import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard,
-  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, type LucideIcon,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -51,6 +51,7 @@ import { FocusedTeams } from "./focused/teams-workspace";
 import { FocusedReferrals } from "./focused/referrals-workspace";
 import { FocusedMedia } from "./focused/media-workspace";
 import { FocusedLogo } from "./focused/logo-workspace";
+import { FocusedVoice } from "./focused/voice-workspace";
 import { FocusedVideo } from "./focused/video-workspace";
 import { FocusedDelivery } from "./focused/delivery-workspace";
 import { FocusedAdBuilder } from "./focused/adbuilder-workspace";
@@ -148,6 +149,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   media: { label: "Media library", subtitle: "Your images & videos", icon: Images },
   logo: { label: "Logo studio", subtitle: "Your generated logos", icon: Palette },
   video: { label: "Video studio", subtitle: "Brief → estimate → build, right on the canvas", icon: Clapperboard },
+  voice: { label: "Voice studio", subtitle: "Voiceovers, narration & voice cloning", icon: Mic },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
   plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
@@ -214,6 +216,8 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
       return `The user is on the **Logo studio** (their generated logos + brand logo). Generating a logo is a generative task — use the logo tool when they ask.`;
     case "video":
       return `The user is on the **Video studio** (their AI-generated videos). Help them create a video (generate_video / story-ad).`;
+    case "voice":
+      return `The user is on the **Voice Studio** (AI voiceovers, narration & voice cloning). Making a voiceover is a generative task — help them write a punchy script for their goal, then they set the voice (gender/accent/style/speed) and click Generate; the audio lands in the studio and their Media library. They can also clone a voice from a sample.`;
     case "print":
       return `The user is in the **Print Studio** designing something to PRINT (flyer, poster, business card, table tent, bi-fold/tri-fold brochure, or postcard). If no print canvas is open yet, FIRST call start_print_project with the right format to open the editable print canvas, then design it with update_canvas (copy, accent, print size) and add_design_page for multi-page/panel pieces (card front/back, brochure panels) — exactly like the design canvas, but keep content inside the safe area and mind the fold lines. Pick a fitting print size for the format (the canvas shows bleed/safe/fold guides). Confirm in one short sentence when it's ready.`;
     case "delivery":
@@ -245,7 +249,7 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
@@ -1123,6 +1127,8 @@ export function AgentHome() {
                   <FocusedMedia onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "logo" ? (
                   <FocusedLogo onAsk={sendAction} refreshKey={actionCount} working={sending} />
+                ) : focused === "voice" ? (
+                  <FocusedVoice onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "video" ? (
                   <FocusedVideo onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (
