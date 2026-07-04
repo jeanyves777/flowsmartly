@@ -110,7 +110,12 @@ log "Stopping voice services to free RAM for the build"
 # shellcheck disable=SC2086
 pm2 stop ${VOICE_SERVICES} >/dev/null 2>&1 || true
 
-log "Building (next build --no-lint, NODE_OPTIONS=${NODE_OPTIONS})"
+# Stamp the exact commit + build time into the bundle so /api/version can report
+# what's live — makes a deploy verifiable from outside even when the change is
+# behind auth and touches no public asset. NEXT_PUBLIC_* is inlined at build.
+export NEXT_PUBLIC_BUILD_SHA="$(git rev-parse HEAD)"
+export NEXT_PUBLIC_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+log "Building (next build --no-lint, NODE_OPTIONS=${NODE_OPTIONS}) — SHA ${NEXT_PUBLIC_BUILD_SHA:0:8}"
 rm -f "$BUILD_OK"
 npx next build --no-lint
 
