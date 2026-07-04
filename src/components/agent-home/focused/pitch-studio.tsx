@@ -43,6 +43,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
   const [ai, setAi] = useState<{ field: string; current: string } | null>(null);
   const [aiInstruction, setAiInstruction] = useState("");
   const [newBrief, setNewBrief] = useState("");
+  const [sheetOpen, setSheetOpen] = useState(false); // brief bottom-sheet (system pattern)
   const [imgBusy, setImgBusy] = useState<Record<string, boolean>>({});
   // The shared FocusedView header exposes a slot we portal our toolbar into, so
   // there's ONE header row instead of a duplicated title bar.
@@ -237,9 +238,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
           {isNew ? (<>
             <h3 className="mt-4 text-[15px] font-bold">Draft a new proposal</h3>
             <p className="mx-auto mt-1.5 max-w-sm text-[12.5px] text-muted-foreground">Tell the agent who this is for and what you're offering — it researches them and builds a branded, PDF-ready proposal from your Brand Kit, right here.</p>
-            <div className="mt-3 text-left"><BriefSuggest kind="proposal" onApply={(p) => { if (typeof p.brief === "string" && p.brief.trim()) setNewBrief(p.brief.trim()); }} /></div>
-            <textarea autoFocus value={newBrief} onChange={(e) => setNewBrief(e.target.value)} rows={3} placeholder="e.g. A proposal for Riverside Dental offering our social-media management + monthly content package." className="mt-3 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
-            <button onClick={startNewProposal} disabled={!newBrief.trim()} className="mt-3 inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60"><Sparkles className="h-4 w-4" /> Generate proposal</button>
+            <button onClick={() => setSheetOpen(true)} className="mt-4 inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
           </>) : canGenerate ? (<>
             <h3 className="mt-4 text-[15px] font-bold">Draft a proposal for {displayName}</h3>
             <p className="mt-1.5 text-[12.5px] text-muted-foreground">The agent researches this prospect and builds a branded, PDF-ready proposal from your Brand Kit. Edit every block here and attach it to your outreach.</p>
@@ -328,6 +327,27 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
           </button>
         ))}
       </div>
+
+      {/* Brief bottom-sheet — the system brief modal, loads up from the bottom (matches Video/Avatar studios) */}
+      {isNew && sheetOpen && (
+        <>
+          <button aria-label="Close brief" onClick={() => setSheetOpen(false)} className="absolute inset-0 z-20 cursor-default bg-black/30 animate-in fade-in" />
+          <div className="absolute inset-x-0 bottom-0 z-30 mx-auto w-full max-w-2xl rounded-t-2xl border border-border bg-card shadow-2xl animate-in slide-in-from-bottom-8 duration-200">
+            <div className="relative flex items-center gap-2 px-3.5 pb-1.5 pt-3">
+              <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
+              <span className="rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-brand-500">Brief</span>
+              <span className="text-[11px] text-muted-foreground">new proposal</span>
+              <button onClick={() => setSheetOpen(false)} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+            </div>
+            <div className="max-h-[52vh] overflow-y-auto px-3.5 pb-4">
+              <label className="mb-1 block text-[11.5px] font-semibold">Who’s it for &amp; what are you offering?</label>
+              <textarea autoFocus value={newBrief} onChange={(e) => setNewBrief(e.target.value)} rows={3} placeholder="e.g. A proposal for Riverside Dental offering our social-media management + monthly content package." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
+              <div className="mt-2.5"><BriefSuggest kind="proposal" onApply={(p) => { if (typeof p.brief === "string" && p.brief.trim()) setNewBrief(p.brief.trim()); }} /></div>
+              <button onClick={() => { setSheetOpen(false); startNewProposal(); }} disabled={!newBrief.trim()} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60"><Sparkles className="h-4 w-4" /> Generate proposal</button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Edit-with-AI popover */}
       {ai && (
