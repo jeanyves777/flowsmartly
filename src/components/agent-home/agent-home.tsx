@@ -877,7 +877,7 @@ export function AgentHome() {
       {/* BODY */}
       <div className="flex min-h-0 flex-1">
         {/* desktop workspace rail */}
-        <nav className="hidden w-[84px] shrink-0 flex-col items-center gap-1 border-e border-border bg-card/50 py-3 md:flex">
+        <nav className="hidden w-[84px] shrink-0 flex-col items-center gap-1 overflow-y-auto overscroll-contain border-e border-border bg-card/50 py-3 md:flex [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {WORKSPACES.map((w, i) => {
             const Icon = w.icon;
             const active = activeWs === w.key;
