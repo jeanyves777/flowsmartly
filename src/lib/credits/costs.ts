@@ -101,7 +101,8 @@ export const DEFAULT_CREDIT_COSTS = {
   //   the small fan-out of work most read-only tools do).
   // The remaining AGENT_* keys override the base when a specific tool has
   // outsized cost (scheduling = DB write + cron coordination, etc).
-  AGENT_MESSAGE: 3,                // Per agent turn (Claude Haiku tool loop)
+  AGENT_MESSAGE: 3,                // Per agent turn (cheapest model — Haiku tool loop)
+  AGENT_MESSAGE_SUPER: 15,         // Per agent turn in user-requested "Super" mode (premium model)
   AGENT_TOOL_CALL_BASE: 1,         // Default per tool call when no override
   AGENT_SCHEDULE_POST: 5,          // Create + schedule a Post via the agent
   AGENT_CANCEL_SCHEDULED_POST: 1,
@@ -112,7 +113,19 @@ export const DEFAULT_CREDIT_COSTS = {
   AGENT_SEARCH_FEATURES: 0,
   AGENT_WHO_AM_I: 0,
   AGENT_GET_BRAND_IDENTITY: 0,
+  AGENT_UPDATE_BRAND_IDENTITY: 0,  // Free — saving brand text is a setting; the agent inferred it inline
   AGENT_PROPOSE_PLAN: 0,           // Free — proposal is "would you like this?", not work
+  AGENT_CANVAS_UPDATE: 0,          // Free — instant UI edit to the focused-view canvas
+  AGENT_ADD_PRODUCT: 0,            // Free — listing a product in the store is not AI work
+  AGENT_UPDATE_PRODUCT: 0,         // Free — editing a product is store management, not AI work
+  AGENT_DELETE_PRODUCT: 0,         // Free — removing a product is store management
+  AGENT_FULFILL_ORDER: 0,          // Free — advancing an order's status is store management
+  AGENT_UPDATE_CONTACT: 0,         // Free — editing a CRM contact is data management
+  AGENT_DELETE_CONTACT: 0,         // Free — removing a CRM contact is data management
+  AGENT_UPDATE_WEBSITE: 0,         // Free — publish/rename/SEO is site management, not a rebuild
+  AGENT_SETUP_LOCAL_PRESENCE: 500, // ListSmartly unlock — first-time setup charges the unlock credits
+  AGENT_UPDATE_LISTING: 0,         // Free — flipping a listing status / fixing NAP is presence management
+  AGENT_RESPOND_TO_REVIEW: 0,      // Free key — an AI draft charges AI_REVIEW_RESPONSE inside the tool
   AGENT_LIST_SCHEDULED_POSTS: 0,
   AGENT_GET_CALENDAR: 1,
   // Tier-priced media tools. The handler picks the right key based on
@@ -247,6 +260,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_CHAT_IMAGE: "FlowAI image generation",
   AI_CHAT_VIDEO: "FlowAI video generation",
   AGENT_MESSAGE: "Flow-AI agent: assistant turn",
+  AGENT_MESSAGE_SUPER: "Flow-AI agent: assistant turn (Super)",
   AGENT_TOOL_CALL_BASE: "Flow-AI agent: tool call",
   AGENT_SCHEDULE_POST: "Flow-AI agent: schedule social post",
   AGENT_CANCEL_SCHEDULED_POST: "Flow-AI agent: cancel scheduled post",
@@ -257,7 +271,19 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AGENT_SEARCH_FEATURES: "Flow-AI agent: search features",
   AGENT_WHO_AM_I: "Flow-AI agent: who am I",
   AGENT_GET_BRAND_IDENTITY: "Flow-AI agent: get brand identity",
+  AGENT_UPDATE_BRAND_IDENTITY: "Flow-AI agent: update brand identity",
   AGENT_PROPOSE_PLAN: "Flow-AI agent: propose plan",
+  AGENT_CANVAS_UPDATE: "Flow-AI agent: edit canvas",
+  AGENT_ADD_PRODUCT: "Flow-AI agent: add product",
+  AGENT_UPDATE_PRODUCT: "Flow-AI agent: update product",
+  AGENT_DELETE_PRODUCT: "Flow-AI agent: delete product",
+  AGENT_FULFILL_ORDER: "Flow-AI agent: fulfill order",
+  AGENT_UPDATE_CONTACT: "Flow-AI agent: update contact",
+  AGENT_DELETE_CONTACT: "Flow-AI agent: delete contact",
+  AGENT_UPDATE_WEBSITE: "Flow-AI agent: update website",
+  AGENT_SETUP_LOCAL_PRESENCE: "Flow-AI agent: set up local presence",
+  AGENT_UPDATE_LISTING: "Flow-AI agent: update directory listing",
+  AGENT_RESPOND_TO_REVIEW: "Flow-AI agent: respond to review",
   AGENT_LIST_SCHEDULED_POSTS: "Flow-AI agent: list scheduled posts",
   AGENT_GET_CALENDAR: "Flow-AI agent: get calendar",
   AGENT_GENERATE_IMAGE_STANDARD: "Flow-AI agent: generate image (Standard)",

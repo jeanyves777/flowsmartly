@@ -38,8 +38,10 @@ export default function ErrorPage({
   useEffect(() => {
     console.error("[ErrorBoundary]", error.name, error.message, error.stack);
 
-    // Auto-recover from ChunkLoadError: force a hard reload once per session
-    if (isChunkLoadError(error)) {
+    // Auto-recover from ChunkLoadError: force a hard reload once per session.
+    // Production only — in dev these are transient HMR/on-demand-compile errors
+    // and a hard reload is disruptive (see ChunkErrorHandler).
+    if (isChunkLoadError(error) && process.env.NODE_ENV === "production") {
       const already = sessionStorage.getItem("chunk-reload");
       if (!already) {
         sessionStorage.setItem("chunk-reload", "1");

@@ -30,7 +30,7 @@ export async function PATCH(
     const { id } = await params;
     const existing = await prisma.post.findFirst({
       where: { id, userId: session.userId, deletedAt: null },
-      select: { id: true, mediaUrl: true },
+      select: { id: true, mediaUrl: true, mediaType: true },
     });
 
     if (!existing) {
@@ -51,6 +51,12 @@ export async function PATCH(
       updateData.platforms = JSON.stringify(parseJsonArray(body.platforms, ["feed"]));
     }
 
+    // Campaign Studio: edit a PLANNED post's media prompt (stored in mediaMeta as
+    // { prompt } until the image/video is generated). Only for planned posts.
+    if (typeof body.mediaPrompt === "string" && (existing.mediaType || "").startsWith("planned")) {
+      updateData.mediaMeta = JSON.stringify({ prompt: body.mediaPrompt.slice(0, 1500) });
+    }
+
     if (body.mediaUrls !== undefined) {
       const mediaUrls = parseJsonArray(body.mediaUrls);
       const mediaKeys = mediaUrls.map((url) => extractS3Key(url)).filter(Boolean);
@@ -67,8 +73,16 @@ export async function PATCH(
           { status: 400 }
         );
       }
+      // A scheduled time must be in the FUTURE — a past time would leave a
+      // "SCHEDULED" post stuck in the past that never publishes cleanly.
+      if (scheduledAt && scheduledAt.getTime() <= Date.now()) {
+        return NextResponse.json(
+          { success: false, error: { message: "scheduledAt must be in the future" } },
+          { status: 400 }
+        );
+      }
       updateData.scheduledAt = scheduledAt;
-      if (scheduledAt && scheduledAt > new Date()) {
+      if (scheduledAt) {
         updateData.status = "SCHEDULED";
         updateData.publishedAt = null;
       }

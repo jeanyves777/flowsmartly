@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils/cn";
 import { useStripe } from "@stripe/react-stripe-js";
 import { StripeProvider } from "@/components/providers/stripe-provider";
 import { AddCardForm } from "@/components/payments/add-card-form";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { FlowLoader } from "@/components/shared/flow-loader";
 
 interface CreditPackage {
   id: string;
@@ -262,7 +262,7 @@ function BuyCreditsContent() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/settings?tab=billing">
+            <Link href="/home/billing">
               <ArrowLeft className="w-5 h-5" />
             </Link>
           </Button>
@@ -280,7 +280,7 @@ function BuyCreditsContent() {
         </div>
         <div className="flex flex-wrap gap-2 lg:justify-end">
           <Button variant="outline" size="sm" asChild>
-            <Link href="/credits/history">
+            <Link href="/home/billing">
               View history
             </Link>
           </Button>
@@ -638,7 +638,7 @@ function BuyCreditsContent() {
                 </p>
                 <div className="flex items-center justify-center gap-3">
                   <Button variant="outline" asChild>
-                    <Link href="/credits/history">View History</Link>
+                    <Link href="/home/billing">View History</Link>
                   </Button>
                   <Button
                     onClick={() => {
@@ -780,7 +780,7 @@ function BuyCreditsContent() {
               >
                 {isCheckingOut ? (
                   <>
-                    <AISpinner className="w-4 h-4 animate-spin mr-2" />
+                    <FlowLoader size={16} tone="white" className="mr-2" />
                     Processing...
                   </>
                 ) : (

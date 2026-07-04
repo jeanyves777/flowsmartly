@@ -40,8 +40,10 @@ export async function GET(request: NextRequest) {
     if (platform && platform !== "all") where.platform = platform;
     if (sentiment && sentiment !== "all") where.sentiment = sentiment;
     if (responseStatus) where.responseStatus = responseStatus;
-    if (responded === "true") where.responseStatus = { not: "none" };
-    if (responded === "false") where.responseStatus = "none";
+    // "Responded" means a reply was actually POSTED — an AI draft that was never
+    // posted ("ai_drafted") still counts as needing a response.
+    if (responded === "true") where.responseStatus = "posted";
+    if (responded === "false") where.responseStatus = { not: "posted" };
 
     const [reviews, total] = await Promise.all([
       prisma.listingReview.findMany({
@@ -58,8 +60,9 @@ export async function GET(request: NextRequest) {
       data: {
         reviews: reviews.map((r) => ({
           ...r,
-          hasResponse: r.responseStatus !== "none",
-          responseText: r.postedResponse || r.aiDraftResponse || null,
+          hasResponse: r.responseStatus === "posted",
+          responseText: r.postedResponse || null,
+          draftResponse: r.aiDraftResponse || null,
           createdAt: (r.publishedAt || r.createdAt).toISOString(),
           keywords: JSON.parse(r.keywords),
         })),

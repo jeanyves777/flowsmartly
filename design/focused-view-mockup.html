@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FlowSmartly — Focused View (split canvas) philosophy</title>
+<style>
+  /* ===== Real FlowSmartly tokens (globals.css HSL) — light / grey / dark ===== */
+  :root{
+    --background:0 0% 100%;        --foreground:240 10% 3.9%;
+    --card:0 0% 100%;             --panel:240 4.8% 97.5%;   --elevated:0 0% 100%;
+    --muted:240 4.8% 95.9%;       --muted-foreground:240 3.8% 46.1%;
+    --border:240 5.9% 90%;        --input:240 5.9% 90%;
+    --primary:199 89% 48%;        --primary-foreground:0 0% 100%;
+    --brand:#0ea5e9; --brand2:#8b5cf6; --gold:#eccb93;
+    --grad:linear-gradient(100deg,#0ea5e9,#8b5cf6);
+    --loader:linear-gradient(135deg,#3b82f6,#8b5cf6 50%,#f59e0b);
+    --ok:160 84% 39%;
+    --shadow:0 12px 40px rgba(15,23,42,.10);
+    color-scheme:light;
+  }
+  html.grey{
+    --background:240 6% 14%;       --foreground:0 0% 96%;
+    --card:240 5% 17%;            --panel:240 5% 19%;       --elevated:240 5% 22%;
+    --muted:240 5% 23%;           --muted-foreground:240 5% 68%;
+    --border:240 5% 27%;          --input:240 5% 27%;
+    --shadow:0 14px 46px rgba(0,0,0,.4);
+    color-scheme:dark;
+  }
+  html.dark{
+    --background:240 10% 3.9%;     --foreground:0 0% 98%;
+    --card:240 8% 6.5%;           --panel:240 7% 9%;        --elevated:240 7% 11%;
+    --muted:240 3.7% 15.9%;       --muted-foreground:240 5% 64.9%;
+    --border:240 3.7% 16%;        --input:240 3.7% 18%;
+    --shadow:0 14px 46px rgba(0,0,0,.5);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif; font-size:14px;
+    color:hsl(var(--foreground));
+    background:
+      radial-gradient(1100px 600px at 82% -10%, hsl(var(--primary)/.12), transparent 60%),
+      radial-gradient(900px 600px at -5% 110%, hsl(262 83% 58%/.10), transparent 55%),
+      hsl(var(--background));
+    display:grid; grid-template-columns:84px 1fr; grid-template-rows:56px 1fr; height:100vh; overflow:hidden;
+    transition:background .25s,color .25s;
+  }
+  .t-muted{color:hsl(var(--muted-foreground))}
+  svg.i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+
+  /* ===== top bar ===== */
+  .topbar{grid-column:1/3; display:flex; align-items:center; gap:12px; padding:0 18px;
+    border-bottom:1px solid hsl(var(--border)); background:hsl(var(--background)/.72); backdrop-filter:blur(10px); z-index:5}
+  .brand{display:flex; align-items:center; gap:10px}
+  .brand .mk{width:36px;height:36px;border-radius:10px;flex:none;display:grid;place-items:center;color:#fff;font-weight:900;
+    background:var(--loader);box-shadow:0 4px 14px hsl(var(--primary)/.35)}
+  .brand .wm{font-weight:800;letter-spacing:-.2px;font-size:16px}
+  .brand .wm .s{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .brandchip{margin-inline-start:6px;display:flex;align-items:center;gap:7px;padding:5px 11px;border:1px solid hsl(var(--border));
+    border-radius:999px;background:hsl(var(--panel));color:hsl(var(--muted-foreground));font-size:12.5px;cursor:pointer}
+  .brandchip b{color:hsl(var(--foreground))}
+  .spacer{flex:1}
+  .credits{display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;font-size:12.5px;
+    background:linear-gradient(120deg,hsl(var(--primary)/.14),hsl(262 83% 58%/.14));border:1px solid hsl(var(--border))}
+  .credits b{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800}
+  .iconbtn{width:36px;height:36px;border-radius:10px;border:1px solid hsl(var(--border));background:hsl(var(--panel));
+    display:grid;place-items:center;cursor:pointer;color:hsl(var(--muted-foreground));transition:.15s}
+  .iconbtn:hover{color:hsl(var(--foreground));border-color:hsl(var(--primary)/.6)}
+  .avatar{width:32px;height:32px;border-radius:50%;background:var(--grad);display:grid;place-items:center;font-size:12px;font-weight:700;color:#fff}
+
+  /* ===== rail ===== */
+  .rail{grid-row:2/3; border-right:1px solid hsl(var(--border)); background:hsl(var(--card)/.5);
+    display:flex; flex-direction:column; align-items:center; padding:12px 0; gap:3px}
+  .rail .item{width:66px; padding:10px 0; border-radius:13px; display:flex; flex-direction:column; align-items:center; gap:6px;
+    color:hsl(var(--muted-foreground)); cursor:pointer; transition:.15s; position:relative}
+  .rail .item:hover{color:hsl(var(--foreground)); background:hsl(var(--muted))}
+  .rail .item.active{color:hsl(var(--foreground)); background:linear-gradient(135deg,hsl(var(--primary)/.22),hsl(262 83% 58%/.16))}
+  .rail .item.active::before{content:"";position:absolute;inset-inline-start:-1px;top:16px;bottom:16px;width:3px;border-radius:3px;background:var(--grad)}
+  .rail .item span{font-size:10px}
+  .rail svg.i{width:21px;height:21px}
+
+  /* ===== main ===== */
+  .main{grid-row:2/3; overflow:hidden; position:relative; display:flex; flex-direction:column}
+
+  /* ---- HOME state (centered chat) ---- */
+  .home{flex:1; display:flex; flex-direction:column; overflow:hidden}
+  .home .convo{flex:1; overflow-y:auto; padding:26px clamp(16px,6vw,90px) 24px}
+  .hero{max-width:760px;margin:7vh auto 0}
+  .hero h1{font-size:30px;margin:0 0 8px;font-weight:800;letter-spacing:-.5px;line-height:1.12}
+  .hero h1 .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero .sub{color:hsl(var(--muted-foreground));margin:0 0 22px;font-size:15px;line-height:1.55}
+  .seed-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:11px;max-width:760px;margin:0 auto}
+  .seed{border:1px solid hsl(var(--border));border-radius:13px;padding:14px;background:hsl(var(--panel));cursor:pointer;transition:.15s;display:flex;gap:12px;align-items:center}
+  .seed:hover{border-color:hsl(var(--primary)/.6);transform:translateY(-2px);box-shadow:var(--shadow)}
+  .seed .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex:none;
+    background:linear-gradient(135deg,hsl(var(--primary)/.18),hsl(262 83% 58%/.18));color:hsl(var(--primary))}
+  .seed .t{font-weight:650;font-size:13px}
+  .seed .d{color:hsl(var(--muted-foreground));font-size:11.5px;line-height:1.4}
+
+  /* shared composer */
+  .composer{border-top:1px solid hsl(var(--border));padding:14px clamp(16px,6vw,90px) 16px;background:hsl(var(--background)/.6)}
+  .home .composer{max-width:860px;margin:0 auto;width:100%}
+  .modepill{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;border:1px solid hsl(var(--border));
+    background:hsl(var(--panel));font-size:12px;color:hsl(var(--muted-foreground));cursor:pointer;margin-bottom:9px}
+  .modepill b{color:hsl(var(--foreground))}
+  .cbox{display:flex;align-items:center;gap:10px;border:1px solid hsl(var(--border));border-radius:15px;background:hsl(var(--elevated));
+    padding:11px 13px;box-shadow:var(--shadow)}
+  .cbox .plus{width:32px;height:32px;border-radius:9px;border:1px solid hsl(var(--border));display:grid;place-items:center;color:hsl(var(--muted-foreground));flex:none}
+  .cbox input{flex:1;border:none;background:transparent;color:inherit;font-size:14px;outline:none}
+  .cbox .send{width:34px;height:34px;border-radius:10px;border:none;background:var(--grad);color:#fff;display:grid;place-items:center;flex:none;cursor:pointer}
+
+  /* ---- FOCUSED state (split: chat left + canvas right) ---- */
+  .split{flex:1; display:none; grid-template-columns:var(--chatw,404px) 7px 1fr; min-height:0}
+  body.focused .home{display:none}
+  body.focused .split{display:grid}
+  .splitter{cursor:col-resize;background:hsl(var(--border));transition:background .15s}
+  .splitter:hover{background:hsl(var(--primary)/.55)}
+  body.chatcollapsed .split{grid-template-columns:0 0 1fr}
+  body.chatcollapsed .chatcol, body.chatcollapsed .splitter{display:none}
+  #reopenChat{display:none;position:absolute;left:10px;top:62px;z-index:30;width:36px;height:36px;border-radius:10px;
+    border:1px solid hsl(var(--border));background:hsl(var(--elevated));place-items:center;cursor:pointer;box-shadow:var(--shadow)}
+  body.chatcollapsed #reopenChat{display:grid}
+
+  .chatcol{display:flex;flex-direction:column;min-height:0;border-right:1px solid hsl(var(--border));background:hsl(var(--card)/.35)}
+  .chatcol .chd{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid hsl(var(--border));font-size:12.5px;color:hsl(var(--muted-foreground))}
+  .chatcol .chd .dot{width:7px;height:7px;border-radius:50%;background:hsl(var(--ok));box-shadow:0 0 0 3px hsl(var(--ok)/.18)}
+  .chatcol .chd b{color:hsl(var(--foreground))}
+  .chatcol .clog{flex:1;overflow-y:auto;padding:16px 14px}
+  .chatcol .composer{max-width:none;margin:0;width:auto}
+
+  .msg{display:flex;gap:11px;margin-bottom:16px}
+  .msg .who{width:27px;height:27px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff}
+  .msg.user{flex-direction:row-reverse}
+  .msg.user .who{background:linear-gradient(135deg,#ec4899,#8b5cf6)}
+  .msg.ai .who{background:var(--loader)}
+  .msg .body{min-width:0;font-size:13px;line-height:1.55}
+  .msg.user .body{background:hsl(var(--primary)/.12);border:1px solid hsl(var(--primary)/.25);border-radius:12px;padding:8px 12px}
+  .msg .body b{font-weight:700}
+  .actref{display:inline-flex;align-items:center;gap:6px;margin-top:7px;font-size:11.5px;color:hsl(var(--primary));
+    border:1px solid hsl(var(--primary)/.3);background:hsl(var(--primary)/.1);border-radius:8px;padding:4px 9px}
+  .qchips{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+  .qchip{font-size:12px;padding:6px 11px;border-radius:9px;border:1px solid hsl(var(--border));background:hsl(var(--panel));cursor:pointer;transition:.15s}
+  .qchip:hover{border-color:hsl(var(--primary)/.6);transform:translateY(-1px)}
+
+  /* focused view (right) */
+  .focus{display:flex;flex-direction:column;min-height:0;background:hsl(var(--background))}
+  .fhead{display:flex;align-items:center;gap:11px;padding:10px 16px;border-bottom:1px solid hsl(var(--border));background:hsl(var(--card)/.4)}
+  .fhead .fic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none;
+    background:linear-gradient(135deg,hsl(var(--primary)/.2),hsl(262 83% 58%/.18));color:hsl(var(--primary))}
+  .fhead .ft{font-weight:750;font-size:14px}
+  .fhead .fs{font-size:11.5px;color:hsl(var(--muted-foreground))}
+  .fhead .ftools{margin-inline-start:auto;display:flex;gap:7px}
+  .fbody{flex:1;min-height:0;display:grid;grid-template-columns:1fr 268px;transition:grid-template-columns .2s}
+  body.toolscollapsed .fbody{grid-template-columns:1fr 0}
+  body.toolscollapsed .tools{display:none}
+  .stage{min-height:0;overflow:auto;display:grid;place-items:center;padding:26px;
+    background:radial-gradient(420px 260px at 35% 0%, hsl(var(--primary)/.14), transparent 70%), hsl(var(--background))}
+
+  /* the design poster (direct-manipulation canvas) */
+  .poster{width:330px;height:330px;border-radius:18px;position:relative;overflow:hidden;color:#fff;
+    box-shadow:0 24px 60px rgba(0,0,0,.45);background:linear-gradient(160deg,#0b2447,#0a1b3a);transition:.25s}
+  .poster .pbg{position:absolute;inset:0;background:
+    radial-gradient(200px 200px at 82% 80%, var(--acc,#0ea5e9) 0%, transparent 62%),
+    radial-gradient(160px 160px at 16% 18%, rgba(255,255,255,.08), transparent 60%)}
+  .poster .pin{position:absolute;inset:0;padding:26px;display:flex;flex-direction:column}
+  .poster .eyebrow{font-size:9px;letter-spacing:2.5px;color:rgba(255,255,255,.75);text-transform:uppercase}
+  .poster .ph{font-size:30px;font-weight:800;line-height:1.04;margin-top:auto;letter-spacing:-.5px}
+  .poster .psub{font-size:11.5px;color:rgba(255,255,255,.82);margin-top:9px;line-height:1.4;max-width:82%}
+  .poster .pcta{margin-top:16px;align-self:flex-start;background:var(--acc,#0ea5e9);color:#06121f;font-weight:800;font-size:10.5px;padding:8px 14px;border-radius:999px}
+  .poster.sel{outline:2px solid var(--acc,#0ea5e9);outline-offset:4px}
+
+  .tools{border-inline-start:1px solid hsl(var(--border));background:hsl(var(--panel));padding:14px;overflow-y:auto}
+  .tools h4{margin:0 0 4px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:hsl(var(--muted-foreground))}
+  .tools .grp{margin-bottom:16px}
+  .field{margin-top:9px}
+  .field label{display:block;font-size:11.5px;color:hsl(var(--muted-foreground));margin-bottom:5px}
+  .field input,.field textarea,.field select{width:100%;border:1px solid hsl(var(--input));border-radius:9px;background:hsl(var(--background));
+    color:inherit;padding:8px 10px;font-size:12.5px;font-family:inherit;outline:none;resize:none}
+  .field input:focus,.field textarea:focus{border-color:hsl(var(--primary)/.6)}
+  .swatches{display:flex;gap:8px;margin-top:7px}
+  .sw{width:26px;height:26px;border-radius:8px;cursor:pointer;border:2px solid transparent}
+  .sw.on{border-color:hsl(var(--foreground))}
+  .sizes{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}
+  .sizebtn{font-size:11.5px;padding:6px 10px;border-radius:8px;border:1px solid hsl(var(--border));background:hsl(var(--background));cursor:pointer}
+  .sizebtn.on{border-color:hsl(var(--primary));color:hsl(var(--primary));background:hsl(var(--primary)/.1)}
+
+  .btn{padding:9px 14px;border-radius:10px;border:1px solid hsl(var(--border));background:hsl(var(--panel));color:hsl(var(--foreground));
+    cursor:pointer;font-size:12.5px;font-weight:600;transition:.15s;display:inline-flex;align-items:center;gap:7px}
+  .btn:hover{border-color:hsl(var(--primary)/.6)}
+  .btn.primary{background:var(--grad);border:none;color:#fff;box-shadow:0 6px 18px hsl(var(--primary)/.35);width:100%;justify-content:center}
+  .btn.sm{padding:7px 10px;font-size:12px}
+  .btn.icon{width:34px;height:34px;padding:0;justify-content:center}
+
+  /* caption / philosophy note */
+  .note{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:40;display:flex;gap:10px;align-items:center;
+    background:hsl(var(--elevated));border:1px solid hsl(var(--border));border-radius:999px;padding:7px 8px 7px 15px;box-shadow:var(--shadow);font-size:12.5px}
+  .note b{color:hsl(var(--primary))}
+  .note .x{cursor:pointer;color:hsl(var(--muted-foreground));padding:4px}
+
+  /* mobile: stack into tabs */
+  .mtabs{display:none}
+  @media(max-width:880px){
+    body{grid-template-columns:0 1fr}
+    .rail{display:none}
+    .split{grid-template-columns:1fr}
+    .fbody{grid-template-columns:1fr}
+    .tools{display:none}
+    body.focused .chatcol{display:none}
+    body.focused.showchat .chatcol{display:flex;position:absolute;inset:0;z-index:20}
+    body.focused.showchat .focus{display:none}
+    .mtabs{display:flex;gap:8px;position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:45;
+      background:hsl(var(--elevated));border:1px solid hsl(var(--border));border-radius:999px;padding:5px;box-shadow:var(--shadow)}
+    .mtabs button{border:none;background:transparent;color:hsl(var(--muted-foreground));font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:999px;cursor:pointer}
+    .mtabs button.on{background:var(--grad);color:#fff}
+    .note{display:none}
+  }
+</style>
+</head>
+<body class="focused">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="mk">F</div>
+      <div class="wm">Flow<span class="s">Smartly</span></div>
+    </div>
+    <div class="brandchip">🏢 <b>Test User</b> ▾</div>
+    <div class="spacer"></div>
+    <div class="credits">⚡ <b>1,000</b> credits</div>
+    <div class="iconbtn" title="Language">🌐</div>
+    <div class="iconbtn" title="Theme" onclick="cycleTheme()" id="themeBtn">🌙</div>
+    <div class="avatar">TU</div>
+  </div>
+
+  <!-- RAIL -->
+  <div class="rail">
+    <div class="item"><svg class="i" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></div>
+    <div class="item active"><svg class="i" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22a10 10 0 1 1 10-10c0 2-1 3-3 3h-2a2 2 0 0 0-1 4 2 2 0 0 1-1 3z"/></svg><span>Create</span></div>
+    <div class="item"><svg class="i" viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg><span>Publish</span></div>
+    <div class="item"><svg class="i" viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg><span>Grow</span></div>
+    <div class="item"><svg class="i" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg><span>Sell</span></div>
+    <div class="item"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20"/></svg><span>Web</span></div>
+    <div class="item"><svg class="i" viewBox="0 0 24 24"><path d="M4 4h16v12H5l-1 4z"/></svg><span>Outreach</span></div>
+    <div class="item"><svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 2 4-5"/></svg><span>Business</span></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <div id="reopenChat" onclick="toggleChat()" title="Show chat">💬</div>
+
+    <!-- HOME (centered chat) — shown when not focused -->
+    <div class="home">
+      <div class="convo">
+        <div class="hero">
+          <h1>Good evening, Test — <span class="g">what should we build?</span></h1>
+          <p class="sub">Tell me what you want to do. I can design, post, advertise, build a store or site — and do the work right here. Open a focused view to work hands-on while I assist.</p>
+        </div>
+        <div class="seed-grid">
+          <div class="seed" onclick="openFocus('design')"><div class="ic">🎨</div><div><div class="t">Design social graphic</div><div class="d">Opens the design canvas — chat stays beside it.</div></div></div>
+          <div class="seed" onclick="openFocus('video')"><div class="ic">🎬</div><div><div class="t">Video studio</div><div class="d">Storyboard + render on the right, direct with chat.</div></div></div>
+          <div class="seed" onclick="openFocus('store')"><div class="ic">🛍️</div><div><div class="t">Optimize product</div><div class="d">Edit the product page live while the agent rewrites copy.</div></div></div>
+          <div class="seed" onclick="openFocus('design')"><div class="ic">📅</div><div><div class="t">Plan this week's posts</div><div class="d">Calendar canvas, agent fills the slots.</div></div></div>
+        </div>
+      </div>
+      <div class="composer">
+        <div class="modepill">⚡ <b>Standard</b> · fast &amp; cheap ▾</div>
+        <div class="cbox">
+          <div class="plus">＋</div>
+          <input placeholder="Ask FlowSmartly to do something…" />
+          <button class="send">↑</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOCUSED (split: chat left + canvas right) -->
+    <div class="split">
+
+      <!-- LEFT: persistent agent chat -->
+      <div class="chatcol">
+        <div class="chd"><span class="dot"></span> Agent · <b>working on this canvas</b>
+          <span style="margin-inline-start:auto;display:flex;gap:13px">
+            <span class="t-muted" style="cursor:pointer" onclick="toggleChat()" title="Collapse chat">⟨ collapse</span>
+            <span class="t-muted" style="cursor:pointer" onclick="closeFocus()">✕ exit</span>
+          </span></div>
+        <div class="clog" id="clog">
+          <div class="msg user"><div class="who">TU</div><div class="body">Design a launch graphic for our summer sale.</div></div>
+          <div class="msg ai"><div class="who">F</div><div class="body">
+            Opened the <b>Design Studio</b> on the right with a first draft. You can edit it directly, or just tell me what to change.
+            <div class="actref">✎ rendered “Summer Sale” poster →</div>
+            <div class="qchips">
+              <div class="qchip" onclick="agentAct('gold')">Make it pop with gold</div>
+              <div class="qchip" onclick="agentAct('headline')">Punchier headline</div>
+              <div class="qchip" onclick="agentAct('square')">Resize to 1:1</div>
+            </div>
+          </div></div>
+        </div>
+        <div class="composer">
+          <div class="cbox">
+            <div class="plus">＋</div>
+            <input placeholder="Tell the agent to change the canvas…" id="cinput" onkeydown="if(event.key==='Enter')sendChat()" />
+            <button class="send" onclick="sendChat()">↑</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="splitter" id="splitter" title="Drag to resize · double-click to collapse chat"></div>
+
+      <!-- RIGHT: focused workspace (its own UI + inputs/buttons) -->
+      <div class="focus">
+        <div class="fhead">
+          <div class="fic">🎨</div>
+          <div>
+            <div class="ft" id="ftitle">Design Studio</div>
+            <div class="fs" id="fsub">Summer Sale · 1080×1350 · draft</div>
+          </div>
+          <div class="ftools">
+            <div class="btn icon sm" title="Toggle controls panel" onclick="toggleTools()">▤</div>
+            <div class="btn icon sm" title="Undo">↶</div>
+            <div class="btn icon sm" title="Redo">↷</div>
+            <div class="btn sm">Save</div>
+            <div class="btn sm primary" style="width:auto">Export</div>
+          </div>
+        </div>
+        <div class="fbody">
+          <div class="stage">
+            <div class="poster sel" id="poster" onclick="this.classList.toggle('sel')">
+              <div class="pbg"></div>
+              <div class="pin">
+                <div class="eyebrow" id="pEyebrow">FLOWSMARTLY · LIMITED TIME</div>
+                <div class="ph" id="pHead">Summer Sale<br>up to 40% off</div>
+                <div class="psub" id="pSub">Refresh your wardrobe with our brightest drop yet. This week only.</div>
+                <div class="pcta" id="pCta">Shop the sale →</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- page-specific controls -->
+          <div class="tools">
+            <div class="grp">
+              <h4>Content</h4>
+              <div class="field"><label>Headline</label><textarea rows="2" id="iHead" oninput="syncFromTools()">Summer Sale up to 40% off</textarea></div>
+              <div class="field"><label>Subtext</label><textarea rows="2" id="iSub" oninput="syncFromTools()">Refresh your wardrobe with our brightest drop yet. This week only.</textarea></div>
+              <div class="field"><label>Button</label><input id="iCta" value="Shop the sale →" oninput="syncFromTools()" /></div>
+            </div>
+            <div class="grp">
+              <h4>Brand accent</h4>
+              <div class="swatches" id="swatches">
+                <div class="sw on" style="background:#0ea5e9" data-acc="#0ea5e9" onclick="pickAcc(this)"></div>
+                <div class="sw" style="background:#8b5cf6" data-acc="#8b5cf6" onclick="pickAcc(this)"></div>
+                <div class="sw" style="background:#eccb93" data-acc="#eccb93" onclick="pickAcc(this)"></div>
+                <div class="sw" style="background:#10b981" data-acc="#10b981" onclick="pickAcc(this)"></div>
+              </div>
+            </div>
+            <div class="grp">
+              <h4>Size</h4>
+              <div class="sizes">
+                <div class="sizebtn" onclick="pickSize(this,'1080×1080')">1:1</div>
+                <div class="sizebtn on" onclick="pickSize(this,'1080×1350')">4:5</div>
+                <div class="sizebtn" onclick="pickSize(this,'1080×1920')">9:16</div>
+                <div class="sizebtn" onclick="pickSize(this,'1200×628')">Ad</div>
+              </div>
+            </div>
+            <button class="btn primary" onclick="agentAct('regen')">✨ Regenerate with AI</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- mobile chat/canvas tabs -->
+  <div class="mtabs">
+    <button id="tabChat" onclick="mShow('chat')">Chat</button>
+    <button id="tabCanvas" class="on" onclick="mShow('canvas')">Canvas</button>
+  </div>
+
+  <!-- philosophy note -->
+  <div class="note" id="note">
+    <span><b>Focused view</b> — drag the divider to resize · "⟨ collapse" hides the chat · "▤" folds the right panel · chat still drives the canvas.</span>
+    <span class="x" onclick="document.getElementById('note').style.display='none'">✕</span>
+  </div>
+
+<script>
+  const themes=['dark','grey','light'], tIcon={dark:'🌙',grey:'◐',light:'☀️'};
+  function cycleTheme(){
+    let c=document.documentElement.className||'dark';
+    let n=themes[(themes.indexOf(c)+1)%themes.length];
+    document.documentElement.className=n; document.getElementById('themeBtn').textContent=tIcon[n];
+  }
+  const titles={design:['🎨','Design Studio','Summer Sale · 1080×1350 · draft'],
+                video:['🎬','Video Studio','Summer promo · 0:15 · storyboard'],
+                store:['🛍️','Product Editor','Aurora Hoodie · live page']};
+  function openFocus(kind){
+    document.body.classList.add('focused');
+    const t=titles[kind]||titles.design;
+    document.getElementById('ftitle').textContent=t[1];
+    document.getElementById('fsub').textContent=t[2];
+    document.querySelector('.fic').textContent=t[0];
+  }
+  function closeFocus(){document.body.classList.remove('focused');}
+
+  function pickAcc(el){[...document.querySelectorAll('.sw')].forEach(s=>s.classList.remove('on'));el.classList.add('on');
+    document.getElementById('poster').style.setProperty('--acc',el.dataset.acc);}
+  function pickSize(el,label){[...document.querySelectorAll('.sizebtn')].forEach(s=>s.classList.remove('on'));el.classList.add('on');
+    document.getElementById('fsub').textContent=document.getElementById('ftitle').textContent.replace('Design ','')+' · '+label+' · draft';
+    const p=document.getElementById('poster'); if(label==='1080×1080'){p.style.height='330px';p.style.width='330px';}
+    else if(label==='1080×1350'){p.style.height='360px';p.style.width='300px';} else {p.style.height='380px';p.style.width='280px';}}
+  function syncFromTools(){
+    document.getElementById('pHead').innerHTML=document.getElementById('iHead').value.replace(/\n/g,'<br>');
+    document.getElementById('pSub').textContent=document.getElementById('iSub').value;
+    document.getElementById('pCta').textContent=document.getElementById('iCta').value;
+  }
+  function addAI(html){const l=document.getElementById('clog');l.insertAdjacentHTML('beforeend',
+    '<div class="msg ai"><div class="who">F</div><div class="body">'+html+'</div></div>');l.scrollTop=l.scrollHeight;}
+  function addUser(t){const l=document.getElementById('clog');l.insertAdjacentHTML('beforeend',
+    '<div class="msg user"><div class="who">TU</div><div class="body">'+t+'</div></div>');l.scrollTop=l.scrollHeight;}
+
+  // agent acting on the canvas (the two-way link)
+  function agentAct(kind){
+    if(kind==='gold'){pickAcc(document.querySelector('[data-acc="#eccb93"]'));
+      addAI('Done — switched the accent to <b>gold</b> and brightened the CTA. <div class="actref">✎ updated canvas →</div>');}
+    else if(kind==='headline'){document.getElementById('iHead').value='Summer Sale\nbiggest drop yet';syncFromTools();
+      addAI('Punchier headline applied. <div class="actref">✎ edited headline →</div>');}
+    else if(kind==='square'){pickSize([...document.querySelectorAll('.sizebtn')][0],'1080×1080');
+      addAI('Resized to a <b>1:1 square</b> for the feed. <div class="actref">✎ resized canvas →</div>');}
+    else if(kind==='regen'){addAI('Regenerated 3 fresh directions — dropped the boldest onto the canvas. <div class="actref">✎ new draft →</div>');}
+  }
+  function sendChat(){const i=document.getElementById('cinput');const v=i.value.trim();if(!v)return;addUser(v);i.value='';
+    setTimeout(()=>addAI('Got it — applying that to the canvas now. <div class="actref">✎ updated canvas →</div>'),350);}
+
+  // draggable + collapsible chat splitter
+  (function(){const sp=document.getElementById('splitter');let drag=false;
+    sp.addEventListener('mousedown',()=>{drag=true;document.body.style.userSelect='none';});
+    window.addEventListener('mousemove',e=>{if(!drag)return;const w=Math.max(280,Math.min(620,e.clientX-84));
+      document.documentElement.style.setProperty('--chatw',w+'px');});
+    window.addEventListener('mouseup',()=>{drag=false;document.body.style.userSelect='';});
+    sp.addEventListener('dblclick',toggleChat);})();
+  function toggleChat(){document.body.classList.toggle('chatcollapsed');}
+  function toggleTools(){document.body.classList.toggle('toolscollapsed');}
+
+  // mobile tabs
+  function mShow(which){document.body.classList.toggle('showchat',which==='chat');
+    document.getElementById('tabChat').classList.toggle('on',which==='chat');
+    document.getElementById('tabCanvas').classList.toggle('on',which!=='chat');}
+</script>
+</body>
+</html>

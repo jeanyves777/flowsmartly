@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Follow-ups flow playground — mockup</title>
+<style>
+  :root{
+    --bg:#0a0a0f; --card:#101017; --card2:#14141c; --border:#26262d;
+    --muted:#1b1b22; --muted-fg:#9a9aa4; --fg:#fafafa;
+    --brand:#0ea5e9; --brand-soft:rgba(14,165,233,.12); --violet:#8b5cf6;
+    --emerald:#10b981; --amber:#f59e0b; --rose:#f43f5e;
+    --grad:linear-gradient(90deg,#0ea5e9,#8b5cf6);
+    --grad-soft:linear-gradient(90deg,rgba(14,165,233,.14),rgba(139,92,246,.14));
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:#06060a;color:var(--fg);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;-webkit-font-smoothing:antialiased}
+  .frame{max-width:1240px;margin:22px auto;padding:0 16px}
+  .caption{color:var(--muted-fg);font-size:12.5px;margin:0 0 12px;max-width:960px}
+  .app{height:820px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative;box-shadow:0 24px 60px -24px rgba(0,0,0,.7)}
+  .spacer{margin-left:auto}
+  svg{display:block}
+
+  /* toolbar */
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--border);background:rgba(20,20,28,.4);backdrop-filter:blur(8px);z-index:10}
+  .tb-title{display:inline-flex;align-items:center;gap:7px;font-weight:650;font-size:12.5px}
+  .tb-stats{display:inline-flex;align-items:center;gap:8px;color:var(--muted-fg);font-size:11.5px}
+  .dot{width:3px;height:3px;border-radius:99px;background:var(--muted-fg);opacity:.5;display:inline-block}
+  .btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:transparent;color:var(--fg);font-weight:600;font-size:12.5px;padding:7px 12px;border-radius:10px;cursor:pointer;transition:.15s}
+  .btn:hover{border-color:rgba(14,165,233,.6)}
+  .btn.ghost{color:var(--muted-fg)}
+  .btn.grad{background:var(--grad);border:none;color:#fff;box-shadow:0 6px 18px -6px rgba(14,165,233,.55)}
+  .btn.sm{padding:5px 10px;font-size:11.5px;border-radius:9px}
+  .btn.xs{padding:3px 8px;font-size:11px;border-radius:8px}
+  .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--muted);border-radius:99px;padding:4px 10px;font-size:11.5px;color:var(--muted-fg)}
+  .pill b{color:var(--fg);font-weight:750}
+
+  /* split: canvas + saved rail */
+  .body{flex:1;min-height:0;display:flex}
+  .canvas{position:relative;flex:1;min-height:0;overflow:auto;background-image:radial-gradient(circle,rgba(140,140,160,.18) 1px,transparent 1px);background-size:22px 22px}
+  .canvas-inner{min-height:100%;padding:24px 28px;display:flex;flex-direction:column;align-items:center}
+  .flow{width:100%;max-width:540px}
+  .rail{width:264px;flex:0 0 auto;border-left:1px solid var(--border);background:rgba(16,16,23,.5);display:flex;flex-direction:column}
+  .rail-h{padding:11px 13px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700}
+  .rail-b{flex:1;min-height:0;overflow:auto;padding:10px}
+
+  /* AI hero */
+  .hero{border:1px solid rgba(14,165,233,.35);background:var(--grad-soft);border-radius:16px;padding:13px 14px;margin-bottom:16px}
+  .hero-row{display:flex;align-items:center;gap:8px}
+  .hero h3{margin:0;font-size:13.5px;font-weight:750}
+  .hero .ai-badge{display:inline-flex;align-items:center;gap:5px;background:var(--grad);color:#fff;border-radius:99px;font-size:10.5px;font-weight:700;padding:3px 9px}
+  .hero textarea{width:100%;margin-top:9px;resize:none;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--fg);font:inherit;font-size:12.5px;line-height:1.5;padding:9px 11px;outline:none}
+  .hero textarea:focus{border-color:rgba(14,165,233,.6)}
+  .hero-foot{display:flex;align-items:center;gap:8px;margin-top:9px}
+  .hint{font-size:11px;color:var(--muted-fg)}
+  /* campaign name header */
+  .flow-head{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+  .flow-name{flex:1;min-width:0;background:transparent;border:1px solid transparent;border-radius:9px;color:var(--fg);font-size:16px;font-weight:750;padding:6px 8px;outline:none}
+  .flow-name:hover{border-color:var(--border)}
+  .flow-name:focus{border-color:rgba(14,165,233,.6);background:var(--bg)}
+  /* library overlay */
+  .lib{position:absolute;inset:0;z-index:60;background:rgba(8,8,12,.97);backdrop-filter:blur(6px);display:none;flex-direction:column}
+  .lib.open{display:flex}
+  .lib-h{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border)}
+  .lib-b{flex:1;min-height:0;overflow:auto;padding:16px}
+  .lib-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+  .kpi{border:1px solid var(--border);background:var(--card);border-radius:13px;padding:12px 14px}
+  .kpi .kn{font-size:22px;font-weight:800;line-height:1}
+  .kpi .kl{font-size:11px;color:var(--muted-fg);margin-top:5px}
+  .filters{display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap}
+  .lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+  .lc{border:1px solid var(--border);background:var(--card);border-radius:14px;overflow:hidden;transition:.15s}
+  .lc:hover{border-color:rgba(14,165,233,.5)}
+  .lc-h{display:flex;align-items:center;gap:9px;padding:12px 13px 9px}
+  .lc-flow{display:flex;align-items:center;gap:4px;padding:0 13px 10px;flex-wrap:wrap}
+  .lc-stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--border)}
+  .lc-stat{padding:9px 6px;text-align:center;border-right:1px solid var(--border)}
+  .lc-stat:last-child{border-right:none}
+  .lc-stat .v{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
+  .lc-stat .l{font-size:10px;color:var(--muted-fg);margin-top:2px}
+  .lc-foot{display:flex;align-items:center;gap:7px;padding:9px 13px;border-top:1px solid var(--border);background:rgba(20,20,28,.35)}
+
+  /* flow nodes */
+  .node{border:1px solid var(--border);background:var(--card);border-radius:16px;transition:.15s}
+  .node:hover{border-color:rgba(14,165,233,.45)}
+  .node-h{display:flex;align-items:center;gap:9px;padding:11px 13px}
+  .ic{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;flex:0 0 auto}
+  .ic.brand{background:var(--brand-soft);color:var(--brand)}
+  .ic.violet{background:rgba(139,92,246,.12);color:var(--violet)}
+  .ic.muted{background:var(--muted);color:var(--muted-fg)}
+  .node-t{font-weight:700;font-size:13px}
+  .node-s{font-size:11px;color:var(--muted-fg);margin-top:1px}
+  .kicker{font-size:10px;font-weight:750;letter-spacing:.05em;text-transform:uppercase;color:var(--muted-fg)}
+  .tag{border-radius:7px;background:var(--brand-soft);color:var(--brand);font-size:10px;font-weight:700;padding:2px 7px}
+  .tag.violet{background:rgba(139,92,246,.14);color:var(--violet)}
+
+  /* audience node */
+  .aud-modes{display:flex;gap:6px;padding:0 13px 10px}
+  .seg{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--muted);border-radius:9px;padding:5px 9px;font-size:11.5px;font-weight:600;cursor:pointer;color:var(--muted-fg)}
+  .seg.sel{border-color:rgba(14,165,233,.6);background:var(--brand-soft);color:var(--brand)}
+  .aud-body{padding:0 13px 12px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .cchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--muted);border-radius:99px;padding:3px 9px 3px 3px;font-size:11.5px;font-weight:600}
+  .av{display:grid;place-items:center;width:20px;height:20px;border-radius:99px;color:#fff;font-size:9.5px;font-weight:700}
+  .seg-card{display:flex;align-items:center;gap:9px;border:1px solid var(--border);background:var(--muted);border-radius:11px;padding:9px 11px}
+
+  /* connectors */
+  .conn{display:flex;flex-direction:column;align-items:center}
+  .line{width:2px;height:16px;background:linear-gradient(180deg,rgba(14,165,233,.5),rgba(139,92,246,.4))}
+  .add{display:grid;place-items:center;width:24px;height:24px;border-radius:99px;border:1px dashed var(--border);background:var(--bg);color:var(--muted-fg);cursor:pointer;transition:.15s}
+  .add:hover{border-color:var(--brand);color:var(--brand)}
+  .wait{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--muted);border-radius:99px;padding:4px 11px;font-size:11px;font-weight:650;color:var(--muted-fg);cursor:pointer}
+  .wait:hover{color:var(--fg);border-color:rgba(14,165,233,.4)}
+
+  /* message step */
+  .step-body{padding:0 13px 12px}
+  .preview{border:1px solid var(--border);background:var(--bg);border-radius:11px;padding:10px 11px;font-size:12px;line-height:1.55;color:rgba(250,250,250,.92)}
+  .preview .subj{font-weight:700;color:#fff;margin-bottom:4px}
+  .mf{background:rgba(139,92,246,.16);color:#c4b5fd;border-radius:5px;padding:0 4px;font-weight:600;font-size:11.5px}
+  .step-foot{display:flex;align-items:center;gap:7px;padding:9px 13px;border-top:1px solid var(--border);background:rgba(20,20,28,.35);flex-wrap:wrap}
+  .perstag{display:inline-flex;align-items:center;gap:5px;border-radius:99px;background:var(--grad-soft);border:1px solid rgba(139,92,246,.3);color:#c4b5fd;font-size:10.5px;font-weight:650;padding:3px 9px}
+  .icon-btn{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;border:1px solid transparent;color:var(--muted-fg);cursor:pointer}
+  .icon-btn:hover{background:var(--muted);color:var(--fg)}
+
+  /* launch node */
+  .launch{border:1px solid rgba(14,165,233,.4);background:var(--grad-soft);border-radius:16px;padding:13px 14px;text-align:center}
+  .launch p{margin:0 0 10px;font-size:12px;color:var(--muted-fg)}
+
+  /* saved flow card (rail) */
+  .sf{border:1px solid var(--border);background:var(--card);border-radius:12px;padding:10px;margin-bottom:9px;cursor:pointer;transition:.15s}
+  .sf:hover{border-color:rgba(14,165,233,.5)}
+  .sf-h{display:flex;align-items:center;gap:8px}
+  .sf-h b{font-size:12.5px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .badge{display:inline-flex;align-items:center;gap:4px;border-radius:99px;font-size:10px;font-weight:650;padding:2px 7px}
+  .badge.on{background:rgba(16,185,129,.1);color:var(--emerald)}
+  .badge.off{background:var(--muted);color:var(--muted-fg)}
+  .sf-flow{display:flex;align-items:center;gap:4px;margin-top:8px;flex-wrap:wrap}
+  .mini{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;background:var(--muted);font-size:11px}
+  .mini.on{background:var(--brand-soft)}
+  .sf-meta{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:10.5px;color:var(--muted-fg)}
+
+  /* sheet + modal shared */
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(1px);z-index:40;display:none}
+  .scrim.open{display:block}
+  .sheet{position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:720px;background:var(--card2);border:1px solid var(--border);border-bottom:none;border-radius:18px 18px 0 0;box-shadow:0 -24px 60px -24px rgba(0,0,0,.8);z-index:50;display:none;flex-direction:column;max-height:78%}
+  .sheet.open{display:flex}
+  .grip{position:absolute;left:50%;top:7px;transform:translateX(-50%);width:38px;height:4px;border-radius:99px;background:var(--border)}
+  .sheet-h{display:flex;align-items:center;gap:8px;padding:15px 16px 8px}
+  .sheet-b{overflow:auto;padding:6px 16px 14px}
+  .sheet-f{display:flex;align-items:center;gap:10px;padding:11px 16px;border-top:1px solid var(--border)}
+  .x{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;border:1px solid var(--border);color:var(--muted-fg);cursor:pointer}
+  .x:hover{color:var(--fg)}
+  .lbl{display:block;font-size:11.5px;font-weight:650;color:var(--muted-fg);margin:14px 0 6px}
+  .field{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--fg);font-size:13px;padding:9px 11px;outline:none;font-family:inherit}
+  .field:focus{border-color:rgba(14,165,233,.6)}
+  textarea.field{resize:vertical;line-height:1.5}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .chanrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .opt{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--border);background:var(--muted);border-radius:10px;padding:9px;font-size:12.5px;font-weight:650;cursor:pointer}
+  .opt.sel{border-color:rgba(14,165,233,.6);background:var(--brand-soft);color:var(--brand)}
+  .mf-bar{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+  .mf-btn{border:1px solid rgba(139,92,246,.3);background:rgba(139,92,246,.1);color:#c4b5fd;border-radius:7px;font-size:11px;font-weight:600;padding:3px 8px;cursor:pointer}
+  .ai-strip{display:flex;align-items:center;gap:9px;border:1px solid rgba(139,92,246,.3);background:var(--grad-soft);border-radius:11px;padding:9px 11px;margin-top:12px}
+  .switch{position:relative;width:36px;height:20px;border-radius:99px;background:var(--muted);border:1px solid var(--border);cursor:pointer;flex:0 0 auto}
+  .switch.on{background:var(--grad);border-color:transparent}
+  .switch i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:99px;background:#fff;transition:.15s}
+  .switch.on i{left:18px}
+
+  /* contact picker list */
+  .crow{display:flex;align-items:center;gap:10px;border:1px solid var(--border);background:var(--muted);border-radius:10px;padding:8px 10px;margin-top:7px;cursor:pointer}
+  .crow.sel{border-color:rgba(14,165,233,.6);background:var(--brand-soft)}
+  .cbox{width:18px;height:18px;border-radius:5px;border:1px solid var(--border);display:grid;place-items:center;flex:0 0 auto;color:#fff}
+  .crow.sel .cbox{background:var(--brand);border-color:var(--brand)}
+  .search{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;color:var(--fg);font-size:13px;padding:9px 11px;outline:none}
+
+  /* agent working banner */
+  .working{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;z-index:55;display:none;align-items:center;gap:10px;border:1px solid rgba(14,165,233,.4);background:var(--card2);border-radius:12px;padding:10px 14px;box-shadow:0 16px 40px -16px rgba(0,0,0,.7)}
+  .working.open{display:flex}
+  .spin{width:16px;height:16px;border:2px solid rgba(14,165,233,.3);border-top-color:var(--brand);border-radius:99px;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .muted{color:var(--muted-fg)}
+</style>
+</head>
+<body>
+<div class="frame">
+  <p class="caption"><b style="color:#fafafa">Follow-ups → an AI flow playground.</b> Target a <b>single contact</b>, <b>multiple selected contacts</b>, or a <b>segment</b>; lay out a multi-step flow (message → wait → message) with <b>personalized</b>, merge-field messages; and let the <b>agent build & personalize the whole flow</b> for you — or fine-tune any step by hand. Live flows live in the right rail. <i>Click around — it’s interactive.</i></p>
+
+  <div class="app" id="app">
+    <div class="toolbar">
+      <span class="tb-title">${WF}<span>Follow-ups playground</span></span>
+      <span class="tb-stats" id="tbStats"></span>
+      <span class="spacer"></span>
+      <span class="pill">${SEND}<b id="msgSent">0</b>&nbsp;sent</span>
+      <button class="btn ghost sm" onclick="openLibrary()">${GRID}Library</button>
+      <button class="btn ghost sm" onclick="newFlow()">${PLUS}New flow</button>
+    </div>
+
+    <div class="body">
+      <!-- canvas: the active flow being built -->
+      <div class="canvas">
+        <div class="canvas-inner">
+          <div class="flow">
+
+            <!-- campaign name header -->
+            <div class="flow-head">
+              <span class="ic brand" style="width:30px;height:30px">${WF}</span>
+              <input class="flow-name" id="flowName" value="Untitled follow-up campaign" />
+              <span class="badge off" id="flowStatus">Draft</span>
+            </div>
+
+            <!-- AI hero: describe + let the agent build the entire flow -->
+            <div class="hero">
+              <div class="hero-row">
+                <span class="ai-badge">${SPK}Build with AI</span>
+                <h3 style="margin-left:2px">Describe it — the agent builds the whole flow</h3>
+              </div>
+              <textarea id="aiBrief" rows="2" placeholder="e.g. A 3-step win-back for my quiet customers: a friendly check-in, a 15% offer 2 days later, then a last-call SMS. Personalize each to the contact."></textarea>
+              <div class="hero-foot">
+                <span class="hint">Targets the audience below · writes & personalizes every message · you confirm before anything sends.</span>
+                <span class="spacer"></span>
+                <button class="btn grad sm" onclick="aiBuild()">${SPK}Build the flow</button>
+              </div>
+            </div>
+
+            <!-- AUDIENCE NODE -->
+            <div class="node" id="audNode">
+              <div class="node-h">
+                <span class="ic brand">${USERS}</span>
+                <div style="flex:1;min-width:0">
+                  <div class="kicker">Audience</div>
+                  <div class="node-t">Who this flow targets</div>
+                </div>
+                <span class="tag">start</span>
+              </div>
+              <div class="aud-modes">
+                <span class="seg" data-mode="single" onclick="setMode('single')">${USER}Single contact</span>
+                <span class="seg sel" data-mode="multi" onclick="setMode('multi')">${USERS}Selected</span>
+                <span class="seg" data-mode="segment" onclick="setMode('segment')">${LAYERS}Segment</span>
+              </div>
+              <div class="aud-body" id="audBody"></div>
+            </div>
+
+            <div id="steps"></div>
+
+            <!-- add first/last step -->
+            <div class="conn"><div class="line"></div><span class="add" onclick="addStep()" title="Add a step">${PLUS}</span><div class="line"></div></div>
+
+            <!-- LAUNCH -->
+            <div class="launch">
+              <div style="display:flex;align-items:center;justify-content:center;gap:7px;font-weight:750;font-size:13px;margin-bottom:2px">${ROCKET}Launch flow</div>
+              <p>The agent finalizes the copy, <b style="color:#c4b5fd">personalizes each message to the contact</b>, and schedules the steps. You confirm the plan & cost first.</p>
+              <button class="btn grad" style="margin:0 auto" onclick="aiBuild()">${SPK}Build & launch with AI</button>
+              <div style="margin-top:8px"><button class="btn ghost xs" onclick="alert('Saved as a draft flow')">Save as draft</button></div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- rail: live + saved flows -->
+      <aside class="rail">
+        <div class="rail-h">${WF}<span>Live flows</span><span class="spacer"></span><span class="pill" style="padding:2px 7px"><b id="liveCount">0</b></span></div>
+        <div class="rail-b" id="rail"></div>
+      </aside>
+    </div>
+
+    <!-- step editor sheet -->
+    <div class="scrim" id="scrim" onclick="closeAll()"></div>
+    <div class="sheet" id="sheet">
+      <div class="grip"></div>
+      <div class="sheet-h">
+        <span class="tag" id="sheetTag" style="margin:0">Message step</span>
+        <span class="spacer"></span>
+        <span class="x" onclick="closeAll()">${X}</span>
+      </div>
+      <div class="sheet-b" id="sheetBody"></div>
+      <div class="sheet-f">
+        <span class="spacer"></span>
+        <button class="btn ghost" onclick="closeAll()">Cancel</button>
+        <button class="btn grad" onclick="saveStep()">${CHECK}Save step</button>
+      </div>
+    </div>
+
+    <!-- campaign library overlay -->
+    <div class="lib" id="lib">
+      <div class="lib-h">
+        <span class="tb-title">${GRID}<span>Campaign library</span></span>
+        <span class="hint">every follow-up campaign — status & statistics</span>
+        <span class="spacer"></span>
+        <button class="btn grad sm" onclick="closeLibrary();newFlow()">${PLUS}New campaign</button>
+        <span class="x" onclick="closeLibrary()">${X}</span>
+      </div>
+      <div class="lib-b">
+        <div class="lib-kpis" id="libKpis"></div>
+        <div class="filters" id="libFilters"></div>
+        <div class="lib-grid" id="libGrid"></div>
+      </div>
+    </div>
+
+    <!-- agent working banner -->
+    <div class="working" id="working"><span class="spin"></span><span style="font-size:12px">The agent is building & personalizing your flow — confirm the plan in the chat on the left.</span></div>
+  </div>
+</div>
+
+<script>
+function svg(p,extra){return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" '+(extra||'')+'>'+p+'</svg>'}
+const WF=svg('<rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="15" width="6" height="6" rx="1"/><path d="M9 6h6a2 2 0 0 1 2 2v7"/>','style="color:#0ea5e9"');
+const SPK=svg('<path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/>','width="14" height="14"');
+const SEND=svg('<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>','style="color:#9a9aa4;width:14px;height:14px"');
+const PLUS=svg('<path d="M12 5v14M5 12h14"/>','width="15" height="15"');
+const X=svg('<path d="M18 6L6 18M6 6l12 12"/>','width="15" height="15"');
+const CHEV=svg('<path d="M9 18l6-6-6-6"/>','width="16" height="16"');
+const MAIL=svg('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/>','width="15" height="15"');
+const MSG=svg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>','width="15" height="15"');
+const CLOCK=svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>','width="14" height="14"');
+const USERS=svg('<path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/>','width="17" height="17"');
+const USER=svg('<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>','width="14" height="14"');
+const LAYERS=svg('<path d="M12 2l9 5-9 5-9-5z"/><path d="M3 12l9 5 9-5"/>','width="14" height="14"');
+const PENCIL=svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>','width="14" height="14"');
+const TRASH=svg('<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>','width="14" height="14"');
+const CHECK=svg('<path d="M20 6L9 17l-5-5"/>','width="14" height="14"');
+const ROCKET=svg('<path d="M5 13c-1.5 2-1 5-1 5s3 .5 5-1m-4-4l3 3"/><path d="M14.5 3.5C18 5 19 9 19 9s-4 1-5.5 4.5C12 17 8 18 8 18s-1-4 2.5-5.5C12 7 14.5 3.5 14.5 3.5z"/>','width="15" height="15"');
+const PERSON=svg('<path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/>','width="12" height="12"');
+const GRID=svg('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>','width="14" height="14"');
+const PAUSE=svg('<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>','width="13" height="13"');
+const PLAY=svg('<path d="M6 4l14 8-14 8z"/>','width="13" height="13"');
+
+const COLORS=['#0ea5e9','#8b5cf6','#10b981','#f59e0b','#f43f5e','#06b6d4'];
+const initials=n=>n.split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase();
+const av=(n,i)=>`<span class="av" style="background:${COLORS[i%COLORS.length]}">${initials(n)}</span>`;
+
+/* sample contacts */
+const CONTACTS=[
+  {id:'c1',name:'Amelia Stone',sub:'amelia@studio.co'},
+  {id:'c2',name:'Marcus Lee',sub:'marcus@hey.com'},
+  {id:'c3',name:'Priya Nair',sub:'priya@nair.io'},
+  {id:'c4',name:'Diego Cruz',sub:'+1 555 0140'},
+  {id:'c5',name:'Sofia Berg',sub:'sofia@berg.se'},
+];
+const SEGMENTS=[
+  {id:'s1',name:'Quiet 60+ days',count:840},
+  {id:'s2',name:'All subscribers',count:3120},
+  {id:'s3',name:'VIP customers',count:212},
+];
+
+/* flow state */
+let mode='multi';
+let selContacts=['c1','c2','c3'];
+let single='c1';
+let segment='s1';
+let steps=[
+  {id:'st1',channel:'EMAIL',subject:'Welcome to FlowSmartly 👋',msg:"Hi {{first_name}}, so glad you're here! Here's how to get value in week one.",wait:0,personalize:true},
+  {id:'st2',channel:'EMAIL',subject:'A little something for you',msg:"{{first_name}}, here's 15% off to get you started — only for {{company}}.",wait:2,personalize:true},
+];
+let editing=null;
+
+/* campaigns (rail + library) — status: active | paused | draft */
+let live=[
+  {id:'l1',name:'Win-back · quiet 60d',status:'active',steps:['🔄','✉️','⏲','💬'],to:'Segment · 840',sent:642,failed:11,skipped:38},
+  {id:'l2',name:'New customer welcome',status:'active',steps:['🎉','✉️','⏲','✉️'],to:'On signup',sent:1284,failed:9,skipped:21},
+  {id:'l3',name:'Birthday treat',status:'paused',steps:['🎂','✉️'],to:'All contacts',sent:212,failed:2,skipped:5},
+  {id:'l4',name:'VIP 3-step nurture',status:'draft',steps:['⚡','✉️','⏲','✉️','⏲','💬'],to:'12 selected',sent:0,failed:0,skipped:0},
+];
+let libFilter='all';
+
+const waitLabel=n=> n===0?'No wait':(n===1?'Wait 1 day':`Wait ${n} days`);
+function highlight(t){return (t||'').replace(/\{\{(.*?)\}\}/g,'<span class="mf">{{$1}}</span>');}
+
+function audienceLabel(){
+  if(mode==='single'){const c=CONTACTS.find(x=>x.id===single);return c?`1 contact · ${c.name}`:'1 contact';}
+  if(mode==='segment'){const s=SEGMENTS.find(x=>x.id===segment);return s?`${s.name} · ${s.count.toLocaleString()}`:'segment';}
+  return `${selContacts.length} selected contacts`;
+}
+
+function renderStats(){
+  const act=live.filter(l=>l.status==='active').length;
+  document.getElementById('tbStats').innerHTML=`<span>${live.length} campaigns</span><span class="dot"></span><span>${act} active</span><span class="dot"></span><span>${steps.length}-step draft</span>`;
+  document.getElementById('msgSent').textContent=live.reduce((a,l)=>a+l.sent,0).toLocaleString();
+  document.getElementById('liveCount').textContent=live.length;
+}
+
+function renderAudience(){
+  document.querySelectorAll('.seg').forEach(s=>s.classList.toggle('sel',s.dataset.mode===mode));
+  const b=document.getElementById('audBody');
+  if(mode==='single'){
+    const c=CONTACTS.find(x=>x.id===single)||CONTACTS[0];
+    b.innerHTML=`<div class="seg-card"><span class="av" style="width:30px;height:30px;font-size:11px;background:${COLORS[0]}">${initials(c.name)}</span>
+      <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:650">${c.name}</div><div class="muted" style="font-size:11px">${c.sub}</div></div>
+      <button class="btn xs" onclick="openPicker()">Change</button></div>`;
+  }else if(mode==='segment'){
+    const s=SEGMENTS.find(x=>x.id===segment)||SEGMENTS[0];
+    b.innerHTML=`<div class="seg-card"><span class="ic violet" style="width:30px;height:30px">${LAYERS}</span>
+      <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:650">${s.name}</div><div class="muted" style="font-size:11px">${s.count.toLocaleString()} contacts match</div></div>
+      <button class="btn xs" onclick="openPicker()">Change</button></div>`;
+  }else{
+    const chips=selContacts.map((id,i)=>{const c=CONTACTS.find(x=>x.id===id);return `<span class="cchip">${av(c.name,i)}${c.name}</span>`}).join('');
+    b.innerHTML=`<div class="chips">${chips}<button class="btn xs" style="border-style:dashed" onclick="openPicker()">${PLUS}Add / change</button></div>
+      <div class="muted" style="font-size:11px;margin-top:8px">Each contact gets their own personalized copy of every message.</div>`;
+  }
+}
+
+function renderSteps(){
+  const wrap=document.getElementById('steps');
+  wrap.innerHTML=steps.map((s,i)=>{
+    const chan=s.channel==='EMAIL'?MAIL:MSG;
+    const waitNode = i===0 ? `<div class="conn"><div class="line"></div><span class="wait" onclick="editWait('${s.id}')">${CLOCK}Start: ${s.wait===0?'immediately':waitLabel(s.wait).toLowerCase()}</span><div class="line"></div></div>`
+      : `<div class="conn"><div class="line"></div><span class="wait" onclick="editWait('${s.id}')">${CLOCK}${waitLabel(s.wait)}</span><div class="line"></div></div>`;
+    return waitNode + `<div class="node">
+      <div class="node-h">
+        <span class="ic ${s.channel==='EMAIL'?'brand':'violet'}">${chan}</span>
+        <div style="flex:1;min-width:0"><div class="kicker">Step ${i+1} · ${s.channel==='EMAIL'?'Email':'SMS'}</div>
+        <div class="node-t">${s.channel==='EMAIL'?(s.subject||'Email message'):'SMS message'}</div></div>
+        <span class="icon-btn" onclick="editStep('${s.id}')">${PENCIL}</span>
+        <span class="icon-btn" onclick="delStep('${s.id}')">${TRASH}</span>
+      </div>
+      <div class="step-body"><div class="preview">${s.channel==='EMAIL'&&s.subject?`<div class="subj">${highlight(s.subject)}</div>`:''}${highlight(s.msg)||'<span class="muted">No message yet</span>'}</div></div>
+      <div class="step-foot">
+        ${s.personalize?`<span class="perstag">${PERSON}Personalized per contact</span>`:''}
+        <span class="spacer"></span>
+        <button class="btn xs" onclick="aiWrite('${s.id}')">${SPK}Write with AI</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+const statusBadge=s=> s==='active'?'<span class="badge on">Active</span>':s==='paused'?'<span class="badge off">Paused</span>':'<span class="badge off" style="color:#f59e0b;background:rgba(245,158,11,.1)">Draft</span>';
+
+function renderRail(){
+  document.getElementById('rail').innerHTML=live.map(l=>`<div class="sf" onclick="openLibrary()">
+    <div class="sf-h"><b>${l.name}</b>${statusBadge(l.status)}</div>
+    <div class="sf-flow">${l.steps.map((g,i)=>`${i?'<span class="muted" style="font-size:10px">→</span>':''}<span class="mini ${i===0?'on':''}">${g}</span>`).join('')}</div>
+    <div class="sf-meta">${USERS}<span>${l.to}</span><span class="dot"></span>${SEND}<span><b style="color:#fafafa">${l.sent.toLocaleString()}</b> sent</span></div>
+  </div>`).join('');
+}
+
+/* ---- campaign library ---- */
+function openLibrary(){renderLibrary();document.getElementById('lib').classList.add('open');}
+function closeLibrary(){document.getElementById('lib').classList.remove('open');}
+function renderLibrary(){
+  const totalSent=live.reduce((a,l)=>a+l.sent,0), totalFail=live.reduce((a,l)=>a+l.failed,0);
+  const act=live.filter(l=>l.status==='active').length;
+  document.getElementById('libKpis').innerHTML=[
+    {n:live.length,l:'Campaigns'},{n:act,l:'Active'},{n:totalSent.toLocaleString(),l:'Messages sent'},
+    {n:(100-Math.round(totalFail/Math.max(1,totalSent+totalFail)*100))+'%',l:'Delivery rate'},
+  ].map(k=>`<div class="kpi"><div class="kn">${k.n}</div><div class="kl">${k.l}</div></div>`).join('');
+  const counts={all:live.length,active:live.filter(l=>l.status==='active').length,paused:live.filter(l=>l.status==='paused').length,draft:live.filter(l=>l.status==='draft').length};
+  document.getElementById('libFilters').innerHTML=[['all','All'],['active','Active'],['paused','Paused'],['draft','Draft']].map(([k,lbl])=>
+    `<span class="seg ${libFilter===k?'sel':''}" onclick="libFilter='${k}';renderLibrary()">${lbl} · ${counts[k]}</span>`).join('');
+  const list=live.filter(l=>libFilter==='all'?true:l.status===libFilter);
+  document.getElementById('libGrid').innerHTML=list.length?list.map(l=>{
+    const sent=l.sent, total=l.sent+l.failed+l.skipped, rate=total?Math.round(l.sent/total*100):0;
+    return `<div class="lc">
+      <div class="lc-h"><span class="ic ${l.status==='active'?'brand':'muted'}" style="font-size:15px">${l.steps[0]}</span>
+        <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.name}</div>
+        <div class="muted" style="font-size:11px;display:flex;align-items:center;gap:5px;margin-top:2px">${USERS}${l.to}</div></div>
+        ${statusBadge(l.status)}</div>
+      <div class="lc-flow">${l.steps.map((g,i)=>`${i?'<span class="muted" style="font-size:10px">→</span>':''}<span class="mini ${i===0?'on':''}">${g}</span>`).join('')}</div>
+      <div class="lc-stats">
+        <div class="lc-stat"><div class="v" style="color:#10b981">${sent.toLocaleString()}</div><div class="l">Sent</div></div>
+        <div class="lc-stat"><div class="v" style="color:#f43f5e">${l.failed}</div><div class="l">Failed</div></div>
+        <div class="lc-stat"><div class="v">${rate}%</div><div class="l">Delivered</div></div>
+      </div>
+      <div class="lc-foot">
+        <button class="btn xs ${l.status==='active'?'':'grad'}" onclick="toggleCamp('${l.id}',event)">${l.status==='active'?PAUSE+'Pause':PLAY+'Activate'}</button>
+        <span class="spacer"></span>
+        <button class="btn xs" onclick="alert('Open campaign — steps, settings, activity log, edit')">${CHEV}Open</button>
+        <span class="icon-btn" onclick="alert('two-step delete')">${TRASH}</span>
+      </div>
+    </div>`;
+  }).join(''):`<div class="muted" style="grid-column:1/-1;text-align:center;padding:40px;font-size:13px">No ${libFilter} campaigns.</div>`;
+}
+function toggleCamp(id,e){e&&e.stopPropagation();const l=live.find(x=>x.id===id);if(l)l.status=l.status==='active'?'paused':'active';renderStats();renderRail();renderLibrary();}
+
+function renderAll(){renderStats();renderAudience();renderSteps();renderRail();}
+
+/* ---- interactions ---- */
+function setMode(m){mode=m;renderAudience();}
+function addStep(){const id='st'+Date.now();steps.push({id,channel:'EMAIL',subject:'',msg:'',wait:2,personalize:true});editStep(id);}
+function delStep(id){steps=steps.filter(s=>s.id!==id);renderSteps();renderStats();}
+function editWait(id){editStep(id);}
+function newFlow(){steps=[{id:'st'+Date.now(),channel:'EMAIL',subject:'',msg:'',wait:0,personalize:true}];renderAll();}
+
+function editStep(id){
+  editing=id;const s=steps.find(x=>x.id===id);if(!s)return;
+  document.getElementById('sheetTag').textContent=`Step ${steps.indexOf(s)+1}`;
+  document.getElementById('sheetBody').innerHTML=`
+    <label class="lbl" style="margin-top:4px">Channel</label>
+    <div class="chanrow">
+      <button class="opt ${s.channel==='EMAIL'?'sel':''}" onclick="setChan('EMAIL')">${MAIL}Email</button>
+      <button class="opt ${s.channel==='SMS'?'sel':''}" onclick="setChan('SMS')">${MSG}SMS</button>
+    </div>
+    <div id="subjWrap" style="display:${s.channel==='EMAIL'?'block':'none'}">
+      <label class="lbl">Subject</label>
+      <input class="field" id="eSubj" value="${(s.subject||'').replace(/"/g,'&quot;')}" placeholder="Subject line" />
+    </div>
+    <label class="lbl">Message <span class="muted" style="font-weight:400">— use merge fields to personalize</span></label>
+    <textarea class="field" id="eMsg" rows="4" placeholder="Write the message…">${s.msg||''}</textarea>
+    <div class="mf-bar">
+      ${['first_name','last_name','company','last_order'].map(f=>`<span class="mf-btn" onclick="insMF('${f}')">+ {{${f}}}</span>`).join('')}
+    </div>
+    <div class="two" style="margin-top:6px">
+      <div><label class="lbl">Wait before this step</label>
+        <select class="field" id="eWait">${[0,1,2,3,5,7,14].map(n=>`<option value="${n}" ${s.wait===n?'selected':''}>${n===0?'No wait (send now)':n+' day'+(n>1?'s':'')}</option>`).join('')}</select></div>
+      <div><label class="lbl">Send time</label><input class="field" id="eTime" type="time" value="09:00" /></div>
+    </div>
+    <div class="ai-strip">
+      <span class="ic violet" style="width:30px;height:30px">${PERSON}</span>
+      <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:650">Personalize per contact</div>
+      <div class="muted" style="font-size:11px">The agent tailors this message to each contact's name, history & context.</div></div>
+      <span class="switch ${s.personalize?'on':''}" id="ePers" onclick="this.classList.toggle('on')"><i></i></span>
+    </div>`;
+  openSheet();
+}
+function setChan(c){const s=steps.find(x=>x.id===editing);if(s){s.channel=c;editStep(editing);} }
+function insMF(f){const ta=document.getElementById('eMsg');ta.value+=` {{${f}}}`;ta.focus();}
+function saveStep(){
+  const s=steps.find(x=>x.id===editing);if(!s)return;
+  if(s.channel==='EMAIL')s.subject=document.getElementById('eSubj').value;
+  s.msg=document.getElementById('eMsg').value;
+  s.wait=parseInt(document.getElementById('eWait').value,10)||0;
+  s.personalize=document.getElementById('ePers').classList.contains('on');
+  closeAll();renderSteps();renderStats();
+}
+
+/* contact / segment picker reuses the sheet */
+function openPicker(){
+  document.getElementById('sheetTag').textContent = mode==='segment'?'Choose a segment':(mode==='single'?'Choose a contact':'Select contacts');
+  if(mode==='segment'){
+    document.getElementById('sheetBody').innerHTML=SEGMENTS.map(s=>`<div class="crow ${segment===s.id?'sel':''}" onclick="segment='${s.id}';openPicker()">
+      <span class="ic violet" style="width:30px;height:30px">${LAYERS}</span><div style="flex:1"><div style="font-size:12.5px;font-weight:650">${s.name}</div><div class="muted" style="font-size:11px">${s.count.toLocaleString()} contacts</div></div>
+      <span class="cbox">${segment===s.id?CHECK:''}</span></div>`).join('');
+  }else{
+    const isSingle=mode==='single';
+    document.getElementById('sheetBody').innerHTML=`<input class="search" placeholder="Search contacts…" /><div style="margin-top:8px">`+CONTACTS.map((c,i)=>{
+      const sel=isSingle?single===c.id:selContacts.includes(c.id);
+      return `<div class="crow ${sel?'sel':''}" onclick="pick('${c.id}')"><span class="cbox">${sel?CHECK:''}</span>
+        ${av(c.name,i)}<div style="flex:1"><div style="font-size:12.5px;font-weight:650">${c.name}</div><div class="muted" style="font-size:11px">${c.sub}</div></div></div>`;
+    }).join('')+`</div>`;
+  }
+  document.getElementById('sheetTag').setAttribute('data-picker','1');
+  document.getElementById('sheet').dataset.picker='1';
+  document.querySelector('.sheet-f').style.display='flex';
+  document.querySelector('.sheet-f').innerHTML=`<span class="hint" style="margin-right:auto">${mode==='multi'?selContacts.length+' selected':''}</span><button class="btn grad" onclick="closeAll()">${CHECK}Done</button>`;
+  openSheet();
+}
+function pick(id){
+  if(mode==='single'){single=id;closeAll();renderAudience();return;}
+  if(selContacts.includes(id))selContacts=selContacts.filter(x=>x!==id);else selContacts.push(id);
+  openPicker();renderAudience();
+}
+
+function openSheet(){document.getElementById('scrim').classList.add('open');document.getElementById('sheet').classList.add('open');}
+function closeAll(){
+  document.getElementById('scrim').classList.remove('open');document.getElementById('sheet').classList.remove('open');
+  // restore step-editor footer
+  document.querySelector('.sheet-f').innerHTML=`<span class="spacer"></span><button class="btn ghost" onclick="closeAll()">Cancel</button><button class="btn grad" onclick="saveStep()">${CHECK}Save step</button>`;
+  editing=null;renderAudience();
+}
+
+/* AI actions → spin the agent (mocked banner) */
+function aiBuild(){const w=document.getElementById('working');w.classList.add('open');setTimeout(()=>w.classList.remove('open'),3200);}
+function aiWrite(id){editStep(id);setTimeout(()=>{const ta=document.getElementById('eMsg');if(ta&&!ta.value)ta.value="Hi {{first_name}} — quick note from us …";},10);aiBuild();}
+
+renderAll();
+</script>
+</body>
+</html>

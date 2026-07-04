@@ -195,7 +195,7 @@ export const importContactsCsv: FlowAgentTool = {
             ok: imported > 0,
             summary: `Contact import done — added ${imported}, skipped ${skipped}, invalid ${invalid}`,
             detail: errors.length > 0 ? `First few errors: ${errors.slice(0, 3).join("; ")}` : undefined,
-            deepLink: `/contacts`,
+            deepLink: `/home/outreach`,
           });
 
           return {

@@ -79,6 +79,17 @@ const CRON_JOBS: CronJob[] = [
     category: "content",
   },
   {
+    id: "sequences-run",
+    name: "Outreach Sequences Scheduler",
+    description: "Fire due steps of Lead Studio outreach automations — sends the next email/SMS per enrolled lead and reschedules the next step",
+    endpoint: "/api/sequences/run",
+    schedule: "*/5 * * * *",
+    frequency: "Every 5 minutes",
+    icon: Mail,
+    category: "content",
+    method: "POST",
+  },
+  {
     id: "engagement",
     name: "Feed Engagement Engine",
     description: "Synthetic seed accounts engage the native feed (views, likes, comments, follows, posts) on staggered schedules to keep the feed lively",
@@ -475,6 +486,9 @@ export default function AdminCronJobsPage() {
 
 # Scheduled posts - every 5 minutes
 */5 * * * * curl -s -H "x-cron-secret: $CRON_SECRET" https://flowsmartly.com/api/cron/publish-scheduled-posts
+
+# Outreach sequences scheduler - every 5 minutes (POST-only endpoint)
+*/5 * * * * curl -s -X POST -H "x-cron-secret: $CRON_SECRET" https://flowsmartly.com/api/sequences/run
 
 # Content automation - every 15 minutes
 */15 * * * * curl -s -H "x-cron-secret: $CRON_SECRET" https://flowsmartly.com/api/content/automation/scheduler

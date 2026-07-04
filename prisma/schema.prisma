@@ -144,6 +144,14 @@ model User {
   whatsappAutomations   WhatsAppAutomation[]
   pitches               Pitch[]
   leadSearches          LeadSearch[]
+  savedLeadLists        SavedLeadList[]
+  savedLeads            SavedLead[]
+  companies             Company[]
+  pipelineStages        PipelineStage[]
+  opportunities         Opportunity[]
+  activities            Activity[]
+  outreachSequences     OutreachSequence[]
+  sequenceEnrollments   SequenceEnrollment[]
   userFeatures          UserFeature[]
   emailTemplates        EmailTemplate[]
   websites              Website[]
@@ -4707,6 +4715,12 @@ model Pitch {
   userId         String
   businessName   String
   businessUrl    String?
+  // First-class type: a "pitch" is a cold-outreach email; a "service_proposal"
+  // is a branded, PDF-ready service deck. Previously this was smuggled inside the
+  // pitchContent/research JSON and parsed everywhere — now it's one queryable column.
+  documentType   String    @default("pitch") // "pitch" | "service_proposal"
+  // Optional link to the saved lead this pitch/proposal was built for.
+  savedLeadId    String?
   status         String    @default("PENDING") // PENDING | RESEARCHING | READY | FAILED | SENT
   research       String    @default("{}") // JSON: ResearchData (internal only)
   pitchContent   String    @default("{}") // JSON: PitchContent (what client sees)
@@ -4717,10 +4731,13 @@ model Pitch {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedLead SavedLead? @relation(fields: [savedLeadId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([status])
+  @@index([documentType])
+  @@index([savedLeadId])
   @@index([createdAt])
 }
 
@@ -4737,6 +4754,223 @@ model LeadSearch {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+// A saved, named + categorized list of leads the user is working (Lead finder).
+model SavedLeadList {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  category  String? // user-defined grouping (e.g. industry / campaign)
+  leadCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads SavedLead[]
+
+  @@index([userId])
+}
+
+// A persisted lead (from the Lead finder / Google Places), workable on its own:
+// status, notes, and the pitches/proposals built for it.
+model SavedLead {
+  id             String   @id @default(cuid())
+  userId         String
+  listId         String? // which list it belongs to (null = unfiled)
+  placeId        String? // Google Places id — for de-duping
+  name           String
+  address        String?
+  phone          String?
+  website        String?
+  rating         Float?
+  reviewCount    Int?
+  businessStatus String?
+  category       String? // the lead's own category/type
+  types          String   @default("[]") // JSON: string[]
+  googleMapsUrl  String?
+  status         String   @default("NEW") // NEW | CONTACTED | QUALIFIED | WON | LOST
+  notes          String?
+  // ── person-level fields (AI/web-found decision-makers) ──
+  title            String? // job title, e.g. "Chief Financial Officer"
+  seniority        String? // e.g. "c_suite" | "vp" | "director" | "manager"
+  department       String? // e.g. "finance" | "marketing"
+  email            String?
+  phones           String  @default("[]") // JSON: string[] (extra phones)
+  socials          String  @default("{}") // JSON: { linkedin?, x?, facebook?, google? }
+  companyId        String? // link to the enriched Company
+  enrichedAt       DateTime? // when contact info was revealed
+  enrichmentSource String? // "web" | "manual"
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  list          SavedLeadList? @relation(fields: [listId], references: [id], onDelete: SetNull)
+  company       Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  pitches       Pitch[]
+  opportunities Opportunity[]
+  activities    Activity[]
+  enrollments   SequenceEnrollment[]
+
+  @@index([userId])
+  @@index([listId])
+  @@index([placeId])
+  @@index([companyId])
+}
+
+// ============================================
+// CRM PIPELINE (companies, opportunities, activities)
+// ============================================
+
+// An enriched company/org (AI + web-search finding). Enrichment is cached here
+// so we don't re-research the same domain on every lead.
+model Company {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  domain       String? // primary website domain (dedup key)
+  industry     String?
+  employeeSize String? // e.g. "1-10" | "51-200" | "1001-5000"
+  revenueBand  String? // e.g. "$1M-$10M"
+  yearFounded  Int?
+  location     String?
+  techStack    String   @default("[]") // JSON: string[]
+  socials      String   @default("{}") // JSON: { linkedin?, x?, facebook?, google? }
+  enrichment   String   @default("{}") // JSON: raw enrichment payload (cache)
+  enrichedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads         SavedLead[]
+  opportunities Opportunity[]
+
+  @@index([userId])
+  @@index([domain])
+}
+
+// A configurable pipeline stage (per user). Sensible defaults are seeded on first
+// use: New → Contacted → Qualified → Proposal → Negotiation → Won / Lost.
+model PipelineStage {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  order     Int      @default(0)
+  isWon     Boolean  @default(false)
+  isLost    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunities Opportunity[]
+
+  @@index([userId])
+}
+
+// A deal in the pipeline — the thing that closes. Links to the lead/company it came
+// from and (optionally) the pitch that pushed it forward.
+model Opportunity {
+  id              String    @id @default(cuid())
+  userId          String
+  title           String
+  value           Float     @default(0) // deal value / revenue
+  currency        String    @default("USD")
+  stageId         String? // current pipeline stage
+  probability     Int       @default(0) // 0-100
+  status          String    @default("open") // open | won | lost
+  source          String? // "lead_finder" | "form" | "manual" | "autopilot"
+  savedLeadId     String?
+  companyId       String?
+  pitchId         String? // the pitch/proposal attached to this deal
+  expectedCloseAt DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stage      PipelineStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  savedLead  SavedLead?     @relation(fields: [savedLeadId], references: [id], onDelete: SetNull)
+  company    Company?       @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  activities Activity[]
+
+  @@index([userId])
+  @@index([stageId])
+  @@index([status])
+  @@index([savedLeadId])
+  @@index([companyId])
+}
+
+// A logged touch on a lead/opportunity — note, email, call, meeting, stage change.
+// Powers the timeline + the ROI/time-saved metrics.
+model Activity {
+  id            String   @id @default(cuid())
+  userId        String
+  type          String // note | email | sms | call | meeting | stage_change | pitch_sent
+  subject       String?
+  body          String?
+  savedLeadId   String?
+  opportunityId String?
+  at            DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedLead   SavedLead?   @relation(fields: [savedLeadId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([savedLeadId])
+  @@index([opportunityId])
+  @@index([at])
+}
+
+// ============================================
+// OUTREACH SEQUENCES (multi-channel automation)
+// ============================================
+
+// A saved multi-channel outreach automation that runs on a lead list: initial
+// pitch → follow-ups → agent branch → WhatsApp/SMS → manual task → request-a-time.
+// The ordered steps live as JSON; each enrolled lead advances through them on a
+// schedule via SequenceEnrollment. [[lead-studio-redesign-approved]]
+model OutreachSequence {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  listId    String? // the SavedLeadList this runs on
+  status    String   @default("draft") // draft | active | paused | archived
+  steps     String   @default("[]") // JSON: ordered step configs { id, kind, title, channel, delayDays, subject?, body?, style?, condition?, taskType?, status }
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollments SequenceEnrollment[]
+
+  @@index([userId])
+  @@index([listId])
+}
+
+// One lead's progress through a sequence. The scheduler fires the current step
+// when nextRunAt is due, logs an Activity, then advances currentStep + reschedules.
+// A manual-task step parks the enrollment in "waiting" until it's marked done.
+model SequenceEnrollment {
+  id            String    @id @default(cuid())
+  userId        String
+  sequenceId    String
+  savedLeadId   String
+  opportunityId String?
+  currentStep   Int       @default(0)
+  status        String    @default("active") // active | waiting | completed | stopped | replied
+  nextRunAt     DateTime?
+  lastStepAt    DateTime?
+  meta          String    @default("{}") // JSON: per-lead run notes (sends, opens, replies)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sequence  OutreachSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  savedLead SavedLead        @relation(fields: [savedLeadId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([sequenceId])
+  @@index([savedLeadId])
+  @@index([status, nextRunAt])
 }
 
 // ============================================

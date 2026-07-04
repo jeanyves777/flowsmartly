@@ -34,6 +34,12 @@ const DEFAULT_SETTINGS = {
     rateLimitWindow: 60,
     enablePublicApi: true,
   },
+  ai: {
+    // Flow-AI agent models (read by getAgentModel). Default = cheapest (Haiku);
+    // super = premium model used for user-requested "Super" mode.
+    agentModel: "claude-haiku-4-5-20251001",
+    agentModelSuper: "claude-opus-4-8",
+  },
   features: {
     enableRegistration: true,
     enableSocialAuth: true,

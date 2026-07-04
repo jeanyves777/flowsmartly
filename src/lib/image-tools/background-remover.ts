@@ -31,14 +31,20 @@ export interface RemoveBackgroundResult {
   outputUrl: string;
 }
 
-// Cache availability check
+// Cache availability check. A POSITIVE result is cached permanently; a NEGATIVE
+// result is only cached briefly so that installing rembg (or recovering from a
+// transient python hiccup) is picked up without needing a full server restart —
+// previously a one-time `false` was pinned for the life of the process.
 let _rembgAvailable: boolean | null = null;
+let _rembgCheckedAt = 0;
+const REMBG_NEG_TTL_MS = 60_000;
 
 /**
  * Check if rembg is installed and available
  */
 export function isRembgAvailable(): boolean {
-  if (_rembgAvailable !== null) return _rembgAvailable;
+  if (_rembgAvailable === true) return true;
+  if (_rembgAvailable === false && Date.now() - _rembgCheckedAt < REMBG_NEG_TTL_MS) return false;
   try {
     execSync(`"${PYTHON_PATH}" -c "from rembg import remove"`, {
       windowsHide: true,
@@ -49,6 +55,7 @@ export function isRembgAvailable(): boolean {
     return true;
   } catch {
     _rembgAvailable = false;
+    _rembgCheckedAt = Date.now();
     console.warn("rembg: NOT available (Python import failed)");
     return false;
   }

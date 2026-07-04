@@ -31,6 +31,15 @@ export function ChunkErrorHandler() {
     }
 
     function handleRecovery(source: string) {
+      // In development, ChunkLoadErrors are transient on-demand-compile / HMR
+      // artifacts that the dev server recovers from on its own — a hard reload
+      // is the wrong response and (with the guard cleared every 10s) fires on
+      // nearly every view you open. Only auto-recover in production, where a
+      // chunk error means a genuinely stale bundle after a deploy.
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(`[ChunkErrorHandler] chunk error in dev (${source}) — NOT reloading (dev HMR artifact)`);
+        return;
+      }
       if (sessionStorage.getItem("chunk-reload")) return;
       sessionStorage.setItem("chunk-reload", "1");
       console.warn(`[ChunkErrorHandler] Detected chunk error (${source}) — reloading to fetch fresh bundle`);

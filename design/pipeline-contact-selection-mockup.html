@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pipeline contact selection + detail entry</title>
+<style>
+  :root{--bg:#0b0d12;--card:#12151c;--card2:#161a22;--border:#232833;--muted:#8b93a4;--fg:#e7ebf3;--brand:#6366f1;--violet:#8b5cf6;--emerald:#10b981;--amber:#f59e0b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:24px}
+  h1{font-size:15px;margin:0 0 4px}.sub{color:var(--muted);font-size:12px;margin:0 0 18px}
+  .cap{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:22px 0 9px;font-weight:800}
+  .wrap{max-width:1080px}
+  .btn{border:1px solid var(--border);background:transparent;color:var(--fg);border-radius:10px;padding:7px 13px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
+  .btn.p{border:0;background:linear-gradient(90deg,var(--brand),var(--violet));color:#fff}
+  .btn.g{color:var(--muted)}
+  /* detail card footer */
+  .detail{border:1px solid var(--border);border-radius:16px;background:var(--card);overflow:hidden}
+  .dhead{display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);padding:13px 18px}
+  .ic{height:38px;width:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#6366f133,#8b5cf626);color:#a5b4fc}
+  .dhead b{font-size:14px}.dhead small{display:block;color:var(--muted);font-size:11.5px}
+  .pill{margin-left:auto;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800;background:#10b98126;color:var(--emerald)}
+  .dfoot{display:flex;align-items:center;gap:10px;padding:13px 18px;background:#0e1117}
+  /* pipeline */
+  .dots{border:1px solid var(--border);border-radius:16px;padding:14px;background:
+    radial-gradient(circle, rgba(140,140,160,0.10) 1px, transparent 1px);background-size:22px 22px}
+  .aud{display:flex;align-items:center;gap:12px;border:1px solid var(--border);background:var(--card);border-radius:14px;padding:11px 13px}
+  .fic{height:32px;width:32px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,#6366f133,#8b5cf626);color:#a5b4fc}
+  .aud .nm{font-weight:800;font-size:13px;display:flex;align-items:center;gap:6px}
+  .aud .mut{color:var(--muted);font-size:11px}
+  .tog{margin-left:auto;display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;font-weight:700}
+  .sw{position:relative;height:22px;width:38px;border-radius:999px;background:#232833}.sw i{position:absolute;top:2px;left:2px;height:18px;width:18px;border-radius:50%;background:var(--muted)}
+  /* selection panel */
+  .panel{margin-top:10px;border:1px solid var(--border);border-radius:14px;background:var(--card);overflow:hidden}
+  .ptop{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding:9px 13px}
+  .search{flex:1;min-width:120px;display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:9px;background:#0e1117;padding:6px 10px;color:var(--muted);font-size:12px}
+  .selall{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);cursor:pointer}
+  .cbx{height:16px;width:16px;border-radius:5px;border:1.5px solid #3a4150;display:inline-grid;place-items:center;flex:0 0 auto}
+  .cbx.on{background:var(--brand);border-color:var(--brand);color:#fff}
+  .cbx.dash{border-color:var(--brand);color:var(--brand)}
+  .rows{max-height:250px;overflow:auto}
+  .r{display:flex;align-items:center;gap:11px;padding:8px 13px;border-top:1px solid var(--border);font-size:12.5px}
+  .r:hover{background:#ffffff05}
+  .r.off{opacity:.45}
+  .r .who{min-width:0}
+  .r .who b{font-weight:700}.r .who small{display:block;color:var(--muted)}
+  .r .ct{margin-left:auto;color:var(--muted);font-size:12px;text-align:right}
+  .r .cust{margin-left:14px;border:1px solid var(--border);border-radius:8px;padding:3px 9px;font-size:11px;font-weight:700;color:#a5b4fc;background:transparent;cursor:pointer;flex:0 0 auto}
+  .noemail{color:var(--amber)}
+  .pfoot{display:flex;align-items:center;gap:12px;border-top:1px solid var(--border);padding:11px 13px;background:#0e1117}
+  .mode{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+  .mode button{background:transparent;border:0;color:var(--muted);font:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;cursor:pointer}
+  .mode button.on{background:#6366f11a;color:#c4b5fd}
+  .count{color:var(--muted);font-size:12px}
+  /* customize popover */
+  .cust-pop{margin-top:14px;border:1px solid #6366f140;border-radius:14px;background:#12151c;padding:0;overflow:hidden;max-width:520px}
+  .cph{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding:11px 14px}
+  .cph b{font-size:13px}.cph small{color:var(--muted)}
+  .cpb{display:flex;gap:12px;padding:14px}
+  .opt{flex:1;border:1px solid var(--border);border-radius:12px;padding:13px;cursor:pointer}
+  .opt.on{border-color:var(--brand);background:#6366f10d}
+  .opt h4{margin:0 0 3px;font-size:13px}.opt p{margin:0;color:var(--muted);font-size:11.5px}
+  .legend{color:var(--muted);font-size:12px;margin-top:16px;line-height:1.6}.legend b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Detail-card actions + Pipeline contact selection</h1>
+  <p class="sub">The second half of the flow: how you enter the playground, and how you pick exactly who the automation runs for.</p>
+
+  <p class="cap">① Lead detail card — new actions</p>
+  <div class="detail">
+    <div class="dhead">
+      <span class="ic">👤</span>
+      <div><b>Little Sage</b><small>restaurants · MA Restaurant Owners</small></div>
+      <span class="pill">Enriched</span>
+    </div>
+    <div class="dfoot">
+      <button class="btn p">📄 Pitch to this lead</button>
+      <button class="btn">＋ Create automation</button>
+      <button class="btn g">✦ Re-enrich</button>
+      <span class="mut" style="color:var(--muted);font-size:11.5px;margin-left:auto">“Pitch” opens the Pitch Studio playground · “Create automation” starts the pipeline on this lead.</span>
+    </div>
+  </div>
+
+  <p class="cap">② Pipeline — select / exclude who it runs for</p>
+  <div class="dots">
+    <div class="aud">
+      <span class="fic">🗂</span>
+      <div><div class="nm">MA Restaurant Owners ▾</div><div class="mut">18 of 25 selected · 3 with email · 21 with phone</div></div>
+      <div class="tog">Automation off <span class="sw"><i></i></span></div>
+    </div>
+
+    <div class="panel">
+      <div class="ptop">
+        <span class="selall"><span class="cbx dash">–</span> 18 selected</span>
+        <div class="search">🔎 Search this list…</div>
+        <span class="mut" style="color:var(--muted);font-size:11.5px">Untick to exclude · tick to include</span>
+      </div>
+      <div class="rows">
+        <div class="r"><span class="cbx on">✓</span><div class="who"><b>Maria Elena Delgadillo</b><small>Casa Vallarta · Owner</small></div><div class="ct">maria@casavallarta.us</div><button class="cust">Customize</button></div>
+        <div class="r"><span class="cbx on">✓</span><div class="who"><b>Jamie Mammano</b><small>Mooo… · Chef/Owner</small></div><div class="ct">(617) 670-2515</div><button class="cust">Customize</button></div>
+        <div class="r off"><span class="cbx">&nbsp;</span><div class="who"><b>Peter Platt</b><small>The Old Inn · Founder</small></div><div class="ct noemail">no email · excluded</div><button class="cust">Customize</button></div>
+        <div class="r"><span class="cbx on">✓</span><div class="who"><b>Little Sage</b><small>restaurants</small></div><div class="ct">(617) 742-9600</div><button class="cust">Customize</button></div>
+        <div class="r"><span class="cbx on">✓</span><div class="who"><b>Ma Maison</b><small>restaurants</small></div><div class="ct">(617) 725-8855</div><button class="cust">Customize</button></div>
+        <div class="r off"><span class="cbx">&nbsp;</span><div class="who"><b>Ostra</b><small>restaurants</small></div><div class="ct">(617) 421-1200</div><button class="cust">Customize</button></div>
+      </div>
+      <div class="pfoot">
+        <span class="count"><b style="color:var(--fg)">18</b> contacts will be enrolled</span>
+        <div class="mode" style="margin-left:auto">
+          <button class="on">Group — all together</button>
+          <button>One at a time</button>
+          <button>Just the selected one</button>
+        </div>
+        <button class="btn p">Run automation →</button>
+      </div>
+    </div>
+
+    <p class="cap" style="margin-top:18px">③ One contact selected → customise its pitch</p>
+    <div class="cust-pop">
+      <div class="cph">✦ <b>Customise the pitch for Jamie Mammano</b><small>· Mooo…</small></div>
+      <div class="cpb">
+        <div class="opt on"><h4>Minimal edit</h4><p>Tweak the subject + body inline on the step card (what we have today). Fast.</p></div>
+        <div class="opt"><h4>Full edit →</h4><p>Open the Pitch Studio playground: redesign the branded proposal, swap images, restyle, attach the PDF.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <p class="legend">
+    <b>Selection:</b> every contact has a checkbox — untick to <b>exclude</b>, tick to <b>include</b>; leads with no reachable channel are auto-excluded (shown faded). The header checkbox selects/clears all; search filters the list.<br>
+    <b>Run mode:</b> <b>Group</b> enrolls all selected on the same sequence · <b>One at a time</b> staggers them · <b>Just the selected one</b> runs a single contact so you can test/execute one pipeline.<br>
+    <b>Customise:</b> per contact, <b>Minimal</b> is the in-step editor we already have; <b>Full edit</b> opens the Pitch Studio playground for that contact’s proposal.
+  </p>
+</div>
+</body>
+</html>

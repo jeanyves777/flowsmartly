@@ -203,6 +203,12 @@ export async function POST(request: NextRequest) {
       console.warn("[ProposalAgent] Deck planning failed, using renderer fallback:", deckError);
     }
 
+    let savedLeadId: string | null = null;
+    if (typeof body.savedLeadId === "string" && body.savedLeadId) {
+      const sl = await prisma.savedLead.findFirst({ where: { id: body.savedLeadId, userId: session.userId }, select: { id: true } });
+      savedLeadId = sl?.id ?? null;
+    }
+
     const pitch = await prisma.pitch.create({
       data: {
         userId: session.userId,
@@ -210,6 +216,8 @@ export async function POST(request: NextRequest) {
         businessUrl: targetWebsite,
         recipientEmail: cleanText(body.recipientEmail || inferred.recipientEmail, 200) || null,
         recipientName: cleanText(body.recipientName || inferred.recipientName, 120) || null,
+        documentType: "service_proposal",
+        savedLeadId,
         status: "READY",
         research: JSON.stringify({
           documentType: "service_proposal",

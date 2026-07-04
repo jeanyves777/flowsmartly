@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pitch Studio — playground mockup</title>
+<style>
+  :root{
+    --bg:#0b0d12; --panel:#0e1117; --card:#12151c; --card2:#161a22; --border:#232833; --muted:#8b93a4;
+    --fg:#e7ebf3; --brand:#6366f1; --violet:#8b5cf6; --emerald:#10b981; --amber:#f59e0b;
+    /* the USER's brand (Northwind Studio) — drives the document theme */
+    --b-primary:#0f766e; --b-secondary:#0b1f3a; --b-accent:#f59e0b; --b-ink:#0b1220; --b-bg:#ffffff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--fg);font:13px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif;overflow:hidden}
+  .app{display:flex;height:100vh}
+  /* icon rail */
+  .rail{width:64px;flex:0 0 64px;border-right:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:14px}
+  .rail .logo{height:30px;width:30px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--violet))}
+  .rail .ri{height:22px;width:22px;border-radius:7px;background:#1b2029;color:#6b7party;opacity:.55}
+  .rail .ri.on{opacity:1;background:#2a2140;box-shadow:inset 0 0 0 1px #6366f155}
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  /* surface header */
+  .shead{display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);background:#12151cbb;padding:9px 16px}
+  .ic{height:32px;width:32px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,#6366f133,#8b5cf626);color:#a5b4fc}
+  .ttl b{font-size:14px}.ttl small{display:block;color:var(--muted);font-size:11.5px}
+  .typepill{display:inline-flex;border:1px solid var(--border);border-radius:999px;overflow:hidden;margin-left:6px}
+  .typepill button{background:transparent;border:0;color:var(--muted);font:inherit;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer}
+  .typepill button.on{background:linear-gradient(90deg,var(--brand),var(--violet));color:#fff}
+  .hactions{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .btn{border:1px solid var(--border);background:transparent;color:var(--fg);border-radius:9px;padding:6px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+  .btn.p{border:0;background:linear-gradient(90deg,var(--brand),var(--violet));color:#fff}
+  .btn.g{color:var(--muted)}
+  /* body grid */
+  .body{flex:1;display:grid;grid-template-columns:288px 1fr 264px;min-height:0}
+  .chat{border-right:1px solid var(--border);background:#0e1117cc;display:flex;flex-direction:column;min-height:0}
+  .chat .cst{border-bottom:1px solid var(--border);padding:8px 13px;color:var(--muted);font-size:12px;display:flex;align-items:center;gap:7px}
+  .dot{height:6px;width:6px;border-radius:50%;background:var(--emerald);box-shadow:0 0 0 3px #10b98130}
+  .msgs{flex:1;overflow:auto;padding:14px 13px;display:flex;flex-direction:column;gap:12px}
+  .m{display:flex;gap:8px}
+  .av{height:24px;width:24px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-size:10px;font-weight:800}
+  .av.ai{background:#fff}.av.me{background:linear-gradient(135deg,#ec4899,#8b5cf6);color:#fff}
+  .mb{border:1px solid var(--border);border-radius:12px;padding:8px 11px;background:#0e1117;font-size:12.5px;max-width:86%}
+  .mb.me{background:#6366f11a;border-color:#6366f140}
+  .faded{color:#8b93a4a6;font-style:italic;font-size:12px;padding-left:2px}
+  .composer{border-top:1px solid var(--border);padding:10px 12px}
+  .composer .box{border:1px solid var(--border);border-radius:14px;background:#12151c;display:flex;align-items:center;gap:8px;padding:7px 10px;color:var(--muted);font-size:12.5px}
+  /* document canvas */
+  .canvas{overflow:auto;padding:22px;background:
+     radial-gradient(circle, rgba(140,140,160,0.10) 1px, transparent 1px);
+     background-size:22px 22px}
+  .doc{max-width:820px;margin:0 auto;background:var(--b-bg);color:var(--b-ink);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px #000a;font-family:Georgia,'Times New Roman',serif}
+  /* cover */
+  .cover{position:relative;padding:34px 36px 30px;color:#fff;background:linear-gradient(135deg,var(--b-primary),var(--b-secondary))}
+  .cover .logo{font-family:Arial;font-weight:800;letter-spacing:.02em;font-size:14px;opacity:.95}
+  .cover .for{margin-top:20px;font-family:Arial;font-size:11px;letter-spacing:.14em;text-transform:uppercase;opacity:.8}
+  .cover h1{font-size:31px;line-height:1.12;margin:6px 0 6px;max-width:80%}
+  .cover p{font-family:Arial;opacity:.9;font-size:13px;max-width:70%}
+  .cover .pill{position:absolute;right:34px;bottom:28px;font-family:Arial;font-size:11px;font-weight:800;background:var(--b-accent);color:#1a1200;border-radius:999px;padding:6px 13px}
+  .pagenum{position:absolute;top:0;right:0;height:44px;width:44px;background:var(--b-accent);color:#1a1200;display:grid;place-items:center;font-family:Arial;font-weight:800;font-size:13px}
+  /* sections */
+  .sec{padding:24px 36px;border-top:1px solid #eef0f3;position:relative}
+  .kick{font-family:Arial;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--b-primary);font-weight:800}
+  .sec h2{font-size:21px;margin:5px 0 8px}
+  .sec p{font-size:14px;color:#26313f;margin:0 0 8px}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+  .dcard{border:1px solid #e7eaee;border-radius:11px;padding:12px 13px}
+  .dcard h4{font-family:Arial;margin:0 0 3px;font-size:13.5px;color:var(--b-secondary)}
+  .dcard p{font-size:12.5px;margin:0;color:#3a4757}
+  .metrics{display:flex;gap:22px;margin-top:10px}
+  .metric{ text-align:center}
+  .ring{height:78px;width:78px;border-radius:50%;display:grid;place-items:center;font-family:Arial;font-weight:800;font-size:19px;color:#fff;margin:0 auto 6px}
+  .metric small{font-family:Arial;color:#55606e;font-size:11px}
+  .imgslot{position:relative;border-radius:11px;overflow:hidden;min-height:150px;background:linear-gradient(135deg,#e6efee,#dfe6f2);display:grid;place-items:center;color:#6a7a86;font-family:Arial;font-size:12px}
+  .imgslot .rep{position:absolute;inset:0;background:#0b1220b3;color:#fff;display:none;place-items:center;font-family:Arial;font-weight:700;font-size:12.5px;gap:6px}
+  .imgslot:hover .rep{display:grid}
+  .pricebar{display:flex;align-items:center;gap:14px;margin-top:8px;padding:14px 16px;border-radius:12px;background:var(--b-secondary);color:#fff}
+  .pricebar .amt{font-family:Arial;font-size:26px;font-weight:800}
+  .pricebar .amt s{opacity:.5;font-size:16px;font-weight:600;margin-right:8px}
+  .cta{padding:26px 36px;color:#fff;background:linear-gradient(135deg,var(--b-secondary),var(--b-primary));text-align:center}
+  .cta h2{font-size:22px;margin:0 0 4px}
+  .cta .go{display:inline-block;margin-top:10px;font-family:Arial;font-weight:800;background:var(--b-accent);color:#1a1200;border-radius:999px;padding:9px 20px;font-size:13px}
+  /* editable affordances */
+  .edit{position:relative;border-radius:6px;transition:box-shadow .12s}
+  .edit:hover{box-shadow:0 0 0 2px #6366f1cc; cursor:text}
+  .edit:hover > .tools{display:flex}
+  .tools{position:absolute;top:-14px;right:6px;display:none;gap:3px;background:#12151c;border:1px solid var(--border);border-radius:8px;padding:2px;z-index:5;box-shadow:0 6px 18px #0008}
+  .tools button{background:transparent;border:0;color:#c9cfda;font:inherit;font-size:11px;font-weight:700;padding:3px 7px;border-radius:6px;cursor:pointer;display:inline-flex;gap:4px;align-items:center}
+  .tools button:hover{background:#20263180}
+  .tools button.ai{color:#c4b5fd}
+  .insert{height:0;position:relative}
+  .insert::before{content:"";position:absolute;left:36px;right:36px;top:0;border-top:1px dashed transparent}
+  .insert:hover::before{border-color:#6366f1aa}
+  .insert button{position:absolute;left:50%;top:-11px;transform:translateX(-50%);display:none;background:#12151c;border:1px solid #6366f155;color:#c4b5fd;border-radius:999px;font:inherit;font-size:11px;font-weight:700;padding:3px 10px;cursor:pointer}
+  .insert:hover button{display:inline-block}
+  /* right rail */
+  .side{border-left:1px solid var(--border);background:#0e1117cc;display:flex;flex-direction:column;min-height:0}
+  .tabs{display:flex;border-bottom:1px solid var(--border)}
+  .tabs button{flex:1;background:transparent;border:0;color:var(--muted);font:inherit;font-size:12px;font-weight:700;padding:9px 0;cursor:pointer;border-bottom:2px solid transparent}
+  .tabs button.on{color:var(--fg);border-bottom-color:var(--brand)}
+  .sidebody{padding:14px;overflow:auto;flex:1}
+  .lbl{font-size:10.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#8b93a4b3;margin:0 0 7px}
+  .swatches{display:flex;gap:8px;margin-bottom:14px}
+  .sw{height:30px;width:30px;border-radius:8px;border:2px solid #ffffff22;position:relative}
+  .sw span{position:absolute;left:0;right:0;bottom:-15px;text-align:center;font-size:9px;color:var(--muted)}
+  .variants{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+  .variant{border:1px solid var(--border);border-radius:9px;padding:8px;font-size:11.5px;text-align:center;color:var(--muted);cursor:pointer}
+  .variant.on{border-color:var(--brand);color:var(--fg);background:#6366f114}
+  .seclist{display:flex;flex-direction:column;gap:6px}
+  .srow{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9px;padding:7px 9px;font-size:12px;background:#12151c}
+  .srow .grip{color:#4b5563;cursor:grab}
+  .srow .x{margin-left:auto;color:#64707e;cursor:pointer}
+  .addsec{margin-top:8px;width:100%;border:1px dashed var(--border);border-radius:9px;padding:8px;color:#c4b5fd;background:transparent;font:inherit;font-weight:700;font-size:12px;cursor:pointer}
+  /* AI popover */
+  .pop{position:fixed;z-index:40;width:320px;border:1px solid var(--border);background:#12151c;border-radius:14px;box-shadow:0 24px 60px #000c;display:none}
+  .pop.show{display:block}
+  .pop h5{margin:0;padding:11px 14px;border-bottom:1px solid var(--border);font-size:12.5px;display:flex;align-items:center;gap:7px}
+  .pop .pb{padding:12px 14px}
+  .pop textarea{width:100%;height:56px;resize:none;border:1px solid var(--border);border-radius:9px;background:#0e1117;color:var(--fg);font:inherit;font-size:12.5px;padding:8px 10px;outline:none}
+  .pop .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .pop .chip{border:1px solid var(--border);border-radius:999px;padding:3px 9px;font-size:11px;color:var(--muted);cursor:pointer}
+  .pop .pf{display:flex;gap:8px;padding:0 14px 12px}
+  .note{color:var(--muted);font-size:11px;margin-top:12px;line-height:1.5}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="rail">
+    <div class="logo"></div>
+    <div class="ri"></div><div class="ri"></div><div class="ri"></div><div class="ri on"></div><div class="ri"></div><div class="ri"></div>
+  </div>
+  <div class="main">
+    <!-- surface header -->
+    <div class="shead">
+      <span class="ic">📄</span>
+      <div class="ttl"><b>Pitch Studio</b><small>Northwind Studio → Little Sage · branded to your Brand Kit</small></div>
+      <div class="typepill">
+        <button onclick="setType('deck')" id="t-deck" class="on">Proposal deck</button>
+        <button onclick="setType('email')" id="t-email">Cold pitch email</button>
+      </div>
+      <div class="hactions">
+        <button class="btn g">↻ Regenerate</button>
+        <button class="btn">⤓ Download PDF</button>
+        <button class="btn p">＋ Use in automation</button>
+        <button class="btn g">✕ Exit</button>
+      </div>
+    </div>
+
+    <div class="body">
+      <!-- agent chat -->
+      <div class="chat">
+        <div class="cst"><span class="dot"></span> Agent · <b style="color:var(--fg)">ready</b></div>
+        <div class="msgs">
+          <div class="m" style="flex-direction:row-reverse"><span class="av me">N</span><div class="mb me">Pitch our restaurant-marketing service to Little Sage</div></div>
+          <div class="m"><span class="av ai">✦</span><div class="mb">Built a branded proposal for <b>Little Sage</b> from your Brand Kit — cover, deliverables, proof, pricing and a booking CTA. Edit anything on the page, or tell me what to change.</div></div>
+          <div class="faded">✦ 4 steps</div>
+          <div class="m"><span class="av ai">✦</span><div class="mb">Tip: click any text to tweak it, hover an image to replace it, or hit the <b>✦ Edit with AI</b> chip on a block and I’ll rewrite that part.</div></div>
+        </div>
+        <div class="composer"><div class="box">＋ &nbsp;Ask the agent to change the pitch…</div></div>
+      </div>
+
+      <!-- WYSIWYG branded document -->
+      <div class="canvas">
+        <div class="doc" id="deckDoc">
+          <!-- COVER -->
+          <div class="cover">
+            <span class="pagenum">01</span>
+            <div class="logo">◆ NORTHWIND STUDIO</div>
+            <div class="for">Prepared for</div>
+            <div class="edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button><button>✎ Edit</button></div>
+              <h1>Filling Little Sage’s midweek tables — a done-for-you plan</h1>
+            </div>
+            <div class="edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button><button>✎ Edit</button></div>
+              <p>A 90-day local-marketing program to turn your 4.5★ reputation into booked covers Tuesday–Thursday.</p>
+            </div>
+            <span class="pill">Prepared by Northwind Studio</span>
+          </div>
+
+          <!-- ABOUT + visual -->
+          <div class="insert"><button>＋ Insert section</button></div>
+          <div class="sec">
+            <div class="kick">The opportunity</div>
+            <div class="edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button><button>✎ Edit</button></div><h2>Your weekends are full. Your weeknights aren’t.</h2></div>
+            <div class="cards" style="grid-template-columns:1.3fr 1fr;align-items:stretch">
+              <div class="edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button><button>✎ Edit</button></div>
+                <p>Little Sage pulls a 4.5★ rating across 174 reviews, but midweek covers run ~40% below Friday/Saturday. We’ll launch a locals program, day-of reminders, and a booking funnel that fills the slow shifts — without discounting your brand.</p>
+              </div>
+              <div class="imgslot">Cover image · Little Sage<div class="rep">⟳ Replace image</div></div>
+            </div>
+          </div>
+
+          <!-- DELIVERABLES cards -->
+          <div class="insert"><button>＋ Insert section</button></div>
+          <div class="sec">
+            <div class="kick">What you’ll get</div>
+            <div class="edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button><button>✎ Edit</button></div><h2>Deliverables</h2></div>
+            <div class="cards">
+              <div class="dcard edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button></div><h4>Locals offer campaign</h4><p>A midweek offer to your list + walk-ins, launched across email &amp; SMS.</p></div>
+              <div class="dcard edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button></div><h4>Day-of WhatsApp reminders</h4><p>Automated nudges that convert interest into same-night bookings.</p></div>
+              <div class="dcard edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button></div><h4>Booking funnel + landing page</h4><p>A branded page that turns your slow shifts into reserved tables.</p></div>
+              <div class="dcard edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button></div><h4>Monthly reporting</h4><p>Covers added, revenue lifted, and what we’re doubling down on.</p></div>
+            </div>
+          </div>
+
+          <!-- PROOF metrics -->
+          <div class="insert"><button>＋ Insert section</button></div>
+          <div class="sec">
+            <div class="kick">Proof</div>
+            <div class="edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button><button>✎ Edit</button></div><h2>Results we’ve driven for restaurants</h2></div>
+            <div class="metrics">
+              <div class="metric"><div class="ring" style="background:var(--b-primary)">+38%</div><small>midweek covers</small></div>
+              <div class="metric"><div class="ring" style="background:var(--b-secondary)">4.2×</div><small>ROAS</small></div>
+              <div class="metric"><div class="ring" style="background:var(--b-accent);color:#1a1200">-27%</div><small>no-shows</small></div>
+              <div class="metric"><div class="ring" style="background:#dc2626">90d</div><small>to results</small></div>
+            </div>
+          </div>
+
+          <!-- PRICING -->
+          <div class="insert"><button>＋ Insert section</button></div>
+          <div class="sec">
+            <div class="kick">Investment</div>
+            <div class="edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button><button>✎ Edit</button></div><h2>Simple monthly pricing</h2></div>
+            <div class="pricebar">
+              <div><div style="font-family:Arial;font-weight:800;font-size:14px">Growth program</div><div style="font-family:Arial;opacity:.75;font-size:12px">Everything above · month-to-month</div></div>
+              <div class="amt" style="margin-left:auto"><s>$2,400</s>$1,900<span style="font-size:13px;font-weight:600">/mo</span></div>
+            </div>
+          </div>
+
+          <!-- CTA -->
+          <div class="cta">
+            <div class="edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button><button>✎ Edit</button></div><h2>Ready to fill your weeknights?</h2></div>
+            <div style="font-family:Arial;opacity:.9;font-size:13px">Grab a 15-minute call this week — we’ll tailor this to your menu.</div>
+            <span class="go">Book a call →</span>
+          </div>
+        </div>
+
+        <!-- EMAIL variant (hidden) -->
+        <div class="doc hidden" id="emailDoc" style="font-family:Arial;max-width:640px">
+          <div style="padding:26px 30px">
+            <div class="edit"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button></div><div style="font-size:11px;color:#6a7280">SUBJECT</div><div style="font-size:16px;font-weight:800;color:var(--b-ink)">A quick idea for Little Sage’s midweek tables</div></div>
+            <div class="edit" style="margin-top:16px"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button></div><p style="color:#26313f;font-size:14px">Hi — I noticed Little Sage’s Friday nights fill fast but Tue–Thu runs ~40% quieter. We help Boston restaurants turn a strong reputation into booked midweek covers, without discounting the brand.</p></div>
+            <div class="edit" style="margin-top:6px"><div class="tools"><button class="ai" onclick="openPop(event)">✦ Edit with AI</button></div>
+              <ul style="color:#26313f;font-size:14px;padding-left:18px"><li>A locals offer to your list + walk-ins</li><li>Day-of WhatsApp reminders that convert</li><li>A booking funnel for the slow shifts</li></ul></div>
+            <div style="margin-top:14px;font-size:14px;color:var(--b-primary);font-weight:700">Worth a 15-minute call this week? — Northwind Studio</div>
+            <div style="margin-top:18px;padding:11px 13px;border:1px dashed #d5dbe2;border-radius:10px;color:#6a7280;font-size:12.5px">📎 Attached: <b style="color:var(--b-ink)">Little-Sage-proposal.pdf</b> — the full branded proposal (edit it on the Proposal-deck tab).</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- right rail -->
+      <div class="side">
+        <div class="tabs">
+          <button class="on" onclick="setTab('design',event)">Design</button>
+          <button onclick="setTab('sections',event)">Sections</button>
+          <button onclick="setTab('type',event)">Type</button>
+        </div>
+        <div class="sidebody" id="tab-design">
+          <p class="lbl">Brand colours (from your Brand Kit)</p>
+          <div class="swatches">
+            <div class="sw" style="background:var(--b-primary)"><span>Primary</span></div>
+            <div class="sw" style="background:var(--b-secondary)"><span>Secondary</span></div>
+            <div class="sw" style="background:var(--b-accent)"><span>Accent</span></div>
+            <div class="sw" style="background:#ffffff"><span>Paper</span></div>
+            <div class="sw" style="background:var(--b-ink)"><span>Ink</span></div>
+          </div>
+          <p class="lbl" style="margin-top:20px">Style</p>
+          <div class="variants">
+            <div class="variant on">Clean light</div>
+            <div class="variant">Bold brand</div>
+            <div class="variant">Editorial</div>
+            <div class="variant">Dark cover</div>
+          </div>
+          <p class="lbl">Typography</p>
+          <div class="srow">Aa &nbsp;<span style="color:var(--muted)">Headline · Georgia</span></div>
+          <div class="srow" style="margin-top:6px">Aa &nbsp;<span style="color:var(--muted)">Body · Arial</span></div>
+          <p class="note">Colours, fonts and logo come from your Brand Kit so every proposal looks like you. Change them here to restyle the whole document (and the PDF).</p>
+        </div>
+        <div class="sidebody hidden" id="tab-sections">
+          <p class="lbl">Sections · drag to reorder</p>
+          <div class="seclist">
+            <div class="srow"><span class="grip">⠿</span> Cover <span class="x">✕</span></div>
+            <div class="srow"><span class="grip">⠿</span> The opportunity <span class="x">✕</span></div>
+            <div class="srow"><span class="grip">⠿</span> Deliverables <span class="x">✕</span></div>
+            <div class="srow"><span class="grip">⠿</span> Proof <span class="x">✕</span></div>
+            <div class="srow"><span class="grip">⠿</span> Pricing <span class="x">✕</span></div>
+            <div class="srow"><span class="grip">⠿</span> Booking CTA <span class="x">✕</span></div>
+          </div>
+          <button class="addsec">＋ Add section (agent fills it)</button>
+        </div>
+        <div class="sidebody hidden" id="tab-type">
+          <p class="lbl">Pitch type</p>
+          <div class="variants" style="grid-template-columns:1fr">
+            <div class="variant on" style="text-align:left">📄 <b>Proposal deck</b><div style="color:var(--muted);font-size:11px">Full branded, PDF-ready multi-section proposal.</div></div>
+            <div class="variant" style="text-align:left">✉️ <b>Cold pitch email</b><div style="color:var(--muted);font-size:11px">Short outreach email + the proposal attached.</div></div>
+          </div>
+          <p class="note">Both are saved on the same pitch. “Use in automation” drops this into the initial-pitch email step, with the proposal PDF attached.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI edit popover -->
+<div class="pop" id="pop">
+  <h5>✦ Edit with AI</h5>
+  <div class="pb">
+    <textarea placeholder="Tell the agent how to change this block… e.g. “make it punchier and mention their 4.5★ rating”"></textarea>
+    <div class="chips"><span class="chip">Make it shorter</span><span class="chip">More formal</span><span class="chip">Add a stat</span><span class="chip">Rewrite in brand voice</span></div>
+  </div>
+  <div class="pf"><button class="btn g" style="flex:1" onclick="closePop()">Cancel</button><button class="btn p" style="flex:1" onclick="closePop()">✦ Rewrite</button></div>
+</div>
+
+<script>
+  function setType(t){
+    document.getElementById('deckDoc').classList.toggle('hidden', t!=='deck');
+    document.getElementById('emailDoc').classList.toggle('hidden', t!=='email');
+    document.getElementById('t-deck').classList.toggle('on', t==='deck');
+    document.getElementById('t-email').classList.toggle('on', t==='email');
+  }
+  function setTab(id,e){
+    ['design','sections','type'].forEach(x=>document.getElementById('tab-'+x).classList.toggle('hidden', x!==id));
+    document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('on'));
+    e.target.classList.add('on');
+  }
+  function openPop(e){
+    e.stopPropagation();
+    const p=document.getElementById('pop');
+    const r=e.target.getBoundingClientRect();
+    p.style.left=Math.min(window.innerWidth-340, r.left-140)+'px';
+    p.style.top=(r.bottom+8)+'px';
+    p.classList.add('show');
+  }
+  function closePop(){document.getElementById('pop').classList.remove('show');}
+  document.addEventListener('click',(e)=>{ if(!e.target.closest('.pop') && !e.target.closest('.tools')) closePop(); });
+</script>
+</body>
+</html>

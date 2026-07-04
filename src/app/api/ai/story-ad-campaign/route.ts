@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
+import { presignAllUrls } from "@/lib/utils/s3-client";
 import {
   createCampaignRecord,
   listCampaigns,
@@ -125,5 +126,7 @@ export async function GET() {
     );
   }
   const items = await listCampaigns(session.userId, 24);
-  return NextResponse.json({ success: true, data: { campaigns: items } });
+  // Presign videoUrl/thumbnailUrl so the playground cards + inline player work
+  // for completed renders (mirrors the detail route).
+  return NextResponse.json({ success: true, data: await presignAllUrls({ campaigns: items }) });
 }

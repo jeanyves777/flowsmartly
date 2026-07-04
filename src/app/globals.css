@@ -24,14 +24,18 @@
     --input: 240 5.9% 90%;
     --ring: 199 89% 48%;
     --radius: 0.625rem;
+    /* Make native controls (select dropdowns, date pickers, scrollbars) match the theme. */
+    color-scheme: light;
   }
 
   .dark {
+    color-scheme: dark;
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
     --card: 240 10% 3.9%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
+    /* Elevated so popovers/menus read as a distinct surface (not == background). */
+    --popover: 240 7% 11%;
     --popover-foreground: 0 0% 98%;
     --primary: 199 89% 48%;
     --primary-foreground: 0 0% 98%;
@@ -47,6 +51,33 @@
     --input: 240 3.7% 15.9%;
     --ring: 199 89% 48%;
   }
+
+  /* Grey mode — a LIGHTER DARK theme: same dark-family contrast as .dark
+     (light text on dark surfaces) but a lifted charcoal instead of near-black.
+     Tailwind `dark:` variants also fire under .grey (see darkMode config). */
+  .grey {
+    color-scheme: dark;
+    --background: 240 6% 14%;
+    --foreground: 0 0% 96%;
+    --card: 240 5% 17%;
+    --card-foreground: 0 0% 96%;
+    --popover: 240 5% 20%;
+    --popover-foreground: 0 0% 96%;
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 23%;
+    --secondary-foreground: 0 0% 96%;
+    --muted: 240 5% 23%;
+    --muted-foreground: 240 5% 68%;
+    --accent: 240 5% 23%;
+    --accent-foreground: 0 0% 96%;
+    --destructive: 0 62.8% 45%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5% 27%;
+    --input: 240 5% 27%;
+    --ring: 199 89% 55%;
+    --radius: 0.625rem;
+  }
 }
 
 @layer base {
@@ -57,6 +88,14 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Native <select> dropdowns: theme the option list (color-scheme handles most
+     browsers; this is the explicit fallback so options aren't OS-light on dark). */
+  select option,
+  select optgroup {
+    background-color: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
   }
 
   /* Custom scrollbar */

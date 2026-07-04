@@ -40,6 +40,7 @@ export interface AgentStreamHandlers {
   onTaskFailed?: (taskId: string, error: string | undefined) => void;
   onTemplateOptions?: (requestId: string, templates: TemplateOption[]) => void;
   onQuestionOptions?: (requestId: string, question: string, options: QuestionOption[], allowOther: boolean) => void;
+  onCanvasUpdate?: (patch: Record<string, unknown>) => void;
   onError?: (message: string, recoverable: boolean) => void;
   onDone?: () => void;
 }
@@ -147,6 +148,8 @@ export async function consumeAgentStream(
             })).filter((o) => o.label),
             payload.allowOther !== false,
           );
+        } else if (type === "canvas_update" && payload.patch && typeof payload.patch === "object") {
+          handlers.onCanvasUpdate?.(payload.patch as Record<string, unknown>);
         } else if (type === "error" && typeof payload.message === "string") {
           handlers.onError?.(payload.message, payload.recoverable === true);
         } else if (type === "done") {
@@ -222,6 +225,12 @@ export interface AgentSendInput {
    * library (the server fetches it for vision — no re-upload).
    */
   attachments?: Array<{ dataUrl?: string; url?: string; name?: string }>;
+  /** Premium "Super" mode — premium model + surcharge. */
+  superMode?: boolean;
+  /** When a focused-view canvas is open, its serialized state so the agent can edit it live. */
+  canvasContext?: string;
+  /** Which focused surface the user is on (Brand, Sell, …) so the agent acts in-context. */
+  surfaceContext?: string;
 }
 
 export function useAgentSender() {
@@ -235,6 +244,9 @@ export function useAgentSender() {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         clientNow: new Date().toISOString(),
         attachments: input.attachments,
+        superMode: input.superMode === true,
+        canvasContext: input.canvasContext,
+        surfaceContext: input.surfaceContext,
       }),
     });
   }, []);

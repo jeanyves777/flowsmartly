@@ -99,9 +99,11 @@ class XAIClient {
       aspectRatio?: AspectRatio;
       n?: number;
       resolution?: "1k" | "2k";
+      /** Explicit model id (from the role chain / Control Hub). Falls back to the env default. */
+      model?: string;
     } = {}
   ): Promise<string | null> {
-    const { aspectRatio = "1:1", n = 1, resolution } = options;
+    const { aspectRatio = "1:1", n = 1, resolution, model } = options;
 
     if (!this.apiKey) {
       throw new Error("XAI_API_KEY is not configured");
@@ -119,7 +121,7 @@ class XAIClient {
             Authorization: `Bearer ${this.apiKey}`,
           },
           body: JSON.stringify({
-            model: XAI_IMAGE_MODEL,
+            model: model || XAI_IMAGE_MODEL,
             prompt,
             n,
             aspect_ratio: aspectRatio,

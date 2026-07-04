@@ -31,6 +31,11 @@ export const IMAGE_MODEL_IDS = {
   imagenFast: env.IMAGEN_FAST_MODEL || "imagen-4.0-fast-generate-001",
   nanoBanana: env.GEMINI_EDIT_MODEL || "gemini-2.5-flash-image",
   xaiBase: env.XAI_IMAGE_MODEL || "grok-imagine-image",
+  // grok-imagine-image-QUALITY renders at 2K and is the STANDARD-tier design
+  // engine — a July-2026 bake-off showed it matches gpt-image polish for
+  // full-bleed marketing designs at a fraction of the cost/latency. The router
+  // auto-requests 2K whenever the model name contains "quality" + quality:high.
+  xaiQuality: env.XAI_IMAGE_QUALITY_MODEL || "grok-imagine-image-quality",
   gptImage1: env.OPENAI_IMAGE_MODEL || "gpt-image-1",
   gptImage2: env.OPENAI_IMAGE_MODEL_2 || "gpt-image-2",
 } as const;
@@ -53,15 +58,16 @@ const M = IMAGE_MODEL_IDS;
 
 export const IMAGE_CHAINS: Record<ImageRole, ImageModelStep[]> = {
   // From-scratch branded DESIGNS (flyers/posters/ads — text + layout heavy).
-  // Nano Banana FIRST: it's Google's design/text engine and renders real
-  // graphic-design layouts, unlike Imagen 4 which is a photorealism model and
-  // produces flat/simple composites for designed work. OpenAI gpt-image is the
-  // high-end fallback (excellent at designed layouts); Imagen is last-resort.
+  // STANDARD tier. xAI grok-imagine-image-QUALITY FIRST (@2K): the July-2026
+  // bake-off picked it as the standard winner — full-bleed, correctly-spelled,
+  // agency-grade layouts that match gpt-image polish at a fraction of the
+  // cost/latency. Nano Banana is the fallback (Google's design/text engine),
+  // then gpt-image-1 as the high-end safety net. (Imagen is photorealism-only
+  // and makes flat composites for designed work, so it's dropped from Standard.)
   design_generate: [
+    { provider: "xai", model: M.xaiQuality },
     { provider: "gemini", model: M.nanoBanana },
     { provider: "openai", model: M.gptImage1 },
-    { provider: "gemini", model: M.imagenUltra },
-    { provider: "xai", model: M.xaiBase },
   ],
   // Edit/reference work — only providers that accept an input image. Gemini's
   // Nano Banana is the best editor (identity + text); OpenAI then xAI back it up.

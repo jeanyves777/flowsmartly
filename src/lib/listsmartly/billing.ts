@@ -46,8 +46,12 @@ export function isListSmartlyAccountEligible(user?: UserBillingShape | null) {
   return Boolean(user && !user.deletedAt);
 }
 
-export function requiresListSmartlyPaymentBackup(userOrPlan?: UserBillingShape | string | null) {
-  return !isListSmartlyPlanEligible(userOrPlan);
+export function requiresListSmartlyPaymentBackup(_userOrPlan?: UserBillingShape | string | null) {
+  // Fully credit-based: the only requirement to unlock/keep ListSmartly is
+  // credits. No plan tier needs a backup card — STARTER unlocks on credits just
+  // like every other plan, and when credits run out the monthly cron simply
+  // lapses the profile to past_due (no card fallback). [[credit-based-not-plan-based]]
+  return false;
 }
 
 export function getListSmartlyCreditStatus(profile?: ProfileBillingShape | null) {
@@ -112,7 +116,7 @@ export function buildListSmartlyAccess(
     creditStatus,
     legacyStatus: profile?.lsSubscriptionStatus || "inactive",
     plan: LISTSMARTLY_INCLUDED_PLAN,
-    planName: planEligible ? "Included with FlowSmartly plan" : "Credit access with backup payment method",
+    planName: planEligible ? "Included with FlowSmartly plan" : "Credit access (pay with credits)",
     unlockCost: LISTSMARTLY_UNLOCK_CREDIT_COST,
     monthlyCost: LISTSMARTLY_MONTHLY_ACTIVE_CREDIT_COST,
     creditsAvailable: user?.aiCredits || 0,

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Lead detail sheet</title>
+<style>
+  :root{--bg:#0b0d12;--card:#12151c;--card2:#161a22;--border:#232833;--muted:#8b93a4;--fg:#e7ebf3;--brand:#6366f1;--violet:#8b5cf6;--emerald:#10b981;--amber:#f59e0b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:24px}
+  h1{font-size:15px;margin:0 0 4px}.sub{color:var(--muted);font-size:12px;margin:0 0 16px}
+  .frame{position:relative;max-width:1060px;height:640px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--card)}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;color:var(--muted);font-weight:500;font-size:11px;border-bottom:1px solid var(--border);padding:10px 16px}
+  td{border-top:1px solid var(--border);padding:9px 16px;vertical-align:top}
+  tr.row:hover td{background:#ffffff05;cursor:pointer}
+  .name{font-weight:700}.mut{color:var(--muted)}
+  .brand{color:#a5b4fc}
+  .check{color:var(--emerald)}
+  .blur{filter:blur(3px);color:var(--muted)}
+  .enrich{border:1px solid var(--border);color:#a5b4fc;background:transparent;border-radius:8px;padding:4px 12px;font-size:11.5px;font-weight:700}
+  .done{color:var(--emerald);font-size:11.5px;font-weight:600}
+  /* sheet */
+  .scrim{position:absolute;inset:0;background:#00000073}
+  .sheet{position:absolute;left:20px;right:20px;bottom:18px;max-height:82%;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:0 24px 60px #000b}
+  .sh-h{position:relative;border-bottom:1px solid var(--border);padding:16px 20px 12px}
+  .grip{position:absolute;left:50%;top:6px;height:4px;width:40px;transform:translateX(-50%);background:var(--border);border-radius:999px}
+  .sh-top{display:flex;align-items:center;gap:12px}
+  .ic{height:40px;width:40px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#6366f133,#8b5cf626);color:#a5b4fc}
+  .sh-top h4{margin:0;font-size:15px}.sh-top p{margin:1px 0 0;color:var(--muted);font-size:11.5px}
+  .pill{margin-left:auto;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:800}
+  .pill.e{background:#10b98126;color:var(--emerald)}
+  .x{position:absolute;right:16px;top:16px;height:28px;width:28px;border:1px solid var(--border);border-radius:8px;color:var(--muted);display:grid;place-items:center;background:transparent}
+  .sh-b{padding:18px 20px;overflow:auto}
+  dl{display:grid;grid-template-columns:1fr 1fr;gap:12px 26px;margin:0}
+  dt{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:#8b93a4b3}
+  dd{margin:2px 0 0;font-size:13px}
+  .sh-f{display:flex;align-items:center;gap:12px;border-top:1px solid var(--border);padding:14px 20px}
+  .go{border:0;background:linear-gradient(90deg,var(--brand),var(--violet));color:#fff;border-radius:10px;padding:8px 16px;font-weight:700;font-size:13px;display:inline-flex;gap:8px;align-items:center}
+  .legend{color:var(--muted);font-size:12px;margin-top:14px;max-width:1060px}.legend b{color:var(--fg)}
+</style></head>
+<body>
+  <h1>Click a contact → full detail sheet from the bottom (like the search brief)</h1>
+  <p class="sub">The Contact column reveals email / phone / website; clicking the row opens everything — email, phones, website, address, rating, LinkedIn, map.</p>
+
+  <div class="frame">
+    <table>
+      <thead><tr><th>Name</th><th>Title</th><th>Company</th><th>Contact</th><th></th></tr></thead>
+      <tbody>
+        <tr class="row"><td class="name">Maria Elena Delgadillo</td><td class="mut">Owner</td><td>Casa Vallarta Mexican Restaurant</td>
+          <td><div>maria@casavallarta.us <span class="check">✔</span></div><div class="mut">(512) 555-0142</div></td>
+          <td style="text-align:right"><span class="done">Enriched</span></td></tr>
+        <tr class="row"><td class="name">Jamie Mammano</td><td class="mut">Chef/Owner</td><td>Mooo…</td>
+          <td><div class="mut">(617) 670-2515</div><div class="brand">mooorestaurant.com</div></td>
+          <td style="text-align:right"><span class="done">Enriched</span></td></tr>
+        <tr class="row"><td class="name">Tavern in the Square</td><td class="mut">—</td><td>restaurants</td>
+          <td><span class="blur">•••@•••.com</span></td>
+          <td style="text-align:right"><button class="enrich">Enrich</button></td></tr>
+      </tbody>
+    </table>
+
+    <div class="scrim"></div>
+    <div class="sheet">
+      <div class="sh-h">
+        <span class="grip"></span>
+        <div class="sh-top">
+          <span class="ic">👤</span>
+          <div><h4>Jamie Mammano</h4><p>Chef/Owner · Mooo… · MA Restaurant Owners</p></div>
+          <span class="pill e">Enriched</span>
+        </div>
+        <span class="x">✕</span>
+      </div>
+      <div class="sh-b">
+        <dl>
+          <div><dt>Title</dt><dd>Chef/Owner</dd></div>
+          <div><dt>Company</dt><dd>Columbus Hospitality Group</dd></div>
+          <div><dt>Email</dt><dd class="brand">jamie@mooorestaurant.com</dd></div>
+          <div><dt>Phone</dt><dd class="brand">(617) 670-2515</dd></div>
+          <div><dt>Website</dt><dd class="brand">mooorestaurant.com</dd></div>
+          <div><dt>Address</dt><dd>15 Beacon St, Boston, MA 02108</dd></div>
+          <div><dt>Rating</dt><dd>★ 4.6 · 2,314 reviews</dd></div>
+          <div><dt>Linkedin</dt><dd class="brand">linkedin.com/in/jamie-mammano</dd></div>
+          <div><dt>Map</dt><dd class="brand">Google Maps ↗</dd></div>
+        </dl>
+      </div>
+      <div class="sh-f">
+        <button class="go">✦ Re-enrich</button>
+        <span class="mut">Find email, phone, website + address and save them here.</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="legend"><b>Also fixed:</b> enrich_lead now accepts + saves <b>website</b> and <b>address</b> (it only stored email/phone/LinkedIn before), and the prompts tell the agent to capture the business phone, address and website — not just a LinkedIn — so a business owner is actually reachable.</p>
+</body></html>

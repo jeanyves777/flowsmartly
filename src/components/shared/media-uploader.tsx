@@ -43,6 +43,9 @@ export interface MediaUploaderProps {
   placeholder?: string;
   /** Thumbnail size variant */
   variant?: "small" | "medium" | "large" | "gallery";
+  /** How the preview fits its box — "contain" shows the WHOLE image (use for
+   * logos so a wide wordmark isn't cropped); defaults to cover (gallery=contain). */
+  fit?: "cover" | "contain";
   /** Media library picker title */
   libraryTitle?: string;
   /** Show Upload and Library buttons */
@@ -86,6 +89,7 @@ export function MediaUploader({
   description,
   placeholder,
   variant = "medium",
+  fit,
   libraryTitle,
   showButtons = true,
   className = "",
@@ -226,6 +230,7 @@ export function MediaUploader({
 
   const hasMedia = value.length > 0;
   const isGallery = variant === "gallery";
+  const fitClass = fit ? (fit === "contain" ? "object-contain" : "object-cover") : isGallery ? "object-contain" : "object-cover";
   const mediaListClass = isGallery
     ? "grid grid-cols-1 gap-3 mb-2 sm:grid-cols-2 xl:grid-cols-3"
     : "flex flex-wrap gap-2 mb-2";
@@ -274,7 +279,7 @@ export function MediaUploader({
                           muted
                           playsInline
                           preload="metadata"
-                          className={`h-full w-full ${isGallery ? "object-contain" : "object-cover"}`}
+                          className={`h-full w-full ${fitClass}`}
                         />
                         <div className="absolute inset-0 flex items-center justify-center bg-black/25">
                           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/55 text-white shadow-lg">
@@ -293,7 +298,7 @@ export function MediaUploader({
                       <img
                         src={url}
                         alt={`Media ${idx + 1}`}
-                        className={`w-full h-full ${isGallery ? "object-contain" : "object-cover"}`}
+                        className={`w-full h-full ${fitClass}`}
                       />
                     )}
                     <span className="absolute right-1.5 bottom-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100">

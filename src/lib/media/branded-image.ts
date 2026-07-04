@@ -1,26 +1,21 @@
 import { prisma } from "@/lib/db/client";
 import { runVisualForUser } from "@/app/api/ai/visual/route";
 import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
-import {
-  buildAgentDesignTemplatePrompt,
-  chooseAgentDesignTemplate,
-  getAgentDesignTemplateById,
-  serializeAgentDesignTemplateForTool,
-  type AgentDesignChannel,
-  type AgentDesignTemplate,
-} from "@/lib/ai/flow-agent/design-templates";
+import { nameBrandColors } from "@/lib/media/color-names";
 
 /**
  * generateBrandedImage — the ONE place that turns a creative brief + a user's
  * Brand Kit into a finished, on-brand image. Every branded-image surface
  * (Flow-AI's create_branded_design, content-automation pre-generate, the
  * scheduler, manual runs) calls this so they all share the SAME engine, prompt,
- * provider policy, logo composite, date handling, and anti-card composition —
- * instead of each maintaining its own divergent generator.
+ * provider policy, logo composite, date handling, and anti-card composition.
  *
- * It assembles the FlowCreative `/api/ai/visual` body (brand identity, colors,
- * logo, contact, optional agent design template) and delegates to
- * `runVisualForUser`, which does generation → logo composite → persistence.
+ * TEMPLATE-FREE: the new backend generates purely from the creative brief +
+ * Brand Kit + the shared art-direction recipe on the fixed xAI@2K path — NO
+ * design templates (they forced the edit chain / template reproduction and hurt
+ * quality). It assembles the FlowCreative `/api/ai/visual` body and delegates to
+ * `runVisualForUser` (generation → logo composite → persistence).
+ * [[image-pipeline-providers]]
  *
  * Billing: by default the engine charges AI_VISUAL_DESIGN. Pass
  * `skipCredits: true` when the CALLER bills itself (automation/scheduler charge
@@ -49,8 +44,6 @@ export interface GenerateBrandedImageInput {
   /** Uploaded reference photos (real person/product) whose identity is preserved. */
   referenceImageUrls?: string[];
   ctaText?: string | null;
-  /** Pin a specific agent design template; otherwise one is auto-chosen. */
-  templateId?: string | null;
   category?: string;
   /** Caller handles billing — engine skips its own gate + deduction. */
   skipCredits?: boolean;
@@ -63,7 +56,6 @@ export interface GenerateBrandedImageResult {
   imageUrl?: string;
   designId?: string;
   creditsUsed?: number;
-  agentTemplate?: { id: string; name: string; industry: string; metaTags: string[] } | null;
   error?: string;
   errorCode?: string;
 }
@@ -91,22 +83,15 @@ export async function generateBrandedImage(
   const brandLogo = brandKit?.logo || brandKit?.iconLogo || null;
   const hasBrandLogo = Boolean(brandLogo);
 
-  const requestedTemplateId =
-    typeof input.templateId === "string" && input.templateId.trim() ? input.templateId.trim() : null;
-  const autoTemplate = chooseAgentDesignTemplate({
-    industry: brandKit?.industry || brandKit?.niche || null,
-    query: [promptText, input.style, input.ctaText].filter((i) => typeof i === "string" && i.trim()).join(" "),
-    channel: orientationToTemplateChannel(input.orientation, promptText),
-    limit: 1,
-  });
-  const agentTemplate = requestedTemplateId ? getAgentDesignTemplateById(requestedTemplateId) : autoTemplate;
-  if (requestedTemplateId && !agentTemplate) {
-    return {
-      ok: false,
-      error: `Agent design template "${requestedTemplateId}" was not found.`,
-      errorCode: "not_found",
-    };
-  }
+  // Describe the palette with human color NAMES, never raw hex — xAI renders a
+  // hex string literally as visible text (the "#a441e8" leak). The real hex is
+  // still passed to the engine separately for accurate on-brand coloring.
+  const colorNames = await nameBrandColors({ primary: colors?.primary, secondary: colors?.secondary, accent: colors?.accent });
+  const palette = [
+    colorNames.primary ? `primary ${colorNames.primary}` : null,
+    colorNames.secondary ? `secondary ${colorNames.secondary}` : null,
+    colorNames.accent ? `accent ${colorNames.accent}` : null,
+  ].filter(Boolean).join(", ") || undefined;
 
   const contactInfo = brandKit
     ? { email: brandKit.email, phone: brandKit.phone, website: brandKit.website, address: brandKit.address }
@@ -128,47 +113,43 @@ export async function generateBrandedImage(
         products: parseJson<unknown[]>(brandKit.products, []),
         keywords: parseJson<unknown[]>(brandKit.keywords, []),
         hashtags: parseJson<unknown[]>(brandKit.hashtags, []),
-        colors,
+        // NOTE: color NAMES only (no raw hex) so the model can't render the hex
+        // as literal text on the design. Real hex still flows via visualBody.brandColors.
+        palette,
         handles,
         website: brandKit.website || null,
         email: brandKit.email || null,
         phone: brandKit.phone || null,
         address: brandKit.address || null,
         hasLogo: hasBrandLogo,
-        agentDesignTemplate: agentTemplate ? compactAgentTemplateForPrompt(agentTemplate) : null,
       }
     : null;
 
-  // Same policy scaffolding the Studio Create modal uses so quality matches the
-  // product page (logo lock + anti-invention + exact-reference handling).
-  const logoPolicy = hasBrandLogo
-    ? "Logo lock: do NOT draw, redraw, or invent any logo, wordmark, emblem, seal, crest, mascot, or monogram — the user's REAL logo is composited on afterward, SMALL, in one TOP corner. RESERVE a calm clear corner for it: keep the TOP-LEFT and TOP-RIGHT corners (about the top 16% of the height) free of headline text, faces, and key graphics — quiet background only — so the small logo drops in cleanly without covering anything. Do NOT add a placeholder box, frame, label, or watermark; just keep those corners uncluttered, and do NOT spell out the brand name as a wordmark."
-    : "Do not invent a logo, icon, seal, crest, monogram, mascot, or brand mark the user did not provide. Use plain brand-name text only if the prompt asks for it.";
+  // NOTE: logo-lock, full-bleed, typography, and single-logo rules are NO LONGER
+  // repeated here — they come from the shared art-direction recipe
+  // (buildArtDirection) applied in the pipeline. Duplicating them blew the prompt
+  // past xAI's 8000-char limit, silently dropping Standard from xAI to a fallback
+  // model. Keep THIS prompt to the creative brief + brand facts only.
+  // [[image-pipeline-providers]]
   const exactReferencePolicy = referenceImageUrls.length
-    ? "Exact reference handling: the uploaded photo(s) are the REAL subject. Preserve the real person's face and identity exactly — do NOT synthesize a similar-looking or different person. Integrate them naturally into the design."
+    ? "The uploaded photo(s) are the REAL subject — preserve the real person's face/identity exactly (no lookalike) and integrate them naturally."
     : null;
-  const brandDisplayPolicy = [
-    !hasBrandLogo && brandKit?.name
-      ? `Show the brand name "${brandKit.name}" as a clear, readable text header at the TOP of the design.`
-      : null,
-    contactLine
-      ? `Include these REAL contact details in small, legible text near the bottom (copy them exactly, do not invent any): ${contactLine}.`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const brandNameHeader = !hasBrandLogo && brandKit?.name
+    ? `Show the brand name "${brandKit.name}" as a clear header at the top.`
+    : null;
+  const contactRule = contactLine
+    ? `Include these REAL contact details, copied exactly (never invent): ${contactLine}.`
+    : null;
   const antiInventionPolicy =
-    "Content rule: render ONLY the messaging, names, dates, and visuals the user provided in the prompt, brand kit, or uploaded references. Do not invent extra products, people, prices, dates, claims, or testimonials.";
+    "Render ONLY the messaging, names, dates, and visuals provided. Do not invent products, people, prices, dates, claims, or testimonials.";
 
   const imagePrompt = withLanguagePrefix(
     [
       promptText,
-      agentTemplate ? buildAgentDesignTemplatePrompt(agentTemplate) : null,
       exactReferencePolicy,
-      brandDisplayPolicy || null,
-      logoPolicy,
+      brandNameHeader,
+      contactRule,
       antiInventionPolicy,
-      "Keep the final visual sharp, high-resolution, and readable.",
     ]
       .filter(Boolean)
       .join("\n\n"),
@@ -179,9 +160,9 @@ export async function generateBrandedImage(
   const style = typeof input.style === "string" && input.style.trim() ? input.style.trim() : "modern";
   const ctaText = typeof input.ctaText === "string" && input.ctaText.trim() ? input.ctaText.trim() : null;
 
-  // Mirror the Studio Create modal's /api/ai/visual body — same raw_brand
-  // pipeline, reference handling, and logo overlay. The provider is chosen by
-  // the role-based media-model policy inside the engine (Nano Banana for
+  // /api/ai/visual body — raw_brand pipeline, reference handling, logo overlay.
+  // TEMPLATE-FREE: no templateImageUrl / agentDesignTemplate. The provider is
+  // chosen by the role-based media-model policy (xAI grok-imagine @2K for
   // Standard), so we deliberately do NOT pass a provider/strictProvider knob.
   const visualBody = {
     prompt: imagePrompt,
@@ -203,8 +184,7 @@ export async function generateBrandedImage(
     contactInfo,
     referenceImageUrl: referenceImageUrls[0] || null,
     referenceImageUrls,
-    templateImageUrl: agentTemplate?.imageUrl || null,
-    agentDesignTemplate: agentTemplate ? serializeAgentDesignTemplateForTool(agentTemplate) : null,
+    templateImageUrl: null,
     compositeReferenceSubject: false,
     qualityCheckEnabled: input.qualityCheck === true,
     ctaText,
@@ -245,14 +225,6 @@ export async function generateBrandedImage(
     imageUrl,
     designId,
     creditsUsed: resBody.data.creditsUsed,
-    agentTemplate: agentTemplate
-      ? {
-          id: agentTemplate.id,
-          name: agentTemplate.name,
-          industry: agentTemplate.industryLabel,
-          metaTags: agentTemplate.metaTags,
-        }
-      : null,
   };
 }
 
@@ -261,31 +233,6 @@ export function orientationToSize(orientation: unknown): string {
   if (o === "portrait" || o === "story" || o === "reel" || o === "9:16") return "1080x1920";
   if (o === "landscape" || o === "wide" || o === "16:9") return "1920x1080";
   return "1080x1080";
-}
-
-function orientationToTemplateChannel(orientation: unknown, prompt: string): AgentDesignChannel {
-  const o = typeof orientation === "string" ? orientation.toLowerCase() : "";
-  const p = prompt.toLowerCase();
-  if (o === "landscape" || o === "wide" || o === "16:9") return "ad";
-  if (/\b(event|open house|webinar|workshop|conference|service|concert|invite|invitation|rsvp)\b/.test(p)) return "poster";
-  if (o === "portrait" || o === "story" || o === "reel" || o === "9:16") return "flyer";
-  return "social_post";
-}
-
-function compactAgentTemplateForPrompt(template: AgentDesignTemplate) {
-  return {
-    id: template.id,
-    name: template.name,
-    industry: template.industryLabel,
-    useCase: template.useCase,
-    metaTags: template.metaTags.slice(0, 12),
-    layout: template.layout,
-    imageDirection: template.imageDirection,
-    copySlots: template.copySlots,
-    ctaStyle: template.ctaStyle,
-    imageUrl: template.imageUrl,
-    thumbnailUrl: template.thumbnailUrl,
-  };
 }
 
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {

@@ -30,6 +30,9 @@ const ACTION_COSTS: Array<{ action: string; tool: string; key: CreditCostKey }> 
   { action: "Logo generation", tool: "(open /logo-generator)", key: "AI_LOGO_GENERATION" },
   { action: "Build website", tool: "build_website", key: "AI_WEBSITE_GENERATE" },
   { action: "Build store", tool: "build_store", key: "AI_STORE_GENERATE" },
+  { action: "Find local leads (per search)", tool: "find_local_leads", key: "AI_WEB_SEARCH" },
+  { action: "Enrich a lead (per lead)", tool: "enrich_lead", key: "AI_WEB_SEARCH" },
+  { action: "Save found leads (per search)", tool: "find_leads", key: "AGENT_TOOL_CALL_BASE" },
 ];
 
 export const listMyFeatures: FlowAgentTool = {

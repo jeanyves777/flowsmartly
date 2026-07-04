@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { HAIKU_MODEL } from "@/lib/ai/client";
+import { getAgentModel } from "@/lib/ai/agent-model";
 import { prisma } from "@/lib/db/client";
 import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
@@ -43,12 +43,17 @@ import type {
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Model: pulled from the database (admin-editable via SystemSetting), defaulting
+// to the CHEAPEST model (Haiku). Standing project rule — never Opus/Sonnet.
+// See getAgentModel(). Budgets kept conservative for cost.
 const MAX_ITERATIONS = 8;
 const MAX_TOKENS = 2048;
 
 export interface AgentRunInput {
   userId: string;
   isAdmin: boolean;
+  /** User opted into premium "Super" mode — premium model + AGENT_MESSAGE_SUPER surcharge. */
+  superMode?: boolean;
   plan: string;
   conversationId: string;
   /** Assistant message row id this turn writes into. */
@@ -75,6 +80,20 @@ export interface AgentRunInput {
   recentTasks?: Array<{ id: string; kind: string; status: string; note?: string; resultUrl?: string | null }>;
   /** Plans proposed earlier in this conversation + status (cancel/confirm awareness). */
   recentProposals?: Array<{ summary: string; status: string; totalCreditCost: number }>;
+  /**
+   * When set, a design canvas is open in the focused view. Its serialized state
+   * is injected into the system prompt and the `update_canvas` tool is exposed
+   * so the agent can edit the on-screen design. Absent on other surfaces.
+   */
+  canvasContext?: string;
+  /**
+   * A human description of WHICH focused surface the user is on (Brand, Sell,
+   * Publish, …) plus a little of its state. Injected into the system prompt so
+   * the agent interprets the message in-context and acts on the right surface
+   * instead of asking generic questions. Unlike `canvasContext`, this does NOT
+   * expose update_canvas (that's design-only).
+   */
+  surfaceContext?: string;
   /** Aborts the loop when the client disconnects. */
   abortSignal: AbortSignal;
   /** Emit SSE event back to the client. */
@@ -106,7 +125,22 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   await ensureToolsRegistered();
 
   const tools = flowAgentTools.forPlan(input.plan);
-  const clientToolDefs = tools.map((t) => ({
+  // Gate the canvas-write tools by WHICH canvas is open (focused view). The
+  // canvasContext is tagged: `[ADBUILDER]…` for the Ad builder, `[FOLLOWUP]…` for
+  // Follow-ups, otherwise it's the design canvas. Each surface only sees its own
+  // live-fill tool so the agent can't call one out of context.
+  const cc = input.canvasContext || "";
+  const isAdCanvas = cc.startsWith("[ADBUILDER]");
+  const isFollowupCanvas = cc.startsWith("[FOLLOWUP]");
+  const isDesignCanvas = !!cc && !isAdCanvas && !isFollowupCanvas;
+  const DESIGN_CANVAS_TOOLS = new Set(["update_canvas", "add_canvas_object", "add_design_page", "start_print_project", "place_design_on_product"]);
+  const exposedTools = tools.filter((t) => {
+    if (DESIGN_CANVAS_TOOLS.has(t.name)) return isDesignCanvas;
+    if (t.name === "update_ad_canvas") return isAdCanvas;
+    if (t.name === "update_followup_canvas") return isFollowupCanvas;
+    return true;
+  });
+  const clientToolDefs = exposedTools.map((t) => ({
     name: t.name,
     description: t.description,
     input_schema: t.input_schema as Anthropic.Tool["input_schema"],
@@ -116,8 +150,11 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   // dispatch a handler for them; we just iterate past their `server_tool_use`
   // + `web_search_tool_result` blocks. Always registered: the ANTHROPIC_API_KEY
   // gates the whole agent, so there's no extra cred to check.
+  // max_uses caps searches PER TURN. 5 was too low for lead work (bulk enrich
+  // needs ~1 search per lead, so it stalled after 5); 20 lets a typical batch
+  // (e.g. enrich 20 leads) finish in one turn while still bounding runaway spend.
   const serverToolDefs: Anthropic.WebSearchTool20250305[] = [
-    { type: "web_search_20250305", name: "web_search", max_uses: 5 },
+    { type: "web_search_20250305", name: "web_search", max_uses: 20 },
   ];
   // Join client tools + server tools into the single `tools` array the
   // Messages API expects. The discriminated `ToolUnion` covers both —
@@ -133,7 +170,7 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   // the "must propose first" check. Resets per agent turn.
   const confirmedPlans = new Set<string>();
 
-  const systemPrompt = await buildAgentSystemPrompt({
+  let systemPrompt = await buildAgentSystemPrompt({
     userId: input.userId,
     clientNow: input.clientNow,
     timezone: input.timezone,
@@ -141,6 +178,34 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
     recentProposals: input.recentProposals,
     userMessage: input.userMessage,
   });
+
+  // Focused-view canvas: tell the model what's on screen + how to edit it live.
+  if (isAdCanvas) {
+    systemPrompt +=
+      `\n\n## Active Ad builder canvas (focused view)\n${cc}\n\n` +
+      "The user has the Ad builder canvas OPEN. When they ask you to build / generate / write / run the ad — or they hand you a description or a link — FILL THE CANVAS LIVE with `update_ad_canvas` so it appears on screen as you work: set the source (product/link/describe), write a strong, specific, on-brand HEADLINE + a punchy description + a fitting CTA (NEVER a placeholder), pick the goal/category and ONLY their ENABLED placements, and set a sensible budget. Do this FIRST (in one or a few update_ad_canvas calls), then reply in ONE short sentence. Ask a single follow-up only if you genuinely cannot proceed. When the user wants to LAUNCH, call propose_plan with the exact credit cost; on confirm, create & launch it (it goes to review → live and shows in their Library). It's FREE and instant — fill the canvas first, talk second.";
+  } else if (isFollowupCanvas) {
+    systemPrompt +=
+      `\n\n## Active Follow-ups flow canvas (focused view)\n${cc}\n\n` +
+      "The user has the Follow-ups flow canvas OPEN. When they ask you to build / generate / write the follow-up sequence, FILL THE CANVAS LIVE with `update_followup_canvas` so it appears on screen: set the audience mode and write the ordered, genuinely-good PERSONALIZED message steps (use {{first_name}} / {{company}} merge fields; set each step's channel, timing/waitDays and copy — never leave a step empty). Do this FIRST, then reply in ONE short sentence. Ask a single follow-up only if needed. When they want it live, call propose_plan; on confirm, create & schedule it. It's FREE and instant — fill the canvas first, talk second.";
+  } else if (isDesignCanvas) {
+    systemPrompt +=
+      `\n\n## Active design canvas (focused view)\n${cc}\n\n` +
+      "When the user asks to change the on-screen design — wording, accent color, size, or button — call `update_canvas` with ONLY the fields that change (a patch), using the allowed accent hexes and sizes above. Keep edits minimal and on-brand. After it runs, confirm what you changed in ONE short sentence. Do NOT call update_canvas unless the user actually wants a canvas change.\n" +
+      "When the user asks to ADD or place something on the canvas — an object/element ('add a laptop', 'put my product in', 'add an illustration') or a new background ('give it a nicer background') — call `add_canvas_object` (type 'element' or 'background'), NOT create_branded_design. It generates just that piece and drops it onto the OPEN canvas, keeping the user's current text/layout/coordinates. For a background pass the `size` from the canvas context and keep the prompt consistent with the current design. Only use create_branded_design when the user explicitly wants the WHOLE design re-rendered as a new image — never assume that from an 'add X' request.\n" +
+      "MULTI-PAGE / MULTI-SLIDE: this canvas supports multiple pages. When the user asks for a PRESENTATION, a deck, a carousel, or a multi-page design, build EACH page in turn: design the current page (update_canvas for the copy/accent/size, add_canvas_object for visuals), then call `add_design_page` to start the next slide, fill it, and repeat until you've built every page they asked for. Use a consistent style/accent across the set; pick a fitting size first (e.g. 1080×1080 for a carousel). Briefly say how many pages you built when done.\n" +
+      "PRINT STUDIO: if the user wants something to PRINT — a flyer, poster, business card, table tent, bi-fold/tri-fold brochure, or postcard — FIRST call `start_print_project` with the right `format` to open the print canvas (it sets the print size + style and shows bleed/safe/fold guides), THEN design it with the SAME tools (update_canvas for copy/accent/print size, add_canvas_object for visuals, and `add_design_page` for multi-side/multi-panel pieces — card front/back, brochure panels). Keep important content inside the safe area and mind the fold lines. Use a consistent on-brand look across panels.\n" +
+      "PRODUCT PRINTS (apparel / hi-vis vest / mug / tote): when a product mockup is open, put a design on it with `place_design_on_product`. FIRST generate the artwork with generate_image (a TRANSPARENT PNG for a logo/graphic so it sits cleanly on the garment), THEN call place_design_on_product with that artworkUrl plus the product, face (front/back) and placement (left-chest, full-front, full-back, wrap, badge, center). To print both sides, generate + place each side separately. You can also set the garment colour. The mockup is for visualisation; the user orders from it.";
+  }
+
+  // Surface awareness: the user opened a specific workspace (Brand, Sell, …).
+  // Tell the model WHERE they are so it acts on that surface instead of replying
+  // with a generic "what would you like to do?" menu.
+  if (input.surfaceContext) {
+    systemPrompt +=
+      `\n\n## Where the user is right now (focused surface — IMPORTANT)\n${input.surfaceContext}\n` +
+      "Interpret the user's message in THIS context. If what they say is relevant to this surface (e.g. they pasted business info while on the Brand surface, or named a product while on Sell), ACT on it here per the operate-the-account rules — infer the details, propose_plan, then call the matching tool. Do NOT respond with a generic capabilities menu or ask 'what would you like to do?' when the surface already tells you what they're working on.";
+  }
 
   // Seed Claude with prior conversation. Skip the just-saved user message —
   // we pass it as the LAST user turn separately so it stays adjacent to
@@ -410,7 +475,15 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   }
 
   // ─── per-turn credit charge (covers the LLM call itself) ───────────
-  await chargeCredits("AGENT_MESSAGE", "Flow-AI agent: assistant turn");
+  // Super mode uses the premium model and a higher per-turn surcharge.
+  await chargeCredits(
+    input.superMode ? "AGENT_MESSAGE_SUPER" : "AGENT_MESSAGE",
+    input.superMode ? "Flow-AI agent: assistant turn (Super)" : "Flow-AI agent: assistant turn",
+  );
+
+  // Model is admin-editable in the DB; cheapest (Haiku) by default, premium when
+  // the user requested Super mode. One model for the whole turn.
+  const model = await getAgentModel(input.superMode === true);
 
   // ─── main loop ──────────────────────────────────────────────────────
   for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
@@ -423,7 +496,7 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
     let streamedText = "";
     try {
       const stream = anthropic.messages.stream({
-        model: HAIKU_MODEL as Parameters<typeof anthropic.messages.stream>[0]["model"],
+        model: model as Parameters<typeof anthropic.messages.stream>[0]["model"],
         max_tokens: MAX_TOKENS,
         temperature: 0.5,
         system: systemPrompt,

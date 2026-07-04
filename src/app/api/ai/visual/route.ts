@@ -8,6 +8,8 @@ import {
   type ImageEditIntent,
 } from "@/lib/ai/image-router";
 import { imageGenerateRole, imageEditRole } from "@/lib/ai/media-models";
+import { getRecipeConfig } from "@/lib/ai/media-policy";
+import { buildArtDirection } from "@/lib/ai/image-recipe";
 import { currentDateDirective } from "@/lib/ai/date-context";
 import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
@@ -727,18 +729,12 @@ function buildRawBrandPrompt(params: PipelineParams): string {
   });
 
   return [
-    // Art direction = design CALIBER + composition only (NOT text/legibility
-    // rules — see feedback_no_text_rules_in_image_prompts). Lifts models away
-    // from flat "photo + caption" output toward real designed layouts.
-    "You are a senior art director and graphic designer. Unless the user clearly asked for a plain photograph, design a COMPLETE, professionally art-directed promotional marketing graphic that FILLS THE ENTIRE FRAME edge-to-edge — agency / premium quality, a fully composed branded visual (not a plain photo with a caption). The image IS the final on-screen graphic itself: no surrounding border, mat, paper edge, mockup, or surface. Compose the whole thing deliberately:",
-    "- LAYOUT & STRUCTURE: organize the frame into clear designed zones — a small top eyebrow/tagline strip, a bold stylized HERO TITLE, a short supporting subhead, a concise body block, an optional highlight badge/seal, a call-to-action bar, and a footer strip. Strong visual hierarchy, intentional spacing, depth, and balanced composition that fills the frame edge-to-edge.",
-    "- TYPOGRAPHY AS DESIGN: treat type as a graphic element — vary size and weight for clear hierarchy, and set headlines on shaped backers (brush strokes, ribbons, color blocks) where it elevates the piece. CRITICAL: render the headline and every line of text EXACTLY ONCE. Do NOT repeat, echo, ghost, stack, restate, or duplicate any word or phrase (no 'weekend go-o go-to', no second copy in another font, no overlapping repeat). Size the headline so it fits cleanly on its lines without breaking a word and re-rendering it.",
-    "- BRAND COLOR SYSTEM: build the whole palette from the brand colors — backgrounds, accent shapes, dividers, bars — so it reads as one cohesive branded visual.",
-    "- DECORATIVE ELEMENTS: add tasteful, theme-appropriate graphic detailing that fits the occasion and brand — brush strokes, torn-paper / ribbon shapes, badges or seals for highlights, subtle texture or gradient, confetti for celebrations, botanical / island motifs for tropical themes. Integrate them into the composition, never as loose clip-art stickers.",
-    "- PHOTO INTEGRATION: place any subject/product photo as an integrated hero element within the composition (cleanly framed or cut-in), balanced with the typography — not just pasted into a plain box.",
-    "- BRAND & CONTACT DETAILS (REQUIRED): weave the brand name + tagline into a designed header lockup, and present the contact details — phone, email, website, address, and social handles — as a STYLED footer bar (a colored/branded strip with small matching icons and dividers between items), visually designed in, never plain floating text. CRITICAL: use ONLY the EXACT contact values provided in the brand context above — copy them character-for-character. NEVER invent, guess, or use placeholder contact info (no '555-...', no 'info@example', no '123 Main St', no fake @handle). If a contact value is not provided, simply omit that item. Leave clean space where the real logo will be composited.",
-    "- FINISH: rich, layered, intentional, editorial and advertising-grade. Avoid flat, empty, generic, or stock-template looks.",
-    `- ${NO_NESTING_RULE}`,
+    // Concise brief. The heavy composition/typography/full-bleed/logo rules live
+    // in the shared art-direction recipe (buildArtDirection), appended by the
+    // caller — keeping THIS prompt short so it stays under xAI's 8000-char limit
+    // (otherwise xAI 400s and the campaign silently falls back to a weaker model).
+    "You are a senior art director. Design a COMPLETE, professionally art-directed branded marketing graphic (not a plain photo with a caption) organized into clear zones: eyebrow/tagline, bold hero title, subhead, concise body, optional badge, CTA bar, and a styled footer bar. Build the whole palette from the brand colors.",
+    "CONTACT DETAILS: present the brand's contact info as a styled footer strip, using ONLY the EXACT values from the brand context below — copy them character-for-character; never invent or use placeholders (no '555-…', 'info@example', '123 Main St', fake @handle). Omit any value not provided.",
     "",
     "Marketing image context",
     `Frame size: ${params.width}x${params.height}px (compose to fill it edge-to-edge)`,
@@ -759,7 +755,7 @@ function buildRawBrandPrompt(params: PipelineParams): string {
       : null,
     "",
     "Brand identity:",
-    JSON.stringify(Object.keys(brandIdentity).length > 0 ? brandIdentity : fallbackBrand, null, 2),
+    JSON.stringify(Object.keys(brandIdentity).length > 0 ? brandIdentity : fallbackBrand),
     params.logoReferenceUrl
       ? "Brand logo handling (CRITICAL): the LAST attached reference image is the brand's REAL logo. PLACE THAT EXACT logo into THIS design as the real brand mark — reproduce it faithfully (same shapes, colors, and lettering; do NOT redraw, restyle, recolor, crop, or invent it). Position it cleanly in the header / a top corner at a tasteful size with generous clear margin, and arrange ALL headline, subhead, body, and contact text so that NOTHING overlaps, touches, or crowds the logo — leave a calm clear zone around it. The logo is part of the image you generate now; it will NOT be added afterward, so it must already be present, sharp, and unobstructed. Do not also render the brand name as a separate wordmark next to it."
       : params.brandLogo
@@ -1011,8 +1007,30 @@ async function runPipelineWithOptionalQualityCheck(
 }
 
 async function runRawBrandPipeline(params: PipelineParams) {
-  const promptUsed = buildRawBrandPrompt(params);
-  console.log(`[Visual] Raw brand pipeline via ${params.provider}`);
+  // Apply the SAME art-direction recipe as the direct pipeline so the raw_brand
+  // path (used by Campaign Studio posts, content automations, the scheduler)
+  // hits the full-bleed / quality / single-logo bar too — not just the Studio
+  // "direct" path. singleLogo(model draws none) only when we post-composite the
+  // real logo; when the logo is handed to the model as a generation reference
+  // (logoReferenceUrl) the model must place THAT logo, so hasLogo=false.
+  const recipe = await getRecipeConfig();
+  const willCompositeLogo = !!params.brandLogo && !params.logoReferenceUrl;
+  const recipeText = buildArtDirection({ recipe, hasLogo: willCompositeLogo });
+  // HARD CAP for xAI: its API rejects prompts > 8000 chars, which would silently
+  // drop Standard from xAI to a weaker fallback. Guarantee we stay under it while
+  // ALWAYS keeping the full recipe (quality rules) and the tail of the brand
+  // prompt (which ends with the user's EXACT copy). Only the middle brand-context
+  // (products/keywords/etc.) is trimmed if needed. [[image-pipeline-providers]]
+  const XAI_SAFE = 7800;
+  let base = buildRawBrandPrompt(params);
+  const budget = XAI_SAFE - recipeText.length - 4;
+  if (base.length > budget) {
+    const head = base.slice(0, Math.floor(budget * 0.45));
+    const tail = base.slice(base.length - Math.floor(budget * 0.5));
+    base = `${head}\n…\n${tail}`;
+  }
+  const promptUsed = `${base}\n\n${recipeText}`;
+  console.log(`[Visual] Raw brand pipeline via ${params.provider} — prompt length ${promptUsed.length}`);
   let base64: string | null;
   let model: string;
   const subjectReferenceUrls = params.compositeReferenceSubject
@@ -1192,12 +1210,18 @@ ${params.ctaText ? `- CTA BUTTON: Rounded or pill-shaped button with bold contra
 - Geometric shapes, patterns, or decorative elements for visual interest`;
   }
 
-  // Brand identity — logo is composited on top after generation, AI doesn't need to reserve space
+  // Brand identity — logo is composited on top after generation, AI doesn't need to reserve space.
+  // Fetch the recipe here so the BRAND rules and the appended art-direction agree.
   const hasLogo = !!params.brandLogo;
+  const recipe = await getRecipeConfig();
   designPrompt += `\n\nBRAND:`;
   if (hasLogo) {
-    designPrompt += `\n- REAL LOGO LOCK: The user's real brand logo is supplied separately and FlowSmartly may composite it after generation. Do NOT draw, approximate, invent, stylize, or copy any logo, icon mark, seal, monogram, badge, mascot, wordmark, or fake brand emblem anywhere in the design. Do NOT keep or copy a logo from a selected template image. Do NOT create a visible blank logo area, white rectangle, dashed placeholder, label, watermark, frame, or logo-space indicator; keep the underlying design natural.`;
-    if (showBrandName && brandName) {
+    designPrompt += `\n- REAL LOGO LOCK: The user's real brand logo is supplied separately and FlowSmartly composites it after generation exactly once. Do NOT draw, approximate, invent, stylize, or copy any logo, icon mark, seal, monogram, badge, mascot, wordmark, or fake brand emblem anywhere in the design. Do NOT keep or copy a logo from a selected template image. Do NOT create a visible blank logo area, white rectangle, dashed placeholder, label, watermark, frame, or logo-space indicator; keep the underlying design natural.`;
+    // With the single-logo recipe on, the model must draw NO brand-name lettering
+    // either (the real logo — which usually carries the name — is composited on).
+    // Emitting a "brand name may appear as text" hint here is exactly what caused
+    // the DUPLICATE wordmark + logo. Only allow it when the recipe is off.
+    if (!recipe.singleLogo && showBrandName && brandName) {
       const logoHasName = await logoContainsBrandName(params.brandLogo!, brandName);
       if (!logoHasName) {
         designPrompt += `\n- Brand name text: "${brandName}" may appear as plain readable text only if needed; do not pair it with an invented symbol or fake logo mark.`;
@@ -1276,6 +1300,12 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
 - Do NOT include any watermarks, AI-related text, image dimensions, pixel sizes, or technical metadata on the design
 - Do NOT render the design on a background or inside any container — the design IS the full image
 - The design must bleed to all 4 edges with no margin, border, or shadow around it`;
+
+  // Append the centralized, Control-Hub-tunable ART-DIRECTION RECIPE — the proven
+  // quality layer that lifts every provider to the agency-grade bar (full-bleed +
+  // premium polish + exact copy) and enforces a SINGLE real logo (model draws none;
+  // the real logo is composited once below). Uses the `recipe` fetched above.
+  designPrompt += `\n\n${buildArtDirection({ recipe, hasLogo })}`;
 
   // ── Resolve reference image (if any) ──
 

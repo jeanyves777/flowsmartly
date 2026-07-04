@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Campaign Studio — content playground</title>
+<style>
+  :root{--b:#6d5cff;--b2:#8b5cf6;--ink:#0b1220}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0d12;color:#e7ebf3;font:14px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  .app{display:grid;grid-template-columns:300px 1fr;height:100vh}
+  /* left agent chat (shell) */
+  .chat{border-right:1px solid #1c2130;background:#0e111a;display:flex;flex-direction:column;min-height:0}
+  .chat h4{margin:0;padding:14px 16px;font-size:12px;color:#8b93a4;border-bottom:1px solid #1c2130;font-weight:700;letter-spacing:.02em}
+  .msgs{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+  .bot,.you{max-width:92%;padding:9px 11px;border-radius:12px;font-size:12.5px;line-height:1.5}
+  .bot{background:#161b28;border:1px solid #222a3a;align-self:flex-start}
+  .you{background:linear-gradient(135deg,var(--b),var(--b2));align-self:flex-end;color:#fff}
+  .composer{border-top:1px solid #1c2130;padding:10px}
+  .composer input{width:100%;background:#11151f;border:1px solid #222a3a;border-radius:10px;padding:9px 11px;color:#e7ebf3;font-size:12.5px;outline:none}
+  /* canvas */
+  .canvas{min-height:0;display:flex;flex-direction:column}
+  .bar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid #1c2130}
+  .bar .icon{height:28px;width:28px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(109,92,255,.25),rgba(139,92,246,.18));color:#b9a9ff}
+  .bar .ttl{font-size:13px;font-weight:800;line-height:1.1}
+  .bar .sub{font-size:11px;color:#8b93a4}
+  .seg{display:flex;gap:2px;background:#11151f;border:1px solid #222a3a;border-radius:9px;padding:2px;margin-left:8px}
+  .seg button{border:0;background:transparent;color:#8b93a4;font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer}
+  .seg button.on{background:#20263a;color:#e7ebf3}
+  .bar .sp{margin-left:auto;display:flex;gap:8px}
+  .btn{border:1px solid #222a3a;background:#12151f;color:#c9cfda;font-size:12px;font-weight:700;padding:7px 12px;border-radius:10px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+  .btn.pri{border:0;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff}
+  .body{flex:1;display:grid;grid-template-columns:1fr 260px;min-height:0}
+  .flow{overflow:auto;padding:20px 22px}
+  .rail{border-left:1px solid #1c2130;background:#0e111a;overflow:auto;padding:14px}
+  /* campaign summary */
+  .cap{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .cap .cnt{font-size:22px;font-weight:900}
+  .cap .desc{font-size:12.5px;color:#8b93a4}
+  .accs{display:flex;gap:6px;margin:8px 0 18px;flex-wrap:wrap}
+  .acc{display:inline-flex;align-items:center;gap:6px;background:#12151f;border:1px solid #222a3a;border-radius:999px;padding:4px 10px;font-size:11.5px}
+  .dot{height:16px;width:16px;border-radius:50%}
+  /* timeline */
+  .week{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#8b93a4;margin:14px 0 8px}
+  .cards{position:relative;padding-left:20px}
+  .cards:before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:2px;background:#222a3a}
+  .node{position:absolute;left:-1px;height:12px;width:12px;border-radius:50%;background:var(--b);border:2px solid #0b0d12;margin-top:20px}
+  .card{position:relative;background:#fff;color:var(--ink);border-radius:14px;margin-bottom:12px;overflow:hidden;box-shadow:0 12px 30px #0006}
+  .card .top{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #eef0f3}
+  .when{font-size:11.5px;font-weight:800;color:#334155}
+  .pill{font-size:10.5px;font-weight:800;border-radius:999px;padding:3px 8px}
+  .pill.sch{background:#eef0ff;color:#5b4bd6}
+  .plats{margin-left:auto;display:flex;gap:4px}
+  .pi{height:20px;width:20px;border-radius:6px;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800}
+  .body2{display:grid;grid-template-columns:120px 1fr;gap:12px;padding:12px}
+  .img{position:relative;border-radius:10px;overflow:hidden;background:#0b1220;min-height:120px}
+  .img img{width:100%;height:100%;object-fit:cover;display:block}
+  .imgacts{position:absolute;inset:0;display:none;place-items:center;background:#0b1220cc;gap:6px}
+  .card:hover .imgacts{display:grid}
+  .mini{display:inline-flex;align-items:center;gap:5px;background:#fff;color:#1e293b;border:0;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;cursor:pointer}
+  .cap2{font-size:13px;line-height:1.5;color:#26313f;border-radius:6px;padding:2px}
+  .cap2.edit{box-shadow:inset 0 0 0 2px rgba(109,92,255,.5);background:rgba(109,92,255,.05)}
+  .tags{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
+  .tag{font-size:10.5px;font-weight:700;color:#5b4bd6;background:#eef0ff;border-radius:999px;padding:2px 7px}
+  .acts{display:flex;gap:6px;padding:0 12px 12px;flex-wrap:wrap}
+  .a{display:inline-flex;align-items:center;gap:5px;border:1px solid #e7eaee;background:#fff;color:#475569;border-radius:8px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer}
+  .a.ai{color:#6d5cff;border-color:#d9d3ff}
+  .add{display:flex;align-items:center;justify-content:center;gap:6px;border:1px dashed #2a3346;color:#8b93a4;border-radius:12px;padding:10px;font-size:12px;font-weight:700;margin-bottom:12px;cursor:pointer;background:#0e121b}
+  /* right rail */
+  .rlab{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#8b93a4;margin:2px 0 7px}
+  .fld{margin-bottom:14px}
+  .fld textarea,.fld input,.fld select{width:100%;background:#11151f;border:1px solid #222a3a;border-radius:10px;padding:8px 10px;color:#e7ebf3;font-size:12.5px;outline:none;resize:none}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid #222a3a;background:#12151f;color:#8b93a4;border-radius:999px;padding:5px 10px;font-size:11.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .chip.on{border-color:rgba(109,92,255,.6);background:rgba(109,92,255,.12);color:#c4b5fd}
+  .gen{width:100%;border:0;border-radius:11px;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff;font-size:12.5px;font-weight:800;padding:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:6px}
+  .foot{border-top:1px solid #1c2130;padding:10px 16px;display:flex;align-items:center;gap:12px}
+  .foot .note{font-size:11.5px;color:#8b93a4}
+  .foot .cta{margin-left:auto;border:0;border-radius:11px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-size:12.5px;font-weight:800;padding:9px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  svg{display:block}
+</style></head>
+<body>
+<div class="app">
+  <!-- LEFT: agent chat shell (same as every playground) -->
+  <div class="chat">
+    <h4>◆ Agent</h4>
+    <div class="msgs">
+      <div class="you">Run a 2-week campaign about our spring skincare launch — 3 posts a week to Instagram + Facebook.</div>
+      <div class="bot">On it — I'll draft 6 posts (captions + on-brand images) spread over 2 weeks and drop them on the calendar for you to review. ✨</div>
+      <div class="bot">Done — 6 posts ready. Tweak any caption or image, then approve to schedule. I wrote them into the calendar →</div>
+    </div>
+    <div class="composer"><input placeholder="Ask the agent to add, rewrite, reschedule…"/></div>
+  </div>
+
+  <!-- RIGHT: Campaign Studio canvas -->
+  <div class="canvas">
+    <div class="bar">
+      <span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></span>
+      <div><div class="ttl">Campaign Studio</div><div class="sub">Spring Skincare Launch · branded to your Brand Kit</div></div>
+      <div class="seg"><button class="on">Calendar</button><button>List</button></div>
+      <div class="sp">
+        <button class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg> Regenerate plan</button>
+      </div>
+    </div>
+
+    <div class="body">
+      <!-- flow / calendar of generated posts -->
+      <div class="flow">
+        <div class="cap"><span class="cnt">6 posts</span><span class="desc">over 2 weeks · Instagram + Facebook · casual, upbeat tone</span></div>
+        <div class="accs">
+          <span class="acc"><span class="dot" style="background:linear-gradient(45deg,#f58529,#dd2a7b,#8134af)"></span> @glowbotanica</span>
+          <span class="acc"><span class="dot" style="background:#1877f2"></span> Glow Botanica</span>
+        </div>
+
+        <div class="week">Week 1</div>
+        <div class="cards">
+          <span class="node"></span>
+          <!-- card 1 -->
+          <div class="card">
+            <div class="top"><span class="when">Mon · Apr 8, 9:00 AM</span><span class="pill sch">Scheduled</span>
+              <span class="plats"><span class="pi" style="background:linear-gradient(45deg,#f58529,#dd2a7b,#8134af)">IG</span><span class="pi" style="background:#1877f2">f</span></span></div>
+            <div class="body2">
+              <div class="img"><img src="https://images.unsplash.com/photo-1556228578-8c89e6adf883?w=300&q=60" alt=""/>
+                <div class="imgacts"><button class="mini">✨ Regenerate</button><button class="mini">Replace</button></div></div>
+              <div>
+                <div class="cap2">🌿 Spring is here — and so is your glow. Meet our new botanical serum, made to wake up tired skin. Launching this week!</div>
+                <div class="tags"><span class="tag">#springskincare</span><span class="tag">#glowup</span><span class="tag">#botanical</span></div>
+              </div>
+            </div>
+            <div class="acts"><span class="a ai">✦ Edit with AI</span><span class="a">✎ Edit</span><span class="a">↻ New image</span><span class="a">🕑 Reschedule</span><span class="a">⊘ Remove</span></div>
+          </div>
+          <span class="node" style="margin-top:236px"></span>
+          <!-- card 2 (editing state) -->
+          <div class="card">
+            <div class="top"><span class="when">Wed · Apr 10, 12:30 PM</span><span class="pill sch">Scheduled</span>
+              <span class="plats"><span class="pi" style="background:linear-gradient(45deg,#f58529,#dd2a7b,#8134af)">IG</span></span></div>
+            <div class="body2">
+              <div class="img"><img src="https://images.unsplash.com/photo-1570194065650-d99fb4bbe5f8?w=300&q=60" alt=""/>
+                <div class="imgacts"><button class="mini">✨ Regenerate</button><button class="mini">Replace</button></div></div>
+              <div>
+                <div class="cap2 edit">3 reasons your skin will love the spring serum ⬇️ Lightweight. Fast-absorbing. 100% botanical. Which one sells you?</div>
+                <div class="tags"><span class="tag">#skincaretips</span><span class="tag">#cleanbeauty</span></div>
+              </div>
+            </div>
+            <div class="acts"><span class="a ai">✦ Edit with AI</span><span class="a">✎ Edit</span><span class="a">↻ New image</span><span class="a">🕑 Reschedule</span><span class="a">⊘ Remove</span></div>
+          </div>
+          <span class="node" style="margin-top:236px"></span>
+          <!-- card 3 -->
+          <div class="card">
+            <div class="top"><span class="when">Fri · Apr 12, 5:00 PM</span><span class="pill sch">Scheduled</span>
+              <span class="plats"><span class="pi" style="background:#1877f2">f</span></span></div>
+            <div class="body2">
+              <div class="img"><img src="https://images.unsplash.com/photo-1612817288484-6f916006741a?w=300&q=60" alt=""/>
+                <div class="imgacts"><button class="mini">✨ Regenerate</button><button class="mini">Replace</button></div></div>
+              <div>
+                <div class="cap2">Weekend self-care starts here 💆‍♀️ Tag someone who needs a little glow this weekend. New serum, 15% off launch week.</div>
+                <div class="tags"><span class="tag">#selfcare</span><span class="tag">#weekendvibes</span></div>
+              </div>
+            </div>
+            <div class="acts"><span class="a ai">✦ Edit with AI</span><span class="a">✎ Edit</span><span class="a">↻ New image</span><span class="a">🕑 Reschedule</span><span class="a">⊘ Remove</span></div>
+          </div>
+        </div>
+
+        <div class="week">Week 2</div>
+        <div class="cards">
+          <span class="node"></span>
+          <div class="add">＋ Add a post (agent fills it)</div>
+          <div style="font-size:12px;color:#8b93a4;padding-left:2px">3 more scheduled posts…</div>
+        </div>
+      </div>
+
+      <!-- right rail: campaign brief / settings -->
+      <div class="rail">
+        <div class="rlab">Campaign brief</div>
+        <div class="fld"><textarea rows="3">Spring skincare launch — introduce the new botanical serum, drive launch-week sales with 15% off.</textarea></div>
+        <div class="fld"><div class="rlab">Duration</div><input value="Apr 8 → Apr 21 (2 weeks)"/></div>
+        <div class="fld"><div class="rlab">Cadence</div>
+          <select><option>3 posts / week</option><option>Daily</option><option>5 / week</option><option>Weekly</option></select></div>
+        <div class="fld"><div class="rlab">Post to</div>
+          <div class="chips"><span class="chip on">✓ Instagram</span><span class="chip on">✓ Facebook</span><span class="chip">+ X</span><span class="chip">+ LinkedIn</span></div></div>
+        <div class="fld"><div class="rlab">Tone</div>
+          <div class="chips"><span class="chip on">Casual</span><span class="chip">Professional</span><span class="chip">Playful</span></div></div>
+        <div class="fld"><div class="rlab">Images</div>
+          <div class="chips"><span class="chip on">AI (on-brand)</span><span class="chip">From library</span><span class="chip">Text-only</span></div></div>
+        <button class="gen"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 3v18M3 12h18"/></svg> Regenerate campaign</button>
+        <p style="font-size:11px;color:#8b93a4;line-height:1.5;margin-top:12px">Colours, logo & voice come from your Brand Kit. Editing the brief and hitting Regenerate rebuilds the calendar; single posts stay editable.</p>
+      </div>
+    </div>
+
+    <!-- footer: approve + schedule -->
+    <div class="foot">
+      <span class="note">6 posts · captions + on-brand images ready. Approving schedules them to auto-publish to your connected accounts.</span>
+      <button class="cta"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg> Approve &amp; schedule 6 posts</button>
+    </div>
+  </div>
+</div>
+</body></html>

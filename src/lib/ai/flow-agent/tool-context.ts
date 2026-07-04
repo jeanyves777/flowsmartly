@@ -44,6 +44,7 @@ export type AgentEvent =
   | { type: "task_failed"; taskId: string; error: string }
   | { type: "template_options"; requestId: string; templates: TemplateOptionData[] }
   | { type: "question_options"; requestId: string; question: string; options: QuestionOptionData[]; allowOther?: boolean }
+  | { type: "canvas_update"; patch: Record<string, unknown> }
   | { type: "credits_charged"; amount: number; costKey: CreditCostKey; balanceAfter: number | null }
   | { type: "error"; message: string; recoverable: boolean }
   | { type: "done"; tokensUsed: number; creditsUsed: number; iterations: number };

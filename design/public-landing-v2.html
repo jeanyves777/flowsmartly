@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FlowSmartly — agent-first landing (mockup v2)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.42/dist/lenis.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: { extend: {
+    fontFamily: { sans: ['Inter','sans-serif'], display: ['Sora','Inter','sans-serif'] },
+    colors: { brand: { 300:'#7dd3fc',400:'#38bdf8',500:'#0ea5e9',600:'#0284c7' }, ink:'#020807' },
+  }}
+}
+</script>
+<style>
+  html,body{background:#020807;color:#e7f0f0}
+  *{ -webkit-font-smoothing:antialiased }
+  .font-display{font-family:Sora,Inter,sans-serif}
+  .grad-text{background:linear-gradient(100deg,#38bdf8,#34d399 45%,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .glass{background:rgba(8,16,16,.6);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.08)}
+  .ring-glow{box-shadow:0 0 0 1px rgba(56,189,248,.18),0 30px 80px -20px rgba(56,189,248,.25)}
+  /* aurora */
+  .aurora{position:absolute;inset:-20% -10% auto -10%;height:120%;filter:blur(60px);opacity:.55;pointer-events:none}
+  .blob{position:absolute;border-radius:50%;mix-blend-mode:screen;animation:float 14s ease-in-out infinite}
+  @keyframes float{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(30px,-30px) scale(1.1)}}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+  .caret{display:inline-block;width:2px;height:1.05em;background:#34d399;margin-left:2px;vertical-align:-2px;animation:blink 1s steps(1) infinite}
+  .marquee{display:flex;gap:3rem;animation:scrollx 22s linear infinite;white-space:nowrap}
+  @keyframes scrollx{to{transform:translateX(-50%)}}
+  .reveal{opacity:0;transform:translateY(26px)}
+  .surface-card:hover{transform:translateY(-6px);border-color:rgba(56,189,248,.4)}
+  .surface-card{transition:transform .3s cubic-bezier(.2,.8,.2,1),border-color .3s}
+  @media (prefers-reduced-motion: reduce){ .blob,.marquee{animation:none} .reveal{opacity:1;transform:none} }
+</style>
+</head>
+<body class="font-sans antialiased overflow-x-hidden">
+
+<!-- ============ HEADER ============ -->
+<header id="hdr" class="fixed inset-x-0 top-0 z-50 px-3 pt-3 transition-all duration-300">
+  <div class="mx-auto flex max-w-6xl items-center justify-between rounded-2xl glass px-4 py-3">
+    <div class="flex items-center gap-2 font-display text-lg font-extrabold">
+      <span class="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-violet-400 text-ink">✦</span>
+      Flow<span class="grad-text">Smartly</span>
+    </div>
+    <nav class="hidden items-center gap-1 text-sm font-semibold text-white/70 md:flex">
+      <a class="rounded-lg px-3 py-2 hover:text-white" href="#">Product</a>
+      <a class="rounded-lg px-3 py-2 hover:text-white" href="#surfaces">Surfaces</a>
+      <a class="rounded-lg px-3 py-2 hover:text-white" href="#work">How it works</a>
+      <a class="rounded-lg px-3 py-2 hover:text-white" href="#pricing">Pricing</a>
+    </nav>
+    <div class="flex items-center gap-2">
+      <a class="hidden rounded-xl px-3 py-2 text-sm font-semibold text-white/80 hover:text-white sm:block" href="#">Log in</a>
+      <a class="rounded-xl bg-white px-4 py-2 text-sm font-bold text-ink hover:bg-white/90" href="#">Start free</a>
+    </div>
+  </div>
+</header>
+
+<!-- ============ HERO ============ -->
+<section class="relative isolate overflow-hidden px-4 pb-24 pt-36 sm:pt-44">
+  <div class="aurora">
+    <div class="blob" style="left:8%;top:0;width:520px;height:520px;background:radial-gradient(circle,#0ea5e9,transparent 60%)"></div>
+    <div class="blob" style="right:6%;top:6%;width:560px;height:560px;background:radial-gradient(circle,#7c3aed,transparent 60%);animation-delay:-5s"></div>
+    <div class="blob" style="left:38%;top:14%;width:460px;height:460px;background:radial-gradient(circle,#10b981,transparent 60%);animation-delay:-9s"></div>
+  </div>
+
+  <div class="relative z-10 mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
+    <div data-hero-left>
+      <span class="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80">
+        <span class="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_2px_rgba(52,211,153,.8)]"></span>
+        Your AI marketing team — in one chat
+      </span>
+      <h1 class="mt-5 font-display text-4xl font-extrabold leading-[1.05] sm:text-6xl">
+        One agent runs<br><span class="grad-text">your whole marketing.</span>
+      </h1>
+      <p class="mt-5 max-w-xl text-lg leading-8 text-white/65">
+        Describe the outcome. The agent designs, prints, publishes, advertises, builds your store &amp; site, and chases leads — across every surface. You only pay for the work it does.
+      </p>
+      <form class="mt-7 flex max-w-md flex-col gap-3 sm:flex-row" onsubmit="return false">
+        <input placeholder="Enter your email" class="min-h-14 flex-1 rounded-2xl border border-white/12 bg-white/5 px-4 text-white placeholder:text-white/40 outline-none focus:border-brand-400" />
+        <button class="min-h-14 rounded-2xl bg-gradient-to-r from-brand-400 to-violet-400 px-7 font-bold text-ink hover:opacity-90">Try free →</button>
+      </form>
+      <div class="mt-5 flex flex-wrap gap-4 text-sm text-white/55">
+        <span>✓ No credit card</span><span>✓ Free workspace</span><span>✓ Pay per work, not seats</span>
+      </div>
+    </div>
+
+    <!-- animated agent composer -->
+    <div data-hero-right class="relative">
+      <div class="ring-glow rounded-3xl glass p-4">
+        <div class="flex items-center gap-2 px-1 pb-3 text-xs text-white/50">
+          <span class="h-2.5 w-2.5 rounded-full bg-rose-400/70"></span>
+          <span class="h-2.5 w-2.5 rounded-full bg-amber-400/70"></span>
+          <span class="h-2.5 w-2.5 rounded-full bg-emerald-400/70"></span>
+          <span class="ml-2">FlowSmartly · agent</span>
+        </div>
+        <div class="rounded-2xl bg-black/30 p-4">
+          <div class="flex items-start gap-3">
+            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-violet-400 text-ink">✦</span>
+            <p class="pt-1 text-[15px] text-white/90"><span id="typed"></span><span class="caret"></span></p>
+          </div>
+          <div id="agent-steps" class="mt-4 space-y-2"></div>
+          <div id="agent-cards" class="mt-4 grid grid-cols-3 gap-2"></div>
+        </div>
+        <div class="mt-3 flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2.5">
+          <input class="flex-1 bg-transparent text-sm text-white/80 outline-none" placeholder="Ask FlowSmartly to do something…" />
+          <button class="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-brand-400 to-violet-400 text-ink">↑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROOF MARQUEE ============ -->
+<section class="border-y border-white/8 py-6">
+  <div class="overflow-hidden">
+    <div class="marquee text-white/35 font-display text-xl font-bold">
+      <span>DESIGNS</span><span>•</span><span>PRINT</span><span>•</span><span>SOCIAL POSTS</span><span>•</span><span>ADS</span><span>•</span><span>STOREFRONTS</span><span>•</span><span>WEBSITES</span><span>•</span><span>EMAIL</span><span>•</span><span>SMS</span><span>•</span><span>LEADS</span><span>•</span>
+      <span>DESIGNS</span><span>•</span><span>PRINT</span><span>•</span><span>SOCIAL POSTS</span><span>•</span><span>ADS</span><span>•</span><span>STOREFRONTS</span><span>•</span><span>WEBSITES</span><span>•</span><span>EMAIL</span><span>•</span><span>SMS</span><span>•</span><span>LEADS</span><span>•</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WATCH IT WORK (pinned scrub) ============ -->
+<section id="work" class="relative">
+  <div data-pin class="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-4 py-24">
+    <p class="reveal text-sm font-bold uppercase tracking-[3px] text-brand-300">Watch the agent work</p>
+    <h2 class="reveal mt-3 max-w-3xl font-display text-3xl font-extrabold sm:text-5xl">From a sentence to shipped — while you watch.</h2>
+    <div class="mt-12 grid gap-6 lg:grid-cols-3">
+      <div data-step class="rounded-3xl glass p-6">
+        <span class="grad-text font-display text-5xl font-extrabold">01</span>
+        <h3 class="mt-3 text-xl font-bold text-white">You describe</h3>
+        <p class="mt-2 text-white/60">"Launch my bakery's fall promo." One line in the composer — no tool‑hopping.</p>
+      </div>
+      <div data-step class="rounded-3xl glass p-6">
+        <span class="grad-text font-display text-5xl font-extrabold">02</span>
+        <h3 class="mt-3 text-xl font-bold text-white">The agent does it</h3>
+        <p class="mt-2 text-white/60">It plans, then produces designs, posts, an ad, a flyer, a landing page — operating every surface for you.</p>
+      </div>
+      <div data-step class="rounded-3xl glass p-6">
+        <span class="grad-text font-display text-5xl font-extrabold">03</span>
+        <h3 class="mt-3 text-xl font-bold text-white">You approve &amp; ship</h3>
+        <p class="mt-2 text-white/60">Review, tweak in the live editor, publish. Credits spend only on the work delivered.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SURFACES ============ -->
+<section id="surfaces" class="px-4 py-24">
+  <div class="mx-auto max-w-6xl">
+    <div class="max-w-2xl">
+      <p class="reveal text-sm font-bold uppercase tracking-[3px] text-brand-300">One workspace</p>
+      <h2 class="reveal mt-3 font-display text-3xl font-extrabold sm:text-5xl">Every surface the agent operates.</h2>
+      <p class="reveal mt-4 text-lg text-white/60">No more ten logins. The agent works — and lets you edit — across all of it.</p>
+    </div>
+    <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" id="surface-grid"></div>
+  </div>
+</section>
+
+<!-- ============ OUTCOMES ============ -->
+<section class="px-4 py-20">
+  <div class="mx-auto grid max-w-5xl gap-8 rounded-3xl glass p-10 sm:grid-cols-3">
+    <div><div class="grad-text font-display text-5xl font-extrabold" data-count="9">0</div><p class="mt-2 text-white/60">surfaces, one agent</p></div>
+    <div><div class="grad-text font-display text-5xl font-extrabold" data-count="40" data-suffix="×">0</div><p class="mt-2 text-white/60">faster to ship a campaign</p></div>
+    <div><div class="grad-text font-display text-5xl font-extrabold" data-count="0" data-prefix="$">0</div><p class="mt-2 text-white/60">per seat — pay per work</p></div>
+  </div>
+</section>
+
+<!-- ============ PRICING ============ -->
+<section id="pricing" class="px-4 py-24">
+  <div class="mx-auto max-w-3xl text-center">
+    <h2 class="reveal font-display text-3xl font-extrabold sm:text-5xl">Credits. Not contracts.</h2>
+    <p class="reveal mt-4 text-lg text-white/60">Start free. Top up credits when you want more work done. Every action shows its exact cost before it runs — admins set the prices, nothing is hardcoded.</p>
+    <div class="reveal mt-10 inline-flex flex-col items-center rounded-3xl glass p-8 ring-glow">
+      <span class="text-sm font-semibold text-brand-300">Free workspace</span>
+      <div class="mt-2 font-display text-6xl font-extrabold text-white">$0</div>
+      <p class="mt-2 text-white/55">Then pay only for the credits the agent spends.</p>
+      <a href="#" class="mt-6 rounded-2xl bg-gradient-to-r from-brand-400 to-violet-400 px-8 py-3 font-bold text-ink">Start free</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FINAL CTA ============ -->
+<section class="relative overflow-hidden px-4 py-28">
+  <div class="aurora"><div class="blob" style="left:30%;top:0;width:600px;height:600px;background:radial-gradient(circle,#7c3aed,transparent 60%)"></div></div>
+  <div class="relative mx-auto max-w-3xl text-center">
+    <h2 class="reveal font-display text-4xl font-extrabold sm:text-6xl">Tell the agent what you want.<br><span class="grad-text">It handles the rest.</span></h2>
+    <a href="#" class="reveal mt-8 inline-block rounded-2xl bg-white px-9 py-4 text-lg font-bold text-ink hover:bg-white/90">Start free →</a>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="border-t border-white/8 px-4 py-12 text-sm text-white/45">
+  <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 sm:flex-row">
+    <div class="font-display font-extrabold text-white/80">Flow<span class="grad-text">Smartly</span></div>
+    <p>© 2026 FlowSmartly · One agent, every surface.</p>
+  </div>
+</footer>
+
+<script>
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---- Lenis smooth scroll + GSAP ScrollTrigger sync ---- */
+gsap.registerPlugin(ScrollTrigger);
+if(!reduce && window.Lenis){
+  const lenis = new Lenis({ lerp:.1, smoothWheel:true });
+  lenis.on('scroll', ScrollTrigger.update);
+  gsap.ticker.add((t)=>lenis.raf(t*1000)); gsap.ticker.lagSmoothing(0);
+}
+
+/* ---- header shrink ---- */
+addEventListener('scroll',()=>{ document.getElementById('hdr').classList.toggle('pt-1', scrollY>20); });
+
+/* ---- hero intro ---- */
+gsap.from('[data-hero-left]',{opacity:0,y:30,duration:.8,ease:'power3.out'});
+gsap.from('[data-hero-right]',{opacity:0,y:40,duration:.9,delay:.15,ease:'power3.out'});
+
+/* ---- generic reveals ---- */
+gsap.utils.toArray('.reveal').forEach((el)=>{
+  gsap.to(el,{opacity:1,y:0,duration:.7,ease:'power3.out',scrollTrigger:{trigger:el,start:'top 85%'}});
+});
+
+/* ---- "watch it work" pinned scrub ---- */
+const steps = gsap.utils.toArray('[data-step]');
+gsap.set(steps,{opacity:.25,y:20});
+if(!reduce){
+  const tl = gsap.timeline({scrollTrigger:{trigger:'[data-pin]',start:'top top',end:'+=1400',scrub:.6,pin:true}});
+  steps.forEach((s,i)=>{ tl.to(s,{opacity:1,y:0,duration:1},i*0.9).to(s,{borderColor:'rgba(56,189,248,.45)',duration:.4},'<'); });
+} else { gsap.set(steps,{opacity:1,y:0}); }
+
+/* ---- surfaces grid ---- */
+const surfaces = [
+  ['Create','✎','Designs, graphics & social creatives'],
+  ['Print','🖨','Flyers, cards, posters, products'],
+  ['Publish','📣','Schedule & post across channels'],
+  ['Grow','📈','Ads & campaigns that convert'],
+  ['Sell','🛍','AI storefront & checkout'],
+  ['Web','🌐','Sites & landing pages'],
+  ['Outreach','✉','Email & SMS journeys'],
+  ['Leads','🎯','Capture, score & follow up'],
+  ['Business','⚙','Brand, credits & analytics'],
+];
+document.getElementById('surface-grid').innerHTML = surfaces.map(([t,i,d],n)=>`
+  <div class="surface-card reveal rounded-3xl glass p-6">
+    <div class="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-brand-400/20 to-violet-400/20 text-xl">${i}</div>
+    <h3 class="mt-4 text-lg font-bold text-white">${t}</h3>
+    <p class="mt-1.5 text-sm text-white/55">${d}</p>
+  </div>`).join('');
+gsap.utils.toArray('#surface-grid .reveal').forEach((el,i)=>{
+  gsap.to(el,{opacity:1,y:0,duration:.6,ease:'power3.out',scrollTrigger:{trigger:el,start:'top 88%'}});
+});
+
+/* ---- counters ---- */
+gsap.utils.toArray('[data-count]').forEach((el)=>{
+  const end=+el.dataset.count, pre=el.dataset.prefix||'', suf=el.dataset.suffix||'';
+  ScrollTrigger.create({trigger:el,start:'top 85%',once:true,onEnter:()=>{
+    gsap.to({v:0},{v:end,duration:1.4,ease:'power2.out',onUpdate(){el.textContent=pre+Math.round(this.targets()[0].v)+suf;}});
+  }});
+});
+
+/* ---- hero: typing + agent steps + cards ---- */
+const typeTarget = document.getElementById('typed');
+const phrase = "Launch my bakery's fall promo — designs, a flyer, posts and an ad.";
+let ci=0; (function type(){ if(ci<=phrase.length){ typeTarget.textContent=phrase.slice(0,ci++); setTimeout(type, 28); } else runAgent(); })();
+function runAgent(){
+  const steps=[['Planning the campaign','plan'],['Designing 3 creatives','create'],['Writing 5 posts','publish'],['Building the flyer','print'],['Drafting the ad','grow']];
+  const wrap=document.getElementById('agent-steps');
+  steps.forEach(([label],i)=>setTimeout(()=>{
+    const row=document.createElement('div');
+    row.className='flex items-center gap-2 text-[13px] text-white/70 opacity-0';
+    row.innerHTML=`<span class="grid h-5 w-5 place-items-center rounded-full bg-emerald-400/20 text-emerald-300 text-[11px]">✓</span> ${label}`;
+    wrap.appendChild(row); gsap.to(row,{opacity:1,x:0,duration:.4,ease:'power2.out'});
+  }, i*620));
+  const cards=['from-sky-400/30 to-blue-500/20','from-emerald-400/30 to-teal-500/20','from-violet-400/30 to-fuchsia-500/20'];
+  const grid=document.getElementById('agent-cards');
+  cards.forEach((g,i)=>setTimeout(()=>{
+    const c=document.createElement('div');
+    c.className=`aspect-[3/4] rounded-xl bg-gradient-to-br ${g} border border-white/10 scale-90 opacity-0`;
+    grid.appendChild(c); gsap.to(c,{opacity:1,scale:1,duration:.5,ease:'back.out(1.6)'});
+  }, 3200 + i*260));
+}
+</script>
+</body>
+</html>

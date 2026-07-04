@@ -107,7 +107,7 @@ function buildTools(ctx: { userId: string; research: ResearchData; brand: BrandC
       handler: async (input) => {
         const limit = Math.min(5, Math.max(1, Number(input.limit) || 3));
         const rows = await prisma.pitch.findMany({
-          where: { userId: ctx.userId, status: { in: ["READY", "SENT"] } },
+          where: { userId: ctx.userId, status: { in: ["READY", "SENT"] }, documentType: "pitch" },
           orderBy: { createdAt: "desc" },
           take: 20,
           select: { businessName: true, pitchContent: true, createdAt: true },
@@ -115,8 +115,7 @@ function buildTools(ctx: { userId: string; research: ResearchData; brand: BrandC
         const pitches = rows
           .map((row) => {
             try {
-              const parsed = JSON.parse(row.pitchContent || "{}") as Partial<PitchContent> & { documentType?: string };
-              if (parsed.documentType === "service_proposal") return null;
+              const parsed = JSON.parse(row.pitchContent || "{}") as Partial<PitchContent>;
               return {
                 targetName: row.businessName,
                 createdAt: row.createdAt.toISOString(),

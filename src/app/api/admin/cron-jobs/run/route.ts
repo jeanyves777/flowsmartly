@@ -16,6 +16,7 @@ const ALLOWED_CRON_ENDPOINTS = new Set([
   "/api/cron/listsmartly-autopilot",
   "/api/ecommerce/trial-check",
   "/api/admin/stripe-sync",
+  "/api/sequences/run",
 ]);
 
 export async function POST(request: NextRequest) {

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lead Studio — enrich states</title>
+<style>
+  :root{
+    --bg:#0b0d12; --card:#12151c; --card2:#161a22; --border:#232833; --muted:#8b93a4;
+    --fg:#e7ebf3; --brand:#6366f1; --violet:#8b5cf6; --emerald:#10b981; --amber:#f59e0b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:26px;}
+  h1{font-size:15px;margin:0 0 4px} .sub{color:var(--muted);font-size:12px;margin:0 0 18px}
+  .frame{max-width:1040px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:var(--card)}
+  /* surface header */
+  .shead{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);background:#12151cbb;padding:10px 16px}
+  .ic{display:grid;place-items:center;height:32px;width:32px;border-radius:9px;background:linear-gradient(135deg,#6366f133,#8b5cf626);color:#a5b4fc}
+  .ttl{font-weight:800;font-size:14px;line-height:1.1}.ttl small{display:block;color:var(--muted);font-weight:500;font-size:11.5px}
+  .spacer{margin-left:auto}
+  .btn{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:10px;padding:6px 10px;font-size:12px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+  /* chat busy strip */
+  .busy{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);color:var(--muted);font-size:12px;padding:8px 14px;background:#12151c}
+  .dot{height:6px;width:6px;border-radius:50%;background:var(--emerald);box-shadow:0 0 0 3px #10b98130}
+  .ring{height:13px;width:13px;border-radius:50%;border:2px solid #ffffff22;border-top-color:var(--brand);animation:spin .8s linear infinite;display:inline-block}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  b{color:var(--fg)}
+  .body{padding:16px}
+  .row1{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .count{color:var(--muted);font-size:12px}
+  /* saved banner */
+  .saved{display:flex;flex-wrap:wrap;align-items:center;gap:10px;border:1px solid #10b98166;background:#10b9811a;color:#6ee7b7;border-radius:16px;padding:10px 16px;font-size:12.5px;margin-bottom:14px}
+  .rgrp{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .enrichAll{border:1px solid #10b98180;color:#a7f3d0;background:transparent;border-radius:9px;padding:6px 12px;font-size:11.5px;font-weight:700;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+  .build{border:0;border-radius:9px;padding:6px 12px;font-size:11.5px;font-weight:700;color:#fff;background:linear-gradient(90deg,var(--brand),var(--violet));cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--card2);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+  th{ text-align:left;color:var(--muted);font-weight:500;font-size:11px;border-bottom:1px solid var(--border);padding:10px 16px}
+  td{border-top:1px solid var(--border);padding:10px 16px;vertical-align:middle}
+  tr:hover td{background:#ffffff05}
+  .name{font-weight:700}
+  .mut{color:var(--muted)}
+  .blur{filter:blur(3px);color:var(--muted);user-select:none}
+  .em{display:inline-flex;gap:6px;align-items:center}
+  .check{color:var(--emerald)}
+  .enrich{border:1px solid var(--border);color:#a5b4fc;background:transparent;border-radius:8px;padding:4px 12px;font-size:11.5px;font-weight:700;cursor:pointer}
+  .enriching{display:inline-flex;gap:6px;align-items:center;color:#a5b4fc;font-weight:700;font-size:11.5px}
+  .finding{display:inline-flex;gap:6px;align-items:center;color:var(--muted)}
+  .done{color:var(--emerald);font-size:11.5px;font-weight:600}
+  .ringsm{height:12px;width:12px;border-radius:50%;border:2px solid #ffffff22;border-top-color:var(--brand);animation:spin .8s linear infinite;display:inline-block}
+  /* toast */
+  .toast{position:fixed;right:22px;bottom:22px;width:320px;border:1px solid var(--border);background:#12151c;border-radius:14px;padding:12px 14px;box-shadow:0 18px 40px #000a}
+  .toast b{display:block;margin-bottom:2px}
+  .toast .d{color:var(--muted);font-size:12px}
+  .legend{color:var(--muted);font-size:12px;margin-top:14px}
+  .legend b{color:var(--fg)}
+</style>
+</head>
+<body>
+  <h1>Lead Studio — Find results with enrichment states</h1>
+  <p class="sub">The three fixes in one view: real cost (agent side), <b>Enrich all</b> before Build automation, and loading states + a completion toast. Rows show all states: idle · enriching · enriched.</p>
+
+  <div class="frame">
+    <div class="shead">
+      <span class="ic">🔎</span>
+      <div class="ttl">Lead Studio<small>Find → automate → close</small></div>
+      <div class="spacer"></div>
+      <button class="btn">✕ Exit</button>
+      <button class="btn">▤</button>
+    </div>
+
+    <!-- chat busy strip (left column header) — now reflects real state -->
+    <div class="busy"><span class="ring"></span> Agent · <b>working…</b></div>
+
+    <div class="body">
+      <div class="row1">
+        <button class="btn">🔎 New search</button>
+        <span class="count">25 leads found by the agent</span>
+      </div>
+
+      <div class="saved">
+        ✔ Saved <b>&nbsp;25 leads&nbsp;</b> to “MA Restaurant Owners” in your Library.
+        <div class="rgrp">
+          <button class="enrichAll"><span class="ringsm"></span> Enriching…</button>
+          <button class="build">Build automation →</button>
+        </div>
+      </div>
+
+      <table>
+        <thead><tr><th>Name</th><th>Title</th><th>Company</th><th>Email</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="name">Maria Elena Delgadillo</td><td class="mut">Owner</td><td>Casa Vallarta Mexican Restaurant</td>
+            <td><span class="em">maria@casavallarta.us <span class="check">✔</span></span></td>
+            <td style="text-align:right"><span class="done">Enriched</span></td>
+          </tr>
+          <tr>
+            <td class="name">Jamie Mammano</td><td class="mut">Chef-Owner</td><td>Mooo…</td>
+            <td><span class="finding"><span class="ringsm"></span> finding…</span></td>
+            <td style="text-align:right"><span class="enriching"><span class="ringsm"></span> Enriching…</span></td>
+          </tr>
+          <tr>
+            <td class="name">Peter Platt</td><td class="mut">Chef-Owner</td><td>The Old Inn on the Green</td>
+            <td><span class="finding"><span class="ringsm"></span> finding…</span></td>
+            <td style="text-align:right"><span class="enriching"><span class="ringsm"></span> Enriching…</span></td>
+          </tr>
+          <tr>
+            <td class="name">Tavern in the Square</td><td class="mut">—</td><td>restaurants</td>
+            <td><span class="blur">•••@•••.com</span></td>
+            <td style="text-align:right"><button class="enrich">Enrich</button></td>
+          </tr>
+          <tr>
+            <td class="name">Ma Maison</td><td class="mut">—</td><td>restaurants</td>
+            <td><span class="blur">•••@•••.com</span></td>
+            <td style="text-align:right"><button class="enrich">Enrich</button></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="legend">
+        <b>Enrich all (N)</b> appears only while un-enriched leads remain; it triggers a <b>propose_plan</b> first
+        (one AI_WEB_SEARCH per lead) so the real cost shows before anything runs — no more “0 credits”.
+        While the agent works, the row Email + action show a spinner; on finish the row fills in and a toast confirms.
+      </p>
+    </div>
+  </div>
+
+  <div class="toast">
+    <b>Lead enriched</b>
+    <div class="d">Maria Elena Delgadillo — maria@casavallarta.us saved to their row.</div>
+  </div>
+</body>
+</html>

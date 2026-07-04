@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
@@ -10,8 +9,6 @@ import {
   BarChart3,
   Heart,
   Search,
-  Moon,
-  Sun,
   Plus,
   Command,
   Sparkles,
@@ -57,6 +54,7 @@ import { cn } from "@/lib/utils/cn";
 import { openCreateModal } from "@/components/shared/create-modal";
 import { FeedbackReportModal } from "@/components/feedback/feedback-report-modal";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   isExternalNotificationActionUrl,
   normalizeNotificationActionUrl,
@@ -128,8 +126,6 @@ function getSearchIcon(kind: string, fallback?: LucideIcon) {
 
 export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
   const router = useRouter();
-  const { setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
 
   // Notifications
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -160,7 +156,6 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
   const [showFeedbackReport, setShowFeedbackReport] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     fetchNotificationCount();
     fetchStrategyScore();
     fetchUnreadMessages();
@@ -587,24 +582,8 @@ export function Header({ user, sidebarCollapsed, onMenuToggle }: HeaderProps) {
             <TooltipContent>Report issue</TooltipContent>
           </Tooltip>
 
-          {/* Theme Toggle */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-              >
-                {mounted && resolvedTheme === "dark" ? (
-                  <Sun className="h-5 w-5" />
-                ) : (
-                  <Moon className="h-5 w-5" />
-                )}
-                <span className="sr-only">Toggle theme</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{mounted && resolvedTheme === "dark" ? "Light mode" : "Dark mode"}</TooltipContent>
-          </Tooltip>
+          {/* Theme picker — Light / Grey / Dark */}
+          <ThemeMenu />
 
           {/* Messages */}
           <Tooltip>

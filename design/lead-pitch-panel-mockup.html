@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Email step — pitch PDF panel</title>
+<style>
+  :root{--bg:#0b0d12;--card:#12151c;--card2:#161a22;--border:#232833;--muted:#8b93a4;--fg:#e7ebf3;--brand:#6366f1;--violet:#8b5cf6;--emerald:#10b981}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:26px}
+  h1{font-size:15px;margin:0 0 4px}.sub{color:var(--muted);font-size:12px;margin:0 0 18px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1120px;align-items:start}
+  .cap{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin:0 0 10px;font-weight:700}
+  .card{border:1px solid var(--border);border-radius:16px;background:var(--card)}
+  .hd{display:flex;align-items:center;gap:8px;padding:11px 16px}
+  .chk{display:grid;place-items:center;height:24px;width:24px;border-radius:6px;background:#10b98126;color:var(--emerald)}
+  .hd b{font-size:13px}.hd .mut{color:var(--muted);font-size:11.5px}.chev{margin-left:auto;color:var(--muted)}
+  .bd{border-top:1px solid var(--border);padding:16px}
+  label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin:0 0 5px}
+  input,textarea{width:100%;background:#0e1117;border:1px solid var(--border);border-radius:9px;color:var(--fg);padding:8px 11px;font:inherit;font-size:12.5px;outline:none}
+  textarea{resize:vertical}
+  .mt{margin-top:12px}
+  .save{border:0;border-radius:10px;padding:8px 14px;font-size:12.5px;font-weight:700;color:#fff;background:linear-gradient(90deg,var(--brand),var(--violet));cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+  .ghost{border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:12.5px;font-weight:700;color:var(--fg);background:transparent;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+  .ghost.sm{padding:8px 12px;color:var(--muted)}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+  /* attach CTA */
+  .attach{margin-top:12px;border:1px dashed var(--border);border-radius:12px;padding:12px}
+  .attach .in{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+  .attach b{font-size:12.5px}.attach p{margin:1px 0 0;color:var(--muted);font-size:11.5px}
+  .file{color:var(--brand)}
+  /* attached panel */
+  .pitch{margin-top:12px;border:1px solid var(--border);border-radius:12px}
+  .pitch .ph{display:flex;align-items:center;gap:8px;padding:9px 14px}
+  .pitch .ph b{font-size:12.5px}.pitch .ph .mut{color:var(--muted);font-size:11px}
+  .pb{border-top:1px solid var(--border);padding:14px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .legend{color:var(--muted);font-size:12px;margin-top:16px;max-width:1120px}.legend b{color:var(--fg)}
+  .sp{display:inline-block;height:13px;width:13px;border-radius:50%;border:2px solid #ffffff33;border-top-color:#fff;animation:s .8s linear infinite}
+  .sp.br{border-color:#6366f133;border-top-color:var(--brand)}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style></head>
+<body>
+  <h1>Email step — editable pitch PDF attachment (Build E+)</h1>
+  <p class="sub">Below the agent-written email draft: attach a branded pitch PDF, then see/edit/save/download it right here — collapsible, never dumped in chat.</p>
+
+  <div class="grid">
+    <div>
+      <p class="cap">No pitch yet → generate + attach</p>
+      <div class="card">
+        <div class="hd"><span class="chk">✓</span><b>Draft ready</b><span class="mut">— edit &amp; save; personalizes per lead</span><span class="chev">▾</span></div>
+        <div class="bd">
+          <label>Subject</label><input value="A quick idea for Casa Vallarta's Friday covers"/>
+          <label class="mt">Message</label><textarea rows="4">Hi Maria — I noticed Casa Vallarta's Friday nights fill fast but midweek is quiet. We help restaurants like yours turn that into booked tables…</textarea>
+          <div class="row"><button class="save">Save</button></div>
+          <div class="attach">
+            <div class="in">
+              <span class="file">▤</span>
+              <div style="flex:1;min-width:0"><b>Attach a pitch PDF</b><p>A branded one-pager the agent writes from your Brand Kit — sent with this email.</p></div>
+              <button class="ghost sm"><span class="sp br"></span> Generating…</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <p class="cap">Attached → edit / save / download</p>
+      <div class="card">
+        <div class="hd"><span class="chk">✓</span><b>Draft ready</b><span class="mut">— edit &amp; save</span><span class="chev">▾</span></div>
+        <div class="bd">
+          <label>Subject</label><input value="A quick idea for Casa Vallarta's Friday covers"/>
+          <label class="mt">Message</label><textarea rows="3">Hi Maria — attaching a quick one-pager on how we'd fill your midweek tables…</textarea>
+          <div class="row"><button class="save">Save</button></div>
+          <div class="pitch">
+            <div class="ph"><span class="file">▤</span><b>Pitch PDF attached</b><span class="mut">— edit the attachment, save, or download</span><span class="chev" style="margin-left:auto;color:var(--muted)">▴</span></div>
+            <div class="pb">
+              <label>PDF subject line</label><input value="Filling Casa Vallarta's midweek tables"/>
+              <label class="mt">Headline</label><input value="More covers, less discounting"/>
+              <label class="mt">Opening hook</label><textarea rows="2">Your Friday reviews are stellar — but Tue–Thu is running at ~40% capacity.</textarea>
+              <label class="mt">What you'll do (one per line)</label><textarea rows="3">Launch a midweek "locals" offer to your list
+Automated WhatsApp reminders the day-of
+A booking link that fills your slow shifts</textarea>
+              <div class="two mt">
+                <div><label>Call to action</label><input value="Grab a 15-min slot this week"/></div>
+                <div><label>Closing line</label><input value="Happy to tailor this to your menu."/></div>
+              </div>
+              <div class="row"><button class="save">✓ Save pitch</button><button class="ghost">⤓ Download PDF</button><button class="ghost sm">✦ Regenerate</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="legend"><b>Data:</b> the pitch is a <b>Pitch</b> row (documentType "pitch") created by <b>create_pitch</b>; the agent attaches it via build_sequence_step (stepId + pitchId). The panel hydrates from GET /api/pitch/[id], saves the whole edited <b>pitchContent</b> via PATCH, and downloads via POST …/send&#123;pdfOnly&#125;. pitchId now round-trips through the step autosave (toCfg) so it isn't wiped.</p>
+</body></html>

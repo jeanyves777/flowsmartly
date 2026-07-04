@@ -2,11 +2,12 @@
 
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import Image from "next/image";
-import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square, ThumbsUp, ThumbsDown } from "lucide-react";
+import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square, ThumbsUp, ThumbsDown, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
+import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { createSpeechPlayer, type SpeechPlayer } from "./use-tts";
 import { RichText } from "./rich-text";
+import { useAgentNav } from "./agent-nav-context";
 
 /**
  * Small "Copy" button shown under an assistant text reply so the user can
@@ -385,6 +386,73 @@ function humanizeToolName(name: string): string {
   return name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Friendly, user-facing verbs so the activity strip reads like what the agent is
+// DOING — not the raw tool name / backend logic.
+const ACTIVITY_VERB: Record<string, string> = {
+  web_search: "Searching the web",
+  web_fetch: "Reading a page",
+  find_local_leads: "Finding local businesses",
+  find_leads: "Saving leads",
+  enrich_lead: "Enriching contacts",
+  build_sequence_step: "Writing",
+  create_branded_design: "Designing",
+  generate_image: "Creating an image",
+  edit_image: "Editing the image",
+  generate_video: "Making a video",
+  create_proposal: "Building a proposal",
+  create_pitch: "Writing a pitch",
+  schedule_social_post: "Scheduling",
+  send_email_campaign: "Sending",
+  who_am_i: "Checking your account",
+  list_my_features: "Checking costs",
+  get_brand_identity: "Reading your Brand Kit",
+};
+function activityVerb(name: string): string {
+  const key = name.replace(/_2025\d.*$/, ""); // strip Anthropic server-tool version suffix
+  return ACTIVITY_VERB[key] || ACTIVITY_VERB[name] || humanizeToolName(name);
+}
+
+/**
+ * A single faded, collapsible line that stands in for the agent's raw tool
+ * chips — so the chat shows a calm "working…" process, not the backend logic.
+ * While a step runs it pulses the current action ("Enriching contacts…"); when
+ * done it collapses to a muted "N steps" the user can expand for the detail.
+ * Approvals (plan cards) and questions are separate block types and still show.
+ */
+export function AgentActivity({ calls }: { calls: AgentToolCardData[] }) {
+  const [open, setOpen] = useState(false);
+  if (!calls.length) return null;
+  const running = calls.some((c) => c.status === "running");
+  const failed = calls.some((c) => c.status !== "running" && c.status !== "ok");
+  const lastRunning = [...calls].reverse().find((c) => c.status === "running");
+  const label = running
+    ? `${activityVerb(lastRunning?.name || calls[calls.length - 1].name)}…`
+    : `${calls.length} step${calls.length > 1 ? "s" : ""}${failed ? " · some failed" : ""}`;
+  return (
+    <div className="w-full">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "group inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+          running
+            ? "border-border/50 bg-muted/25 text-muted-foreground"
+            : "border-border/40 bg-transparent text-muted-foreground/60 hover:text-muted-foreground",
+        )}
+        title={open ? "Hide steps" : "Show steps"}
+      >
+        {running ? <AISpinner size={11} /> : <Sparkles className="h-3 w-3 opacity-60" />}
+        <span className={cn(running && "animate-pulse")}>{label}</span>
+        <ChevronDown className={cn("h-3 w-3 opacity-50 transition", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {calls.map((c) => <ToolCallChip key={c.id} call={c} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Plan proposal card — Confirm / Cancel ────────────────────────────
 
 export function PlanProposalCard({
@@ -491,25 +559,63 @@ export function PlanProposalCard({
 
 // ─── Task card — background job status with inline media when done ────
 
+/**
+ * "Open" deep-link for a produced result. Inside agent-home it switches the
+ * focused surface IN PLACE via the AgentNav context (no full-page reload); when
+ * no handler is present (widget/shell) it behaves as a normal link.
+ */
+function OpenLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
+  const nav = useAgentNav();
+  return (
+    <a
+      href={href}
+      onClick={(e) => {
+        // Only intercept plain left-clicks (let ⌘/ctrl-click open a new tab).
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+        if (nav && nav(href)) e.preventDefault();
+      }}
+      className={className}
+    >
+      {children}
+    </a>
+  );
+}
+
 export function TaskCard({ task }: { task: AgentTaskCardData }) {
   const [lightbox, setLightbox] = useState<string | null>(null);
   const kindLabel = humanizeTaskKind(task.kind);
   const isRunning = task.status === "running" || task.status === "pending";
   const isDone = task.status === "completed";
   const isFailed = task.status === "failed" || task.status === "canceled";
+  // Accept absolute OR app-relative media (dev S3 falls back to /uploads/…, so a
+  // strict https-only check would hide the preview and show only an Open link).
   const mediaUrl =
-    typeof task.output?.url === "string" && /^https?:\/\//.test(task.output.url)
-      ? task.output.url
+    typeof task.output?.url === "string" && /^(https?:\/\/|\/)/.test(task.output.url.trim())
+      ? task.output.url.trim()
       : null;
   const isVideo = mediaUrl ? /\.(mp4|webm|mov)(\?|$)/i.test(mediaUrl) : false;
   const isAudio = mediaUrl ? /\.(mp3|wav|m4a|ogg)(\?|$)/i.test(mediaUrl) : false;
   // In-app deep link to the produced result (proposal, pitch, website,
-  // store, etc.) — tools put it on output.link. Lets the user open it.
-  const resultLink =
-    typeof task.output?.link === "string" && task.output.link.startsWith("/") ? task.output.link : null;
+  // store, etc.) — tools put it on output.link. Lets the user open it. Rewrite
+  // any legacy pitch-board links (incl. in OLD saved conversations) to the new
+  // Pitch Studio surface — never send the user to the legacy dashboard.
+  const rawLink = typeof task.output?.link === "string" && task.output.link.startsWith("/") ? task.output.link : null;
+  const resultLink = rawLink
+    ? rawLink.replace(/^\/pitch-board(?:\/[^?]*)?\?pitch=([^&]+).*$/, "/home/pitchstudio?pitch=$1")
+    : null;
+  // A canvas object/background is INSERTED into the open design — show a preview
+  // and an "added" note, never an "Open" link (which would navigate away).
+  const isCanvasObject = task.kind === "canvas_object";
+  const objectUrl = typeof task.output?.url === "string" && task.output.url ? task.output.url : null;
+  const objectIsBg = (task.output as { objectType?: string } | null | undefined)?.objectType === "background";
 
   return (
-    <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+    <div className={cn(
+      "w-full max-w-md rounded-2xl border bg-white dark:bg-gray-900 overflow-hidden transition-shadow",
+      isRunning
+        ? "border-brand-500/40 shadow-[0_0_0_1px_rgba(109,92,255,0.25),0_10px_34px_-8px_rgba(109,92,255,0.4)]"
+        : "border-border shadow-sm",
+    )}>
       <div className="px-3.5 py-2.5 border-b border-border flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           {isRunning ? (
@@ -535,22 +641,26 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
         </span>
       </div>
       {isRunning && (
-        <div className="px-3.5 py-3 space-y-2">
-          <p className="text-xs text-muted-foreground">
-            {task.progressMessage ?? task.summary ?? "Working…"}
-          </p>
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-300"
-              style={{ width: `${Math.min(100, Math.max(6, task.progress ?? 30))}%` }}
-            />
-          </div>
-          <p className="text-[10px] text-muted-foreground/70">
-            You can leave this chat — we&apos;ll notify you when it&apos;s ready.
-          </p>
+        <div className="px-3 py-3">
+          <AIGenerationLoader
+            compact
+            currentStep={task.progressMessage ?? task.summary ?? "Working…"}
+            progress={typeof task.progress === "number" ? task.progress : undefined}
+          />
         </div>
       )}
-      {isDone && mediaUrl && (
+      {isDone && isCanvasObject && objectUrl && (
+        <div className="bg-muted/30">
+          <div className="grid place-items-center bg-[repeating-conic-gradient(#80808022_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] p-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={objectUrl} alt={objectIsBg ? "Generated background" : "Generated element"} className="max-h-44 w-auto rounded-lg object-contain" />
+          </div>
+          <div className="flex items-center gap-1.5 border-t border-border px-3.5 py-2 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+            <Check className="h-3.5 w-3.5" /> {objectIsBg ? "Added as your canvas background" : "Added to your canvas — drag, resize & restyle it"}
+          </div>
+        </div>
+      )}
+      {isDone && mediaUrl && !isCanvasObject && (
         <div className="bg-muted/30">
           {isVideo ? (
             <video src={mediaUrl} controls className="block w-full max-h-[60vh] bg-black" />
@@ -578,7 +688,7 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
               </span>
             </button>
           )}
-          <div className="px-3.5 py-2 flex items-center justify-between">
+          <div className="px-3.5 py-2 flex items-center justify-between gap-2">
             <a
               href={mediaDownloadHref(mediaUrl, `flowsmartly-${task.kind || "design"}`)}
               download
@@ -587,23 +697,33 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
               <Download className="h-3 w-3" />
               Download
             </a>
-            {typeof task.output?.tier === "string" && (
-              <span className="text-[10px] text-muted-foreground capitalize">{task.output.tier} tier</span>
-            )}
+            <div className="flex items-center gap-2">
+              {typeof task.output?.tier === "string" && (
+                <span className="text-[10px] text-muted-foreground capitalize">{task.output.tier} tier</span>
+              )}
+              {resultLink && (
+                <OpenLink
+                  href={resultLink}
+                  className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-sm shadow-blue-500/20 transition-colors"
+                >
+                  Open in studio <ExternalLink className="h-3.5 w-3.5" />
+                </OpenLink>
+              )}
+            </div>
           </div>
         </div>
       )}
-      {isDone && !mediaUrl && (
+      {isDone && !mediaUrl && !(isCanvasObject && objectUrl) && (
         <div className="px-3.5 py-3 flex items-center justify-between gap-2">
           {resultLink ? (
             <>
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Ready</span>
-              <a
+              <OpenLink
                 href={resultLink}
                 className="inline-flex items-center gap-1.5 px-3 h-8 rounded-lg text-xs font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white shadow-sm shadow-blue-500/20 transition-colors"
               >
                 Open <ExternalLink className="h-3.5 w-3.5" />
-              </a>
+              </OpenLink>
             </>
           ) : (
             <span className="text-xs text-muted-foreground">Done.</span>
@@ -849,44 +969,59 @@ export function MessageBlocks({
   const taskMap = new Map((agentTasks ?? []).map((t) => [t.id, t]));
 
   const rows: ReactNode[] = [];
+  // Task cards (a background job's live status) are deferred to the END of the
+  // message so they read as the MOST-CURRENT item — the agent emits task_started
+  // BEFORE its final text, but the running/completed card should sit BELOW the
+  // "…it's generating" message, not above it.
+  const taskRows: ReactNode[] = [];
   let i = 0;
   while (i < blocks.length) {
     const b = blocks[i];
     if (b.type === "text") {
       const text = b.text;
+      // "Interim" narration — text the agent emits right before it runs more
+      // steps ("Now I'll search…"). Render it faded/inline (part of the working
+      // process), not as a prominent result bubble. The FINAL text (nothing more
+      // to run after it) stays a full bubble with copy/speak.
+      const nextIsTool = i + 1 < blocks.length && blocks[i + 1].type === "tool";
       if (text.trim()) {
-        rows.push(
-          <div key={`txt-${i}`} className="flex flex-col items-start gap-1">
-            <div
-              className={cn(
-                "inline-block px-3.5 py-2 rounded-2xl text-sm leading-relaxed break-words max-w-full text-left border",
-                bubbleClassName ?? "bg-white dark:bg-gray-900 border-border text-foreground",
-              )}
-            >
+        if (nextIsTool) {
+          rows.push(
+            <div key={`txt-${i}`} className="px-1 text-[12.5px] italic leading-relaxed text-muted-foreground/70">
               <RichText text={text} />
-            </div>
-            <div className="pl-1 flex items-center gap-3">
-              <CopyTextButton text={text} />
-              <SpeakButton text={text} />
-            </div>
-          </div>,
-        );
+            </div>,
+          );
+        } else {
+          rows.push(
+            <div key={`txt-${i}`} className="flex flex-col items-start gap-1">
+              <div
+                className={cn(
+                  "inline-block px-3.5 py-2 rounded-2xl text-sm leading-relaxed break-words max-w-full text-left border",
+                  bubbleClassName ?? "bg-white dark:bg-gray-900 border-border text-foreground",
+                )}
+              >
+                <RichText text={text} />
+              </div>
+              <div className="pl-1 flex items-center gap-3">
+                <CopyTextButton text={text} />
+                <SpeakButton text={text} />
+              </div>
+            </div>,
+          );
+        }
       }
       i += 1;
     } else if (b.type === "tool") {
-      // Group consecutive tool chips into one wrap row.
-      const chips: React.ReactNode[] = [];
+      // Collapse a run of tool calls into ONE faded, expandable "activity" strip
+      // so the chat shows a calm working process, not the raw backend steps.
+      const calls: AgentToolCardData[] = [];
       while (i < blocks.length && blocks[i].type === "tool") {
         const tc = toolMap.get((blocks[i] as { id: string }).id);
-        if (tc) chips.push(<ToolCallChip key={tc.id} call={tc} />);
+        if (tc) calls.push(tc);
         i += 1;
       }
-      if (chips.length) {
-        rows.push(
-          <div key={`tools-${i}`} className="flex flex-wrap gap-1.5">
-            {chips}
-          </div>,
-        );
+      if (calls.length) {
+        rows.push(<AgentActivity key={`tools-${i}`} calls={calls} />);
       }
     } else if (b.type === "proposal") {
       const p = propMap.get(b.id);
@@ -901,7 +1036,7 @@ export function MessageBlocks({
     } else if (b.type === "task") {
       const t = taskMap.get(b.id);
       if (t) {
-        rows.push(
+        taskRows.push(
           <div key={`task-${i}`} className="flex flex-col items-start">
             <TaskCard task={t} />
           </div>,
@@ -930,6 +1065,9 @@ export function MessageBlocks({
       i += 1;
     }
   }
+
+  // Task cards last — the live/most-current status sits below the message text.
+  rows.push(...taskRows);
 
   return <div className="flex flex-col items-start gap-2">{rows}</div>;
 }

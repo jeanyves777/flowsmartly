@@ -1,0 +1,1922 @@
+"use client";
+
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { Undo2, Redo2, Save, Download, PanelRight, Sparkles, ImagePlus, X, Wand2, Loader2, Palette, Type as TypeIcon, BadgeCheck, Bold, AlignLeft, AlignCenter, AlignRight, Plus, Trash2, GripVertical, Eraser, PaintBucket, Ban, AtSign, Mail, Phone, Globe, MapPin, Instagram, Twitter, Linkedin, Facebook, Youtube, Music2, FolderOpen, Check, FilePlus2, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ZoomIn, ZoomOut, ChevronLeft, Ruler, Square, Circle, Search, Shapes, Minus, RectangleHorizontal, Star, Heart, ArrowRight, Sun, Zap, Crown, Award, ShieldCheck, Gift, ThumbsUp, Flame, Quote, Smile, QrCode, Table2, type LucideIcon } from "lucide-react";
+import QRCode from "qrcode";
+import { FlowLoader } from "@/components/shared/flow-loader";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { cn } from "@/lib/utils/cn";
+import { resolveStyle, DESIGN_STYLES, STYLE_CATEGORIES, type StyleDef, type StyleFrame } from "./design-styles";
+
+/**
+ * The design document — a real in-canvas editor. Everything is DRAGGABLE and
+ * RESIZABLE (corner handle), text is double-click editable in place with a style
+ * toolbar (size / bold / color / align), the user can ADD free text + multiple
+ * photos + a logo, and pick a visual style. The agent mutates the core text via
+ * the `update_canvas` seam (named fields); styles/extra-text/images are user-
+ * managed. "Generate full design" uses this layout + the user's images as the
+ * inspiration reference.
+ */
+export type ElementKey = "eyebrow" | "headline" | "sub" | "cta";
+export interface Pos { x: number; y: number } // fraction 0..1 of the poster
+export interface TextStyle { size?: number; bold?: boolean; color?: string; align?: "left" | "center" | "right"; bg?: string }
+export interface TextLayer { id: string; text: string; x: number; y: number; w?: number; style?: TextStyle }
+export interface ImageLayer { id: string; url: string; x: number; y: number; w: number; kind: "photo" | "logo"; local?: boolean; error?: boolean; file?: File; processing?: boolean; bgError?: string; loadError?: boolean;
+  // Photo PLACEHOLDER: an empty slot the user fills via AI-generate (contextual)
+  // or upload. `label` = what it's for ("Team photo"), `genHint` = a generation
+  // hint, `aspect` = w/h so the slot keeps a fixed footprint before/after fill.
+  placeholder?: boolean; label?: string; genHint?: string; aspect?: number }
+// A colored BLOCK/panel that sits BEHIND the text — the building block of
+// designed backgrounds (accent panels, sidebars, color bands), like a brochure.
+export interface ShapeLayer { id: string; x: number; y: number; w: number; h: number; color: string; radius?: number; opacity?: number;
+  /** Shape kind: solid rectangle (default), ellipse, or a thin line. */
+  shape?: "rect" | "ellipse" | "line";
+  /** When true the block sits IN FRONT of images (default: behind everything). */
+  front?: boolean }
+/** A standalone ICON element (social or popular) the user can drop & restyle. */
+export interface IconLayer { id: string; name: string; x: number; y: number; size: number; color: string }
+/** A QR-code element — generated live from `value` (a URL or text). */
+export interface QrLayer { id: string; x: number; y: number; w: number; value: string; fg?: string; bg?: string }
+/** A simple editable TABLE element (rows × cols of text). First row = header. */
+export interface TableLayer { id: string; x: number; y: number; w: number; rows: string[][]; head?: boolean; color?: string; accent?: string; fontSize?: number }
+export interface BackgroundAdjust { hue?: number; saturation?: number; brightness?: number; contrast?: number; tint?: string; tintOpacity?: number }
+
+// Brand contact details + social handles a user can drop onto the design.
+export type SocialKey = "instagram" | "twitter" | "linkedin" | "facebook" | "youtube" | "tiktok";
+export type ContactType = "email" | "phone" | "website" | "address" | SocialKey;
+export interface ContactLayer { id: string; type: ContactType; value: string; x: number; y: number; style?: TextStyle }
+export interface BrandContact { email?: string; phone?: string; website?: string; address?: string; handles?: Partial<Record<SocialKey, string>> }
+
+// Print-mode extras for the SAME canvas: swap the social size presets for print
+// sizes and overlay bleed / safe-area / fold guides. All optional — when unset
+// the canvas behaves exactly as the social Design Studio. [[new-design-no-legacy]]
+export interface SizePreset { label: string; v: string; hint?: string }
+export interface PrintGuides { bleed?: boolean; safe?: boolean; folds?: number; foldDir?: "v" | "h" }
+
+export interface DesignDoc {
+  eyebrow: string; headline: string; sub: string; cta: string;
+  accent: string; size: string; style?: string;
+  bgAdjust?: BackgroundAdjust;
+  images?: ImageLayer[]; texts?: TextLayer[]; contacts?: ContactLayer[]; shapes?: ShapeLayer[]; icons?: IconLayer[]; qrs?: QrLayer[]; tables?: TableLayer[];
+  imageUrl?: string; bgImageUrl?: string; generating?: boolean; building?: boolean;
+  pos?: Partial<Record<ElementKey, Pos>>;
+  styles?: Partial<Record<ElementKey, TextStyle>>;
+}
+
+const DEFAULT_POS: Record<ElementKey, Pos> = { eyebrow: { x: 0.05, y: 0.05 }, headline: { x: 0.05, y: 0.56 }, sub: { x: 0.05, y: 0.77 }, cta: { x: 0.05, y: 0.88 } };
+const DEFAULT_SIZE: Record<ElementKey, number> = { eyebrow: 9, headline: 27, sub: 12, cta: 11 };
+const DEFAULT_COLOR: Record<ElementKey, string> = { eyebrow: "rgba(255,255,255,0.75)", headline: "#ffffff", sub: "rgba(255,255,255,0.85)", cta: "#06121f" };
+const DEFAULT_BG_ADJUST: Required<BackgroundAdjust> = { hue: 0, saturation: 100, brightness: 100, contrast: 100, tint: "#0ea5e9", tintOpacity: 0 };
+
+// Per-tab autosave key for the in-progress design (shared with agent-home so a
+// "new design" can clear it synchronously and a reload restores the right doc).
+export const DESIGN_DRAFT_KEY = "fs-design-draft";
+// Multi-page: the extra pages of the working design are autosaved under a key
+// scoped by `draftKey` (fs-<draftKey>-pages) so Create & Print never collide.
+
+export const DEFAULT_DESIGN: DesignDoc = {
+  eyebrow: "FLOWSMARTLY · LIMITED TIME",
+  headline: "Summer Sale\nup to 40% off",
+  sub: "Refresh your wardrobe with our brightest drop yet. This week only.",
+  cta: "Shop the sale →",
+  accent: "#0ea5e9",
+  size: "1080×1350",
+  style: "modern",
+};
+
+const ACCENTS = ["#0ea5e9", "#8b5cf6", "#eccb93", "#10b981", "#ef4444"];
+
+// The icon library for the Elements tab — social + popular marks. `name` is the
+// stable key saved on an IconLayer; the component is looked up here for render.
+const ICON_GROUPS: { label: string; icons: { name: string; Icon: LucideIcon }[] }[] = [
+  { label: "Social", icons: [
+    { name: "instagram", Icon: Instagram }, { name: "twitter", Icon: Twitter }, { name: "linkedin", Icon: Linkedin },
+    { name: "facebook", Icon: Facebook }, { name: "youtube", Icon: Youtube }, { name: "tiktok", Icon: Music2 },
+  ] },
+  { label: "Popular", icons: [
+    { name: "star", Icon: Star }, { name: "heart", Icon: Heart }, { name: "check", Icon: Check }, { name: "badge", Icon: BadgeCheck },
+    { name: "arrow", Icon: ArrowRight }, { name: "sparkles", Icon: Sparkles }, { name: "sun", Icon: Sun }, { name: "zap", Icon: Zap },
+    { name: "crown", Icon: Crown }, { name: "award", Icon: Award }, { name: "shield", Icon: ShieldCheck }, { name: "gift", Icon: Gift },
+    { name: "thumb", Icon: ThumbsUp }, { name: "flame", Icon: Flame }, { name: "quote", Icon: Quote }, { name: "smile", Icon: Smile },
+  ] },
+  { label: "Contact", icons: [
+    { name: "phone", Icon: Phone }, { name: "mail", Icon: Mail }, { name: "globe", Icon: Globe }, { name: "pin", Icon: MapPin },
+  ] },
+];
+const ICON_BY_NAME: Record<string, LucideIcon> = Object.fromEntries(ICON_GROUPS.flatMap((g) => g.icons.map((i) => [i.name, i.Icon])));
+
+const CONTACT_TYPES: ContactType[] = ["email", "phone", "website", "address", "instagram", "twitter", "linkedin", "facebook", "youtube", "tiktok"];
+const CONTACT_META: Record<ContactType, { Icon: LucideIcon; label: string; placeholder: string; social?: boolean }> = {
+  email: { Icon: Mail, label: "Email", placeholder: "you@brand.com" },
+  phone: { Icon: Phone, label: "Phone", placeholder: "+1 555 0100" },
+  website: { Icon: Globe, label: "Website", placeholder: "brand.com" },
+  address: { Icon: MapPin, label: "Address", placeholder: "City, State" },
+  instagram: { Icon: Instagram, label: "Instagram", placeholder: "@brand", social: true },
+  twitter: { Icon: Twitter, label: "X (Twitter)", placeholder: "@brand", social: true },
+  linkedin: { Icon: Linkedin, label: "LinkedIn", placeholder: "/company/brand", social: true },
+  facebook: { Icon: Facebook, label: "Facebook", placeholder: "/brand", social: true },
+  youtube: { Icon: Youtube, label: "YouTube", placeholder: "@brand", social: true },
+  tiktok: { Icon: Music2, label: "TikTok", placeholder: "@brand", social: true },
+};
+/** The brand-kit value for a contact type, formatted for display (or "" if unset). */
+function brandContactValue(bc: BrandContact | undefined, t: ContactType): string {
+  if (!bc) return "";
+  if (t === "email") return bc.email || "";
+  if (t === "phone") return bc.phone || "";
+  if (t === "website") return (bc.website || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  if (t === "address") return bc.address || "";
+  const h = bc.handles?.[t] || "";
+  if (!h) return "";
+  return CONTACT_META[t].social && !/^@|^https?:|^\//.test(h) ? `@${h}` : h;
+}
+const TEXT_COLORS = ["#ffffff", "#06121f", "#eccb93", "#0ea5e9", "#ef4444", "#10b981"];
+const SIZES = [{ label: "1:1", v: "1080×1080" }, { label: "4:5", v: "1080×1350" }, { label: "9:16", v: "1080×1920" }, { label: "Ad", v: "1200×628" }];
+const FIELD = "w-full resize-none rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
+
+const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+const posOf = (d: DesignDoc, k: ElementKey): Pos => d.pos?.[k] ?? DEFAULT_POS[k];
+const pct = (p: Pos) => ({ left: `${(p.x * 100).toFixed(2)}%`, top: `${(p.y * 100).toFixed(2)}%` });
+let _seq = 0;
+const newId = (p: string) => `${p}-${Date.now().toString(36)}-${(_seq++).toString(36)}`;
+
+/** The live poster look per selected style — so picking a style changes the canvas instantly. */
+// Theme resolution lives in design-styles.ts (the full library). Kept as a thin
+// alias so existing call sites read the same.
+const posterTheme = resolveStyle;
+
+/** The decorative FRAME overlay for a style (outer + optional inner rule). */
+function FrameOverlay({ frame }: { frame: StyleFrame }) {
+  return (
+    <div className="pointer-events-none absolute z-[5]" style={{ inset: frame.inset ?? 0, border: frame.border, borderRadius: frame.radius ?? 0 }}>
+      {frame.innerBorder && <div className="absolute" style={{ inset: (frame.innerInset ?? 0) - (frame.inset ?? 0), border: frame.innerBorder, borderRadius: Math.max(0, (frame.radius ?? 0) - 2) }} />}
+    </div>
+  );
+}
+
+function bgFilter(adjust?: BackgroundAdjust): string {
+  const a = { ...DEFAULT_BG_ADJUST, ...(adjust || {}) };
+  return `hue-rotate(${a.hue}deg) saturate(${a.saturation}%) brightness(${a.brightness}%) contrast(${a.contrast}%)`;
+}
+
+function BackgroundTint({ adjust }: { adjust?: BackgroundAdjust }) {
+  const a = { ...DEFAULT_BG_ADJUST, ...(adjust || {}) };
+  if (!a.tintOpacity) return null;
+  return <div className="pointer-events-none absolute inset-0" style={{ background: a.tint, opacity: a.tintOpacity / 100, mixBlendMode: "color" }} />;
+}
+
+// A selection points at a core element, a free-text layer, or an image.
+type Sel = { kind: "core"; id: ElementKey } | { kind: "text"; id: string } | { kind: "image"; id: string } | { kind: "contact"; id: string } | { kind: "shape"; id: string } | { kind: "icon"; id: string } | { kind: "qr"; id: string } | { kind: "table"; id: string } | null;
+
+export function designCanvasContext(d: DesignDoc): string {
+  const c = (k: ElementKey) => { const p = posOf(d, k); return `(${Math.round(p.x * 100)}%, ${Math.round(p.y * 100)}%)`; };
+  const st = (k: ElementKey) => { const s = d.styles?.[k]; if (!s) return ""; const bits = [s.color ? `color ${s.color}` : "", s.size ? `${s.size}px` : "", s.bold ? "bold" : "", s.align ? s.align : ""].filter(Boolean); return bits.length ? ` [${bits.join(", ")}]` : ""; };
+  const imgs = (d.images || []).filter((i) => !i.local && i.url && !i.placeholder);
+  const slots = (d.images || []).filter((i) => i.placeholder);
+  const extra = (d.texts || []).map((t) => JSON.stringify(t.text)).filter(Boolean);
+  const contacts = (d.contacts || []).map((c) => `${c.type}: ${c.value}`);
+  return [
+    "A Design Studio canvas is OPEN; the user can drag, resize, edit text in place, restyle text, add text, and drop photos/a logo. It is FULLY EDITABLE — you can restyle it like a designer through update_canvas (text, accent, style theme, per-element position via `pos`, per-element color/size via `styles`) WITHOUT baking a flat image.",
+    d.imageUrl ? "It currently shows a rendered AI design image." : "It currently shows the editable design.",
+    d.bgImageUrl ? "It has a generated background image behind the design — any new text color must read clearly on it." : "",
+    "Current design — this layout IS the inspiration; keep the structure:",
+    `- eyebrow: ${JSON.stringify(d.eyebrow)} at ${c("eyebrow")}${st("eyebrow")}`,
+    `- headline: ${JSON.stringify(d.headline)} at ${c("headline")}${st("headline")}`,
+    `- sub: ${JSON.stringify(d.sub)} at ${c("sub")}${st("sub")}`,
+    `- cta (button): ${JSON.stringify(d.cta)} at ${c("cta")}${st("cta")}`,
+    extra.length ? `- extra text: ${extra.join("; ")}` : "",
+    contacts.length ? `- contact/social: ${contacts.join("; ")}` : "",
+    `- accent: ${d.accent}; style: ${d.style || "modern"}; size: ${d.size}`,
+    d.bgAdjust ? `- background image adjustments: hue=${d.bgAdjust.hue ?? 0}, saturation=${d.bgAdjust.saturation ?? 100}, brightness=${d.bgAdjust.brightness ?? 100}, contrast=${d.bgAdjust.contrast ?? 100}, tint=${d.bgAdjust.tint || "none"} at ${d.bgAdjust.tintOpacity ?? 0}%` : "",
+    `- STYLE LIBRARY (set \`style\` to any of these keys via update_canvas — each has its own background + frame; pick one that fits the brand/message): ${DESIGN_STYLES.map((s) => s.key).join(", ")}.`,
+    imgs.length ? `- ${imgs.length} image(s): ${imgs.map((i) => `${i.kind} ${i.url}`).join("; ")} — preserve them; pass as referenceImageUrls.` : "- no images placed yet.",
+    slots.length ? `- empty PHOTO SLOTS to fill (ids): ${slots.map((i) => `"${i.id}" (${i.label || "photo"}${i.genHint ? ` — ${i.genHint}` : ""})`).join("; ")}. To fill one, generate a fitting PHOTO with add_canvas_object type "photo" passing slotId=<that id> (it drops into that exact slot). If it's unclear what a slot's photo should show, ask the user ONE quick question first.` : "",
+    (d.shapes || []).length ? `- ${(d.shapes || []).length} background BLOCK(s)/panel(s) behind the text — preserve them; they create the designed background.` : "",
+    "BACKGROUND DESIGN: this canvas has colored BLOCKS (`shapes`) that sit BEHIND the text — use them to make a designed, magazine/brochure-style background instead of a plain page (an accent side-panel, a color band behind a heading, a footer bar). Set the whole `shapes` array via update_canvas: each block is { id, x, y, w, h (all 0..1 fractions of the canvas), color (hex), radius? (px), opacity? (0..1) }. Put bold copy on a colored block in a contrasting color. Keep blocks tasteful and on-brand (use the accent / brand colors).",
+    "EDITING RULES:",
+    "• TARGETED change to ONE element ('improve the CTA', 'punchier headline', 'make it gold') → call update_canvas with ONLY that field; never rewrite the others.",
+    "• IMPROVE / REDESIGN / 'make it look better' the WHOLE canvas → do a COORDINATED rebuild in ONE update_canvas patch: rewrite the copy (eyebrow + headline + sub + cta), set accent to one of the user's REAL brand colors, PICK A FITTING `style` KEY FROM THE STYLE LIBRARY above (don't leave it on the default 'modern' unless that genuinely fits — match the vibe: luxury/elegant for premium, editorial/minimal for clean, bold/neon for loud, retro/organic/mesh where it suits; each style brings its own background + frame so this is the biggest visual lever), and use `pos` + `styles` to balance the layout with on-brand, high-contrast text colors that read on that style's background. A redesign that only swaps a word is a failure — change several things together so it visibly looks redesigned. You usually do NOT need add_canvas_object for a background — the chosen style already provides one; only add a generated background image if the user explicitly wants a photo backdrop.",
+    "• Only when the user wants a FLAT rendered image, use create_branded_design (propose_plan first) with this layout as inspiration + the user's images in referenceImageUrls.",
+  ].filter(Boolean).join("\n");
+}
+
+export function applyDesignPatch(d: DesignDoc, patch: Record<string, unknown>): DesignDoc {
+  const next = { ...d };
+  const TEXT_KEYS = new Set(["eyebrow", "headline", "sub", "cta"]);
+  for (const k of ["eyebrow", "headline", "sub", "cta", "accent", "size", "style"] as const) {
+    // Normalize a literal backslash-n into a real line break for text fields.
+    const v = patch[k]; if (typeof v === "string" && v) next[k] = TEXT_KEYS.has(k) ? v.replace(/\\n/g, "\n") : v;
+  }
+  if (typeof patch.imageUrl === "string" && patch.imageUrl) next.imageUrl = patch.imageUrl;
+  if (typeof patch.bgImageUrl === "string" && patch.bgImageUrl) next.bgImageUrl = patch.bgImageUrl;
+  if (typeof patch.generating === "boolean") next.generating = patch.generating;
+  // Append a freshly-generated object (e.g. a laptop) as a new draggable layer.
+  // De-duped by url so applying the same result twice (completed snapshot + a
+  // later completed event) never inserts it twice.
+  if (patch.addImageLayer && typeof patch.addImageLayer === "object") {
+    const a = patch.addImageLayer as Partial<ImageLayer>;
+    if (typeof a.url === "string" && a.url && !(next.images || []).some((i) => i.url === a.url)) {
+      const layer: ImageLayer = { id: newId("img"), url: a.url, x: a.x ?? 0.3, y: a.y ?? 0.34, w: a.w ?? 0.44, kind: a.kind === "logo" ? "logo" : "photo", local: false };
+      next.images = [...(next.images || []), layer];
+    }
+  }
+  // Fill a PHOTO PLACEHOLDER slot in place: the agent generated a photo for the
+  // slot id and we drop the url into that exact layer (keeps its position/size).
+  if (patch.fillImageLayer && typeof patch.fillImageLayer === "object") {
+    const f = patch.fillImageLayer as { id?: string; url?: string };
+    if (typeof f.id === "string" && typeof f.url === "string" && f.url) {
+      next.images = (next.images || []).map((i) => (i.id === f.id ? { ...i, url: f.url as string, placeholder: false, processing: false, error: false, loadError: false, local: false } : i));
+    }
+  }
+  if (patch.pos && typeof patch.pos === "object") next.pos = { ...next.pos, ...(patch.pos as Record<ElementKey, Pos>) };
+  // Per-element text styling (color/size/bold/align) — merged so the agent can
+  // recolor/resize the type to match the redesign without wiping the user's
+  // other element styles. Mirrors `pos`'s merge semantics.
+  if (patch.styles && typeof patch.styles === "object") {
+    const incoming = patch.styles as Partial<Record<ElementKey, TextStyle>>;
+    const merged = { ...next.styles };
+    for (const k of Object.keys(incoming) as ElementKey[]) merged[k] = { ...merged[k], ...incoming[k] };
+    next.styles = merged;
+  }
+  if (Array.isArray(patch.images)) next.images = patch.images as ImageLayer[];
+  if (Array.isArray(patch.texts)) next.texts = patch.texts as TextLayer[];
+  if (Array.isArray(patch.contacts)) next.contacts = patch.contacts as ContactLayer[];
+  if (Array.isArray(patch.shapes)) next.shapes = patch.shapes as ShapeLayer[];
+  if (Array.isArray(patch.icons)) next.icons = patch.icons as IconLayer[];
+  if (Array.isArray(patch.qrs)) next.qrs = patch.qrs as QrLayer[];
+  if (Array.isArray(patch.tables)) next.tables = patch.tables as TableLayer[];
+  if (patch.bgAdjust && typeof patch.bgAdjust === "object") next.bgAdjust = { ...DEFAULT_BG_ADJUST, ...(patch.bgAdjust as Partial<BackgroundAdjust>) };
+  return next;
+}
+
+async function uploadImage(file: File): Promise<string | null> {
+  try {
+    const fd = new FormData(); fd.append("file", file);
+    const r = await fetch("/api/media", { method: "POST", body: fd });
+    const j = await r.json().catch(() => null);
+    return (r.ok && (j?.data?.file?.url || j?.data?.url)) || null;
+  } catch { return null; }
+}
+
+/** A faithful mini-poster preview of any library style (bg + frame + sample). */
+function StylePreview({ def, accent }: { def: StyleDef; accent: string }) {
+  const t = resolveStyle(def.key, accent);
+  const family =
+    def.key === "photorealistic" ? "photo" :
+    def.category.includes("Editorial") || def.category.includes("Mono") || def.category.includes("Corporate") ? "editorial" :
+    def.category.includes("Luxury") || def.category.includes("Dark Premium") ? "luxury" :
+    def.category.includes("Bold") ? "bold" :
+    def.category.includes("Neon") || def.key.includes("grid") || def.key.includes("cyber") ? "cyber" :
+    def.category.includes("Retro") ? "retro" :
+    def.category.includes("Organic") ? "organic" :
+    def.category.includes("Playful") || def.category.includes("Gradient Mesh") ? "mesh" :
+    "modern";
+  const line = (cls: string, width: number, top: number, color = t.subInk) => (
+    <div className={cn("absolute h-[2px] rounded-full", cls)} style={{ top, width, background: color }} />
+  );
+  return (
+    <div className="relative h-[58px] w-full overflow-hidden rounded-md shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]" style={{ background: t.bg }}>
+      {t.bgImage && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={t.bgImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      )}
+      {!t.bgImage && def.key.includes("grid") && <div className="absolute inset-0 opacity-55" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.16) 1px, transparent 1px)", backgroundSize: "14px 14px" }} />}
+      {!t.bgImage && t.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(46px 46px at 80% 78%, ${accent}, transparent 70%)` }} />}
+      {t.frame && (
+        <div className="pointer-events-none absolute" style={{ inset: Math.min(6, (t.frame.inset ?? 0) / 2), border: t.frame.border, borderRadius: t.frame.radius ?? 0 }} />
+      )}
+      {!t.bgImage && family === "photo" && (
+        <>
+          <div className="absolute bottom-0 left-0 top-0 w-[44%] bg-black/28" />
+          <div className="absolute right-2 top-2 h-8 w-8 rounded-full border border-white/35 bg-white/10 shadow-lg" />
+          {line("left-2", 32, 33, t.headInk)}
+          {line("left-2", 22, 40, t.subInk)}
+          <div className="absolute left-2 top-3 text-[10px] font-black leading-none" style={{ color: t.headInk }}>Aa</div>
+        </>
+      )}
+      {!t.bgImage && family === "editorial" && (
+        <>
+          <div className="absolute left-2 top-2 h-10 w-[1px]" style={{ background: t.eyeInk }} />
+          <div className={cn("absolute left-4 top-2 text-[11px] font-black leading-none", t.serif && "font-serif italic")} style={{ color: t.headInk }}>Aa</div>
+          {line("left-4", 54, 27, t.subInk)}
+          {line("left-4", 38, 34, t.subInk)}
+          <div className="absolute bottom-2 right-2 h-3 w-8 border-t" style={{ borderColor: t.eyeInk }} />
+        </>
+      )}
+      {!t.bgImage && family === "luxury" && (
+        <>
+          <div className="absolute left-1/2 top-2 h-2 w-2 -translate-x-1/2 rotate-45" style={{ background: t.eyeInk }} />
+          <div className={cn("absolute left-0 right-0 top-5 text-center text-[12px] font-black leading-none", t.serif && "font-serif italic")} style={{ color: t.headInk }}>Aa</div>
+          <div className="absolute bottom-3 left-1/2 h-[1px] w-14 -translate-x-1/2" style={{ background: t.eyeInk }} />
+          <div className="absolute inset-x-5 bottom-1.5 h-[1px] bg-white/15" />
+        </>
+      )}
+      {!t.bgImage && family === "bold" && (
+        <>
+          <div className="absolute -right-4 -top-3 h-12 w-12 rotate-12" style={{ background: t.eyeInk }} />
+          <div className="absolute bottom-0 left-0 h-4 w-full bg-black/24" />
+          <div className="absolute left-2 top-2 text-[16px] font-black uppercase leading-[.8]" style={{ color: t.headInk }}>Aa</div>
+          {line("left-2", 38, 38, t.headInk)}
+        </>
+      )}
+      {!t.bgImage && family === "cyber" && (
+        <>
+          <div className="absolute left-2 top-2 h-8 w-12 border-l border-t" style={{ borderColor: t.eyeInk }} />
+          <div className="absolute bottom-2 right-2 h-8 w-12 border-b border-r" style={{ borderColor: t.eyeInk }} />
+          <div className="absolute left-3 top-3 text-[11px] font-black leading-none" style={{ color: t.headInk }}>Aa</div>
+          {line("left-3", 28, 39, t.eyeInk)}
+          <div className="absolute right-4 top-5 h-2 w-2 rounded-full" style={{ background: t.eyeInk, boxShadow: `0 0 14px ${accent}` }} />
+        </>
+      )}
+      {!t.bgImage && family === "retro" && (
+        <>
+          <div className="absolute -bottom-8 left-1/2 h-16 w-16 -translate-x-1/2 rounded-full border-[10px] border-white/18" />
+          <div className={cn("absolute left-2 top-2 text-[12px] font-black leading-none", t.serif && "font-serif")} style={{ color: t.headInk }}>Aa</div>
+          <div className="absolute right-2 top-2 h-8 w-5 rounded-full" style={{ background: t.eyeInk }} />
+          {line("left-2", 44, 39, t.subInk)}
+        </>
+      )}
+      {!t.bgImage && family === "organic" && (
+        <>
+          <div className="absolute right-2 top-2 h-8 w-8 rounded-[50%_35%_50%_35%]" style={{ background: t.eyeInk, opacity: .45 }} />
+          <div className="absolute right-7 top-5 h-6 w-7 rounded-[45%_55%_40%_60%] bg-white/18" />
+          <div className={cn("absolute left-2 top-3 text-[12px] font-black leading-none", t.serif && "font-serif")} style={{ color: t.headInk }}>Aa</div>
+          {line("left-2", 34, 38, t.subInk)}
+        </>
+      )}
+      {!t.bgImage && family === "mesh" && (
+        <>
+          <div className="absolute -right-3 top-1 h-10 w-10 rounded-full bg-white/18 blur-[1px]" />
+          <div className="absolute bottom-1 left-2 h-3 w-12 rounded-full bg-white/20" />
+          <div className="absolute left-2 top-2 text-[12px] font-black leading-none" style={{ color: t.headInk }}>Aa</div>
+          {line("left-2", 28, 36, t.eyeInk)}
+          <div className="absolute bottom-2 right-2 text-[7.5px] font-semibold" style={{ color: t.subInk }}>Abc</div>
+        </>
+      )}
+      {!t.bgImage && family === "modern" && (
+        <>
+          <div className="absolute right-2 top-2 h-10 w-8 rounded-md bg-white/14 backdrop-blur" />
+          <div className="absolute left-2 top-2 text-[11px] font-black leading-none" style={{ color: t.headInk }}>Aa</div>
+          {line("left-2", 34, 34, t.subInk)}
+          {line("left-2", 22, 43, t.eyeInk)}
+          <div className="absolute bottom-2 right-2 text-[7.5px] font-semibold" style={{ color: t.subInk }}>Abc</div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** A corner resize grip — reports the cumulative drag delta from where it was grabbed. */
+function ResizeHandle({ onStart, onResize }: { onStart: () => void; onResize: (dx: number, dy: number) => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const start = useRef<{ x: number; y: number } | null>(null);
+  return (
+    <button ref={ref} title="Drag to resize"
+      onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); start.current = { x: e.clientX, y: e.clientY }; onStart(); try { ref.current?.setPointerCapture(e.pointerId); } catch { /* noop */ } }}
+      onPointerMove={(e) => { if (!start.current) return; onResize(e.clientX - start.current.x, e.clientY - start.current.y); }}
+      onPointerUp={(e) => { start.current = null; try { ref.current?.releasePointerCapture(e.pointerId); } catch { /* noop */ } }}
+      className="absolute -bottom-1.5 -right-1.5 z-20 h-3.5 w-3.5 cursor-se-resize rounded-full border-2 border-white bg-brand-500 shadow" />
+  );
+}
+
+/** A positioned, pointer-draggable element. Drag is disabled while editing; selects on grab. */
+function Draggable({ pos, onMove, onSelect, posterRef, disabled, className, style, children }: {
+  pos: Pos; onMove: (p: Pos) => void; onSelect?: () => void; posterRef: React.RefObject<HTMLDivElement | null>;
+  disabled?: boolean; className?: string; style?: CSSProperties; children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Drag only begins after the pointer MOVES past a threshold — so a plain click
+  // or double-click (to edit) is never swallowed by the drag handler.
+  const drag = useRef<{ sx: number; sy: number; ox: number; oy: number; active: boolean } | null>(null);
+  const onMoveRef = useRef(onMove);
+  onMoveRef.current = onMove;
+  // Track the drag on the WINDOW (not the element) so it keeps following the
+  // pointer even when it leaves the small element — fixes the jumpy/sticky drag
+  // and the "keeps moving after release" bug (no reliance on pointer-capture
+  // staying on a tiny target).
+  const win = useRef<{ move: (e: PointerEvent) => void; up: () => void } | null>(null);
+  if (!win.current) {
+    win.current = {
+      move: (e: PointerEvent) => {
+        const d = drag.current; const p = posterRef.current; if (!d || !p) return;
+        if (!d.active) {
+          if (Math.abs(e.clientX - d.sx) < 4 && Math.abs(e.clientY - d.sy) < 4) return;
+          d.active = true;
+        }
+        const r = p.getBoundingClientRect();
+        // Allow elements to bleed PAST the edges (design tools let you crop a photo
+        // off-canvas); the old 0..0.96 clamp trapped everything fully inside.
+        onMoveRef.current({ x: clamp(d.ox + (e.clientX - d.sx) / r.width, -0.6, 1), y: clamp(d.oy + (e.clientY - d.sy) / r.height, -0.6, 1) });
+      },
+      up: () => {
+        drag.current = null;
+        window.removeEventListener("pointermove", win.current!.move);
+        window.removeEventListener("pointerup", win.current!.up);
+        window.removeEventListener("pointercancel", win.current!.up);
+      },
+    };
+  }
+  useEffect(() => () => { const w = win.current; if (w) { window.removeEventListener("pointermove", w.move); window.removeEventListener("pointerup", w.up); window.removeEventListener("pointercancel", w.up); } }, []);
+  const onDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest("button")) return;
+    onSelect?.();
+    if (disabled) return;
+    drag.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y, active: false };
+    const w = win.current!;
+    window.addEventListener("pointermove", w.move);
+    window.addEventListener("pointerup", w.up);
+    window.addEventListener("pointercancel", w.up);
+  };
+  return <div ref={ref} onPointerDown={onDown} className={cn("absolute touch-none select-none", !disabled && "cursor-move", className)} style={{ ...pct(pos), ...style }}>{children}</div>;
+}
+
+/** A selectable, draggable, resizable, double-click-editable styled text element. */
+function CanvasText({ value, style, defaultSize, defaultColor, selected, onSelect, onCommit, onMove, onResize, onAssist, posterRef, pos, busy, ariaLabel, baseClass, maxW, bg }: {
+  value: string; style: TextStyle; defaultSize: number; defaultColor: string; selected: boolean;
+  onSelect: () => void; onCommit: (v: string) => void; onMove: (p: Pos) => void; onResize: (dx: number, dy: number, startSize: number) => void;
+  onAssist?: () => void; posterRef: React.RefObject<HTMLDivElement | null>; pos: Pos; busy?: boolean; ariaLabel: string; baseClass: string; maxW: string; bg?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const txtRef = useRef<HTMLDivElement>(null);
+  const startSize = useRef(0);
+  useEffect(() => { const el = txtRef.current; if (el && !editing && el.innerText !== value) el.innerText = value; }, [value, editing]);
+  const startEdit = () => { setEditing(true); requestAnimationFrame(() => { const el = txtRef.current; if (!el) return; el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s?.removeAllRanges(); s?.addRange(r); }); };
+  const sz = style.size ?? defaultSize;
+  // The WRAPPER owns the sizing: `width: max-content` hugs the content and a
+  // PIXEL `maxW` (computed off the known poster width) caps it — so the outline,
+  // fill and text are always one tight box that reflows as the size changes.
+  // (A percentage maxWidth here resolves ambiguously inside the shrink-to-fit
+  // chain, which is what made the box wider than its content.)
+  const fill = style.bg !== undefined ? style.bg : bg; // "" = explicit no-fill
+  const css: CSSProperties = { fontSize: sz, fontWeight: style.bold ? 800 : undefined, color: style.color ?? defaultColor, textAlign: style.align ?? "left", background: fill || undefined };
+  return (
+    <Draggable pos={pos} onMove={onMove} onSelect={onSelect} posterRef={posterRef} disabled={editing} className={cn("group", selected && "z-10")}>
+      <div className={cn("relative rounded-[5px]", selected && !editing && "outline outline-2 outline-brand-400")} style={{ width: "max-content", maxWidth: maxW }}>
+        <div ref={txtRef} role="textbox" aria-label={ariaLabel} contentEditable={editing} suppressContentEditableWarning onDoubleClick={startEdit}
+          onBlur={(e) => { setEditing(false); const t = e.currentTarget.innerText.replace(/\n{3,}/g, "\n\n").trimEnd(); if (t !== value) onCommit(t); }}
+          className={cn("block w-full whitespace-pre-line rounded-[4px] px-0.5 outline-none transition", baseClass, editing ? "cursor-text ring-2 ring-white/60" : "ring-1 ring-white/0 hover:ring-white/25")} style={css} />
+        {selected && !editing && <ResizeHandle onStart={() => { startSize.current = sz; }} onResize={(dx, dy) => onResize(dx, dy, startSize.current)} />}
+        {onAssist && (
+          <button onClick={onAssist} disabled={busy} title="Improve this with AI (only this element)" className="pointer-events-auto absolute -right-7 top-0 inline-grid h-6 w-6 place-items-center rounded-full bg-black/55 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/75 disabled:opacity-100">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+          </button>
+        )}
+      </div>
+    </Draggable>
+  );
+}
+
+/** A draggable, double-click-editable contact/social chip: icon + value. Reuses
+ * the same selection/toolbar system as text, so it restyles & resizes "as usual". */
+function ContactChip({ item, selected, onSelect, onCommit, onMove, onResize, posterRef, defaultInk }: {
+  item: ContactLayer; selected: boolean; onSelect: () => void; onCommit: (v: string) => void;
+  onMove: (p: Pos) => void; onResize: (dx: number, dy: number, startSize: number) => void;
+  posterRef: React.RefObject<HTMLDivElement | null>; defaultInk: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const txtRef = useRef<HTMLDivElement>(null);
+  const startSize = useRef(0);
+  const { Icon } = CONTACT_META[item.type];
+  const style = item.style ?? {};
+  const sz = style.size ?? 13;
+  const ink = style.color ?? defaultInk;
+  useEffect(() => { const el = txtRef.current; if (el && !editing && el.innerText !== item.value) el.innerText = item.value; }, [item.value, editing]);
+  const startEdit = () => { setEditing(true); requestAnimationFrame(() => { const el = txtRef.current; if (!el) return; el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s?.removeAllRanges(); s?.addRange(r); }); };
+  return (
+    <Draggable pos={{ x: item.x, y: item.y }} onMove={onMove} onSelect={onSelect} posterRef={posterRef} disabled={editing} className={cn("group", selected && "z-10")}>
+      <div className={cn("relative inline-flex items-center gap-1.5 rounded-[6px] px-1 py-0.5", selected && !editing && "outline outline-2 outline-brand-400", !editing && "ring-1 ring-white/0 hover:ring-white/25")} style={{ background: style.bg || undefined }}>
+        <Icon className="shrink-0" style={{ width: Math.round(sz * 1.05), height: Math.round(sz * 1.05), color: ink }} />
+        <div ref={txtRef} role="textbox" aria-label={CONTACT_META[item.type].label} contentEditable={editing} suppressContentEditableWarning onDoubleClick={startEdit}
+          onBlur={(e) => { setEditing(false); const t = e.currentTarget.innerText.replace(/\s+/g, " ").trim(); if (t !== item.value) onCommit(t); }}
+          className={cn("whitespace-nowrap outline-none", editing ? "cursor-text" : "cursor-move")} style={{ fontSize: sz, fontWeight: style.bold ? 700 : 600, color: ink, textAlign: style.align }} />
+        {selected && !editing && <ResizeHandle onStart={() => { startSize.current = sz; }} onResize={(dx, dy) => onResize(dx, dy, startSize.current)} />}
+      </div>
+    </Draggable>
+  );
+}
+
+/** A swatch that opens the OS color picker so any custom color is selectable. */
+function ColorPicker({ value, onChange, className, iconClass }: { value?: string; onChange: (c: string) => void; className?: string; iconClass?: string }) {
+  const safe = value && /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.test(value) ? value : "#0ea5e9";
+  return (
+    <label title="Pick a custom color" className={cn("relative grid cursor-pointer place-items-center overflow-hidden", className)} style={{ background: "conic-gradient(from 0deg,#ef4444,#f59e0b,#22c55e,#0ea5e9,#8b5cf6,#ef4444)" }}>
+      <input type="color" value={safe} onChange={(e) => onChange(e.target.value)} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+      <Plus className={cn("text-white drop-shadow", iconClass)} />
+    </label>
+  );
+}
+
+/** Draggable floating-toolbar shell — a grip lets the user move it out of the way.
+ * Dragging writes the transform straight to the DOM (no per-move re-render, so it
+ * stays smooth) and only commits to React state on release. */
+function FloatingToolbar({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const pos = useRef({ x: 0, y: 0 });
+  const drag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const [committed, setCommitted] = useState({ x: 0, y: 0 });
+  const apply = () => { if (ref.current) ref.current.style.transform = `translate(calc(-50% + ${pos.current.x}px), ${pos.current.y}px)`; };
+  const onDown = (e: React.PointerEvent) => { e.preventDefault(); drag.current = { sx: e.clientX, sy: e.clientY, ox: pos.current.x, oy: pos.current.y }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* noop */ } };
+  const onMove = (e: React.PointerEvent) => { const d = drag.current; if (!d) return; pos.current = { x: d.ox + (e.clientX - d.sx), y: d.oy + (e.clientY - d.sy) }; apply(); };
+  const onUp = (e: React.PointerEvent) => { if (!drag.current) return; drag.current = null; setCommitted({ ...pos.current }); try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ } };
+  return (
+    <div ref={ref} className="absolute left-1/2 top-2 z-30 flex max-w-[94vw] items-center gap-1 rounded-lg bg-zinc-900 px-1 py-1 text-white shadow-2xl ring-1 ring-white/15"
+      style={{ transform: `translate(calc(-50% + ${committed.x}px), ${committed.y}px)` }}>
+      <button title="Drag the toolbar" className="grid h-6 w-5 shrink-0 cursor-grab touch-none place-items-center rounded text-white/45 hover:bg-white/10 hover:text-white/80 active:cursor-grabbing"
+        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      <span className="h-4 w-px shrink-0 bg-white/20" />
+      {children}
+    </div>
+  );
+}
+
+/** Text-style controls (size / bold / color / fill / align / delete) for the floating toolbar. */
+function TextControls({ style, defaultSize, brandColors, defaultBg, onChange, onDelete }: { style: TextStyle; defaultSize: number; brandColors?: string[]; defaultBg?: string; onChange: (p: Partial<TextStyle>) => void; onDelete?: () => void }) {
+  const sz = Math.round(style.size ?? defaultSize);
+  const align = style.align ?? "left";
+  const colors = Array.from(new Set([...(brandColors ?? []), ...TEXT_COLORS])).slice(0, 6);
+  const effBg = style.bg !== undefined ? style.bg : defaultBg; // current fill ("" = none)
+  return (
+    <>
+      <button onClick={() => onChange({ size: clamp(sz - 2, 8, 96) })} className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">A−</button>
+      <span className="min-w-[22px] text-center text-[11px] tabular-nums">{sz}</span>
+      <button onClick={() => onChange({ size: clamp(sz + 2, 8, 96) })} className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">A+</button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onChange({ bold: !style.bold })} className={cn("grid h-6 w-6 place-items-center rounded hover:bg-white/15", style.bold && "bg-white/20")}><Bold className="h-3.5 w-3.5" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      {colors.map((c) => <button key={c} onClick={() => onChange({ color: c })} className={cn("h-4 w-4 rounded-full border", (style.color ?? "") === c ? "border-white" : "border-white/30")} style={{ background: c }} />)}
+      <ColorPicker value={style.color} onChange={(c) => onChange({ color: c })} className="h-4 w-4 rounded-full border border-white/40" iconClass="h-2.5 w-2.5" />
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      {([["left", AlignLeft], ["center", AlignCenter], ["right", AlignRight]] as const).map(([a, Icon]) => <button key={a} onClick={() => onChange({ align: a })} className={cn("grid h-6 w-6 place-items-center rounded hover:bg-white/15", align === a && "bg-white/20")}><Icon className="h-3.5 w-3.5" /></button>)}
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <span title="Fill / background color" className="grid h-6 w-4 place-items-center text-white/60"><PaintBucket className="h-3.5 w-3.5" /></span>
+      <ColorPicker value={effBg || undefined} onChange={(c) => onChange({ bg: c })} className="h-4 w-4 rounded-[4px] border border-white/40" iconClass="h-2.5 w-2.5" />
+      {effBg ? <button onClick={() => onChange({ bg: "" })} title="No fill" className="grid h-6 w-6 place-items-center rounded text-white/70 hover:bg-white/15"><Ban className="h-3.5 w-3.5" /></button> : null}
+      {onDelete && <><span className="mx-0.5 h-4 w-px bg-white/20" /><button onClick={onDelete} title="Delete text" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button></>}
+    </>
+  );
+}
+
+/** Image controls (background removal / delete) for the floating toolbar. */
+type Arrange = "front" | "forward" | "backward" | "back";
+
+function ImageControls({ img, index, count, onArrange, onRemoveBg, onResize, onDelete }: { img: ImageLayer; index: number; count: number; onArrange: (where: Arrange) => void; onRemoveBg: () => void; onResize: (delta: number) => void; onDelete: () => void }) {
+  const isFront = index >= count - 1;
+  const isBack = index <= 0;
+  return (
+    <>
+      {/* Always-visible size buttons — work even when the corner pin is off-canvas. */}
+      <button onClick={() => onResize(-0.08)} title="Smaller" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomOut className="h-3.5 w-3.5" /></button>
+      <button onClick={() => onResize(0.08)} title="Bigger" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomIn className="h-3.5 w-3.5" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={onRemoveBg} disabled={img.processing} title="Remove background (1 credit)" className="inline-flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-2 text-[11.5px] font-semibold hover:bg-white/15 disabled:opacity-70">
+        {img.processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />} {img.processing ? "Removing…" : "Bg Removal"}
+      </button>
+      {/* Arrange — z-order relative to the other objects (only when there's more than one). */}
+      {count > 1 && (
+        <>
+          <span className="mx-0.5 h-4 w-px bg-white/20" />
+          <button onClick={() => onArrange("forward")} disabled={isFront} title="Bring forward" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15 disabled:opacity-40"><ChevronUp className="h-3.5 w-3.5" /></button>
+          <button onClick={() => onArrange("backward")} disabled={isBack} title="Send backward" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15 disabled:opacity-40"><ChevronDown className="h-3.5 w-3.5" /></button>
+          <button onClick={() => onArrange("front")} disabled={isFront} title="Bring to front" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15 disabled:opacity-40"><ChevronsUp className="h-3.5 w-3.5" /></button>
+          <button onClick={() => onArrange("back")} disabled={isBack} title="Send to back" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15 disabled:opacity-40"><ChevronsDown className="h-3.5 w-3.5" /></button>
+        </>
+      )}
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={onDelete} title="Delete image" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
+    </>
+  );
+}
+
+/** Background-block controls (fill / opacity / radius / z-order / delete). */
+function ShapeControls({ shape, count, brandColors, onChange, onArrange, onDelete }: { shape: ShapeLayer; count: number; brandColors?: string[]; onChange: (p: Partial<ShapeLayer>) => void; onArrange: (where: Arrange) => void; onDelete: () => void }) {
+  const colors = Array.from(new Set([...(brandColors ?? []), ...TEXT_COLORS])).slice(0, 6);
+  const op = Math.round((shape.opacity ?? 1) * 100);
+  return (
+    <>
+      {colors.map((c) => <button key={c} onClick={() => onChange({ color: c })} className={cn("h-4 w-4 rounded-full border", (shape.color ?? "") === c ? "border-white" : "border-white/30")} style={{ background: c }} />)}
+      <ColorPicker value={shape.color} onChange={(c) => onChange({ color: c })} className="h-4 w-4 rounded-full border border-white/40" iconClass="h-2.5 w-2.5" />
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onChange({ opacity: clamp((shape.opacity ?? 1) - 0.1, 0.1, 1) })} title="Less opaque" className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">−</button>
+      <span title="Opacity" className="min-w-[30px] text-center text-[10.5px] tabular-nums">{op}%</span>
+      <button onClick={() => onChange({ opacity: clamp((shape.opacity ?? 1) + 0.1, 0.1, 1) })} title="More opaque" className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">+</button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onChange({ radius: Math.max(0, (shape.radius ?? 0) - 4) })} title="Sharper corners" className="grid h-6 w-6 place-items-center rounded hover:bg-white/15"><Square className="h-3.5 w-3.5" /></button>
+      <button onClick={() => onChange({ radius: Math.min(80, (shape.radius ?? 0) + 4) })} title="Rounder corners" className="grid h-6 w-6 place-items-center rounded hover:bg-white/15"><Circle className="h-3.5 w-3.5" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      {/* In front of / behind the images — fixes a block hiding a photo. */}
+      <button onClick={() => onChange({ front: !shape.front })} title={shape.front ? "Send behind images" : "Bring in front of images"} className={cn("grid h-6 w-6 place-items-center rounded hover:bg-white/15", shape.front && "bg-white/20")}>{shape.front ? <ChevronsDown className="h-3.5 w-3.5" /> : <ChevronsUp className="h-3.5 w-3.5" />}</button>
+      {count > 1 && (
+        <>
+          <button onClick={() => onArrange("forward")} title="Bring block forward" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ChevronUp className="h-3.5 w-3.5" /></button>
+          <button onClick={() => onArrange("backward")} title="Send block backward" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ChevronDown className="h-3.5 w-3.5" /></button>
+        </>
+      )}
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={onDelete} title="Delete block" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
+    </>
+  );
+}
+
+/** Icon-element controls (color / size / delete). */
+function IconControls({ icon, brandColors, onChange, onResize, onDelete }: { icon: IconLayer; brandColors?: string[]; onChange: (p: Partial<IconLayer>) => void; onResize: (delta: number) => void; onDelete: () => void }) {
+  const colors = Array.from(new Set([...(brandColors ?? []), ...TEXT_COLORS])).slice(0, 6);
+  return (
+    <>
+      {colors.map((c) => <button key={c} onClick={() => onChange({ color: c })} className={cn("h-4 w-4 rounded-full border", (icon.color ?? "") === c ? "border-white" : "border-white/30")} style={{ background: c }} />)}
+      <ColorPicker value={icon.color} onChange={(c) => onChange({ color: c })} className="h-4 w-4 rounded-full border border-white/40" iconClass="h-2.5 w-2.5" />
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onResize(-8)} title="Smaller" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomOut className="h-3.5 w-3.5" /></button>
+      <button onClick={() => onResize(8)} title="Bigger" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomIn className="h-3.5 w-3.5" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={onDelete} title="Delete icon" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
+    </>
+  );
+}
+
+/** Renders a QR code generated client-side from its value (URL/text). */
+function QrImg({ value, fg, bg }: { value: string; fg?: string; bg?: string }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let alive = true;
+    QRCode.toDataURL(value || "https://flowsmartly.com", { margin: 1, width: 360, color: { dark: fg || "#000000", light: bg || "#ffffff" } })
+      .then((u) => { if (alive) setUrl(u); })
+      .catch(() => { if (alive) setUrl(""); });
+    return () => { alive = false; };
+  }, [value, fg, bg]);
+  if (!url) return <div className="aspect-square w-full rounded-md bg-white/10" />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt="QR code" className="pointer-events-none block w-full rounded-[3px]" />;
+}
+
+/** QR-element controls — edit the URL/text, fg/bg color, size, delete. */
+function QrControls({ qr, onChange, onResize, onDelete }: { qr: QrLayer; onChange: (p: Partial<QrLayer>) => void; onResize: (delta: number) => void; onDelete: () => void }) {
+  return (
+    <>
+      <input value={qr.value} onChange={(e) => onChange({ value: e.target.value })} placeholder="https://…" className="h-6 w-[150px] rounded bg-white/10 px-2 text-[11px] text-white outline-none placeholder:text-white/40" />
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <span title="QR color" className="text-[10px] text-white/60">QR</span>
+      <ColorPicker value={qr.fg} onChange={(c) => onChange({ fg: c })} className="h-4 w-4 rounded-[4px] border border-white/40" iconClass="h-2.5 w-2.5" />
+      <span title="Background" className="text-[10px] text-white/60">Bg</span>
+      <ColorPicker value={qr.bg} onChange={(c) => onChange({ bg: c })} className="h-4 w-4 rounded-[4px] border border-white/40" iconClass="h-2.5 w-2.5" />
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onResize(-0.03)} title="Smaller" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomOut className="h-3.5 w-3.5" /></button>
+      <button onClick={() => onResize(0.03)} title="Bigger" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomIn className="h-3.5 w-3.5" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={onDelete} title="Delete QR" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
+    </>
+  );
+}
+
+/** An editable TABLE element — cells are contentEditable; first row optional header. */
+function TableEl({ table, selected, accent, onEditCell }: { table: TableLayer; selected: boolean; accent: string; onEditCell: (r: number, c: number, v: string) => void }) {
+  const head = table.head !== false;
+  const ink = table.color || "#18181b";
+  const acc = table.accent || accent;
+  const fs = table.fontSize ?? 13;
+  return (
+    <div className={cn("w-full overflow-hidden rounded-[6px] border", selected && "outline outline-2 outline-brand-400")} style={{ borderColor: `${acc}55` }}>
+      <table className="w-full border-collapse" style={{ fontSize: fs }}>
+        <tbody>
+          {table.rows.map((row, r) => (
+            <tr key={r}>
+              {row.map((cell, c) => (
+                <td key={c} className="border px-2 py-1 align-top" style={{ borderColor: `${acc}33`, background: head && r === 0 ? acc : r % 2 ? "rgba(0,0,0,0.03)" : "transparent" }}>
+                  <div role="textbox" contentEditable suppressContentEditableWarning onPointerDown={(e) => e.stopPropagation()}
+                    onBlur={(e) => { const t = e.currentTarget.innerText.replace(/\s+/g, " ").trim(); if (t !== cell) onEditCell(r, c, t); }}
+                    className="min-w-[18px] cursor-text whitespace-pre-wrap outline-none"
+                    style={{ color: head && r === 0 ? "#ffffff" : ink, fontWeight: head && r === 0 ? 700 : 400 }}>
+                    {cell}
+                  </div>
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Table controls — add/remove rows & cols, header toggle, color, size, delete. */
+function TableControls({ table, brandColors, onChange, onAddRow, onAddCol, onDelRow, onDelCol, onResize, onDelete }: { table: TableLayer; brandColors?: string[]; onChange: (p: Partial<TableLayer>) => void; onAddRow: () => void; onAddCol: () => void; onDelRow: () => void; onDelCol: () => void; onResize: (delta: number) => void; onDelete: () => void }) {
+  const colors = Array.from(new Set([...(brandColors ?? []), ...TEXT_COLORS])).slice(0, 5);
+  const fs = table.fontSize ?? 13;
+  return (
+    <>
+      <button onClick={onAddRow} title="Add row" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ChevronDown className="h-3.5 w-3.5" /></button>
+      <button onClick={onDelRow} title="Remove row" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ChevronUp className="h-3.5 w-3.5" /></button>
+      <button onClick={onAddCol} title="Add column" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ChevronsUp className="h-3.5 w-3.5 rotate-90" /></button>
+      <button onClick={onDelCol} title="Remove column" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ChevronsDown className="h-3.5 w-3.5 rotate-90" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onChange({ head: table.head === false })} title="Toggle header row" className={cn("grid h-6 px-1.5 place-items-center rounded text-[10px] font-bold hover:bg-white/15", table.head !== false && "bg-white/20")}>Hdr</button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      {colors.map((c) => <button key={c} onClick={() => onChange({ accent: c })} className={cn("h-4 w-4 rounded-full border", (table.accent ?? "") === c ? "border-white" : "border-white/30")} style={{ background: c }} />)}
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={() => onChange({ fontSize: clamp(fs - 1, 7, 28) })} title="Smaller text" className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">A−</button>
+      <button onClick={() => onChange({ fontSize: clamp(fs + 1, 7, 28) })} title="Bigger text" className="grid h-6 w-6 place-items-center rounded text-[13px] font-bold hover:bg-white/15">A+</button>
+      <button onClick={() => onResize(-0.04)} title="Narrower" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomOut className="h-3.5 w-3.5" /></button>
+      <button onClick={() => onResize(0.04)} title="Wider" className="grid h-6 w-6 place-items-center rounded text-white/90 hover:bg-white/15"><ZoomIn className="h-3.5 w-3.5" /></button>
+      <span className="mx-0.5 h-4 w-px bg-white/20" />
+      <button onClick={onDelete} title="Delete table" className="grid h-6 w-6 place-items-center rounded text-rose-300 hover:bg-rose-500/25"><Trash2 className="h-3.5 w-3.5" /></button>
+    </>
+  );
+}
+
+// A saved design as returned by the library API.
+export interface SavedDesign { id: string; name: string; size: string; style?: string | null; imageUrl?: string | null; updatedAt: string; doc: DesignDoc }
+
+function timeAgo(iso: string): string {
+  const d = new Date(iso).getTime(); if (isNaN(d)) return "";
+  const s = Math.max(0, (Date.now() - d) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  if (s < 604800) return `${Math.floor(s / 86400)}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+/** A faithful, non-interactive replica of a design's poster — every element at
+ * its real position/style — rendered at a fixed reference width so a thumbnail
+ * looks like the actual design (two same-style designs no longer look alike). */
+function DesignPosterStatic({ doc, baseW }: { doc: DesignDoc; baseW: number }) {
+  const [a, b] = (doc?.size || "1080×1350").split(/[×x]/).map(Number);
+  const ratio = a && b ? a / b : 0.8;
+  const baseH = Math.round(baseW / ratio);
+  const theme = posterTheme(doc?.style, doc?.accent || "#0ea5e9");
+  const box: CSSProperties = { width: baseW, height: baseH };
+  if (doc?.imageUrl) {
+    return (
+      <div className="relative overflow-hidden" style={box}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={doc.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      </div>
+    );
+  }
+  const ink = (k: ElementKey) => (k === "eyebrow" ? theme.eyeInk : k === "headline" ? theme.headInk : k === "sub" ? theme.subInk : DEFAULT_COLOR.cta);
+  const bgImage = doc?.bgImageUrl || theme.bgImage;
+  return (
+    <div className="relative overflow-hidden" style={{ ...box, background: theme.bg }}>
+      {bgImage && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={bgImage} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ filter: bgFilter(doc?.bgAdjust) }} />
+      )}
+      {bgImage && <BackgroundTint adjust={doc?.bgAdjust} />}
+      {!bgImage && theme.glow && <div className="absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${doc?.accent || "#0ea5e9"} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
+      {(doc?.shapes || []).filter((s) => !s.front).map((sh) => (
+        <div key={sh.id} className="absolute" style={{ ...pct({ x: sh.x, y: sh.y }), width: `${sh.w * 100}%`, height: `${sh.h * 100}%`, background: sh.color, borderRadius: sh.shape === "ellipse" ? "50%" : sh.radius ?? 0, opacity: sh.opacity ?? 1 }} />
+      ))}
+      {(doc?.images || []).filter((i) => i.url && !i.placeholder).map((img) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img key={img.id} src={img.url} alt="" className="absolute" style={{ ...pct({ x: img.x, y: img.y }), width: `${img.w * 100}%`, ...(img.aspect ? { aspectRatio: String(img.aspect), objectFit: "cover" as const } : {}) }} />
+      ))}
+      {(doc?.shapes || []).filter((s) => s.front).map((sh) => (
+        <div key={sh.id} className="absolute" style={{ ...pct({ x: sh.x, y: sh.y }), width: `${sh.w * 100}%`, height: `${sh.h * 100}%`, background: sh.color, borderRadius: sh.shape === "ellipse" ? "50%" : sh.radius ?? 0, opacity: sh.opacity ?? 1 }} />
+      ))}
+      {(["eyebrow", "headline", "sub", "cta"] as ElementKey[]).map((k) => {
+        const s = doc?.styles?.[k] ?? {};
+        const sz = s.size ?? DEFAULT_SIZE[k];
+        const baseClass = k === "headline" ? "font-extrabold leading-[1.05] tracking-tight" : k === "eyebrow" ? "font-semibold uppercase tracking-[2.5px]" : k === "cta" ? "rounded-full px-3.5 py-2 font-extrabold" : "leading-snug";
+        const fill = k === "cta" ? (s.bg !== undefined ? s.bg : doc?.accent) : s.bg;
+        return (
+          <div key={k} className={cn("absolute whitespace-pre-line", baseClass, theme.serif && k !== "cta" && "font-serif")}
+            style={{ ...pct(posOf(doc, k)), width: "max-content", maxWidth: `${Math.round(baseW * (k === "headline" ? 0.9 : 0.86))}px`, fontSize: sz, fontWeight: s.bold ? 800 : undefined, color: s.color ?? ink(k), textAlign: s.align, background: fill || undefined }}>
+            {doc[k]}
+          </div>
+        );
+      })}
+      {(doc?.texts || []).map((t) => (
+        <div key={t.id} className="absolute whitespace-pre-line font-semibold" style={{ ...pct({ x: t.x, y: t.y }), width: "max-content", maxWidth: `${Math.round(baseW * (t.w ?? 0.6))}px`, fontSize: t.style?.size ?? 16, fontWeight: t.style?.bold ? 800 : 600, color: t.style?.color ?? "#ffffff", textAlign: t.style?.align, background: t.style?.bg || undefined }}>
+          {t.text}
+        </div>
+      ))}
+      {(doc?.contacts || []).map((c) => {
+        const Icon = CONTACT_META[c.type].Icon; const s = c.style ?? {}; const sz = s.size ?? 13; const inkc = s.color ?? theme.subInk;
+        return (
+          <div key={c.id} className="absolute inline-flex items-center gap-1.5 rounded-[6px] px-1 py-0.5" style={{ ...pct({ x: c.x, y: c.y }), background: s.bg || undefined }}>
+            <Icon style={{ width: Math.round(sz * 1.05), height: Math.round(sz * 1.05), color: inkc }} />
+            <span className="whitespace-nowrap" style={{ fontSize: sz, fontWeight: s.bold ? 700 : 600, color: inkc }}>{c.value}</span>
+          </div>
+        );
+      })}
+      {(doc?.icons || []).map((ic) => { const Icon = ICON_BY_NAME[ic.name] || Star; return <div key={ic.id} className="absolute" style={pct({ x: ic.x, y: ic.y })}><Icon style={{ width: ic.size, height: ic.size, color: ic.color }} /></div>; })}
+      {(doc?.qrs || []).map((q) => (
+        <div key={q.id} className="absolute" style={{ ...pct({ x: q.x, y: q.y }), width: `${q.w * 100}%` }}><QrImg value={q.value} fg={q.fg} bg={q.bg} /></div>
+      ))}
+      {(doc?.tables || []).map((t) => {
+        const head = t.head !== false; const acc = t.accent || doc?.accent || "#2563eb"; const ink = t.color || "#18181b"; const fs = t.fontSize ?? 13;
+        return (
+          <div key={t.id} className="absolute overflow-hidden rounded-[6px] border" style={{ ...pct({ x: t.x, y: t.y }), width: `${t.w * 100}%`, borderColor: `${acc}55` }}>
+            <table className="w-full border-collapse" style={{ fontSize: fs }}><tbody>
+              {t.rows.map((row, r) => (
+                <tr key={r}>{row.map((cell, c) => (
+                  <td key={c} className="border px-2 py-1 align-top" style={{ borderColor: `${acc}33`, background: head && r === 0 ? acc : r % 2 ? "rgba(0,0,0,0.03)" : "transparent", color: head && r === 0 ? "#fff" : ink, fontWeight: head && r === 0 ? 700 : 400 }}>{cell}</td>
+                ))}</tr>
+              ))}
+            </tbody></table>
+          </div>
+        );
+      })}
+      {theme.frame && <FrameOverlay frame={theme.frame} />}
+    </div>
+  );
+}
+
+/** Renders the real design poster, measured + scaled to fit (contain) the card. */
+function DesignThumb({ doc }: { doc: DesignDoc }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const [a, b] = (doc?.size || "1080×1350").split(/[×x]/).map(Number);
+  const ratio = a && b ? a / b : 0.8;
+  const BASE_W = 480;
+  const baseH = Math.round(BASE_W / ratio);
+  const scale = size.w && size.h ? Math.min(size.w / BASE_W, size.h / baseH) : 0;
+  return (
+    <div ref={ref} className="relative h-full w-full overflow-hidden bg-muted">
+      {scale > 0 && (
+        <div className="absolute left-1/2 top-1/2" style={{ width: BASE_W, height: baseH, transform: `translate(-50%, -50%) scale(${scale})`, transformOrigin: "center" }}>
+          <DesignPosterStatic doc={doc} baseW={BASE_W} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Multi-page strip — page thumbnails + a "+" to add a page; one design, many pages. */
+function PageStrip({ pages, active, onSelect, onAdd, onDelete }: {
+  pages: DesignDoc[]; active: number; onSelect: (i: number) => void; onAdd: () => void; onDelete: (i: number) => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-t border-border bg-card/40 px-3 py-2">
+      {pages.map((p, i) => (
+        <div key={i} className="group relative shrink-0">
+          <button onClick={() => onSelect(i)} title={`Page ${i + 1}`} className={cn("block h-16 w-12 overflow-hidden rounded-md border-2 bg-muted transition", i === active ? "border-brand-500" : "border-border hover:border-brand-500/50")}>
+            <DesignThumb doc={p} />
+          </button>
+          <span className="pointer-events-none absolute bottom-0.5 left-0.5 rounded bg-black/60 px-1 text-[8.5px] font-bold leading-tight text-white">{i + 1}</span>
+          {pages.length > 1 && (
+            <button onClick={() => onDelete(i)} title="Delete page" className="absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full bg-rose-600 text-white opacity-0 shadow transition group-hover:opacity-100 hover:bg-rose-700"><X className="h-2.5 w-2.5" /></button>
+          )}
+        </div>
+      ))}
+      <button onClick={onAdd} title="Add a page" className="grid h-16 w-12 shrink-0 place-items-center rounded-md border-2 border-dashed border-border text-muted-foreground transition hover:border-brand-500/60 hover:text-brand-500"><Plus className="h-4 w-4" /></button>
+      <span className="ms-1 hidden whitespace-nowrap text-[10.5px] text-muted-foreground sm:inline">{pages.length} {pages.length === 1 ? "page" : "pages"}</span>
+    </div>
+  );
+}
+
+/** The design library overlay — saved canvases the user can reopen and keep working on. */
+function DesignLibrary({ designs, loading, currentId, onClose, onLoad, onDelete, onNew }: {
+  designs: SavedDesign[]; loading: boolean; currentId: string | null;
+  onClose: () => void; onLoad: (id: string) => void; onDelete: (id: string) => void; onNew: () => void;
+}) {
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col bg-background/97 backdrop-blur">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <h3 className="text-[14px] font-bold leading-tight">My designs</h3>
+          <p className="truncate text-[11.5px] text-muted-foreground">Your saved canvases — open one to keep working on it.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button onClick={onNew} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><FilePlus2 className="h-3.5 w-3.5" /> New design</button>
+          <button onClick={onClose} aria-label="Close library" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {loading ? (
+          <div className="grid h-full place-items-center"><FlowLoader size={28} withMark label="Loading your designs…" /></div>
+        ) : designs.length === 0 ? (
+          <div className="grid h-full place-items-center text-center">
+            <div className="max-w-xs"><FolderOpen className="mx-auto h-8 w-8 text-muted-foreground" /><p className="mt-2 text-[13px] font-semibold">No saved designs yet</p><p className="mt-1 text-[12px] text-muted-foreground">Hit <span className="font-semibold text-foreground">Save</span> on a design and it’ll show up here to revisit anytime.</p></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {designs.map((d) => (
+              <div key={d.id} className="group relative overflow-hidden rounded-xl border border-border bg-card transition hover:border-brand-500/60 hover:shadow-lg">
+                <button onClick={() => onLoad(d.id)} className="block w-full text-left">
+                  <div className="aspect-[4/5] w-full overflow-hidden bg-muted"><DesignThumb doc={d.doc} /></div>
+                  <div className="p-2"><div className="truncate text-[12px] font-semibold leading-tight">{d.name}</div><div className="mt-0.5 text-[10.5px] text-muted-foreground">{d.size} · {timeAgo(d.updatedAt)}</div></div>
+                </button>
+                <button onClick={() => onDelete(d.id)} title="Delete design" className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-lg bg-black/55 text-white opacity-0 transition group-hover:opacity-100 hover:bg-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                {currentId === d.id && <span className="absolute left-1.5 top-1.5 rounded bg-brand-500 px-1.5 py-0.5 text-[9px] font-bold text-white shadow">Open</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Non-interactive print guide overlay: dashed trim/bleed edge, safe-area, and
+ * fold lines. Lives inside the poster (which is the trim size); true bleed is
+ * applied at export. Shown only in print mode (when `guides` is provided). */
+function PrintGuideOverlay({ guides }: { guides: PrintGuides }) {
+  const folds = Math.max(0, Math.min(4, guides.folds ?? 0));
+  const horizontal = guides.foldDir === "h"; // table tents fold across the middle
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[6]">
+      {guides.bleed && <div className="absolute inset-0 rounded-[18px] border border-dashed border-rose-400/70" />}
+      {guides.safe && (
+        <div className="absolute inset-[6.5%] border border-dashed border-sky-400/70">
+          <span className="absolute -top-[7px] left-0 -translate-y-full rounded-[3px] bg-sky-400/90 px-1 text-[8px] font-bold leading-tight text-white">SAFE</span>
+        </div>
+      )}
+      {Array.from({ length: folds }).map((_, i) => {
+        const at = ((i + 1) / (folds + 1)) * 100;
+        return horizontal ? (
+          <div key={i} className="absolute inset-x-0 border-t border-dashed border-violet-400/80" style={{ top: `${at}%` }}>
+            <span className="absolute left-1 top-0 -translate-y-1/2 rounded-[3px] bg-violet-400/90 px-1 text-[8px] font-bold leading-tight text-white">FOLD</span>
+          </div>
+        ) : (
+          <div key={i} className="absolute bottom-0 top-0 border-l border-dashed border-violet-400/80" style={{ left: `${at}%` }}>
+            <span className="absolute left-0 top-1 -translate-x-1/2 rounded-[3px] bg-violet-400/90 px-1 text-[8px] font-bold leading-tight text-white">FOLD</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function FocusedDesignStudio({ value, onChange, onSave, onRegenerate, onBuildEditable, onElementAssist, onPlaceholderGenerate, brandColors, brandContact, brandLogo, onSaveBrandLogo, working, pageOpsRef, sizePresets, guides, onBack, formatLabel, draftKey }: {
+  value: DesignDoc; onChange: (d: DesignDoc) => void; onSave?: () => void; onRegenerate?: (details: string) => void; onBuildEditable?: (details: string) => void; onElementAssist?: (el: ElementKey) => void; onPlaceholderGenerate?: (layer: ImageLayer) => void; brandColors?: string[]; brandContact?: BrandContact; brandLogo?: string | null; onSaveBrandLogo?: (url: string) => Promise<boolean>; working?: boolean; pageOpsRef?: { current: { addPage: () => void; goToPage: (i: number) => void } | null };
+  // Print mode (optional): print size presets + bleed/safe/fold guides + a "back
+  // to formats" affordance. Absent → the canvas is the normal social studio.
+  sizePresets?: SizePreset[]; guides?: PrintGuides; onBack?: () => void; formatLabel?: string;
+  // Scope the autosave keys so separate canvases (Create vs Print) never collide.
+  draftKey?: string;
+}) {
+  const pagesKey = `fs-${draftKey ?? "design"}-pages`;
+  const selfDraftKey = `fs-${draftKey ?? "design"}-draft`;
+  // Accent swatches lead with the user's real brand colors, then sensible
+  // fallbacks; the current accent is always present so it stays selected.
+  const accentSwatches = Array.from(new Set([value.accent, ...(brandColors ?? []), ...ACCENTS].filter(Boolean))).slice(0, 8);
+  const [toolsOpen, setToolsOpen] = useState(true);
+  // Print mode: bleed/safe/fold guides on by default; the toolbar toggles them.
+  const [showGuides, setShowGuides] = useState(true);
+  // Style tab search — the library is large, so let the user filter by name/vibe.
+  const [styleQuery, setStyleQuery] = useState("");
+  // "Add from library" — reuse the shared media picker (browse + upload).
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [tab, setTab] = useState<"design" | "style" | "elements" | "contact">("design");
+  // Extra direction for the two AI generate modes (editable rebuild vs flat image).
+  const [genDetails, setGenDetails] = useState("");
+  // Multi-page: `value` is always the ACTIVE page; the other pages live in `pages`.
+  // Switching saves the current edits into the active slot, then loads the target.
+  const [pages, setPages] = useState<DesignDoc[]>([value]);
+  const [active, setActive] = useState(0);
+  const [assistBusy, setAssistBusy] = useState<ElementKey | null>(null);
+  const [sel, setSel] = useState<Sel>(null);
+  // Design library (saved canvases).
+  const [designId, setDesignId] = useState<string | null>(null);
+  const [designName, setDesignName] = useState("Untitled design");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  // Portal the toolbar into the FocusedView shell header (#fv-header-slot) so
+  // there's ONE top bar, not a second full-width toolbar under it.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
+  const [libOpen, setLibOpen] = useState(false);
+  const [libDesigns, setLibDesigns] = useState<SavedDesign[]>([]);
+  const [libLoading, setLibLoading] = useState(false);
+  // After uploading a logo when the brand has none yet, offer to save it.
+  const [logoSavePrompt, setLogoSavePrompt] = useState<{ url: string } | null>(null);
+  const [logoSaving, setLogoSaving] = useState(false);
+  const logoRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+  const posterRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  // Zoom: `fitZoom` keeps the design fitting the canvas width by default; the user
+  // can override with the +/- controls (`manualZoom`); "Fit" resets to auto.
+  const [manualZoom, setManualZoom] = useState<number | null>(null);
+  const [fitZoom, setFitZoom] = useState(1);
+  const imagesRef = useRef<ImageLayer[]>(value.images || []);
+  const textsRef = useRef<TextLayer[]>(value.texts || []);
+  const contactsRef = useRef<ContactLayer[]>(value.contacts || []);
+  const shapesRef = useRef<ShapeLayer[]>(value.shapes || []);
+  const iconsRef = useRef<IconLayer[]>(value.icons || []);
+  const qrsRef = useRef<QrLayer[]>(value.qrs || []);
+  const tablesRef = useRef<TableLayer[]>(value.tables || []);
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  useEffect(() => { imagesRef.current = value.images || []; }, [value.images]);
+  useEffect(() => { textsRef.current = value.texts || []; }, [value.texts]);
+  useEffect(() => { contactsRef.current = value.contacts || []; }, [value.contacts]);
+  useEffect(() => { shapesRef.current = value.shapes || []; }, [value.shapes]);
+  useEffect(() => { iconsRef.current = value.icons || []; }, [value.icons]);
+  useEffect(() => { qrsRef.current = value.qrs || []; }, [value.qrs]);
+  useEffect(() => { tablesRef.current = value.tables || []; }, [value.tables]);
+  // Nudge the selected element with the keyboard arrows (Shift = bigger step).
+  // Ignored while typing in an input / editing text in place.
+  useEffect(() => {
+    if (!sel) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.key.startsWith("Arrow")) return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
+      const step = e.shiftKey ? 0.04 : 0.008;
+      const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+      const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+      if (!dx && !dy) return;
+      e.preventDefault();
+      const v = valueRef.current;
+      const nx = (x: number) => clamp(x + dx, 0, 0.96);
+      const ny = (y: number) => clamp(y + dy, 0, 0.96);
+      if (sel.kind === "core") { const p = v.pos?.[sel.id] ?? DEFAULT_POS[sel.id]; onChange({ ...v, pos: { ...v.pos, [sel.id]: { x: nx(p.x), y: ny(p.y) } } }); }
+      else if (sel.kind === "text") onChange({ ...v, texts: (v.texts || []).map((t) => (t.id === sel.id ? { ...t, x: nx(t.x), y: ny(t.y) } : t)) });
+      else if (sel.kind === "contact") onChange({ ...v, contacts: (v.contacts || []).map((c) => (c.id === sel.id ? { ...c, x: nx(c.x), y: ny(c.y) } : c)) });
+      else if (sel.kind === "image") onChange({ ...v, images: (v.images || []).map((i) => (i.id === sel.id ? { ...i, x: nx(i.x), y: ny(i.y) } : i)) });
+      else if (sel.kind === "shape") onChange({ ...v, shapes: (v.shapes || []).map((sp) => (sp.id === sel.id ? { ...sp, x: nx(sp.x), y: ny(sp.y) } : sp)) });
+      else if (sel.kind === "icon") onChange({ ...v, icons: (v.icons || []).map((ic) => (ic.id === sel.id ? { ...ic, x: nx(ic.x), y: ny(ic.y) } : ic)) });
+      else if (sel.kind === "qr") onChange({ ...v, qrs: (v.qrs || []).map((q) => (q.id === sel.id ? { ...q, x: nx(q.x), y: ny(q.y) } : q)) });
+      else if (sel.kind === "table") onChange({ ...v, tables: (v.tables || []).map((t) => (t.id === sel.id ? { ...t, x: nx(t.x), y: ny(t.y) } : t)) });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sel, onChange]);
+  // On small screens the controls are a slide-over drawer — start it closed so it
+  // doesn't cover the canvas on load (it's open by default on desktop).
+  useEffect(() => { if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) setToolsOpen(false); }, []);
+  // Keep the per-element ✨ spinner up until the agent turn actually finishes —
+  // clear it only when the agent stops working (not on an arbitrary timer).
+  useEffect(() => { if (working === false) setAssistBusy(null); }, [working]);
+
+  const [w] = value.size.split("×").map(Number);
+  const ratio = (() => { const [a, b] = value.size.split("×").map(Number); return a && b ? a / b : 1; })();
+  const baseW = ratio >= 1 ? 480 : 410;
+  const height = Math.round(baseW / ratio);
+  const theme = posterTheme(value.style, value.accent);
+  const canvasBgImage = value.bgImageUrl || theme.bgImage;
+  void w;
+
+  // Keep the design fitting the canvas unless the user has zoomed manually. In
+  // PRINT mode the page should FILL the stage (fit to width AND height, and scale
+  // up past 100%) so a flyer/brochure isn't a tiny rectangle in the middle; the
+  // social studio keeps its width-only, never-upscale behavior.
+  const printMode = !!sizePresets;
+  useEffect(() => {
+    const el = canvasRef.current; if (!el) return;
+    const measure = () => {
+      const availW = el.clientWidth - 48;
+      if (printMode) {
+        const availH = el.clientHeight - 56;
+        const fit = Math.min(availW / baseW, availH / height);
+        setFitZoom(Math.max(0.3, Math.min(2.6, fit)));
+      } else {
+        setFitZoom(Math.max(0.2, Math.min(1, availW / baseW)));
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure); ro.observe(el);
+    return () => ro.disconnect();
+  }, [baseW, height, printMode]);
+  const zoom = manualZoom ?? fitZoom;
+  const zoomBy = (d: number) => setManualZoom((z) => Math.max(0.25, Math.min(3, Number((((z ?? fitZoom) + d)).toFixed(2)))));
+
+  const set = (patch: Partial<DesignDoc>) => onChange({ ...value, ...patch });
+  const bgAdjust = { ...DEFAULT_BG_ADJUST, ...(value.bgAdjust || {}) };
+  const setBgAdjust = (patch: Partial<BackgroundAdjust>) => set({ bgAdjust: { ...bgAdjust, ...patch } });
+  const move = (k: ElementKey, p: Pos) => onChange({ ...value, pos: { ...value.pos, [k]: p } });
+  const setImages = (imgs: ImageLayer[]) => onChange({ ...value, images: imgs });
+  const setTexts = (t: TextLayer[]) => onChange({ ...value, texts: t });
+  const setContacts = (c: ContactLayer[]) => onChange({ ...value, contacts: c });
+  const setShapes = (s: ShapeLayer[]) => onChange({ ...value, shapes: s });
+  const patchShape = (id: string, patch: Partial<ShapeLayer>) => setShapes(shapesRef.current.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  const removeShape = (id: string) => { setShapes(shapesRef.current.filter((s) => s.id !== id)); setSel((p) => (p?.kind === "shape" && p.id === id ? null : p)); };
+  const addShape = () => addShapeKind("rect", { w: 0.32, h: 0.5, radius: 12 });
+  // Add a shape of a given kind (Elements tab) — rect / rounded / ellipse / pill / line.
+  const addShapeKind = (shape: "rect" | "ellipse" | "line", o: { w: number; h: number; radius?: number } = { w: 0.3, h: 0.2 }) => {
+    const id = newId("shape");
+    onChange({ ...value, shapes: [...shapesRef.current, { id, x: 0.3, y: 0.34, w: o.w, h: o.h, color: value.accent, radius: o.radius ?? 0, opacity: 1, shape, front: true }] });
+    setSel({ kind: "shape", id });
+  };
+  // ── Icon elements (Elements tab) ──
+  const setIcons = (ic: IconLayer[]) => onChange({ ...value, icons: ic });
+  const patchIcon = (id: string, patch: Partial<IconLayer>) => setIcons(iconsRef.current.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+  const removeIcon = (id: string) => { setIcons(iconsRef.current.filter((i) => i.id !== id)); setSel((p) => (p?.kind === "icon" && p.id === id ? null : p)); };
+  const addIcon = (name: string) => { const id = newId("icon"); onChange({ ...value, icons: [...iconsRef.current, { id, name, x: 0.4, y: 0.42, size: 64, color: value.accent }] }); setSel({ kind: "icon", id }); };
+  const resizeIcon = (id: string, dx: number, dy: number, startSize: number) => patchIcon(id, { size: clamp(startSize + (dx + dy) / 2 * 0.6, 12, 480) });
+  // ── QR elements ──
+  const setQrs = (q: QrLayer[]) => onChange({ ...value, qrs: q });
+  const patchQr = (id: string, patch: Partial<QrLayer>) => setQrs(qrsRef.current.map((q) => (q.id === id ? { ...q, ...patch } : q)));
+  const removeQr = (id: string) => { setQrs(qrsRef.current.filter((q) => q.id !== id)); setSel((p) => (p?.kind === "qr" && p.id === id ? null : p)); };
+  const addQr = () => { const id = newId("qr"); const url = brandContactValue(brandContact, "website") || "flowsmartly.com"; onChange({ ...value, qrs: [...qrsRef.current, { id, x: 0.7, y: 0.7, w: 0.18, value: url.startsWith("http") ? url : `https://${url}` }] }); setSel({ kind: "qr", id }); };
+  const resizeQr = (id: string, dx: number, startW: number) => { const pw = posterRef.current?.getBoundingClientRect().width || baseW; patchQr(id, { w: clamp(startW + dx / pw, 0.06, 0.7) }); };
+  // ── Table elements ──
+  const setTables = (t: TableLayer[]) => onChange({ ...value, tables: t });
+  const patchTable = (id: string, patch: Partial<TableLayer>) => setTables(tablesRef.current.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const removeTable = (id: string) => { setTables(tablesRef.current.filter((t) => t.id !== id)); setSel((p) => (p?.kind === "table" && p.id === id ? null : p)); };
+  const addTable = () => { const id = newId("tbl"); const rows = [["Item", "Price"], ["Service A", "$25"], ["Service B", "$40"]]; onChange({ ...value, tables: [...tablesRef.current, { id, x: 0.1, y: 0.4, w: 0.5, rows, head: true, accent: value.accent }] }); setSel({ kind: "table", id }); };
+  const editCell = (id: string, r: number, c: number, v: string) => patchTable(id, { rows: (tablesRef.current.find((t) => t.id === id)?.rows ?? []).map((row, ri) => (ri === r ? row.map((cell, ci) => (ci === c ? v : cell)) : row)) });
+  const addTableRow = (id: string) => { const t = tablesRef.current.find((x) => x.id === id); if (!t) return; patchTable(id, { rows: [...t.rows, t.rows[0].map(() => "")] }); };
+  const delTableRow = (id: string) => { const t = tablesRef.current.find((x) => x.id === id); if (!t || t.rows.length <= 1) return; patchTable(id, { rows: t.rows.slice(0, -1) }); };
+  const addTableCol = (id: string) => { const t = tablesRef.current.find((x) => x.id === id); if (!t) return; patchTable(id, { rows: t.rows.map((row) => [...row, ""]) }); };
+  const delTableCol = (id: string) => { const t = tablesRef.current.find((x) => x.id === id); if (!t || (t.rows[0]?.length ?? 0) <= 1) return; patchTable(id, { rows: t.rows.map((row) => row.slice(0, -1)) }); };
+  const resizeTable = (id: string, dx: number, startW: number) => { const pw = posterRef.current?.getBoundingClientRect().width || baseW; patchTable(id, { w: clamp(startW + dx / pw, 0.12, 1) }); };
+  // Resize a block by the px-delta (both dimensions) relative to the poster size.
+  const resizeShape = (id: string, dx: number, dy: number, startW: number, startH: number) => {
+    const r = posterRef.current?.getBoundingClientRect();
+    patchShape(id, { w: clamp(startW + dx / (r?.width || baseW), 0.04, 1), h: clamp(startH + dy / (r?.height || height), 0.03, 1) });
+  };
+  const patchImage = (id: string, patch: Partial<ImageLayer>) => setImages(imagesRef.current.map((i) => (i.id === id ? { ...i, ...patch } : i)));
+  const patchText = (id: string, patch: Partial<TextLayer>) => setTexts(textsRef.current.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const patchContact = (id: string, patch: Partial<ContactLayer>) => setContacts(contactsRef.current.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  const removeImage = (id: string) => { setImages(imagesRef.current.filter((i) => i.id !== id)); setSel((s) => (s?.kind === "image" && s.id === id ? null : s)); };
+  // Restack an image in the z-order — images render in array order (later = on top).
+  const arrangeImage = (id: string, where: Arrange) => {
+    const arr = imagesRef.current;
+    const i = arr.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    const next = arr.slice();
+    const [item] = next.splice(i, 1);
+    const j = where === "back" ? 0 : where === "front" ? next.length : where === "backward" ? Math.max(0, i - 1) : Math.min(next.length, i + 1);
+    next.splice(j, 0, item);
+    setImages(next);
+  };
+  // Restack a BLOCK among the other blocks (same array-order z-rule as images).
+  const arrangeShape = (id: string, where: Arrange) => {
+    const arr = shapesRef.current;
+    const i = arr.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    const next = arr.slice();
+    const [item] = next.splice(i, 1);
+    const j = where === "back" ? 0 : where === "front" ? next.length : where === "backward" ? Math.max(0, i - 1) : Math.min(next.length, i + 1);
+    next.splice(j, 0, item);
+    setShapes(next);
+  };
+
+  // ── Undo / Redo ───────────────────────────────────────────────────────
+  // History of design snapshots. Rapid successive edits (a drag) coalesce into
+  // ONE step so undo doesn't crawl pixel-by-pixel. Tracks the parent `value`.
+  const histPast = useRef<DesignDoc[]>([]);
+  const histFuture = useRef<DesignDoc[]>([]);
+  const histLast = useRef<DesignDoc>(value);
+  const histNav = useRef(false);
+  const histTime = useRef(0);
+  const [, bumpHist] = useState(0);
+  useEffect(() => {
+    if (value === histLast.current) return;
+    if (histNav.current) { histNav.current = false; histLast.current = value; return; }
+    const now = Date.now();
+    if (now - histTime.current > 450) {
+      histPast.current.push(histLast.current);
+      if (histPast.current.length > 60) histPast.current.shift();
+      histFuture.current = [];
+      bumpHist((n) => n + 1);
+    }
+    histTime.current = now;
+    histLast.current = value;
+  }, [value]);
+  const undo = () => {
+    if (!histPast.current.length) return;
+    const prev = histPast.current.pop() as DesignDoc;
+    histFuture.current.push(histLast.current);
+    histNav.current = true; histLast.current = prev; histTime.current = 0;
+    onChange(prev); setSel(null); bumpHist((n) => n + 1);
+  };
+  const redo = () => {
+    if (!histFuture.current.length) return;
+    const nextDoc = histFuture.current.pop() as DesignDoc;
+    histPast.current.push(histLast.current);
+    histNav.current = true; histLast.current = nextDoc; histTime.current = 0;
+    onChange(nextDoc); setSel(null); bumpHist((n) => n + 1);
+  };
+  const canUndo = histPast.current.length > 0;
+  const canRedo = histFuture.current.length > 0;
+  // Ctrl/⌘+Z = undo, +Shift = redo (also Ctrl+Y). Ignored while typing.
+  const undoRef = useRef(undo); undoRef.current = undo;
+  const redoRef = useRef(redo); redoRef.current = redo;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k !== "z" && k !== "y") return;
+      const ae = document.activeElement as HTMLElement | null;
+      if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
+      e.preventDefault();
+      if (k === "y" || e.shiftKey) redoRef.current(); else undoRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // A draggable, resizable, selectable BLOCK (rect / ellipse / line). Rendered in
+  // two passes so blocks can sit behind OR in front of images (sh.front).
+  const renderShape = (sh: ShapeLayer) => {
+    const selected = sel?.kind === "shape" && sel.id === sh.id;
+    const radius = sh.shape === "ellipse" ? "50%" : (sh.radius ?? 0);
+    return (
+      <Draggable key={sh.id} pos={{ x: sh.x, y: sh.y }} onMove={(p) => patchShape(sh.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "shape", id: sh.id })} posterRef={posterRef} className={cn(sh.front && "z-[2]")} style={{ width: `${sh.w * 100}%`, height: `${sh.h * 100}%` }}>
+        <div className={cn("relative h-full w-full", selected && "outline outline-2 outline-brand-400")} style={{ background: sh.color, borderRadius: radius, opacity: sh.opacity ?? 1 }}>
+          {selected && <ResizeHandle onStart={() => { (sh as ShapeLayer & { _sw?: number; _sh?: number })._sw = sh.w; (sh as ShapeLayer & { _sw?: number; _sh?: number })._sh = sh.h; }} onResize={(dx, dy) => resizeShape(sh.id, dx, dy, (sh as ShapeLayer & { _sw?: number })._sw ?? sh.w, (sh as ShapeLayer & { _sh?: number })._sh ?? sh.h)} />}
+        </div>
+      </Draggable>
+    );
+  };
+  const removeText = (id: string) => { setTexts(textsRef.current.filter((t) => t.id !== id)); setSel((s) => (s?.kind === "text" && s.id === id ? null : s)); };
+  const removeContact = (id: string) => { setContacts(contactsRef.current.filter((c) => c.id !== id)); setSel((s) => (s?.kind === "contact" && s.id === id ? null : s)); };
+  const addContact = (type: ContactType) => {
+    const id = newId("ct");
+    const val = brandContactValue(brandContact, type) || CONTACT_META[type].placeholder;
+    const n = contactsRef.current.length;
+    onChange({ ...value, contacts: [...contactsRef.current, { id, type, value: val, x: 0.06, y: clamp(0.9 - n * 0.055, 0.45, 0.92) }] });
+    setSel({ kind: "contact", id });
+  };
+  const exportImage = () => { if (value.imageUrl) window.open(value.imageUrl, "_blank", "noopener,noreferrer"); };
+
+  // ── Design library: save / open / delete / new ──
+  const saveDesign = async () => {
+    if (saveState === "saving") return;
+    setSaveState("saving");
+    try {
+      const name = designName.trim() || "Untitled design";
+      if (designId) {
+        const r = await fetch(`/api/agent-designs/${designId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ doc: value, name }) });
+        if (!r.ok) throw new Error("save failed");
+      } else {
+        const r = await fetch("/api/agent-designs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ doc: value, name }) });
+        const j = await r.json().catch(() => null);
+        if (!r.ok || !j?.data?.design?.id) throw new Error("save failed");
+        setDesignId(j.data.design.id);
+      }
+      onSave?.();
+      setSaveState("saved");
+      setTimeout(() => setSaveState((s) => (s === "saved" ? "idle" : s)), 1800);
+    } catch {
+      setSaveState("idle");
+    }
+  };
+  const openLibrary = async () => {
+    setLibOpen(true);
+    setLibLoading(true);
+    try { const r = await fetch("/api/agent-designs"); const j = await r.json().catch(() => null); setLibDesigns(j?.data?.designs ?? []); } catch { setLibDesigns([]); } finally { setLibLoading(false); }
+  };
+  const loadDesign = async (id: string) => {
+    try {
+      const r = await fetch(`/api/agent-designs/${id}`); const j = await r.json().catch(() => null);
+      const doc = j?.data?.design?.doc as DesignDoc | undefined;
+      if (doc && typeof doc === "object") { onChange(doc); setPages([doc]); setActive(0); setDesignId(id); setDesignName(j.data.design.name || "Untitled design"); setSel(null); }
+    } catch { /* ignore */ } finally { setLibOpen(false); }
+  };
+  const deleteDesign = async (id: string) => {
+    try { await fetch(`/api/agent-designs/${id}`, { method: "DELETE" }); } catch { /* ignore */ }
+    setLibDesigns((ds) => ds.filter((d) => d.id !== id));
+    if (designId === id) setDesignId(null);
+  };
+  // Start a TRULY fresh design. Explicitly clears the AI image / backdrop and
+  // writes the blank to the autosave key SYNCHRONOUSLY, so a remount can't
+  // restore the previous design's data (the "new design shows old data" bug).
+  const newDesign = () => {
+    const blank: DesignDoc = { ...DEFAULT_DESIGN, images: [], texts: [], contacts: [], pos: {}, styles: {}, imageUrl: undefined, bgImageUrl: undefined, generating: false };
+    try { sessionStorage.setItem(selfDraftKey, JSON.stringify(blank)); } catch { /* ignore */ }
+    onChange(blank);
+    setPages([blank]); setActive(0);
+    setDesignId(null); setDesignName("Untitled design"); setSel(null); setLibOpen(false);
+  };
+  const assist = (el: ElementKey) => { onElementAssist?.(el); setAssistBusy(el); };
+
+  // ── Multi-page: switch / add / delete pages ──
+  const mpReady = useRef(false);
+  // Persist all pages (active slot merged with its latest edits). Skipped until the
+  // restore below has settled so it can't clobber stored pages on first mount.
+  useEffect(() => {
+    if (!mpReady.current) return;
+    const merged = pages.map((p, i) => (i === active ? value : p));
+    try { sessionStorage.setItem(pagesKey, JSON.stringify({ pages: merged, active })); } catch { /* ignore */ }
+  }, [pages, active, value]);
+  // Restore the extra pages once on mount (the active page comes from the parent).
+  useEffect(() => {
+    try {
+      const obj = JSON.parse(sessionStorage.getItem(pagesKey) || "null");
+      if (obj && Array.isArray(obj.pages) && obj.pages.length > 1) {
+        const a = Math.min(Math.max(0, Number(obj.active) || 0), obj.pages.length - 1);
+        setPages(obj.pages as DesignDoc[]); setActive(a); onChange(obj.pages[a]);
+      }
+    } catch { /* ignore */ } finally { mpReady.current = true; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const goToPage = (i: number) => {
+    if (i === active || i < 0 || i >= pages.length) return;
+    const target = pages[i];
+    setPages((ps) => ps.map((p, idx) => (idx === active ? value : p)));
+    setActive(i); onChange(target); setSel(null);
+  };
+  const addPage = () => {
+    const blank: DesignDoc = { ...DEFAULT_DESIGN, size: value.size, images: [], texts: [], contacts: [], pos: {}, styles: {}, imageUrl: undefined, bgImageUrl: undefined, generating: false };
+    setPages((ps) => [...ps.map((p, idx) => (idx === active ? value : p)), blank]);
+    setActive(pages.length); onChange(blank); setSel(null);
+  };
+  const deletePage = (i: number) => {
+    if (pages.length <= 1) return;
+    const next = pages.map((p, idx) => (idx === active ? value : p)).filter((_, idx) => idx !== i);
+    const newActive = Math.min(i < active ? active - 1 : i === active ? Math.max(0, i - 1) : active, next.length - 1);
+    setPages(next); setActive(newActive); onChange(next[newActive]); setSel(null);
+  };
+  // Expose the page ops so the AGENT can build multi-page designs (add_design_page
+  // routes through the parent into addPage). Reassigned each render → fresh closures.
+  useEffect(() => { if (pageOpsRef) pageOpsRef.current = { addPage, goToPage }; });
+
+  // per-element style read/write (core elements via value.styles, free text via the layer)
+  const coreStyle = (k: ElementKey): TextStyle => value.styles?.[k] ?? {};
+  const setCoreStyle = (k: ElementKey, patch: Partial<TextStyle>) => set({ styles: { ...value.styles, [k]: { ...value.styles?.[k], ...patch } } });
+  const selStyle = (): TextStyle => sel?.kind === "core" ? coreStyle(sel.id) : sel?.kind === "text" ? (value.texts?.find((t) => t.id === sel.id)?.style ?? {}) : sel?.kind === "contact" ? (value.contacts?.find((c) => c.id === sel.id)?.style ?? {}) : {};
+  const selDefaultSize = (): number => sel?.kind === "core" ? DEFAULT_SIZE[sel.id] : sel?.kind === "contact" ? 13 : 16;
+  const setSelStyle = (patch: Partial<TextStyle>) => { if (sel?.kind === "core") setCoreStyle(sel.id, patch); else if (sel?.kind === "text") patchText(sel.id, { style: { ...(value.texts?.find((t) => t.id === sel.id)?.style), ...patch } }); else if (sel?.kind === "contact") patchContact(sel.id, { style: { ...(value.contacts?.find((c) => c.id === sel.id)?.style), ...patch } }); };
+
+  // resize: text → font size; image → width fraction
+  const resizeText = (k: ElementKey | string, isCore: boolean, dx: number, dy: number, startSize: number) => {
+    const size = clamp(startSize + (dx + dy) / 2 * 0.45, 8, 96);
+    if (isCore) setCoreStyle(k as ElementKey, { size }); else patchText(k as string, { style: { ...(textsRef.current.find((t) => t.id === k)?.style), size } });
+  };
+  // Allow images up to 3× the canvas width so a photo can fill/bleed the design
+  // (the old 0.96 cap made it impossible to size a hero photo properly).
+  const resizeImage = (id: string, dx: number, startW: number) => { const pw = posterRef.current?.getBoundingClientRect().width || baseW; patchImage(id, { w: clamp(startW + dx / pw, 0.05, 3) }); };
+  const resizeContact = (id: string, dx: number, dy: number, startSize: number) => { patchContact(id, { style: { ...(contactsRef.current.find((c) => c.id === id)?.style), size: clamp(startSize + (dx + dy) / 2 * 0.4, 8, 56) } }); };
+
+  // Cut out the subject — POSTs the image (uploaded URL, or the original File if
+  // the library upload didn't land) to the rembg service and swaps in the result.
+  const removeBg = async (id: string) => {
+    const img = imagesRef.current.find((i) => i.id === id);
+    if (!img || img.processing) return;
+    patchImage(id, { processing: true, bgError: undefined });
+    try {
+      let res: Response;
+      if (img.url.startsWith("http")) {
+        res = await fetch("/api/image-tools/remove-background", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageUrl: img.url }) });
+      } else if (img.file) {
+        const fd = new FormData(); fd.append("file", img.file);
+        res = await fetch("/api/image-tools/remove-background", { method: "POST", body: fd });
+      } else {
+        patchImage(id, { processing: false, bgError: "Add the image to your library first." });
+        return;
+      }
+      const j = await res.json().catch(() => null);
+      if (res.ok && j?.data?.imageUrl) patchImage(id, { url: j.data.imageUrl, processing: false, local: false, error: false, bgError: undefined });
+      else patchImage(id, { processing: false, bgError: j?.error?.message || "Background removal unavailable." });
+    } catch {
+      patchImage(id, { processing: false, bgError: "Background removal failed." });
+    }
+  };
+
+  const addFiles = (files: FileList | null, kind: "photo" | "logo") => {
+    if (!files) return;
+    Array.from(files).filter((f) => f.type.startsWith("image/")).forEach((file, idx) => {
+      const id = newId("img"); const localUrl = URL.createObjectURL(file); const isLogo = kind === "logo";
+      const layer: ImageLayer = { id, url: localUrl, x: isLogo ? 0.06 : clamp(0.24 + idx * 0.04, 0, 0.6), y: isLogo ? 0.06 : clamp(0.22 + idx * 0.04, 0, 0.6), w: isLogo ? 0.2 : 0.46, kind, local: true, file };
+      onChange({ ...value, images: [...imagesRef.current, layer] });
+      setSel({ kind: "image", id });
+      void uploadImage(file).then((real) => {
+        if (real) { patchImage(id, { url: real, local: false, error: false });
+          // First logo ever + they have no brand logo → offer to save it.
+          if (isLogo && !brandLogo && onSaveBrandLogo) setLogoSavePrompt({ url: real });
+        } else patchImage(id, { error: true });
+      });
+    });
+  };
+  // "Add logo" drops the user's EXISTING brand logo straight onto the canvas.
+  const addBrandLogo = (url: string) => {
+    const id = newId("img");
+    onChange({ ...value, images: [...imagesRef.current, { id, url, x: 0.06, y: 0.06, w: 0.2, kind: "logo", local: false }] });
+    setSel({ kind: "image", id });
+  };
+  // Drop a previously-uploaded media file (picked from the library) onto the canvas.
+  const addLibraryImage = (url: string) => {
+    if (!url) return;
+    const id = newId("img");
+    onChange({ ...value, images: [...imagesRef.current, { id, url, x: 0.28, y: 0.3, w: 0.46, kind: "photo", local: false }] });
+    setSel({ kind: "image", id });
+  };
+  const saveBrandLogoNow = async () => {
+    if (!logoSavePrompt || !onSaveBrandLogo) { setLogoSavePrompt(null); return; }
+    setLogoSaving(true);
+    const ok = await onSaveBrandLogo(logoSavePrompt.url);
+    setLogoSaving(false);
+    if (ok) setLogoSavePrompt(null);
+  };
+  const addText = () => { const id = newId("txt"); onChange({ ...value, texts: [...textsRef.current, { id, text: "New text", x: 0.3, y: 0.4, w: 0.5, style: { size: 18, color: "#ffffff" } }] }); setSel({ kind: "text", id }); };
+  // Add an empty PHOTO SLOT the user fills via AI-generate or upload.
+  const addPhotoSlot = () => { const id = newId("slot"); onChange({ ...value, images: [...imagesRef.current, { id, url: "", x: 0.32, y: 0.3, w: 0.4, kind: "photo", placeholder: true, label: "Photo", aspect: 1.4 }] }); setSel({ kind: "image", id }); };
+  // Photo-slot fill: generate a contextual photo via the agent, or upload one.
+  const slotFileRef = useRef<HTMLInputElement>(null);
+  const slotUploadId = useRef<string | null>(null);
+  const genPlaceholder = (img: ImageLayer) => { patchImage(img.id, { processing: true }); onPlaceholderGenerate?.(img); };
+  const uploadToSlot = (id: string) => { slotUploadId.current = id; slotFileRef.current?.click(); };
+  const onSlotFile = (f: File | undefined) => {
+    const id = slotUploadId.current; slotUploadId.current = null;
+    if (!f || !id) return;
+    const local = URL.createObjectURL(f);
+    patchImage(id, { url: local, placeholder: false, local: true, processing: false });
+    void uploadImage(f).then((real) => { if (real) patchImage(id, { url: real, local: false }); else patchImage(id, { error: true }); });
+  };
+
+  const images = value.images || [];
+  const texts = value.texts || [];
+  const contacts = value.contacts || [];
+  const shapes = value.shapes || [];
+  const icons = value.icons || [];
+  const qrs = value.qrs || [];
+  const tables = value.tables || [];
+  const showAiImage = !!value.imageUrl;
+  const anyLocalErr = images.some((i) => i.error);
+  const selIsImage = sel?.kind === "image" ? images.find((i) => i.id === sel.id) : null;
+  const selShape = sel?.kind === "shape" ? shapes.find((s) => s.id === sel.id) : null;
+  const selIcon = sel?.kind === "icon" ? icons.find((i) => i.id === sel.id) : null;
+  const selQr = sel?.kind === "qr" ? qrs.find((q) => q.id === sel.id) : null;
+  const selTable = sel?.kind === "table" ? tables.find((t) => t.id === sel.id) : null;
+
+  // One tidy, grouped, single-line cluster (never a wrapping pile). Groups are
+  // separated by thin dividers: [history] · [add] · [name] · [file/export].
+  const Divider = () => <span className="mx-0.5 h-5 w-px shrink-0 bg-border" />;
+  const toolbar = (
+    <div className="flex items-center gap-1.5">
+      {onBack && (
+        <>
+          <button onClick={onBack} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[12px] text-muted-foreground hover:text-foreground" title="Back to print formats"><ChevronLeft className="h-3.5 w-3.5" /> Formats</button>
+          {formatLabel && <span className="hidden rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground xl:inline-block">{formatLabel}</span>}
+          <Divider />
+        </>
+      )}
+      <button onClick={undo} disabled={!canUndo} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground" title="Undo (Ctrl/⌘+Z)"><Undo2 className="h-4 w-4" /></button>
+      <button onClick={redo} disabled={!canRedo} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:hover:text-muted-foreground" title="Redo (Ctrl/⌘+Shift+Z)"><Redo2 className="h-4 w-4" /></button>
+      <Divider />
+      <button onClick={addText} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Add a text element"><Plus className="h-3.5 w-3.5" /> Text</button>
+      <button onClick={openLibrary} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] hover:text-foreground" title="Open your saved designs"><FolderOpen className="h-3.5 w-3.5" /> Designs</button>
+      {guides && (
+        <button onClick={() => setShowGuides((v) => !v)} className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px]", showGuides ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:text-foreground")} title="Toggle bleed / safe-area / fold guides"><Ruler className="h-3.5 w-3.5" /> Guides</button>
+      )}
+      <input value={designName} onChange={(e) => setDesignName(e.target.value)} title="Design name" placeholder="Untitled design" className="hidden min-w-0 max-w-[130px] rounded-md border border-transparent bg-transparent px-1.5 py-1 text-[12.5px] font-medium outline-none hover:border-border focus:border-brand-500/60 xl:inline-block" />
+      <Divider />
+      <button onClick={saveDesign} disabled={saveState === "saving"} className={cn("inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] disabled:opacity-70", saveState === "saved" ? "border-brand-500/60 text-brand-500" : "border-border hover:text-foreground")} title="Save to your design library">
+        {saveState === "saving" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saveState === "saved" ? <Check className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />} <span className="hidden sm:inline">{saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : "Save"}</span>
+      </button>
+      <button onClick={exportImage} disabled={!value.imageUrl} title={value.imageUrl ? "Open the rendered image" : "Generate the design first"} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"><Download className="h-3.5 w-3.5" /> Export</button>
+      <button onClick={() => setToolsOpen((o) => !o)} className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-border", toolsOpen ? "text-brand-500" : "text-muted-foreground hover:text-foreground")} title="Toggle controls"><PanelRight className="h-4 w-4" /></button>
+    </div>
+  );
+
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {/* One top bar: the toolbar lives in the FocusedView shell header. Fallback
+          to an inline bar only if the slot isn't available. */}
+      {headerSlot ? createPortal(toolbar, headerSlot) : (
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-card/30 px-3 py-2">{toolbar}</div>
+      )}
+
+      <div className="relative flex min-h-0 flex-1">
+        {/* canvas COLUMN — the design area + the multi-page strip below it */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div ref={canvasRef} className="relative flex min-h-0 min-w-0 flex-1 overflow-auto p-6" style={{ background: "radial-gradient(420px 260px at 35% 0%, hsl(var(--primary)/.14), transparent 70%)" }}>
+          {/* spacer reserves the zoomed footprint; m-auto centers it AND keeps the
+              edges reachable when zoomed past the viewport */}
+          <div className="relative m-auto" style={{ width: baseW * zoom, height: height * zoom }}>
+          {/* the design (poster), scaled from the top-left by the zoom level */}
+          <div className="origin-top-left" style={{ transform: `scale(${zoom})` }}>
+          <div ref={posterRef} className="relative overflow-hidden rounded-[18px] shadow-2xl" style={{ width: baseW, height, background: theme.bg }}
+            onPointerDown={(e) => { if (e.target === e.currentTarget) setSel(null); }}
+            onDragOver={(e) => { if (!showAiImage) e.preventDefault(); }}
+            onDrop={(e) => { if (!showAiImage) { e.preventDefault(); addFiles(e.dataTransfer.files, "photo"); } }}
+          >
+            {showAiImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={value.imageUrl} alt="Generated design" className="absolute inset-0 h-full w-full object-cover" />
+            ) : (
+              <>
+                {canvasBgImage && (
+                  // A generated backdrop sits behind everything; the layout/text stay on top.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={canvasBgImage} alt="" className="pointer-events-none absolute inset-0 h-full w-full object-cover" style={{ filter: bgFilter(value.bgAdjust) }} />
+                )}
+                {canvasBgImage && <BackgroundTint adjust={value.bgAdjust} />}
+                {!canvasBgImage && theme.glow && <div className="pointer-events-none absolute inset-0" style={{ background: `radial-gradient(220px 220px at 84% 78%, ${value.accent} 0%, transparent 62%), radial-gradient(160px 160px at 14% 16%, rgba(255,255,255,.08), transparent 60%)` }} />}
+
+                {/* background BLOCKS — drag to move, corner to resize. Default sit
+                    behind images; sh.front blocks render after images (below). */}
+                {shapes.filter((s) => !s.front).map(renderShape)}
+
+                {images.map((img) => {
+                  const selected = sel?.kind === "image" && sel.id === img.id;
+                  return (
+                    <Draggable key={img.id} pos={{ x: img.x, y: img.y }} onMove={(p) => patchImage(img.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "image", id: img.id })} posterRef={posterRef} className={cn("group", selected && "z-10")} style={{ width: `${img.w * 100}%` }}>
+                      <div className={cn("relative", selected && "outline outline-2 outline-brand-400 rounded-xl")}>
+                        {img.placeholder ? (
+                          // Empty PHOTO SLOT — generate a contextual photo with AI, or upload one.
+                          <div className="grid w-full place-items-center rounded-xl border-2 border-dashed border-brand-400/70 bg-brand-500/[0.08] text-center" style={{ aspectRatio: String(img.aspect ?? 1.4) }}>
+                            {img.processing ? (
+                              <span className="flex flex-col items-center gap-1 text-brand-200"><Loader2 className="h-5 w-5 animate-spin" /><span className="text-[8.5px] font-semibold">Generating…</span></span>
+                            ) : (
+                              <div className="flex flex-col items-center gap-1.5 px-2">
+                                <ImagePlus className="h-5 w-5 text-brand-300" />
+                                <span className="text-[9.5px] font-bold leading-tight text-white/90">{img.label || "Photo"}</span>
+                                <div className="flex gap-1">
+                                  <button onClick={(e) => { e.stopPropagation(); genPlaceholder(img); }} title="Generate a photo from the design context" className="inline-flex items-center gap-0.5 rounded-md bg-gradient-to-r from-brand-500 to-violet-500 px-1.5 py-1 text-[8.5px] font-bold text-white shadow-sm"><Sparkles className="h-2.5 w-2.5" /> Generate</button>
+                                  <button onClick={(e) => { e.stopPropagation(); uploadToSlot(img.id); }} title="Upload a photo" className="inline-flex items-center gap-0.5 rounded-md border border-white/30 bg-black/35 px-1.5 py-1 text-[8.5px] font-semibold text-white">Upload</button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : img.loadError ? (
+                          <div className={cn("pointer-events-none grid w-full place-items-center bg-white/[0.06] text-center text-[8.5px] text-white/70", img.kind === "logo" ? "aspect-[3/1] rounded-md" : "aspect-[4/5] rounded-xl")}>
+                            <span className="px-2"><ImagePlus className="mx-auto mb-0.5 h-4 w-4 opacity-60" />{img.kind} unavailable — re-add it</span>
+                          </div>
+                        ) : img.aspect ? (
+                          // A filled slot keeps its footprint: cover the fixed-aspect box.
+                          <div className="w-full overflow-hidden rounded-xl" style={{ aspectRatio: String(img.aspect) }}>
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={img.url} alt={img.kind} onError={() => patchImage(img.id, { loadError: true })} className="pointer-events-none h-full w-full object-cover" />
+                          </div>
+                        ) : (
+                          // Logos use object-contain so a wide wordmark isn't cropped; photos cover.
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={img.url} alt={img.kind} onError={() => patchImage(img.id, { loadError: true })} className="pointer-events-none w-full" />
+                        )}
+                        <button onClick={() => removeImage(img.id)} title="Remove" className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/80"><X className="h-3.5 w-3.5" /></button>
+                        {img.processing && !img.placeholder && <span className="absolute inset-0 grid place-items-center rounded-xl bg-black/55"><Loader2 className="h-5 w-5 animate-spin text-white" /></span>}
+                        {img.bgError ? (
+                          <span className="absolute bottom-1.5 left-1.5 max-w-[88%] rounded bg-black/72 px-1.5 py-0.5 text-[8px] font-semibold leading-tight text-amber-300">{img.bgError}</span>
+                        ) : img.local ? (
+                          <span className="absolute bottom-1.5 left-1.5 rounded bg-black/65 px-1.5 py-0.5 text-[8px] font-semibold text-amber-300">{img.error ? "local only" : "uploading…"}</span>
+                        ) : null}
+                        {selected && <ResizeHandle onStart={() => { (img as ImageLayer & { _sw?: number })._sw = img.w; }} onResize={(dx) => resizeImage(img.id, dx, (img as ImageLayer & { _sw?: number })._sw ?? img.w)} />}
+                      </div>
+                    </Draggable>
+                  );
+                })}
+
+                {/* Images are optional — add them from the toolbar (Add photo / Add
+                    logo) or by dropping onto the canvas; no permanent placeholder. */}
+
+                {/* blocks brought IN FRONT of images (sit over photos, under text) */}
+                {shapes.filter((s) => s.front).map(renderShape)}
+
+                {/* core text */}
+                {(["eyebrow", "headline", "sub", "cta"] as ElementKey[]).map((k) => {
+                  const defColor = k === "eyebrow" ? theme.eyeInk : k === "headline" ? theme.headInk : k === "sub" ? theme.subInk : DEFAULT_COLOR.cta;
+                  const serif = theme.serif && k !== "cta" ? "font-serif" : "";
+                  const baseClass = k === "headline" ? "font-extrabold leading-[1.05] tracking-tight" : k === "eyebrow" ? "font-semibold uppercase tracking-[2.5px]" : k === "cta" ? "rounded-full px-3.5 py-2 font-extrabold" : "leading-snug";
+                  return (
+                    <CanvasText key={k} ariaLabel={k} value={value[k]} style={coreStyle(k)} defaultSize={DEFAULT_SIZE[k]} defaultColor={defColor}
+                      selected={sel?.kind === "core" && sel.id === k} onSelect={() => setSel({ kind: "core", id: k })}
+                      onCommit={(v) => set({ [k]: v } as Partial<DesignDoc>)} onMove={(p) => move(k, p)} onResize={(dx, dy, ss) => resizeText(k, true, dx, dy, ss)}
+                      onAssist={onElementAssist ? () => assist(k) : undefined} posterRef={posterRef} pos={posOf(value, k)} busy={assistBusy === k}
+                      baseClass={cn(serif, baseClass)} maxW={`${Math.round(baseW * (k === "headline" ? 0.9 : k === "sub" ? 0.86 : 0.88))}px`} bg={k === "cta" ? value.accent : undefined} />
+                  );
+                })}
+
+                {/* free text layers */}
+                {texts.map((t) => (
+                  <CanvasText key={t.id} ariaLabel="Text" value={t.text} style={t.style ?? {}} defaultSize={16} defaultColor="#ffffff"
+                    selected={sel?.kind === "text" && sel.id === t.id} onSelect={() => setSel({ kind: "text", id: t.id })}
+                    onCommit={(v) => patchText(t.id, { text: v })} onMove={(p) => patchText(t.id, { x: p.x, y: p.y })} onResize={(dx, dy, ss) => resizeText(t.id, false, dx, dy, ss)}
+                    posterRef={posterRef} pos={{ x: t.x, y: t.y }} baseClass="font-semibold" maxW={`${Math.round(baseW * (t.w ?? 0.6))}px`} />
+                ))}
+
+                {/* contact / social chips */}
+                {contacts.map((c) => (
+                  <ContactChip key={c.id} item={c} selected={sel?.kind === "contact" && sel.id === c.id} onSelect={() => setSel({ kind: "contact", id: c.id })}
+                    onCommit={(v) => patchContact(c.id, { value: v })} onMove={(p) => patchContact(c.id, { x: p.x, y: p.y })} onResize={(dx, dy, ss) => resizeContact(c.id, dx, dy, ss)}
+                    posterRef={posterRef} defaultInk={theme.subInk} />
+                ))}
+
+                {/* icon elements (social / popular) — drag, resize, recolor */}
+                {icons.map((ic) => {
+                  const Icon = ICON_BY_NAME[ic.name] || Star;
+                  const selected = sel?.kind === "icon" && sel.id === ic.id;
+                  return (
+                    <Draggable key={ic.id} pos={{ x: ic.x, y: ic.y }} onMove={(p) => patchIcon(ic.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "icon", id: ic.id })} posterRef={posterRef} className="z-[3]">
+                      <div className={cn("relative", selected && "rounded-md outline outline-2 outline-brand-400")}>
+                        <Icon style={{ width: ic.size, height: ic.size, color: ic.color }} />
+                        {selected && <ResizeHandle onStart={() => { (ic as IconLayer & { _ss?: number })._ss = ic.size; }} onResize={(dx, dy) => resizeIcon(ic.id, dx, dy, (ic as IconLayer & { _ss?: number })._ss ?? ic.size)} />}
+                      </div>
+                    </Draggable>
+                  );
+                })}
+
+                {/* QR-code elements — drag, resize, recolor, edit target */}
+                {qrs.map((q) => {
+                  const selected = sel?.kind === "qr" && sel.id === q.id;
+                  return (
+                    <Draggable key={q.id} pos={{ x: q.x, y: q.y }} onMove={(p) => patchQr(q.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "qr", id: q.id })} posterRef={posterRef} className="z-[3]" style={{ width: `${q.w * 100}%` }}>
+                      <div className={cn("relative", selected && "rounded-md outline outline-2 outline-brand-400")}>
+                        <QrImg value={q.value} fg={q.fg} bg={q.bg} />
+                        {selected && <ResizeHandle onStart={() => { (q as QrLayer & { _sw?: number })._sw = q.w; }} onResize={(dx) => resizeQr(q.id, dx, (q as QrLayer & { _sw?: number })._sw ?? q.w)} />}
+                      </div>
+                    </Draggable>
+                  );
+                })}
+
+                {/* table elements — editable cells, header row, recolor */}
+                {tables.map((t) => {
+                  const selected = sel?.kind === "table" && sel.id === t.id;
+                  return (
+                    <Draggable key={t.id} pos={{ x: t.x, y: t.y }} onMove={(p) => patchTable(t.id, { x: p.x, y: p.y })} onSelect={() => setSel({ kind: "table", id: t.id })} posterRef={posterRef} className="z-[3]" style={{ width: `${t.w * 100}%` }}>
+                      <div className="relative">
+                        <TableEl table={t} selected={selected} accent={value.accent || "#2563eb"} onEditCell={(r, c, v) => editCell(t.id, r, c, v)} />
+                        {selected && <ResizeHandle onStart={() => { (t as TableLayer & { _sw?: number })._sw = t.w; }} onResize={(dx) => resizeTable(t.id, dx, (t as TableLayer & { _sw?: number })._sw ?? t.w)} />}
+                      </div>
+                    </Draggable>
+                  );
+                })}
+
+                {/* CTA accent background — render a pill behind the cta text via its own style; keep simple: cta already shows text. */}
+
+                {/* print guides (bleed / safe-area / fold) — non-interactive overlay */}
+                {theme.frame && <FrameOverlay frame={theme.frame} />}
+                {guides && showGuides && <PrintGuideOverlay guides={guides} />}
+              </>
+            )}
+
+            {(value.generating || value.building) && (
+              <div className="absolute inset-0 grid place-items-center bg-black/55 backdrop-blur-[2px]">
+                <div className="flex flex-col items-center gap-2.5 text-center"><FlowLoader size={36} withMark tone="white" /><p className="text-[12.5px] font-semibold text-white">{value.building ? "Redesigning your canvas…" : "Rendering your design…"}</p><p className="text-[11px] text-white/70">{value.building ? "Restyling the copy, colors, layout & background — stays fully editable." : `Using your layout${images.length ? " + your images" : ""} as the reference.`}</p></div>
+              </div>
+            )}
+            {value.imageUrl && <span className="absolute bottom-2 left-2 hidden" aria-hidden />}
+          </div>
+          </div>
+
+          {/* selection toolbar — a SIBLING of the scaled design, so it stays a
+              readable size at any zoom, positioned over the top of the design */}
+          {!showAiImage && sel && (sel.kind === "core" || sel.kind === "text" || sel.kind === "contact" || !!selIsImage || !!selShape || !!selIcon || !!selQr || !!selTable) && (
+            <FloatingToolbar>
+              {selQr ? (
+                <QrControls qr={selQr} onChange={(p) => patchQr(selQr.id, p)} onResize={(d) => patchQr(selQr.id, { w: clamp(selQr.w + d, 0.06, 0.7) })} onDelete={() => removeQr(selQr.id)} />
+              ) : selTable ? (
+                <TableControls table={selTable} brandColors={brandColors} onChange={(p) => patchTable(selTable.id, p)} onAddRow={() => addTableRow(selTable.id)} onAddCol={() => addTableCol(selTable.id)} onDelRow={() => delTableRow(selTable.id)} onDelCol={() => delTableCol(selTable.id)} onResize={(d) => patchTable(selTable.id, { w: clamp(selTable.w + d, 0.12, 1) })} onDelete={() => removeTable(selTable.id)} />
+              ) : selIcon ? (
+                <IconControls icon={selIcon} brandColors={brandColors} onChange={(p) => patchIcon(selIcon.id, p)} onResize={(d) => patchIcon(selIcon.id, { size: clamp(selIcon.size + d, 12, 480) })} onDelete={() => removeIcon(selIcon.id)} />
+              ) : selShape ? (
+                <ShapeControls shape={selShape} count={shapes.length} brandColors={brandColors} onChange={(p) => patchShape(selShape.id, p)} onArrange={(w) => arrangeShape(selShape.id, w)} onDelete={() => removeShape(selShape.id)} />
+              ) : sel.kind === "image" && selIsImage ? (
+                <ImageControls img={selIsImage} index={images.findIndex((i) => i.id === selIsImage.id)} count={images.length} onArrange={(w) => arrangeImage(selIsImage.id, w)} onRemoveBg={() => removeBg(selIsImage.id)} onResize={(d) => patchImage(selIsImage.id, { w: clamp(selIsImage.w + d, 0.05, 3) })} onDelete={() => removeImage(selIsImage.id)} />
+              ) : (
+                <TextControls style={selStyle()} defaultSize={selDefaultSize()} brandColors={brandColors} defaultBg={sel.kind === "core" && sel.id === "cta" ? value.accent : undefined} onChange={setSelStyle} onDelete={sel.kind === "text" ? () => removeText(sel.id) : sel.kind === "contact" ? () => removeContact(sel.id) : undefined} />
+              )}
+            </FloatingToolbar>
+          )}
+          </div>
+
+          {/* zoom controls — bottom-right of the canvas */}
+          <div className="absolute bottom-3 right-3 z-20 flex items-center gap-0.5 rounded-full border border-border bg-card/95 px-1 py-1 shadow-lg backdrop-blur">
+            <button onClick={() => zoomBy(-0.1)} title="Zoom out" className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"><ZoomOut className="h-4 w-4" /></button>
+            <button onClick={() => setManualZoom(null)} title="Fit to screen" className="min-w-[42px] rounded-full px-1 text-center text-[11.5px] font-semibold tabular-nums text-foreground hover:bg-muted">{Math.round(zoom * 100)}%</button>
+            <button onClick={() => zoomBy(0.1)} title="Zoom in" className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"><ZoomIn className="h-4 w-4" /></button>
+          </div>
+        </div>
+
+        {/* multi-page strip — thumbnails + add a page */}
+        <PageStrip pages={pages.map((p, i) => (i === active ? value : p))} active={active} onSelect={goToPage} onAdd={addPage} onDelete={deletePage} />
+        </div>
+
+        {toolsOpen && (
+          <>
+            {/* On small screens the controls are a slide-over drawer (so they don't
+                steal horizontal space and push the canvas off-screen); inline column at lg+. */}
+            <button aria-label="Close controls" onClick={() => setToolsOpen(false)} className="absolute inset-0 z-20 bg-black/40 lg:hidden" />
+          <div className="z-30 flex shrink-0 flex-col bg-muted/30 max-lg:absolute max-lg:inset-y-0 max-lg:end-0 max-lg:w-[300px] max-lg:max-w-[88%] max-lg:border-s max-lg:border-border max-lg:shadow-2xl lg:static lg:w-[300px] lg:border-s lg:border-border">
+            <div className="flex shrink-0 items-center gap-1 border-b border-border p-1.5">
+              <TabBtn active={tab === "design"} onClick={() => setTab("design")} icon={TypeIcon} label="Design" />
+              <TabBtn active={tab === "style"} onClick={() => setTab("style")} icon={Palette} label="Style" />
+              <TabBtn active={tab === "elements"} onClick={() => setTab("elements")} icon={Shapes} label="Elements" />
+              <TabBtn active={tab === "contact"} onClick={() => setTab("contact")} icon={AtSign} label="Contact" />
+              <button onClick={() => setToolsOpen(false)} aria-label="Close controls" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:text-foreground lg:hidden"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3.5">
+              {tab === "contact" ? (
+                <>
+                  <p className="mb-2.5 text-[11px] leading-snug text-muted-foreground">Tap to drop your contact details & social handles on the canvas — each lands as an icon + text you can drag, restyle and edit like any element.</p>
+                  <div className="space-y-1.5">
+                    {CONTACT_TYPES.map((t) => {
+                      const meta = CONTACT_META[t]; const v = brandContactValue(brandContact, t); const Icon = meta.Icon;
+                      return (
+                        <button key={t} onClick={() => addContact(t)} title={`Add ${meta.label} to the design`} className="flex w-full items-center gap-2.5 rounded-lg border border-border bg-background/60 p-2 text-left transition hover:border-brand-500/60 hover:bg-muted/50">
+                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-muted text-foreground"><Icon className="h-[15px] w-[15px]" /></span>
+                          <span className="min-w-0 flex-1"><span className="block text-[12px] font-semibold leading-tight">{meta.label}</span><span className="block truncate text-[11px] text-muted-foreground">{v || `Add ${meta.label.toLowerCase()}`}</span></span>
+                          <Plus className="h-4 w-4 shrink-0 text-brand-500" />
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2.5 text-[10.5px] leading-snug text-muted-foreground">{brandContact ? "Values come from your brand kit — edit any chip on the canvas to override." : "Fill your brand kit to auto-fill these; you can still add and type them here."}</p>
+                </>
+              ) : tab === "style" ? (
+                <>
+                  <p className="mb-2 text-[11px] leading-snug text-muted-foreground">Pick a visual style — each has its own background &amp; frame. The accent uses your brand color.</p>
+                  <div className="relative mb-3">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <input value={styleQuery} onChange={(e) => setStyleQuery(e.target.value)} placeholder="Search styles — luxury, mesh, retro…" className={cn(FIELD, "py-1.5 pl-8 pr-7")} />
+                    {styleQuery && <button onClick={() => setStyleQuery("")} aria-label="Clear" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
+                  </div>
+                  <ControlGroup title="Background edit">
+                    <div className="mt-1.5 space-y-2">
+                      {([
+                        ["hue", "Hue", -180, 180, 1],
+                        ["saturation", "Saturation", 0, 220, 1],
+                        ["brightness", "Brightness", 40, 160, 1],
+                        ["contrast", "Contrast", 40, 180, 1],
+                        ["tintOpacity", "Tint", 0, 80, 1],
+                      ] as const).map(([key, label, min, max, step]) => (
+                        <label key={key} className="grid grid-cols-[70px_1fr_34px] items-center gap-2 text-[10.5px] font-semibold text-muted-foreground">
+                          <span>{label}</span>
+                          <input type="range" min={min} max={max} step={step} value={bgAdjust[key]} onChange={(e) => setBgAdjust({ [key]: Number(e.target.value) })} />
+                          <span className="text-right tabular-nums">{bgAdjust[key]}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <label className="flex flex-1 items-center justify-between gap-2 rounded-lg border border-border bg-background/50 px-2 py-1.5 text-[10.5px] font-semibold text-muted-foreground">
+                        <span>Tint color</span>
+                        <ColorPicker value={bgAdjust.tint} onChange={(c) => setBgAdjust({ tint: c, tintOpacity: bgAdjust.tintOpacity || 24 })} className="h-6 w-6 rounded-md border border-border" iconClass="h-3 w-3" />
+                      </label>
+                      <button onClick={() => set({ bgAdjust: DEFAULT_BG_ADJUST })} className="rounded-lg border border-border px-2 py-1.5 text-[10.5px] font-semibold text-muted-foreground hover:text-foreground">Reset</button>
+                    </div>
+                  </ControlGroup>
+                  {(() => {
+                    const q = styleQuery.trim().toLowerCase();
+                    const card = (s: StyleDef) => { const selSt = (value.style || "modern") === s.key; return (
+                      <button key={s.key} onClick={() => set({ style: s.key })} className={cn("overflow-hidden rounded-xl border p-1.5 text-left transition", selSt ? "border-brand-500 ring-1 ring-brand-500/40" : "border-border hover:border-brand-500/50")}>
+                        <StylePreview def={s} accent={value.accent} /><div className="mt-1.5 px-0.5"><p className={cn("truncate text-[12px] font-bold", selSt && "text-brand-500")}>{s.label}</p><p className="truncate text-[10px] leading-tight text-muted-foreground">{s.desc}</p></div>
+                      </button>
+                    ); };
+                    if (q) {
+                      const matches = DESIGN_STYLES.filter((s) => `${s.label} ${s.desc} ${s.category}`.toLowerCase().includes(q));
+                      return matches.length
+                        ? <><p className="mb-1.5 text-[10px] text-muted-foreground">{matches.length} style{matches.length === 1 ? "" : "s"}</p><div className="grid grid-cols-2 gap-2">{matches.map(card)}</div></>
+                        : <p className="py-6 text-center text-[12px] text-muted-foreground">No styles match “{styleQuery.trim()}”.</p>;
+                    }
+                    return STYLE_CATEGORIES.map((cat) => (
+                      <div key={cat} className="mb-4">
+                        <h5 className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{cat}</h5>
+                        <div className="grid grid-cols-2 gap-2">{DESIGN_STYLES.filter((s) => s.category === cat).map(card)}</div>
+                      </div>
+                    ));
+                  })()}
+                </>
+              ) : tab === "elements" ? (
+                <>
+                  <p className="mb-2.5 text-[11px] leading-snug text-muted-foreground">Click to drop a shape or icon — then drag, resize, recolor and reorder it like any element.</p>
+                  <ControlGroup title="Shapes">
+                    <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                      {([
+                        { label: "Rectangle", Icon: Square, on: () => addShapeKind("rect", { w: 0.3, h: 0.2, radius: 0 }) },
+                        { label: "Rounded", Icon: RectangleHorizontal, on: () => addShapeKind("rect", { w: 0.3, h: 0.2, radius: 18 }) },
+                        { label: "Circle", Icon: Circle, on: () => addShapeKind("ellipse", { w: 0.22, h: 0.22 }) },
+                        { label: "Pill", Icon: Circle, on: () => addShapeKind("rect", { w: 0.34, h: 0.08, radius: 999 }) },
+                        { label: "Line", Icon: Minus, on: () => addShapeKind("line", { w: 0.34, h: 0.008, radius: 0 }) },
+                        { label: "Block", Icon: Square, on: addShape },
+                      ] as const).map((s) => (
+                        <button key={s.label} onClick={s.on} className="inline-flex flex-col items-center gap-1 rounded-lg border border-border bg-background/60 px-1 py-2 text-[10px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground"><s.Icon className="h-4 w-4" /> {s.label}</button>
+                      ))}
+                    </div>
+                  </ControlGroup>
+                  <ControlGroup title="Data & codes">
+                    <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                      {([
+                        { label: "QR code", Icon: QrCode, on: addQr },
+                        { label: "Table", Icon: Table2, on: addTable },
+                      ] as const).map((s) => (
+                        <button key={s.label} onClick={s.on} className="inline-flex flex-col items-center gap-1 rounded-lg border border-border bg-background/60 px-1 py-2 text-[10px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground"><s.Icon className="h-4 w-4" /> {s.label}</button>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">QR points at your site by default — edit it in the toolbar. Tables have editable cells + a header row.</p>
+                  </ControlGroup>
+                  {ICON_GROUPS.map((g) => (
+                    <ControlGroup key={g.label} title={`${g.label} icons`}>
+                      <div className="mt-1.5 grid grid-cols-6 gap-1.5">
+                        {g.icons.map(({ name, Icon }) => (
+                          <button key={name} onClick={() => addIcon(name)} title={name} className="grid aspect-square place-items-center rounded-lg border border-border bg-background/60 text-foreground transition hover:border-brand-500/60 hover:bg-muted/50"><Icon className="h-[18px] w-[18px]" /></button>
+                        ))}
+                      </div>
+                    </ControlGroup>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <p className="mb-3 rounded-lg border border-border bg-background/60 px-2.5 py-2 text-[11px] leading-snug text-muted-foreground">Click an element to select → drag to move, corner to resize, double-click text to edit, and the toolbar to restyle. <span className="font-semibold text-foreground">+ Text</span> adds more. The <Wand2 className="inline h-3 w-3 text-brand-500" /> improves only that element.</p>
+                  <ControlGroup title="Content">
+                    <Field label="Eyebrow" assist={onElementAssist ? () => assist("eyebrow") : undefined}><input value={value.eyebrow} onChange={(e) => set({ eyebrow: e.target.value })} className={FIELD} /></Field>
+                    <Field label="Headline" assist={onElementAssist ? () => assist("headline") : undefined}><textarea rows={2} value={value.headline} onChange={(e) => set({ headline: e.target.value })} className={FIELD} /></Field>
+                    <Field label="Subtext" assist={onElementAssist ? () => assist("sub") : undefined}><textarea rows={2} value={value.sub} onChange={(e) => set({ sub: e.target.value })} className={FIELD} /></Field>
+                    <Field label="Button" assist={onElementAssist ? () => assist("cta") : undefined}><input value={value.cta} onChange={(e) => set({ cta: e.target.value })} className={FIELD} /></Field>
+                    <button onClick={addText} className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-2 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> Add text element</button>
+                  </ControlGroup>
+                  <ControlGroup title="Images & logo">
+                    <div className="mt-1.5 flex gap-1.5">
+                      <button onClick={() => photoRef.current?.click()} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><ImagePlus className="h-3.5 w-3.5" /> Add photo</button>
+                      <button onClick={() => (brandLogo ? addBrandLogo(brandLogo) : logoRef.current?.click())} title={brandLogo ? "Add your brand logo" : "Upload a logo"} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><BadgeCheck className="h-3.5 w-3.5" /> Add logo</button>
+                    </div>
+                    <button onClick={() => setMediaPickerOpen(true)} title="Pick from your uploaded media (browse + upload)" className="mt-1.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-background/60 px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"><FolderOpen className="h-3.5 w-3.5" /> Browse media library</button>
+                    <div className="mt-1.5 flex gap-1.5">
+                      <button onClick={addPhotoSlot} title="Drop an empty photo slot — fill it with AI-generate or an upload" className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-2 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ImagePlus className="h-3.5 w-3.5" /> Photo slot</button>
+                      <button onClick={addShape} title="Add a colored background block/panel (sits behind the text)" className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border px-2 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><Square className="h-3.5 w-3.5" /> Color block</button>
+                    </div>
+                    {images.length > 0 ? (
+                      <div className="mt-2 space-y-1.5">{images.map((img) => (
+                        <button key={img.id} onClick={() => setSel({ kind: "image", id: img.id })} className={cn("flex w-full items-center gap-2 rounded-lg border bg-background/60 p-1.5 text-left", selIsImage?.id === img.id ? "border-brand-500" : "border-border")}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={img.url} alt="" className="h-9 w-9 rounded-md object-cover" />
+                          <span className="flex-1 truncate text-[11px] capitalize text-muted-foreground">{img.kind}{img.bgError ? " · bg failed" : img.processing ? " · removing bg…" : img.error ? " · local only" : img.local ? " · uploading…" : ""}</span>
+                          <span onClick={(e) => { e.stopPropagation(); removeBg(img.id); }} className="grid h-6 w-6 cursor-pointer place-items-center rounded-md text-muted-foreground hover:text-brand-500" title="Remove background (1 credit)">{img.processing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />}</span>
+                          <span onClick={(e) => { e.stopPropagation(); removeImage(img.id); }} className="grid h-6 w-6 cursor-pointer place-items-center rounded-md text-muted-foreground hover:text-rose-500" title="Remove"><X className="h-3.5 w-3.5" /></span>
+                        </button>
+                      ))}</div>
+                    ) : <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">Add or drop photos + logo — drag each on the canvas to place it.</p>}
+                    {/* Blocks list — always selectable even when a block is hidden behind a photo. */}
+                    {shapes.length > 0 && (
+                      <div className="mt-2 space-y-1.5">{shapes.map((sh, i) => (
+                        <button key={sh.id} onClick={() => setSel({ kind: "shape", id: sh.id })} className={cn("flex w-full items-center gap-2 rounded-lg border bg-background/60 p-1.5 text-left", selShape?.id === sh.id ? "border-brand-500" : "border-border")}>
+                          <span className="h-6 w-6 shrink-0 border border-white/20" style={{ background: sh.color, borderRadius: sh.shape === "ellipse" ? "50%" : 6, opacity: sh.opacity ?? 1 }} />
+                          <span className="flex-1 truncate text-[11px] text-muted-foreground">Block {i + 1}{sh.front ? " · in front" : ""}</span>
+                          <span onClick={(e) => { e.stopPropagation(); removeShape(sh.id); }} className="grid h-6 w-6 cursor-pointer place-items-center rounded-md text-muted-foreground hover:text-rose-500" title="Remove block"><X className="h-3.5 w-3.5" /></span>
+                        </button>
+                      ))}</div>
+                    )}
+                    {anyLocalErr && <p className="mt-1.5 text-[10.5px] leading-snug text-amber-500">Some images couldn’t reach your library (storage isn’t reachable) — they show here but won’t be used by AI generation until the upload succeeds.</p>}
+                    {value.bgImageUrl && (
+                      <div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-background/60 p-1.5">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={value.bgImageUrl} alt="" className="h-9 w-9 rounded-md object-cover" />
+                        <span className="flex-1 truncate text-[11px] text-muted-foreground">AI backdrop</span>
+                        <button onClick={() => set({ bgImageUrl: undefined })} title="Remove backdrop" className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:text-rose-500"><X className="h-3.5 w-3.5" /></button>
+                      </div>
+                    )}
+                    <p className="mt-1.5 text-[10.5px] leading-snug text-muted-foreground">Ask the agent to “add a laptop” or “generate a new background” — it drops the object on the canvas (or a backdrop behind it) without redoing your design.</p>
+                  </ControlGroup>
+                  <ControlGroup title={brandColors?.length ? "Brand accent" : "Accent color"}><div className="mt-1.5 flex flex-wrap items-center gap-2">{accentSwatches.map((a) => <button key={a} onClick={() => set({ accent: a })} className={cn("h-6 w-6 rounded-lg border-2", value.accent === a ? "border-foreground" : "border-transparent")} style={{ background: a }} aria-label={a} />)}<ColorPicker value={value.accent} onChange={(c) => set({ accent: c })} className="h-6 w-6 rounded-lg border border-border" iconClass="h-3 w-3" /></div>{brandColors?.length ? <p className="mt-1.5 text-[10.5px] text-muted-foreground">Your brand colors lead — or pick any with the picker.</p> : null}</ControlGroup>
+                  <ControlGroup title={sizePresets ? "Print size" : "Size"}><div className={cn("mt-1.5 gap-1.5", sizePresets ? "grid grid-cols-2" : "flex flex-wrap")}>{(sizePresets ?? SIZES).map((sz) => <button key={sz.v} onClick={() => set({ size: sz.v })} className={cn("rounded-lg border px-2.5 py-1.5 text-left text-[11.5px]", value.size === sz.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:text-foreground")}>{sz.label}{(sz as SizePreset).hint && <span className="block text-[9px] font-normal text-muted-foreground">{(sz as SizePreset).hint}</span>}</button>)}</div></ControlGroup>
+                </>
+              )}
+            </div>
+            <div className="shrink-0 space-y-1.5 border-t border-border p-3">
+              <div className="flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5 text-brand-500" /><span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Build with AI</span></div>
+              <textarea
+                value={genDetails} onChange={(e) => setGenDetails(e.target.value)} rows={1}
+                placeholder="Add direction (optional) — tone, audience, offer…"
+                className={cn(FIELD, "py-1.5")}
+              />
+              <div className="grid grid-cols-2 gap-1.5">
+                <button onClick={() => onBuildEditable?.(genDetails)} disabled={value.generating || value.building || !onBuildEditable} title="Editable design — rebuild a better design you can still drag-to-edit" className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-2 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
+                  {value.building ? <FlowLoader size={14} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />} {value.building ? "Redesigning…" : "Editable"}
+                </button>
+                <button onClick={() => onRegenerate?.(genDetails)} disabled={value.generating || value.building || !onRegenerate} title="Flat image — render a finished on-brand picture" className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[9px] border border-border bg-background/60 px-2 py-2 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
+                  {value.generating ? <FlowLoader size={14} /> : <Sparkles className="h-3.5 w-3.5 text-brand-500" />} {value.imageUrl ? "Re-render" : "Image"}
+                </button>
+              </div>
+              <p className="text-[10px] leading-snug text-muted-foreground"><span className="font-medium text-foreground">Editable</span> = drag-to-edit rebuild · <span className="font-medium text-foreground">Image</span> = finished picture</p>
+            </div>
+          </div>
+          </>
+        )}
+      </div>
+
+      {libOpen && (
+        <DesignLibrary designs={libDesigns} loading={libLoading} currentId={designId} onClose={() => setLibOpen(false)} onLoad={loadDesign} onDelete={deleteDesign} onNew={newDesign} />
+      )}
+
+      {/* Browse + upload from the user's media library (shared picker). */}
+      <MediaLibraryPicker open={mediaPickerOpen} onClose={() => setMediaPickerOpen(false)} onSelect={(url) => { addLibraryImage(url); setMediaPickerOpen(false); }} filterTypes={["image", "svg"]} title="Add from your media" />
+
+      {logoSavePrompt && (
+        <div className="absolute bottom-4 left-1/2 z-40 flex max-w-[92vw] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-border bg-popover px-3.5 py-2.5 shadow-2xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={logoSavePrompt.url} alt="" className="h-7 w-7 rounded-md object-contain" />
+          <span className="text-[12.5px] font-medium">Save this as your brand logo?</span>
+          <button onClick={saveBrandLogoNow} disabled={logoSaving} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1.5 text-[11.5px] font-semibold text-white shadow-sm disabled:opacity-60">{logoSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeCheck className="h-3.5 w-3.5" />} {logoSaving ? "Saving…" : "Save to brand"}</button>
+          <button onClick={() => setLogoSavePrompt(null)} className="rounded-lg px-2 py-1.5 text-[11.5px] text-muted-foreground hover:text-foreground">Not now</button>
+        </div>
+      )}
+
+      <input ref={photoRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addFiles(e.target.files, "photo"); e.target.value = ""; }} />
+      <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { addFiles(e.target.files, "logo"); e.target.value = ""; }} />
+      <input ref={slotFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onSlotFile(e.target.files?.[0]); e.target.value = ""; }} />
+    </div>
+  );
+}
+
+function TabBtn({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof Palette; label: string }) {
+  // Compact segmented tabs: the active tab grows to show its label; the rest stay
+  // icon-only (with a tooltip) so all four always fit without truncating.
+  return (
+    <button onClick={onClick} title={label} aria-label={label}
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11.5px] font-semibold transition",
+        active ? "flex-1 bg-brand-500/10 px-2 text-brand-500" : "h-8 w-8 shrink-0 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+      )}>
+      <Icon className="h-[15px] w-[15px] shrink-0" />
+      {active && <span className="truncate">{label}</span>}
+    </button>
+  );
+}
+function ControlGroup({ title, children }: { title: string; children: ReactNode }) {
+  return <div className="mb-4"><h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</h4>{children}</div>;
+}
+function Field({ label, assist, children }: { label: string; assist?: () => void; children: ReactNode }) {
+  return <div className="mt-2.5"><div className="mb-1.5 flex items-center justify-between"><label className="text-[11.5px] text-muted-foreground">{label}</label>{assist && <button onClick={assist} title="Improve this with AI" className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold text-brand-500 hover:bg-brand-500/10"><Wand2 className="h-3 w-3" /> Improve</button>}</div>{children}</div>;
+}
