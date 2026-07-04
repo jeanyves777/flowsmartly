@@ -55,7 +55,6 @@ import { FocusedVoice } from "./focused/voice-workspace";
 import { FocusedVideo } from "./focused/video-workspace";
 import { FocusedDelivery } from "./focused/delivery-workspace";
 import { FocusedAdBuilder } from "./focused/adbuilder-workspace";
-import { FocusedStoryAd } from "./focused/storyad-workspace";
 import { FocusedCalendar } from "./focused/calendar-workspace";
 import { FocusedPublish } from "./focused/publish-workspace";
 import { FocusedConnections } from "./focused/connections-workspace";
@@ -154,7 +153,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
   plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
   adbuilder: { label: "Ad builder", subtitle: "Your ad campaigns — spend, reach & ROAS", icon: Megaphone },
-  storyad: { label: "Story-Ad", subtitle: "Cinematic AI ad movies & render status", icon: Clapperboard },
+  storyad: { label: "Video studio", subtitle: "Brief → estimate → build, right on the canvas", icon: Clapperboard },
   calendar: { label: "Content calendar", subtitle: "See what’s going out, and when", icon: CalendarDays },
 };
 
@@ -1136,7 +1135,7 @@ export function AgentHome() {
                 ) : focused === "adbuilder" ? (
                   <FocusedAdBuilder onAsk={sendAction} refreshKey={actionCount} agentBusy={sending} canvasRef={adOpsRef} />
                 ) : focused === "storyad" ? (
-                  <FocusedStoryAd onAsk={sendAction} refreshKey={actionCount} working={sending} />
+                  <FocusedVideo onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "calendar" ? (
                   <FocusedCalendar onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : (
