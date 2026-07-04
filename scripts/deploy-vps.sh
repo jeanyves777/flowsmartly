@@ -13,7 +13,9 @@
 # gives a clean, reproducible checkout, then we re-apply the patch each time.
 # Untracked/gitignored files (.env, .next, BUILD_OK, node_modules) are preserved.
 #
-# Safe to re-run. Never calls `pm2 restart` (hard kill) — only `pm2 reload`.
+# Safe to re-run. Uses `pm2 reload` (zero-downtime) when the app is ONLINE; only
+# falls back to `pm2 restart`/`start` when the process is stopped/errored/missing,
+# so a build that OOM-killed the app can never leave prod down with no recovery.
 
 set -Eeuo pipefail
 
@@ -117,9 +119,25 @@ npx next build --no-lint
 date -u +"BUILD_OK %Y-%m-%dT%H:%M:%SZ $(git rev-parse --short HEAD)" >> "$BUILD_OK"
 log "BUILD_OK written: $(tail -n1 "$BUILD_OK")"
 
-# --- 7. zero-downtime reload --------------------------------------------------
-log "pm2 reload ${PM2_APP} (graceful, zero-downtime)"
-pm2 reload "${PM2_APP}"
+# --- 7. bring the app up ------------------------------------------------------
+# Prefer `pm2 reload` (zero-downtime) when the app is ONLINE. But if the process
+# was stopped or errored — e.g. OOM-killed while a previous build ran with voice
+# services down — `pm2 reload` does not reliably START it, which is how a failed
+# build turned into a hard 502 outage with nothing bringing the app back. So:
+# reload if online, else restart (start a stopped/errored process), else start.
+app_status="$(pm2 jlist 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const p=JSON.parse(s).find(x=>x.name===process.argv[1]);process.stdout.write(p?(p.pm2_env&&p.pm2_env.status||""):"missing")}catch(e){process.stdout.write("unknown")}})' "${PM2_APP}" 2>/dev/null || echo unknown)"
+log "pm2 ${PM2_APP} status before deploy: ${app_status:-unknown}"
+if [ "$app_status" = "online" ]; then
+  log "pm2 reload ${PM2_APP} (graceful, zero-downtime)"
+  pm2 reload "${PM2_APP}" || pm2 restart "${PM2_APP}"
+else
+  # stopped / errored / missing / unknown — force it online.
+  log "pm2 ${PM2_APP} not online (${app_status:-unknown}) — restarting to bring it up"
+  pm2 restart "${PM2_APP}" || pm2 start "${PM2_APP}" || {
+    echo "WARN: pm2 restart/start by name failed — attempting to launch fresh"
+    pm2 start npm --name "${PM2_APP}" -- start
+  }
+fi
 
 # --- 8. health check — fail the deploy (red CI -> GitHub email) on a bad boot -
 log "Health check: ${HEALTH_URL}"
