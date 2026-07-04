@@ -78,12 +78,25 @@ sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
 grep -q 'provider = "postgresql"' prisma/schema.prisma \
   || { echo "FATAL: Prisma provider patch did not apply"; exit 1; }
 
-# --- 3. install deps only if the lockfile / .npmrc changed --------------------
-if [ "$PREV_LOCK_HASH" != "$NEW_LOCK_HASH" ]; then
-  log "package-lock.json / .npmrc changed — running npm install"
+# --- 3. install deps -----------------------------------------------------------
+# Install when the lockfile/.npmrc signature changed OR when node_modules was
+# never fully provisioned for the CURRENT signature. The old gate keyed only off
+# the git PREV-vs-NEW comparison, so a re-deploy of the same commit onto an
+# incomplete node_modules (e.g. a prior install that failed / was skipped) would
+# keep skipping install forever — which is exactly how the VPS ended up missing
+# lenis/gsap. We stamp the signature into node_modules ONLY after a successful
+# install; a missing/mismatched stamp means deps aren't actually present.
+DEP_STAMP="${APP_DIR}/node_modules/.deploy-dep-sig"
+INSTALLED_SIG="$( [ -f "$DEP_STAMP" ] && cat "$DEP_STAMP" 2>/dev/null || echo none )"
+if [ "$PREV_LOCK_HASH" != "$NEW_LOCK_HASH" ] || [ "$INSTALLED_SIG" != "$NEW_LOCK_HASH" ]; then
+  log "Installing deps (signature changed or node_modules not provisioned for ${NEW_LOCK_HASH})"
   npm install --no-audit --no-fund
+  # Stamp AFTER a successful install so a failed/partial install never marks the
+  # tree as provisioned (set -e already aborts the deploy if npm install fails).
+  echo "$NEW_LOCK_HASH" > "$DEP_STAMP"
+  log "Stamped node_modules as provisioned for ${NEW_LOCK_HASH}"
 else
-  echo "Dependencies unchanged — skipping npm install"
+  echo "Dependencies unchanged & provisioned (${NEW_LOCK_HASH}) — skipping npm install"
 fi
 
 # --- 4. prisma client ---------------------------------------------------------
