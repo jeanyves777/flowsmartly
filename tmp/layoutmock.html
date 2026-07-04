@@ -1,0 +1,55 @@
+<!doctype html><meta charset=utf8><style>
+  body{margin:0;background:#111827;font:13px Segoe UI,sans-serif;padding:20px;display:flex;gap:28px}
+  h3{color:#a78bfa;font-size:12px;margin:0 0 8px;font-weight:700}
+  /* .viewport simulates the browser window (a fixed 640px "100dvh"). overflow:auto
+     so any spill BEYOND the frame shows as a scrollbar + reveals the pink area. */
+  .viewport{width:360px;height:640px;overflow:auto;border:2px solid #ef4444;border-radius:6px;background:#ff2d6b22}
+  .root{display:flex;flex-direction:column;height:640px;background:#0b0f1a}   /* h-[100dvh] */
+  .header{flex:0 0 auto;height:52px;border-bottom:1px solid #1f2937;color:#e5e7eb;display:flex;align-items:center;padding:0 12px}
+  .bodyrow{display:flex;flex:1 1 auto;min-height:0}                            /* flex min-h-0 flex-1 */
+  .rail{flex:0 0 60px;border-right:1px solid #1f2937;color:#6b7280;display:flex;justify-content:center;padding-top:10px}
+  .main{position:relative;display:flex;flex-direction:column;flex:1 1 auto;overflow-x:clip}  /* NO min-h-0 (bug) */
+  .main.fix{min-height:0}                                                      /* the fix */
+  .scroll{flex:1 1 auto;overflow-y:auto;padding:12px}                          /* flex-1 overflow-y-auto */
+  .msg{background:#111a2e;border:1px solid #1f2937;border-radius:10px;padding:9px 11px;margin-bottom:8px;color:#cbd5e1}
+  .pb44{height:176px}                                                          /* pb-44 reservation */
+  .composer{position:absolute;left:0;right:0;bottom:0;height:60px;margin:10px;border:1px solid #334155;border-radius:12px;background:#0f172a;color:#94a3b8;display:flex;align-items:center;padding:0 14px}
+</style>
+
+  <div class="wrap">
+    <h3>BEFORE — main missing min-h-0</h3>
+    <div class="viewport">
+      <div class="root">
+        <div class="header">header (topbar)</div>
+        <div class="bodyrow">
+          <div class="rail">rail</div>
+          <main class="main ">
+            <div class="scroll">
+              <div class="msg">Message 1</div><div class="msg">Message 2</div><div class="msg">Message 3</div><div class="msg">Message 4</div><div class="msg">Message 5</div><div class="msg">Message 6</div><div class="msg">Message 7</div><div class="msg">Message 8</div><div class="msg">Message 9</div><div class="msg">Message 10</div><div class="msg">Message 11</div><div class="msg">Message 12</div><div class="msg">Message 13</div><div class="msg">Message 14</div><div class="msg">Message 15</div><div class="msg">Message 16</div><div class="msg">Message 17</div><div class="msg">Message 18</div><div class="msg">Message 19</div><div class="msg">Message 20</div><div class="msg">Message 21</div><div class="msg">Message 22</div><div class="msg">Message 23</div><div class="msg">Message 24</div>
+              <div class="pb44"></div>
+            </div>
+            <div class="composer">Ask FlowSmartly to do something…</div>
+          </main>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <h3>AFTER — main has min-h-0</h3>
+    <div class="viewport">
+      <div class="root">
+        <div class="header">header (topbar)</div>
+        <div class="bodyrow">
+          <div class="rail">rail</div>
+          <main class="main fix">
+            <div class="scroll">
+              <div class="msg">Message 1</div><div class="msg">Message 2</div><div class="msg">Message 3</div><div class="msg">Message 4</div><div class="msg">Message 5</div><div class="msg">Message 6</div><div class="msg">Message 7</div><div class="msg">Message 8</div><div class="msg">Message 9</div><div class="msg">Message 10</div><div class="msg">Message 11</div><div class="msg">Message 12</div><div class="msg">Message 13</div><div class="msg">Message 14</div><div class="msg">Message 15</div><div class="msg">Message 16</div><div class="msg">Message 17</div><div class="msg">Message 18</div><div class="msg">Message 19</div><div class="msg">Message 20</div><div class="msg">Message 21</div><div class="msg">Message 22</div><div class="msg">Message 23</div><div class="msg">Message 24</div>
+              <div class="pb44"></div>
+            </div>
+            <div class="composer">Ask FlowSmartly to do something…</div>
+          </main>
+        </div>
+      </div>
+    </div>
+  </div>

@@ -1,0 +1,2 @@
+2026-07-04T17:55:04-04:00 polling https://flowsmartly.com/api/version for sha 8a08accb
+2026-07-04T17:55:05-04:00 check#1 -> ✅ LIVE: {"sha":"8a08accb64adf661cb1d80b4850874ac091ab41d","shortSha":"8a08accb","builtAt":null}

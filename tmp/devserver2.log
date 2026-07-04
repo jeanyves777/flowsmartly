@@ -1,0 +1,95 @@
+   ▲ Next.js 15.5.12
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.1.199:3000
+   - Environments: .env
+   - Experiments (use with caution):
+     · serverActions
+     · optimizePackageImports
+     · middlewareClientMaxBodySize: "500mb"
+
+ ✓ Starting...
+<w> [webpack.cache.PackFileCacheStrategy] Restoring pack from D:\Flowsmartly\flowsmartly\.next\cache\webpack\server-development.pack.gz failed: TypeError: Cannot read properties of undefined (reading 'hasStartTime')
+<w> [webpack.cache.PackFileCacheStrategy] Restoring pack from D:\Flowsmartly\flowsmartly\.next\cache\webpack\edge-server-development.pack.gz failed: TypeError: Cannot read properties of undefined (reading 'hasStartTime')
+ ✓ Ready in 3.9s
+ ○ Compiling /middleware ...
+ ✓ Compiled /middleware in 542ms (114 modules)
+ ○ Compiling / ...
+Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+ ✓ Compiled / in 12.7s (1807 modules)
+ ✓ Compiled in 2.1s (807 modules)
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 565ms (1788 modules)
+ GET / 404 in 1532ms
+ GET / 200 in 555ms
+ GET / 200 in 866ms
+ ○ Compiling /api/auth/login ...
+ ✓ Compiled /favicon.ico in 1360ms (1921 modules)
+ GET /favicon.ico 200 in 1071ms
+prisma:query SELECT `main`.`User`.`id`, `main`.`User`.`email`, `main`.`User`.`passwordHash`, `main`.`User`.`oauthProvider`, `main`.`User`.`name`, `main`.`User`.`username`, `main`.`User`.`avatarUrl`, `main`.`User`.`plan`, `main`.`User`.`aiCredits`, `main`.`User`.`balanceCents`, `main`.`User`.`deletedAt`, `main`.`User`.`twoFactorEnabled`, `main`.`User`.`twoFactorSecret`, `main`.`User`.`twoFactorRecoveryCodes` FROM `main`.`User` WHERE (`main`.`User`.`email` = ? AND 1=1) LIMIT ? OFFSET ?
+prisma:query UPDATE `main`.`User` SET `lastLoginAt` = ?, `updatedAt` = ? WHERE (`main`.`User`.`id` = ? AND 1=1) RETURNING `id` AS `id`, `email` AS `email`, `passwordHash` AS `passwordHash`, `name` AS `name`, `username` AS `username`, `oauthProvider` AS `oauthProvider`, `oauthId` AS `oauthId`, `oauthAvatarUrl` AS `oauthAvatarUrl`, `avatarUrl` AS `avatarUrl`, `coverImageUrl` AS `coverImageUrl`, `bio` AS `bio`, `website` AS `website`, `links` AS `links`, `emailVerified` AS `emailVerified`, `emailVerifiedAt` AS `emailVerifiedAt`, `plan` AS `plan`, `planExpiresAt` AS `planExpiresAt`, `stripeCustomerId` AS `stripeCustomerId`, `aiCredits` AS `aiCredits`, `freeCredits` AS `freeCredits`, `balanceCents` AS `balanceCents`, `referralCode` AS `referralCode`, `country` AS `country`, `region` AS `region`, `timezone` AS `timezone`, `language` AS `language`, `theme` AS `theme`, `notificationPrefs` AS `notificationPrefs`, `dismissedBanners` AS `dismissedBanners`, `twoFactorEnabled` AS `twoFactorEnabled`, `twoFactorSecret` AS `twoFactorSecret`, `twoFactorEnabledAt` AS `twoFactorEnabledAt`, `twoFactorRecoveryCodes` AS `twoFactorRecoveryCodes`, `createdAt` AS `createdAt`, `updatedAt` AS `updatedAt`, `lastLoginAt` AS `lastLoginAt`, `deletedAt` AS `deletedAt`, `onboardingComplete` AS `onboardingComplete`, `isSynthetic` AS `isSynthetic`
+prisma:query INSERT INTO `main`.`Session` (`id`, `userId`, `token`, `userAgent`, `ipAddress`, `expiresAt`, `createdAt`) VALUES (?,?,?,?,?,?,?) RETURNING `id` AS `id`, `userId` AS `userId`, `token` AS `token`, `userAgent` AS `userAgent`, `ipAddress` AS `ipAddress`, `expiresAt` AS `expiresAt`, `createdAt` AS `createdAt`
+ POST /api/auth/login 200 in 2354ms
+ ○ Compiling /home/[[...view]] ...
+ ✓ Compiled /home/[[...view]] in 6.5s (2920 modules)
+ ⨯ [Error: Cannot find module './vendor-chunks/framer-motion.js'
+Require stack:
+- D:\Flowsmartly\flowsmartly\.next\server\webpack-runtime.js
+- D:\Flowsmartly\flowsmartly\.next\server\app\(dashboard)\home\[[...view]]\page.js
+- D:\Flowsmartly\flowsmartly\node_modules\next\dist\server\require.js
+- D:\Flowsmartly\flowsmartly\node_modules\next\dist\server\load-components.js
+- D:\Flowsmartly\flowsmartly\node_modules\next\dist\build\utils.js
+- D:\Flowsmartly\flowsmartly\node_modules\next\dist\server\dev\static-paths-worker.js
+- D:\Flowsmartly\flowsmartly\node_modules\next\dist\compiled\jest-worker\processChild.js] {
+  type: 'Error',
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/home/voice'
+}
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 2s (3272 modules)
+ GET /home/voice 500 in 10620ms
+[Error: ENOENT: no such file or directory, stat 'D:\Flowsmartly\flowsmartly\.next\cache\webpack\server-development\0.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'D:\\Flowsmartly\\flowsmartly\\.next\\cache\\webpack\\server-development\\0.pack.gz'
+}
+ ⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat 'D:\Flowsmartly\flowsmartly\.next\cache\webpack\server-development\0.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'D:\\Flowsmartly\\flowsmartly\\.next\\cache\\webpack\\server-development\\0.pack.gz'
+}
+ ⨯ unhandledRejection:  [Error: ENOENT: no such file or directory, stat 'D:\Flowsmartly\flowsmartly\.next\cache\webpack\server-development\0.pack.gz'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: 'D:\\Flowsmartly\\flowsmartly\\.next\\cache\\webpack\\server-development\\0.pack.gz'
+}
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, stat 'D:\Flowsmartly\flowsmartly\.next\cache\webpack\server-development\0.pack.gz'
+ ✓ Compiled in 2.8s (1761 modules)
+ ✓ Compiled in 831ms (1444 modules)
+ ✓ Compiled in 1745ms (1761 modules)
+ ✓ Compiled in 1486ms (1747 modules)
+ ✓ Compiled in 1590ms (1761 modules)
+ ✓ Compiled in 1542ms (1761 modules)
+ ✓ Compiled in 896ms (1444 modules)
+ ✓ Compiled in 843ms (1444 modules)
+ ✓ Compiled in 950ms (1444 modules)
+ ✓ Compiled in 572ms (1444 modules)
+ ✓ Compiled in 806ms (1444 modules)
+ ✓ Compiled in 545ms (1444 modules)
+ ✓ Compiled in 773ms (1444 modules)
+ ✓ Compiled in 635ms (1444 modules)
+ ✓ Compiled in 767ms (1445 modules)
+ ✓ Compiled in 565ms (1445 modules)
+ ✓ Compiled in 822ms (1445 modules)
+ ✓ Compiled in 589ms (1445 modules)
+ ✓ Compiled in 605ms (1445 modules)
+ ✓ Compiled in 777ms (1445 modules)
+ ✓ Compiled in 761ms (1448 modules)
+ ✓ Compiled in 554ms (1448 modules)
+   Reload env: .env
+ ✓ Compiled in 559ms (1751 modules)

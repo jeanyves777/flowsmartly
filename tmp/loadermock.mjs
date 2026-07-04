@@ -1,0 +1,36 @@
+import fs from "node:fs";
+import puppeteer from "puppeteer";
+const row = (label) => `
+  <div class="card">
+    <div class="hd"><span class="dot"></span><b>Create Branded Design</b><span class="badge">RUNNING</span></div>
+    <div class="pad">
+      <div class="loader">
+        <div class="ring"><div class="logo">F</div></div>
+        <div class="txt">${label}</div>
+        <div class="pct">18%</div>
+      </div>
+    </div>
+  </div>`;
+const html = `<!doctype html><meta charset=utf8><style>
+body{margin:0;background:#0b0f1a;font:13px Segoe UI,sans-serif;padding:18px;display:flex;gap:18px;align-items:flex-start}
+.col{width:300px}.col h3{color:#a78bfa;font-size:12px;margin:0 0 8px}
+.card{width:300px;border:1px solid #1f2937;border-radius:16px;overflow:hidden;background:#0f1729}
+.hd{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #1f2937;color:#e5e7eb;font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;background:#6d5cff}.badge{margin-left:auto;font-size:10px;color:#93c5fd;background:#1e3a8a44;padding:2px 7px;border-radius:999px}
+.pad{padding:12px}
+.loader{position:relative;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:linear-gradient(135deg,#0b1120,#0f172a);overflow:hidden}
+.ring{width:42px;height:42px;border-radius:50%;border:3px solid #8b5cf644;border-top-color:#3b82f6;border-right-color:#8b5cf6;display:grid;place-items:center;flex:0 0 auto;box-shadow:0 0 14px #8b5cf633}
+.logo{width:21px;height:21px;border-radius:6px;background:linear-gradient(135deg,#f59e0b,#6d5cff);display:grid;place-items:center;color:#fff;font-weight:800;font-size:11px}
+.txt{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;font-weight:600;color:#e5e7eb}
+.pct{flex:0 0 auto;font-size:13px;font-weight:800;background:linear-gradient(90deg,#60a5fa,#a78bfa,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent}
+</style>
+<div class="col"><h3>Before (word-wrap) — now fixed to:</h3>${row("Creating your branded design…")}</div>
+<div class="col"><h3>Longer step text truncates</h3>${row("Generating an on-brand image for the night-shift post…")}</div>`;
+fs.writeFileSync("d:/Flowsmartly/flowsmartly/tmp/loadermock.html", html);
+const b = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] });
+const pg = await b.newPage();
+await pg.setViewport({ width: 700, height: 260, deviceScaleFactor: 2 });
+await pg.goto("file:///d:/Flowsmartly/flowsmartly/tmp/loadermock.html", { waitUntil: "networkidle0" });
+await pg.screenshot({ path: "d:/Flowsmartly/flowsmartly/tmp/loadermock.png" });
+await b.close();
+console.log("done");

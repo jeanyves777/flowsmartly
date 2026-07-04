@@ -1,0 +1,10 @@
+import fs from "node:fs"; import path from "node:path"; import puppeteer from "puppeteer";
+const DIR = "d:/Flowsmartly/flowsmartly/design/mockups-test";
+const files = ["tee","hoodie","vest","cap","tote","mug","bottle"];
+const cells = files.map(f=>{const p=path.join(DIR,f+".jpg"); if(!fs.existsSync(p))return `<div class=c><div class=ph>missing ${f}</div></div>`; return `<div class=c><img src="data:image/jpeg;base64,${fs.readFileSync(p).toString("base64")}"><div class=l>${f}</div></div>`;}).join("");
+const html=`<!doctype html><meta charset=utf8><style>body{margin:0;background:#0b1120;color:#e6ebf3;font:13px Segoe UI,sans-serif;padding:16px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.c{background:#0f1729;border:1px solid #1e293b;border-radius:10px;overflow:hidden}.c img{display:block;width:100%;aspect-ratio:1;object-fit:cover}.ph{aspect-ratio:1;display:grid;place-items:center;color:#64748b}.l{padding:7px 9px;font-weight:700}</style><div class=grid>${cells}</div>`;
+fs.writeFileSync(path.join(DIR,"sheet.html"),html);
+const b=await puppeteer.launch({headless:"new",args:["--no-sandbox"]});const pg=await b.newPage();
+await pg.setViewport({width:1200,height:700,deviceScaleFactor:1.5});
+await pg.goto("file:///"+path.join(DIR,"sheet.html").split(path.sep).join("/"),{waitUntil:"networkidle0"});
+await pg.screenshot({path:path.join(DIR,"sheet.png"),fullPage:true});await b.close();console.log("done");

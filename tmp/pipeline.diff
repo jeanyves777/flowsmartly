@@ -1,0 +1,764 @@
+diff --git a/src/app/admin/(portal)/image-pipeline/page.tsx b/src/app/admin/(portal)/image-pipeline/page.tsx
+new file mode 100644
+index 00000000..11180f01
+--- /dev/null
++++ b/src/app/admin/(portal)/image-pipeline/page.tsx
+@@ -0,0 +1,234 @@
++"use client";
++
++import { useCallback, useEffect, useState } from "react";
++import { Wand2, Save, RotateCcw, Play, Plus, X, ArrowUp, ArrowDown, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
++
++type Provider = "xai" | "openai" | "gemini";
++interface Step { provider: Provider; model: string }
++interface Recipe { fullBleed: boolean; premiumPolish: boolean; enforceExactCopy: boolean; singleLogo: boolean }
++type Role = "design_generate" | "premium" | "design_edit" | "bulk_multi";
++interface Policy { chains: Partial<Record<Role, Step[]>>; recipe: Recipe }
++type Catalog = Record<Provider, { id: string; label: string }[]>;
++
++const ROLE_META: { role: Role; title: string; blurb: string }[] = [
++  { role: "design_generate", title: "Standard designs", blurb: "Campaign posts, Studio Create, automations. Primary = first in the list; the rest are fallbacks." },
++  { role: "premium", title: "Premium designs", blurb: "Explicit Premium-tier requests. Sharpest typography." },
++  { role: "design_edit", title: "Edits", blurb: "Editing an existing design/image (needs an image-capable model)." },
++  { role: "bulk_multi", title: "Bulk / multi-image", blurb: "Story-ad slideshows, narration stills — keep it cheap." },
++];
++const PROVIDER_LABEL: Record<Provider, string> = { xai: "xAI", openai: "OpenAI", gemini: "Google" };
++const RECIPE_META: { key: keyof Recipe; label: string; blurb: string }[] = [
++  { key: "fullBleed", label: "Full-bleed / anti-card", blurb: "Design fills the canvas edge-to-edge — never a card floating on another background." },
++  { key: "premiumPolish", label: "Premium polish", blurb: "Stripe/Linear-grade depth, glassmorphism, 2K sharpness — lifts every provider to the bar." },
++  { key: "enforceExactCopy", label: "Exact copy", blurb: "Render the exact words — no misspelling, duplication, or invented text." },
++  { key: "singleLogo", label: "Single real logo", blurb: "Model draws NO brand mark; the real logo composites exactly once (kills duplicate logos)." },
++];
++
++export default function ImagePipelinePage() {
++  const [policy, setPolicy] = useState<Policy | null>(null);
++  const [defaults, setDefaults] = useState<Policy | null>(null);
++  const [catalog, setCatalog] = useState<Catalog | null>(null);
++  const [availability, setAvailability] = useState<Record<Provider, boolean> | null>(null);
++  const [loading, setLoading] = useState(true);
++  const [saving, setSaving] = useState(false);
++  const [savedAt, setSavedAt] = useState<number | null>(null);
++
++  const load = useCallback(async () => {
++    setLoading(true);
++    const j = await fetch("/api/admin/image-pipeline").then((r) => r.json()).catch(() => null);
++    if (j?.success) {
++      setPolicy(j.data.policy);
++      setDefaults(j.data.defaults);
++      setCatalog(j.data.catalog);
++      setAvailability(j.data.availability);
++    }
++    setLoading(false);
++  }, []);
++  useEffect(() => { load(); }, [load]);
++
++  const chainFor = (role: Role): Step[] => policy?.chains?.[role] ?? [];
++  const setChain = (role: Role, steps: Step[]) =>
++    setPolicy((p) => (p ? { ...p, chains: { ...p.chains, [role]: steps } } : p));
++
++  const move = (role: Role, i: number, dir: -1 | 1) => {
++    const steps = [...chainFor(role)];
++    const j = i + dir;
++    if (j < 0 || j >= steps.length) return;
++    [steps[i], steps[j]] = [steps[j], steps[i]];
++    setChain(role, steps);
++  };
++  const removeStep = (role: Role, i: number) => setChain(role, chainFor(role).filter((_, k) => k !== i));
++  const updateStep = (role: Role, i: number, patch: Partial<Step>) => {
++    const steps = chainFor(role).map((s, k) => (k === i ? { ...s, ...patch } : s));
++    setChain(role, steps);
++  };
++  const addStep = (role: Role) => {
++    if (!catalog) return;
++    const prov: Provider = "xai";
++    setChain(role, [...chainFor(role), { provider: prov, model: catalog[prov][0].id }]);
++  };
++
++  const save = async () => {
++    if (!policy) return;
++    setSaving(true);
++    const j = await fetch("/api/admin/image-pipeline", {
++      method: "PUT",
++      headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ policy }),
++    }).then((r) => r.json()).catch(() => null);
++    setSaving(false);
++    if (j?.success) { setPolicy(j.data.policy); setSavedAt(Date.now()); }
++  };
++  const resetDefaults = () => defaults && setPolicy(JSON.parse(JSON.stringify(defaults)));
++
++  if (loading || !policy || !catalog || !availability) {
++    return <div className="grid h-64 place-items-center text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>;
++  }
++
++  return (
++    <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
++      <header className="flex flex-wrap items-center gap-3">
++        <span className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Wand2 className="h-5 w-5" /></span>
++        <div className="min-w-0">
++          <h1 className="text-lg font-bold">Image Pipeline — Control Hub</h1>
++          <p className="text-[13px] text-muted-foreground">Provider chains per tier + the art-direction recipe. Changes hot-swap the live pipeline (no deploy).</p>
++        </div>
++        <div className="ms-auto flex items-center gap-2">
++          <button onClick={resetDefaults} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[13px] font-semibold text-muted-foreground hover:text-foreground"><RotateCcw className="h-4 w-4" /> Reset</button>
++          <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[13px] font-bold text-white disabled:opacity-60">
++            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save
++          </button>
++        </div>
++      </header>
++
++      {savedAt && <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[13px] text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-4 w-4" /> Saved — the live pipeline now uses this policy.</div>}
++
++      {/* provider availability */}
++      <div className="flex flex-wrap gap-2">
++        {(Object.keys(PROVIDER_LABEL) as Provider[]).map((p) => (
++          <span key={p} className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium ${availability[p] ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-rose-500/30 bg-rose-500/10 text-rose-500"}`}>
++            {availability[p] ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertTriangle className="h-3.5 w-3.5" />} {PROVIDER_LABEL[p]} {availability[p] ? "key set" : "no key"}
++          </span>
++        ))}
++      </div>
++
++      {/* recipe toggles */}
++      <section className="rounded-xl border border-border bg-card p-4">
++        <h2 className="mb-1 text-[14px] font-bold">Art-direction recipe</h2>
++        <p className="mb-3 text-[12.5px] text-muted-foreground">The quality layer applied to every generation. Proven in the July-2026 bake-off to lift all providers to the gpt-image bar.</p>
++        <div className="grid gap-2 sm:grid-cols-2">
++          {RECIPE_META.map((r) => (
++            <label key={r.key} className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border p-2.5 hover:bg-muted/40">
++              <input type="checkbox" checked={policy.recipe[r.key]} onChange={(e) => setPolicy((p) => (p ? { ...p, recipe: { ...p.recipe, [r.key]: e.target.checked } } : p))} className="mt-0.5 h-4 w-4 accent-brand-500" />
++              <span className="min-w-0"><span className="block text-[13px] font-semibold">{r.label}</span><span className="block text-[11.5px] text-muted-foreground">{r.blurb}</span></span>
++            </label>
++          ))}
++        </div>
++      </section>
++
++      {/* per-role chains */}
++      <section className="space-y-4">
++        {ROLE_META.map(({ role, title, blurb }) => (
++          <div key={role} className="rounded-xl border border-border bg-card p-4">
++            <div className="mb-2 flex items-center gap-2">
++              <h2 className="text-[14px] font-bold">{title}</h2>
++              <code className="rounded bg-muted px-1.5 py-0.5 text-[10.5px] text-muted-foreground">{role}</code>
++            </div>
++            <p className="mb-3 text-[12.5px] text-muted-foreground">{blurb}</p>
++            <div className="space-y-2">
++              {chainFor(role).map((step, i) => (
++                <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background p-2">
++                  <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${i === 0 ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground"}`}>{i === 0 ? "Primary" : `Fallback ${i}`}</span>
++                  <select value={step.provider} onChange={(e) => { const prov = e.target.value as Provider; updateStep(role, i, { provider: prov, model: catalog[prov][0].id }); }} className="rounded-md border border-input bg-background px-2 py-1 text-[12.5px]">
++                    {(Object.keys(PROVIDER_LABEL) as Provider[]).map((p) => <option key={p} value={p}>{PROVIDER_LABEL[p]}</option>)}
++                  </select>
++                  <select value={step.model} onChange={(e) => updateStep(role, i, { model: e.target.value })} className="min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-[12.5px]">
++                    {(catalog[step.provider] || []).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
++                    {!(catalog[step.provider] || []).some((m) => m.id === step.model) && <option value={step.model}>{step.model}</option>}
++                  </select>
++                  <div className="ms-auto flex items-center gap-1">
++                    <button onClick={() => move(role, i, -1)} disabled={i === 0} className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowUp className="h-3.5 w-3.5" /></button>
++                    <button onClick={() => move(role, i, 1)} disabled={i === chainFor(role).length - 1} className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowDown className="h-3.5 w-3.5" /></button>
++                    <button onClick={() => removeStep(role, i)} disabled={chainFor(role).length <= 1} className="grid h-7 w-7 place-items-center rounded-md border border-border text-rose-500 hover:bg-rose-500/10 disabled:opacity-30"><X className="h-3.5 w-3.5" /></button>
++                  </div>
++                </div>
++              ))}
++            </div>
++            <button onClick={() => addStep(role)} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-1.5 text-[12.5px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> Add fallback</button>
++          </div>
++        ))}
++      </section>
++
++      <TestConsole catalog={catalog} recipe={policy.recipe} />
++    </div>
++  );
++}
++
++// ── Live test console ──
++function TestConsole({ catalog, recipe }: { catalog: Catalog; recipe: Recipe }) {
++  const SAMPLE = `Design a premium social media marketing flyer for "FlowSmartly", an all-in-one AI growth platform (SaaS).
++HEADER: brand name lockup top-left + a small pill tag "AI-POWERED GROWTH WORKSPACE".
++HERO: a realistic app-dashboard mockup on a laptop + phone (analytics charts, content calendar), floating with a soft glow.
++HEADLINE: "Create, Sell, and Grow with AI".
++SUBHEAD: "Run content, commerce, local listings, customer messages, and reporting from one focused workspace."
++FEATURE ROW: 4 chips with line-icons: "AI Studio", "Social Calendar", "Email & SMS", "Analytics".
++CTA: a bright rounded "Try for free" button + tiny "No credit card required".
++FOOTER: a brand-colored bar with "flowsmartly.com".
++Brand palette: deep indigo/blue, electric blue, warm orange accent.`;
++  const [prompt, setPrompt] = useState(SAMPLE);
++  const [size, setSize] = useState("1024x1024");
++  const [running, setRunning] = useState(false);
++  const [results, setResults] = useState<{ label: string; dataUri?: string; error?: string; ms: number; ok: boolean }[] | null>(null);
++  const [targets, setTargets] = useState<Record<Provider, boolean>>({ xai: true, gemini: true, openai: true });
++
++  const run = async () => {
++    setRunning(true); setResults(null);
++    const tgs = (Object.keys(targets) as Provider[]).filter((p) => targets[p]).map((p) => ({ provider: p, model: catalog[p][0].id }));
++    const j = await fetch("/api/admin/image-pipeline/test", {
++      method: "POST", headers: { "Content-Type": "application/json" },
++      body: JSON.stringify({ prompt, size, targets: tgs, recipe, hasLogo: false }),
++    }).then((r) => r.json()).catch(() => null);
++    setRunning(false);
++    if (j?.success) setResults(j.data.results);
++    else setResults([{ label: "error", error: j?.error?.message || "test failed", ms: 0, ok: false }]);
++  };
++
++  return (
++    <section className="rounded-xl border border-border bg-card p-4">
++      <h2 className="mb-1 text-[14px] font-bold">Live test — compare providers</h2>
++      <p className="mb-3 text-[12.5px] text-muted-foreground">Runs the brief through each checked provider (primary model) with the current recipe applied. Admin-only, no user credits charged.</p>
++      <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={6} className="w-full resize-y rounded-lg border border-input bg-background p-2.5 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
++      <div className="mt-2 flex flex-wrap items-center gap-3">
++        <select value={size} onChange={(e) => setSize(e.target.value)} className="rounded-md border border-input bg-background px-2 py-1.5 text-[12.5px]">
++          <option value="1024x1024">Square 1:1</option>
++          <option value="1024x1536">Portrait 4:5</option>
++          <option value="1536x1024">Landscape 16:9</option>
++        </select>
++        {(Object.keys(targets) as Provider[]).map((p) => (
++          <label key={p} className="inline-flex items-center gap-1.5 text-[12.5px]">
++            <input type="checkbox" checked={targets[p]} onChange={(e) => setTargets((t) => ({ ...t, [p]: e.target.checked }))} className="h-4 w-4 accent-brand-500" /> {PROVIDER_LABEL[p]}
++          </label>
++        ))}
++        <button onClick={run} disabled={running} className="ms-auto inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[13px] font-bold text-white disabled:opacity-60">
++          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />} Run test
++        </button>
++      </div>
++      {running && <p className="mt-3 text-[12.5px] text-muted-foreground">Generating… gpt-image can take ~30–150s; xAI/Gemini ~5–12s.</p>}
++      {results && (
++        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
++          {results.map((r, i) => (
++            <div key={i} className="overflow-hidden rounded-lg border border-border bg-background">
++              {r.ok && r.dataUri ? (
++                // eslint-disable-next-line @next/next/no-img-element
++                <img src={r.dataUri} alt={r.label} className="aspect-square w-full object-cover" />
++              ) : (
++                <div className="grid aspect-square place-items-center p-3 text-center text-[12px] text-rose-500"><span><AlertTriangle className="mx-auto mb-1 h-5 w-5" />{r.error}</span></div>
++              )}
++              <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11.5px]"><span className="truncate font-semibold">{r.label}</span><span className="shrink-0 text-muted-foreground">{(r.ms / 1000).toFixed(1)}s</span></div>
++            </div>
++          ))}
++        </div>
++      )}
++    </section>
++  );
++}
+diff --git a/src/app/admin/(portal)/layout.tsx b/src/app/admin/(portal)/layout.tsx
+index d3972dd3..30db89da 100644
+--- a/src/app/admin/(portal)/layout.tsx
++++ b/src/app/admin/(portal)/layout.tsx
+@@ -43,6 +43,7 @@ import {
+   Gift,
+   CreditCard,
+   Timer,
++  Wand2,
+   Repeat,
+   Globe,
+   Globe2,
+@@ -102,6 +103,7 @@ const navItems: NavItem[] = [
+   { href: "/admin/subscriptions", icon: Repeat, label: "Subscriptions", permission: "EDIT_SETTINGS" },
+   { href: "/admin/engagement", icon: Sparkles, label: "Feed Engagement", permission: "EDIT_SETTINGS" },
+   { href: "/admin/cron-jobs", icon: Timer, label: "Cron Jobs", permission: "EDIT_SETTINGS" },
++  { href: "/admin/image-pipeline", icon: Wand2, label: "Image Pipeline", permission: "EDIT_SETTINGS" },
+   { href: "/admin/system", icon: Server, label: "System", permission: "EDIT_SETTINGS" },
+   { href: "/admin/settings", icon: Settings, label: "Settings", permission: "VIEW_SETTINGS" },
+ ];
+diff --git a/src/app/api/admin/image-pipeline/route.ts b/src/app/api/admin/image-pipeline/route.ts
+new file mode 100644
+index 00000000..425b2078
+--- /dev/null
++++ b/src/app/api/admin/image-pipeline/route.ts
+@@ -0,0 +1,57 @@
++import { NextRequest, NextResponse } from "next/server";
++import { getAdminSession } from "@/lib/admin/auth";
++import {
++  getImagePipelinePolicy,
++  setImagePipelinePolicy,
++  defaultImagePolicy,
++  IMAGE_MODEL_CATALOG,
++} from "@/lib/ai/media-policy";
++
++/**
++ * Admin Control Hub — image-generation provider pipeline.
++ * GET  → the effective policy (override merged over defaults) + the code default
++ *        + the model catalog + which providers have API keys configured.
++ * PUT  → persist a new policy (sanitized) to the SystemSetting row; hot-swaps the
++ *        live pipeline with no deploy.
++ */
++
++function providerAvailability() {
++  return {
++    xai: !!process.env.XAI_API_KEY,
++    openai: !!process.env.OPENAI_API_KEY,
++    gemini: !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
++  };
++}
++
++export async function GET() {
++  const session = await getAdminSession();
++  if (!session) {
++    return NextResponse.json({ success: false, error: { message: "Admin access required" } }, { status: 403 });
++  }
++  const policy = await getImagePipelinePolicy();
++  return NextResponse.json({
++    success: true,
++    data: {
++      policy,
++      defaults: defaultImagePolicy(),
++      catalog: IMAGE_MODEL_CATALOG,
++      availability: providerAvailability(),
++    },
++  });
++}
++
++export async function PUT(request: NextRequest) {
++  const session = await getAdminSession();
++  if (!session) {
++    return NextResponse.json({ success: false, error: { message: "Admin access required" } }, { status: 403 });
++  }
++  let body: unknown;
++  try {
++    body = await request.json();
++  } catch {
++    return NextResponse.json({ success: false, error: { message: "Invalid JSON body" } }, { status: 400 });
++  }
++  const policyInput = (body && typeof body === "object" && "policy" in body ? (body as { policy: unknown }).policy : body);
++  const saved = await setImagePipelinePolicy(policyInput, session.adminId ?? null);
++  return NextResponse.json({ success: true, data: { policy: saved } });
++}
+diff --git a/src/app/api/admin/image-pipeline/test/route.ts b/src/app/api/admin/image-pipeline/test/route.ts
+new file mode 100644
+index 00000000..5ccb9d7f
+--- /dev/null
++++ b/src/app/api/admin/image-pipeline/test/route.ts
+@@ -0,0 +1,87 @@
++import { NextRequest, NextResponse } from "next/server";
++import { getAdminSession } from "@/lib/admin/auth";
++import { generateImageWithProvider, type RoutedImageProvider } from "@/lib/ai/image-router";
++import { buildArtDirection } from "@/lib/ai/image-recipe";
++import { DEFAULT_RECIPE, type RecipeConfig } from "@/lib/ai/media-policy";
++
++/**
++ * Admin Control Hub — LIVE test-generate. Runs the given brief through one or
++ * more provider+model targets (with the art-direction recipe applied, so it
++ * reflects production quality) and returns the images as data URIs for a
++ * side-by-side comparison. Admin-only; does not touch user credits.
++ */
++
++const VALID: ReadonlySet<string> = new Set(["xai", "openai", "gemini", "flow"]);
++
++interface Target { provider: string; model?: string; label?: string }
++
++export async function POST(request: NextRequest) {
++  const session = await getAdminSession();
++  if (!session) {
++    return NextResponse.json({ success: false, error: { message: "Admin access required" } }, { status: 403 });
++  }
++
++  let body: { prompt?: string; size?: string; targets?: Target[]; recipe?: Partial<RecipeConfig>; hasLogo?: boolean };
++  try {
++    body = await request.json();
++  } catch {
++    return NextResponse.json({ success: false, error: { message: "Invalid JSON body" } }, { status: 400 });
++  }
++
++  const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
++  if (!prompt) {
++    return NextResponse.json({ success: false, error: { message: "A brief/prompt is required." } }, { status: 400 });
++  }
++  const [w, h] = (typeof body.size === "string" && /^\d+x\d+$/.test(body.size) ? body.size : "1024x1024").split("x").map(Number);
++  const targets = (Array.isArray(body.targets) ? body.targets : [])
++    .filter((t) => t && typeof t.provider === "string" && VALID.has(t.provider))
++    .slice(0, 6);
++  if (!targets.length) {
++    return NextResponse.json({ success: false, error: { message: "At least one provider target is required." } }, { status: 400 });
++  }
++
++  const recipe: RecipeConfig = {
++    fullBleed: body.recipe?.fullBleed !== false,
++    premiumPolish: body.recipe?.premiumPolish !== false,
++    enforceExactCopy: body.recipe?.enforceExactCopy !== false,
++    singleLogo: body.recipe?.singleLogo !== false,
++  };
++  void DEFAULT_RECIPE;
++  const fullPrompt = `${prompt}\n\n${buildArtDirection({ recipe, hasLogo: body.hasLogo === true })}`;
++
++  const results = await Promise.all(
++    targets.map(async (t) => {
++      const started = Date.now();
++      try {
++        const res = await generateImageWithProvider(
++          t.provider as RoutedImageProvider,
++          fullPrompt,
++          w,
++          h,
++          { quality: "high", model: t.model },
++        );
++        if (!res.base64) throw new Error("no image returned");
++        const mime = res.format === "jpeg" ? "image/jpeg" : "image/png";
++        return {
++          provider: t.provider,
++          model: res.model,
++          label: t.label || `${t.provider} · ${res.model}`,
++          ms: Date.now() - started,
++          dataUri: `data:${mime};base64,${res.base64}`,
++          ok: true as const,
++        };
++      } catch (e) {
++        return {
++          provider: t.provider,
++          model: t.model || null,
++          label: t.label || t.provider,
++          ms: Date.now() - started,
++          error: e instanceof Error ? e.message : "generation failed",
++          ok: false as const,
++        };
++      }
++    }),
++  );
++
++  return NextResponse.json({ success: true, data: { size: `${w}x${h}`, results } });
++}
+diff --git a/src/app/api/ai/visual/route.ts b/src/app/api/ai/visual/route.ts
+index 6b258a38..7b2b2668 100644
+--- a/src/app/api/ai/visual/route.ts
++++ b/src/app/api/ai/visual/route.ts
+@@ -8,6 +8,8 @@ import {
+   type ImageEditIntent,
+ } from "@/lib/ai/image-router";
+ import { imageGenerateRole, imageEditRole } from "@/lib/ai/media-models";
++import { getRecipeConfig } from "@/lib/ai/media-policy";
++import { buildArtDirection } from "@/lib/ai/image-recipe";
+ import { currentDateDirective } from "@/lib/ai/date-context";
+ import Anthropic from "@anthropic-ai/sdk";
+ import sharp from "sharp";
+@@ -1192,12 +1194,18 @@ ${params.ctaText ? `- CTA BUTTON: Rounded or pill-shaped button with bold contra
+ - Geometric shapes, patterns, or decorative elements for visual interest`;
+   }
+ 
+-  // Brand identity — logo is composited on top after generation, AI doesn't need to reserve space
++  // Brand identity — logo is composited on top after generation, AI doesn't need to reserve space.
++  // Fetch the recipe here so the BRAND rules and the appended art-direction agree.
+   const hasLogo = !!params.brandLogo;
++  const recipe = await getRecipeConfig();
+   designPrompt += `\n\nBRAND:`;
+   if (hasLogo) {
+-    designPrompt += `\n- REAL LOGO LOCK: The user's real brand logo is supplied separately and FlowSmartly may composite it after generation. Do NOT draw, approximate, invent, stylize, or copy any logo, icon mark, seal, monogram, badge, mascot, wordmark, or fake brand emblem anywhere in the design. Do NOT keep or copy a logo from a selected template image. Do NOT create a visible blank logo area, white rectangle, dashed placeholder, label, watermark, frame, or logo-space indicator; keep the underlying design natural.`;
+-    if (showBrandName && brandName) {
++    designPrompt += `\n- REAL LOGO LOCK: The user's real brand logo is supplied separately and FlowSmartly composites it after generation exactly once. Do NOT draw, approximate, invent, stylize, or copy any logo, icon mark, seal, monogram, badge, mascot, wordmark, or fake brand emblem anywhere in the design. Do NOT keep or copy a logo from a selected template image. Do NOT create a visible blank logo area, white rectangle, dashed placeholder, label, watermark, frame, or logo-space indicator; keep the underlying design natural.`;
++    // With the single-logo recipe on, the model must draw NO brand-name lettering
++    // either (the real logo — which usually carries the name — is composited on).
++    // Emitting a "brand name may appear as text" hint here is exactly what caused
++    // the DUPLICATE wordmark + logo. Only allow it when the recipe is off.
++    if (!recipe.singleLogo && showBrandName && brandName) {
+       const logoHasName = await logoContainsBrandName(params.brandLogo!, brandName);
+       if (!logoHasName) {
+         designPrompt += `\n- Brand name text: "${brandName}" may appear as plain readable text only if needed; do not pair it with an invented symbol or fake logo mark.`;
+@@ -1277,6 +1285,12 @@ ${contactParts.map(c => `- "${c}"`).join("\n")}`;
+ - Do NOT render the design on a background or inside any container — the design IS the full image
+ - The design must bleed to all 4 edges with no margin, border, or shadow around it`;
+ 
++  // Append the centralized, Control-Hub-tunable ART-DIRECTION RECIPE — the proven
++  // quality layer that lifts every provider to the agency-grade bar (full-bleed +
++  // premium polish + exact copy) and enforces a SINGLE real logo (model draws none;
++  // the real logo is composited once below). Uses the `recipe` fetched above.
++  designPrompt += `\n\n${buildArtDirection({ recipe, hasLogo, premiumTier: params.tier === "premium" })}`;
++
+   // ── Resolve reference image (if any) ──
+ 
+   const refUrl = params.referenceImageUrl || params.templateImageUrl;
+diff --git a/src/lib/ai/image-recipe.ts b/src/lib/ai/image-recipe.ts
+new file mode 100644
+index 00000000..7edc201b
+--- /dev/null
++++ b/src/lib/ai/image-recipe.ts
+@@ -0,0 +1,52 @@
++import type { RecipeConfig } from "./media-policy";
++
++/**
++ * ART-DIRECTION RECIPE — the single source of truth for the design-quality
++ * prompt layer that lifts EVERY provider (xAI, Gemini, gpt-image) to the
++ * agency-grade, gpt-image-example bar. Proven in the July-2026 bake-off: the
++ * jump from "plain/basic, card-on-a-background" to full-bleed, richly-designed,
++ * correctly-spelled output came from three levers, each gated by a recipe flag
++ * the Control Hub can toggle:
++ *   • fullBleed       — anti-card, edge-to-edge composition
++ *   • premiumPolish   — Stripe/Linear-grade depth, glassmorphism, 2K sharpness
++ *   • enforceExactCopy— exact words, zero misspelling/duplication/invention
++ *   • singleLogo      — model draws NO brand mark; the real logo composites once
++ *
++ * This is appended to the pipeline's design prompt so it applies uniformly.
++ */
++export function buildArtDirection(opts: {
++  recipe: RecipeConfig;
++  hasLogo: boolean;
++  premiumTier?: boolean;
++}): string {
++  const { recipe, hasLogo } = opts;
++  const parts: string[] = ["ART DIRECTION — hold every rule below:"];
++
++  if (recipe.fullBleed) {
++    parts.push(
++      "• FULL-BLEED, EDGE-TO-EDGE: the artwork fills the ENTIRE canvas corner to corner. There is exactly ONE layer — the design itself. NO outer frame, NO border, NO margin, NO rounded-card container, NO drop shadow around the whole design, NO paper/poster/phone/laptop/browser mockup bezel wrapping the artwork, and it must NEVER sit on top of a second background or backdrop. The design bleeds off all four edges.",
++    );
++  }
++  if (recipe.premiumPolish) {
++    parts.push(
++      "• PREMIUM FINISH (match the polish of Stripe, Linear, Vercel and Notion marketing): award-winning senior art-director quality. Layered depth — refined gradients, soft ambient glows, tasteful geometric accents and thin connective lines, subtle glassmorphism cards with 1px light strokes and gentle inner glow. Realistic, high-fidelity device/product mockups with legible micro-UI where called for. Cinematic soft key-lighting, immaculate spacing on a strict grid, rich-but-restrained color, poster-grade sharpness. Rich multi-section layout with a clear header → hero → feature/benefit row → CTA → footer hierarchy.",
++    );
++  }
++  if (recipe.enforceExactCopy) {
++    parts.push(
++      "• TYPOGRAPHY & COPY: ultra-crisp, vector-sharp, PERFECTLY SPELLED. Render the provided words EXACTLY — never misspell, duplicate, garble, truncate, or invent text. Kerned and grid-aligned with a clear headline → subhead → body → footer scale. Premium sans-serif. No lorem ipsum, no gibberish micro-text.",
++    );
++  }
++  if (recipe.singleLogo) {
++    parts.push(
++      hasLogo
++        ? "• LOGO — DRAW NONE: do NOT render any logo, wordmark, emblem, icon mark, seal, crest, monogram, mascot, or brand-name lettering ANYWHERE. The user's REAL logo is composited on afterward exactly once, so keep the top-left header area clean, calm, and uncluttered (no placeholder box, frame, label, or watermark). Exactly one brand mark will exist — the real one added later."
++        : "• ONE brand mark only: if a brand name is shown, render it a SINGLE time in the header as clean text — never repeat it, and never invent a logo symbol, emblem, seal, or monogram the brand did not provide.",
++    );
++  }
++  parts.push(
++    "• NO third-party / AI branding: never add xAI, Grok, OpenAI, Gemini, DALL·E or any tool logo, watermark, or 'AI-generated' badge. This is the user's design — only their brand elements.",
++  );
++
++  return parts.join("\n");
++}
+diff --git a/src/lib/ai/image-router.ts b/src/lib/ai/image-router.ts
+index a3167db4..b775525a 100644
+--- a/src/lib/ai/image-router.ts
++++ b/src/lib/ai/image-router.ts
+@@ -3,7 +3,8 @@ import { geminiImageClient, sizeToAspectRatioGemini } from "./gemini-image-clien
+ import { XAI_IMAGE_MODEL, xaiClient, sizeToAspectRatio } from "./xai-client";
+ import { flowImageClient } from "./flow-image-client";
+ import type { ImageProvider } from "@/lib/constants/design-presets";
+-import { imageChain, IMAGE_MODEL_IDS, type ImageRole } from "./media-models";
++import { IMAGE_MODEL_IDS, type ImageRole } from "./media-models";
++import { resolveImageChain } from "./media-policy";
+ import { isOpenAiImageDown, isOpenAiQuotaError, markOpenAiImageDown, withoutDownOpenAi } from "./openai-image-health";
+ import { isBlankImageBase64 } from "@/lib/media/image-quality-guard";
+ 
+@@ -296,7 +297,7 @@ export async function generateImageForRole(
+   options: { quality?: "low" | "medium" | "high"; transparent?: boolean } = {},
+ ): Promise<RoutedImageResult> {
+   let lastError: unknown = null;
+-  const chain = imageChain(role);
++  const chain = await resolveImageChain(role);
+   const hasNonOpenAi = chain.some((s) => s.provider !== "openai");
+   for (const step of chain) {
+     // Skip OpenAI while it's in quota cooldown (as long as another provider exists).
+@@ -343,7 +344,7 @@ export async function editImagesForRole(
+   if (sourceBuffers.length === 0) throw new Error("At least one image is required for edit");
+ 
+   let lastError: unknown = null;
+-  let editChain = imageChain(role);
++  let editChain = await resolveImageChain(role);
+   // Allow a caller to push a specific provider to the FRONT of the edit chain —
+   // used to escalate a repeat edit to xAI (Grok), which is strong at editing.
+   if (options.preferProvider) {
+diff --git a/src/lib/ai/media-models.ts b/src/lib/ai/media-models.ts
+index 006b34b6..b50ad5ca 100644
+--- a/src/lib/ai/media-models.ts
++++ b/src/lib/ai/media-models.ts
+@@ -31,6 +31,11 @@ export const IMAGE_MODEL_IDS = {
+   imagenFast: env.IMAGEN_FAST_MODEL || "imagen-4.0-fast-generate-001",
+   nanoBanana: env.GEMINI_EDIT_MODEL || "gemini-2.5-flash-image",
+   xaiBase: env.XAI_IMAGE_MODEL || "grok-imagine-image",
++  // grok-imagine-image-QUALITY renders at 2K and is the STANDARD-tier design
++  // engine — a July-2026 bake-off showed it matches gpt-image polish for
++  // full-bleed marketing designs at a fraction of the cost/latency. The router
++  // auto-requests 2K whenever the model name contains "quality" + quality:high.
++  xaiQuality: env.XAI_IMAGE_QUALITY_MODEL || "grok-imagine-image-quality",
+   gptImage1: env.OPENAI_IMAGE_MODEL || "gpt-image-1",
+   gptImage2: env.OPENAI_IMAGE_MODEL_2 || "gpt-image-2",
+ } as const;
+@@ -53,15 +58,16 @@ const M = IMAGE_MODEL_IDS;
+ 
+ export const IMAGE_CHAINS: Record<ImageRole, ImageModelStep[]> = {
+   // From-scratch branded DESIGNS (flyers/posters/ads — text + layout heavy).
+-  // Nano Banana FIRST: it's Google's design/text engine and renders real
+-  // graphic-design layouts, unlike Imagen 4 which is a photorealism model and
+-  // produces flat/simple composites for designed work. OpenAI gpt-image is the
+-  // high-end fallback (excellent at designed layouts); Imagen is last-resort.
++  // STANDARD tier. xAI grok-imagine-image-QUALITY FIRST (@2K): the July-2026
++  // bake-off picked it as the standard winner — full-bleed, correctly-spelled,
++  // agency-grade layouts that match gpt-image polish at a fraction of the
++  // cost/latency. Nano Banana is the fallback (Google's design/text engine),
++  // then gpt-image-1 as the high-end safety net. (Imagen is photorealism-only
++  // and makes flat composites for designed work, so it's dropped from Standard.)
+   design_generate: [
++    { provider: "xai", model: M.xaiQuality },
+     { provider: "gemini", model: M.nanoBanana },
+     { provider: "openai", model: M.gptImage1 },
+-    { provider: "gemini", model: M.imagenUltra },
+-    { provider: "xai", model: M.xaiBase },
+   ],
+   // Edit/reference work — only providers that accept an input image. Gemini's
+   // Nano Banana is the best editor (identity + text); OpenAI then xAI back it up.
+diff --git a/src/lib/ai/media-policy.ts b/src/lib/ai/media-policy.ts
+new file mode 100644
+index 00000000..cea38016
+--- /dev/null
++++ b/src/lib/ai/media-policy.ts
+@@ -0,0 +1,165 @@
++import { prisma } from "@/lib/db/client";
++import type { ImageProvider } from "@/lib/constants/design-presets";
++import {
++  IMAGE_CHAINS,
++  IMAGE_MODEL_IDS,
++  type ImageRole,
++  type ImageModelStep,
++} from "./media-models";
++
++/**
++ * IMAGE-PIPELINE POLICY — a hot-swappable overlay on top of the static
++ * media-model chains (src/lib/ai/media-models.ts). The admin Control Hub writes
++ * this to the `image_pipeline_policy` SystemSetting row so provider order, model
++ * choice, and the art-direction recipe can be retuned WITHOUT a deploy (the VPS
++ * deploy patches code but never runs `prisma db push`, and SystemSetting already
++ * exists — so we persist JSON into a value column, no migration needed).
++ *
++ * The router (generateImageForRole / editImagesForRole) resolves a role's chain
++ * through here: a saved override wins, else the code default. Invalid/empty
++ * overrides fall back to the default so a bad edit can never brick generation.
++ */
++
++export const IMAGE_POLICY_KEY = "image_pipeline_policy";
++
++export interface RecipeConfig {
++  /** Full-bleed / anti-card rules (design fills the canvas, never a card on a bg). */
++  fullBleed: boolean;
++  /** Premium-polish art-direction (Stripe/Linear-grade depth, glassmorphism, 2K sharpness). */
++  premiumPolish: boolean;
++  /** Reinforce EXACT copy (no misspelling / duplication / invented text). */
++  enforceExactCopy: boolean;
++  /** Model draws NO brand mark; the real logo is composited exactly once. */
++  singleLogo: boolean;
++}
++
++export interface ImagePipelinePolicy {
++  /** Per-role provider+model chain overrides. Missing role → code default. */
++  chains: Partial<Record<ImageRole, ImageModelStep[]>>;
++  recipe: RecipeConfig;
++}
++
++export const DEFAULT_RECIPE: RecipeConfig = {
++  fullBleed: true,
++  premiumPolish: true,
++  enforceExactCopy: true,
++  singleLogo: true,
++};
++
++const VALID_PROVIDERS: ReadonlySet<string> = new Set(["xai", "openai", "gemini", "flow"]);
++const ALL_ROLES: ImageRole[] = ["design_generate", "design_edit", "bulk_multi", "premium"];
++
++/** The catalog the Control Hub offers per provider (id → friendly label). */
++export const IMAGE_MODEL_CATALOG: Record<ImageProvider, { id: string; label: string }[]> = {
++  xai: [
++    { id: IMAGE_MODEL_IDS.xaiQuality, label: "Grok Imagine — Quality (2K)" },
++    { id: IMAGE_MODEL_IDS.xaiBase, label: "Grok Imagine — Base" },
++  ],
++  gemini: [
++    { id: IMAGE_MODEL_IDS.nanoBanana, label: "Nano Banana (Gemini 2.5 Flash Image)" },
++    { id: IMAGE_MODEL_IDS.imagenUltra, label: "Imagen 4 Ultra" },
++    { id: IMAGE_MODEL_IDS.imagenFlagship, label: "Imagen 4" },
++    { id: IMAGE_MODEL_IDS.imagenFast, label: "Imagen 4 Fast" },
++  ],
++  openai: [
++    { id: IMAGE_MODEL_IDS.gptImage1, label: "GPT Image 1" },
++    { id: IMAGE_MODEL_IDS.gptImage2, label: "GPT Image 2" },
++  ],
++};
++
++export function defaultImagePolicy(): ImagePipelinePolicy {
++  // Deep-clone the static chains so callers can't mutate the module constant.
++  const chains: Partial<Record<ImageRole, ImageModelStep[]>> = {};
++  for (const role of ALL_ROLES) chains[role] = IMAGE_CHAINS[role].map((s) => ({ ...s }));
++  return { chains, recipe: { ...DEFAULT_RECIPE } };
++}
++
++function sanitizeChain(raw: unknown): ImageModelStep[] | null {
++  if (!Array.isArray(raw)) return null;
++  const steps: ImageModelStep[] = [];
++  for (const s of raw) {
++    if (!s || typeof s !== "object") continue;
++    const provider = (s as { provider?: unknown }).provider;
++    const model = (s as { model?: unknown }).model;
++    if (typeof provider === "string" && VALID_PROVIDERS.has(provider) && typeof model === "string" && model.trim()) {
++      steps.push({ provider: provider as ImageProvider, model: model.trim() });
++    }
++  }
++  return steps.length ? steps : null;
++}
++
++function sanitizePolicy(raw: unknown): ImagePipelinePolicy {
++  const base = defaultImagePolicy();
++  if (!raw || typeof raw !== "object") return base;
++  const obj = raw as { chains?: unknown; recipe?: unknown };
++  // Recipe: coerce each flag, default-on.
++  const r = (obj.recipe && typeof obj.recipe === "object" ? obj.recipe : {}) as Partial<RecipeConfig>;
++  base.recipe = {
++    fullBleed: r.fullBleed !== false,
++    premiumPolish: r.premiumPolish !== false,
++    enforceExactCopy: r.enforceExactCopy !== false,
++    singleLogo: r.singleLogo !== false,
++  };
++  // Chains: only accept valid, non-empty per-role overrides; else keep default.
++  if (obj.chains && typeof obj.chains === "object") {
++    for (const role of ALL_ROLES) {
++      const cleaned = sanitizeChain((obj.chains as Record<string, unknown>)[role]);
++      if (cleaned) base.chains[role] = cleaned;
++    }
++  }
++  return base;
++}
++
++// ── cache (30s TTL) so the hot path doesn't hit the DB every generation ──
++let cache: { policy: ImagePipelinePolicy; at: number } | null = null;
++const TTL_MS = 30_000;
++
++/** Read the effective policy (override merged over code defaults), cached. */
++export async function getImagePipelinePolicy(): Promise<ImagePipelinePolicy> {
++  if (cache && Date.now() - cache.at < TTL_MS) return cache.policy;
++  let policy = defaultImagePolicy();
++  try {
++    const row = await prisma.systemSetting.findUnique({ where: { key: IMAGE_POLICY_KEY } });
++    if (row?.value) policy = sanitizePolicy(JSON.parse(row.value));
++  } catch {
++    /* DB/parse error → safe defaults */
++  }
++  cache = { policy, at: Date.now() };
++  return policy;
++}
++
++/** Resolve a role's provider+model chain: saved override wins, else code default. */
++export async function resolveImageChain(role: ImageRole): Promise<ImageModelStep[]> {
++  const policy = await getImagePipelinePolicy();
++  const chain = policy.chains[role];
++  return chain && chain.length ? chain : IMAGE_CHAINS[role];
++}
++
++/** The art-direction recipe flags (cached with the policy). */
++export async function getRecipeConfig(): Promise<RecipeConfig> {
++  return (await getImagePipelinePolicy()).recipe;
++}
++
++/** Persist a full policy (admin Control Hub). Sanitized before write; busts cache. */
++export async function setImagePipelinePolicy(raw: unknown, updatedBy?: string | null): Promise<ImagePipelinePolicy> {
++  const clean = sanitizePolicy(raw);
++  await prisma.systemSetting.upsert({
++    where: { key: IMAGE_POLICY_KEY },
++    create: {
++      key: IMAGE_POLICY_KEY,
++      value: JSON.stringify(clean),
++      type: "json",
++      category: "ai",
++      description: "Image-generation provider chains + art-direction recipe (Control Hub).",
++      updatedBy: updatedBy ?? null,
++    },
++    update: { value: JSON.stringify(clean), updatedBy: updatedBy ?? null },
++  });
++  cache = { policy: clean, at: Date.now() };
++  return clean;
++}
++
++/** Force the next read to hit the DB (used after an external write). */
++export function bustImagePolicyCache(): void {
++  cache = null;
++}

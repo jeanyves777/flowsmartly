@@ -1,0 +1,15 @@
+import puppeteer from "puppeteer";
+const b = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] });
+const pg = await b.newPage();
+await pg.setViewport({ width: 1200, height: 1000, deviceScaleFactor: 2 });
+await pg.goto("file:///d:/Flowsmartly/flowsmartly/design/voice-studio-mockup.html", { waitUntil: "networkidle0" });
+await new Promise(r=>setTimeout(r,300));
+await pg.screenshot({ path: "d:/Flowsmartly/flowsmartly/design/voice-create.png", fullPage: true });
+await pg.evaluate(()=>document.querySelector('[data-tab=library]').click());
+await new Promise(r=>setTimeout(r,200));
+await pg.screenshot({ path: "d:/Flowsmartly/flowsmartly/design/voice-library.png", fullPage: true });
+await pg.evaluate(()=>document.querySelector('[data-tab=voices]').click());
+await new Promise(r=>setTimeout(r,200));
+await pg.screenshot({ path: "d:/Flowsmartly/flowsmartly/design/voice-voices.png", fullPage: true });
+await b.close();
+console.log("done");

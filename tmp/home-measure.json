@@ -1,0 +1,149 @@
+{
+  "1440x820": {
+    "vw": 1440,
+    "vh": 820,
+    "deScrollH": 820,
+    "deClientH": 820,
+    "bodyScrollH": 820,
+    "pageOverflow": 0,
+    "canScrollPage": false,
+    "scrollers": [
+      {
+        "sel": "nav.hidden.w-[84px].shrink-0.flex-col.items-center",
+        "overflowY": "auto",
+        "scrollH": 778,
+        "clientH": 764,
+        "extraScroll": 14,
+        "rectH": 764
+      }
+    ],
+    "below": [],
+    "tallest": [
+      {
+        "sel": "html.dark",
+        "height": 820
+      },
+      {
+        "sel": "body.__variable_f367f3.font-sans.antialiased",
+        "height": 820
+      },
+      {
+        "sel": "div.flex.h-[100dvh].flex-col.bg-background.text-foreground",
+        "height": 820
+      },
+      {
+        "sel": "div.flex.min-h-0.flex-1",
+        "height": 764
+      },
+      {
+        "sel": "nav.hidden.w-[84px].shrink-0.flex-col.items-center",
+        "height": 764
+      },
+      {
+        "sel": "main.relative.flex.min-w-0.flex-1.flex-col",
+        "height": 764
+      },
+      {
+        "sel": "div.flex-1.overflow-y-auto.px-4.pb-44.pt-6",
+        "height": 764
+      },
+      {
+        "sel": "aside.fixed.inset-0.z-30.flex.flex-col",
+        "height": 764
+      },
+      {
+        "sel": "aside.fixed.inset-0.z-30.flex.flex-col",
+        "height": 764
+      }
+    ]
+  },
+  "1280x720": {
+    "vw": 1280,
+    "vh": 720,
+    "deScrollH": 720,
+    "deClientH": 720,
+    "bodyScrollH": 720,
+    "pageOverflow": 0,
+    "canScrollPage": false,
+    "scrollers": [
+      {
+        "sel": "nav.hidden.w-[84px].shrink-0.flex-col.items-center",
+        "overflowY": "auto",
+        "scrollH": 778,
+        "clientH": 664,
+        "extraScroll": 114,
+        "rectH": 664
+      }
+    ],
+    "below": [
+      {
+        "sel": "button.relative.flex.w-[66px].flex-col.items-center",
+        "top": 760,
+        "bottom": 822,
+        "height": 62
+      },
+      {
+        "sel": "span",
+        "top": 797,
+        "bottom": 812,
+        "height": 15
+      },
+      {
+        "sel": "svg.lucide.lucide-sliders-horizontal.h-[21px].w-[21px]",
+        "top": 770,
+        "bottom": 791,
+        "height": 21
+      },
+      {
+        "sel": "button.relative.flex.w-[66px].flex-col.items-center",
+        "top": 678,
+        "bottom": 740,
+        "height": 62
+      },
+      {
+        "sel": "span",
+        "top": 715,
+        "bottom": 730,
+        "height": 15
+      }
+    ],
+    "tallest": [
+      {
+        "sel": "html.dark",
+        "height": 720
+      },
+      {
+        "sel": "body.__variable_f367f3.font-sans.antialiased",
+        "height": 720
+      },
+      {
+        "sel": "div.flex.h-[100dvh].flex-col.bg-background.text-foreground",
+        "height": 720
+      },
+      {
+        "sel": "div.flex.min-h-0.flex-1",
+        "height": 664
+      },
+      {
+        "sel": "nav.hidden.w-[84px].shrink-0.flex-col.items-center",
+        "height": 664
+      },
+      {
+        "sel": "main.relative.flex.min-w-0.flex-1.flex-col",
+        "height": 664
+      },
+      {
+        "sel": "div.flex-1.overflow-y-auto.px-4.pb-44.pt-6",
+        "height": 664
+      },
+      {
+        "sel": "aside.fixed.inset-0.z-30.flex.flex-col",
+        "height": 664
+      },
+      {
+        "sel": "aside.fixed.inset-0.z-30.flex.flex-col",
+        "height": 664
+      }
+    ]
+  }
+}

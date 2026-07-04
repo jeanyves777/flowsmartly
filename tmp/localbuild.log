@@ -1,0 +1,54 @@
+ ⚠ Linting is disabled.
+   ▲ Next.js 15.5.12
+   - Environments: .env
+   - Experiments (use with caution):
+     · serverActions
+     · optimizePackageImports
+     · middlewareClientMaxBodySize: "500mb"
+
+   Creating an optimized production build ...
+Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+ ✓ Compiled successfully in 12.2min
+   Checking validity of types ...
+   Collecting page data ...
+[OpenSRS] No credentials configured — domain lookups will use optimistic fallback
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+STRIPE_SECRET_KEY not set — Stripe features will be unavailable
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+Twilio credentials not set — SMS features will be unavailable
+Twilio credentials not set — SMS features will be unavailable
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+Both GOOGLE_API_KEY and GEMINI_API_KEY are set. Using GOOGLE_API_KEY.
+[OpenSRS] No credentials configured — domain lookups will use optimistic fallback
+STRIPE_SECRET_KEY not set — Stripe features will be unavailable
+[OpenSRS] No credentials configured — domain lookups will use optimistic fallback
+[OpenSRS] No credentials configured — domain lookups will use optimistic fallback
+[OpenSRS] No credentials configured — domain lookups will use optimistic fallback
+[OpenSRS] No credentials configured — domain lookups will use optimistic fallback
+STRIPE_SECRET_KEY not set — Stripe features will be unavailable
+Error: Neither apiKey nor config.authenticator provided
+    at c._setAuthenticator (D:\Flowsmartly\flowsmartly\.next\server\chunks\89627.js:1:87984)
+    at new c (D:\Flowsmartly\flowsmartly\.next\server\chunks\89627.js:1:82581)
+    at 673275 (D:\Flowsmartly\flowsmartly\.next\server\app\api\ecommerce\checkout\route.js:1:3121)
+    at c (D:\Flowsmartly\flowsmartly\.next\server\webpack-runtime.js:1:143)
+    at <unknown> (D:\Flowsmartly\flowsmartly\.next\server\app\api\ecommerce\checkout\route.js:1:12272)
+    at c.X (D:\Flowsmartly\flowsmartly\.next\server\webpack-runtime.js:1:2439)
+    at <unknown> (D:\Flowsmartly\flowsmartly\.next\server\app\api\ecommerce\checkout\route.js:1:12244)
+    at Object.<anonymous> (D:\Flowsmartly\flowsmartly\.next\server\app\api\ecommerce\checkout\route.js:1:12305)
+
+> Build error occurred
+[Error: Failed to collect page data for /api/ecommerce/checkout] {
+  type: 'Error'
+}

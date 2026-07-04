@@ -1,0 +1,17 @@
+2026-07-04T08:17:55-04:00 watching https://flowsmartly.com/ (main=c20ce5eb, PR#16)
+2026-07-04T08:17:56-04:00 check#1 code=502 bad502=2 — still down/deploying
+2026-07-04T08:18:44-04:00 check#2 code=502 bad502=2 — still down/deploying
+2026-07-04T08:19:32-04:00 check#3 code=502 bad502=2 — still down/deploying
+2026-07-04T08:20:19-04:00 check#4 code=502 bad502=2 — still down/deploying
+2026-07-04T08:21:08-04:00 check#5 code=502 bad502=2 — still down/deploying
+2026-07-04T08:21:55-04:00 check#6 code=502 bad502=2 — still down/deploying
+2026-07-04T08:22:42-04:00 check#7 code=502 bad502=2 — still down/deploying
+2026-07-04T08:23:28-04:00 check#8 code=502 bad502=2 — still down/deploying
+2026-07-04T08:24:14-04:00 check#9 code=502 bad502=2 — still down/deploying
+2026-07-04T08:25:00-04:00 check#10 code=502 bad502=2 — still down/deploying
+2026-07-04T08:25:47-04:00 check#11 code=502 bad502=2 — still down/deploying
+2026-07-04T08:26:34-04:00 check#12 code=502 bad502=2 — still down/deploying
+2026-07-04T08:27:20-04:00 check#13 code=502 bad502=2 — still down/deploying
+2026-07-04T08:28:07-04:00 check#14 code=502 bad502=2 — still down/deploying
+2026-07-04T08:28:53-04:00 check#15 code=502 bad502=2 — still down/deploying
+2026-07-04T08:29:40-04:00 check#16 code=200 -> ✅ NEW SYSTEM LIVE (new-landing marker found)
