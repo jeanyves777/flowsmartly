@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
 import Image from "next/image";
 import {
   CalendarDays,
@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
+import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -176,8 +177,11 @@ function statusMeta(status?: string): { Icon: ElementType; tone: string; dot: st
   return { Icon: FileEdit, tone: "text-muted-foreground", dot: "bg-muted-foreground", label: "Draft" };
 }
 
-export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?: number; onAsk?: (prompt: string) => void; onOpenView?: (key: string) => void }) {
+export function FocusedCalendar({ refreshKey, onAsk, onOpenView, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; onOpenView?: (key: string) => void; working?: boolean }) {
   const [posts, setPosts] = useState<Post[]>([]);
+  // Agent "working" loader — armed by the empty-state "plan my week", cleared when a post lands.
+  const [armed, setArmed] = useState(false);
+  const prevCount = useRef(0);
   const [accounts, setAccounts] = useState<PlatformAcc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -213,6 +217,9 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
     load().finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [load, refreshKey]);
+
+  // Clear the agent loader once the agent's freshly scheduled posts appear.
+  useEffect(() => { if (armed && posts.length > prevCount.current) setArmed(false); prevCount.current = posts.length; }, [posts.length, armed]);
 
   // Connected social targets — used by the post editor's platform picker.
   useEffect(() => {
@@ -353,6 +360,8 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
   const timelineHours = Array.from({ length: 24 - DAY_START_HOUR }, (_, i) => DAY_START_HOUR + i);
   const stepDays = (n: number) => setDayCursor((d) => { const next = new Date(d); next.setDate(d.getDate() + n); return next; });
   const goToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); setDayCursor(d); };
+  // Fire the week-planning agent and arm the in-view loader (shared by both empty-state CTAs).
+  const planWeek = () => { setArmed(true); onAsk?.("Plan a week of social posts for me — suggest topics and the best times to publish, then schedule them."); };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -505,7 +514,7 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
                 {!posts.length && (
                   <span className="ms-auto inline-flex items-center gap-1.5 text-muted-foreground/80">
                     Nothing scheduled yet — click a day{onAsk ? ", or " : "."}
-                    {onAsk && <button onClick={() => onAsk("Plan a week of social posts for me — suggest topics and the best times to publish, then schedule them.")} className="font-semibold text-brand-500 hover:underline">plan my week</button>}
+                    {onAsk && <button onClick={planWeek} className="font-semibold text-brand-500 hover:underline">plan my week</button>}
                   </span>
                 )}
               </div>
@@ -539,6 +548,11 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
           ) : !posts.length && !error ? (
             <div className="grid place-items-center rounded-2xl border border-dashed border-border px-4 py-16 text-center">
               <div className="max-w-md">
+                {armed && (
+                  <div className="mb-5">
+                    <AgentWorkingCard working={working} title="Planning your week" sub={working ? "The agent is planning and scheduling your posts — they'll appear here." : "Answer the agent's questions in the chat and your schedule will land here."} />
+                  </div>
+                )}
                 <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><CalendarDays className="h-7 w-7" /></span>
                 <h2 className="mt-3 text-[16px] font-bold">Your calendar is empty</h2>
                 <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">Schedule your first post and it shows up here by date — so you always know what is going out when.</p>
@@ -547,7 +561,7 @@ export function FocusedCalendar({ refreshKey, onAsk, onOpenView }: { refreshKey?
                     <Sparkles className="h-4 w-4" /> Schedule a post
                   </button>
                   {onAsk && (
-                    <button onClick={() => onAsk("Plan a week of social posts for me — suggest topics and the best times to publish, then schedule them.")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                    <button onClick={planWeek} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground">
                       <Sparkles className="h-4 w-4 text-brand-500" /> Plan my week
                     </button>
                   )}

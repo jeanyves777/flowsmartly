@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, ty
 import { Mail, Sparkles, Send, MailOpen, MousePointerClick, Users, FileText, Clock, CheckCircle2, ChevronRight, X, Percent, Pencil, Trash2, CalendarClock, AlertTriangle, Check, Search, Monitor, Smartphone, Copy, Code2, Plus, ArrowLeft, Save } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { EmailSetupCard } from "./email-setup";
+import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -90,12 +91,15 @@ function whenLabel(iso?: string | null): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; }
 }
 
-export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+export function FocusedEmail({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [loading, setLoading] = useState(true);
   // null = unknown; false = needs setup (gate); true = configured (show campaigns).
   const [configured, setConfigured] = useState<boolean | null>(null);
+  // "Draft with AI" was fired → show the in-view agent-working loader until a campaign lands.
+  const [armed, setArmed] = useState(false);
+  const prevCount = useRef(0);
 
   // Search (name/subject) + status filter — wired to GET /api/campaigns?type=email&search=&status=.
   const [search, setSearch] = useState("");
@@ -187,6 +191,12 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     }, 300);
     return () => { alive = false; clearTimeout(t); };
   }, [search, statusFilter, load]);
+
+  // Clear the agent-working loader once a new campaign actually lands (count grew).
+  useEffect(() => {
+    if (armed && campaigns.length > prevCount.current) setArmed(false);
+    prevCount.current = campaigns.length;
+  }, [campaigns.length, armed]);
 
   // Fetch (or re-fetch) a campaign's detail. Returns the detail so callers can seed forms.
   const fetchDetail = useCallback(async (id: string): Promise<CampaignDetail | null> => {
@@ -326,6 +336,7 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   const detailClickRate = detail && (detail.opened ?? 0) > 0 ? Math.round(((detail.clicked ?? 0) / (detail.opened ?? 1)) * 100) : 0;
 
   const aiDraftPrompt = "Help me create a new email campaign — ask me the goal and audience, then draft the subject line and email body and set it up.";
+  const askAiDraft = () => { setArmed(true); onAsk?.(aiDraftPrompt); };
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your campaigns…" /></div>;
@@ -376,7 +387,7 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
             </button>
             {onAsk && (
               <button
-                onClick={() => onAsk(aiDraftPrompt)}
+                onClick={askAiDraft}
                 className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-border bg-card px-3.5 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"
               >
                 <Sparkles className="h-3.5 w-3.5 text-brand-500" /> Draft with AI
@@ -443,6 +454,8 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
               {createNotice && (
                 <p className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-[12px] text-emerald-600 dark:text-emerald-400">{createNotice}</p>
               )}
+
+              {armed && <AgentWorkingCard working={working} title="Drafting your campaign" sub={working ? "The agent is writing your subject and body — it'll appear here." : "Answer the agent's questions in the chat and your campaign will land here."} compact />}
 
               {listLoading ? (
                 <div className="grid place-items-center py-10"><FlowLoader size={24} label="Filtering campaigns…" /></div>
@@ -716,7 +729,7 @@ export function FocusedEmail({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                       <Plus className="h-4 w-4" /> Create a campaign
                     </button>
                     {onAsk && (
-                      <button onClick={() => onAsk(aiDraftPrompt)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-background px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+                      <button onClick={askAiDraft} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-background px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground">
                         <Sparkles className="h-4 w-4 text-brand-500" /> Draft with AI
                       </button>
                     )}

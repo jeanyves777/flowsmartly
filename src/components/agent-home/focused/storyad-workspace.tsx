@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
 import Image from "next/image";
 import {
   Clapperboard,
@@ -15,6 +15,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -95,12 +96,15 @@ function fmtDate(iso?: string | null): string {
   }
 }
 
-export function FocusedStoryAd({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+export function FocusedStoryAd({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [playing, setPlaying] = useState<Campaign | null>(null);
   const [filter, setFilter] = useState<FilterId>("all");
+  // Agent "create story-ad" armed state — clears when a new campaign lands.
+  const [armed, setArmed] = useState(false);
+  const prevCount = useRef(0);
 
   const readyCount = useMemo(() => campaigns.filter((c) => (c.status || "").toUpperCase() === "COMPLETED").length, [campaigns]);
   const renderingCount = useMemo(() => campaigns.filter((c) => RENDERING_STATUSES.includes((c.status || "").toUpperCase())).length, [campaigns]);
@@ -133,6 +137,12 @@ export function FocusedStoryAd({ refreshKey, onAsk }: { refreshKey?: number; onA
     return () => { alive = false; };
   }, [load, refreshKey]);
 
+  // Clear the "creating story-ad" indicator once a new campaign lands.
+  useEffect(() => {
+    if (armed && campaigns.length > prevCount.current) setArmed(false);
+    prevCount.current = campaigns.length;
+  }, [campaigns.length, armed]);
+
   if (loading) {
     return (
       <div className="grid min-h-0 flex-1 place-items-center">
@@ -154,14 +164,16 @@ export function FocusedStoryAd({ refreshKey, onAsk }: { refreshKey?: number; onA
             Tell the agent what to advertise and it directs a short cinematic story-ad — cast, scenes, voices, and the final movie — ready to post.
           </p>
           {error && <p className="mt-3 text-[12px] text-rose-500">{error}</p>}
-          {onAsk && (
+          {armed ? (
+            <div className="mt-4"><AgentWorkingCard working={working} title="Creating your story-ad" /></div>
+          ) : onAsk ? (
             <button
-              onClick={() => onAsk(NEW_STORYAD_PROMPT)}
+              onClick={() => { setArmed(true); onAsk(NEW_STORYAD_PROMPT); }}
               className="mt-4 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30"
             >
               <Sparkles className="h-4 w-4" /> Create a story-ad
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     );
@@ -189,7 +201,7 @@ export function FocusedStoryAd({ refreshKey, onAsk }: { refreshKey?: number; onA
 
           {onAsk && (
             <button
-              onClick={() => onAsk(NEW_STORYAD_PROMPT)}
+              onClick={() => { setArmed(true); onAsk(NEW_STORYAD_PROMPT); }}
               className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
             >
               <Sparkles className="h-4 w-4" /> New story-ad
@@ -221,6 +233,8 @@ export function FocusedStoryAd({ refreshKey, onAsk }: { refreshKey?: number; onA
           {error && (
             <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{error}</p>
           )}
+
+          {armed && <AgentWorkingCard working={working} title="Creating your story-ad" compact />}
 
           <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
             <div className="mb-3 flex items-center gap-2">

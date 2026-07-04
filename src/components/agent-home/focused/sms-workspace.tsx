@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ElementType } from "react";
+import { useCallback, useEffect, useRef, useState, type ElementType } from "react";
 import { MessageSquare, Sparkles, Phone, Send, CheckCircle2, Clock, Users, AlertTriangle, ShieldCheck, Gauge, XCircle, ExternalLink, ChevronRight, Trash2, MousePointerClick, CalendarClock, PenLine, Search, Pause, Play, RefreshCw, RotateCw, ShieldAlert, Hourglass, ListFilter } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -141,11 +142,14 @@ const NEW_BLAST_PROMPT =
 const SMS_SETUP_PROMPT =
   "Help me set up SMS sending — walk me through getting a verified sender number and confirming opt-in compliance so I can start sending blasts.";
 
-export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+export function FocusedSms({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
   const [campaigns, setCampaigns] = useState<SmsCampaign[]>([]);
   const [stats, setStats] = useState<SmsStats>({});
   const [number, setNumber] = useState<NumberStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  // "New SMS blast" was fired → show the in-view agent-working loader until a blast lands.
+  const [armed, setArmed] = useState(false);
+  const prevCount = useRef(0);
 
   // Search + status filter for the blasts list (server-side via /api/campaigns).
   const [search, setSearch] = useState("");
@@ -234,6 +238,12 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, statusFilter]);
+
+  // Clear the agent-working loader once a new blast actually lands (count grew).
+  useEffect(() => {
+    if (armed && campaigns.length > prevCount.current) setArmed(false);
+    prevCount.current = campaigns.length;
+  }, [campaigns.length, armed]);
 
   // Toggle a blast's inline detail panel; fetch the deeper record on open.
   const openBlast = useCallback(async (c: SmsCampaign) => {
@@ -365,7 +375,7 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your SMS…" /></div>;
   }
 
-  const askNew = () => onAsk?.(NEW_BLAST_PROMPT);
+  const askNew = () => { setArmed(true); onAsk?.(NEW_BLAST_PROMPT); };
 
   // Aggregate delivery across blasts for the KPI row.
   const totalSent = campaigns.reduce((sum, c) => sum + (c.sent ?? 0), 0);
@@ -644,6 +654,8 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
               <Sparkles className="h-3.5 w-3.5" /> New blast
             </button>
           </div>
+
+          {armed && <AgentWorkingCard working={working} title="Writing your blast" sub={working ? "The agent is drafting your message — it'll appear here." : "Answer the agent's questions in the chat and your blast will land here."} compact />}
 
           {campaigns.length ? (
             <div className="space-y-2">

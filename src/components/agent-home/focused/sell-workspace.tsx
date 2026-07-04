@@ -6,6 +6,7 @@ import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, 
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { StoreCallToAction } from "./store-cta";
+import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -74,9 +75,10 @@ function fmtDate(iso?: string | null): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; }
 }
 
-export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: number; onAsk: (prompt: string) => void; onOpenView: (key: string) => void }) {
+export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refreshKey?: number; onAsk: (prompt: string) => void; onOpenView: (key: string) => void; working?: boolean }) {
   const [store, setStore] = useState<StoreData | null>(null);
   const [hasStore, setHasStore] = useState<boolean | null>(null);
+  const [armed, setArmed] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<OrderStats>({});
@@ -159,6 +161,9 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
     loadData().finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [loadData, refreshKey]);
+
+  // Clear the "agent is working" card once the store actually lands (hasStore flips true).
+  useEffect(() => { if (armed && hasStore) setArmed(false); }, [hasStore, armed]);
 
   const openAdd = () => { setForm(EMPTY_FORM); setError(""); setEditing("new"); setSection("products"); };
   const openEdit = (p: Product) => {
@@ -357,8 +362,15 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
   if (!hasStore) {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto p-6 sm:p-8">
-        <div className="mx-auto mt-[2vh] max-w-lg">
-          <StoreCallToAction onBuild={(p) => onAsk(p)} onTopUp={() => onOpenView("credits")} />
+        <div className="mx-auto mt-[2vh] max-w-lg space-y-4">
+          {armed && (
+            <AgentWorkingCard
+              working={working}
+              title="Setting up your store"
+              sub={working ? "The agent is building your branded store — it'll appear here." : "Answer the agent's questions in the chat and your store will land here."}
+            />
+          )}
+          <StoreCallToAction onBuild={(p) => { setArmed(true); onAsk(p); }} onTopUp={() => onOpenView("credits")} />
         </div>
       </div>
     );
