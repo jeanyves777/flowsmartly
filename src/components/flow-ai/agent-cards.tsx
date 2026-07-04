@@ -641,12 +641,11 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
         </span>
       </div>
       {isRunning && (
-        <div className="px-3.5 py-4">
+        <div className="px-3 py-3">
           <AIGenerationLoader
             compact
             currentStep={task.progressMessage ?? task.summary ?? "Working…"}
             progress={typeof task.progress === "number" ? task.progress : undefined}
-            subtitle="You can leave this chat — we'll notify you when it's ready."
           />
         </div>
       )}

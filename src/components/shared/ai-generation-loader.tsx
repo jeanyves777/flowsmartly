@@ -145,7 +145,7 @@ function SpinnerRing({ size = 140, gradientId = "spinnerGradient" }: { size?: nu
 
 // ─── Animated step text ───
 
-function AnimatedStepText({ text }: { text: string }) {
+function AnimatedStepText({ text, className }: { text: string; className?: string }) {
   return (
     <AnimatePresence mode="wait">
       <motion.p
@@ -154,7 +154,7 @@ function AnimatedStepText({ text }: { text: string }) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
         transition={{ duration: 0.3 }}
-        className="text-base font-semibold text-foreground text-center max-w-sm"
+        className={className ?? "text-base font-semibold text-foreground text-center max-w-sm"}
       >
         {text}
       </motion.p>
@@ -237,9 +237,9 @@ export function AIGenerationLoader({
 
   // ─── Compact variant: smaller, horizontal, for overlays ───
   if (compact) {
-    const ringSize = 56;
-    const logoSize = 28;
-    const compactSparkles = SPARKLES.slice(0, 5);
+    const ringSize = 42;
+    const logoSize = 21;
+    const compactSparkles = SPARKLES.slice(0, 4);
 
     return (
       <div className={cn("relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950", className)}>
@@ -265,8 +265,8 @@ export function AIGenerationLoader({
           <Sparkle key={i} {...s} />
         ))}
 
-        {/* Content */}
-        <div className="relative z-10 flex items-center gap-4 px-5 py-4">
+        {/* Content — tight single row that fits a narrow chat card */}
+        <div className="relative z-10 flex items-center gap-2.5 px-3 py-2.5">
           {/* Mini logo + ring */}
           <div className="relative flex items-center justify-center shrink-0" style={{ width: ringSize, height: ringSize }}>
             {progress !== undefined ? (
@@ -289,15 +289,9 @@ export function AIGenerationLoader({
             </motion.div>
           </div>
 
-          {/* Text */}
-          <div className="flex-1 min-w-0">
-            <AnimatedStepText text={currentStep} />
-            {subtitle && (
-              <p className="text-xs text-muted-foreground flex items-center mt-1">
-                {subtitle}
-                <LoadingDots />
-              </p>
-            )}
+          {/* Step text — one line, truncates instead of wrapping word-by-word */}
+          <div className="min-w-0 flex-1">
+            <AnimatedStepText text={currentStep} className="truncate text-[12.5px] font-semibold leading-tight text-foreground" />
           </div>
 
           {/* Progress */}
@@ -305,7 +299,7 @@ export function AIGenerationLoader({
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-lg font-bold bg-gradient-to-r from-blue-400 via-violet-400 to-amber-400 bg-clip-text text-transparent shrink-0"
+              className="shrink-0 text-[13px] font-bold tabular-nums bg-gradient-to-r from-blue-400 via-violet-400 to-amber-400 bg-clip-text text-transparent"
             >
               {Math.round(effectiveProgress)}%
             </motion.div>
