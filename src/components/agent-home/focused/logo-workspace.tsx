@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ElementType } from "react";
+import { useCallback, useEffect, useRef, useState, type ElementType } from "react";
 import Image from "next/image";
-import { Sparkles, ImageIcon, ExternalLink, Download, Star, Palette, LayoutGrid, BadgeCheck } from "lucide-react";
+import { Sparkles, ImageIcon, ExternalLink, Download, Star, Palette, LayoutGrid, BadgeCheck, Loader2 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -52,11 +52,17 @@ function whenLabel(iso?: string): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; }
 }
 
-export function FocusedLogo({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+export function FocusedLogo({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
   const [logos, setLogos] = useState<Logo[]>([]);
   const [brand, setBrand] = useState<BrandLogo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  // "A generation session is in progress" — armed the instant the user clicks
+  // Generate, so the view shows the agent is working even while it's still
+  // gathering details in the chat. Cleared only when real logos LAND (not on a
+  // tool-bump). [[agent-writes-into-ui-element-not-chat]]
+  const [armed, setArmed] = useState(false);
+  const prevCount = useRef(0);
 
   const load = useCallback(async () => {
     setError(false);
@@ -101,7 +107,13 @@ export function FocusedLogo({ refreshKey, onAsk }: { refreshKey?: number; onAsk?
     return () => { alive = false; };
   }, [load, refreshKey]);
 
-  const generate = () => onAsk?.(GENERATE_PROMPT);
+  // As soon as new logos actually arrive in a reload, the session is done.
+  useEffect(() => {
+    if (armed && logos.length > prevCount.current) setArmed(false);
+    prevCount.current = logos.length;
+  }, [logos.length, armed]);
+
+  const generate = () => { setArmed(true); onAsk?.(GENERATE_PROMPT); };
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your logos…" /></div>;
@@ -129,8 +141,8 @@ export function FocusedLogo({ refreshKey, onAsk }: { refreshKey?: number; onAsk?
               <h2 className="truncate text-[20px] font-extrabold leading-tight">{brand?.name ? `${brand.name}'s logos` : "Your logos"}</h2>
               <p className="mt-0.5 text-[12.5px] text-muted-foreground">{logos.length ? `${logos.length} generated concept${logos.length === 1 ? "" : "s"}` : "No generated logos yet"}</p>
             </div>
-            <button onClick={generate} className="ms-auto inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
-              <Sparkles className="h-4 w-4" /> Generate a logo
+            <button onClick={generate} disabled={armed} className="ms-auto inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-70">
+              {armed ? <><Loader2 className="h-4 w-4 animate-spin" /> Working…</> : <><Sparkles className="h-4 w-4" /> Generate a logo</>}
             </button>
           </div>
         </section>
@@ -158,8 +170,8 @@ export function FocusedLogo({ refreshKey, onAsk }: { refreshKey?: number; onAsk?
           <div className="mb-3 flex items-center gap-2">
             <h3 className="text-[13px] font-bold">Generated logos</h3>
             {logos.length > 0 && (
-              <button onClick={generate} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
-                <Sparkles className="h-3.5 w-3.5" /> New logo
+              <button onClick={generate} disabled={armed} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-70">
+                {armed ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Working…</> : <><Sparkles className="h-3.5 w-3.5" /> New logo</>}
               </button>
             )}
           </div>
@@ -169,24 +181,60 @@ export function FocusedLogo({ refreshKey, onAsk }: { refreshKey?: number; onAsk?
               <p className="text-[13px] font-medium">Couldn&apos;t load your logos</p>
               <p className="mt-1 text-[12px] text-muted-foreground">Something went wrong fetching your logo history. Please try again.</p>
             </div>
-          ) : logos.length ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {logos.map((l) => (
-                <LogoCard key={l.id} logo={l} />
-              ))}
-            </div>
           ) : (
-            <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
-              <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><ImageIcon className="h-7 w-7" /></span>
-              <p className="mt-3 text-[14px] font-semibold">No logos yet</p>
-              <p className="mx-auto mt-1 max-w-sm text-[12.5px] leading-relaxed text-muted-foreground">Generate professional logo concepts for your brand — tell the agent your name and style and it produces a set to choose from.</p>
-              <button onClick={generate} className="mt-3 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-lg shadow-brand-500/30">
-                <Sparkles className="h-4 w-4" /> Generate a logo
-              </button>
-            </div>
+            <>
+              {/* generating indicator — shown the moment the user hits Generate, so the
+                  view reflects the agent working even while it gathers details in chat */}
+              {armed && <GeneratingLogos working={working} compact={logos.length > 0} />}
+              {logos.length ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {logos.map((l) => (
+                    <LogoCard key={l.id} logo={l} />
+                  ))}
+                </div>
+              ) : !armed ? (
+                <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+                  <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><ImageIcon className="h-7 w-7" /></span>
+                  <p className="mt-3 text-[14px] font-semibold">No logos yet</p>
+                  <p className="mx-auto mt-1 max-w-sm text-[12.5px] leading-relaxed text-muted-foreground">Generate professional logo concepts for your brand — tell the agent your name and style and it produces a set to choose from.</p>
+                  <button onClick={generate} className="mt-3 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13.5px] font-semibold text-white shadow-lg shadow-brand-500/30">
+                    <Sparkles className="h-4 w-4" /> Generate a logo
+                  </button>
+                </div>
+              ) : null}
+            </>
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+/** In-view "the agent is working on your logos" indicator. `compact` renders a
+ *  banner above an existing gallery; otherwise a centered card replacing the
+ *  empty state. Copy adapts to whether the agent is actively working or is
+ *  waiting on the user's answers in the chat. */
+function GeneratingLogos({ working, compact }: { working?: boolean; compact?: boolean }) {
+  const title = working ? "Designing your logo concepts…" : "Setting up your logo";
+  const sub = working
+    ? "The agent is generating on-brand concepts — they'll appear here in a moment."
+    : "Answer the agent's questions in the chat and your concepts will land here.";
+  if (compact) {
+    return (
+      <div className="mb-3 flex items-center gap-3 rounded-xl border border-brand-500/30 bg-brand-500/[0.06] px-4 py-3">
+        <FlowLoader size={26} withMark />
+        <div className="min-w-0">
+          <p className="text-[12.5px] font-semibold">{title}</p>
+          <p className="text-[11.5px] text-muted-foreground">{sub}</p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-brand-500/30 bg-gradient-to-br from-brand-500/10 via-violet-500/5 to-transparent px-4 py-10 text-center">
+      <div className="flex justify-center"><FlowLoader size={40} withMark /></div>
+      <p className="mt-4 text-[14px] font-semibold">{title}</p>
+      <p className="mx-auto mt-1 max-w-sm text-[12.5px] leading-relaxed text-muted-foreground">{sub}</p>
     </div>
   );
 }
