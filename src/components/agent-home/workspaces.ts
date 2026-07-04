@@ -93,7 +93,6 @@ export const WORKSPACES: Workspace[] = [
       { label: "SMS marketing", route: "/sms-marketing", viewKey: "sms", desc: "Reach customers by text" },
       { label: "WhatsApp", route: "/whatsapp", viewKey: "whatsapp", desc: "Broadcasts & automations on WhatsApp" },
       { label: "Ad builder", route: "/ad-builder/campaign", viewKey: "adbuilder", desc: "Launch ads & track spend / ROAS" },
-      { label: "Story-Ad", route: "/story-ad-movie", viewKey: "storyad", desc: "Cinematic AI video ads" },
     ],
   },
   {
