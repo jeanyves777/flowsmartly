@@ -533,17 +533,19 @@ function clampRect(r: Rect): Rect {
 }
 
 /**
- * DraggableArtwork — the placed design on the mockup, freely draggable and
+ * DraggableDesign — the print box on the mockup, freely draggable and
  * resizable (corner handle). Position/size are kept in PERCENT of the mockup box
  * (`boxRef`) so they survive product/zoom changes and are exactly what the agent
  * prints to. Pointer capture on the wrapper keeps the drag smooth even when the
  * cursor leaves the element; the corner handle switches to resize.
  */
-function DraggableArtwork({ url, rect, onChange, boxRef }: {
-  url: string;
+function DraggableDesign({ url, rect, onChange, boxRef, emptyLabel }: {
+  /** Placed artwork; when omitted the box is an empty, still-draggable target zone. */
+  url?: string;
   rect: Rect;
   onChange: (r: Rect) => void;
   boxRef: React.RefObject<HTMLDivElement | null>;
+  emptyLabel: string;
 }) {
   const drag = useRef<{ px: number; py: number; rect: Rect; mode: "move" | "resize" } | null>(null);
   const onDown = (e: React.PointerEvent) => {
@@ -565,13 +567,22 @@ function DraggableArtwork({ url, rect, onChange, boxRef }: {
   const onUp = (e: React.PointerEvent) => { drag.current = null; try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {} };
   return (
     <div
-      className="group absolute cursor-move touch-none select-none rounded-[3px] outline outline-1 outline-brand-400/60 hover:outline-2 hover:outline-brand-400"
+      className={cn(
+        "group absolute cursor-move touch-none select-none rounded-[4px]",
+        url
+          ? "outline outline-1 outline-brand-400/60 hover:outline-2 hover:outline-brand-400"
+          : "grid place-items-center border-2 border-dashed border-sky-400/80 bg-sky-400/[0.06] hover:border-sky-300",
+      )}
       style={{ left: `${rect.l}%`, top: `${rect.t}%`, width: `${rect.w}%`, height: `${rect.h}%` }}
       onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
-      title="Drag to move · drag the corner to resize"
+      title={url ? "Drag to move · drag the corner to resize" : "Drag this box to where the design should print · drag the corner to resize"}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt="artwork" className="pointer-events-none h-full w-full select-none object-contain" draggable={false} />
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="artwork" className="pointer-events-none h-full w-full select-none object-contain" draggable={false} />
+      ) : (
+        <span className="pointer-events-none px-1 text-center text-[10px] font-bold leading-tight text-sky-500/90">{emptyLabel}<span className="block text-[8.5px] font-semibold opacity-70">drag · drop · upload · generate</span></span>
+      )}
       <span data-rz className="absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 cursor-se-resize rounded-full border-2 border-white bg-brand-500 shadow opacity-0 transition group-hover:opacity-100" />
     </div>
   );
@@ -698,17 +709,17 @@ function ProductMode({ initialKind, brandLogo, onAsk, onBack, productOpsRef }: {
                     />
                   )}
                 </div>
-                {/* print-area guide — the recommended zone; dims once a design is placed */}
-                <div
-                  className="pointer-events-none absolute grid place-items-center rounded-[4px] border-2 border-dashed border-sky-400/70 bg-sky-400/[0.06]"
-                  style={{ left: `${area.l}%`, top: `${area.t}%`, width: `${area.w}%`, height: `${area.h}%`, opacity: artwork ? 0.22 : 1 }}
-                >
-                  {!artwork && (
-                    <span className="px-1 text-center text-[10px] font-bold leading-tight text-sky-500/90">{placement.face === "back" ? "ADD YOUR DESIGN" : "LOGO / DESIGN"}<span className="block text-[8.5px] font-semibold opacity-70">drop · upload · generate · drag</span></span>
-                  )}
-                </div>
-                {/* draggable + resizable artwork — the precise placement the agent prints to */}
-                {artwork && <DraggableArtwork url={artwork} rect={design} onChange={setDesign} boxRef={stageBoxRef} />}
+                {/* faint recommended-zone guide — only shown once the design box has been
+                    dragged off the selected placement preset, so the preset stays discoverable */}
+                {(design.l !== area.l || design.t !== area.t || design.w !== area.w || design.h !== area.h) && (
+                  <div
+                    className="pointer-events-none absolute rounded-[4px] border border-dashed border-sky-400/30"
+                    style={{ left: `${area.l}%`, top: `${area.t}%`, width: `${area.w}%`, height: `${area.h}%` }}
+                  />
+                )}
+                {/* the print box — always draggable/resizable; empty (position it first) or
+                    holding the artwork. This is the precise coordinate the agent prints to. */}
+                <DraggableDesign url={artwork} rect={design} onChange={setDesign} boxRef={stageBoxRef} emptyLabel={placement.face === "back" ? "ADD YOUR DESIGN" : "LOGO / DESIGN"} />
               </div>
               {/* variant switcher — shows the actual product mockup for each type */}
               <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
