@@ -82,6 +82,8 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   // Per-post media generation — drives the in-card loader on the exact post the
   // agent is working on. Cleared when the turn ends (media landed) or on timeout.
   const [genBusy, setGenBusy] = useState<Record<string, "image" | "video">>({});
+  // "Add a post" is drafting — loader on the add-post row until the new draft lands.
+  const [addingPost, setAddingPost] = useState(false);
   // Full-size viewer for a generated image/video.
   const [lightbox, setLightbox] = useState<{ url: string; video: boolean } | null>(null);
 
@@ -167,9 +169,16 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   // foreground, so once the turn ends the media has landed → clear the per-post
   // loaders AFTER the reload so the fresh media + spinner swap in the same frame.
   useEffect(() => {
-    if (campaign && !generating) loadStudio(campaign.id).then(() => setGenBusy({}));
+    if (campaign && !generating) loadStudio(campaign.id).then(() => { setGenBusy({}); setAddingPost(false); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
+
+  // Safety backstop: never leave the add-post loader stuck if a turn silently fails.
+  useEffect(() => {
+    if (!addingPost) return;
+    const t = setTimeout(() => setAddingPost(false), 120000);
+    return () => clearTimeout(t);
+  }, [addingPost]);
 
   // Precise clear: as soon as a busy post's media lands in a reload, drop its
   // loader (snappier than waiting for the turn-end sweep above).
@@ -312,7 +321,19 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
                 {posts.length === 0 && <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No posts yet — the agent is still drafting, or none were generated.</p>}
                 <div className="relative">
                   <span className="absolute top-4 h-3 w-3 rounded-full border-2 border-border bg-background" style={{ insetInlineStart: "-19px" }} />
-                  <button onClick={() => onAsk(`Add one more post to the "${campaign.name}" campaign (campaignId: ${campaign.id}) — draft an on-brand caption + image and schedule it in the window. Use schedule_social_post linked to this campaign.`)} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-2.5 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> Add a post (agent fills it)</button>
+                  {addingPost ? (
+                    <div className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand-500/50 bg-brand-500/[0.06] py-2.5 text-[12px] font-semibold text-brand-500"><FlowLoader size={15} /> Drafting a post — caption + prompt…</div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setAddingPost(true);
+                        onAsk(`Add ONE more DRAFT post to the "${campaign.name}" campaign (campaignId: ${campaign.id}) — call add_campaign_post with a fresh on-brand caption that fits the campaign theme and a matching image PROMPT. Do NOT generate the image/video and do NOT schedule or publish it: it must land as a DRAFT so the user can review the caption + prompt and generate the media themselves. It appears on the calendar here; don't paste it in chat.`);
+                      }}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-2.5 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Add a post (agent drafts it)
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
