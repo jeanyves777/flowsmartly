@@ -124,7 +124,7 @@ function VerifyEmailContent() {
               )}
             </Button>
             <Button asChild variant="outline">
-              <Link href="/dashboard">Go to Dashboard</Link>
+              <Link href="/home">Go to your workspace</Link>
             </Button>
           </div>
         </div>
