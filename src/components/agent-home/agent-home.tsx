@@ -516,6 +516,10 @@ export function AgentHome() {
   // Print Studio controls — the agent's start_print_project opens a print format
   // here (via the canvas_update `__print` marker), same mechanism as pages.
   const printOpsRef = useRef<{ selectFormat: (key: string) => void } | null>(null);
+  // Compose bridge — the agent's write_compose_post routes the drafted caption
+  // (+ optional platform pre-select) here via the canvas_update `__compose`
+  // marker, so it lands in the caption box instead of the chat.
+  const composeOpsRef = useRef<{ apply: (patch: Record<string, unknown>) => void } | null>(null);
   // Product-print mockup controls — the agent's place_design_on_product routes
   // here (via the canvas_update `__product` marker).
   const productOpsRef = useRef<{ setProduct: (patch: Record<string, unknown>) => void } | null>(null);
@@ -540,6 +544,11 @@ export function AgentHome() {
       if (printCmd && typeof printCmd === "object") {
         const fmt = (printCmd as { format?: unknown }).format;
         if (typeof fmt === "string") printOpsRef.current?.selectFormat(fmt);
+        return;
+      }
+      const composeCmd = (patch as { __compose?: unknown }).__compose;
+      if (composeCmd && typeof composeCmd === "object") {
+        composeOpsRef.current?.apply(composeCmd as Record<string, unknown>);
         return;
       }
       const pageCmd = (patch as { __page?: unknown }).__page;
@@ -1111,7 +1120,7 @@ export function AgentHome() {
                 ) : focused === "campaign" ? (
                   <FocusedCampaignStudio target={campaignTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} />
                 ) : focused === "compose" ? (
-                  <FocusedCompose onAsk={sendAction} refreshKey={actionCount} />
+                  <FocusedCompose onAsk={sendAction} refreshKey={actionCount} composeOpsRef={composeOpsRef} working={sending} />
                 ) : focused === "email" ? (
                   <FocusedEmail onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "sms" ? (
