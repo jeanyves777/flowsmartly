@@ -457,6 +457,17 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
         style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
       >
         <div className="min-h-full p-5 sm:p-8">
+          {presentationId ? (
+            <PresentationView
+              id={presentationId}
+              avatars={avatars}
+              voices={voices}
+              onClose={() => setPresentationId(null)}
+              onChanged={() => setLocalRefresh((n) => n + 1)}
+              onRendered={() => { setPresentationId(null); setLocalRefresh((n) => n + 1); }}
+            />
+          ) : (
+          <>
           {/* project switcher — jump between projects on the canvas */}
           {(projects.length > 1 || (projectId && !projects.some((p) => p.id === projectId))) && (
             <div className="mb-3 inline-flex items-center gap-2 rounded-[10px] border border-border bg-card/60 px-2.5 py-1.5">
@@ -536,6 +547,8 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">Open the brief, write what your avatar should say, pick a voice, then build — your video renders and lands here.</p>
               <button onClick={openSheet} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
             </div>
+          )}
+          </>
           )}
         </div>
       </div>
@@ -816,17 +829,6 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
         />
       )}
 
-      {/* presentation storyboard editor (multi-scene → one stitched video) */}
-      {presentationId && (
-        <PresentationEditor
-          id={presentationId}
-          avatars={avatars}
-          voices={voices}
-          onClose={() => setPresentationId(null)}
-          onChanged={() => setLocalRefresh((n) => n + 1)}
-          onRendered={() => { setPresentationId(null); setLocalRefresh((n) => n + 1); }}
-        />
-      )}
     </div>
   );
 }
@@ -1576,7 +1578,14 @@ function cornerStyle(c?: PScene["corner"]): CSSProperties {
 }
 const isVideoUrl = (u?: string | null) => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
 
-function PresentationEditor({ id, avatars, voices, onClose, onChanged, onRendered }: {
+
+/**
+ * PresentationView — lives ON the studio canvas (dotted grid), NOT a full-screen
+ * takeover. A slim in-canvas toolbar (presenter · render · close), the scenes as
+ * node cards with connectors + drag-reorder + add-scene, and a right-side drawer
+ * to edit a scene. Same playground language as the rest of the studio.
+ */
+function PresentationView({ id, avatars, voices, onClose, onChanged, onRendered }: {
   id: string;
   avatars: Avatar[];
   voices: Voice[];
@@ -1589,7 +1598,7 @@ function PresentationEditor({ id, avatars, voices, onClose, onChanged, onRendere
   const [avatarId, setAvatarId] = useState("");
   const [voiceId, setVoiceId] = useState("");
   const [aspect, setAspect] = useState<Aspect>("9:16");
-  const [sel, setSel] = useState(0);
+  const [sel, setSel] = useState<number | null>(null); // open scene drawer (null = none)
   const [credits, setCredits] = useState<number | null>(null);
   const [rendering, setRendering] = useState(false);
   const [err, setErr] = useState("");
@@ -1602,7 +1611,6 @@ function PresentationEditor({ id, avatars, voices, onClose, onChanged, onRendere
 
   const selAvatar = avatars.find((a) => a.id === avatarId);
   const selVoice = voices.find((v) => v.id === voiceId);
-  const scene: PScene | undefined = scenes[sel];
 
   useEffect(() => {
     let alive = true;
@@ -1646,10 +1654,10 @@ function PresentationEditor({ id, avatars, voices, onClose, onChanged, onRendere
     const ns: PScene = { id: `sc_${Date.now().toString(36)}`, script: "New scene — write what the avatar says here.", layout: "full", visualKind: "none", visualUrl: null, corner: "br" };
     const next = [...scenes, ns]; update(next); setSel(next.length - 1);
   };
-  const removeScene = (i: number) => { const next = scenes.filter((_, idx) => idx !== i); update(next); setSel((s) => Math.max(0, Math.min(s, next.length - 1))); };
+  const removeScene = (i: number) => { const next = scenes.filter((_, idx) => idx !== i); update(next); setSel(null); };
   const move = (from: number, to: number) => {
     if (to < 0 || to >= scenes.length) return;
-    const next = scenes.slice(); const [m] = next.splice(from, 1); next.splice(to, 0, m); update(next); setSel(to);
+    const next = scenes.slice(); const [m] = next.splice(from, 1); next.splice(to, 0, m); update(next); setSel(null);
   };
 
   const attachVisual = (i: number, url: string) => patchScene(i, {
@@ -1678,6 +1686,7 @@ function PresentationEditor({ id, avatars, voices, onClose, onChanged, onRendere
 
   const render = async () => {
     if (rendering) return;
+    if (scenes.length === 0) { setErr("Add at least one scene."); return; }
     if (scenes.some((s) => !s.script.trim())) { setErr("Every scene needs a script."); return; }
     setRendering(true); setErr("");
     try {
@@ -1689,164 +1698,217 @@ function PresentationEditor({ id, avatars, voices, onClose, onChanged, onRendere
   };
 
   return (
-    <div className="absolute inset-0 z-30 flex flex-col bg-background">
-      {/* header */}
-      <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
-        <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Clapperboard className="h-4 w-4" /></span>
-        <div className="min-w-0">
-          <p className="text-[13px] font-semibold">Presentation</p>
-          <p className="text-[11px] text-muted-foreground">{scenes.length} scene{scenes.length === 1 ? "" : "s"} · one stitched video</p>
+    <>
+      {/* in-canvas context toolbar (same chip language as the project switcher — NOT a second nav) */}
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-[12px] border border-border bg-card/70 px-3 py-2">
+        <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Clapperboard className="h-4 w-4" /></span>
+        <div className="leading-tight">
+          <p className="text-[12.5px] font-semibold">Presentation</p>
+          <p className="text-[10.5px] text-muted-foreground">{scenes.length} scene{scenes.length === 1 ? "" : "s"} · one stitched video</p>
+        </div>
+        <button onClick={() => setAvPickerOpen((o) => !o)} className="ms-1 inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-1 hover:border-brand-500/60">
+          {selAvatar?.previewUrl ? <Image src={selAvatar.previewUrl} alt="" width={18} height={22} className="rounded object-cover" unoptimized /> : <UserSquare2 className="h-3.5 w-3.5" />}
+          <span className="text-[11.5px] font-semibold">{selAvatar?.name || "Avatar"}</span>
+          <ChevronRight className={cn("h-3 w-3 transition", avPickerOpen && "rotate-90")} />
+        </button>
+        <div className="inline-flex items-center gap-1">
+          <select value={voiceId} onChange={(e) => { setVoiceId(e.target.value); const v = voices.find((x) => x.id === e.target.value); saveShared({ voiceId: e.target.value, voiceName: v?.name || "Voice" }); }} className="max-w-[140px] rounded-full border border-border bg-transparent px-2 py-1 text-[11px] font-semibold outline-none">
+            {voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
+          </select>
+          <button onClick={playVoice} disabled={!selVoice?.previewUrl} title="Listen" className="grid h-7 w-7 place-items-center rounded-full border border-border text-brand-500 hover:border-brand-500/60 disabled:opacity-40"><Play className="h-3 w-3 fill-current" /></button>
         </div>
         <div className="ms-auto flex items-center gap-2">
-          {credits != null && <span className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11.5px] font-semibold"><Coins className="h-3.5 w-3.5 text-brand-500" /> {credits.toLocaleString()} cr</span>}
-          <button onClick={onClose} className="inline-flex items-center gap-1 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60"><X className="h-3.5 w-3.5" /> Close</button>
-          <button onClick={render} disabled={rendering || loading || scenes.length === 0} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50">
-            {rendering ? <FlowLoader size={14} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />} Render presentation{credits != null ? ` · ${credits} cr` : ""}
+          {credits != null && <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-1 text-[11px] font-semibold"><Coins className="h-3 w-3 text-brand-500" /> {credits.toLocaleString()} cr</span>}
+          <button onClick={onClose} className="inline-flex items-center gap-1 rounded-[9px] border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500/60"><X className="h-3.5 w-3.5" /> Close</button>
+          <button onClick={render} disabled={rendering || loading || scenes.length === 0} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50">
+            {rendering ? <FlowLoader size={13} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />} Render presentation{credits != null ? ` · ${credits} cr` : ""}
           </button>
         </div>
       </div>
-
-      {loading ? (
-        <div className="grid flex-1 place-items-center"><FlowLoader size={32} withMark label="Loading your presentation…" /></div>
-      ) : (
-        <div className="flex min-h-0 flex-1">
-          {/* storyboard */}
-          <div className="flex w-[280px] shrink-0 flex-col border-r border-border">
-            <div className="border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Storyboard</div>
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2.5">
-              {scenes.map((s, i) => {
-                const thumb = s.visualUrl && s.visualKind !== "none" ? s.visualUrl : selAvatar?.previewUrl;
-                return (
-                  <div
-                    key={s.id}
-                    draggable
-                    onDragStart={() => setDragIdx(i)}
-                    onDragEnd={() => setDragIdx(null)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => { e.preventDefault(); if (dragIdx != null && dragIdx !== i) move(dragIdx, i); setDragIdx(null); }}
-                    onClick={() => setSel(i)}
-                    className={cn("group flex cursor-pointer gap-2 rounded-xl border p-2 transition", i === sel ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50", dragIdx === i && "opacity-40")}
-                  >
-                    <GripVertical className="mt-3 h-4 w-4 shrink-0 cursor-grab text-muted-foreground" />
-                    <div className="relative h-14 w-11 shrink-0 overflow-hidden rounded-lg bg-muted">
-                      {thumb ? <Image src={thumb} alt="" fill sizes="44px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-bold text-muted-foreground">{i + 1}</span>
-                        <span className="rounded bg-brand-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-brand-500">{P_LAYOUT_LABEL[s.layout]}</span>
-                        {s.isProduct && s.visualKind !== "none" && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-500">Visual</span>}
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{s.script}</p>
-                    </div>
-                    <button onClick={(e) => { e.stopPropagation(); removeScene(i); }} title="Remove scene" className="self-start text-muted-foreground opacity-0 transition hover:text-rose-500 group-hover:opacity-100"><Trash2 className="h-3.5 w-3.5" /></button>
-                  </div>
-                );
-              })}
-              <button onClick={addScene} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-2.5 text-[12px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-brand-500"><Plus className="h-4 w-4" /> Add scene</button>
-            </div>
-          </div>
-
-          {/* preview */}
-          <div className="grid flex-1 place-items-center bg-gradient-to-b from-transparent to-black/10 p-6">
-            {scene ? (
-              <div className="relative aspect-[9/16] w-full max-w-[300px] overflow-hidden rounded-2xl border border-border bg-[#0c1220] shadow-2xl">
-                {scene.visualUrl && scene.visualKind === "video" ? (
-                  <video src={scene.visualUrl} muted loop autoPlay playsInline className="absolute inset-0 h-full w-full object-cover" />
-                ) : scene.visualUrl && scene.visualKind === "image" ? (
-                  <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${scene.visualUrl}')` }} />
-                ) : null}
-                {scene.layout === "full" && selAvatar?.previewUrl && (
-                  <div className="absolute inset-0 bg-cover bg-top" style={{ backgroundImage: `url('${selAvatar.previewUrl}')` }} />
-                )}
-                {scene.layout === "overlay" && selAvatar?.previewUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={selAvatar.previewUrl} alt="" className="absolute aspect-square w-[34%] rounded-full border-[3px] border-white/90 object-cover shadow-lg" style={cornerStyle(scene.corner)} />
-                )}
-                <span className="absolute left-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">{P_LAYOUT_LABEL[scene.layout]}{scene.layout !== "full" && scene.visualKind === "none" ? " · add a visual" : ""}</span>
-                {scene.script && <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-3 text-[11px] text-white">“{scene.script.slice(0, 90)}{scene.script.length > 90 ? "…" : ""}”</span>}
-              </div>
-            ) : <p className="text-[12px] text-muted-foreground">No scene selected.</p>}
-          </div>
-
-          {/* inspector */}
-          <div className="w-[320px] shrink-0 overflow-y-auto border-l border-border p-3.5">
-            {/* shared avatar + voice */}
-            <label className="mb-1 block text-[11.5px] font-semibold">Presenter <span className="font-normal text-muted-foreground">· every scene</span></label>
-            <div className="mb-1.5 flex items-center gap-2 rounded-[10px] border border-border bg-muted/30 p-2">
-              {selAvatar?.previewUrl ? <Image src={selAvatar.previewUrl} alt="" width={34} height={44} className="rounded-md object-cover" unoptimized /> : <span className="grid h-11 w-9 place-items-center rounded-md bg-muted text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
-              <span className="min-w-0 flex-1 truncate text-[12px] font-semibold">{selAvatar?.name || "Avatar"}</span>
-              <button onClick={() => setAvPickerOpen((o) => !o)} className="rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold hover:border-brand-500/60">{avPickerOpen ? "Done" : "Change"}</button>
-            </div>
-            {avPickerOpen && (
-              <div className="mb-2">
-                <AvatarPicker avatars={avatars} value={avatarId} onSelect={(a) => { setAvatarId(a.id); saveShared({ avatarId: a.id, avatarName: a.name }); }} heightClass="max-h-[200px]" />
-              </div>
-            )}
-            <div className="flex gap-1.5">
-              <select value={voiceId} onChange={(e) => { setVoiceId(e.target.value); const v = voices.find((x) => x.id === e.target.value); saveShared({ voiceId: e.target.value, voiceName: v?.name || "Voice" }); }} className="min-w-0 flex-1 rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
-                {voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
-              </select>
-              <button onClick={playVoice} disabled={!selVoice?.previewUrl} title="Listen" className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-border text-brand-500 hover:border-brand-500/60 disabled:opacity-40"><Play className="h-4 w-4 fill-current" /></button>
-            </div>
-
-            {scene && (
-              <>
-                <div className="my-3 h-px bg-border" />
-                <label className="mb-1 block text-[11.5px] font-semibold">Scene {sel + 1} · script</label>
-                <textarea value={scene.script} onChange={(e) => patchScene(sel, { script: e.target.value })} rows={4} className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
-
-                <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Layout</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {P_LAYOUTS.map((l) => (
-                    <button key={l.v} onClick={() => patchScene(sel, { layout: l.v })} className={cn("rounded-[10px] border px-2 py-1.5 text-center transition", scene.layout === l.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}>
-                      <span className="block text-[12px] font-bold leading-tight">{l.label}</span>
-                      <span className="block text-[9.5px] text-muted-foreground">{l.hint}</span>
-                    </button>
-                  ))}
-                </div>
-                {scene.layout === "overlay" && (
-                  <>
-                    <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Avatar corner</label>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {P_CORNERS.map((c) => (
-                        <button key={c.v} onClick={() => patchScene(sel, { corner: c.v })} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[11.5px] font-semibold transition", scene.corner === c.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}>{c.label}</button>
-                      ))}
-                    </div>
-                  </>
-                )}
-
-                <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Scene visual <span className="font-normal text-muted-foreground">· product / reference / B-roll</span></label>
-                {scene.visualUrl && scene.visualKind !== "none" ? (
-                  <div className="mb-2 flex items-center gap-2 rounded-[10px] border border-border p-2">
-                    <div className="relative h-10 w-16 overflow-hidden rounded bg-muted">
-                      {scene.visualKind === "video" ? <video src={scene.visualUrl} muted className="h-full w-full object-cover" /> : <Image src={scene.visualUrl} alt="" fill sizes="64px" className="object-cover" unoptimized />}
-                    </div>
-                    <span className="text-[11px] text-muted-foreground">{scene.visualKind === "video" ? "Video" : "Image"} attached</span>
-                    <button onClick={() => patchScene(sel, { visualKind: "none", visualUrl: null, isProduct: false })} className="ms-auto text-[11px] font-semibold text-muted-foreground hover:text-rose-500">Remove</button>
-                  </div>
-                ) : (
-                  <p className="mb-2 text-[10.5px] text-muted-foreground">Attach a product/reference image or B-roll the avatar presents while talking.</p>
-                )}
-                <div className="flex flex-wrap gap-1.5">
-                  <button onClick={() => genVisual(sel)} disabled={bgBusy} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-60">{bgBusy ? <FlowLoader size={12} tone="white" /> : <Sparkles className="h-3 w-3" />} Generate (AI)</button>
-                  <button onClick={() => setPickerOpen(true)} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold hover:border-brand-500/60"><Images className="h-3 w-3" /> Media Library</button>
-                </div>
-
-                {err && <p className="mt-3 text-[11.5px] text-rose-500">{err}</p>}
-              </>
-            )}
-          </div>
+      {avPickerOpen && (
+        <div className="mb-4 max-w-2xl rounded-[12px] border border-border bg-card/60 p-3">
+          <p className="mb-1.5 text-[11px] font-semibold text-muted-foreground">Presenter · used for every scene</p>
+          <AvatarPicker avatars={avatars} value={avatarId} onSelect={(a) => { setAvatarId(a.id); saveShared({ avatarId: a.id, avatarName: a.name }); }} heightClass="max-h-[220px]" />
         </div>
+      )}
+
+      {/* scenes as node cards on the dotted canvas */}
+      {loading ? (
+        <div className="grid place-items-center py-16"><FlowLoader size={30} withMark label="Loading your presentation…" /></div>
+      ) : (
+        <div className="flex flex-wrap items-stretch gap-y-4">
+          {scenes.map((s, i) => (
+            <Fragment key={s.id}>
+              {i > 0 && <span aria-hidden className="h-0.5 w-6 shrink-0 self-center rounded bg-gradient-to-r from-brand-500/60 to-brand-500/40" />}
+              <div
+                draggable
+                onDragStart={() => setDragIdx(i)}
+                onDragEnd={() => setDragIdx(null)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); if (dragIdx != null && dragIdx !== i) move(dragIdx, i); setDragIdx(null); }}
+                className={cn("flex cursor-grab items-stretch transition active:cursor-grabbing", dragIdx === i && "opacity-40")}
+              >
+                <PresSceneNode scene={s} index={i} avatarUrl={selAvatar?.previewUrl} onEdit={() => setSel(i)} onRemove={() => removeScene(i)} />
+              </div>
+            </Fragment>
+          ))}
+          <span aria-hidden className="h-0.5 w-6 shrink-0 self-center rounded bg-gradient-to-r from-brand-500/60 to-brand-500/30" />
+          <button onClick={addScene} className="flex w-[190px] shrink-0 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card/40 py-10 text-muted-foreground transition hover:border-brand-500/60 hover:text-brand-500">
+            <span className="grid h-11 w-11 place-items-center rounded-full border border-dashed border-current"><Plus className="h-5 w-5" /></span>
+            <span className="text-[12px] font-semibold">Add scene</span>
+          </button>
+        </div>
+      )}
+      {err && <p className="mt-3 text-[11.5px] text-rose-500">{err}</p>}
+
+      {/* right-side scene drawer (same shell as the per-scene edit drawer) */}
+      {sel != null && scenes[sel] && (
+        <PresSceneDrawer
+          key={scenes[sel].id}
+          scene={scenes[sel]}
+          index={sel}
+          avatarUrl={selAvatar?.previewUrl}
+          bgBusy={bgBusy}
+          onClose={() => setSel(null)}
+          onChange={(p) => patchScene(sel, p)}
+          onGenVisual={() => genVisual(sel)}
+          onPickVisual={() => setPickerOpen(true)}
+        />
       )}
 
       <MediaLibraryPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        onSelect={(url) => { attachVisual(sel, url); setPickerOpen(false); }}
+        onSelect={(url) => { if (sel != null) attachVisual(sel, url); setPickerOpen(false); }}
         filterTypes={["image", "video"]}
         title="Choose a product / reference / B-roll"
       />
+    </>
+  );
+}
+
+/** A presentation scene as a canvas node card (mirrors the draft-scene card style). */
+function PresSceneNode({ scene, index, avatarUrl, onEdit, onRemove }: {
+  scene: PScene;
+  index: number;
+  avatarUrl?: string;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const visual = scene.visualUrl && scene.visualKind !== "none" ? scene.visualUrl : null;
+  return (
+    <div className="flex w-[190px] shrink-0 flex-col overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 shadow-sm">
+      <button onClick={onEdit} title="Edit scene" className="relative block aspect-[9/16] w-full overflow-hidden bg-background text-left">
+        {visual && scene.visualKind === "video" ? (
+          <video src={visual} muted loop className="absolute inset-0 h-full w-full object-cover" />
+        ) : visual ? (
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${visual}')` }} />
+        ) : null}
+        {scene.layout === "full" && avatarUrl && <div className="absolute inset-0 bg-cover bg-top" style={{ backgroundImage: `url('${avatarUrl}')` }} />}
+        {scene.layout === "full" && !avatarUrl && <div className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-7 w-7" /></div>}
+        {scene.layout === "overlay" && avatarUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarUrl} alt="" className="absolute aspect-square w-[38%] rounded-full border-2 border-white/90 object-cover shadow" style={cornerStyle(scene.corner)} />
+        )}
+        <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">Scene {index + 1}</span>
+        <span className="absolute right-1.5 top-1.5 rounded-full bg-brand-500/85 px-2 py-0.5 text-[9px] font-bold uppercase text-white">{P_LAYOUT_LABEL[scene.layout]}</span>
+        {scene.layout !== "full" && scene.visualKind === "none" && <span className="absolute inset-x-1.5 top-8 rounded bg-amber-500/80 px-1.5 py-0.5 text-center text-[9px] font-bold text-white">add a visual</span>}
+        <span className="absolute inset-x-0 bottom-0 block bg-gradient-to-t from-black/85 to-transparent px-2.5 pb-2 pt-8">
+          <span className="line-clamp-2 text-[10.5px] text-white/90">{scene.script || "Empty script"}</span>
+          <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-white/70"><Sliders className="h-3 w-3" /> Tap to edit</span>
+        </span>
+      </button>
+      <div className="flex items-center justify-between px-2.5 py-1.5">
+        <span className="truncate text-[10px] text-muted-foreground">{scene.visualKind !== "none" ? `${scene.visualKind === "video" ? "Video" : "Image"} · ${P_LAYOUT_LABEL[scene.layout]}` : "Avatar only"}</span>
+        <button onClick={onRemove} title="Remove scene" className="grid h-6 w-6 shrink-0 place-items-center rounded-[7px] border border-border text-muted-foreground transition hover:border-rose-500/50 hover:text-rose-500"><Trash2 className="h-3 w-3" /></button>
+      </div>
+    </div>
+  );
+}
+
+/** Right-side drawer to edit ONE presentation scene (script, layout, visual). */
+function PresSceneDrawer({ scene, index, avatarUrl, bgBusy, onClose, onChange, onGenVisual, onPickVisual }: {
+  scene: PScene;
+  index: number;
+  avatarUrl?: string;
+  bgBusy: boolean;
+  onClose: () => void;
+  onChange: (p: Partial<PScene>) => void;
+  onGenVisual: () => void;
+  onPickVisual: () => void;
+}) {
+  const visual = scene.visualUrl && scene.visualKind !== "none" ? scene.visualUrl : null;
+  return (
+    <div className="absolute inset-0 z-30 flex justify-end bg-black/45" onClick={onClose}>
+      <div className="flex h-full w-full max-w-[360px] flex-col border-l border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Sliders className="h-4 w-4" /></span>
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold">Scene {index + 1}</p>
+            <p className="text-[11px] text-muted-foreground">Script, layout &amp; visual</p>
+          </div>
+          <button onClick={onClose} className="ms-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          {/* 9:16 composition preview */}
+          <div className="relative mx-auto mb-3 aspect-[9/16] w-full max-w-[150px] overflow-hidden rounded-xl border border-border bg-[#0c1220]">
+            {visual && scene.visualKind === "video" ? (
+              <video src={visual} muted loop autoPlay playsInline className="absolute inset-0 h-full w-full object-cover" />
+            ) : visual ? (
+              <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${visual}')` }} />
+            ) : null}
+            {scene.layout === "full" && avatarUrl && <div className="absolute inset-0 bg-cover bg-top" style={{ backgroundImage: `url('${avatarUrl}')` }} />}
+            {scene.layout === "overlay" && avatarUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="" className="absolute aspect-square w-[38%] rounded-full border-2 border-white/90 object-cover" style={cornerStyle(scene.corner)} />
+            )}
+            <span className="absolute left-1.5 top-1.5 rounded bg-black/55 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wide text-white">{P_LAYOUT_LABEL[scene.layout]}</span>
+          </div>
+
+          <label className="mb-1 block text-[11.5px] font-semibold">Script</label>
+          <textarea value={scene.script} onChange={(e) => onChange({ script: e.target.value })} rows={4} className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
+
+          <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Layout</label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {P_LAYOUTS.map((l) => (
+              <button key={l.v} onClick={() => onChange({ layout: l.v })} className={cn("rounded-[10px] border px-2 py-1.5 text-center transition", scene.layout === l.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}>
+                <span className="block text-[12px] font-bold leading-tight">{l.label}</span>
+                <span className="block text-[9.5px] text-muted-foreground">{l.hint}</span>
+              </button>
+            ))}
+          </div>
+          {scene.layout === "overlay" && (
+            <>
+              <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Avatar corner</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {P_CORNERS.map((c) => (
+                  <button key={c.v} onClick={() => onChange({ corner: c.v })} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[11.5px] font-semibold transition", scene.corner === c.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}>{c.label}</button>
+                ))}
+              </div>
+            </>
+          )}
+
+          <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Scene visual <span className="font-normal text-muted-foreground">· product / reference / B-roll</span></label>
+          {visual ? (
+            <div className="mb-2 flex items-center gap-2 rounded-[10px] border border-border p-2">
+              <div className="relative h-10 w-16 overflow-hidden rounded bg-muted">
+                {scene.visualKind === "video" ? <video src={visual} muted className="h-full w-full object-cover" /> : <div className="h-full w-full bg-cover bg-center" style={{ backgroundImage: `url('${visual}')` }} />}
+              </div>
+              <span className="text-[11px] text-muted-foreground">{scene.visualKind === "video" ? "Video" : "Image"} attached</span>
+              <button onClick={() => onChange({ visualKind: "none", visualUrl: null, isProduct: false })} className="ms-auto text-[11px] font-semibold text-muted-foreground hover:text-rose-500">Remove</button>
+            </div>
+          ) : (
+            <p className="mb-2 text-[10.5px] text-muted-foreground">Attach a product/reference image or B-roll the avatar presents while talking.</p>
+          )}
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={onGenVisual} disabled={bgBusy} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-60">{bgBusy ? <FlowLoader size={12} tone="white" /> : <Sparkles className="h-3 w-3" />} Generate (AI)</button>
+            <button onClick={onPickVisual} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold hover:border-brand-500/60"><Images className="h-3 w-3" /> Media Library</button>
+          </div>
+        </div>
+        <div className="flex items-center justify-end border-t border-border px-4 py-3">
+          <button onClick={onClose} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12px] font-semibold text-white"><CheckCircle2 className="h-3.5 w-3.5" /> Done</button>
+        </div>
+      </div>
     </div>
   );
 }
