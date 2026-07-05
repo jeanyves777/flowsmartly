@@ -1222,13 +1222,18 @@ function AvatarPicker({ avatars, value, onSelect, heightClass = "max-h-[240px]" 
   const valueGroupKey = useMemo(() => avatars.find((a) => a.id === value)?.group ?? null, [avatars, value]);
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const autoOpened = useRef(false);
 
-  // Auto-open the group that owns the current selection when it has multiple looks.
+  // Auto-open the group that owns the current selection ONCE (when avatars first
+  // load). After that, "All avatars" / manual navigation must stick — otherwise
+  // closing a group would instantly re-open it because the selection is inside it.
   useEffect(() => {
-    if (openKey || !valueGroupKey) return;
+    if (autoOpened.current || groups.length === 0) return;
+    autoOpened.current = true;
+    if (!valueGroupKey) return;
     const g = groups.find((x) => x.key === valueGroupKey);
     if (g && g.looks.length > 1) setOpenKey(valueGroupKey);
-  }, [valueGroupKey, groups, openKey]);
+  }, [valueGroupKey, groups]);
 
   const open = openKey ? groups.find((g) => g.key === openKey) : null;
 
