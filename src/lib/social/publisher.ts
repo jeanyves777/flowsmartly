@@ -6,6 +6,8 @@ import {
   socialAccountIdFromDestination,
 } from "@/lib/social/destinations";
 import { publishWhatsAppStatus } from "@/lib/whatsapp/status-publisher";
+import { renderImageToShort } from "@/lib/social/image-to-short";
+import { publishToGoogleBusiness } from "@/lib/social/google-business";
 
 /**
  * Social Media Publisher
@@ -24,9 +26,23 @@ interface PublishResult {
   success: boolean;
   postId?: string;
   error?: string;
+  /** Non-fatal "queued but not live yet" state (e.g. Google Business awaiting API approval). */
+  pending?: boolean;
 }
 
 type PlatformResults = Record<string, PublishResult>;
+
+/**
+ * Per-channel progress emitted while a post fans out, so the composer can render
+ * a live "publishing to N channels" modal instead of one blocking spinner.
+ * `channel_start` fires as each destination begins; `channel_result` when it settles.
+ */
+export type PublishProgress =
+  | { type: "channel_start"; destination: string; platform: string; label?: string; stage?: string }
+  | { type: "channel_stage"; destination: string; platform: string; stage: string }
+  | { type: "channel_result"; destination: string; platform: string; result: PublishResult };
+
+export type { PublishResult, PlatformResults };
 
 type SocialAccount = {
   id: string;
@@ -162,7 +178,8 @@ async function getValidToken(
         }
       }
       return token; // Return existing token even if "expired" — FB tokens sometimes work past expiry
-    } else if (platform === "youtube") {
+    } else if (platform === "youtube" || platform === "google_business") {
+      // Both use Google OAuth (same GOOGLE_CLIENT_* + token endpoint).
       refreshed = await refreshOAuthToken(account, "https://oauth2.googleapis.com/token", {
         client_id: process.env.GOOGLE_CLIENT_ID!,
         client_secret: process.env.GOOGLE_CLIENT_SECRET!,
@@ -523,10 +540,14 @@ async function publishToInstagram(
 
 async function publishToYouTube(
   post: PostData,
-  account: SocialAccount
+  account: SocialAccount,
+  stage?: (s: string) => void
 ): Promise<PublishResult> {
-  if (post.mediaUrls.length === 0 || !hasVideo(post)) {
-    return { success: false, error: "YouTube requires a video file" };
+  // YouTube's API has no Community/Posts-tab endpoint, so a post is always a
+  // video: either the user's uploaded video, or (for an image + caption) an
+  // image rendered into a Short. Text-only can't go to YouTube.
+  if (post.mediaUrls.length === 0) {
+    return { success: false, error: "YouTube needs a video, or an image we can turn into a Short." };
   }
 
   const token = await getValidToken(account, "youtube");
@@ -535,14 +556,28 @@ async function publishToYouTube(
   }
 
   try {
-    const videoUrl = post.mediaUrls.find((u) => isVideoUrl(u))!;
+    let videoBuffer: Uint8Array;
+    let isShort = false;
 
-    const videoResponse = await fetch(videoUrl);
-    if (!videoResponse.ok) return { success: false, error: "Failed to download video file" };
-    const videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+    if (hasVideo(post)) {
+      stage?.("Uploading your video to YouTube…");
+      const videoUrl = post.mediaUrls.find((u) => isVideoUrl(u))!;
+      const videoResponse = await fetch(videoUrl);
+      if (!videoResponse.ok) return { success: false, error: "Failed to download video file" };
+      videoBuffer = Buffer.from(await videoResponse.arrayBuffer());
+    } else {
+      // Image → Short: the only API-supported way to get an image onto YouTube.
+      stage?.("Turning your image into a Short…");
+      const short = await renderImageToShort(post.mediaUrls[0]);
+      videoBuffer = short.buffer;
+      isShort = true;
+      stage?.("Uploading your Short to YouTube…");
+    }
 
     const captionText = post.caption || "Untitled";
-    const title = captionText.split("\n")[0].slice(0, 100) || "Untitled";
+    const firstLine = captionText.split("\n")[0].slice(0, 90) || "Untitled";
+    const title = (isShort ? `${firstLine} #Shorts` : firstLine).slice(0, 100);
+    const description = isShort ? `${captionText}\n\n#Shorts` : captionText;
 
     // Initiate resumable upload
     const initRes = await fetch(
@@ -556,7 +591,7 @@ async function publishToYouTube(
           "X-Upload-Content-Length": videoBuffer.length.toString(),
         },
         body: JSON.stringify({
-          snippet: { title, description: captionText, categoryId: "22" },
+          snippet: { title, description, categoryId: "22" },
           status: { privacyStatus: "public", selfDeclaredMadeForKids: false },
         }),
       }
@@ -581,11 +616,11 @@ async function publishToYouTube(
     const uploadUrl = initRes.headers.get("location");
     if (!uploadUrl) return { success: false, error: "YouTube did not return upload URL" };
 
-    // Upload video data
+    // Upload video data (fresh Uint8Array so the body is an ArrayBuffer-backed view)
     const uploadRes = await fetch(uploadUrl, {
       method: "PUT",
       headers: { "Content-Type": "video/*", "Content-Length": videoBuffer.length.toString() },
-      body: videoBuffer,
+      body: new Uint8Array(videoBuffer),
     });
 
     if (!uploadRes.ok) {
@@ -602,7 +637,37 @@ async function publishToYouTube(
     }
 
     const uploadData = await uploadRes.json();
-    return { success: true, postId: uploadData.id };
+    const videoId: string | undefined = uploadData.id;
+
+    // Honest verification — don't report "Published" if YouTube rejected the
+    // upload or (on an unverified channel) silently forced it to private.
+    if (videoId) {
+      stage?.("Confirming it's live…");
+      try {
+        const chk = await fetch(
+          `https://www.googleapis.com/youtube/v3/videos?part=status&id=${videoId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (chk.ok) {
+          const cj = await chk.json();
+          const st = cj.items?.[0]?.status;
+          if (st?.uploadStatus === "rejected" || st?.uploadStatus === "failed") {
+            return { success: false, error: `YouTube rejected the ${isShort ? "Short" : "video"}${st.rejectionReason ? ` (${st.rejectionReason})` : ""}.` };
+          }
+          if (st?.privacyStatus && st.privacyStatus !== "public") {
+            // Uploaded, but not publicly visible yet — surface it honestly.
+            return {
+              success: true,
+              pending: true,
+              postId: videoId,
+              error: `Uploaded, but YouTube set it to ${st.privacyStatus}. Verify your channel to publish API uploads publicly.`,
+            };
+          }
+        }
+      } catch { /* verification is best-effort; don't fail a real upload on it */ }
+    }
+
+    return { success: true, postId: videoId };
   } catch (err: any) {
     return { success: false, error: err.message || "YouTube publish failed" };
   }
@@ -1120,7 +1185,8 @@ async function publishToPinterest(
 export async function publishToSocialPlatforms(
   postId: string,
   userId: string,
-  onlyPlatforms?: string[]
+  onlyPlatforms?: string[],
+  onProgress?: (ev: PublishProgress) => void
 ): Promise<PlatformResults> {
   const results: PlatformResults = {};
 
@@ -1212,10 +1278,18 @@ export async function publishToSocialPlatforms(
 
       if (!account) {
         results[destination] = { success: false, error: `No ${platform} account connected` };
+        onProgress?.({ type: "channel_result", destination, platform, result: results[destination] });
         continue;
       }
 
       console.log(`[Publisher] Publishing to ${platform}:`, account.platformDisplayName || account.platformUsername);
+      onProgress?.({
+        type: "channel_start",
+        destination,
+        platform,
+        label: account.platformDisplayName || account.platformUsername || platform,
+      });
+      const stage = (stage: string) => onProgress?.({ type: "channel_stage", destination, platform, stage });
 
       switch (platform) {
         case "facebook":
@@ -1225,7 +1299,7 @@ export async function publishToSocialPlatforms(
           results[destination] = await publishToInstagram(postData, account);
           break;
         case "youtube":
-          results[destination] = await publishToYouTube(postData, account);
+          results[destination] = await publishToYouTube(postData, account, stage);
           break;
         case "twitter":
           results[destination] = await publishToTwitter(postData, account);
@@ -1242,6 +1316,13 @@ export async function publishToSocialPlatforms(
         case "pinterest":
           results[destination] = await publishToPinterest(postData, account);
           break;
+        case "google_business":
+          results[destination] = await publishToGoogleBusiness(
+            postData,
+            account,
+            await getValidToken(account, "google_business")
+          );
+          break;
         case "whatsapp":
           results[destination] = await publishWhatsAppStatus(account, {
             mediaUrl: postData.mediaUrls[0],
@@ -1252,8 +1333,10 @@ export async function publishToSocialPlatforms(
         default:
           results[destination] = { success: false, error: `Unsupported platform: ${platform}` };
       }
+      onProgress?.({ type: "channel_result", destination, platform, result: results[destination] });
     } catch (err: any) {
       results[destination] = { success: false, error: err.message || "Unexpected error" };
+      onProgress?.({ type: "channel_result", destination, platform: baseSocialPlatform(destination), result: results[destination] });
     }
   }
 

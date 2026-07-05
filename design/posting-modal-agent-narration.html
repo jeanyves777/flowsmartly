@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FlowSmartly — Publishing modal + agent narration</title>
+<style>
+  :root{
+    --bg:#ffffff; --card:#ffffff; --muted:#f4f4f5; --muted-2:#fafafa;
+    --border:#e7e7ea; --border-strong:#d4d4d8;
+    --fg:#09090b; --fg-soft:#3f3f46; --muted-fg:#71717a;
+    --brand:#0ea5e9; --blue:#3b82f6; --violet:#8b5cf6; --amber:#f59e0b;
+    --emerald:#10b981; --rose:#f43f5e; --amber-600:#d97706;
+    --radius:16px;
+    --grad:linear-gradient(135deg,#3b82f6 0%,#8b5cf6 52%,#f59e0b 120%);
+    --grad-btn:linear-gradient(90deg,#2f7ff2,#8b5cf6);
+    --shadow:0 24px 60px -18px rgba(24,24,40,.35),0 8px 20px -12px rgba(24,24,40,.25);
+    font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:
+      radial-gradient(900px 500px at 80% -8%,rgba(139,92,246,.10),transparent 60%),
+      radial-gradient(700px 420px at -5% 8%,rgba(59,130,246,.10),transparent 55%),
+      #f6f7f9;
+    color:var(--fg);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:1360px;margin:0 auto;padding:14px 18px 40px}
+
+  /* ---- top bar ---- */
+  .topbar{display:flex;align-items:center;gap:14px;padding:8px 4px 16px}
+  .brand{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:-.02em;font-size:18px}
+  .logo{width:26px;height:26px;border-radius:8px;background:var(--grad);box-shadow:0 4px 12px -4px rgba(99,102,241,.6)}
+  .brand .fs-blue{color:var(--brand)}
+  .pill{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border:1px solid var(--border);
+        background:#fff;border-radius:999px;font-size:12.5px;font-weight:600;color:var(--fg-soft)}
+  .spacer{flex:1}
+  .credits{background:linear-gradient(90deg,#eef4ff,#f3edff);border-color:#e3e7f5;color:#4f46e5}
+
+  /* ---- workspace split ---- */
+  .split{display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start}
+  @media (max-width:1040px){.split{grid-template-columns:1fr}}
+
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius)}
+
+  /* ---- agent chat (left) ---- */
+  .agent{display:flex;flex-direction:column;min-height:660px;overflow:hidden}
+  .agent-head{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid var(--border)}
+  .agent-status{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);box-shadow:0 0 0 3px rgba(16,185,129,.15)}
+  .dot.busy{background:var(--violet);box-shadow:0 0 0 3px rgba(139,92,246,.18)}
+  .agent-sub{font-size:11.5px;color:var(--muted-fg);font-weight:600}
+  .chat{flex:1;overflow-y:auto;padding:16px 15px;display:flex;flex-direction:column;gap:12px}
+  .chat.empty{align-items:flex-start;justify-content:flex-start}
+  .hint{font-size:12.5px;color:var(--muted-fg);line-height:1.55}
+  .msg{max-width:100%;animation:rise .32s cubic-bezier(.16,1,.3,1) both}
+  .msg .who{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:800;color:var(--violet);text-transform:none;margin-bottom:4px}
+  .msg .who .av{width:16px;height:16px;border-radius:5px;background:var(--grad)}
+  .bubble{background:var(--muted-2);border:1px solid var(--border);border-radius:13px;border-top-left-radius:5px;
+          padding:9px 11px;font-size:13px;line-height:1.5;color:var(--fg-soft)}
+  .bubble.tick{display:flex;align-items:flex-start;gap:8px;background:#fff}
+  .line{display:flex;align-items:flex-start;gap:8px;margin-top:7px;font-size:12.7px;color:var(--fg-soft);animation:rise .3s both}
+  .line:first-child{margin-top:0}
+  .ic{width:17px;height:17px;flex:none;margin-top:1px}
+  .chip-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+  .chip{font-size:12px;font-weight:700;border-radius:9px;padding:6px 10px;border:1px solid;cursor:pointer;background:#fff}
+  .chip.fix{color:#b42318;border-color:#f6c9c4;background:#fff5f4}
+  .chip.ghost{color:var(--fg-soft);border-color:var(--border)}
+  .composer{border-top:1px solid var(--border);padding:11px 13px;display:flex;align-items:center;gap:9px}
+  .composer .box{flex:1;display:flex;align-items:center;gap:9px;border:1px solid var(--border);border-radius:999px;padding:8px 12px;color:var(--muted-fg);font-size:12.5px}
+  .plus{width:26px;height:26px;border-radius:50%;border:1px solid var(--border);display:grid;place-items:center;color:var(--muted-fg)}
+
+  /* ---- compose canvas (right) ---- */
+  .canvas{padding:18px 20px 22px;min-height:660px;position:relative;overflow:hidden}
+  .canvas-head{display:flex;align-items:center;gap:11px;margin-bottom:16px}
+  .canvas-head .ci{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,#eaf1ff,#f0e9ff);display:grid;place-items:center;color:var(--violet)}
+  .canvas-head h2{margin:0;font-size:16px;font-weight:800;letter-spacing:-.01em}
+  .canvas-head p{margin:2px 0 0;font-size:12.5px;color:var(--muted-fg)}
+
+  .field-label{font-size:12px;font-weight:700;color:var(--fg-soft);margin:0 0 7px}
+  .caption{border:1px solid var(--border);border-radius:12px;padding:12px 13px;font-size:13.5px;line-height:1.55;color:var(--fg);background:var(--muted-2)}
+  .caption .tag{color:var(--brand);font-weight:600}
+  .media{margin-top:14px;display:flex;gap:10px;align-items:center}
+  .thumb{width:74px;height:74px;border-radius:12px;object-fit:cover;border:1px solid var(--border);
+         background:linear-gradient(135deg,#c7d2fe,#fbcfe8 55%,#fde68a);position:relative;overflow:hidden}
+  .thumb.two{background:linear-gradient(135deg,#a7f3d0,#93c5fd)}
+  .thumb-badge{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;font-weight:700;border-radius:6px;padding:1px 5px}
+  .media .note{font-size:12px;color:var(--muted-fg)}
+
+  .section-title{font-size:12px;font-weight:700;color:var(--fg-soft);margin:20px 0 9px;display:flex;align-items:center;gap:8px}
+  .count{margin-left:auto;font-size:11.5px;color:var(--muted-fg);font-weight:600}
+  .targets{display:flex;flex-wrap:wrap;gap:8px}
+  .target{display:flex;align-items:center;gap:8px;border:1px solid var(--border-strong);border-radius:11px;padding:7px 11px 7px 8px;background:#fff;font-size:12.5px;font-weight:600}
+  .target.on{border-color:#bcd6ff;background:#f2f7ff}
+  .av-sm{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800;flex:none}
+  .target .sub{color:var(--muted-fg);font-weight:500;font-size:11px}
+  .warn-i{color:var(--amber-600)}
+
+  .actions{margin-top:22px;display:flex;align-items:center;gap:12px}
+  .btn{border:0;cursor:pointer;font-weight:700;border-radius:12px;font-size:13.5px;display:inline-flex;align-items:center;gap:9px;padding:11px 18px}
+  .btn.primary{background:var(--grad-btn);color:#fff;box-shadow:0 10px 22px -10px rgba(99,102,241,.7)}
+  .btn.primary:active{transform:translateY(1px)}
+  .btn.subtle{background:#fff;border:1px solid var(--border);color:var(--fg-soft)}
+  .when{font-size:12px;color:var(--muted-fg)}
+
+  /* ---- FlowLoader ---- */
+  .fl{display:inline-grid;place-items:center;position:relative}
+  .fl svg{animation:spin .9s linear infinite;display:block}
+  .fl .mk{position:absolute;background:#fff;border-radius:4px;display:grid;place-items:center;overflow:hidden}
+  .fl .mk i{display:block;width:70%;height:70%;border-radius:2px;background:var(--grad)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ---- modal ---- */
+  .backdrop{position:fixed;inset:0;background:rgba(15,16,28,.42);backdrop-filter:blur(3px);
+            display:none;align-items:center;justify-content:center;z-index:40;padding:24px}
+  .backdrop.show{display:flex;animation:fade .2s both}
+  .modal{width:min(560px,100%);background:#fff;border:1px solid var(--border);border-radius:20px;box-shadow:var(--shadow);
+         overflow:hidden;animation:pop .34s cubic-bezier(.16,1,.3,1) both}
+  .m-head{display:flex;align-items:center;gap:13px;padding:18px 20px 15px}
+  .m-head .htxt{flex:1;min-width:0}
+  .m-head h3{margin:0;font-size:15.5px;font-weight:800;letter-spacing:-.01em}
+  .m-head p{margin:3px 0 0;font-size:12.5px;color:var(--muted-fg)}
+  .m-x{border:0;background:transparent;color:var(--muted-fg);cursor:pointer;border-radius:8px;padding:5px;line-height:0}
+  .m-x:hover{background:var(--muted);color:var(--fg)}
+
+  .track{height:5px;background:var(--muted);position:relative;overflow:hidden}
+  .track > i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--grad-btn);transition:width .5s cubic-bezier(.16,1,.3,1)}
+
+  .rows{padding:8px 12px 6px;max-height:330px;overflow-y:auto}
+  .row{display:flex;align-items:center;gap:11px;padding:11px 10px;border-radius:12px}
+  .row + .row{border-top:1px solid var(--border)}
+  .row .av-md{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800;flex:none;position:relative}
+  .row .meta{flex:1;min-width:0}
+  .row .nm{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .hd{font-size:11.5px;color:var(--muted-fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .st{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;flex:none;white-space:nowrap}
+  .st.queued{color:var(--muted-fg)}
+  .st.run{color:var(--violet)}
+  .st.ok{color:var(--emerald)}
+  .st.fail{color:var(--rose)}
+  .st.hold{color:var(--amber-600)}
+  .qdot{width:8px;height:8px;border-radius:50%;background:var(--border-strong)}
+  .st .sub{display:block;font-weight:500;font-size:10.5px;color:var(--muted-fg);text-align:right;margin-top:1px}
+  .badge-plat{position:absolute;right:-4px;bottom:-4px;width:15px;height:15px;border-radius:5px;border:2px solid #fff;display:grid;place-items:center}
+  .row.done-fail{background:#fff6f5}
+  .row.done-ok{background:#f4fdf8}
+
+  .m-foot{display:flex;align-items:center;gap:10px;padding:14px 18px 18px;border-top:1px solid var(--border)}
+  .m-foot .sum{font-size:12.5px;color:var(--fg-soft);font-weight:600}
+  .m-foot .sum b{color:var(--fg)}
+  .m-foot .grow{flex:1}
+  .btn.sm{padding:9px 14px;font-size:12.5px;border-radius:10px}
+  .btn.retry{background:#fff;border:1px solid #f6c9c4;color:#b42318}
+  .btn.done{background:var(--grad-btn);color:#fff}
+  .running-note{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted-fg)}
+
+  /* ---- controls ---- */
+  .controls{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:60;display:flex;gap:8px;
+            background:#111827;color:#fff;border-radius:999px;padding:7px 8px 7px 15px;box-shadow:var(--shadow);align-items:center}
+  .controls b{font-size:12px;font-weight:700;letter-spacing:.01em}
+  .controls select,.controls button{font:inherit;font-size:12px;border-radius:999px;border:0;padding:7px 13px;cursor:pointer;font-weight:700}
+  .controls select{background:#1f2937;color:#fff}
+  .controls .go{background:#fff;color:#111827}
+
+  .hide{display:none !important}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  @keyframes pop{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><span class="logo"></span><span class="fs-blue">Flow</span>Smartly</div>
+    <span class="pill">🏢 Laikos Albany ▾</span>
+    <span class="pill">🎨 Brand Kit</span>
+    <div class="spacer"></div>
+    <span class="pill credits">⚡ 501 credits</span>
+  </div>
+
+  <div class="split">
+    <!-- ===== LEFT: agent chat ===== -->
+    <div class="panel agent">
+      <div class="agent-head">
+        <div class="agent-status"><span class="dot" id="agentDot"></span><span>Agent</span>
+          <span class="agent-sub" id="agentState">· ready</span></div>
+        <span class="agent-sub">collapse ›</span>
+      </div>
+      <div class="chat empty" id="chat">
+        <p class="hint">Ask the agent to write, schedule or publish a post — e.g. <em>“write a post about our Sunday service and publish it to all my channels.”</em></p>
+      </div>
+      <div class="composer">
+        <div class="plus">＋</div>
+        <div class="box"><span>Ask FlowSmartly to do something…</span></div>
+        <div class="plus">🎙</div>
+      </div>
+    </div>
+
+    <!-- ===== RIGHT: compose canvas ===== -->
+    <div class="panel canvas">
+      <div class="canvas-head">
+        <div class="ci">✎</div>
+        <div><h2>Compose</h2><p>Write, schedule &amp; publish a post</p></div>
+      </div>
+
+      <p class="field-label">Caption</p>
+      <div class="caption">Grateful for a packed house this Sunday 🙌 Thank you Laikos family for showing up with your whole hearts. <span class="tag">#LaikosAlbany</span> <span class="tag">#Charis</span> <span class="tag">#SundayService</span></div>
+
+      <div class="media">
+        <div class="thumb"><span class="thumb-badge">IMG</span></div>
+        <div class="thumb two"><span class="thumb-badge">+6</span></div>
+        <div class="note">8 photos attached · no video</div>
+      </div>
+
+      <div class="section-title">Post to <span class="count">5 selected</span></div>
+      <div class="targets" id="targets"></div>
+
+      <div class="actions">
+        <button class="btn primary" id="postBtn" onclick="startPublish()">
+          <span id="postBtnInner">➤ Post now</span>
+        </button>
+        <button class="btn subtle">🕓 Schedule</button>
+        <span class="when">Posting to 5 places</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL ===== -->
+<div class="backdrop" id="backdrop">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="m-head">
+      <div class="fl" id="mHeadLoader"></div>
+      <div class="htxt">
+        <h3 id="mTitle">Publishing your post</h3>
+        <p id="mSub">Sending to 5 channels — you can keep working, I’ll keep going.</p>
+      </div>
+      <button class="m-x" id="mX" onclick="dismiss()">✕</button>
+    </div>
+    <div class="track"><i id="trackFill"></i></div>
+    <div class="rows" id="rows"></div>
+    <div class="m-foot" id="mFoot">
+      <div class="running-note" id="runNote"><span class="fl" data-mini></span><span>Publishing… <b id="doneCount">0</b>/<span id="totalCount">5</span> done</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== demo controls ===== -->
+<div class="controls">
+  <b>Mockup</b>
+  <select id="scenario">
+    <option value="mixed">Scenario: real mix (published · reconnect · Short · awaiting Google)</option>
+    <option value="allok">Scenario: all published</option>
+  </select>
+  <button class="go" onclick="startPublish()">▶ Replay</button>
+</div>
+
+<script>
+/* ---------- FlowLoader factory (inline SVG matching the app) ---------- */
+function flowLoader(el,size){
+  size=size||18;
+  const stroke=Math.max(2,Math.round(size*0.12));
+  el.style.width=size+'px';el.style.height=size+'px';
+  el.innerHTML=`
+    <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" stroke="#e6e6ea" stroke-width="${stroke}"/>
+      <circle cx="12" cy="12" r="10" stroke="url(#flg)" stroke-width="${stroke}" stroke-linecap="round"
+        stroke-dasharray="${2*Math.PI*10}" stroke-dashoffset="${2*Math.PI*10*0.62}"/>
+      <defs><linearGradient id="flg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#3b82f6"/><stop offset="50%" stop-color="#8b5cf6"/><stop offset="100%" stop-color="#f59e0b"/>
+      </linearGradient></defs>
+    </svg>`;
+  if(size>=16){
+    const m=document.createElement('span');m.className='mk';
+    m.style.width=(size*0.56)+'px';m.style.height=(size*0.56)+'px';
+    m.innerHTML='<i></i>';el.appendChild(m);
+  }
+}
+document.querySelectorAll('.fl[data-mini]').forEach(e=>flowLoader(e,14));
+flowLoader(document.getElementById('mHeadLoader'),30);
+
+/* ---------- channel model (mirrors the user's real destinations) ---------- */
+const AV={feed:['#0ea5e9','▣'],page:['#1877f2','f'],ig:['#e1306c','◎'],x:['#0f1419','𝕏'],yt:['#ff0000','▶'],gbp:['#34a853','G']};
+function scenarios(kind){
+  const base=[
+    {id:'feed', name:'In-app feed', handle:'Your business', plat:'feed',
+      steps:['Publishing…'], outcome:'ok'},
+    {id:'page', name:'Laikos International Church', handle:'@laikosalbany · Facebook Page', plat:'page',
+      steps:['Uploading photos…','Publishing…'], outcome:'ok'},
+    {id:'qig', name:'Qodesh Albany', handle:'@qodesh225 · Instagram', plat:'ig',
+      steps:['Uploading photos…','Publishing…'], outcome:'ok'},
+    {id:'lal', name:'Laikos Albany', handle:'@laikosalbany · Instagram', plat:'ig',
+      steps:['Uploading photos…','Publishing…'], outcome:'ok'},
+    {id:'x', name:'Qodesh Albany', handle:'@QodeshAlbany · X (Twitter)', plat:'x',
+      steps:['Uploading media…'], outcome:'fail',
+      error:'Reconnect X — the account is missing media.write permission.'},
+    {id:'yt', name:'Laikos Int’l Church — Charis Center', handle:'@laikosalbany · YouTube', plat:'yt',
+      steps:['🎬 Turning your image into a Short…','Uploading Short to YouTube…','Confirming it’s live…'], outcome:'ok', okLabel:'Short published'},
+    {id:'gbp', name:'Laikos International Church — Albany', handle:'Google Business Profile', plat:'gbp',
+      steps:['Creating your Business Profile post…'], outcome:'hold',
+      hold:'Queued — awaiting Google API access approval. I’ll auto-post once it’s granted.'},
+  ];
+  if(kind==='allok'){
+    return base.map(c=>({...c, outcome:'ok',
+      hold:undefined, error:undefined,
+      steps: c.id==='x' ? ['Uploading media…','Publishing…'] : c.steps,
+      handle: c.id==='gbp' ? 'Google Business Profile' : c.handle}));
+  }
+  return base;
+}
+
+/* ---------- timing ---------- */
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+let RUN=0;
+
+/* build compose target chips once */
+(function(){
+  const t=document.getElementById('targets');
+  scenarios('mixed').filter(c=>c.id!=='gbp'||true).slice(0,7).forEach(c=>{
+    const [col,gl]=AV[c.plat];
+    const on = ['feed','page','qig','lal','x'].includes(c.id);
+    const el=document.createElement('div');el.className='target'+(on?' on':'');
+    el.innerHTML=`<span class="av-sm" style="background:${col}">${gl}</span>
+      <span>${c.name.replace('Int’l','International').split('—')[0].trim().slice(0,22)}
+      <span class="sub">${c.handle.split('·').pop().trim()}</span></span>`;
+    t.appendChild(el);
+  });
+})();
+
+/* ---------- agent narration helpers ---------- */
+function agentMsg(html,cls){
+  const chat=document.getElementById('chat');chat.classList.remove('empty');
+  const wrap=document.createElement('div');wrap.className='msg';
+  wrap.innerHTML=`<div class="who"><span class="av"></span>FlowSmartly</div><div class="bubble ${cls||''}">${html}</div>`;
+  chat.appendChild(wrap);chat.scrollTop=chat.scrollHeight;return wrap.querySelector('.bubble');
+}
+function agentLine(bubble,html){
+  const l=document.createElement('div');l.className='line';l.innerHTML=html;
+  bubble.appendChild(l);document.getElementById('chat').scrollTop=1e9;return l;
+}
+const OKI='<svg class="ic" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#10b981"/><path d="M8 12.5l2.5 2.5L16 9" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const FAILI='<svg class="ic" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#f43f5e"/><path d="M9 9l6 6M15 9l-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>';
+const HOLDI='<svg class="ic" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="#f59e0b"/><path d="M12 7v5l3 2" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/* ---------- row helpers ---------- */
+function platBadge(plat){const[c,g]=AV[plat];return `<span class="badge-plat" style="background:${c};color:#fff;font-size:8px;font-weight:800">${g}</span>`}
+function statusHtml(state,c){
+  if(state==='queued') return `<span class="st queued"><span class="qdot"></span>Queued</span>`;
+  if(state==='run')    return `<span class="st run"><span class="fl" data-r></span><span>${c._step||'Publishing…'}</span></span>`;
+  if(state==='ok')     return `<span class="st ok">${OKI}<span>${c.okLabel||'Published'}</span></span>`;
+  if(state==='fail')   return `<span class="st fail">${FAILI}<span>Failed<span class="sub">tap Retry below</span></span></span>`;
+  if(state==='hold')   return `<span class="st hold">${HOLDI}<span>Queued<span class="sub">awaiting approval</span></span></span>`;
+}
+function renderRow(c,state){
+  const row=document.getElementById('row-'+c.id);
+  row.className='row'+(state==='ok'?' done-ok':state==='fail'?' done-fail':'');
+  row.querySelector('.st-wrap').innerHTML=statusHtml(state,c);
+  const rl=row.querySelector('.fl[data-r]');if(rl)flowLoader(rl,15);
+  const sub=row.querySelector('.sub-note');
+  if(sub) sub.textContent = state==='fail'?(c.error||''):state==='hold'?(c.hold||''):'';
+}
+
+/* ---------- main flow ---------- */
+async function startPublish(){
+  const myRun=++RUN;
+  const kind=document.getElementById('scenario').value;
+  const chans=scenarios(kind);
+  const total=chans.length;
+
+  // reset chat + modal
+  document.getElementById('chat').innerHTML='';document.getElementById('chat').classList.remove('empty');
+  document.getElementById('agentDot').className='dot busy';
+  document.getElementById('agentState').textContent='· working…';
+  document.getElementById('backdrop').classList.add('show');
+  document.getElementById('mTitle').textContent='Publishing your post';
+  document.getElementById('mSub').textContent=`Sending to ${total} channels — you can keep working, I’ll keep going.`;
+  document.getElementById('totalCount').textContent=total;
+  document.getElementById('doneCount').textContent='0';
+  document.getElementById('trackFill').style.width='0%';
+  document.getElementById('mX').textContent='—'; // minimize while running
+  const foot=document.getElementById('mFoot');
+  foot.innerHTML=`<div class="running-note" id="runNote"><span class="fl" data-mini></span><span>Publishing… <b id="doneCount">0</b>/<span id="totalCount">${total}</span> done</span></div>`;
+  flowLoader(foot.querySelector('.fl[data-mini]'),14);
+
+  // build rows
+  const rows=document.getElementById('rows');rows.innerHTML='';
+  chans.forEach(c=>{
+    const[col,gl]=AV[c.plat];
+    const el=document.createElement('div');el.className='row';el.id='row-'+c.id;
+    el.innerHTML=`<span class="av-md" style="background:${col}">${gl}${platBadge(c.plat)}</span>
+      <div class="meta"><div class="nm">${c.name}</div><div class="hd">${c.handle}</div>
+        <div class="hd sub-note" style="color:#b42318;margin-top:2px"></div></div>
+      <div class="st-wrap"></div>`;
+    rows.appendChild(el);renderRow(c,'queued');
+  });
+
+  // agent opening line
+  const open=agentMsg(`On it — publishing to <b>${total} channels</b>. I’ll post each one and report back here as it lands. 👇`);
+  await wait(650);if(myRun!==RUN)return;
+
+  const tick=agentMsg('',''); // running tick list
+  let done=0,ok=0,fail=0,hold=0;
+
+  for(const c of chans){
+    if(myRun!==RUN)return;
+    // step through this channel's stages
+    for(const step of c.steps){
+      c._step=step;renderRow(c,'run');
+      await wait(step.startsWith('🎬')||step.includes('Short')?900:620);
+      if(myRun!==RUN)return;
+    }
+    // outcome
+    renderRow(c,c.outcome);
+    done++;
+    document.querySelectorAll('#doneCount').forEach(n=>n.textContent=done);
+    document.getElementById('trackFill').style.width=Math.round(done/total*100)+'%';
+
+    if(c.outcome==='ok'){ok++;
+      const extra=c.id==='yt'?' <span style="color:#71717a">— your image is now a Short on the channel.</span>':'';
+      agentLine(tick,`${OKI}<span>Posted to <b>${c.name.split('—')[0].trim()}</b>${extra}</span>`);
+    }else if(c.outcome==='fail'){fail++;
+      agentLine(tick,`${FAILI}<span><b>${c.name}</b> — ${c.error} <span style="color:#71717a">I skipped it so the rest still went out.</span></span>`);
+    }else if(c.outcome==='hold'){hold++;
+      agentLine(tick,`${HOLDI}<span><b>Google Business Profile</b> — ${c.hold}</span>`);
+    }
+    await wait(430);
+  }
+  if(myRun!==RUN)return;
+
+  // ----- finished -----
+  document.getElementById('agentDot').className='dot';
+  document.getElementById('agentState').textContent='· ready';
+  document.getElementById('mHeadLoader').innerHTML='';
+  const allGood=fail===0&&hold===0;
+  document.getElementById('mHeadLoader').innerHTML = allGood
+    ? '<span style="font-size:26px">✅</span>'
+    : '<span style="font-size:26px">📣</span>';
+  document.getElementById('mTitle').textContent = allGood ? 'All published' : 'Posted — a couple need you';
+  document.getElementById('mSub').textContent =
+    `${ok} of ${total} published${fail?` · ${fail} failed`:''}${hold?` · ${hold} awaiting approval`:''} — also live on your in-app feed.`;
+  document.getElementById('mX').textContent='✕';
+
+  // agent closing summary + action chips
+  let closeHtml = allGood
+    ? `Done — all <b>${ok}</b> channels are live. 🎉`
+    : `Done — <b>${ok}</b> live. ${fail?`<b>${fail}</b> needs a reconnect`:''}${fail&&hold?', ':''}${hold?`<b>${hold}</b> is waiting on Google’s API approval`:''}. Want me to sort it out?`;
+  const cb=agentMsg(closeHtml);
+  if(!allGood){
+    const cr=document.createElement('div');cr.className='chip-row';
+    if(fail) cr.innerHTML+=`<span class="chip fix">🔁 Reconnect X &amp; retry</span>`;
+    if(hold) cr.innerHTML+=`<span class="chip ghost">Learn about Google approval</span>`;
+    cb.appendChild(cr);
+  }
+
+  // modal footer → summary + actions
+  const foot2=document.getElementById('mFoot');
+  const failChips = fail? `<button class="btn sm retry">🔁 Retry ${fail} failed</button>`:'';
+  foot2.innerHTML =
+    `<span class="sum"><b>${ok}</b>/${total} published${fail?` · <span style="color:#f43f5e">${fail} failed</span>`:''}${hold?` · <span style="color:#d97706">${hold} pending</span>`:''}</span>
+     <span class="grow"></span>${failChips}
+     <button class="btn sm done" onclick="dismiss()">Done</button>`;
+}
+
+function dismiss(){document.getElementById('backdrop').classList.remove('show');}
+document.getElementById('backdrop').addEventListener('click',e=>{if(e.target.id==='backdrop')dismiss();});
+</script>
+</body>
+</html>

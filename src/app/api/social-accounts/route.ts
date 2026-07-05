@@ -19,6 +19,7 @@ const SUPPORTED_PLATFORMS = [
   { id: "pinterest", name: "Pinterest", color: "from-red-400 to-red-600" },
   { id: "threads", name: "Threads", color: "from-gray-800 to-gray-950" },
   { id: "whatsapp", name: "WhatsApp", color: "from-green-500 to-green-600" },
+  { id: "google_business", name: "Google Business Profile", color: "from-blue-500 to-green-500" },
 ];
 
 function clampScore(value: number): number {

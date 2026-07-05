@@ -83,6 +83,28 @@ export function useHomeAgent() {
     setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: "assistant", content: msg.content }]));
   }, []);
 
+  // ── Publish narration ── Compose's "Post now" streams per-channel status into
+  // its modal AND narrates it here, so the agent panel stays visibly involved in
+  // the publish (not dormant). These are live-only bubbles (not persisted).
+  const narrationIdRef = useRef<string | null>(null);
+  const beginPublishNarration = useCallback((content: string) => {
+    const id = `pub-${Date.now()}`;
+    narrationIdRef.current = id;
+    setSending(true);
+    setMessages((prev) => [...prev, { id, role: "assistant", content }]);
+  }, []);
+  const updatePublishNarration = useCallback((content: string) => {
+    const id = narrationIdRef.current;
+    if (!id) return;
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content } : m)));
+  }, []);
+  const endPublishNarration = useCallback((content?: string) => {
+    const id = narrationIdRef.current;
+    if (id && content != null) setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content } : m)));
+    narrationIdRef.current = null;
+    setSending(false);
+  }, []);
+
   const handleSend = useCallback(
     async (text: string, superMode = false, canvasContext?: string, surfaceContext?: string, opts?: { hidden?: boolean; attachments?: { dataUrl?: string; url?: string; name: string }[] }) => {
       const trimmed = text.trim();
@@ -365,6 +387,9 @@ export function useHomeAgent() {
     refreshConversations,
     canvasUpdateRef,
     actionCount,
+    beginPublishNarration,
+    updatePublishNarration,
+    endPublishNarration,
   };
 }
 

@@ -273,7 +273,9 @@ export function AgentHome() {
   const searchParams = useSearchParams();
   const { language, setLanguage, dir } = usePreferredLanguage();
   const s = getHomeStrings(language);
-  const { messages, sending, conversationId, conversations, send, handlePlanResponse, handlePickTemplate, handlePickOption, loadConversation, newConversation, refreshConversations, canvasUpdateRef, actionCount } = useHomeAgent();
+  const { messages, sending, conversationId, conversations, send, handlePlanResponse, handlePickTemplate, handlePickOption, loadConversation, newConversation, refreshConversations, canvasUpdateRef, actionCount, beginPublishNarration, updatePublishNarration, endPublishNarration } = useHomeAgent();
+  // Bridge the Compose publish stream into the agent chat (keeps the agent involved).
+  const publishNarrate = { begin: beginPublishNarration, update: updatePublishNarration, end: endPublishNarration };
 
   const [mounted, setMounted] = useState(false);
   const [booting, setBooting] = useState(true);
@@ -1120,7 +1122,7 @@ export function AgentHome() {
                 ) : focused === "campaign" ? (
                   <FocusedCampaignStudio target={campaignTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} />
                 ) : focused === "compose" ? (
-                  <FocusedCompose onAsk={sendAction} refreshKey={actionCount} composeOpsRef={composeOpsRef} working={sending} />
+                  <FocusedCompose onAsk={sendAction} refreshKey={actionCount} composeOpsRef={composeOpsRef} working={sending} narrate={publishNarrate} />
                 ) : focused === "email" ? (
                   <FocusedEmail onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "sms" ? (
