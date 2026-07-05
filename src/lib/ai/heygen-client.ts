@@ -114,6 +114,33 @@ interface GenerateOptions {
   timeoutMs?: number;
 }
 
+/** One scene of a multi-scene presentation render. */
+export interface PresentationSceneInput {
+  script: string;
+  layout: "full" | "overlay" | "cutaway";
+  visualKind: "none" | "image" | "video";
+  visualUrl?: string | null;
+  corner?: "tl" | "tr" | "bl" | "br";
+}
+interface PresentationOptions {
+  avatarId: string;
+  voiceId: string;
+  aspect?: AvatarAspect;
+  quality?: AvatarQuality;
+  captions?: boolean;
+  scenes: PresentationSceneInput[];
+  onJobId?: (videoId: string) => void | Promise<void>;
+  onStatus?: (message: string) => void;
+  timeoutMs?: number;
+}
+/** Normalised avatar offset for the four overlay corners. */
+const CORNER_OFFSET: Record<"tl" | "tr" | "bl" | "br", { x: number; y: number }> = {
+  tl: { x: -0.32, y: -0.34 },
+  tr: { x: 0.32, y: -0.34 },
+  bl: { x: -0.32, y: 0.34 },
+  br: { x: 0.32, y: 0.34 },
+};
+
 class HeyGenClient {
   private static instance: HeyGenClient;
   private apiKey: string;
@@ -190,6 +217,64 @@ class HeyGenClient {
 
     const done = await this.pollUntilDone(videoId, timeoutMs, onStatus);
     onStatus?.("Avatar rendered. Downloading the MP4…");
+    const videoBuffer = await this.downloadVideo(done.url);
+    return { videoId, videoBuffer, thumbnailUrl: done.thumbnailUrl, duration: done.duration };
+  }
+
+  /**
+   * Render a multi-scene PRESENTATION as one stitched MP4 via `video_inputs`.
+   * The avatar + voice are shared; each scene contributes one video-input whose
+   * layout decides how the avatar sits relative to the scene visual:
+   *   - full    → avatar fills the frame (visual, if any, sits behind it)
+   *   - overlay → avatar as a circular corner presenter over the visual
+   *   - cutaway → the visual fills the frame with voiceover (avatar pushed off-frame)
+   */
+  async generatePresentation(options: PresentationOptions): Promise<HeyGenVideoResult> {
+    if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
+    const { avatarId, voiceId, aspect = "9:16", quality = "standard", captions, scenes, onJobId, onStatus, timeoutMs } = options;
+    const dimension = DIMENSIONS[aspect] ?? DIMENSIONS["9:16"];
+    if (!scenes.length) throw new Error("A presentation needs at least one scene");
+
+    const video_inputs = scenes.map((s) => {
+      const character: Record<string, unknown> =
+        quality === "avatar_iv"
+          ? { type: "talking_photo", talking_photo_id: avatarId }
+          : { type: "avatar", avatar_id: avatarId, avatar_style: s.layout === "overlay" ? "circle" : "normal" };
+      // Placement: overlay shrinks + corners the avatar; cutaway pushes it off-frame.
+      if (s.layout === "overlay") {
+        character.scale = 0.35;
+        character.offset = CORNER_OFFSET[s.corner || "br"];
+      } else if (s.layout === "cutaway") {
+        character.scale = 0.05;
+        character.offset = { x: 0.95, y: 0.95 }; // best-effort hide; degrades to a tiny corner if clamped
+      }
+      const input: Record<string, unknown> = {
+        character,
+        voice: { type: "text", input_text: s.script.slice(0, 8000), voice_id: voiceId },
+      };
+      const url = s.visualUrl || "";
+      if (s.visualKind === "video" && /^https?:\/\//i.test(url)) {
+        input.background = { type: "video", url, play_style: "loop", fit: "cover" };
+      } else if (s.visualKind === "image" && /^https?:\/\//i.test(url)) {
+        input.background = { type: "image", url, fit: "cover" };
+      }
+      return input;
+    });
+
+    const res = await fetch(GENERATE_URL, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({ video_inputs, dimension, caption: !!captions }),
+    });
+    if (!res.ok) throw new Error(`HeyGen presentation error (${res.status}): ${await res.text()}`);
+    const data = await res.json();
+    const videoId = data?.data?.video_id || data?.video_id;
+    if (!videoId) throw new Error("HeyGen did not return a video_id");
+
+    try { await onJobId?.(videoId); } catch { /* best-effort */ }
+    onStatus?.(`Presentation queued — rendering ${scenes.length} scenes…`);
+    const done = await this.pollUntilDone(videoId, timeoutMs, onStatus);
+    onStatus?.("Presentation rendered. Downloading the MP4…");
     const videoBuffer = await this.downloadVideo(done.url);
     return { videoId, videoBuffer, thumbnailUrl: done.thumbnailUrl, duration: done.duration };
   }

@@ -19,7 +19,7 @@ import { uploadToS3 } from "@/lib/utils/s3-client";
 import { saveToMediaLibrary } from "@/lib/ai/flow-agent/save-media";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsAvailable } from "@/lib/credits/costs";
-import { emptyAvatarState, type AvatarVideoState, type AvatarQuality, type AvatarMode } from "./types";
+import { emptyAvatarState, MAX_PRESENTATION_SCENES, type AvatarVideoState, type AvatarQuality, type AvatarMode, type PresentationScene, type SceneLayout, type SceneVisualKind } from "./types";
 
 export const ANIMATION_TYPE = "avatar_video";
 
@@ -213,27 +213,49 @@ export async function renderAvatarVideo(id: string, userId: string): Promise<voi
     };
     const onJobId = (videoId: string) => { void patchState(id, { heygenVideoId: videoId }); };
 
-    const result =
-      state.mode === "translate"
-        ? await heygenClient.translateVideo({
-            videoUrl: state.sourceVideoUrl || "",
-            targetLanguage: state.targetLanguage || "Spanish",
-            title: (state.brief || "Translated video").slice(0, 80),
-            onJobId,
-            onStatus,
-          })
-        : await heygenClient.generateAvatarVideo({
-            avatarId: state.avatarId,
-            voiceId: state.voiceId,
-            script: state.script,
-            aspect: state.aspect,
-            // Photo → video renders the uploaded photo as an Avatar IV talking photo.
-            quality: state.mode === "photo" ? "avatar_iv" : state.quality,
-            captions: state.captionsOn,
-            background: state.background,
-            onJobId,
-            onStatus,
-          });
+    let result;
+    if (state.mode === "translate") {
+      result = await heygenClient.translateVideo({
+        videoUrl: state.sourceVideoUrl || "",
+        targetLanguage: state.targetLanguage || "Spanish",
+        title: (state.brief || "Translated video").slice(0, 80),
+        onJobId,
+        onStatus,
+      });
+    } else if (state.mode === "presentation") {
+      // Multi-scene stitched video. A scene with no visual falls back to a full
+      // avatar shot (so overlay/cut-away never renders an empty frame).
+      const scenes = (state.scenes || []).map((s) => ({
+        script: s.script,
+        layout: (s.visualKind === "none" ? "full" : s.layout) as "full" | "overlay" | "cutaway",
+        visualKind: s.visualKind,
+        visualUrl: s.visualUrl ?? null,
+        corner: s.corner,
+      }));
+      result = await heygenClient.generatePresentation({
+        avatarId: state.avatarId,
+        voiceId: state.voiceId,
+        aspect: state.aspect,
+        quality: state.quality,
+        captions: state.captionsOn,
+        scenes,
+        onJobId,
+        onStatus,
+      });
+    } else {
+      result = await heygenClient.generateAvatarVideo({
+        avatarId: state.avatarId,
+        voiceId: state.voiceId,
+        script: state.script,
+        aspect: state.aspect,
+        // Photo → video renders the uploaded photo as an Avatar IV talking photo.
+        quality: state.mode === "photo" ? "avatar_iv" : state.quality,
+        captions: state.captionsOn,
+        background: state.background,
+        onJobId,
+        onStatus,
+      });
+    }
 
     const key = `heygen/avatar-videos/${id}.mp4`;
     const url = await uploadToS3(key, result.videoBuffer, "video/mp4");
@@ -491,6 +513,137 @@ export async function generateDraftScene(id: string, userId: string, isAdmin = f
   }
 
   // Record the charge on the row (renderAvatarVideo refunds row.creditsCost on failure).
+  await prisma.cartoonVideo.update({ where: { id }, data: { creditsCost, status: "PENDING", currentStep: "Queued" } });
+  void renderAvatarVideo(id, userId);
+  return { ok: true, id, creditsCost };
+}
+
+// -------------------------------------------------------------------------
+// Presentation mode — one stitched video of ordered scenes (avatar + product/
+// B-roll). Drafting the plan is FREE; rendering charges once for the whole video.
+// -------------------------------------------------------------------------
+
+/** Estimated spoken length of a presentation from its scripts (~2 words/sec). */
+function presentationLengthSeconds(scenes: { script?: string }[]): number {
+  const words = scenes.reduce((n, s) => n + (s.script || "").trim().split(/\s+/).filter(Boolean).length, 0);
+  return Math.max(15, Math.min(1800, Math.ceil(words / 2)));
+}
+
+/** Credits to render a whole presentation (scaled by total spoken length). */
+export async function estimatePresentationCost(quality: AvatarQuality, scenes: { script?: string }[]): Promise<number> {
+  return estimateAvatarVideoCost(quality, presentationLengthSeconds(scenes), "presentation");
+}
+
+/**
+ * Draft a presentation from a brief: plan N scenes (script + a suggested layout),
+ * and save ONE DRAFT presentation record holding the scene array. Free.
+ */
+export async function draftPresentation(input: {
+  userId: string;
+  brief: string;
+  sceneCount: number;
+  base: Omit<AvatarVideoState, "script" | "brief" | "scenes">;
+}): Promise<{ id: string; scenes: PresentationScene[] }> {
+  const count = Math.max(2, Math.min(MAX_PRESENTATION_SCENES, Math.round(input.sceneCount || 4)));
+
+  let drafted: { script?: string; layout?: string; showsVisual?: boolean }[] = [];
+  try {
+    const json = await ai.generateJSON<{ scenes: { script: string; layout: string; showsVisual: boolean }[] }>(
+      `You are planning a ${count}-scene talking-avatar PRESENTATION (one continuous video) for this brief: "${input.brief}". ` +
+      `Each scene is spoken to camera by one presenter avatar. For each scene write: ` +
+      `"script" (~25-45 words, punchy, first-person, no stage directions, no emojis), ` +
+      `"layout" one of "full" (avatar talking to camera), "overlay" (avatar in a corner while a product/visual fills the frame), or "cutaway" (a product/visual fills the frame with the avatar's voiceover), ` +
+      `and "showsVisual" (true if this scene should show a product/reference image or B-roll). ` +
+      `Open and close with "full" avatar scenes; use "overlay"/"cutaway" for the middle beats that showcase something. ` +
+      `Return JSON: {"scenes":[{"script":"...","layout":"full","showsVisual":false}, ...]} with exactly ${count} scenes.`,
+      { maxTokens: 2200, temperature: 0.6 },
+    );
+    drafted = Array.isArray(json?.scenes) ? json!.scenes.slice(0, count) : [];
+  } catch { /* stub below */ }
+  if (drafted.length === 0) {
+    drafted = Array.from({ length: count }, (_, i) => ({ script: input.brief, layout: i === 0 || i === count - 1 ? "full" : "overlay", showsVisual: i !== 0 && i !== count - 1 }));
+  }
+
+  const scenes: PresentationScene[] = drafted.map((d, i) => {
+    const layout = (["full", "overlay", "cutaway"].includes(String(d.layout)) ? d.layout : "full") as SceneLayout;
+    return {
+      id: `sc_${i + 1}_${input.userId.slice(-4)}${i}`,
+      script: String(d.script || input.brief).trim().slice(0, 8000),
+      // A scene only shows a visual once the user attaches one; keep the plan's intent in the layout.
+      layout: d.showsVisual ? layout : "full",
+      visualKind: "none",
+      visualUrl: null,
+      corner: "br",
+    };
+  });
+
+  const lengthSeconds = presentationLengthSeconds(scenes);
+  const state: AvatarVideoState = { ...emptyAvatarState(), ...input.base, mode: "presentation", brief: input.brief, script: "", scenes, lengthSeconds };
+  const rec = await prisma.cartoonVideo.create({
+    data: {
+      userId: input.userId,
+      storyPrompt: (input.brief || "Presentation").slice(0, 120),
+      style: state.quality,
+      animationType: ANIMATION_TYPE,
+      duration: lengthSeconds,
+      captionStyle: "avatar",
+      status: "DRAFT",
+      progress: 0,
+      currentStep: "Draft",
+      creditsCost: 0,
+      metadata: writeAvatarState(state),
+    },
+    select: { id: true },
+  });
+  return { id: rec.id, scenes };
+}
+
+/** Replace a presentation's scene list (free — the render is charged on Generate). */
+export async function updatePresentationScenes(id: string, userId: string, scenes: PresentationScene[]): Promise<boolean> {
+  const found = await getAvatarVideo(id, userId);
+  if (!found || found.state.mode !== "presentation") return false;
+  if (found.row.status !== "DRAFT" && found.row.status !== "FAILED") return false;
+  const clean = scenes.slice(0, MAX_PRESENTATION_SCENES).map((s, i) => ({
+    id: s.id || `sc_${i + 1}`,
+    script: String(s.script || "").slice(0, 8000),
+    layout: (["full", "overlay", "cutaway"].includes(s.layout) ? s.layout : "full") as SceneLayout,
+    visualKind: (["none", "image", "video"].includes(s.visualKind) ? s.visualKind : "none") as SceneVisualKind,
+    visualUrl: s.visualUrl ? String(s.visualUrl).slice(0, 2048) : null,
+    isProduct: !!s.isProduct,
+    corner: (["tl", "tr", "bl", "br"].includes(String(s.corner)) ? s.corner : "br") as PresentationScene["corner"],
+  }));
+  const lengthSeconds = presentationLengthSeconds(clean);
+  const merged: AvatarVideoState = { ...found.state, scenes: clean, lengthSeconds };
+  await prisma.cartoonVideo.update({
+    where: { id },
+    data: { metadata: writeAvatarState(merged), duration: lengthSeconds, style: merged.quality },
+  });
+  return true;
+}
+
+/** Render the whole presentation: charge once, then stitch all scenes with HeyGen. */
+export async function generatePresentationRender(id: string, userId: string, isAdmin = false): Promise<StartAvatarResult> {
+  const found = await getAvatarVideo(id, userId);
+  if (!found || found.state.mode !== "presentation") return { ok: false, code: "not_found", message: "Presentation not found." };
+  const { state } = found;
+  const scenes = state.scenes || [];
+  if (scenes.length === 0) return { ok: false, code: "no_scenes", message: "Add at least one scene first." };
+  if (scenes.some((s) => !s.script.trim())) return { ok: false, code: "missing_script", message: "Every scene needs a script." };
+  if (!state.avatarId || !state.voiceId) return { ok: false, code: "missing_avatar", message: "Pick an avatar and voice for the presentation." };
+
+  const creditsCost = await estimatePresentationCost(state.quality, scenes);
+  const block = await checkCreditsAvailable(userId, creditsCost, false, isAdmin);
+  if (block) return { ok: false, code: block.code, message: block.message };
+
+  if (!isAdmin && creditsCost > 0) {
+    const charge = await creditService.deductCredits({
+      userId, type: TRANSACTION_TYPES.USAGE, amount: creditsCost,
+      referenceType: "avatar_video", referenceId: id, description: `Presentation (${scenes.length} scenes)`,
+      metadata: { feature: state.quality === "avatar_iv" ? "AI_AVATAR_VIDEO_PREMIUM" : "AI_AVATAR_VIDEO" },
+    });
+    if (!charge.success) return { ok: false, code: "insufficient_credits", message: charge.error || "Could not charge credits." };
+  }
+
   await prisma.cartoonVideo.update({ where: { id }, data: { creditsCost, status: "PENDING", currentStep: "Queued" } });
   void renderAvatarVideo(id, userId);
   return { ok: true, id, creditsCost };

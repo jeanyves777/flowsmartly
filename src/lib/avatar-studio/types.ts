@@ -3,7 +3,28 @@ import type { AvatarAspect, AvatarQuality } from "@/lib/ai/heygen-client";
 export type { AvatarAspect, AvatarQuality };
 
 /** How the video is produced. Phase 1 renders all modes as a talking-avatar video. */
-export type AvatarMode = "talking" | "photo" | "translate" | "batch";
+export type AvatarMode = "talking" | "photo" | "translate" | "batch" | "presentation";
+
+/** How the avatar relates to the scene visual in a presentation scene. */
+export type SceneLayout = "full" | "overlay" | "cutaway";
+/** A scene's supporting visual (product/reference image, B-roll, or none). */
+export type SceneVisualKind = "none" | "image" | "video";
+
+/**
+ * One scene of a Presentation — a multi-scene video stitched into a single MP4 via
+ * HeyGen's `video_inputs`. The avatar + voice are shared; each scene has its own
+ * script, layout, and optional supporting visual (a product/reference image, an
+ * AI/library image, or a B-roll video the avatar presents while talking).
+ */
+export interface PresentationScene {
+  id: string;
+  script: string;
+  layout: SceneLayout;      // full avatar · avatar corner-overlay · cut-away (visual + voiceover)
+  visualKind: SceneVisualKind;
+  visualUrl?: string | null; // image/video URL (public) for the scene visual
+  isProduct?: boolean;       // the visual is a user-supplied product/reference image
+  corner?: "tl" | "tr" | "bl" | "br"; // avatar corner in overlay layout
+}
 
 /**
  * Avatar-video state — persisted in CartoonVideo.metadata (JSON string).
@@ -36,6 +57,8 @@ export interface AvatarVideoState {
   targetLanguage?: string | null;
   /** Upstream HeyGen job id, persisted for restart-safe polling/recovery. */
   heygenVideoId?: string | null;
+  /** Presentation mode: the ordered scenes stitched into one video. */
+  scenes?: PresentationScene[] | null;
   caption?: string;
   hashtags?: string[];
   error?: string | null;
@@ -64,7 +87,9 @@ export function emptyAvatarState(): AvatarVideoState {
 
 export const AVATAR_ASPECTS: AvatarAspect[] = ["9:16", "1:1", "16:9"];
 export const AVATAR_QUALITIES: AvatarQuality[] = ["standard", "avatar_iv"];
-export const AVATAR_MODES: AvatarMode[] = ["talking", "photo", "translate", "batch"];
+export const AVATAR_MODES: AvatarMode[] = ["talking", "photo", "translate", "batch", "presentation"];
+export const SCENE_LAYOUTS: SceneLayout[] = ["full", "overlay", "cutaway"];
+export const MAX_PRESENTATION_SCENES = 12;
 // Short-form social clips through long-form (training / explainers), up to 30 min.
 export const AVATAR_LENGTHS = [15, 30, 60, 180, 600, 1800] as const;
 export const MAX_SCRIPT_CHARS = 25000; // ~30 min of speech at ~2 words/sec
