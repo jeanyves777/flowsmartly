@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const mobileRedirect = getMobileConnectRedirect(request);
 
     const clientId = process.env.GOOGLE_CLIENT_ID!;
-    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/google-business/callback`;
+    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/social/google_business/callback`;
 
     const scopes = [
       "https://www.googleapis.com/auth/business.manage",
