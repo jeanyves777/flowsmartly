@@ -55,8 +55,15 @@ export interface HeyGenAvatar {
   id: string;
   name: string;
   previewUrl?: string;
+  previewVideoUrl?: string;
   gender?: string;
   isCustom: boolean;
+  /** Identity key shared by all looks/variants of one avatar (e.g. "annie"). */
+  group?: string;
+  /** Human display name for the identity (e.g. "Annie"). */
+  groupName?: string;
+  premium?: boolean;
+  defaultVoiceId?: string;
 }
 
 export interface HeyGenVoice {
@@ -72,6 +79,22 @@ export interface HeyGenVideoResult {
   videoBuffer: Buffer;
   thumbnailUrl?: string;
   duration: number;
+}
+
+/**
+ * All looks of one avatar share an identity. The provider gives a flat list, so we
+ * derive the identity key from the id prefix (e.g. "Annie_expressive10_public" → "annie",
+ * "Abigail_sitting_sofa_front" → "abigail"). Falls back to the first name-word.
+ */
+function avatarGroupKey(id: string, name: string): string {
+  const head = id.split("_")[0]?.trim().toLowerCase();
+  if (head && head.length > 1) return head;
+  return (name.split(/[ (]/)[0] || name).trim().toLowerCase() || id.toLowerCase();
+}
+/** Human identity label — the first word of the avatar name ("Annie in Grey Jacket" → "Annie"). */
+function avatarGroupName(name: string): string {
+  const first = (name.split(/[ (]/)[0] || name).trim();
+  return first || name;
 }
 
 interface GenerateOptions {
@@ -240,20 +263,30 @@ class HeyGenClient {
       const talkingPhotos = (data?.data?.talking_photos ?? []) as Array<Record<string, unknown>>;
       const out: HeyGenAvatar[] = [];
       for (const a of avatars) {
+        const id = String(a.avatar_id ?? "");
+        const name = String(a.avatar_name ?? "Avatar");
         out.push({
-          id: String(a.avatar_id ?? ""),
-          name: String(a.avatar_name ?? "Avatar"),
+          id,
+          name,
           previewUrl: (a.preview_image_url as string) || undefined,
+          previewVideoUrl: (a.preview_video_url as string) || undefined,
           gender: (a.gender as string) || undefined,
           isCustom: false,
+          group: avatarGroupKey(id, name),
+          groupName: avatarGroupName(name),
+          premium: !!a.premium,
+          defaultVoiceId: (a.default_voice_id as string) || undefined,
         });
       }
       for (const p of talkingPhotos) {
+        const id = String(p.talking_photo_id ?? "");
         out.push({
-          id: String(p.talking_photo_id ?? ""),
+          id,
           name: String(p.talking_photo_name ?? "Photo avatar"),
           previewUrl: (p.preview_image_url as string) || undefined,
           isCustom: true,
+          group: `photo:${id}`, // custom clones are their own single-look group
+          groupName: String(p.talking_photo_name ?? "Photo avatar"),
         });
       }
       return out.filter((a) => a.id);

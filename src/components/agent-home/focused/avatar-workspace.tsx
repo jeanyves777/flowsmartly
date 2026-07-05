@@ -6,7 +6,7 @@ import Image from "next/image";
 import {
   UserSquare2, Sparkles, Type as TypeIcon, Mic, X, Coins, Play,
   CheckCircle2, Clock, TriangleAlert, ChevronUp, Wand2, AlertTriangle,
-  Trash2, ChevronRight, Film, Loader2, FolderOpen, Languages, Images, Package, Upload, Plus, Sliders, Captions as CaptionsIcon,
+  Trash2, ChevronRight, ChevronLeft, Search, Film, Loader2, FolderOpen, Languages, Images, Package, Upload, Plus, Sliders, Captions as CaptionsIcon,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -84,7 +84,7 @@ interface AvatarVideo {
   mode?: string | null;
   script?: string | null;
 }
-interface Avatar { id: string; name: string; previewUrl?: string; isCustom: boolean }
+interface Avatar { id: string; name: string; previewUrl?: string; previewVideoUrl?: string; isCustom: boolean; group?: string; groupName?: string; premium?: boolean; defaultVoiceId?: string }
 interface Voice { id: string; name: string; language?: string; previewUrl?: string }
 interface Template { id: string; name: string; thumbnailUrl?: string }
 interface Estimate { total: number; qualityLabel: string; availableCredits: number; hasEnoughCredits: boolean; isAdmin: boolean }
@@ -631,27 +631,15 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               </>
             )}
 
-            {/* avatar picker (talking & batch) */}
+            {/* avatar picker (talking & batch) — grouped by identity, drill into looks */}
             {(mode === "talking" || mode === "batch") && (
               <>
-                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Avatar</label>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {avatars.length === 0 ? (
-                    <span className="text-[11.5px] text-muted-foreground">Loading avatars…</span>
-                  ) : avatars.slice(0, 24).map((a) => (
-                    <button key={a.id} onClick={() => setAvatarId(a.id)} className={cn("relative w-16 shrink-0 overflow-hidden rounded-[10px] border transition", a.id === avatarId ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
-                      <div className="relative aspect-[3/4] w-full bg-muted">
-                        {a.previewUrl ? (
-                          <Image src={a.previewUrl} alt="" fill sizes="64px" className="object-cover" unoptimized />
-                        ) : (
-                          <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-5 w-5" /></span>
-                        )}
-                        {a.isCustom && <span className="absolute left-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[8px] font-bold text-white">Clone</span>}
-                      </div>
-                      <span className="block truncate px-1 py-0.5 text-[9.5px] font-semibold">{a.name}</span>
-                    </button>
-                  ))}
-                </div>
+                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Avatar &amp; look</label>
+                {avatars.length === 0 ? (
+                  <span className="text-[11.5px] text-muted-foreground">Loading avatars…</span>
+                ) : (
+                  <AvatarPicker avatars={avatars} value={avatarId} onSelect={(a) => setAvatarId(a.id)} heightClass="max-h-[220px]" />
+                )}
               </>
             )}
 
@@ -1149,7 +1137,107 @@ function AvatarDetailDrawer({ videoId, onClose, onDeleted, onPlay }: {
 function Dot() { return <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground/40" />; }
 
 // =============================================================
-// Scene edit drawer — the HeyGen-style per-scene editor (opens on the right)
+// Avatar picker — the provider returns a flat list, but each avatar has many
+// looks/variants (pose + baked-in background). We group by identity and let the
+// user drill into a specific look. Selecting a look sets that exact avatar id.
+// =============================================================
+interface AvatarGroup { key: string; name: string; looks: Avatar[] }
+function groupAvatars(avatars: Avatar[]): AvatarGroup[] {
+  const map = new Map<string, AvatarGroup>();
+  for (const a of avatars) {
+    const key = a.group || a.id;
+    let g = map.get(key);
+    if (!g) { g = { key, name: a.groupName || a.name, looks: [] }; map.set(key, g); }
+    g.looks.push(a);
+  }
+  // Custom clones first, then alphabetical by identity.
+  return Array.from(map.values()).sort((x, y) => {
+    const cx = x.looks[0]?.isCustom ? 0 : 1, cy = y.looks[0]?.isCustom ? 0 : 1;
+    return cx - cy || x.name.localeCompare(y.name);
+  });
+}
+function repLook(looks: Avatar[], value: string): Avatar {
+  return looks.find((l) => l.id === value) || looks.find((l) => /front|upper/i.test(l.name)) || looks[0];
+}
+function lookLabel(name: string, group: string): string {
+  const s = name.replace(new RegExp("^" + group.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "").replace(/^in\s+/i, "").trim();
+  return s || name;
+}
+
+function AvatarPicker({ avatars, value, onSelect, heightClass = "max-h-[240px]" }: {
+  avatars: Avatar[]; value: string; onSelect: (a: Avatar) => void; heightClass?: string;
+}) {
+  const groups = useMemo(() => groupAvatars(avatars), [avatars]);
+  const valueGroupKey = useMemo(() => avatars.find((a) => a.id === value)?.group ?? null, [avatars, value]);
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+
+  // Auto-open the group that owns the current selection when it has multiple looks.
+  useEffect(() => {
+    if (openKey || !valueGroupKey) return;
+    const g = groups.find((x) => x.key === valueGroupKey);
+    if (g && g.looks.length > 1) setOpenKey(valueGroupKey);
+  }, [valueGroupKey, groups, openKey]);
+
+  const open = openKey ? groups.find((g) => g.key === openKey) : null;
+
+  if (open) {
+    return (
+      <div>
+        <div className="mb-1.5 flex items-center gap-2">
+          <button onClick={() => setOpenKey(null)} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-semibold hover:border-brand-500/60"><ChevronLeft className="h-3.5 w-3.5" /> All avatars</button>
+          <span className="truncate text-[12px] font-semibold">{open.name}</span>
+          <span className="shrink-0 text-[10.5px] text-muted-foreground">· {open.looks.length} looks</span>
+        </div>
+        <div className={cn("grid grid-cols-3 gap-2 overflow-y-auto pb-1", heightClass)}>
+          {open.looks.map((a) => (
+            <button key={a.id} onClick={() => onSelect(a)} title={a.name} className={cn("relative overflow-hidden rounded-[10px] border text-left transition", a.id === value ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
+              <div className="relative aspect-[3/4] w-full bg-muted">
+                {a.previewUrl ? <Image src={a.previewUrl} alt="" fill sizes="96px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
+                {a.premium && <span className="absolute right-1 top-1 rounded bg-amber-500/90 px-1 text-[8px] font-bold text-white">PRO</span>}
+              </div>
+              <span className="block truncate px-1 py-0.5 text-[9px] text-muted-foreground">{lookLabel(a.name, open.name)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const needle = q.trim().toLowerCase();
+  const filtered = needle
+    ? groups.filter((g) => g.name.toLowerCase().includes(needle) || g.looks.some((l) => l.name.toLowerCase().includes(needle)))
+    : groups;
+
+  return (
+    <div>
+      <div className="relative mb-1.5">
+        <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search avatars…" className="w-full rounded-lg border border-input bg-background py-1.5 pl-7 pr-2 text-[12px] outline-none focus:border-brand-500/60" />
+      </div>
+      <div className={cn("grid grid-cols-3 gap-2 overflow-y-auto pb-1", heightClass)}>
+        {filtered.map((g) => {
+          const rep = repLook(g.looks, value);
+          const active = g.looks.some((l) => l.id === value);
+          return (
+            <button key={g.key} onClick={() => (g.looks.length > 1 ? setOpenKey(g.key) : onSelect(g.looks[0]))} title={g.name} className={cn("relative overflow-hidden rounded-[10px] border text-left transition", active ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
+              <div className="relative aspect-[3/4] w-full bg-muted">
+                {rep.previewUrl ? <Image src={rep.previewUrl} alt="" fill sizes="96px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
+                {g.looks[0]?.isCustom && <span className="absolute left-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[8px] font-bold text-white">Clone</span>}
+                {g.looks.length > 1 && <span className="absolute bottom-1 right-1 rounded bg-black/65 px-1 text-[8px] font-bold text-white">{g.looks.length} looks</span>}
+              </div>
+              <span className="block truncate px-1 py-0.5 text-[9.5px] font-semibold">{g.name}</span>
+            </button>
+          );
+        })}
+        {filtered.length === 0 && <span className="col-span-3 py-4 text-center text-[11px] text-muted-foreground">No avatars match “{q}”.</span>}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================
+// Scene edit drawer — the per-scene editor (opens on the right)
 // =============================================================
 
 interface DrawerState {
@@ -1291,9 +1379,9 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
               <label className="mb-1 block text-[11.5px] font-semibold">Script</label>
               <textarea value={st.script} onChange={(e) => set({ script: e.target.value })} rows={4} className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
 
-              {/* avatar */}
+              {/* avatar — grouped by identity; picking a look also sets its baked-in background/pose */}
               <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Avatar &amp; look</label>
-              <div className="mb-1 flex items-center gap-2 rounded-[10px] border border-border bg-muted/30 p-2">
+              <div className="mb-1.5 flex items-center gap-2 rounded-[10px] border border-border bg-muted/30 p-2">
                 {selAvatar?.previewUrl ? (
                   <Image src={selAvatar.previewUrl} alt="" width={40} height={52} className="rounded-md object-cover" unoptimized />
                 ) : (
@@ -1301,15 +1389,7 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
                 )}
                 <span className="text-[12px] font-semibold">{selAvatar?.name || "Avatar"}</span>
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {avatars.slice(0, 40).map((a) => (
-                  <button key={a.id} onClick={() => set({ avatarId: a.id })} title={a.name} className={cn("relative w-14 shrink-0 overflow-hidden rounded-[10px] border transition", a.id === st.avatarId ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
-                    <div className="relative aspect-[3/4] w-full bg-muted">
-                      {a.previewUrl ? <Image src={a.previewUrl} alt="" fill sizes="56px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
-                    </div>
-                  </button>
-                ))}
-              </div>
+              <AvatarPicker avatars={avatars} value={st.avatarId} onSelect={(a) => set({ avatarId: a.id })} heightClass="max-h-[240px]" />
 
               {/* voice + preview */}
               <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Voice</label>
