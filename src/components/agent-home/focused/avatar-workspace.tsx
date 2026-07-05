@@ -37,11 +37,16 @@ const ASPECTS: { v: Aspect; label: string }[] = [
   { v: "1:1", label: "1:1" },
   { v: "16:9", label: "16:9" },
 ];
-const LENGTHS: { v: number; hint: string }[] = [
-  { v: 15, hint: "≈30 words" },
-  { v: 30, hint: "≈60 words" },
-  { v: 60, hint: "≈120 words" },
+const LENGTHS: { v: number; label: string; hint: string }[] = [
+  { v: 15, label: "15s", hint: "≈30 words" },
+  { v: 30, label: "30s", hint: "≈60 words" },
+  { v: 60, label: "60s", hint: "≈120 words" },
+  { v: 180, label: "3 min", hint: "≈360 words" },
+  { v: 600, label: "10 min", hint: "≈1,200 words" },
+  { v: 1800, label: "30 min", hint: "≈3,600 words" },
 ];
+const isLength = (n: unknown): n is number => LENGTHS.some((l) => l.v === n);
+const fmtLen = (s?: number | null): string => (!s ? "" : s < 60 ? `${s}s` : s % 60 === 0 ? `${s / 60} min` : `${Math.round((s / 60) * 10) / 10} min`);
 const MODES: { v: Mode; label: string; icon: ElementType }[] = [
   { v: "talking", label: "Talking video", icon: Film },
   { v: "photo", label: "Photo → video", icon: Images },
@@ -688,7 +693,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
                 <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                   {LENGTHS.map((l) => (
                     <button key={l.v} onClick={() => setLength(l.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-center transition", length === l.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
-                      <span className="text-[12px] font-bold">{l.v}s</span>
+                      <span className="text-[12px] font-bold">{l.label}</span>
                       <span className="ms-1 text-[10px] text-muted-foreground">{l.hint}</span>
                     </button>
                   ))}
@@ -833,7 +838,7 @@ function RenderNode({ v, onPlay, onOpen, onGenerate, onRemove, onEdit, generatin
           <span className="rounded bg-muted px-1.5 py-0.5 font-semibold text-foreground">{v.quality === "avatar_iv" ? "Avatar IV" : "Standard"}</span>
           <span className="inline-flex items-center gap-1"><Mic className="h-3 w-3" />{(v.voiceName || "Voice").split("·")[0].trim().slice(0, 12)}</span>
           <span>{v.aspect}</span>
-          <span>{v.lengthSeconds}s</span>
+          <span>{fmtLen(v.lengthSeconds)}</span>
           {v.captionsOn && <CaptionsIcon className="h-3 w-3 text-brand-500" />}
         </div>
         <div className="flex items-center gap-1.5 p-2.5 pt-0">
@@ -1112,7 +1117,7 @@ function AvatarDetailDrawer({ videoId, onClose, onDeleted, onPlay }: {
               <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
                 {detail?.state.voiceName && <span>Voice: {detail.state.voiceName}</span>}
                 {detail?.state.aspect && <span>{detail.state.aspect}</span>}
-                {typeof detail?.state.lengthSeconds === "number" && <span>{detail.state.lengthSeconds}s</span>}
+                {typeof detail?.state.lengthSeconds === "number" && <span>{fmtLen(detail.state.lengthSeconds)}</span>}
               </div>
             </>
           )}
@@ -1193,7 +1198,7 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
             voiceId: s.voiceId || voices[0]?.id || "",
             quality: s.quality === "avatar_iv" ? "avatar_iv" : "standard",
             aspect: (["9:16", "1:1", "16:9"].includes(s.aspect) ? s.aspect : "9:16") as Aspect,
-            lengthSeconds: [15, 30, 60].includes(s.lengthSeconds) ? s.lengthSeconds : 30,
+            lengthSeconds: isLength(s.lengthSeconds) ? s.lengthSeconds : 30,
             captionsOn: !!s.captionsOn,
             background: s.background || "original",
             templateId: s.templateId ?? null,
@@ -1381,7 +1386,7 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
               </div>
               <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                 {LENGTHS.map((l) => (
-                  <button key={l.v} onClick={() => set({ lengthSeconds: l.v })} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-bold transition", st.lengthSeconds === l.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>{l.v}s</button>
+                  <button key={l.v} onClick={() => set({ lengthSeconds: l.v })} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-bold transition", st.lengthSeconds === l.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>{l.label}</button>
                 ))}
               </div>
 

@@ -418,7 +418,7 @@ export async function draftAvatarProject(input: {
 
   const scenes: { id: string; title: string; script: string; seq: number }[] = [];
   for (let i = 0; i < drafted.length; i++) {
-    const script = String(drafted[i]?.script || input.brief).trim().slice(0, 3500);
+    const script = String(drafted[i]?.script || input.brief).trim().slice(0, 25000);
     const title = String(drafted[i]?.title || `Scene ${i + 1}`).trim().slice(0, 80);
     const state: AvatarVideoState = { ...emptyAvatarState(), ...input.base, projectId, projectSeq: startSeq + i, mode: "talking", brief: title, script };
     const rec = await prisma.cartoonVideo.create({
@@ -446,7 +446,7 @@ export async function draftAvatarProject(input: {
 export async function updateDraftScript(id: string, userId: string, script: string): Promise<boolean> {
   const found = await getAvatarVideo(id, userId);
   if (!found || (found.row.status !== "DRAFT" && found.row.status !== "FAILED")) return false;
-  const merged = { ...found.state, script: script.trim().slice(0, 3500) };
+  const merged = { ...found.state, script: script.trim().slice(0, 25000) };
   await prisma.cartoonVideo.update({ where: { id }, data: { metadata: writeAvatarState(merged), storyPrompt: (merged.brief || script).slice(0, 120) } });
   return true;
 }

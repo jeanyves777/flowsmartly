@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { startAvatarVideoBatch } from "@/lib/avatar-studio";
-import { emptyAvatarState, AVATAR_ASPECTS, AVATAR_QUALITIES } from "@/lib/avatar-studio/types";
+import { emptyAvatarState, AVATAR_ASPECTS, AVATAR_QUALITIES, isAvatarLength } from "@/lib/avatar-studio/types";
 import type { AvatarAspect, AvatarQuality } from "@/lib/avatar-studio/types";
 
 function pick<T>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: { message: "Pick a default avatar and voice for the batch." } }, { status: 400 });
   }
 
-  const lengthSeconds = [15, 30, 60].includes(Number(body.lengthSeconds)) ? Number(body.lengthSeconds) : 30;
+  const lengthSeconds = isAvatarLength(body.lengthSeconds) ? Number(body.lengthSeconds) : 30;
   const base = {
     ...emptyAvatarState(),
     avatarId,

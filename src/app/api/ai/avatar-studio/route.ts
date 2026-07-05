@@ -6,7 +6,7 @@ import {
   listAvatarVideos,
 } from "@/lib/avatar-studio";
 import { emptyAvatarState } from "@/lib/avatar-studio/types";
-import { AVATAR_ASPECTS, AVATAR_QUALITIES, AVATAR_MODES } from "@/lib/avatar-studio/types";
+import { AVATAR_ASPECTS, AVATAR_QUALITIES, AVATAR_MODES, isAvatarLength, MAX_SCRIPT_CHARS } from "@/lib/avatar-studio/types";
 import type { AvatarAspect, AvatarQuality, AvatarMode } from "@/lib/avatar-studio/types";
 
 function pick<T>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -22,12 +22,12 @@ export async function POST(request: NextRequest) {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const base = emptyAvatarState();
-  const lengthSeconds = [15, 30, 60].includes(Number(body.lengthSeconds)) ? Number(body.lengthSeconds) : 30;
+  const lengthSeconds = isAvatarLength(body.lengthSeconds) ? Number(body.lengthSeconds) : 30;
 
   const state = {
     ...base,
     brief: String(body.brief || "").trim().slice(0, 1200),
-    script: String(body.script || "").trim().slice(0, 3500),
+    script: String(body.script || "").trim().slice(0, MAX_SCRIPT_CHARS),
     avatarId: String(body.avatarId || "").trim(),
     avatarName: String(body.avatarName || "Avatar").trim().slice(0, 80),
     voiceId: String(body.voiceId || "").trim(),

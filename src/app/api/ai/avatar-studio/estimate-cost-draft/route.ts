@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { estimateAvatarVideoCost } from "@/lib/avatar-studio";
-import { AVATAR_QUALITIES, AVATAR_MODES } from "@/lib/avatar-studio/types";
+import { AVATAR_QUALITIES, AVATAR_MODES, isAvatarLength } from "@/lib/avatar-studio/types";
 import type { AvatarQuality, AvatarMode } from "@/lib/avatar-studio/types";
 
 /** POST — credit estimate before a record exists (drives the brief-sheet Estimate button). */
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   // Photo → video always renders as Avatar IV; translate has its own price.
   const quality: AvatarQuality =
     mode === "photo" ? "avatar_iv" : AVATAR_QUALITIES.includes(body.quality as AvatarQuality) ? (body.quality as AvatarQuality) : "standard";
-  const lengthSeconds = [15, 30, 60].includes(Number(body.lengthSeconds)) ? Number(body.lengthSeconds) : 30;
+  const lengthSeconds = isAvatarLength(body.lengthSeconds) ? Number(body.lengthSeconds) : 30;
 
   const total = await estimateAvatarVideoCost(quality, lengthSeconds, mode);
   const isAdmin = !!session.adminId;

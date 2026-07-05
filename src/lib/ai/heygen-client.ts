@@ -134,7 +134,7 @@ class HeyGenClient {
     // A hex background colour is applied per video-input; "original"/empty keeps the default.
     const videoInput: Record<string, unknown> = {
       character,
-      voice: { type: "text", input_text: script.slice(0, 3500), voice_id: voiceId },
+      voice: { type: "text", input_text: script.slice(0, 25000), voice_id: voiceId },
     };
     if (background && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(background)) {
       videoInput.background = { type: "color", value: background };

@@ -65,4 +65,7 @@ export function emptyAvatarState(): AvatarVideoState {
 export const AVATAR_ASPECTS: AvatarAspect[] = ["9:16", "1:1", "16:9"];
 export const AVATAR_QUALITIES: AvatarQuality[] = ["standard", "avatar_iv"];
 export const AVATAR_MODES: AvatarMode[] = ["talking", "photo", "translate", "batch"];
-export const AVATAR_LENGTHS = [15, 30, 60] as const;
+// Short-form social clips through long-form (training / explainers), up to 30 min.
+export const AVATAR_LENGTHS = [15, 30, 60, 180, 600, 1800] as const;
+export const MAX_SCRIPT_CHARS = 25000; // ~30 min of speech at ~2 words/sec
+export const isAvatarLength = (n: unknown): boolean => (AVATAR_LENGTHS as readonly number[]).includes(Number(n));
