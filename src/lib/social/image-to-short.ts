@@ -43,9 +43,11 @@ export async function renderImageToShort(
 
   // Foreground: fit the whole image inside 1080×1920. Background: the same image
   // scaled to cover and heavily blurred, so portrait/landscape/square all look good.
+  // (split first — a source pad can't feed two filter chains directly.)
   const filter =
-    "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=40:6,eq=brightness=-0.06[bg];" +
-    "[0:v]scale=1080:1920:force_original_aspect_ratio=decrease[fg];" +
+    "[0:v]split=2[src1][src2];" +
+    "[src1]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=40:6,eq=brightness=-0.06[bg];" +
+    "[src2]scale=1080:1920:force_original_aspect_ratio=decrease[fg];" +
     "[bg][fg]overlay=(W-w)/2:(H-h)/2,format=yuv420p[v]";
 
   const args = [

@@ -51,14 +51,14 @@ interface ConnectionSlots {
   creditBalance: number;
 }
 
-const CONNECTABLE = ["instagram", "facebook", "twitter", "linkedin", "tiktok", "youtube", "pinterest"];
+const CONNECTABLE = ["instagram", "facebook", "twitter", "linkedin", "tiktok", "youtube", "pinterest", "google_business"];
 const COLORS: Record<string, string> = {
   instagram: "#E4405F", facebook: "#1877F2", twitter: "#1d9bf0", linkedin: "#0A66C2",
-  tiktok: "#111827", youtube: "#FF0000", pinterest: "#E60023",
+  tiktok: "#111827", youtube: "#FF0000", pinterest: "#E60023", google_business: "#1A73E8",
 };
 const NAMES: Record<string, string> = {
   instagram: "Instagram", facebook: "Facebook", twitter: "X / Twitter", linkedin: "LinkedIn",
-  tiktok: "TikTok", youtube: "YouTube", pinterest: "Pinterest",
+  tiktok: "TikTok", youtube: "YouTube", pinterest: "Pinterest", google_business: "Google Business Profile",
 };
 
 const DEFAULT_UNLOCK_COST = 250;
