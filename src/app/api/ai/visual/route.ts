@@ -7,7 +7,7 @@ import {
   editImagesForRole,
   type ImageEditIntent,
 } from "@/lib/ai/image-router";
-import { imageGenerateRole, imageEditRole } from "@/lib/ai/media-models";
+import { imageGenerateRole, imageEditRole, imageReferenceRole } from "@/lib/ai/media-models";
 import { getRecipeConfig } from "@/lib/ai/media-policy";
 import { buildArtDirection } from "@/lib/ai/image-recipe";
 import { currentDateDirective } from "@/lib/ai/date-context";
@@ -1050,7 +1050,11 @@ async function runRawBrandPipeline(params: PipelineParams) {
 
   if (referenceUrls.length > 0) {
     const refBuffers = await Promise.all(referenceUrls.map((url) => resolveImageToBuffer(url)));
-    const edited = await editImagesForRole(imageEditRole(params.tier), promptUsed, refBuffers, params.width, params.height, {
+    // A reference-photo/logo DESIGN (generating a NEW rich design that incorporates
+    // the reference) — route via the xAI-first design_reference role, NOT the
+    // Gemini-first surgical-edit role. xAI preserves identity + renders cleaner
+    // text on ornate flyers (July-2026 reference bake-off).
+    const edited = await editImagesForRole(imageReferenceRole(params.tier), promptUsed, refBuffers, params.width, params.height, {
       quality: "high",
       intent: params.compositeReferenceSubject ? "creative" : "exact",
     });

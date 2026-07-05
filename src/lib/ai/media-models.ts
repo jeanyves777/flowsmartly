@@ -52,7 +52,7 @@ export interface ImageModelStep {
  *  - bulk_multi:      narration-video stills / story-ad slideshows / multi-image  → Imagen 4 Fast (cheap)
  *  - premium:         explicit Premium request                                    → OpenAI gpt-image
  */
-export type ImageRole = "design_generate" | "design_edit" | "bulk_multi" | "premium";
+export type ImageRole = "design_generate" | "design_reference" | "design_edit" | "bulk_multi" | "premium";
 
 const M = IMAGE_MODEL_IDS;
 
@@ -69,8 +69,21 @@ export const IMAGE_CHAINS: Record<ImageRole, ImageModelStep[]> = {
     { provider: "gemini", model: M.nanoBanana },
     { provider: "openai", model: M.gptImage1 },
   ],
-  // Edit/reference work — only providers that accept an input image. Gemini's
-  // Nano Banana is the best editor (identity + text); OpenAI then xAI back it up.
+  // Reference-PHOTO branded DESIGNS — generate a NEW rich design that INCLUDES a
+  // real person/product photo (create_branded_design with an uploaded photo).
+  // STANDARD, xAI-FIRST — matches design_generate + the "xAI-first for Standard"
+  // policy. In the July-2026 reference bake-off xAI preserved identity AND
+  // rendered cleaner text on ornate flyers than Nano Banana; Gemini + gpt-image
+  // back it up. Distinct from design_edit (below), which stays Gemini-first for
+  // SURGICAL edits of an existing canvas.
+  design_reference: [
+    { provider: "xai", model: M.xaiQuality },
+    { provider: "gemini", model: M.nanoBanana },
+    { provider: "openai", model: M.gptImage1 },
+  ],
+  // Surgical edit of an EXISTING design/image — only providers that accept an
+  // input image. Gemini's Nano Banana is the best surgical editor (change one
+  // thing, keep the rest); OpenAI then xAI back it up.
   design_edit: [
     { provider: "gemini", model: M.nanoBanana },
     { provider: "openai", model: M.gptImage1 },
@@ -94,9 +107,14 @@ export type MediaTier = "standard" | "premium";
 export function imageGenerateRole(tier: MediaTier): ImageRole {
   return tier === "premium" ? "premium" : "design_generate";
 }
-/** Map the user-facing tier to an image EDIT role. */
+/** Map the user-facing tier to an image EDIT role (surgical edit of an existing design). */
 export function imageEditRole(tier: MediaTier): ImageRole {
   return tier === "premium" ? "premium" : "design_edit";
+}
+/** Map the user-facing tier to a REFERENCE-photo design role (generate a new
+ *  design incorporating a real photo — xAI-first on Standard). */
+export function imageReferenceRole(tier: MediaTier): ImageRole {
+  return tier === "premium" ? "premium" : "design_reference";
 }
 /** Resolve a role to its ordered provider+model chain. */
 export function imageChain(role: ImageRole): ImageModelStep[] {

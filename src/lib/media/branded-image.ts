@@ -230,8 +230,16 @@ export async function generateBrandedImage(
 
 export function orientationToSize(orientation: unknown): string {
   const o = typeof orientation === "string" ? orientation.toLowerCase() : "";
-  if (o === "portrait" || o === "story" || o === "reel" || o === "9:16") return "1080x1920";
+  // Story / Reel — full phone-tall 9:16. The ONLY 9:16 case: a flyer/poster is
+  // NOT this tall (that's what made "flyer" designs look stretched).
+  if (o === "story" || o === "reel" || o === "9:16" || o === "tall") return "1080x1920";
+  // Flyer / poster — A4-style portrait (3:4 ≈ 0.75), the real print-flyer proportion.
+  if (o === "flyer" || o === "poster" || o === "3:4" || o === "a4") return "1080x1440";
+  // Portrait social post — 4:5 (Instagram portrait).
+  if (o === "portrait" || o === "4:5") return "1080x1350";
+  // Landscape / wide — 16:9.
   if (o === "landscape" || o === "wide" || o === "16:9") return "1920x1080";
+  // Default — square feed post (1:1).
   return "1080x1080";
 }
 
