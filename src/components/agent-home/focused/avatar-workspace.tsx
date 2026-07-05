@@ -9,6 +9,7 @@ import {
   Trash2, ChevronRight, Film, Loader2, FolderOpen, Languages, Images, Package, Upload,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -121,6 +122,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   // Mode-specific inputs.
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
   const [sourceVideoId, setSourceVideoId] = useState("");
   const [targetLanguage, setTargetLanguage] = useState("Spanish");
   const [batchScripts, setBatchScripts] = useState("");
@@ -191,23 +193,28 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   // credit cost shown is always the live admin-controlled price (never hardcoded).
   useEffect(() => { if (sheetOpen) runEstimate(); }, [quality, length, mode, sheetOpen, runEstimate]);
 
-  // Photo → video: upload a photo to HeyGen, use the returned talking-photo as the avatar.
-  const onPhotoPicked = async (file: File | null | undefined) => {
-    if (!file) return;
+  // Photo → video: send an image (uploaded file OR one chosen from the Media
+  // Library) to HeyGen and use the returned talking-photo as the avatar.
+  const submitPhoto = async (payload: { dataUrl?: string; imageUrl?: string }, fallbackPreview?: string | null) => {
     setBuildErr(""); setPhotoUploading(true);
     try {
-      const dataUrl: string = await new Promise((res, rej) => {
-        const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(file);
-      });
       const j = await fetch("/api/ai/avatar-studio/upload-photo", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dataUrl }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       }).then((r) => r.json());
       if (!j?.success) { setBuildErr(j?.error?.message || "Photo upload failed."); return; }
       setAvatarId(j.data.avatarId);
-      setPhotoPreview(j.data.previewUrl || dataUrl);
+      setPhotoPreview(j.data.previewUrl || fallbackPreview || null);
     } catch { setBuildErr("Photo upload failed."); }
     finally { setPhotoUploading(false); }
   };
+  const onPhotoPicked = async (file: File | null | undefined) => {
+    if (!file) return;
+    const dataUrl: string = await new Promise((res, rej) => {
+      const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(file);
+    });
+    await submitPhoto({ dataUrl }, dataUrl);
+  };
+  const onPhotoFromLibrary = (url: string) => { setMediaPickerOpen(false); void submitPhoto({ imageUrl: url }, url); };
 
   const openSheet = () => { setBuildErr(""); setSheetOpen(true); }; // estimate auto-pulls via the effect
 
@@ -287,13 +294,13 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
       {(() => {
         const header = (
           <>
-            <span className="hidden items-center gap-2 text-[11.5px] text-muted-foreground sm:inline-flex">
-              <Dot /> {stats.total} videos <Dot /> {stats.ready} ready <Dot /> {stats.rendering} rendering
+            <span className="hidden items-center gap-2 whitespace-nowrap text-[11.5px] text-muted-foreground xl:inline-flex">
+              <Dot /> {stats.total} video{stats.total === 1 ? "" : "s"} <Dot /> {stats.ready} ready <Dot /> {stats.rendering} rendering
             </span>
-            <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground" title="Browse all your avatar videos">
+            <button onClick={() => setLibOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground" title="Browse all your avatar videos">
               <FolderOpen className="h-3.5 w-3.5" /> Library{stats.total > 0 ? ` · ${stats.total}` : ""}
             </button>
-            <button onClick={openSheet} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
+            <button onClick={openSheet} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
               <Sparkles className="h-3.5 w-3.5" /> New video
             </button>
           </>
@@ -446,16 +453,22 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               <>
                 <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Your photo <span className="font-normal text-muted-foreground">— becomes the talking avatar (Avatar IV)</span></label>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => onPhotoPicked(e.target.files?.[0])} />
-                <button onClick={() => fileInputRef.current?.click()} disabled={photoUploading} className="flex w-full items-center gap-3 rounded-[10px] border border-dashed border-border bg-muted/20 px-3 py-3 text-left transition hover:border-brand-500/60 disabled:opacity-60">
+                <div className="flex items-center gap-2 rounded-[10px] border border-dashed border-border bg-muted/20 p-2">
                   {photoPreview ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photoPreview} alt="" className="h-12 w-12 rounded-lg object-cover" />
+                    <img src={photoPreview} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
                   ) : (
-                    <span className="grid h-12 w-12 place-items-center rounded-lg bg-muted text-muted-foreground"><Upload className="h-5 w-5" /></span>
+                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><UserSquare2 className="h-5 w-5" /></span>
                   )}
-                  <span className="text-[12px] font-semibold">{photoUploading ? "Uploading…" : photoPreview ? "Photo ready — tap to change" : "Upload a front-facing photo"}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[12px] font-semibold">{photoUploading ? "Uploading…" : photoPreview ? "Photo ready" : "Add a front-facing photo"}</p>
+                    <div className="mt-1 flex gap-1.5">
+                      <button onClick={() => fileInputRef.current?.click()} disabled={photoUploading} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold hover:border-brand-500/60 hover:text-brand-500 disabled:opacity-60"><Upload className="h-3 w-3" /> Upload</button>
+                      <button onClick={() => setMediaPickerOpen(true)} disabled={photoUploading} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold hover:border-brand-500/60 hover:text-brand-500 disabled:opacity-60"><Images className="h-3 w-3" /> Media Library</button>
+                    </div>
+                  </div>
                   {photoUploading && <FlowLoader size={14} />}
-                </button>
+                </div>
               </>
             )}
 
@@ -600,6 +613,15 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
           </div>
         </div>
       )}
+
+      {/* media library picker — choose an existing image for Photo → video */}
+      <MediaLibraryPicker
+        open={mediaPickerOpen}
+        onClose={() => setMediaPickerOpen(false)}
+        onSelect={(url) => onPhotoFromLibrary(url)}
+        filterTypes={["image"]}
+        title="Choose a photo"
+      />
     </div>
   );
 }

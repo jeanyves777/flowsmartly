@@ -29,9 +29,16 @@ export async function POST(request: NextRequest) {
         buffer = Buffer.from(await file.arrayBuffer());
       }
     } else {
-      const body = (await request.json().catch(() => ({}))) as { dataUrl?: string };
-      const m = /^data:(image\/[a-z+]+);base64,(.+)$/i.exec(body.dataUrl || "");
-      if (m) { mimeType = m[1]; buffer = Buffer.from(m[2], "base64"); }
+      const body = (await request.json().catch(() => ({}))) as { dataUrl?: string; imageUrl?: string };
+      if (body.imageUrl) {
+        // Chosen from the Media Library — fetch the bytes (handle relative /uploads URLs in dev).
+        const abs = /^https?:\/\//i.test(body.imageUrl) ? body.imageUrl : `${request.nextUrl.origin}${body.imageUrl}`;
+        const r = await fetch(abs);
+        if (r.ok) { mimeType = r.headers.get("content-type") || "image/jpeg"; buffer = Buffer.from(await r.arrayBuffer()); }
+      } else {
+        const m = /^data:(image\/[a-z+]+);base64,(.+)$/i.exec(body.dataUrl || "");
+        if (m) { mimeType = m[1]; buffer = Buffer.from(m[2], "base64"); }
+      }
     }
   } catch { /* fall through to validation */ }
 

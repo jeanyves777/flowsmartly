@@ -152,7 +152,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   logo: { label: "Logo studio", subtitle: "Your generated logos", icon: Palette },
   video: { label: "Video studio", subtitle: "Brief → estimate → build, right on the canvas", icon: Clapperboard },
   voice: { label: "Voice studio", subtitle: "Voiceovers, narration & voice cloning", icon: Mic },
-  avatar: { label: "Avatar Studio", subtitle: "Talking avatars from your clone — powered by HeyGen", icon: UserSquare2 },
+  avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos · HeyGen", icon: UserSquare2 },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
   plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
