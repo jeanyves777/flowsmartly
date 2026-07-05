@@ -28,8 +28,8 @@ type Aspect = "9:16" | "1:1" | "16:9";
 type Mode = "talking" | "photo" | "translate" | "batch";
 
 const QUALITIES: { v: Quality; label: string; hint: string }[] = [
-  { v: "standard", label: "Standard", hint: "fast · ~$1/min" },
-  { v: "avatar_iv", label: "Avatar IV", hint: "photoreal" },
+  { v: "standard", label: "Standard", hint: "fast · social & outreach" },
+  { v: "avatar_iv", label: "Avatar IV", hint: "photoreal · hero & ads" },
 ];
 const ASPECTS: { v: Aspect; label: string }[] = [
   { v: "9:16", label: "9:16 Reel" },
@@ -177,10 +177,11 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
     finally { setEstimating(false); }
   }, [quality, length]);
 
-  // A quality/length change invalidates a stale estimate.
-  useEffect(() => { setEstimate(null); }, [quality, length]);
+  // Quality/length drive the cost — re-pull the estimate from the DB so the
+  // credit cost shown is always the live admin-controlled price (never hardcoded).
+  useEffect(() => { if (sheetOpen) runEstimate(); }, [quality, length, sheetOpen, runEstimate]);
 
-  const openSheet = () => { setBuildErr(""); setSheetOpen(true); if (!estimate) runEstimate(); };
+  const openSheet = () => { setBuildErr(""); setSheetOpen(true); }; // estimate auto-pulls via the effect
 
   const applyTemplate = (t: (typeof TEMPLATES)[number]) => {
     setTemplateId(t.id);

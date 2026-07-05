@@ -17,7 +17,7 @@ import { emptyAvatarState, type AvatarQuality, type AvatarAspect } from "@/lib/a
 export const createAvatarVideo: FlowAgentTool = {
   name: "create_avatar_video",
   description:
-    "Render a talking-avatar video (HeyGen) from a SCRIPT spoken by an AVATAR in a chosen VOICE. Use this once you have written a script and know which avatar/voice + quality to use. Interview the user first (goal, tone, length), write the script yourself, and recommend a quality: 'standard' (fast, ~$1/min — social, outreach, campaigns) or 'avatar_iv' (photoreal, voice-driven expressions — hero & ad content). `aspect` is 9:16 (reels), 1:1, or 16:9. `lengthSeconds` is 15, 30, or 60. If `avatarId`/`voiceId` are omitted, the account's first available avatar/voice are used. Charges credits by quality × length. The render streams into the Avatar Studio and saves to the Media Library.",
+    "Render a talking-avatar video (HeyGen) from a SCRIPT spoken by an AVATAR in a chosen VOICE. Use this once you have written a script and know which avatar/voice + quality to use. Interview the user first (goal, tone, length), write the script yourself, and recommend a quality: 'standard' (fast — social, outreach, campaigns) or 'avatar_iv' (photoreal, voice-driven expressions — hero & ad content). Costs are metered in credits (priced from the DB/admin — quality × length); never quote a dollar figure. `aspect` is 9:16 (reels), 1:1, or 16:9. `lengthSeconds` is 15, 30, or 60. If `avatarId`/`voiceId` are omitted, the account's first available avatar/voice are used. Charges credits by quality × length. The render streams into the Avatar Studio and saves to the Media Library.",
   input_schema: {
     type: "object",
     properties: {

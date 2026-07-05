@@ -15,7 +15,7 @@ import type { FlowAgentTool } from "../registry";
 export const cloneAvatar: FlowAgentTool = {
   name: "clone_avatar",
   description:
-    "Explain and guide creating a reusable AVATAR (and optionally a cloned VOICE) from the user's photo or a short video, in the Avatar Studio. Use this when the user asks to 'clone me', 'make an avatar of myself', 'use my face/voice'. Cloning a real person is CONSENT-GATED — it needs a spoken authorisation clip the user records in the Avatar Studio, so you cannot create the clone directly; instead tell them the options and cost and point them to the Avatar Studio's 'Create avatar' flow. Options: Photo Avatar (1 photo, instant, ~40 credits), Instant Avatar / digital twin (2-min video, ~300 credits), plus voice clone (Instant 30s ~30 credits, or Professional 1–3 min ~120 credits). Non-mutating.",
+    "Explain and guide creating a reusable AVATAR (and optionally a cloned VOICE) from the user's photo or a short video, in the Avatar Studio. Use this when the user asks to 'clone me', 'make an avatar of myself', 'use my face/voice'. Cloning a real person is CONSENT-GATED — it needs a spoken authorisation clip the user records in the Avatar Studio, so you cannot create the clone directly; instead tell them the options and point them to the Avatar Studio's 'Create avatar' flow. Options: Photo Avatar (1 photo, instant), Instant Avatar / digital twin (2-min video), plus an optional voice clone (Instant from ~30s of audio, or Professional from 1–3 min). Each is priced in credits per the current admin rates shown in the studio — don't quote specific credit amounts or any dollar figure. Non-mutating.",
   input_schema: {
     type: "object",
     properties: {
@@ -31,12 +31,12 @@ export const cloneAvatar: FlowAgentTool = {
     const source = input.source === "video" ? "video" : input.source === "photo" ? "photo" : null;
     const wantVoice = input.wantVoiceClone === true;
     const pick = source === "photo"
-      ? "a Photo Avatar from your single photo (instant, ~40 credits)"
+      ? "a Photo Avatar from your single photo (instant)"
       : source === "video"
-        ? "an Instant Avatar / digital twin from your 2-minute video (~300 credits)"
-        : "either a Photo Avatar (1 photo, instant, ~40 credits) or an Instant Avatar / digital twin (2-min video, ~300 credits)";
+        ? "an Instant Avatar / digital twin from your 2-minute video"
+        : "either a Photo Avatar (1 photo, instant) or an Instant Avatar / digital twin (2-min video)";
     const voiceLine = wantVoice
-      ? " I'll also set up a voice clone (Instant from 30s of audio ~30 credits, or Professional from 1–3 min ~120 credits)."
+      ? " I'll also set up a voice clone (Instant from ~30s of audio, or Professional from 1–3 min)."
       : "";
     return {
       ok: true,
