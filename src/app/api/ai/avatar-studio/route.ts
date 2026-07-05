@@ -37,6 +37,9 @@ export async function POST(request: NextRequest) {
     lengthSeconds,
     mode: pick<AvatarMode>(body.mode, AVATAR_MODES, "talking"),
     templateId: body.templateId ? String(body.templateId).slice(0, 80) : null,
+    // Translate mode: source video + target language.
+    sourceVideoUrl: body.sourceVideoUrl ? String(body.sourceVideoUrl).trim().slice(0, 2000) : null,
+    targetLanguage: body.targetLanguage ? String(body.targetLanguage).trim().slice(0, 40) : null,
   };
 
   const result = await startAvatarVideo({ userId: session.userId, isAdmin: !!session.adminId, state });

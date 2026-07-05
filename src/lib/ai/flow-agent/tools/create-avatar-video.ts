@@ -1,27 +1,35 @@
 import type { FlowAgentTool } from "../registry";
-import { startAvatarVideo, listAvatarsForUser, listVoicesForUser } from "@/lib/avatar-studio";
+import { startAvatarVideo, startAvatarVideoBatch, listAvatarsForUser, listVoicesForUser, findCompletedAvatarVideo } from "@/lib/avatar-studio";
 import { emptyAvatarState, type AvatarQuality, type AvatarAspect } from "@/lib/avatar-studio/types";
 
 /**
- * create_avatar_video — render a HeyGen talking-avatar video from a script,
- * an avatar and a voice. Charges credits (dynamic, by quality × length) and
- * kicks off the render; it appears in the Avatar Studio canvas as it renders
- * and lands in the user's Media Library when done.
+ * create_avatar_video — the agent skill behind the Avatar Studio. Handles the
+ * agent-triggerable modes and streams the render(s) into the studio canvas live
+ * (they appear as render nodes and update as they render, then land in the
+ * Media Library) — same live-feedback pattern as the Video Studio.
+ *
+ *  - "talking" (default): a talking-avatar video from a SCRIPT + avatar + voice.
+ *  - "translate": dub one of the user's finished videos into another language.
+ *  - "batch": many talking videos at once, one per script line.
+ *  (Photo → video needs the user to upload a photo in the studio UI.)
  *
  * Be conversational like HeyGen's own skill: INTERVIEW first (goal, tone,
- * length), WRITE a punchy script, and RECOMMEND a quality (Standard for social
- * /outreach; Avatar IV for photoreal hero/ad content) before calling this.
- * If the user hasn't named an avatar/voice, the account's first available ones
- * are used. Mutating — propose a plan first. [[avatar-studio-heygen]]
+ * length), WRITE the script, RECOMMEND a quality. Costs are metered in credits
+ * (priced from the DB/admin); never quote a dollar figure. Mutating — propose a
+ * plan first. [[avatar-studio-heygen]] [[agent-writes-into-ui-element-not-chat]]
  */
 export const createAvatarVideo: FlowAgentTool = {
   name: "create_avatar_video",
   description:
-    "Render a talking-avatar video (HeyGen) from a SCRIPT spoken by an AVATAR in a chosen VOICE. Use this once you have written a script and know which avatar/voice + quality to use. Interview the user first (goal, tone, length), write the script yourself, and recommend a quality: 'standard' (fast — social, outreach, campaigns) or 'avatar_iv' (photoreal, voice-driven expressions — hero & ad content). Costs are metered in credits (priced from the DB/admin — quality × length); never quote a dollar figure. `aspect` is 9:16 (reels), 1:1, or 16:9. `lengthSeconds` is 15, 30, or 60. If `avatarId`/`voiceId` are omitted, the account's first available avatar/voice are used. Charges credits by quality × length. The render streams into the Avatar Studio and saves to the Media Library.",
+    "Create HeyGen avatar videos in the Avatar Studio — they stream into the studio canvas live and save to the Media Library. Modes: 'talking' (default) renders a talking-avatar video from a SCRIPT spoken by an avatar+voice; 'translate' dubs one of the user's FINISHED videos into another language (set `targetLanguage` and optionally `sourceVideoQuery` to pick which video by title, else the latest); 'batch' renders many talking videos at once (pass `scripts` — one per video — with a shared avatar/voice). Interview the user first, write the script(s), and recommend a quality: 'standard' (fast — social/outreach) or 'avatar_iv' (photoreal — hero/ads). Costs are metered in credits (DB/admin priced by quality × length); never quote a dollar figure. `aspect` 9:16/1:1/16:9, `lengthSeconds` 15/30/60. If avatar/voice are omitted, the account's first available are used. (For 'photo → video' the user uploads a photo in the studio UI.)",
   input_schema: {
     type: "object",
     properties: {
-      script: { type: "string", description: "What the avatar says, verbatim. Write this for the user before calling." },
+      mode: { type: "string", enum: ["talking", "translate", "batch"], description: "What to make. Default 'talking'." },
+      script: { type: "string", description: "talking: what the avatar says, verbatim. Write this for the user." },
+      scripts: { type: "array", items: { type: "string" }, description: "batch: one script per video (each line becomes its own video)." },
+      targetLanguage: { type: "string", description: "translate: language to dub into (e.g. Spanish, French, Japanese)." },
+      sourceVideoQuery: { type: "string", description: "translate: pick the source video by a word from its title, or 'latest'." },
       avatarId: { type: "string", description: "HeyGen avatar id. Omit to use the account's first available avatar." },
       avatarName: { type: "string", description: "Display name of the chosen avatar (for labelling)." },
       voiceId: { type: "string", description: "HeyGen voice id. Omit to use the first available voice." },
@@ -31,60 +39,76 @@ export const createAvatarVideo: FlowAgentTool = {
       lengthSeconds: { type: "number", enum: [15, 30, 60], description: "Target length in seconds. Default 30." },
       brief: { type: "string", description: "Short label/summary of the video (optional)." },
     },
-    required: ["script"],
+    required: [],
   },
   plans: null,
-  costKey: "AGENT_PROPOSE_PLAN", // 0 — the real per-render cost is charged inside startAvatarVideo.
+  costKey: "AGENT_PROPOSE_PLAN", // 0 — the real per-render cost is charged inside the lib.
   mutating: true,
   handler: async (input, ctx) => {
-    const script = String(input.script || "").trim();
-    if (!script) return { ok: false, error_code: "missing_input", message: "Write the script the avatar should say first." };
+    const mode = input.mode === "translate" || input.mode === "batch" ? input.mode : "talking";
+    const quality: AvatarQuality = input.quality === "avatar_iv" ? "avatar_iv" : "standard";
+    const aspect: AvatarAspect = input.aspect === "1:1" || input.aspect === "16:9" ? input.aspect : "9:16";
+    const lengthSeconds = [15, 30, 60].includes(Number(input.lengthSeconds)) ? Number(input.lengthSeconds) : 30;
 
-    // Resolve avatar/voice — fall back to the account's first available.
+    // ---- Translate: dub a finished video ----
+    if (mode === "translate") {
+      const targetLanguage = String(input.targetLanguage || "").trim();
+      if (!targetLanguage) return { ok: false, error_code: "missing_input", message: "Ask the user which language to translate into." };
+      const source = await findCompletedAvatarVideo(ctx.userId, String(input.sourceVideoQuery || ""));
+      if (!source) return { ok: false, error_code: "not_found", message: "No finished avatar video to translate yet — make one first." };
+      const res = await startAvatarVideo({
+        userId: ctx.userId, isAdmin: ctx.isAdmin,
+        state: { ...emptyAvatarState(), mode: "translate", sourceVideoUrl: source.videoUrl, targetLanguage, brief: `Translate: ${source.title} → ${targetLanguage}` },
+      });
+      if (!res.ok) return { ok: false, error_code: /credit/i.test(res.code) ? "insufficient_credits" : "internal", message: res.message };
+      return {
+        ok: true,
+        data: { id: res.id, creditCost: res.creditsCost, userMessage: `Translating "${source.title}" into ${targetLanguage} for ${res.creditsCost} credits — it's rendering in the Avatar Studio now. Say so in ONE short sentence.` },
+        resultRefType: "CartoonVideo", resultRefId: res.id,
+      };
+    }
+
+    // Resolve avatar/voice defaults for talking + batch.
     let avatarId = String(input.avatarId || "").trim();
     let avatarName = String(input.avatarName || "").trim();
     let voiceId = String(input.voiceId || "").trim();
     let voiceName = String(input.voiceName || "").trim();
-
     if (!avatarId || !voiceId) {
       const [avatars, voices] = await Promise.all([listAvatarsForUser(), listVoicesForUser()]);
       if (!avatarId) { avatarId = avatars[0]?.id || ""; avatarName = avatarName || avatars[0]?.name || "Avatar"; }
       if (!voiceId) { voiceId = voices[0]?.id || ""; voiceName = voiceName || voices[0]?.name || "Voice"; }
     }
-    if (!avatarId) return { ok: false, error_code: "upstream_failed", message: "No avatars are available. Configure HeyGen or create an avatar first." };
-    if (!voiceId) return { ok: false, error_code: "upstream_failed", message: "No voices are available. Configure HeyGen first." };
+    if (!avatarId || !voiceId) return { ok: false, error_code: "upstream_failed", message: "No avatars/voices available. Configure HeyGen first." };
 
-    const quality: AvatarQuality = input.quality === "avatar_iv" ? "avatar_iv" : "standard";
-    const aspect: AvatarAspect = input.aspect === "1:1" || input.aspect === "16:9" ? input.aspect : "9:16";
-    const lengthSeconds = [15, 30, 60].includes(Number(input.lengthSeconds)) ? Number(input.lengthSeconds) : 30;
+    const base = { ...emptyAvatarState(), avatarId, avatarName: avatarName || "Avatar", voiceId, voiceName: voiceName || "Voice", quality, aspect, lengthSeconds };
 
-    const state = {
-      ...emptyAvatarState(),
-      brief: String(input.brief || script).trim().slice(0, 120),
-      script: script.slice(0, 3500),
-      avatarId, avatarName: avatarName || "Avatar",
-      voiceId, voiceName: voiceName || "Voice",
-      quality, aspect, lengthSeconds, mode: "talking" as const,
-    };
-
-    const result = await startAvatarVideo({ userId: ctx.userId, isAdmin: ctx.isAdmin, state });
-    if (!result.ok) {
-      const code = result.code === "insufficient_credits" || /credit/i.test(result.code)
-        ? "insufficient_credits" as const
-        : result.code.startsWith("missing_") ? "missing_input" as const : "internal" as const;
-      return { ok: false, error_code: code, message: result.message };
+    // ---- Batch: many videos at once ----
+    if (mode === "batch") {
+      const scripts = Array.isArray(input.scripts) ? (input.scripts as unknown[]).map((s) => String(s || "")).filter((s) => s.trim()) : [];
+      if (scripts.length === 0) return { ok: false, error_code: "missing_input", message: "Provide the list of scripts (one per video) for the batch." };
+      const res = await startAvatarVideoBatch({ userId: ctx.userId, isAdmin: ctx.isAdmin, scripts, base });
+      if (res.error && res.started.length === 0) return { ok: false, error_code: /credit/i.test(res.error) ? "insufficient_credits" : "internal", message: res.error };
+      return {
+        ok: true,
+        data: { started: res.started.length, creditCost: res.totalCredits, userMessage: `Rendering ${res.started.length} avatar videos with ${avatarName} for ${res.totalCredits} credits total — they're streaming into the Avatar Studio now${res.error ? ` (stopped early: ${res.error})` : ""}. Say so in ONE short sentence.` },
+      };
     }
 
+    // ---- Talking (default) ----
+    const script = String(input.script || "").trim();
+    if (!script) return { ok: false, error_code: "missing_input", message: "Write the script the avatar should say first." };
+    const res = await startAvatarVideo({
+      userId: ctx.userId, isAdmin: ctx.isAdmin,
+      state: { ...base, brief: String(input.brief || script).trim().slice(0, 120), script: script.slice(0, 3500), mode: "talking" },
+    });
+    if (!res.ok) {
+      const code = /credit/i.test(res.code) ? "insufficient_credits" as const : res.code.startsWith("missing_") ? "missing_input" as const : "internal" as const;
+      return { ok: false, error_code: code, message: res.message };
+    }
     return {
       ok: true,
-      data: {
-        id: result.id,
-        creditCost: result.creditsCost,
-        quality, aspect, lengthSeconds,
-        userMessage: `Rendering a ${lengthSeconds}s ${quality === "avatar_iv" ? "photoreal (Avatar IV)" : "standard"} avatar video with ${avatarName} for ${result.creditsCost} credits. It's appearing in the Avatar Studio now and will save to your Library when done. Tell the user in ONE short sentence.`,
-      },
-      resultRefType: "CartoonVideo",
-      resultRefId: result.id,
+      data: { id: res.id, creditCost: res.creditsCost, quality, aspect, lengthSeconds, userMessage: `Rendering a ${lengthSeconds}s ${quality === "avatar_iv" ? "photoreal (Avatar IV)" : "standard"} avatar video with ${avatarName} for ${res.creditsCost} credits — it's appearing in the Avatar Studio now and saves to your Library when done. Say so in ONE short sentence.` },
+      resultRefType: "CartoonVideo", resultRefId: res.id,
     };
   },
 };

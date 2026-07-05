@@ -21,6 +21,9 @@ export interface AvatarVideoState {
   lengthSeconds: number;
   mode: AvatarMode;
   templateId?: string | null;
+  /** Translate mode: source video URL + target language. */
+  sourceVideoUrl?: string | null;
+  targetLanguage?: string | null;
   /** Upstream HeyGen job id, persisted for restart-safe polling/recovery. */
   heygenVideoId?: string | null;
   caption?: string;
@@ -41,6 +44,8 @@ export function emptyAvatarState(): AvatarVideoState {
     lengthSeconds: 30,
     mode: "talking",
     templateId: null,
+    sourceVideoUrl: null,
+    targetLanguage: null,
     heygenVideoId: null,
     error: null,
   };

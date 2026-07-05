@@ -16,7 +16,7 @@ import { uploadToS3 } from "@/lib/utils/s3-client";
 import { saveToMediaLibrary } from "@/lib/ai/flow-agent/save-media";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsAvailable } from "@/lib/credits/costs";
-import { emptyAvatarState, type AvatarVideoState, type AvatarQuality } from "./types";
+import { emptyAvatarState, type AvatarVideoState, type AvatarQuality, type AvatarMode } from "./types";
 
 export const ANIMATION_TYPE = "avatar_video";
 
@@ -42,8 +42,13 @@ export function readAvatarState(metadata: string | null): AvatarVideoState {
 // -------------------------------------------------------------------------
 
 /** Credits for one avatar render — base cost per 30s, scaled by length. */
-export async function estimateAvatarVideoCost(quality: AvatarQuality, lengthSeconds: number): Promise<number> {
-  const key = quality === "avatar_iv" ? "AI_AVATAR_VIDEO_PREMIUM" : "AI_AVATAR_VIDEO";
+export async function estimateAvatarVideoCost(
+  quality: AvatarQuality,
+  lengthSeconds: number,
+  mode: AvatarMode = "talking",
+): Promise<number> {
+  const key =
+    mode === "translate" ? "AI_AVATAR_TRANSLATE" : quality === "avatar_iv" ? "AI_AVATAR_VIDEO_PREMIUM" : "AI_AVATAR_VIDEO";
   const per30 = await getDynamicCreditCost(key);
   const blocks = Math.max(1, Math.ceil((lengthSeconds || 30) / 30));
   return per30 * blocks;
@@ -113,6 +118,24 @@ export async function listAvatarVideos(userId: string, limit = 24) {
   });
 }
 
+/** Find a completed avatar video to use as a Translate source (by title match, else latest). */
+export async function findCompletedAvatarVideo(userId: string, query?: string): Promise<{ id: string; title: string; videoUrl: string } | null> {
+  const rows = await prisma.cartoonVideo.findMany({
+    where: { userId, animationType: ANIMATION_TYPE, status: "COMPLETED", NOT: { videoUrl: null } },
+    orderBy: { createdAt: "desc" },
+    take: 30,
+    select: { id: true, storyPrompt: true, videoUrl: true },
+  });
+  const usable = rows.filter((r) => r.videoUrl);
+  if (usable.length === 0) return null;
+  const q = (query || "").trim().toLowerCase();
+  const match = q && !/^(latest|last|most recent|recent)$/.test(q)
+    ? usable.find((r) => (r.storyPrompt || "").toLowerCase().includes(q))
+    : null;
+  const row = match || usable[0];
+  return { id: row.id, title: (row.storyPrompt || "Avatar video").slice(0, 80), videoUrl: row.videoUrl as string };
+}
+
 export async function getAvatarVideo(id: string, userId: string) {
   const row = await prisma.cartoonVideo.findFirst({
     where: { id, userId, animationType: ANIMATION_TYPE },
@@ -175,17 +198,30 @@ export async function renderAvatarVideo(id: string, userId: string): Promise<voi
       throw new Error("HeyGen is not configured (HEYGEN_API_KEY missing).");
     }
 
-    const result = await heygenClient.generateAvatarVideo({
-      avatarId: state.avatarId,
-      voiceId: state.voiceId,
-      script: state.script,
-      aspect: state.aspect,
-      quality: state.quality,
-      onJobId: (videoId) => { void patchState(id, { heygenVideoId: videoId }); },
-      onStatus: (message) => {
-        void prisma.cartoonVideo.update({ where: { id }, data: { currentStep: message } }).catch(() => {});
-      },
-    });
+    const onStatus = (message: string) => {
+      void prisma.cartoonVideo.update({ where: { id }, data: { currentStep: message } }).catch(() => {});
+    };
+    const onJobId = (videoId: string) => { void patchState(id, { heygenVideoId: videoId }); };
+
+    const result =
+      state.mode === "translate"
+        ? await heygenClient.translateVideo({
+            videoUrl: state.sourceVideoUrl || "",
+            targetLanguage: state.targetLanguage || "Spanish",
+            title: (state.brief || "Translated video").slice(0, 80),
+            onJobId,
+            onStatus,
+          })
+        : await heygenClient.generateAvatarVideo({
+            avatarId: state.avatarId,
+            voiceId: state.voiceId,
+            script: state.script,
+            aspect: state.aspect,
+            // Photo → video renders the uploaded photo as an Avatar IV talking photo.
+            quality: state.mode === "photo" ? "avatar_iv" : state.quality,
+            onJobId,
+            onStatus,
+          });
 
     const key = `heygen/avatar-videos/${id}.mp4`;
     const url = await uploadToS3(key, result.videoBuffer, "video/mp4");
@@ -253,25 +289,34 @@ export async function startAvatarVideo(input: {
   const { userId, isAdmin = false } = input;
   const state = { ...emptyAvatarState(), ...input.state };
 
-  if (!state.script.trim()) return { ok: false, code: "missing_script", message: "A script is required to render the avatar video." };
-  if (!state.avatarId) return { ok: false, code: "missing_avatar", message: "Pick an avatar to render with." };
-  if (!state.voiceId) return { ok: false, code: "missing_voice", message: "Pick a voice to speak the script." };
+  // Per-mode validation — each mode needs different inputs.
+  if (state.mode === "translate") {
+    if (!state.sourceVideoUrl) return { ok: false, code: "missing_source", message: "Pick a source video to translate." };
+    if (!state.targetLanguage) return { ok: false, code: "missing_language", message: "Choose a target language." };
+  } else {
+    if (!state.script.trim()) return { ok: false, code: "missing_script", message: "A script is required to render the avatar video." };
+    if (!state.avatarId) return { ok: false, code: "missing_avatar", message: state.mode === "photo" ? "Upload a photo first." : "Pick an avatar to render with." };
+    if (!state.voiceId) return { ok: false, code: "missing_voice", message: "Pick a voice to speak the script." };
+  }
 
-  const creditsCost = await estimateAvatarVideoCost(state.quality, state.lengthSeconds);
+  const effectiveQuality: AvatarQuality = state.mode === "photo" ? "avatar_iv" : state.quality;
+  const creditsCost = await estimateAvatarVideoCost(effectiveQuality, state.lengthSeconds, state.mode);
   const block = await checkCreditsAvailable(userId, creditsCost, false, isAdmin);
   if (block) return { ok: false, code: block.code, message: block.message };
 
-  const record = await createAvatarVideoRecord({ userId, state, creditsCost });
+  const record = await createAvatarVideoRecord({ userId, state: { ...state, quality: effectiveQuality }, creditsCost });
 
   if (!isAdmin && creditsCost > 0) {
+    const featureKey =
+      state.mode === "translate" ? "AI_AVATAR_TRANSLATE" : effectiveQuality === "avatar_iv" ? "AI_AVATAR_VIDEO_PREMIUM" : "AI_AVATAR_VIDEO";
     const charge = await creditService.deductCredits({
       userId,
       type: TRANSACTION_TYPES.USAGE,
       amount: creditsCost,
       referenceType: "avatar_video",
       referenceId: record.id,
-      description: `Avatar video (${state.quality})`,
-      metadata: { feature: state.quality === "avatar_iv" ? "AI_AVATAR_VIDEO_PREMIUM" : "AI_AVATAR_VIDEO" },
+      description: `Avatar video (${state.mode})`,
+      metadata: { feature: featureKey },
     });
     if (!charge.success) {
       await deleteAvatarVideo(record.id, userId).catch(() => {});
@@ -283,6 +328,34 @@ export async function startAvatarVideo(input: {
   // resume an interrupted job via the persisted heygenVideoId.
   void renderAvatarVideo(record.id, userId);
   return { ok: true, id: record.id, creditsCost };
+}
+
+/**
+ * Batch — render many talking-avatar videos at once, one per script line,
+ * all using the same avatar/voice/quality/format. Charges + fires each render
+ * independently; a per-row credit failure stops the run and reports how many
+ * started. Returns the created ids and any error.
+ */
+export async function startAvatarVideoBatch(input: {
+  userId: string;
+  isAdmin?: boolean;
+  scripts: string[];
+  base: Omit<AvatarVideoState, "script" | "mode">;
+}): Promise<{ started: string[]; totalCredits: number; error?: string }> {
+  const scripts = input.scripts.map((s) => s.trim()).filter(Boolean).slice(0, 50);
+  const started: string[] = [];
+  let totalCredits = 0;
+  for (const script of scripts) {
+    const res = await startAvatarVideo({
+      userId: input.userId,
+      isAdmin: input.isAdmin,
+      state: { ...emptyAvatarState(), ...input.base, script, mode: "talking" },
+    });
+    if (!res.ok) return { started, totalCredits, error: res.message };
+    started.push(res.id);
+    totalCredits += res.creditsCost;
+  }
+  return { started, totalCredits };
 }
 
 // -------------------------------------------------------------------------

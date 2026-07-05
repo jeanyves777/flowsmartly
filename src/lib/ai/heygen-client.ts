@@ -21,6 +21,24 @@ const GENERATE_URL = `${HEYGEN_BASE}/v2/video/generate`;
 const STATUS_URL = `${HEYGEN_BASE}/v1/video_status.get`;
 const AVATARS_URL = `${HEYGEN_BASE}/v2/avatars`;
 const VOICES_URL = `${HEYGEN_BASE}/v2/voices`;
+const ASSET_UPLOAD_URL = "https://upload.heygen.com/v1/asset";
+const TALKING_PHOTO_URL = "https://upload.heygen.com/v1/talking_photo";
+const TRANSLATE_URL = `${HEYGEN_BASE}/v2/video_translate`;
+
+/** Common HeyGen translation targets (label → HeyGen output_language). */
+export const TRANSLATE_LANGUAGES: { code: string; label: string }[] = [
+  { code: "Spanish", label: "Spanish" },
+  { code: "French", label: "French" },
+  { code: "German", label: "German" },
+  { code: "Portuguese", label: "Portuguese" },
+  { code: "Italian", label: "Italian" },
+  { code: "Hindi", label: "Hindi" },
+  { code: "Arabic", label: "Arabic" },
+  { code: "Japanese", label: "Japanese" },
+  { code: "Korean", label: "Korean" },
+  { code: "Chinese", label: "Chinese" },
+  { code: "English", label: "English" },
+];
 
 export type AvatarAspect = "9:16" | "1:1" | "16:9";
 export type AvatarQuality = "standard" | "avatar_iv";
@@ -253,6 +271,109 @@ class HeyGenClient {
       console.error("[HeyGen] listVoices failed:", e);
       return [];
     }
+  }
+
+  // ---- Photo → video: upload a photo, get a reusable talking_photo_id ----
+
+  /**
+   * Upload a user photo and return a `talking_photo_id` usable as an Avatar IV
+   * character. Uploads the raw image bytes to HeyGen's asset/talking-photo
+   * endpoint. Returns { id, previewUrl }.
+   */
+  async uploadTalkingPhoto(buffer: Buffer, mimeType: string): Promise<{ id: string; previewUrl?: string }> {
+    if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
+    const contentType = /png/i.test(mimeType) ? "image/png" : "image/jpeg";
+    const bytes = new Uint8Array(buffer);
+    // Preferred: dedicated talking_photo upload (returns talking_photo_id directly).
+    let res = await fetch(TALKING_PHOTO_URL, {
+      method: "POST",
+      headers: { "Content-Type": contentType, "X-Api-Key": this.apiKey },
+      body: bytes,
+    });
+    let data = res.ok ? await res.json().catch(() => null) : null;
+    let id = data?.data?.talking_photo_id || data?.data?.id;
+    // Fallback: generic asset upload, then use the returned image id/key.
+    if (!id) {
+      res = await fetch(ASSET_UPLOAD_URL, {
+        method: "POST",
+        headers: { "Content-Type": contentType, "X-Api-Key": this.apiKey },
+        body: bytes,
+      });
+      if (!res.ok) throw new Error(`HeyGen photo upload error (${res.status}): ${await res.text()}`);
+      data = await res.json();
+      id = data?.data?.talking_photo_id || data?.data?.image_key || data?.data?.id;
+    }
+    if (!id) throw new Error("HeyGen did not return a talking_photo id for the uploaded photo");
+    return { id: String(id), previewUrl: data?.data?.url || data?.data?.image_url };
+  }
+
+  // ---- Translate: dub an existing video into another language ----
+
+  /**
+   * Translate/dub a source video into `targetLanguage`, poll until done, and
+   * return the downloaded MP4. Mirrors the create → poll → download lifecycle.
+   */
+  async translateVideo(options: {
+    videoUrl: string;
+    targetLanguage: string;
+    title?: string;
+    onJobId?: (id: string) => void | Promise<void>;
+    onStatus?: (message: string) => void;
+    timeoutMs?: number;
+  }): Promise<HeyGenVideoResult> {
+    if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
+    const { videoUrl, targetLanguage, title, onJobId, onStatus, timeoutMs } = options;
+
+    const res = await fetch(TRANSLATE_URL, {
+      method: "POST",
+      headers: this.headers(),
+      body: JSON.stringify({ video_url: videoUrl, output_language: targetLanguage, title: title || "Translated video" }),
+    });
+    if (!res.ok) throw new Error(`HeyGen translate error (${res.status}): ${await res.text()}`);
+    const data = await res.json();
+    const id = data?.data?.video_translate_id || data?.data?.id;
+    if (!id) throw new Error("HeyGen did not return a video_translate_id");
+
+    try { await onJobId?.(id); } catch { /* best-effort */ }
+    onStatus?.(`Translating to ${targetLanguage}…`);
+
+    const done = await this.pollTranslate(id, timeoutMs, onStatus);
+    onStatus?.("Translation done. Downloading the MP4…");
+    const videoBuffer = await this.downloadVideo(done.url);
+    return { videoId: id, videoBuffer, duration: 0 };
+  }
+
+  /** Single non-blocking translate status check — for recovery/resume. */
+  async pollTranslateOnce(id: string): Promise<{ state: "pending" | "done" | "failed"; url?: string; error?: string }> {
+    if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
+    const res = await fetch(`${TRANSLATE_URL}/${encodeURIComponent(id)}`, { headers: this.headers() });
+    if (!res.ok) return { state: "failed", error: `status ${res.status}` };
+    const data = await res.json();
+    const d = data?.data ?? data;
+    const status = String(d?.status || "").toLowerCase();
+    if (status === "success" || status === "completed" || status === "done") {
+      const url = d?.url || d?.video_url;
+      return url ? { state: "done", url } : { state: "pending" };
+    }
+    if (status === "failed" || status === "error") {
+      const rawErr = d?.message ?? d?.error ?? "Translation failed";
+      return { state: "failed", error: typeof rawErr === "string" ? rawErr : JSON.stringify(rawErr).slice(0, 300) };
+    }
+    return { state: "pending" };
+  }
+
+  private async pollTranslate(id: string, timeoutMs = 900000, onStatus?: (m: string) => void): Promise<{ url: string }> {
+    const start = Date.now();
+    let attempts = 0;
+    while (Date.now() - start < timeoutMs) {
+      await new Promise((r) => setTimeout(r, 5000));
+      attempts++;
+      const r = await this.pollTranslateOnce(id);
+      if (r.state === "done" && r.url) return { url: r.url };
+      if (r.state === "failed") throw new Error(`HeyGen translation failed for ${id}: ${r.error || "unknown"}`);
+      if (attempts % 4 === 0) onStatus?.(`Still translating (${attempts * 5}s elapsed)…`);
+    }
+    throw new Error(`HeyGen translation timed out for ${id}`);
   }
 }
 

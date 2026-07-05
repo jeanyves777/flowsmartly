@@ -6,7 +6,7 @@ import Image from "next/image";
 import {
   UserSquare2, Sparkles, Type as TypeIcon, Mic, X, Coins, Play,
   CheckCircle2, Clock, TriangleAlert, ChevronUp, Wand2, AlertTriangle,
-  Trash2, ChevronRight, Film, Loader2, FolderOpen, Languages, Images, Package,
+  Trash2, ChevronRight, Film, Loader2, FolderOpen, Languages, Images, Package, Upload,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -118,6 +118,13 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   const [estimating, setEstimating] = useState(false);
   const [building, setBuilding] = useState(false);
   const [buildErr, setBuildErr] = useState("");
+  // Mode-specific inputs.
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [sourceVideoId, setSourceVideoId] = useState("");
+  const [targetLanguage, setTargetLanguage] = useState("Spanish");
+  const [batchScripts, setBatchScripts] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -165,21 +172,42 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   const selectedAvatar = useMemo(() => avatars.find((a) => a.id === avatarId), [avatars, avatarId]);
   const selectedVoice = useMemo(() => voices.find((v) => v.id === voiceId), [voices, voiceId]);
 
+  // Completed videos are the source pool for Translate mode.
+  const completedVideos = useMemo(() => videos.filter((v) => (v.status || "").toUpperCase() === "COMPLETED" && isPlayable(v.videoUrl)), [videos]);
+
   const runEstimate = useCallback(async () => {
     setEstimating(true);
     try {
       const j = await fetch("/api/ai/avatar-studio/estimate-cost-draft", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quality, lengthSeconds: length }),
+        body: JSON.stringify({ quality, lengthSeconds: length, mode }),
       }).then((r) => r.json());
       if (j?.success && j.data) setEstimate(j.data as Estimate);
     } catch { /* estimate is best-effort */ }
     finally { setEstimating(false); }
-  }, [quality, length]);
+  }, [quality, length, mode]);
 
-  // Quality/length drive the cost — re-pull the estimate from the DB so the
+  // Quality/length/mode drive the cost — re-pull the estimate from the DB so the
   // credit cost shown is always the live admin-controlled price (never hardcoded).
-  useEffect(() => { if (sheetOpen) runEstimate(); }, [quality, length, sheetOpen, runEstimate]);
+  useEffect(() => { if (sheetOpen) runEstimate(); }, [quality, length, mode, sheetOpen, runEstimate]);
+
+  // Photo → video: upload a photo to HeyGen, use the returned talking-photo as the avatar.
+  const onPhotoPicked = async (file: File | null | undefined) => {
+    if (!file) return;
+    setBuildErr(""); setPhotoUploading(true);
+    try {
+      const dataUrl: string = await new Promise((res, rej) => {
+        const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = rej; r.readAsDataURL(file);
+      });
+      const j = await fetch("/api/ai/avatar-studio/upload-photo", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dataUrl }),
+      }).then((r) => r.json());
+      if (!j?.success) { setBuildErr(j?.error?.message || "Photo upload failed."); return; }
+      setAvatarId(j.data.avatarId);
+      setPhotoPreview(j.data.previewUrl || dataUrl);
+    } catch { setBuildErr("Photo upload failed."); }
+    finally { setPhotoUploading(false); }
+  };
 
   const openSheet = () => { setBuildErr(""); setSheetOpen(true); }; // estimate auto-pulls via the effect
 
@@ -189,27 +217,52 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
     setAspect(t.aspect);
   };
 
+  const resetSheet = () => {
+    setSheetOpen(false); setScript(""); setTemplateId(null); setEstimate(null);
+    setPhotoPreview(null); setBatchScripts(""); setSourceVideoId("");
+    setLocalRefresh((n) => n + 1);
+  };
+
   const build = async () => {
     if (building) return;
     setBuildErr("");
-    if (!script.trim()) { setBuildErr("Write what the avatar should say."); return; }
-    if (!avatarId) { setBuildErr("Pick an avatar."); return; }
-    if (!voiceId) { setBuildErr("Pick a voice."); return; }
     setBuilding(true);
     try {
-      const j = await fetch("/api/ai/avatar-studio", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      let endpoint = "/api/ai/avatar-studio";
+      let payload: Record<string, unknown>;
+
+      if (mode === "translate") {
+        const src = completedVideos.find((v) => v.id === sourceVideoId);
+        if (!src?.videoUrl) { setBuildErr("Pick a source video to translate."); return; }
+        payload = { mode, sourceVideoUrl: src.videoUrl, targetLanguage, brief: `Translate: ${src.title} → ${targetLanguage}` };
+      } else if (mode === "batch") {
+        const lines = batchScripts.split("\n").map((s) => s.trim()).filter(Boolean);
+        if (lines.length === 0) { setBuildErr("Add at least one script line (one per video)."); return; }
+        if (!avatarId) { setBuildErr("Pick a default avatar for the batch."); return; }
+        if (!voiceId) { setBuildErr("Pick a default voice for the batch."); return; }
+        endpoint = "/api/ai/avatar-studio/batch";
+        payload = {
+          scripts: lines, avatarId, avatarName: selectedAvatar?.name || "Avatar",
+          voiceId, voiceName: selectedVoice?.name || "Voice", quality, aspect, lengthSeconds: length,
+        };
+      } else {
+        // talking OR photo — both need a script + avatar (photo's avatar is the uploaded id) + voice.
+        if (!script.trim()) { setBuildErr("Write what the avatar should say."); return; }
+        if (!avatarId) { setBuildErr(mode === "photo" ? "Upload a photo first." : "Pick an avatar."); return; }
+        if (!voiceId) { setBuildErr("Pick a voice."); return; }
+        payload = {
           brief: script.trim().slice(0, 120), script: script.trim(),
-          avatarId, avatarName: selectedAvatar?.name || "Avatar",
+          avatarId, avatarName: mode === "photo" ? "My photo" : selectedAvatar?.name || "Avatar",
           voiceId, voiceName: selectedVoice?.name || "Voice",
-          quality, aspect, lengthSeconds: length, mode, templateId,
-        }),
+          quality: mode === "photo" ? "avatar_iv" : quality, aspect, lengthSeconds: length, mode, templateId,
+        };
+      }
+
+      const j = await fetch(endpoint, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       }).then((r) => r.json());
       if (!j?.success) { setBuildErr(j?.error?.message || "Could not start the render."); return; }
-      setSheetOpen(false);
-      setScript(""); setTemplateId(null); setEstimate(null);
-      setLocalRefresh((n) => n + 1);
+      resetSheet();
     } catch { setBuildErr("Could not start the render."); }
     finally { setBuilding(false); }
   };
@@ -313,93 +366,168 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
             <button onClick={() => setSheetOpen(false)} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
           </div>
           <div className="max-h-[52vh] overflow-y-auto px-3.5 pb-3">
-            {/* templates */}
-            <label className="mb-1 block text-[11.5px] font-semibold">Start from a template <span className="font-normal text-muted-foreground">— optional</span></label>
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
-              {TEMPLATES.map((t) => (
-                <button key={t.id} onClick={() => applyTemplate(t)} className={cn("shrink-0 rounded-[10px] border px-2.5 py-1.5 text-[11.5px] font-semibold transition", templateId === t.id ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{t.name}</button>
-              ))}
-            </div>
-
-            {/* script */}
-            <div className="mt-2.5 flex items-center gap-2">
-              <label className="text-[11.5px] font-semibold">Script <span className="font-normal text-muted-foreground">— what the avatar says</span></label>
-              {onAsk && (
-                <button onClick={() => onAsk(`Write a ${length}s avatar video script about: ${script.trim() || "my latest update"}. Keep it punchy and on-brand.`)} className="ms-auto inline-flex items-center gap-1 rounded-full border border-brand-500/40 bg-brand-500/10 px-2 py-0.5 text-[10.5px] font-bold text-brand-500"><Wand2 className="h-3 w-3" /> Write with AI</button>
-              )}
-            </div>
-            <textarea
-              value={script} onChange={(e) => setScript(e.target.value)} rows={3}
-              placeholder="e.g. Spring is here — and so is your glow. Meet our new botanical serum…"
-              className="mt-1 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60"
-            />
-
-            {/* mode */}
-            <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Mode</label>
+            {/* mode — reconfigures the inputs below */}
+            <label className="mb-1 block text-[11.5px] font-semibold">Mode</label>
             <div className="flex flex-wrap gap-1.5">
               {MODES.map((m) => {
                 const Icon = m.icon;
                 return (
-                  <button key={m.v} onClick={() => setMode(m.v)} className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition", mode === m.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>
+                  <button key={m.v} onClick={() => { setMode(m.v); setBuildErr(""); }} className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition", mode === m.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>
                     <Icon className="h-3.5 w-3.5" /> {m.label}
                   </button>
                 );
               })}
             </div>
 
-            {/* avatar picker */}
-            <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Avatar</label>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {avatars.length === 0 ? (
-                <span className="text-[11.5px] text-muted-foreground">Loading avatars…</span>
-              ) : avatars.slice(0, 24).map((a) => (
-                <button key={a.id} onClick={() => setAvatarId(a.id)} className={cn("relative w-16 shrink-0 overflow-hidden rounded-[10px] border transition", a.id === avatarId ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
-                  <div className="relative aspect-[3/4] w-full bg-muted">
-                    {a.previewUrl ? (
-                      <Image src={a.previewUrl} alt="" fill sizes="64px" className="object-cover" unoptimized />
-                    ) : (
-                      <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-5 w-5" /></span>
-                    )}
-                    {a.isCustom && <span className="absolute left-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[8px] font-bold text-white">Clone</span>}
-                  </div>
-                  <span className="block truncate px-1 py-0.5 text-[9.5px] font-semibold">{a.name}</span>
-                </button>
-              ))}
-            </div>
+            {/* templates — script starters (talking & batch) */}
+            {(mode === "talking" || mode === "batch") && (
+              <>
+                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Start from a template <span className="font-normal text-muted-foreground">— optional</span></label>
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  {TEMPLATES.map((t) => (
+                    <button key={t.id} onClick={() => applyTemplate(t)} className={cn("shrink-0 rounded-[10px] border px-2.5 py-1.5 text-[11.5px] font-semibold transition", templateId === t.id ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{t.name}</button>
+                  ))}
+                </div>
+              </>
+            )}
 
-            {/* voice */}
-            <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Voice <span className="font-normal text-muted-foreground">· 175+ languages</span></label>
-            <select value={voiceId} onChange={(e) => setVoiceId(e.target.value)} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
-              {voices.length === 0 && <option>Loading voices…</option>}
-              {voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
-            </select>
+            {/* script (talking & photo) */}
+            {(mode === "talking" || mode === "photo") && (
+              <>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <label className="text-[11.5px] font-semibold">Script <span className="font-normal text-muted-foreground">— what the avatar says</span></label>
+                  {onAsk && (
+                    <button onClick={() => onAsk(`Write a ${length}s avatar video script about: ${script.trim() || "my latest update"}. Keep it punchy and on-brand.`)} className="ms-auto inline-flex items-center gap-1 rounded-full border border-brand-500/40 bg-brand-500/10 px-2 py-0.5 text-[10.5px] font-bold text-brand-500"><Wand2 className="h-3 w-3" /> Write with AI</button>
+                  )}
+                </div>
+                <textarea
+                  value={script} onChange={(e) => setScript(e.target.value)} rows={3}
+                  placeholder="e.g. Spring is here — and so is your glow. Meet our new botanical serum…"
+                  className="mt-1 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60"
+                />
+              </>
+            )}
 
-            {/* quality */}
-            <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Quality</label>
-            <div className="grid grid-cols-2 gap-1.5">
-              {QUALITIES.map((q) => (
-                <button key={q.v} onClick={() => setQuality(q.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-left transition", quality === q.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
-                  <span className="block text-[12px] font-bold leading-tight">{q.label}</span>
-                  <span className="block text-[10px] text-muted-foreground">{q.hint}</span>
-                </button>
-              ))}
-            </div>
+            {/* batch scripts (batch) */}
+            {mode === "batch" && (
+              <>
+                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Scripts <span className="font-normal text-muted-foreground">— one per line, one video each</span></label>
+                <textarea
+                  value={batchScripts} onChange={(e) => setBatchScripts(e.target.value)} rows={5}
+                  placeholder={"Line 1 → its own video\nLine 2 → its own video\nLine 3 → its own video"}
+                  className="mt-1 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60"
+                />
+                <p className="mt-1 text-[10.5px] text-muted-foreground">{batchScripts.split("\n").map((s) => s.trim()).filter(Boolean).length} videos · all use the avatar, voice, quality &amp; format below.</p>
+              </>
+            )}
 
-            {/* format + length */}
-            <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Format &amp; length</label>
-            <div className="grid grid-cols-3 gap-1.5">
-              {ASPECTS.map((a) => (
-                <button key={a.v} onClick={() => setAspect(a.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-bold transition", aspect === a.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>{a.label}</button>
-              ))}
-            </div>
-            <div className="mt-1.5 grid grid-cols-3 gap-1.5">
-              {LENGTHS.map((l) => (
-                <button key={l.v} onClick={() => setLength(l.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-center transition", length === l.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
-                  <span className="text-[12px] font-bold">{l.v}s</span>
-                  <span className="ms-1 text-[10px] text-muted-foreground">{l.hint}</span>
+            {/* translate — source video + target language */}
+            {mode === "translate" && (
+              <>
+                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Source video <span className="font-normal text-muted-foreground">— one of your finished videos</span></label>
+                {completedVideos.length === 0 ? (
+                  <p className="rounded-[10px] border border-dashed border-border bg-muted/20 px-3 py-3 text-[11.5px] text-muted-foreground">No finished videos yet — make a Talking video first, then translate it into other languages.</p>
+                ) : (
+                  <select value={sourceVideoId} onChange={(e) => setSourceVideoId(e.target.value)} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
+                    <option value="">Choose a video…</option>
+                    {completedVideos.map((v) => <option key={v.id} value={v.id}>{v.title}</option>)}
+                  </select>
+                )}
+                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Translate to</label>
+                <select value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
+                  {["Spanish", "French", "German", "Portuguese", "Italian", "Hindi", "Arabic", "Japanese", "Korean", "Chinese", "English"].map((l) => <option key={l} value={l}>{l}</option>)}
+                </select>
+                <p className="mt-1 text-[10.5px] text-muted-foreground">HeyGen dubs the video into {targetLanguage}, keeping the speaker&apos;s look.</p>
+              </>
+            )}
+
+            {/* photo upload (photo) — replaces the avatar picker */}
+            {mode === "photo" && (
+              <>
+                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Your photo <span className="font-normal text-muted-foreground">— becomes the talking avatar (Avatar IV)</span></label>
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => onPhotoPicked(e.target.files?.[0])} />
+                <button onClick={() => fileInputRef.current?.click()} disabled={photoUploading} className="flex w-full items-center gap-3 rounded-[10px] border border-dashed border-border bg-muted/20 px-3 py-3 text-left transition hover:border-brand-500/60 disabled:opacity-60">
+                  {photoPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={photoPreview} alt="" className="h-12 w-12 rounded-lg object-cover" />
+                  ) : (
+                    <span className="grid h-12 w-12 place-items-center rounded-lg bg-muted text-muted-foreground"><Upload className="h-5 w-5" /></span>
+                  )}
+                  <span className="text-[12px] font-semibold">{photoUploading ? "Uploading…" : photoPreview ? "Photo ready — tap to change" : "Upload a front-facing photo"}</span>
+                  {photoUploading && <FlowLoader size={14} />}
                 </button>
-              ))}
-            </div>
+              </>
+            )}
+
+            {/* avatar picker (talking & batch) */}
+            {(mode === "talking" || mode === "batch") && (
+              <>
+                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Avatar</label>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {avatars.length === 0 ? (
+                    <span className="text-[11.5px] text-muted-foreground">Loading avatars…</span>
+                  ) : avatars.slice(0, 24).map((a) => (
+                    <button key={a.id} onClick={() => setAvatarId(a.id)} className={cn("relative w-16 shrink-0 overflow-hidden rounded-[10px] border transition", a.id === avatarId ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
+                      <div className="relative aspect-[3/4] w-full bg-muted">
+                        {a.previewUrl ? (
+                          <Image src={a.previewUrl} alt="" fill sizes="64px" className="object-cover" unoptimized />
+                        ) : (
+                          <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-5 w-5" /></span>
+                        )}
+                        {a.isCustom && <span className="absolute left-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[8px] font-bold text-white">Clone</span>}
+                      </div>
+                      <span className="block truncate px-1 py-0.5 text-[9.5px] font-semibold">{a.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* voice (not translate) */}
+            {mode !== "translate" && (
+              <>
+                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Voice <span className="font-normal text-muted-foreground">· 175+ languages</span></label>
+                <select value={voiceId} onChange={(e) => setVoiceId(e.target.value)} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
+                  {voices.length === 0 && <option>Loading voices…</option>}
+                  {voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
+                </select>
+              </>
+            )}
+
+            {/* quality (talking & batch) */}
+            {(mode === "talking" || mode === "batch") && (
+              <>
+                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Quality</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {QUALITIES.map((q) => (
+                    <button key={q.v} onClick={() => setQuality(q.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-left transition", quality === q.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
+                      <span className="block text-[12px] font-bold leading-tight">{q.label}</span>
+                      <span className="block text-[10px] text-muted-foreground">{q.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* format + length (not translate) */}
+            {mode !== "translate" && (
+              <>
+                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Format &amp; length</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {ASPECTS.map((a) => (
+                    <button key={a.v} onClick={() => setAspect(a.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-bold transition", aspect === a.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>{a.label}</button>
+                  ))}
+                </div>
+                <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                  {LENGTHS.map((l) => (
+                    <button key={l.v} onClick={() => setLength(l.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-center transition", length === l.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
+                      <span className="text-[12px] font-bold">{l.v}s</span>
+                      <span className="ms-1 text-[10px] text-muted-foreground">{l.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* estimate */}
             {estimate && (
@@ -424,8 +552,14 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               <button onClick={runEstimate} disabled={estimating} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
                 {estimating ? <FlowLoader size={14} /> : <Coins className="h-3.5 w-3.5" />} Estimate
               </button>
-              <button onClick={build} disabled={building || !script.trim() || !avatarId || !voiceId} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50">
-                {building ? <FlowLoader size={14} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />} Build the video{estimate ? ` · ${estimate.total} cr` : ""}
+              <button onClick={build} disabled={building || !(
+                mode === "translate" ? (sourceVideoId && targetLanguage)
+                : mode === "batch" ? (batchScripts.split("\n").map((s) => s.trim()).filter(Boolean).length > 0 && avatarId && voiceId)
+                : (script.trim() && avatarId && voiceId)
+              )} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50">
+                {building ? <FlowLoader size={14} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />}{" "}
+                {mode === "translate" ? "Translate" : mode === "batch" ? `Build ${batchScripts.split("\n").map((s) => s.trim()).filter(Boolean).length} videos` : "Build the video"}
+                {estimate ? ` · ${mode === "batch" ? estimate.total * Math.max(1, batchScripts.split("\n").map((s) => s.trim()).filter(Boolean).length) : estimate.total} cr` : ""}
               </button>
             </div>
           </div>

@@ -91,6 +91,7 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_AVATAR_VIDEO_PREMIUM: 80,  // Avatar IV photoreal (~$4/min), per 30s
   AI_AVATAR_CLONE_PHOTO: 40,    // Photo Avatar — instant, one-time
   AI_AVATAR_CLONE_VIDEO: 300,   // Instant Avatar / digital twin from 2-min video, one-time
+  AI_AVATAR_TRANSLATE: 40,      // Video translation/dubbing, per 30s of source
 
   // --- AI Landing Page ---
   AI_LANDING_PAGE: 20,    // Claude text generation (~$0.10)
@@ -266,6 +267,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_AVATAR_VIDEO_PREMIUM: "AI avatar video (Avatar IV, per 30s)",
   AI_AVATAR_CLONE_PHOTO: "AI avatar clone (photo)",
   AI_AVATAR_CLONE_VIDEO: "AI avatar clone (video digital twin)",
+  AI_AVATAR_TRANSLATE: "AI avatar video translation (per 30s)",
   AI_LANDING_PAGE: "AI landing page generation",
   AI_CHAT_MESSAGE: "FlowAI chat message",
   AI_CHAT_IMAGE: "FlowAI image generation",
