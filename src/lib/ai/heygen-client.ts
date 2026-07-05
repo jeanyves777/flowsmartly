@@ -79,6 +79,10 @@ interface GenerateOptions {
   script: string;
   aspect?: AvatarAspect;
   quality?: AvatarQuality;
+  /** Burn captions into the video. */
+  captions?: boolean;
+  /** Avatar background — a hex colour (e.g. "#0ea5e9"); omit/"original" keeps the default. */
+  background?: string | null;
   /** Persist the upstream video_id the moment the job is created, so a restart
    *  mid-poll can resume instead of losing a render the provider is billing. */
   onJobId?: (videoId: string) => void | Promise<void>;
@@ -118,22 +122,27 @@ class HeyGenClient {
   async generateAvatarVideo(options: GenerateOptions): Promise<HeyGenVideoResult> {
     if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
 
-    const { avatarId, voiceId, script, aspect = "9:16", quality = "standard", onJobId, onStatus, timeoutMs } = options;
+    const { avatarId, voiceId, script, aspect = "9:16", quality = "standard", captions, background, onJobId, onStatus, timeoutMs } = options;
     const dimension = DIMENSIONS[aspect] ?? DIMENSIONS["9:16"];
 
-    const character =
+    const character: Record<string, unknown> =
       quality === "avatar_iv"
         ? { type: "talking_photo", talking_photo_id: avatarId }
         : { type: "avatar", avatar_id: avatarId, avatar_style: "normal" };
 
-    const body = {
-      video_inputs: [
-        {
-          character,
-          voice: { type: "text", input_text: script.slice(0, 3500), voice_id: voiceId },
-        },
-      ],
+    // A hex background colour is applied per video-input; "original"/empty keeps the default.
+    const videoInput: Record<string, unknown> = {
+      character,
+      voice: { type: "text", input_text: script.slice(0, 3500), voice_id: voiceId },
+    };
+    if (background && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(background)) {
+      videoInput.background = { type: "color", value: background };
+    }
+
+    const body: Record<string, unknown> = {
+      video_inputs: [videoInput],
       dimension,
+      caption: !!captions,
     };
 
     const res = await fetch(GENERATE_URL, {

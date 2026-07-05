@@ -6,7 +6,7 @@ import Image from "next/image";
 import {
   UserSquare2, Sparkles, Type as TypeIcon, Mic, X, Coins, Play,
   CheckCircle2, Clock, TriangleAlert, ChevronUp, Wand2, AlertTriangle,
-  Trash2, ChevronRight, Film, Loader2, FolderOpen, Languages, Images, Package, Upload, Plus,
+  Trash2, ChevronRight, Film, Loader2, FolderOpen, Languages, Images, Package, Upload, Plus, Sliders, Music, Captions as CaptionsIcon, Palette,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -69,8 +69,11 @@ interface AvatarVideo {
   createdAt?: string | null;
   quality?: string | null;
   aspect?: string | null;
+  avatarId?: string | null;
   avatarName?: string | null;
+  voiceName?: string | null;
   lengthSeconds?: number | null;
+  captionsOn?: boolean;
   projectId?: string | null;
   projectSeq?: number | null;
   mode?: string | null;
@@ -134,6 +137,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
   const [sceneCount, setSceneCount] = useState(3);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [editSceneId, setEditSceneId] = useState<string | null>(null);
   const [sourceVideoId, setSourceVideoId] = useState("");
   const [targetLanguage, setTargetLanguage] = useState("Spanish");
   const [batchScripts, setBatchScripts] = useState("");
@@ -350,11 +354,6 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
     finally { setGeneratingId(null); }
   }, []);
 
-  // Save an edited draft script.
-  const saveScript = useCallback(async (id: string, next: string) => {
-    setVideos((vs) => vs.map((v) => (v.id === id ? { ...v, script: next, title: next.slice(0, 120) } : v)));
-    try { await fetch(`/api/ai/avatar-studio/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ script: next }) }); } catch { /* ignore */ }
-  }, []);
 
   // Header stats reflect the CURRENT project (what's on the canvas); Library shows all.
   const stats = useMemo(() => {
@@ -441,8 +440,9 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
                     onOpen={() => setDetailId(v.id)}
                     onGenerate={() => generateScene(v.id)}
                     onRemove={() => deleteVideo(v.id)}
-                    onSaveScript={(s) => saveScript(v.id, s)}
+                    onEdit={() => setEditSceneId(v.id)}
                     generating={generatingId === v.id}
+                    avatarPreview={avatars.find((a) => a.id === v.avatarId)?.previewUrl}
                   />
                 </Fragment>
               ))}
@@ -736,56 +736,67 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
         filterTypes={["image"]}
         title="Choose a photo"
       />
+
+      {/* per-scene edit drawer (HeyGen-style, opens on the right) */}
+      {editSceneId && (
+        <SceneEditDrawer
+          sceneId={editSceneId}
+          avatars={avatars}
+          voices={voices}
+          onClose={() => setEditSceneId(null)}
+          onChanged={() => setLocalRefresh((n) => n + 1)}
+          onGenerated={() => { setEditSceneId(null); setLocalRefresh((n) => n + 1); }}
+        />
+      )}
     </div>
   );
 }
 
-function RenderNode({ v, onPlay, onOpen, onGenerate, onRemove, onSaveScript, generating }: {
+function RenderNode({ v, onPlay, onOpen, onGenerate, onRemove, onEdit, generating, avatarPreview }: {
   v: AvatarVideo;
   onPlay: () => void;
   onOpen: () => void;
   onGenerate: () => void;
   onRemove: () => void;
-  onSaveScript: (script: string) => void;
+  onEdit: () => void;
   generating: boolean;
+  avatarPreview?: string;
 }) {
   const b = statusBadge(v.status);
   const BadgeIcon = b.icon;
   const ready = (v.status || "").toUpperCase() === "COMPLETED" && isPlayable(v.videoUrl);
   const pct = Math.max(0, Math.min(100, Math.round(v.progress ?? 0)));
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(v.script || "");
-  useEffect(() => { if (!editing) setDraft(v.script || ""); }, [v.script, editing]);
 
-  // Drafted scene: show the script, let the user edit it, then Generate on demand.
+  // Drafted scene: the SELECTED AVATAR + its settings; the script + full editing live in the drawer.
   if ((v.status || "").toUpperCase() === "DRAFT") {
     return (
-      <div className="flex w-[210px] shrink-0 flex-col rounded-2xl border border-dashed border-border bg-card/60 shadow-sm">
-        <div className="flex items-center gap-1.5 border-b border-border/60 px-2.5 py-2">
-          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", b.cls)}><BadgeIcon className="h-3 w-3" /> {b.label}</span>
-          {v.projectSeq ? <span className="text-[10.5px] font-semibold text-muted-foreground">Scene {v.projectSeq}</span> : null}
-          <button onClick={onRemove} title="Remove scene" className="ms-auto grid h-6 w-6 place-items-center rounded-md text-muted-foreground transition hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /></button>
-        </div>
-        <div className="flex flex-1 flex-col p-2.5">
-          {editing ? (
-            <>
-              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={7} className="w-full flex-1 resize-none rounded-[8px] border border-input bg-background px-2 py-1.5 text-[11.5px] leading-relaxed outline-none focus:border-brand-500/60" />
-              <div className="mt-1.5 flex gap-1.5">
-                <button onClick={() => { setEditing(false); setDraft(v.script || ""); }} className="flex-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold hover:text-foreground">Cancel</button>
-                <button onClick={() => { const s = draft.trim() || v.script || ""; onSaveScript(s); setEditing(false); }} className="flex-1 rounded-[8px] bg-brand-500 px-2 py-1 text-[11px] font-semibold text-white">Save</button>
-              </div>
-            </>
+      <div className="flex w-[210px] shrink-0 flex-col overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 shadow-sm">
+        <button onClick={onEdit} title="Open the scene editor" className="relative block aspect-[9/16] w-full bg-background text-left">
+          {avatarPreview ? (
+            <Image src={avatarPreview} alt="" fill sizes="210px" className="object-cover" unoptimized />
           ) : (
-            <>
-              <p className="line-clamp-[7] flex-1 whitespace-pre-wrap text-[11.5px] leading-relaxed text-foreground">{v.script || "—"}</p>
-              <div className="mt-2 space-y-1.5">
-                <button onClick={onGenerate} disabled={generating} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-60">
-                  {generating ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate
-                </button>
-                <button onClick={() => setEditing(true)} className="inline-flex w-full items-center justify-center gap-1 rounded-[9px] border border-border px-2 py-1.5 text-[11px] font-semibold text-foreground transition hover:border-brand-500/60 hover:text-brand-500"><TypeIcon className="h-3.5 w-3.5" /> Edit script</button>
-              </div>
-            </>
+            <div className="grid h-full w-full place-items-center bg-gradient-to-br from-muted/40 to-muted/10 text-muted-foreground"><UserSquare2 className="h-7 w-7" /></div>
           )}
+          <span className={cn("absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", b.cls)}><BadgeIcon className="h-3 w-3" /> {b.label}</span>
+          {v.projectSeq ? <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">Scene {v.projectSeq}</span> : null}
+          <span className="absolute inset-x-0 bottom-0 block bg-gradient-to-t from-black/85 to-transparent px-2.5 pb-2 pt-8">
+            <span className="block truncate text-[12px] font-semibold text-white">{v.avatarName || "Avatar"}</span>
+            <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-white/80"><Sliders className="h-3 w-3" /> Tap to edit scene</span>
+          </span>
+        </button>
+        {/* selected settings summary (no script on the canvas) */}
+        <div className="flex flex-wrap items-center gap-1 px-2.5 py-2 text-[10px] text-muted-foreground">
+          <span className="rounded bg-muted px-1.5 py-0.5 font-semibold text-foreground">{v.quality === "avatar_iv" ? "Avatar IV" : "Standard"}</span>
+          <span className="inline-flex items-center gap-1"><Mic className="h-3 w-3" />{(v.voiceName || "Voice").split("·")[0].trim().slice(0, 12)}</span>
+          <span>{v.aspect}</span>
+          <span>{v.lengthSeconds}s</span>
+          {v.captionsOn && <CaptionsIcon className="h-3 w-3 text-brand-500" />}
+        </div>
+        <div className="flex items-center gap-1.5 p-2.5 pt-0">
+          <button onClick={onGenerate} disabled={generating} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-60">
+            {generating ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate
+          </button>
+          <button onClick={onRemove} title="Remove scene" className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground transition hover:border-rose-500/50 hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /></button>
         </div>
       </div>
     );
@@ -1087,3 +1098,223 @@ function AvatarDetailDrawer({ videoId, onClose, onDeleted, onPlay }: {
 }
 
 function Dot() { return <span className="inline-block h-1 w-1 rounded-full bg-muted-foreground/40" />; }
+
+// =============================================================
+// Scene edit drawer — the HeyGen-style per-scene editor (opens on the right)
+// =============================================================
+
+const BG_SWATCHES: { v: string; label: string; color?: string }[] = [
+  { v: "original", label: "Original" },
+  { v: "#0ea5e9", label: "Sky", color: "#0ea5e9" },
+  { v: "#8b5cf6", label: "Violet", color: "#8b5cf6" },
+  { v: "#10b981", label: "Emerald", color: "#10b981" },
+  { v: "#f59e0b", label: "Amber", color: "#f59e0b" },
+  { v: "#111827", label: "Ink", color: "#111827" },
+  { v: "#ffffff", label: "White", color: "#ffffff" },
+];
+const MUSIC_TRACKS = ["None", "Upbeat", "Calm", "Corporate", "Cinematic"];
+
+interface DrawerState {
+  script: string; avatarId: string; voiceId: string; quality: Quality; aspect: Aspect; lengthSeconds: number;
+  captionsOn: boolean; background: string; layout: string; music: string | null; templateId: string | null;
+}
+
+function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGenerated }: {
+  sceneId: string;
+  avatars: Avatar[];
+  voices: Voice[];
+  onClose: () => void;
+  onChanged: () => void;
+  onGenerated: () => void;
+}) {
+  const [st, setSt] = useState<DrawerState | null>(null);
+  const [seq, setSeq] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<"save" | "generate" | null>(null);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const j = await fetch(`/api/ai/avatar-studio/${sceneId}`).then((r) => r.json());
+        if (alive && j?.success && j.data?.state) {
+          const s = j.data.state;
+          setSeq(s.projectSeq ?? null);
+          setSt({
+            script: s.script || "",
+            avatarId: s.avatarId || avatars[0]?.id || "",
+            voiceId: s.voiceId || voices[0]?.id || "",
+            quality: s.quality === "avatar_iv" ? "avatar_iv" : "standard",
+            aspect: (["9:16", "1:1", "16:9"].includes(s.aspect) ? s.aspect : "9:16") as Aspect,
+            lengthSeconds: [15, 30, 60].includes(s.lengthSeconds) ? s.lengthSeconds : 30,
+            captionsOn: !!s.captionsOn,
+            background: s.background || "original",
+            layout: s.layout || "original",
+            music: s.music ?? null,
+            templateId: s.templateId ?? null,
+          });
+        }
+      } catch { /* ignore */ }
+      finally { if (alive) setLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, [sceneId, avatars, voices]);
+
+  const set = (patch: Partial<DrawerState>) => setSt((p) => (p ? { ...p, ...patch } : p));
+  const buildPayload = () => {
+    if (!st) return {};
+    const av = avatars.find((a) => a.id === st.avatarId);
+    const vo = voices.find((v) => v.id === st.voiceId);
+    return { ...st, music: st.music === "None" ? null : st.music, avatarName: av?.name || "Avatar", voiceName: vo?.name || "Voice" };
+  };
+  const patch = async () => fetch(`/api/ai/avatar-studio/${sceneId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPayload()) }).then((r) => r.json());
+
+  const save = async () => {
+    setBusy("save"); setErr("");
+    try { const j = await patch(); if (!j?.success) setErr(j?.error?.message || "Save failed."); else onChanged(); }
+    catch { setErr("Save failed."); } finally { setBusy(null); }
+  };
+  const generate = async () => {
+    setBusy("generate"); setErr("");
+    try {
+      await patch();
+      const j = await fetch(`/api/ai/avatar-studio/${sceneId}/generate`, { method: "POST" }).then((r) => r.json());
+      if (!j?.success) { setErr(j?.error?.message || "Generate failed."); return; }
+      onGenerated();
+    } catch { setErr("Generate failed."); } finally { setBusy(null); }
+  };
+
+  const selAvatar = st && avatars.find((a) => a.id === st.avatarId);
+
+  return (
+    <div className="absolute inset-0 z-30 flex justify-end bg-black/45" onClick={onClose}>
+      <div className="flex h-full w-full max-w-[380px] flex-col border-l border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Sliders className="h-4 w-4" /></span>
+          <div className="min-w-0">
+            <p className="text-[13px] font-semibold">Edit scene{seq ? ` ${seq}` : ""}</p>
+            <p className="text-[11px] text-muted-foreground">Avatar, voice, look &amp; captions</p>
+          </div>
+          <button onClick={onClose} className="ms-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+          {loading || !st ? (
+            <div className="grid place-items-center py-16"><FlowLoader size={30} withMark label="Loading scene…" /></div>
+          ) : (
+            <>
+              {/* script */}
+              <label className="mb-1 block text-[11.5px] font-semibold">Script</label>
+              <textarea value={st.script} onChange={(e) => set({ script: e.target.value })} rows={4} className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
+
+              {/* avatar */}
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Avatar</label>
+              <div className="mb-1 flex items-center gap-2 rounded-[10px] border border-border bg-muted/30 p-2">
+                {selAvatar?.previewUrl ? (
+                  <Image src={selAvatar.previewUrl} alt="" width={40} height={52} className="rounded-md object-cover" unoptimized />
+                ) : (
+                  <span className="grid h-12 w-10 place-items-center rounded-md bg-muted text-muted-foreground"><UserSquare2 className="h-5 w-5" /></span>
+                )}
+                <span className="text-[12px] font-semibold">{selAvatar?.name || "Avatar"}</span>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {avatars.slice(0, 24).map((a) => (
+                  <button key={a.id} onClick={() => set({ avatarId: a.id })} className={cn("relative w-14 shrink-0 overflow-hidden rounded-[10px] border transition", a.id === st.avatarId ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
+                    <div className="relative aspect-[3/4] w-full bg-muted">
+                      {a.previewUrl ? <Image src={a.previewUrl} alt="" fill sizes="56px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {/* voice */}
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Voice</label>
+              <select value={st.voiceId} onChange={(e) => set({ voiceId: e.target.value })} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
+                {voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
+              </select>
+
+              {/* motion engine */}
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Motion engine</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {QUALITIES.map((q) => (
+                  <button key={q.v} onClick={() => set({ quality: q.v })} className={cn("rounded-[10px] border px-2 py-1.5 text-left transition", st.quality === q.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
+                    <span className="block text-[12px] font-bold leading-tight">{q.label}</span>
+                    <span className="block text-[10px] text-muted-foreground">{q.hint}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* background */}
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Avatar background</label>
+              <div className="flex flex-wrap gap-1.5">
+                {BG_SWATCHES.map((s) => (
+                  <button key={s.v} onClick={() => set({ background: s.v })} title={s.label} className={cn("h-8 w-8 rounded-[8px] border transition", st.background === s.v ? "border-brand-500 ring-1 ring-brand-500" : "border-border")} style={s.color ? { background: s.color } : undefined}>
+                    {!s.color && <Palette className="mx-auto h-4 w-4 text-muted-foreground" />}
+                  </button>
+                ))}
+              </div>
+
+              {/* layout */}
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Layout</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {["original", "circle"].map((l) => (
+                  <button key={l} onClick={() => set({ layout: l })} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-semibold capitalize transition", st.layout === l ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}>{l}</button>
+                ))}
+              </div>
+
+              {/* captions */}
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Captions</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button onClick={() => set({ captionsOn: false })} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-semibold transition", !st.captionsOn ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}>Off</button>
+                <button onClick={() => set({ captionsOn: true })} className={cn("inline-flex items-center justify-center gap-1 rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-semibold transition", st.captionsOn ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}><CaptionsIcon className="h-3.5 w-3.5" /> On</button>
+              </div>
+
+              {/* music */}
+              <label className="mb-1 mt-3 flex items-center gap-1 text-[11.5px] font-semibold"><Music className="h-3.5 w-3.5" /> Music</label>
+              <div className="flex flex-wrap gap-1.5">
+                {MUSIC_TRACKS.map((m) => {
+                  const on = (st.music || "None") === m;
+                  return <button key={m} onClick={() => set({ music: m })} className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition", on ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{m}</button>;
+                })}
+              </div>
+
+              {/* template */}
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Template</label>
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={() => set({ templateId: null })} className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition", !st.templateId ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>None</button>
+                {TEMPLATES.map((t) => (
+                  <button key={t.id} onClick={() => set({ templateId: t.id })} className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition", st.templateId === t.id ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{t.name}</button>
+                ))}
+              </div>
+
+              {/* format + length */}
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Format &amp; length</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {ASPECTS.map((a) => (
+                  <button key={a.v} onClick={() => set({ aspect: a.v })} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-bold transition", st.aspect === a.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>{a.label}</button>
+                ))}
+              </div>
+              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                {LENGTHS.map((l) => (
+                  <button key={l.v} onClick={() => set({ lengthSeconds: l.v })} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-bold transition", st.lengthSeconds === l.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>{l.v}s</button>
+                ))}
+              </div>
+
+              {err && <p className="mt-3 text-[11.5px] text-rose-500">{err}</p>}
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 border-t border-border px-4 py-3">
+          <button onClick={save} disabled={!!busy || loading} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
+            {busy === "save" ? <FlowLoader size={14} /> : <CheckCircle2 className="h-3.5 w-3.5" />} Save
+          </button>
+          <button onClick={generate} disabled={!!busy || loading} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
+            {busy === "generate" ? <FlowLoader size={14} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate scene
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

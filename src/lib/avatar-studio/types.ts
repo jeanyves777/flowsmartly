@@ -25,6 +25,12 @@ export interface AvatarVideoState {
   /** 1-based scene order within a project (for the drafted multi-scene plan). */
   projectSeq?: number | null;
   templateId?: string | null;
+  /** Per-scene editor settings (HeyGen-style). */
+  captionsOn?: boolean;
+  captionStyle?: string | null;   // "standard" | "bold" | …
+  background?: string | null;     // "original" | a hex colour like "#0ea5e9"
+  layout?: string | null;         // "original" | "circle"
+  music?: string | null;          // track id/name, or null for none
   /** Translate mode: source video URL + target language. */
   sourceVideoUrl?: string | null;
   targetLanguage?: string | null;

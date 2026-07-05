@@ -113,8 +113,11 @@ export async function listAvatarVideos(userId: string, limit = 24) {
       completedAt: row.completedAt,
       quality: state.quality,
       aspect: state.aspect,
+      avatarId: state.avatarId,
       avatarName: state.avatarName,
+      voiceName: state.voiceName,
       lengthSeconds: state.lengthSeconds,
+      captionsOn: !!state.captionsOn,
       projectId: state.projectId ?? null,
       projectSeq: state.projectSeq ?? null,
       mode: state.mode,
@@ -224,6 +227,8 @@ export async function renderAvatarVideo(id: string, userId: string): Promise<voi
             aspect: state.aspect,
             // Photo → video renders the uploaded photo as an Avatar IV talking photo.
             quality: state.mode === "photo" ? "avatar_iv" : state.quality,
+            captions: state.captionsOn,
+            background: state.background,
             onJobId,
             onStatus,
           });
@@ -427,6 +432,23 @@ export async function updateDraftScript(id: string, userId: string, script: stri
   if (!found || (found.row.status !== "DRAFT" && found.row.status !== "FAILED")) return false;
   const merged = { ...found.state, script: script.trim().slice(0, 3500) };
   await prisma.cartoonVideo.update({ where: { id }, data: { metadata: writeAvatarState(merged), storyPrompt: (merged.brief || script).slice(0, 120) } });
+  return true;
+}
+
+/** Apply the edit-modal settings to a draft scene (free — the render is charged on Generate). */
+export async function updateDraftScene(id: string, userId: string, patch: Partial<AvatarVideoState>): Promise<boolean> {
+  const found = await getAvatarVideo(id, userId);
+  if (!found || (found.row.status !== "DRAFT" && found.row.status !== "FAILED")) return false;
+  const merged: AvatarVideoState = { ...found.state, ...patch };
+  await prisma.cartoonVideo.update({
+    where: { id },
+    data: {
+      metadata: writeAvatarState(merged),
+      storyPrompt: (merged.brief || merged.script || found.row.storyPrompt).slice(0, 120),
+      style: merged.quality,
+      duration: merged.lengthSeconds,
+    },
+  });
   return true;
 }
 
