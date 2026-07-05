@@ -1086,6 +1086,7 @@ function PresenceSetup({ onActivated }: { onActivated: (p: Profile) => void }) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [setupOpen, setSetupOpen] = useState(true); // brief bottom-sheet auto-opens (Campaign-Studio pattern)
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   // Prefill from the Brand Kit (best-effort) so the user rarely types from scratch.
@@ -1158,64 +1159,78 @@ function PresenceSetup({ onActivated }: { onActivated: (p: Profile) => void }) {
   };
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-3xl space-y-4">
-        {/* hero */}
-        <div className="text-center">
-          <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><MapPin className="h-7 w-7" /></span>
-          <h2 className="mt-3 text-[22px] font-extrabold">Get found everywhere</h2>
-          <p className="mx-auto mt-1.5 max-w-lg text-[13.5px] leading-relaxed text-muted-foreground">
-            Build your local presence — listed across the top directories, every review in one inbox, and a live local-SEO health score. Fill in your business once and activate.
-          </p>
-        </div>
-
-        {/* benefits */}
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-          {SETUP_BENEFITS.map((b) => (
-            <div key={b.title} className="flex items-start gap-2.5 rounded-xl border border-border bg-card p-3">
-              <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><b.icon className="h-4 w-4" /></span>
-              <div className="min-w-0">
-                <p className="text-[12.5px] font-semibold">{b.title}</p>
-                <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{b.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* transparent charges */}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-brand-500/30 bg-brand-500/5 px-3.5 py-2.5">
-          <Coins className="h-4 w-4 shrink-0 text-brand-500" />
-          <span className="text-[12px] font-semibold">{UNLOCK_COST} credits</span>
-          <span className="text-[12px] text-muted-foreground">one-time to unlock & map your presence.</span>
-          <span className="text-[11.5px] text-muted-foreground">AI replies, descriptions & insights use a few credits each as you go; ~250 credits/mo keeps monitoring active.</span>
-        </div>
-
-        {/* business profile form */}
-        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-3 flex items-center gap-2"><Building2 className="h-4 w-4 text-brand-500" /><span className="text-[13px] font-bold">Your business</span><span className="text-[11px] text-muted-foreground">Prefilled from your Brand Kit — edit anything.</span></div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <Field label="Business name *"><input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} className={FIELD} placeholder="Acme Plumbing" /></Field>
-            <Field label="Industry"><input value={form.industry} onChange={(e) => set("industry", e.target.value)} className={FIELD} placeholder="Plumbing" /></Field>
-            <Field label="Phone"><input value={form.phone} onChange={(e) => set("phone", e.target.value)} className={FIELD} placeholder="(555) 123-4567" inputMode="tel" /></Field>
-            <Field label="Email"><input value={form.email} onChange={(e) => set("email", e.target.value)} className={FIELD} placeholder="hello@acme.com" inputMode="email" /></Field>
-            <Field label="Website"><input value={form.website} onChange={(e) => set("website", e.target.value)} className={FIELD} placeholder="https://acme.com" inputMode="url" /></Field>
-            <Field label="Street address"><input value={form.address} onChange={(e) => set("address", e.target.value)} className={FIELD} placeholder="123 Main St" /></Field>
-            <Field label="City"><input value={form.city} onChange={(e) => set("city", e.target.value)} className={FIELD} placeholder="Austin" /></Field>
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="State"><input value={form.state} onChange={(e) => set("state", e.target.value)} className={FIELD} placeholder="TX" /></Field>
-              <Field label="ZIP"><input value={form.zip} onChange={(e) => set("zip", e.target.value)} className={FIELD} placeholder="78701" inputMode="numeric" /></Field>
-            </div>
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* full-width setup & discovery playground — the pitch + benefits fill the content area */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-8 lg:px-12">
+        <div className="w-full">
+          <div className="text-center">
+            <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><MapPin className="h-7 w-7" /></span>
+            <h2 className="mt-3 text-[24px] font-extrabold">Get found everywhere</h2>
+            <p className="mx-auto mt-1.5 max-w-xl text-[13.5px] leading-relaxed text-muted-foreground">Build your local presence — listed across the top directories, every review in one inbox, and a live local-SEO health score. Fill in your business once and activate.</p>
+            <button onClick={() => setSetupOpen(true)} className="mt-5 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Set up my presence</button>
           </div>
-          <p className="mb-1.5 mt-3 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">What you do</p>
-          <textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={2} className={cn(FIELD, "resize-y")} placeholder="A short description of what your business offers…" />
 
-          {error && <p className="mt-2.5 text-[12px] text-rose-500">{error}</p>}
-          <button onClick={activate} disabled={submitting} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60 sm:w-auto">
-            {submitting ? <FlowLoader size={15} tone="white" /> : <Sparkles className="h-4 w-4" />} {submitting ? "Activating…" : `Activate my presence · ${UNLOCK_COST} credits`}
-          </button>
-          <p className="mt-2 text-[11px] text-muted-foreground">After activating, run a directory scan to detect where you&apos;re already listed.</p>
+          {/* benefits — full-width grid */}
+          <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {SETUP_BENEFITS.map((b) => (
+              <div key={b.title} className="flex items-start gap-2.5 rounded-xl border border-border bg-card p-4">
+                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><b.icon className="h-4 w-4" /></span>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold">{b.title}</p>
+                  <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{b.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* transparent charges */}
+          <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-brand-500/30 bg-brand-500/5 px-4 py-3">
+            <Coins className="h-4 w-4 shrink-0 text-brand-500" />
+            <span className="text-[12px] font-semibold">{UNLOCK_COST} credits</span>
+            <span className="text-[12px] text-muted-foreground">one-time to unlock & map your presence.</span>
+            <span className="text-[11.5px] text-muted-foreground">AI replies, descriptions & insights use a few credits each as you go; ~250 credits/mo keeps monitoring active.</span>
+          </div>
         </div>
       </div>
+
+      {/* BRIEF — bottom-sheet modal: your business → activate (Campaign-Studio pattern) */}
+      {setupOpen && (
+        <div className="absolute inset-0 z-40">
+          <button aria-label="Close" onClick={() => setSetupOpen(false)} className="absolute inset-0 bg-black/45" />
+          <div className="absolute inset-x-3 bottom-3 flex max-h-[90%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+            <div className="relative border-b border-border px-5 pb-3 pt-4">
+              <span className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full bg-border" />
+              <h4 className="flex items-center gap-2 text-[15px] font-bold"><Building2 className="h-4 w-4 text-brand-500" /> Your business</h4>
+              <p className="mt-0.5 text-[11.5px] text-muted-foreground">Prefilled from your Brand Kit — edit anything, then activate to map your presence across 150+ directories.</p>
+              <button onClick={() => setSetupOpen(false)} className="absolute end-4 top-4 grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-5">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Field label="Business name *"><input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} className={FIELD} placeholder="Acme Plumbing" /></Field>
+                <Field label="Industry"><input value={form.industry} onChange={(e) => set("industry", e.target.value)} className={FIELD} placeholder="Plumbing" /></Field>
+                <Field label="Phone"><input value={form.phone} onChange={(e) => set("phone", e.target.value)} className={FIELD} placeholder="(555) 123-4567" inputMode="tel" /></Field>
+                <Field label="Email"><input value={form.email} onChange={(e) => set("email", e.target.value)} className={FIELD} placeholder="hello@acme.com" inputMode="email" /></Field>
+                <Field label="Website"><input value={form.website} onChange={(e) => set("website", e.target.value)} className={FIELD} placeholder="https://acme.com" inputMode="url" /></Field>
+                <Field label="Street address"><input value={form.address} onChange={(e) => set("address", e.target.value)} className={FIELD} placeholder="123 Main St" /></Field>
+                <Field label="City"><input value={form.city} onChange={(e) => set("city", e.target.value)} className={FIELD} placeholder="Austin" /></Field>
+                <div className="grid grid-cols-2 gap-2">
+                  <Field label="State"><input value={form.state} onChange={(e) => set("state", e.target.value)} className={FIELD} placeholder="TX" /></Field>
+                  <Field label="ZIP"><input value={form.zip} onChange={(e) => set("zip", e.target.value)} className={FIELD} placeholder="78701" inputMode="numeric" /></Field>
+                </div>
+              </div>
+              <p className="mb-1.5 mt-3 text-[10.5px] font-semibold uppercase tracking-wide text-muted-foreground">What you do</p>
+              <textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={2} className={cn(FIELD, "resize-y")} placeholder="A short description of what your business offers…" />
+              {error && <p className="mt-2.5 text-[12px] text-rose-500">{error}</p>}
+            </div>
+            <div className="border-t border-border p-4">
+              <button onClick={activate} disabled={submitting} className="inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-3 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:opacity-60">
+                {submitting ? <FlowLoader size={15} tone="white" /> : <Sparkles className="h-4 w-4" />} {submitting ? "Activating…" : `Activate my presence · ${UNLOCK_COST} credits`}
+              </button>
+              <p className="mt-2 text-center text-[11px] text-muted-foreground">After activating, run a directory scan to discover where you&apos;re already listed.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

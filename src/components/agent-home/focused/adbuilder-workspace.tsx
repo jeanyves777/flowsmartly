@@ -118,7 +118,7 @@ const FIELD = "w-full rounded-[9px] border border-input bg-background px-2.5 py-
 
 type CanvasBridge = { getContext: () => string; applyPatch: (patch: Record<string, unknown>) => void };
 
-export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { refreshKey?: number; onAsk?: (prompt: string) => void; agentBusy?: boolean; canvasRef?: { current: CanvasBridge | null } }) {
+export function FocusedAdBuilder({ refreshKey, onAsk, onOpenView, agentBusy, canvasRef }: { refreshKey?: number; onAsk?: (prompt: string) => void; onOpenView?: (key: string) => void; agentBusy?: boolean; canvasRef?: { current: CanvasBridge | null } }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   // Portal the header actions into the FocusedView shell header (#fv-header-slot)
   // so there's ONE top bar instead of a second full-width toolbar under it.
@@ -498,7 +498,7 @@ export function FocusedAdBuilder({ refreshKey, onAsk, agentBusy, canvasRef }: { 
                 hasStore === false ? (
                   <div className="rounded-[11px] border border-dashed border-border bg-muted/40 px-3 py-4 text-center">
                     <p className="text-[12px] font-semibold">No store yet</p>
-                    <button onClick={() => onAsk?.("Help me build my online store so I can advertise my products.")} disabled={!onAsk} className="mt-2 inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build a store</button>
+                    <button onClick={() => onOpenView?.("sell")} disabled={!onOpenView} className="mt-2 inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build a store</button>
                   </div>
                 ) : product ? (
                   <div className="flex items-center gap-2.5 rounded-[11px] border border-border bg-muted px-2.5 py-2.5">

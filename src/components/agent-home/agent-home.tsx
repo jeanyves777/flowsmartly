@@ -1133,7 +1133,7 @@ export function AgentHome() {
                 ) : focused === "delivery" ? (
                   <FocusedDelivery onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "adbuilder" ? (
-                  <FocusedAdBuilder onAsk={sendAction} refreshKey={actionCount} agentBusy={sending} canvasRef={adOpsRef} />
+                  <FocusedAdBuilder onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} agentBusy={sending} canvasRef={adOpsRef} />
                 ) : focused === "storyad" ? (
                   <FocusedVideo onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "calendar" ? (
