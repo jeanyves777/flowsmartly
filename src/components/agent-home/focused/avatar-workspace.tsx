@@ -499,7 +499,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
             <div className="max-w-md rounded-2xl border border-dashed border-border bg-card/70 p-5">
               <span className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><UserSquare2 className="h-5 w-5" /></span>
               <p className="mt-2.5 text-[13.5px] font-semibold">No avatar videos yet</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">Open the brief, write what your avatar should say, pick a voice, then build — HeyGen renders it and it lands here.</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">Open the brief, write what your avatar should say, pick a voice, then build — your video renders and lands here.</p>
               <button onClick={openSheet} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
             </div>
           )}
@@ -598,7 +598,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
                 <select value={targetLanguage} onChange={(e) => setTargetLanguage(e.target.value)} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
                   {["Spanish", "French", "German", "Portuguese", "Italian", "Hindi", "Arabic", "Japanese", "Korean", "Chinese", "English"].map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
-                <p className="mt-1 text-[10.5px] text-muted-foreground">HeyGen dubs the video into {targetLanguage}, keeping the speaker&apos;s look.</p>
+                <p className="mt-1 text-[10.5px] text-muted-foreground">We dub the video into {targetLanguage}, keeping the speaker&apos;s look and voice.</p>
               </>
             )}
 
@@ -707,7 +707,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
                     <span className="ms-auto inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-500"><AlertTriangle className="h-3 w-3" /> Low credits</span>
                   )}
                 </div>
-                <p className="mt-1.5 text-[10.5px] text-muted-foreground">HeyGen render · {selectedVoice?.name || "your voice"} · captions · branded to your Brand Kit.</p>
+                <p className="mt-1.5 text-[10.5px] text-muted-foreground">{selectedVoice?.name || "Your voice"} · captions · branded to your Brand Kit.</p>
               </div>
             )}
             {buildErr && <p className="mt-1.5 text-[11.5px] text-rose-500">{buildErr}</p>}
@@ -1337,7 +1337,7 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
                   ) : (
                     <span className="grid h-10 w-16 place-items-center rounded bg-muted text-[9px] text-muted-foreground">Original</span>
                   )}
-                  <span className="truncate text-[11px] text-muted-foreground">{isUrl(st.background) ? "Image background" : isHex(st.background) ? st.background : "HeyGen default"}</span>
+                  <span className="truncate text-[11px] text-muted-foreground">{isUrl(st.background) ? "Image background" : isHex(st.background) ? st.background : "Original scene"}</span>
                   {st.background !== "original" && <button onClick={() => set({ background: "original" })} className="ms-auto text-[11px] font-semibold text-muted-foreground hover:text-rose-500">Reset</button>}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -1357,19 +1357,19 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
                 <button onClick={() => set({ captionsOn: true })} className={cn("inline-flex items-center justify-center gap-1 rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-semibold transition", st.captionsOn ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}><CaptionsIcon className="h-3.5 w-3.5" /> On</button>
               </div>
 
-              {/* template — real HeyGen templates (background + music + caption style baked in) */}
-              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">HeyGen template <span className="font-normal text-muted-foreground">— carries its own background, music &amp; captions</span></label>
-              {templates.length === 0 ? (
-                <p className="rounded-[10px] border border-dashed border-border bg-muted/20 px-2.5 py-2 text-[10.5px] text-muted-foreground">No HeyGen templates on your account yet. Build one in HeyGen (background + music + caption style) and it appears here to reuse.</p>
-              ) : (
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  <button onClick={() => set({ templateId: null })} className={cn("grid h-16 w-12 shrink-0 place-items-center rounded-[8px] border text-[10px] font-semibold transition", !st.templateId ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground")}>None</button>
-                  {templates.map((t) => (
-                    <button key={t.id} onClick={() => set({ templateId: t.id })} title={t.name} className={cn("relative h-16 w-12 shrink-0 overflow-hidden rounded-[8px] border transition", st.templateId === t.id ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
-                      {t.thumbnailUrl ? <Image src={t.thumbnailUrl} alt="" fill sizes="48px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center bg-muted p-1 text-center text-[8px] text-muted-foreground">{t.name}</span>}
-                    </button>
-                  ))}
-                </div>
+              {/* template — background + music + caption style in one; only render when we actually have some */}
+              {templates.length > 0 && (
+                <>
+                  <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Template <span className="font-normal text-muted-foreground">— background, music &amp; captions in one</span></label>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    <button onClick={() => set({ templateId: null })} className={cn("grid h-16 w-12 shrink-0 place-items-center rounded-[8px] border text-[10px] font-semibold transition", !st.templateId ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground")}>None</button>
+                    {templates.map((t) => (
+                      <button key={t.id} onClick={() => set({ templateId: t.id })} title={t.name} className={cn("relative h-16 w-12 shrink-0 overflow-hidden rounded-[8px] border transition", st.templateId === t.id ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
+                        {t.thumbnailUrl ? <Image src={t.thumbnailUrl} alt="" fill sizes="48px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center bg-muted p-1 text-center text-[8px] text-muted-foreground">{t.name}</span>}
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
 
               {/* format + length */}

@@ -152,7 +152,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   logo: { label: "Logo studio", subtitle: "Your generated logos", icon: Palette },
   video: { label: "Video studio", subtitle: "Brief → estimate → build, right on the canvas", icon: Clapperboard },
   voice: { label: "Voice studio", subtitle: "Voiceovers, narration & voice cloning", icon: Mic },
-  avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos · HeyGen", icon: UserSquare2 },
+  avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
   plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
@@ -222,7 +222,7 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
     case "voice":
       return `The user is on the **Voice Studio** (AI voiceovers, narration & voice cloning). Making a voiceover is a generative task — help them write a punchy script for their goal, then they set the voice (gender/accent/style/speed) and click Generate; the audio lands in the studio and their Media library. They can also clone a voice from a sample.`;
     case "avatar":
-      return `The user is on the **Avatar Studio** (HeyGen). INTERVIEW first (goal, tone, length), then use create_avatar_video — it renders into the studio canvas live and saves to the Library. It has modes: 'talking' (write a script → talking-avatar video; recommend Standard for social/outreach or Avatar IV for photoreal hero/ad), 'translate' (dub one of their FINISHED videos into another language — set targetLanguage), and 'batch' (many videos at once — pass a list of scripts). Costs are in credits (priced from the DB/admin — never quote dollars). For 'photo → video' the user uploads a photo in the studio UI. To make a reusable avatar or cloned voice, use clone_avatar (consent-gated).`;
+      return `The user is on the **Avatar Studio**. Never name or hint at any third-party provider to the user — this is FlowSmartly's own studio. INTERVIEW first (goal, tone, length), then use create_avatar_video — it renders into the studio canvas live and saves to the Library. It has modes: 'talking' (write a script → talking-avatar video; recommend Standard for social/outreach or Avatar IV for photoreal hero/ad), 'translate' (dub one of their FINISHED videos into another language — set targetLanguage), and 'batch' (many videos at once — pass a list of scripts). Costs are in credits (priced from the DB/admin — never quote dollars). For 'photo → video' the user uploads a photo in the studio UI. To make a reusable avatar or cloned voice, use clone_avatar (consent-gated).`;
     case "print":
       return `The user is in the **Print Studio** designing something to PRINT (flyer, poster, business card, table tent, bi-fold/tri-fold brochure, or postcard). If no print canvas is open yet, FIRST call start_print_project with the right format to open the editable print canvas, then design it with update_canvas (copy, accent, print size) and add_design_page for multi-page/panel pieces (card front/back, brochure panels) — exactly like the design canvas, but keep content inside the safe area and mind the fold lines. Pick a fitting print size for the format (the canvas shows bleed/safe/fold guides). Confirm in one short sentence when it's ready.`;
     case "delivery":
