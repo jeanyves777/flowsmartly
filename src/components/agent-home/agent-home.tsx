@@ -835,6 +835,7 @@ export function AgentHome() {
         </button>
         <button onClick={() => guardNav(handleNewChat)} title="New chat" aria-label="New chat" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground md:hidden"><SquarePen className="h-[18px] w-[18px]" /></button>
         <button onClick={() => setHistoryOpen(true)} title="History" aria-label="History" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground md:hidden"><History className="h-[18px] w-[18px]" /></button>
+        <div className="md:hidden"><ThemeMenu /></div>
         <div className="hidden items-center gap-1 md:flex">
           <button onClick={() => guardNav(handleNewChat)} title="New chat" aria-label="New chat" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground"><SquarePen className="h-[18px] w-[18px]" /></button>
           <button onClick={() => setHistoryOpen(true)} title="History" aria-label="History" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground"><History className="h-[18px] w-[18px]" /></button>
