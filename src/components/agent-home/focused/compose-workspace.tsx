@@ -509,11 +509,11 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
                   value={media}
                   onChange={(urls) => { setMedia(urls); setDone(null); }}
                   multiple
-                  maxFiles={4}
+                  maxFiles={10}
                   accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,image/svg+xml,video/mp4,video/webm,video/quicktime"
                   filterTypes={["image", "video"]}
-                  variant="gallery"
-                  placeholder="Upload or pick from your library"
+                  variant="small"
+                  placeholder="Add"
                   libraryTitle="Your media library"
                 />
                 {mediaState.hasImage && mediaState.hasVideo && (
@@ -616,6 +616,7 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
                   const on = selected.includes(t.id);
                   const why = incompatibleById[t.id];
                   const disabled = !!why;
+                  const handle = t.username ? `@${t.username.replace(/^@+/, "")}` : null;
                   return (
                     <button
                       key={t.id}
@@ -623,29 +624,35 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
                       onClick={() => toggle(t.id)}
                       aria-pressed={on}
                       disabled={disabled}
-                      title={why ? `Can't post here — ${why}` : undefined}
+                      title={why ? `Can't post here — ${why}` : handle ? `${t.label} · ${handle}` : t.label}
                       className={cn(
-                        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition",
+                        "group inline-flex max-w-[240px] items-center gap-2 rounded-xl border py-1.5 pe-3 ps-1.5 text-start transition",
                         disabled
-                          ? "cursor-not-allowed border-border bg-muted/20 text-muted-foreground opacity-60"
+                          ? "cursor-not-allowed border-border bg-muted/20 opacity-60"
                           : on
-                            ? "border-brand-500/60 bg-brand-500/10 text-brand-500"
-                            : "border-border bg-muted/40 text-foreground hover:border-brand-500/40",
+                            ? "border-brand-500/60 bg-brand-500/10 ring-1 ring-inset ring-brand-500/20"
+                            : "border-border bg-muted/30 hover:border-brand-500/40 hover:bg-muted/50",
                       )}
                     >
-                      {disabled ? (
-                        <Ban className="h-3.5 w-3.5" />
-                      ) : t.feed ? (
-                        <Rss className="h-3.5 w-3.5" />
-                      ) : t.avatarUrl ? (
-                        <Image src={t.avatarUrl} alt="" width={18} height={18} className="h-[18px] w-[18px] rounded-full object-cover" unoptimized />
-                      ) : (
-                        <Link2 className="h-3.5 w-3.5" />
-                      )}
-                      <span className="capitalize">{t.label}</span>
-                      {t.username && <span className={cn("font-normal", on ? "text-brand-500/80" : "text-muted-foreground")}>@{t.username}</span>}
-                      {t.needsReconnect && !disabled && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
-                      {on && !disabled && <CheckCircle2 className="h-3.5 w-3.5" />}
+                      <span className={cn("grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-lg", on ? "bg-brand-500/15 text-brand-500" : "bg-background text-muted-foreground")}>
+                        {disabled ? (
+                          <Ban className="h-3.5 w-3.5" />
+                        ) : t.feed ? (
+                          <Rss className="h-3.5 w-3.5" />
+                        ) : t.avatarUrl ? (
+                          <Image src={t.avatarUrl} alt="" width={28} height={28} className="h-7 w-7 object-cover" unoptimized />
+                        ) : (
+                          <Link2 className="h-3.5 w-3.5" />
+                        )}
+                      </span>
+                      <span className="min-w-0">
+                        <span className={cn("flex items-center gap-1 text-[12.5px] font-semibold leading-tight", on ? "text-brand-500" : "text-foreground")}>
+                          <span className="truncate">{t.label}</span>
+                          {t.needsReconnect && !disabled && <AlertTriangle className="h-3 w-3 shrink-0 text-amber-500" />}
+                        </span>
+                        {handle && <span className="mt-0.5 block truncate text-[10.5px] leading-tight text-muted-foreground">{handle}</span>}
+                      </span>
+                      {on && !disabled && <CheckCircle2 className="ms-0.5 h-4 w-4 shrink-0 text-brand-500" />}
                     </button>
                   );
                 })}
@@ -708,21 +715,31 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
             {/* When */}
             <div className="lg:border-s lg:border-border lg:ps-5">
               <span className="mb-2 flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground"><Clock className="h-3.5 w-3.5" /> When</span>
-              <div className="flex flex-col gap-1 rounded-[10px] border border-border p-0.5">
+              <div className="flex flex-col gap-1 rounded-xl border border-border p-1">
                 {([
-                  { id: "now", label: "Post now" },
-                  { id: "schedule", label: "Schedule" },
-                  { id: "draft", label: "Save as draft" },
-                ] as const).map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => { setMode(m.id); setDone(null); if (m.id === "schedule" && !scheduleAt) setScheduleAt(defaultScheduleValue()); }}
-                    className={cn("rounded-lg px-3 py-1.5 text-start text-[12px] font-semibold transition", mode === m.id ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}
-                  >
-                    {m.label}
-                  </button>
-                ))}
+                  { id: "now", label: "Post now", desc: "Publish right away", icon: Send },
+                  { id: "schedule", label: "Schedule", desc: "Pick a future time", icon: CalendarClock },
+                  { id: "draft", label: "Save as draft", desc: "Finish it later", icon: FileEdit },
+                ] as const).map((m) => {
+                  const Icon = m.icon;
+                  const active = mode === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => { setMode(m.id); setDone(null); if (m.id === "schedule" && !scheduleAt) setScheduleAt(defaultScheduleValue()); }}
+                      className={cn("flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-start transition", active ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted/50")}
+                    >
+                      <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-lg", active ? "bg-brand-500/15 text-brand-500" : "bg-muted/60 text-muted-foreground")}>
+                        <Icon className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[12px] font-semibold leading-tight">{m.label}</span>
+                        <span className={cn("block text-[10.5px] leading-tight", active ? "text-brand-500/70" : "text-muted-foreground")}>{m.desc}</span>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
               {mode === "schedule" && (
                 <label className="mt-2.5 block">
