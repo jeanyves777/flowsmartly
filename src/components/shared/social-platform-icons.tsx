@@ -75,6 +75,15 @@ export function WhatsAppIcon({ className }: { className?: string }) {
   );
 }
 
+export function GoogleBusinessIcon({ className }: { className?: string }) {
+  // Storefront glyph (single-color, uses currentColor) for Google Business Profile.
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M21.62 5.5 20.5 3.2A2 2 0 0 0 18.7 2H5.3a2 2 0 0 0-1.8 1.2L2.38 5.5A3.4 3.4 0 0 0 2 7v.3A3.2 3.2 0 0 0 4 10.24V19a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8.76A3.2 3.2 0 0 0 22 7.3V7a3.4 3.4 0 0 0-.38-1.5zM12 17H7v-4h5v4zm5.5-8.2a1.7 1.7 0 0 1-1.7-1.6.8.8 0 0 0-1.6 0 1.7 1.7 0 0 1-3.4 0 .8.8 0 0 0-1.6 0 1.7 1.7 0 0 1-3.4 0 .8.8 0 0 0-1.6.06A1.7 1.7 0 0 1 4 7c0-.05.14-.44.2-.6L5.3 4h13.4l1.12 2.32c.05.15.18.53.18.68a1.7 1.7 0 0 1-2.5 1.6z" />
+    </svg>
+  );
+}
+
 // ─── Platform Metadata ──────────────────────────────────────────────────────
 // Static metadata (icons/labels). Connection status comes from DB via useSocialPlatforms hook.
 // Must match SUPPORTED_PLATFORMS in /api/social-accounts + "feed" for internal posting.
@@ -98,6 +107,7 @@ export const PLATFORM_META: Record<string, PlatformMeta> = {
   pinterest: { label: "Pinterest", icon: PinterestIcon, color: "#E60023", bgClass: "bg-red-600/10", borderClass: "border-red-600/20" },
   threads: { label: "Threads", icon: ThreadsIcon, color: "#111827", bgClass: "bg-zinc-900/10 dark:bg-white/10", borderClass: "border-zinc-900/20 dark:border-white/20" },
   whatsapp: { label: "WhatsApp", icon: WhatsAppIcon, color: "#25D366", bgClass: "bg-emerald-500/10", borderClass: "border-emerald-500/20" },
+  google_business: { label: "Google Business", icon: GoogleBusinessIcon, color: "#1A73E8", bgClass: "bg-blue-500/10", borderClass: "border-blue-500/20" },
 };
 
 /** Canonical order for platform selectors across the app */
@@ -112,6 +122,7 @@ export const PLATFORM_ORDER = [
   "youtube",
   "pinterest",
   "threads",
+  "google_business",
 ];
 
 /** What content types each platform supports */
@@ -123,7 +134,8 @@ export const PLATFORM_REQUIREMENTS: Record<string, { text: boolean; image: boole
   threads:   { text: true,  image: true,  video: true },
   whatsapp:  { text: false, image: true,  video: true },
   instagram: { text: false, image: true,  video: true },
-  youtube:   { text: false, image: false, video: true },
+  youtube:   { text: false, image: true,  video: true },  // image → auto-rendered Short
   tiktok:    { text: false, image: false, video: true },
   pinterest: { text: false, image: true,  video: false },
+  google_business: { text: true, image: true, video: false },
 };

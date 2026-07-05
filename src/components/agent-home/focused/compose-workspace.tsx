@@ -6,6 +6,7 @@ import { Sparkles, Send, CalendarClock, FileEdit, CheckCircle2, ImageIcon, Link2
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { cn } from "@/lib/utils/cn";
+import { PublishModal, type ChanRow, type ChanState } from "./publish-modal";
 
 /**
  * Compose — a deep new-design post composer surface (the Compose workspace
@@ -58,7 +59,7 @@ interface Target {
 }
 
 // POST /api/content/posts → data.publishResults / retry → data.publishResults
-type PublishResult = { success: boolean; postId?: string; error?: string };
+type PublishResult = { success: boolean; postId?: string; error?: string; pending?: boolean };
 type PublishResults = Record<string, PublishResult>;
 interface PostedResult {
   postId?: string;
@@ -85,9 +86,10 @@ const PLATFORM_MEDIA_NEED: Record<string, MediaNeed> = {
   threads: "none",
   instagram: "any", // requires at least one image or video
   whatsapp: "any", // WhatsApp Status requires an image or video
-  youtube: "video", // requires a video file
+  youtube: "any", // video uploads as-is; an image is auto-rendered into a Short
   tiktok: "video", // requires a video file
   pinterest: "image", // requires an image
+  google_business: "none", // Business Profile local post — caption alone is fine
 };
 
 interface MediaState { hasImage: boolean; hasVideo: boolean; count: number }
@@ -138,6 +140,7 @@ const PREVIEW_CHROME: Record<string, PreviewChrome> = {
   tiktok: { accent: "#FE2C55", badge: false, style: "instagram" },
   youtube: { accent: "#FF0000", badge: false, style: "instagram" },
   linkedin: { accent: "#0A66C2", badge: false, style: "linkedin" },
+  google_business: { accent: "#1A73E8", badge: false, style: "facebook" },
 };
 function previewChrome(platform: string): PreviewChrome {
   return PREVIEW_CHROME[platform] || PREVIEW_CHROME.feed;
@@ -150,6 +153,7 @@ function platformDisplayName(platform: string): string {
   if (platform === "youtube") return "YouTube";
   if (platform === "tiktok") return "TikTok";
   if (platform === "whatsapp") return "WhatsApp";
+  if (platform === "google_business") return "Google Business";
   return platform.charAt(0).toUpperCase() + platform.slice(1);
 }
 
@@ -174,7 +178,7 @@ function destinationLabel(id: string, targets: Target[]): string {
   return id.replace(/^account:/, "");
 }
 
-export function FocusedCompose({ refreshKey, onAsk, composeOpsRef, working }: {
+export function FocusedCompose({ refreshKey, onAsk, composeOpsRef, working, narrate }: {
   refreshKey?: number;
   onAsk?: (prompt: string) => void;
   /** The agent's write_compose_post routes the drafted caption here (via the
@@ -182,6 +186,9 @@ export function FocusedCompose({ refreshKey, onAsk, composeOpsRef, working }: {
   composeOpsRef?: { current: { apply: (patch: Record<string, unknown>) => void } | null };
   /** Agent busy flag — clears the "writing…" loader when it goes idle. */
   working?: boolean;
+  /** Lets the publish narrate live in the agent chat panel (agent stays involved
+   *  while the modal drives the UI). [[agent-writes-into-ui-element-not-chat]] */
+  narrate?: { begin: (md: string) => void; update: (md: string) => void; end: (md?: string) => void };
 }) {
   const [accounts, setAccounts] = useState<PlatformAcc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -200,6 +207,11 @@ export function FocusedCompose({ refreshKey, onAsk, composeOpsRef, working }: {
   const [error, setError] = useState("");
   const [done, setDone] = useState<PostedResult | null>(null);
   const [retrying, setRetrying] = useState(false);
+
+  // Staged publishing modal — live per-channel status streamed from the server.
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalPhase, setModalPhase] = useState<"running" | "done">("running");
+  const [modalRows, setModalRows] = useState<ChanRow[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -337,6 +349,34 @@ export function FocusedCompose({ refreshKey, onAsk, composeOpsRef, working }: {
   }, [previewOptions, previewTarget]);
   const activePreview = previewOptions.find((t) => t.id === previewTarget) || previewOptions[0] || FEED;
 
+  // Initial per-channel rows from the current selection (feed + external targets).
+  const buildRows = (ids: string[]): ChanRow[] =>
+    ids.map((id) => {
+      const t = targets.find((x) => x.id === id);
+      return { id, label: t ? t.label : destinationLabel(id, targets), username: t?.username ?? null, state: "queued" as ChanState };
+    });
+
+  const resultToState = (res: PublishResult): ChanState => (res.pending ? "pending" : res.success ? "ok" : "fail");
+
+  // Agent-panel narration mirrors the modal so the agent stays visibly involved.
+  const narrationMd = (rows: ChanRow[], phase: "running" | "done"): string => {
+    const icon = (s: ChanState) => (s === "ok" ? "✅" : s === "fail" ? "❌" : s === "pending" ? "🕓" : s === "publishing" ? "⏳" : "•");
+    const line = (r: ChanRow) => {
+      const tail = r.state === "publishing" ? ` — ${r.stage || "Publishing…"}`
+        : r.state === "ok" ? " — Published"
+        : (r.state === "fail" || r.state === "pending") && r.error ? ` — ${r.error}`
+        : r.state === "queued" ? " — queued" : "";
+      return `${icon(r.state)} **${r.label}**${tail}`;
+    };
+    const ok = rows.filter((r) => r.state === "ok").length;
+    const fail = rows.filter((r) => r.state === "fail").length;
+    const pending = rows.filter((r) => r.state === "pending").length;
+    const head = phase === "running"
+      ? `On it — publishing to **${rows.length} channel${rows.length === 1 ? "" : "s"}**. I'll report back as each one lands. 👇`
+      : `Done — **${ok}** of ${rows.length} live${fail ? ` · ${fail} need${fail === 1 ? "s" : ""} attention` : ""}${pending ? ` · ${pending} pending` : ""}.`;
+    return `${head}\n\n${rows.map(line).join("\n")}`;
+  };
+
   const post = async () => {
     const text = caption.trim();
     if (!text) { setError("Write a caption first."); return; }
@@ -350,32 +390,78 @@ export function FocusedCompose({ refreshKey, onAsk, composeOpsRef, working }: {
       scheduledAt = d.toISOString();
     }
 
-    setPosting(true); setError(""); setDone(null);
-    try {
-      const body: Record<string, unknown> = {
-        caption: text,
-        platforms: selected,
-      };
-      if (media.length) { body.mediaUrls = media; body.mediaType = isVideoUrl(media[0]) ? "video" : "image"; }
-      if (scheduledAt) body.scheduledAt = scheduledAt;
-      if (mode === "draft") body.status = "DRAFT"; // best-effort — the response status is the source of truth
+    const body: Record<string, unknown> = { caption: text, platforms: selected };
+    if (media.length) { body.mediaUrls = media; body.mediaType = isVideoUrl(media[0]) ? "video" : "image"; }
+    if (scheduledAt) body.scheduledAt = scheduledAt;
+    if (mode === "draft") body.status = "DRAFT";
 
-      const r = await fetch("/api/content/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const j = await r.json();
-      if (r.ok && j?.success && j.data?.post) {
-        const p = j.data.post as { id?: string; status?: string; scheduledAt?: string | null; platforms?: string[] };
-        const publishResults = (j.data.publishResults as PublishResults | undefined) || undefined;
-        setDone({ postId: p.id, status: p.status || "PUBLISHED", scheduledAt: p.scheduledAt, platforms: p.platforms, publishResults });
-        reset();
-      } else {
-        setError(j?.error?.message || "Couldn't publish that post. Try again.");
+    // Draft / schedule don't publish live — keep the simple request + inline card.
+    if (mode !== "now") {
+      setPosting(true); setError(""); setDone(null);
+      try {
+        const r = await fetch("/api/content/posts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const j = await r.json();
+        if (r.ok && j?.success && j.data?.post) {
+          const p = j.data.post as { id?: string; status?: string; scheduledAt?: string | null; platforms?: string[] };
+          setDone({ postId: p.id, status: p.status || (mode === "draft" ? "DRAFT" : "SCHEDULED"), scheduledAt: p.scheduledAt, platforms: p.platforms });
+          reset();
+        } else { setError(j?.error?.message || "Couldn't save that post. Try again."); }
+      } catch { setError("Couldn't save that post. Try again."); }
+      finally { setPosting(false); }
+      return;
+    }
+
+    // Post now → stream per-channel progress into the modal + the agent chat.
+    setPosting(true); setError(""); setDone(null);
+    let rows = buildRows(selected);
+    setModalRows(rows); setModalPhase("running"); setModalOpen(true);
+    narrate?.begin(narrationMd(rows, "running"));
+
+    const applyRows = (next: ChanRow[]) => { rows = next; setModalRows(next); narrate?.update(narrationMd(next, "running")); };
+    const patchRow = (id: string, patch: Partial<ChanRow>) => applyRows(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+    let postId: string | undefined;
+    let doneStatus = "PUBLISHED";
+    const publishResults: PublishResults = {};
+    try {
+      const r = await fetch("/api/content/posts/stream", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok || !r.body) { throw new Error((await r.json().catch(() => ({})))?.error?.message || "Couldn't start publishing."); }
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done: streamDone, value } = await reader.read();
+        if (streamDone) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+        for (const part of parts) {
+          const dataLine = part.split("\n").find((l) => l.startsWith("data:"));
+          if (!dataLine) continue;
+          let ev: Record<string, any>;
+          try { ev = JSON.parse(dataLine.slice(5).trim()); } catch { continue; }
+          if (ev.type === "created") { postId = ev.postId; doneStatus = ev.status || doneStatus; patchRow("feed", { state: "ok" }); }
+          else if (ev.type === "channel_start") patchRow(ev.destination, { state: "publishing", stage: "Publishing…" });
+          else if (ev.type === "channel_stage") patchRow(ev.destination, { state: "publishing", stage: ev.stage });
+          else if (ev.type === "channel_result") { publishResults[ev.destination] = ev.result; patchRow(ev.destination, { state: resultToState(ev.result), error: ev.result?.error }); }
+          else if (ev.type === "done") { postId = ev.postId || postId; doneStatus = ev.status || doneStatus; if (ev.publishResults) Object.assign(publishResults, ev.publishResults); }
+          else if (ev.type === "error") { throw new Error(ev.message || "Couldn't publish that post."); }
+        }
       }
-    } catch {
-      setError("Couldn't publish that post. Try again.");
+      // Feed is internal — it goes live with the post itself; any row still mid-flight settles ok.
+      rows = rows.map((r) => (r.state === "queued" || r.state === "publishing" ? { ...r, state: "ok" as ChanState } : r));
+      setModalRows(rows);
+      setModalPhase("done");
+      narrate?.end(narrationMd(rows, "done"));
+      setDone({ postId, status: doneStatus, platforms: selected, publishResults });
+      reset();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Couldn't publish that post. Try again.";
+      rows = rows.map((r) => (r.state === "queued" || r.state === "publishing" ? { ...r, state: "fail" as ChanState, error: msg } : r));
+      setModalRows(rows);
+      setModalPhase("done");
+      narrate?.end(narrationMd(rows, "done"));
+      setError(msg);
     } finally {
       setPosting(false);
     }
@@ -385,6 +471,7 @@ export function FocusedCompose({ refreshKey, onAsk, composeOpsRef, working }: {
   const retryFailed = async (failedIds: string[]) => {
     if (!done?.postId || failedIds.length === 0) return;
     setRetrying(true);
+    setModalRows((prev) => prev.map((r) => (failedIds.includes(r.id) ? { ...r, state: "publishing", stage: "Retrying…", error: undefined } : r)));
     try {
       const r = await fetch(`/api/content/posts/${done.postId}/retry`, {
         method: "POST",
@@ -395,11 +482,14 @@ export function FocusedCompose({ refreshKey, onAsk, composeOpsRef, working }: {
       if (r.ok && j?.success && j.data?.publishResults) {
         const fresh = j.data.publishResults as PublishResults;
         setDone((prev) => (prev ? { ...prev, publishResults: { ...(prev.publishResults || {}), ...fresh } } : prev));
+        setModalRows((prev) => prev.map((r) => (fresh[r.id] ? { ...r, state: resultToState(fresh[r.id]), error: fresh[r.id].error } : r)));
       } else {
         setError(j?.error?.message || "Couldn't retry those platforms. Try again.");
+        setModalRows((prev) => prev.map((r) => (failedIds.includes(r.id) ? { ...r, state: "fail" } : r)));
       }
     } catch {
       setError("Couldn't retry those platforms. Try again.");
+      setModalRows((prev) => prev.map((r) => (failedIds.includes(r.id) ? { ...r, state: "fail" } : r)));
     } finally {
       setRetrying(false);
     }
@@ -459,8 +549,31 @@ export function FocusedCompose({ refreshKey, onAsk, composeOpsRef, working }: {
   const succeededIds = resultEntries.filter(([, r]) => r.success).map(([id]) => id);
   const hasResults = resultEntries.length > 0;
 
+  // Publishing modal summary.
+  const modalOk = modalRows.filter((r) => r.state === "ok").length;
+  const modalFail = modalRows.filter((r) => r.state === "fail").length;
+  const modalPending = modalRows.filter((r) => r.state === "pending").length;
+  const modalTitle = modalPhase === "running"
+    ? "Publishing your post"
+    : modalFail ? "Posted — a couple need you"
+    : modalPending ? "Posted — some are pending"
+    : "All published";
+  const modalSubtitle = modalPhase === "running"
+    ? `Sending to ${modalRows.length} ${modalRows.length === 1 ? "channel" : "channels"} — you can keep working, I'll keep going.`
+    : `${modalOk} of ${modalRows.length} published${modalFail ? ` · ${modalFail} failed` : ""}${modalPending ? ` · ${modalPending} pending` : ""} — also live on your in-app feed.`;
+
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+      <PublishModal
+        open={modalOpen}
+        phase={modalPhase}
+        rows={modalRows}
+        title={modalTitle}
+        subtitle={modalSubtitle}
+        onDismiss={() => setModalOpen(false)}
+        onRetry={() => retryFailed(modalRows.filter((r) => r.state === "fail").map((r) => r.id))}
+        retrying={retrying}
+      />
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4">
         {/* success confirmation + per-destination publish results */}
         {done && (
