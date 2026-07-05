@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
     aspect: pick<AvatarAspect>(body.aspect, AVATAR_ASPECTS, "9:16"),
     lengthSeconds,
     mode: pick<AvatarMode>(body.mode, AVATAR_MODES, "talking"),
+    projectId: body.projectId ? String(body.projectId).slice(0, 60) : null,
     templateId: body.templateId ? String(body.templateId).slice(0, 80) : null,
     // Translate mode: source video + target language.
     sourceVideoUrl: body.sourceVideoUrl ? String(body.sourceVideoUrl).trim().slice(0, 2000) : null,

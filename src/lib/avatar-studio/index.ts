@@ -114,6 +114,8 @@ export async function listAvatarVideos(userId: string, limit = 24) {
       aspect: state.aspect,
       avatarName: state.avatarName,
       lengthSeconds: state.lengthSeconds,
+      projectId: state.projectId ?? null,
+      mode: state.mode,
     };
   });
 }

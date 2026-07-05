@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
     quality: pick<AvatarQuality>(body.quality, AVATAR_QUALITIES, "standard"),
     aspect: pick<AvatarAspect>(body.aspect, AVATAR_ASPECTS, "9:16"),
     lengthSeconds,
+    projectId: body.projectId ? String(body.projectId).slice(0, 60) : null,
   };
 
   const result = await startAvatarVideoBatch({ userId: session.userId, isAdmin: !!session.adminId, scripts, base });

@@ -20,6 +20,8 @@ export interface AvatarVideoState {
   aspect: AvatarAspect;
   lengthSeconds: number;
   mode: AvatarMode;
+  /** Groups videos built together in one studio session (a "project"). */
+  projectId?: string | null;
   templateId?: string | null;
   /** Translate mode: source video URL + target language. */
   sourceVideoUrl?: string | null;
@@ -43,6 +45,7 @@ export function emptyAvatarState(): AvatarVideoState {
     aspect: "9:16",
     lengthSeconds: 30,
     mode: "talking",
+    projectId: null,
     templateId: null,
     sourceVideoUrl: null,
     targetLanguage: null,

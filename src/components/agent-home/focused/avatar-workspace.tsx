@@ -6,7 +6,7 @@ import Image from "next/image";
 import {
   UserSquare2, Sparkles, Type as TypeIcon, Mic, X, Coins, Play,
   CheckCircle2, Clock, TriangleAlert, ChevronUp, Wand2, AlertTriangle,
-  Trash2, ChevronRight, Film, Loader2, FolderOpen, Languages, Images, Package, Upload,
+  Trash2, ChevronRight, Film, Loader2, FolderOpen, Languages, Images, Package, Upload, Plus,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -71,6 +71,8 @@ interface AvatarVideo {
   aspect?: string | null;
   avatarName?: string | null;
   lengthSeconds?: number | null;
+  projectId?: string | null;
+  mode?: string | null;
 }
 interface Avatar { id: string; name: string; previewUrl?: string; isCustom: boolean }
 interface Voice { id: string; name: string; language?: string }
@@ -100,6 +102,10 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   const [detailId, setDetailId] = useState<string | null>(null);
   const [libOpen, setLibOpen] = useState(false);
   const [localRefresh, setLocalRefresh] = useState(0);
+  // The canvas is one PROJECT — videos built together in this session. "" = default.
+  const [projectId, setProjectId] = useState<string>("");
+  const initedProject = useRef(false);
+  const newProjectId = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `proj_${Date.now()}_${Math.round(Math.random() * 1e6)}`);
 
   // Avatars + voices (HeyGen).
   const [avatars, setAvatars] = useState<Avatar[]>([]);
@@ -175,6 +181,15 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   const selectedVoice = useMemo(() => voices.find((v) => v.id === voiceId), [voices, voiceId]);
 
   // Completed videos are the source pool for Translate mode.
+  // Resume the last project you worked on (the most recent video's project).
+  useEffect(() => {
+    if (initedProject.current || videos.length === 0) return;
+    initedProject.current = true;
+    setProjectId(videos[0].projectId || "");
+  }, [videos]);
+
+  // The canvas shows only the current project's videos.
+  const projectVideos = useMemo(() => videos.filter((v) => (v.projectId || "") === (projectId || "")), [videos, projectId]);
   const completedVideos = useMemo(() => videos.filter((v) => (v.status || "").toUpperCase() === "COMPLETED" && isPlayable(v.videoUrl)), [videos]);
 
   const runEstimate = useCallback(async () => {
@@ -217,6 +232,8 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   const onPhotoFromLibrary = (url: string) => { setMediaPickerOpen(false); void submitPhoto({ imageUrl: url }, url); };
 
   const openSheet = () => { setBuildErr(""); setSheetOpen(true); }; // estimate auto-pulls via the effect
+  const startNewProject = () => { setProjectId(newProjectId()); openSheet(); }; // top "New video" — fresh project
+  const addToProject = () => { openSheet(); }; // canvas "+" — next video in the same project
 
   const applyTemplate = (t: (typeof TEMPLATES)[number]) => {
     setTemplateId(t.id);
@@ -265,6 +282,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
         };
       }
 
+      payload.projectId = projectId || null; // group this video into the current project
       const j = await fetch(endpoint, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       }).then((r) => r.json());
@@ -280,14 +298,15 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
     load();
   }, [load]);
 
+  // Header stats reflect the CURRENT project (what's on the canvas); Library shows all.
   const stats = useMemo(() => {
     let ready = 0, rendering = 0;
-    for (const v of videos) {
+    for (const v of projectVideos) {
       const s = (v.status || "").toUpperCase();
       if (s === "COMPLETED") ready += 1; else if (isRendering(s)) rendering += 1;
     }
-    return { total: videos.length, ready, rendering };
-  }, [videos]);
+    return { total: projectVideos.length, ready, rendering };
+  }, [projectVideos]);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -298,9 +317,9 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               <Dot /> {stats.total} video{stats.total === 1 ? "" : "s"} <Dot /> {stats.ready} ready <Dot /> {stats.rendering} rendering
             </span>
             <button onClick={() => setLibOpen(true)} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground" title="Browse all your avatar videos">
-              <FolderOpen className="h-3.5 w-3.5" /> Library{stats.total > 0 ? ` · ${stats.total}` : ""}
+              <FolderOpen className="h-3.5 w-3.5" /> Library{videos.length > 0 ? ` · ${videos.length}` : ""}
             </button>
-            <button onClick={openSheet} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
+            <button onClick={startNewProject} title="Start a new project" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
               <Sparkles className="h-3.5 w-3.5" /> New video
             </button>
           </>
@@ -341,9 +360,9 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               <p className="text-[13px] font-medium">{error}</p>
               <button onClick={() => { setLoading(true); load().finally(() => setLoading(false)); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">Try again</button>
             </div>
-          ) : videos.length ? (
-            <div className="flex flex-wrap gap-4">
-              {videos.map((v) => (
+          ) : projectVideos.length ? (
+            <div className="flex flex-wrap items-stretch gap-4">
+              {projectVideos.map((v) => (
                 <RenderNode
                   key={v.id}
                   v={v}
@@ -351,6 +370,12 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
                   onOpen={() => setDetailId(v.id)}
                 />
               ))}
+              {/* add the next video to this same project */}
+              <button onClick={addToProject} title="Add another video to this project" className="flex w-[210px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card/40 py-10 text-muted-foreground transition hover:border-brand-500/60 hover:text-brand-500">
+                <span className="grid h-11 w-11 place-items-center rounded-full border border-dashed border-current"><Plus className="h-5 w-5" /></span>
+                <span className="text-[12px] font-semibold">Add another video</span>
+                <span className="px-4 text-center text-[10.5px] text-muted-foreground">Same project · opens the brief</span>
+              </button>
             </div>
           ) : (
             <div className="max-w-md rounded-2xl border border-dashed border-border bg-card/70 p-5">
