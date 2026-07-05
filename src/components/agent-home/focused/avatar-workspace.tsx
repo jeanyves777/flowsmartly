@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
@@ -388,17 +388,20 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               <button onClick={() => { setLoading(true); load().finally(() => setLoading(false)); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">Try again</button>
             </div>
           ) : projectVideos.length ? (
-            <div className="flex flex-wrap items-stretch gap-4">
-              {projectVideos.map((v) => (
-                <RenderNode
-                  key={v.id}
-                  v={v}
-                  onPlay={() => isPlayable(v.videoUrl) && setPlay({ url: v.videoUrl, title: v.title, poster: v.thumbnailUrl })}
-                  onOpen={() => setDetailId(v.id)}
-                />
+            <div className="flex flex-wrap items-stretch gap-y-4">
+              {projectVideos.map((v, i) => (
+                <Fragment key={v.id}>
+                  {i > 0 && <span aria-hidden className="h-0.5 w-6 shrink-0 self-center rounded bg-gradient-to-r from-brand-500/60 to-brand-500/40" />}
+                  <RenderNode
+                    v={v}
+                    onPlay={() => isPlayable(v.videoUrl) && setPlay({ url: v.videoUrl, title: v.title, poster: v.thumbnailUrl })}
+                    onOpen={() => setDetailId(v.id)}
+                  />
+                </Fragment>
               ))}
-              {/* add the next video to this same project */}
-              <button onClick={addToProject} title="Add another video to this project" className="flex w-[210px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card/40 py-10 text-muted-foreground transition hover:border-brand-500/60 hover:text-brand-500">
+              {/* connector → add the next video to this same project */}
+              <span aria-hidden className="h-0.5 w-6 shrink-0 self-center rounded bg-gradient-to-r from-brand-500/60 to-brand-500/30" />
+              <button onClick={addToProject} title="Add another video to this project" className="flex w-[210px] shrink-0 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card/40 py-10 text-muted-foreground transition hover:border-brand-500/60 hover:text-brand-500">
                 <span className="grid h-11 w-11 place-items-center rounded-full border border-dashed border-current"><Plus className="h-5 w-5" /></span>
                 <span className="text-[12px] font-semibold">Add another video</span>
                 <span className="px-4 text-center text-[10.5px] text-muted-foreground">Same project · opens the brief</span>
