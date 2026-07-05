@@ -190,6 +190,21 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
 
   // The canvas shows only the current project's videos.
   const projectVideos = useMemo(() => videos.filter((v) => (v.projectId || "") === (projectId || "")), [videos, projectId]);
+
+  // Group all videos into projects (for the switcher + the Library). Labelled by
+  // the project's FIRST (oldest) video's title; videos are desc, so last = oldest.
+  const projects = useMemo(() => {
+    const map = new Map<string, AvatarVideo[]>();
+    for (const v of videos) {
+      const k = v.projectId || "";
+      const arr = map.get(k);
+      if (arr) arr.push(v); else map.set(k, [v]);
+    }
+    return [...map.entries()].map(([id, vids]) => ({
+      id, videos: vids, count: vids.length,
+      label: id === "" ? "Ungrouped" : (vids[vids.length - 1]?.title || "Project"),
+    }));
+  }, [videos]);
   const completedVideos = useMemo(() => videos.filter((v) => (v.status || "").toUpperCase() === "COMPLETED" && isPlayable(v.videoUrl)), [videos]);
 
   const runEstimate = useCallback(async () => {
@@ -335,6 +350,18 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
         style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
       >
         <div className="min-h-full p-5 sm:p-8">
+          {/* project switcher — jump between projects on the canvas */}
+          {(projects.length > 1 || (projectId && !projects.some((p) => p.id === projectId))) && (
+            <div className="mb-3 inline-flex items-center gap-2 rounded-[10px] border border-border bg-card/60 px-2.5 py-1.5">
+              <FolderOpen className="h-3.5 w-3.5 text-brand-500" />
+              <span className="text-[11px] text-muted-foreground">Project</span>
+              <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="max-w-[220px] bg-transparent text-[12px] font-semibold text-foreground outline-none">
+                {!projects.some((p) => p.id === projectId) && <option value={projectId}>New project · 0</option>}
+                {projects.map((p) => <option key={p.id || "default"} value={p.id}>{p.label} · {p.count}</option>)}
+              </select>
+            </div>
+          )}
+
           {/* Brief node — the entry point */}
           <button onClick={openSheet} className="group block w-full max-w-[320px] rounded-2xl border border-brand-500/40 bg-card/90 p-0 text-left shadow-lg shadow-brand-500/5 transition hover:border-brand-500/70">
             <div className="flex items-center gap-2 border-b border-border/70 px-3.5 py-2.5">
@@ -617,12 +644,13 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
       {/* library */}
       {libOpen && (
         <AvatarLibrary
-          videos={videos}
+          projects={projects}
           onClose={() => setLibOpen(false)}
           onPlay={(p) => setPlay(p)}
           onOpen={(id) => { setLibOpen(false); setDetailId(id); }}
           onDelete={deleteVideo}
-          onNew={() => { setLibOpen(false); openSheet(); }}
+          onNew={() => { setLibOpen(false); startNewProject(); }}
+          onOpenProject={(pid) => { setProjectId(pid); setLibOpen(false); }}
         />
       )}
 
@@ -699,29 +727,33 @@ function RenderNode({ v, onPlay, onOpen }: { v: AvatarVideo; onPlay: () => void;
 // Library — a gallery of every avatar video
 // =============================================================
 
-function AvatarLibrary({ videos, onClose, onPlay, onOpen, onDelete, onNew }: {
-  videos: AvatarVideo[];
+interface Project { id: string; label: string; count: number; videos: AvatarVideo[] }
+
+function AvatarLibrary({ projects, onClose, onPlay, onOpen, onDelete, onNew, onOpenProject }: {
+  projects: Project[];
   onClose: () => void;
   onPlay: (p: { url: string; title?: string; poster?: string | null }) => void;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
   onNew: () => void;
+  onOpenProject: (projectId: string) => void;
 }) {
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const total = projects.reduce((n, p) => n + p.count, 0);
   return (
     <div className="absolute inset-0 z-40 flex flex-col bg-background/97 backdrop-blur">
       <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div className="min-w-0">
           <h3 className="text-[14px] font-bold leading-tight">Avatar Library</h3>
-          <p className="truncate text-[11.5px] text-muted-foreground">Every avatar video — play it, open details, or remove it. Also in your main Library.</p>
+          <p className="truncate text-[11.5px] text-muted-foreground">Your avatar videos, grouped by project. Play, open details, jump to a project, or remove.</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <button onClick={onNew} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Sparkles className="h-3.5 w-3.5" /> New video</button>
+          <button onClick={onNew} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Sparkles className="h-3.5 w-3.5" /> New project</button>
           <button onClick={onClose} aria-label="Close library" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {videos.length === 0 ? (
+        {total === 0 ? (
           <div className="grid h-full place-items-center text-center">
             <div className="max-w-xs">
               <UserSquare2 className="mx-auto h-8 w-8 text-muted-foreground" />
@@ -730,52 +762,64 @@ function AvatarLibrary({ videos, onClose, onPlay, onOpen, onDelete, onNew }: {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {videos.map((v) => {
-              const b = statusBadge(v.status);
-              const BadgeIcon = b.icon;
-              const ready = (v.status || "").toUpperCase() === "COMPLETED" && isPlayable(v.videoUrl);
-              return (
-                <div key={v.id} className="group relative overflow-hidden rounded-xl border border-border bg-card transition hover:border-brand-500/60 hover:shadow-lg">
-                  <div className="relative aspect-[9/16] w-full bg-background">
-                    {v.thumbnailUrl ? (
-                      <Image src={v.thumbnailUrl} alt="" fill sizes="(max-width:640px) 45vw, 200px" className="object-cover" unoptimized />
-                    ) : (
-                      <div className="grid h-full w-full place-items-center bg-gradient-to-br from-muted/40 to-muted/10 text-muted-foreground"><UserSquare2 className="h-7 w-7" /></div>
-                    )}
-                    {ready && (
-                      <button onClick={() => onPlay({ url: v.videoUrl!, title: v.title, poster: v.thumbnailUrl })} className="absolute inset-0 grid place-items-center bg-black/20 transition hover:bg-black/35">
-                        <span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-brand-600 shadow-lg"><Play className="h-5 w-5 translate-x-0.5 fill-current" /></span>
-                      </button>
-                    )}
-                    <span className={cn("absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", b.cls)}>
-                      <BadgeIcon className={cn("h-3 w-3", b.spin && "animate-spin")} /> {b.label}
-                    </span>
-                    <button onClick={() => setConfirmDel(v.id)} title="Delete video" className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-lg bg-black/55 text-white opacity-0 transition group-hover:opacity-100 hover:bg-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
-                  </div>
-                  <div className="p-2">
-                    <p className="line-clamp-1 text-[12px] font-semibold">{v.title || "Avatar video"}</p>
-                    <div className="mt-0.5 flex items-center gap-x-2 text-[10.5px] text-muted-foreground">
-                      {v.quality && <span>{QUALITY_LABEL[v.quality] || v.quality}</span>}
-                      {v.aspect && <span>{v.aspect}</span>}
-                    </div>
-                    <button onClick={() => onOpen(v.id)} className="mt-1.5 inline-flex w-full items-center justify-center gap-1 rounded-[9px] border border-border px-2 py-1.5 text-[11px] font-semibold text-foreground transition hover:border-brand-500/60 hover:text-brand-500"><Film className="h-3.5 w-3.5" /> Open details</button>
-                  </div>
-                  {confirmDel === v.id && (
-                    <div className="absolute inset-0 z-10 grid place-items-center bg-background/92 p-3 text-center">
-                      <div>
-                        <p className="text-[11.5px] font-semibold">Delete this video?</p>
-                        <p className="mt-0.5 text-[10.5px] text-muted-foreground">Permanently removes the render.</p>
-                        <div className="mt-2 flex items-center justify-center gap-1.5">
-                          <button onClick={() => setConfirmDel(null)} className="rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold hover:text-foreground">Keep</button>
-                          <button onClick={() => { setConfirmDel(null); onDelete(v.id); }} className="inline-flex items-center gap-1 rounded-[8px] bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white"><Trash2 className="h-3 w-3" /> Delete</button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+          <div className="space-y-6">
+            {projects.map((proj) => (
+              <section key={proj.id || "default"}>
+                <div className="mb-2 flex items-center gap-2">
+                  <FolderOpen className="h-4 w-4 text-brand-500" />
+                  <h4 className="truncate text-[13px] font-bold">{proj.label}</h4>
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10.5px] font-semibold text-muted-foreground">{proj.count} video{proj.count === 1 ? "" : "s"}</span>
+                  <button onClick={() => onOpenProject(proj.id)} className="ms-auto inline-flex shrink-0 items-center gap-1 rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold hover:border-brand-500/60 hover:text-brand-500">Open on canvas <ChevronRight className="h-3.5 w-3.5" /></button>
                 </div>
-              );
-            })}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                  {proj.videos.map((v) => {
+                    const b = statusBadge(v.status);
+                    const BadgeIcon = b.icon;
+                    const ready = (v.status || "").toUpperCase() === "COMPLETED" && isPlayable(v.videoUrl);
+                    return (
+                      <div key={v.id} className="group relative overflow-hidden rounded-xl border border-border bg-card transition hover:border-brand-500/60 hover:shadow-lg">
+                        <div className="relative aspect-[9/16] w-full bg-background">
+                          {v.thumbnailUrl ? (
+                            <Image src={v.thumbnailUrl} alt="" fill sizes="(max-width:640px) 45vw, 200px" className="object-cover" unoptimized />
+                          ) : (
+                            <div className="grid h-full w-full place-items-center bg-gradient-to-br from-muted/40 to-muted/10 text-muted-foreground"><UserSquare2 className="h-7 w-7" /></div>
+                          )}
+                          {ready && (
+                            <button onClick={() => onPlay({ url: v.videoUrl!, title: v.title, poster: v.thumbnailUrl })} className="absolute inset-0 grid place-items-center bg-black/20 transition hover:bg-black/35">
+                              <span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-brand-600 shadow-lg"><Play className="h-5 w-5 translate-x-0.5 fill-current" /></span>
+                            </button>
+                          )}
+                          <span className={cn("absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", b.cls)}>
+                            <BadgeIcon className={cn("h-3 w-3", b.spin && "animate-spin")} /> {b.label}
+                          </span>
+                          <button onClick={() => setConfirmDel(v.id)} title="Delete video" className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-lg bg-black/55 text-white opacity-0 transition group-hover:opacity-100 hover:bg-rose-600"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </div>
+                        <div className="p-2">
+                          <p className="line-clamp-1 text-[12px] font-semibold">{v.title || "Avatar video"}</p>
+                          <div className="mt-0.5 flex items-center gap-x-2 text-[10.5px] text-muted-foreground">
+                            {v.quality && <span>{QUALITY_LABEL[v.quality] || v.quality}</span>}
+                            {v.aspect && <span>{v.aspect}</span>}
+                          </div>
+                          <button onClick={() => onOpen(v.id)} className="mt-1.5 inline-flex w-full items-center justify-center gap-1 rounded-[9px] border border-border px-2 py-1.5 text-[11px] font-semibold text-foreground transition hover:border-brand-500/60 hover:text-brand-500"><Film className="h-3.5 w-3.5" /> Open details</button>
+                        </div>
+                        {confirmDel === v.id && (
+                          <div className="absolute inset-0 z-10 grid place-items-center bg-background/92 p-3 text-center">
+                            <div>
+                              <p className="text-[11.5px] font-semibold">Delete this video?</p>
+                              <p className="mt-0.5 text-[10.5px] text-muted-foreground">Permanently removes the render.</p>
+                              <div className="mt-2 flex items-center justify-center gap-1.5">
+                                <button onClick={() => setConfirmDel(null)} className="rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold hover:text-foreground">Keep</button>
+                                <button onClick={() => { setConfirmDel(null); onDelete(v.id); }} className="inline-flex items-center gap-1 rounded-[8px] bg-rose-600 px-2.5 py-1 text-[11px] font-semibold text-white"><Trash2 className="h-3 w-3" /> Delete</button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </div>
