@@ -142,7 +142,8 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
   const [error, setError] = useState("");
   const [play, setPlay] = useState<{ url: string; title?: string; poster?: string | null } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [libOpen, setLibOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(true);
+  const openedOnce = useRef(false);
 
   // Brief node / bottom-sheet state.
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -209,6 +210,11 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
 
   const openSheet = () => { setSubmitted(false); setSheetOpen(true); };
 
+  // Open the brief on a fresh, empty studio (Campaign-Studio pattern).
+  useEffect(() => {
+    if (!loading && !openedOnce.current) { openedOnce.current = true; if (campaigns.length === 0) setSheetOpen(true); }
+  }, [loading, campaigns.length]);
+
   // Delete a render from the library (optimistic, then reconcile).
   const deleteCampaign = useCallback(async (id: string) => {
     setCampaigns((cs) => cs.filter((c) => c.id !== id));
@@ -234,10 +240,7 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
             <span className="hidden items-center gap-2 text-[11.5px] text-muted-foreground sm:inline-flex">
               <Dot /> {stats.total} renders <Dot /> {stats.ready} ready <Dot /> {stats.rendering} rendering
             </span>
-            <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground" title="Browse all your videos">
-              <FolderOpen className="h-3.5 w-3.5" /> Library{stats.total > 0 ? ` · ${stats.total}` : ""}
-            </button>
-            <button onClick={openSheet} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
+            <button onClick={() => { setDetailId(null); openSheet(); }} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
               <Sparkles className="h-3.5 w-3.5" /> New video
             </button>
           </>
@@ -247,63 +250,79 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
         );
       })()}
 
-      {/* dotted canvas */}
-      <div
-        className="relative min-h-0 flex-1 overflow-auto"
-        style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
-      >
-        <div className="min-h-full p-5 sm:p-8">
-          {/* Brief node — the entry point */}
-          <button onClick={openSheet} className="group block w-full max-w-[320px] rounded-2xl border border-brand-500/40 bg-card/90 p-0 text-left shadow-lg shadow-brand-500/5 transition hover:border-brand-500/70">
-            <div className="flex items-center gap-2 border-b border-border/70 px-3.5 py-2.5">
-              <TypeIcon className="h-4 w-4 text-brand-500" />
-              <b className="text-[13px]">Campaign brief</b>
-              <span className="ms-auto rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-brand-500">brief</span>
-              <span className="grid h-4 w-4 place-items-center rounded-full border border-brand-500/50 text-brand-500"><span className="h-1.5 w-1.5 rounded-full bg-brand-500" /></span>
-            </div>
-            <div className="px-3.5 py-3">
-              <p className="line-clamp-2 text-[12.5px] text-muted-foreground">{brief.trim() ? brief.trim() : "Describe the ad + pick a length"}</p>
-              <span className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-semibold text-brand-500"><ChevronUp className="h-3.5 w-3.5 rotate-180 transition group-hover:translate-y-0.5" /> Open brief</span>
-            </div>
-          </button>
-
-          {submitted && (
-            <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 px-3 py-2 text-[12px] text-foreground">
-              <FlowLoader size={15} /> The agent is on it — confirm the plan in the chat on the left and your render will appear here.
-            </div>
-          )}
-
-          {/* connector spine */}
-          <div className="ms-6 h-6 w-px bg-gradient-to-b from-brand-500/50 to-transparent" />
-
-          {/* render nodes */}
+      <div className="flex min-h-0 flex-1">
+        {/* CANVAS — the ONE project being worked on, or the brief-first empty state */}
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           {loading ? (
-            <div className="grid place-items-center py-16"><FlowLoader size={32} withMark label="Loading your playground…" /></div>
-          ) : error && campaigns.length === 0 ? (
-            <div className="max-w-md rounded-2xl border border-dashed border-border bg-card/70 px-4 py-8 text-center">
-              <p className="text-[13px] font-medium">{error}</p>
-              <button onClick={() => { setLoading(true); load().finally(() => setLoading(false)); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-border px-4 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">Try again</button>
-            </div>
-          ) : campaigns.length ? (
-            <div className="flex flex-wrap gap-4">
-              {campaigns.map((c) => (
-                <RenderNode
-                  key={c.id}
-                  c={c}
-                  onPlay={() => isPlayable(c.videoUrl) && setPlay({ url: c.videoUrl, title: c.title, poster: c.thumbnailUrl })}
-                  onOpen={() => setDetailId(c.id)}
-                />
-              ))}
-            </div>
+            <div className="grid h-full place-items-center"><FlowLoader size={32} withMark label="Opening Video Studio…" /></div>
+          ) : detailId ? (
+            <CampaignDetailDrawer
+              campaignId={detailId}
+              onClose={() => setDetailId(null)}
+              onChanged={load}
+              onDeleted={() => { setDetailId(null); load(); }}
+              onPlay={(p) => setPlay(p)}
+            />
           ) : (
-            <div className="max-w-md rounded-2xl border border-dashed border-border bg-card/70 p-5">
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Clapperboard className="h-5 w-5" /></span>
-              <p className="mt-2.5 text-[13.5px] font-semibold">No renders on the canvas yet</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">Open the brief, describe your ad and pick a length, then build it — the agent renders the movie and it lands here.</p>
-              <button onClick={openSheet} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
+            <div className="relative flex-1 overflow-auto" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
+              <div className="grid min-h-full place-items-center p-8 text-center">
+                <div className="max-w-md">
+                  <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Clapperboard className="h-7 w-7" /></span>
+                  <h3 className="mt-4 text-[15px] font-bold">Make a video</h3>
+                  <p className="mx-auto mt-1.5 max-w-sm text-[12.5px] text-muted-foreground">Describe your ad and pick a length — the agent renders the movie right here. Your projects live in the Library on the right; open one to keep working on it.</p>
+                  {submitted ? (
+                    <div className="mx-auto mt-4 inline-flex items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/5 px-3 py-2 text-[12px]"><FlowLoader size={15} /> The agent is on it — confirm the plan in the chat; your project opens here.</div>
+                  ) : (
+                    <button onClick={openSheet} className="mt-4 inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
+                  )}
+                  {error && <p className="mt-3 text-[11.5px] text-rose-500">{error}</p>}
+                </div>
+              </div>
             </div>
           )}
         </div>
+
+        {/* RIGHT RAIL — Library of projects (resume any). Collapsible. */}
+        {railOpen ? (
+          <aside className="hidden w-[284px] shrink-0 flex-col border-s border-border bg-card/40 lg:flex">
+            <div className="flex items-center justify-between border-b border-border px-3.5 py-2.5">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/70">Video Studio</p>
+              <button onClick={() => setRailOpen(false)} title="Collapse" className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Library{stats.total > 0 ? ` · ${stats.total}` : ""}</p>
+                <button onClick={() => { setDetailId(null); openSheet(); }} className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-500 hover:underline"><Sparkles className="h-3 w-3" /> New</button>
+              </div>
+              <div className="space-y-1.5">
+                {campaigns.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border px-2.5 py-3 text-center text-[11px] text-muted-foreground">No videos yet.</p>
+                ) : campaigns.map((c) => {
+                  const b = statusBadge(c.status); const BadgeIcon = b.icon; const active = detailId === c.id;
+                  const ready = (c.status || "").toUpperCase() === "COMPLETED" && isPlayable(c.videoUrl);
+                  return (
+                    <button key={c.id} onClick={() => setDetailId(c.id)} className={cn("flex w-full items-center gap-2.5 rounded-xl border p-2 text-left transition", active ? "border-brand-500/50 bg-brand-500/[0.06]" : "border-border hover:border-brand-500/40")}>
+                      <span className="relative grid h-12 w-9 shrink-0 place-items-center overflow-hidden rounded-md bg-background">
+                        {c.thumbnailUrl ? <Image src={c.thumbnailUrl} alt="" fill sizes="36px" className="object-cover" unoptimized /> : <Clapperboard className="h-4 w-4 text-muted-foreground" />}
+                        {ready && <span className="absolute inset-0 grid place-items-center bg-black/25"><Play className="h-3.5 w-3.5 fill-white text-white" /></span>}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="line-clamp-1 text-[12px] font-semibold">{c.title || "Video"}</span>
+                        <span className={cn("mt-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9.5px] font-semibold", b.cls)}><BadgeIcon className={cn("h-2.5 w-2.5", b.spin && "animate-spin")} /> {b.label}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <p className="border-t border-border p-3 text-[11px] leading-relaxed text-muted-foreground">Everything video lives here — briefs, drafts & finished reels. Open one to keep working, or start a new brief.</p>
+          </aside>
+        ) : (
+          <button onClick={() => setRailOpen(true)} title="Show library" className="hidden shrink-0 flex-col items-center gap-2 border-s border-border bg-card/40 px-1.5 py-3 text-muted-foreground hover:text-foreground lg:flex">
+            <FolderOpen className="h-4 w-4" />
+            <span className="text-[10px] font-semibold uppercase tracking-wide [writing-mode:vertical-rl]">Library</span>
+          </button>
+        )}
       </div>
 
       {/* bottom sheet — the brief form */}
@@ -384,28 +403,6 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
         </div>
       )}
 
-      {/* detail drawer */}
-      {detailId && (
-        <CampaignDetailDrawer
-          campaignId={detailId}
-          onClose={() => setDetailId(null)}
-          onChanged={load}
-          onDeleted={() => { setDetailId(null); load(); }}
-          onPlay={(p) => setPlay(p)}
-        />
-      )}
-
-      {/* library — a clean gallery of every render (mirrors the design-studio library) */}
-      {libOpen && (
-        <VideoLibrary
-          campaigns={campaigns}
-          onClose={() => setLibOpen(false)}
-          onPlay={(p) => setPlay(p)}
-          onOpen={(id) => { setLibOpen(false); setDetailId(id); }}
-          onDelete={deleteCampaign}
-          onNew={() => { setLibOpen(false); openSheet(); }}
-        />
-      )}
 
       {/* inline player */}
       {play && (
@@ -683,11 +680,8 @@ function CampaignDetailDrawer({
   const title = (detail?.state.brief || "Story-Ad campaign").slice(0, 80);
 
   return (
-    <div className="absolute inset-0 z-30 flex justify-end bg-black/45" onClick={onClose}>
-      <div
-        className="flex h-full w-full max-w-xl flex-col border-l border-border bg-card shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col">
         {/* header */}
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Film className="h-4 w-4" /></span>
