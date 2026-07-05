@@ -51,38 +51,48 @@ export const findLocalLeads: FlowAgentTool = {
       return { ok: true, data: { count: 0, userMessage: `No local businesses found for "${query}"${location ? ` in ${location}` : ""}. Try a broader term or a different location.` } };
     }
 
-    // Resolve or create the target list.
+    // Persist — wrapped so a DB/schema error degrades to a clear fallback instead
+    // of crashing the tool (the handler contract is: never throw).
     let listId = typeof input.listId === "string" ? input.listId : null;
-    if (listId) {
-      const owned = await prisma.savedLeadList.findFirst({ where: { id: listId, userId: ctx.userId }, select: { id: true } });
-      if (!owned) listId = null;
-    }
-    if (!listId) {
-      const name = (typeof input.listName === "string" && input.listName.trim()) || [query, location].filter(Boolean).join(" — ") || "Local leads";
-      const list = await prisma.savedLeadList.create({ data: { userId: ctx.userId, name: name.slice(0, 120), category: query.slice(0, 120) }, select: { id: true } });
-      listId = list.id;
-    }
-
-    // De-dupe by placeId within the list, then save the business-level leads.
-    const existing = await prisma.savedLead.findMany({ where: { userId: ctx.userId, listId, placeId: { in: businesses.map((b) => b.placeId) } }, select: { placeId: true } });
-    const seen = new Set(existing.map((e) => e.placeId));
     const created: { id: string; name: string }[] = [];
-    for (const b of businesses) {
-      if (b.placeId && seen.has(b.placeId)) continue;
-      const lead = await prisma.savedLead.create({
-        data: {
-          userId: ctx.userId, listId, placeId: b.placeId || null,
-          name: b.name.slice(0, 160), address: b.address, phone: b.phone || null, website: b.website || null,
-          rating: typeof b.rating === "number" ? b.rating : null, reviewCount: typeof b.reviewCount === "number" ? b.reviewCount : null,
-          businessStatus: b.businessStatus || null, category: query.slice(0, 120), types: JSON.stringify(b.types || []),
-          googleMapsUrl: b.googleMapsUrl, status: "NEW",
-        },
-        select: { id: true, name: true },
-      });
-      created.push(lead);
-    }
+    try {
+      // Resolve or create the target list.
+      if (listId) {
+        const owned = await prisma.savedLeadList.findFirst({ where: { id: listId, userId: ctx.userId }, select: { id: true } });
+        if (!owned) listId = null;
+      }
+      if (!listId) {
+        const name = (typeof input.listName === "string" && input.listName.trim()) || [query, location].filter(Boolean).join(" — ") || "Local leads";
+        const list = await prisma.savedLeadList.create({ data: { userId: ctx.userId, name: name.slice(0, 120), category: query.slice(0, 120) }, select: { id: true } });
+        listId = list.id;
+      }
 
-    await prisma.savedLeadList.update({ where: { id: listId }, data: { leadCount: await prisma.savedLead.count({ where: { listId } }) } }).catch(() => {});
+      // De-dupe by placeId within the list, then save the business-level leads.
+      const existing = await prisma.savedLead.findMany({ where: { userId: ctx.userId, listId, placeId: { in: businesses.map((b) => b.placeId) } }, select: { placeId: true } });
+      const seen = new Set(existing.map((e) => e.placeId));
+      for (const b of businesses) {
+        if (b.placeId && seen.has(b.placeId)) continue;
+        const lead = await prisma.savedLead.create({
+          data: {
+            userId: ctx.userId, listId, placeId: b.placeId || null,
+            name: b.name.slice(0, 160), address: b.address, phone: b.phone || null, website: b.website || null,
+            rating: typeof b.rating === "number" ? b.rating : null, reviewCount: typeof b.reviewCount === "number" ? b.reviewCount : null,
+            businessStatus: b.businessStatus || null, category: query.slice(0, 120), types: JSON.stringify(b.types || []),
+            googleMapsUrl: b.googleMapsUrl, status: "NEW",
+          },
+          select: { id: true, name: true },
+        });
+        created.push(lead);
+      }
+
+      await prisma.savedLeadList.update({ where: { id: listId }, data: { leadCount: await prisma.savedLead.count({ where: { listId } }) } }).catch(() => {});
+    } catch (e) {
+      return {
+        ok: false,
+        error_code: "upstream_failed",
+        message: `Found ${businesses.length} local ${query}, but couldn't save them — a database error occurred${e instanceof Error ? `: ${e.message.slice(0, 160)}` : ""}. Tell the user saving leads is temporarily unavailable; you can still share the top results and retry shortly.`,
+      };
+    }
     ctx.emit({ type: "canvas_update", patch: { __leads: { refresh: true, listId } } });
 
     return {
