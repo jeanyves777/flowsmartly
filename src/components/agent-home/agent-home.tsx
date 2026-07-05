@@ -935,7 +935,7 @@ export function AgentHome() {
                     <div ref={bottomRef} />
                   </div>
                   <div className="border-t border-border p-3">
-                    <Composer onSend={(t, sm) => send(t, sm, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined)} sending={sending} placeholder={s.placeholder} autoFocus />
+                    <Composer onSend={(t, sm, atts) => send(t, sm, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { attachments: atts })} sending={sending} placeholder={s.placeholder} autoFocus />
                   </div>
                 </>
               }
@@ -1193,7 +1193,7 @@ export function AgentHome() {
           {/* composer */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/90 to-transparent px-3 pb-4 pt-3 sm:px-[clamp(16px,6vw,110px)] sm:pb-5">
             <div className="pointer-events-auto mx-auto max-w-[840px]">
-              <Composer onSend={send} sending={sending} placeholder={s.placeholder} />
+              <Composer onSend={(t, sm, atts) => send(t, sm, undefined, undefined, { attachments: atts })} sending={sending} placeholder={s.placeholder} />
             </div>
             <p className="mx-auto mt-2 hidden max-w-[840px] text-center text-[11px] text-muted-foreground sm:block">{s.hint}</p>
           </div>
