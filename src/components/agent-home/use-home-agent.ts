@@ -35,6 +35,8 @@ export interface HomeMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  /** Images the user attached to this turn (shown in their bubble). */
+  attachments?: { dataUrl?: string; url?: string; name: string }[];
   blocks?: MessageBlock[];
   toolCalls?: AgentToolCardData[];
   planProposals?: PlanProposalCardData[];
@@ -82,16 +84,17 @@ export function useHomeAgent() {
   }, []);
 
   const handleSend = useCallback(
-    async (text: string, superMode = false, canvasContext?: string, surfaceContext?: string, opts?: { hidden?: boolean }) => {
+    async (text: string, superMode = false, canvasContext?: string, surfaceContext?: string, opts?: { hidden?: boolean; attachments?: { dataUrl?: string; url?: string; name: string }[] }) => {
       const trimmed = text.trim();
-      if (!trimmed || sending) return;
+      const atts = opts?.attachments && opts.attachments.length ? opts.attachments : undefined;
+      if ((!trimmed && !atts) || sending) return;
       setSending(true);
 
       // `hidden` = a button-driven internal instruction to the agent (not something
       // the user typed). We send it to the agent but DON'T render it as a user
       // bubble — the user just sees the agent start working (the thinking
       // animation on the pending assistant turn), then its response.
-      const userMsg: HomeMessage = { id: `tmp-u-${Date.now()}`, role: "user", content: trimmed };
+      const userMsg: HomeMessage = { id: `tmp-u-${Date.now()}`, role: "user", content: trimmed, attachments: atts };
       const pendingMsg: HomeMessage = { id: `tmp-a-${Date.now()}`, role: "assistant", content: "" };
       setMessages((prev) => (opts?.hidden ? [...prev, pendingMsg] : [...prev, userMsg, pendingMsg]));
       // Hidden instructions are persisted server-side; tag them so a later reload
@@ -125,7 +128,7 @@ export function useHomeAgent() {
       };
 
       try {
-        const res = await send({ message: wire, conversationId, superMode, canvasContext, surfaceContext });
+        const res = await send({ message: wire, conversationId, superMode, canvasContext, surfaceContext, attachments: atts });
         if (!res.ok || !res.body) {
           let errMsg = "Agent failed to start";
           try {

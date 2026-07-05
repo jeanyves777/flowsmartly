@@ -61,9 +61,21 @@ export function HomeMessageView({
             bubbleClassName="bg-card border-border text-foreground"
           />
         ) : isUser ? (
-          <div className="inline-block whitespace-pre-wrap break-words rounded-[13px] border border-brand-500/25 bg-brand-500/10 px-3.5 py-2.5 text-[14.5px]">
-            {message.content}
-          </div>
+          <>
+            {message.attachments && message.attachments.length > 0 && (
+              <div className="flex flex-wrap justify-end gap-1.5">
+                {message.attachments.map((a, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={i} src={a.dataUrl || a.url} alt={a.name} className="h-20 w-20 rounded-xl border border-border object-cover" />
+                ))}
+              </div>
+            )}
+            {message.content && (
+              <div className="inline-block whitespace-pre-wrap break-words rounded-[13px] border border-brand-500/25 bg-brand-500/10 px-3.5 py-2.5 text-[14.5px]">
+                {message.content}
+              </div>
+            )}
+          </>
         ) : (
           <>
             {message.content ? (
