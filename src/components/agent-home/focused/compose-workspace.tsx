@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Sparkles, Send, CalendarClock, FileEdit, CheckCircle2, ImageIcon, Link2, Plug, Rss, Hash, Clock, X, AlertTriangle, RefreshCw, XCircle, Ban, Search, Eye, MoreHorizontal, Heart, MessageCircle, Share2, ThumbsUp, Repeat2, Bookmark, Globe2, Play, BadgeCheck, CheckCheck } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -174,9 +174,18 @@ function destinationLabel(id: string, targets: Target[]): string {
   return id.replace(/^account:/, "");
 }
 
-export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+export function FocusedCompose({ refreshKey, onAsk, composeOpsRef, working }: {
+  refreshKey?: number;
+  onAsk?: (prompt: string) => void;
+  /** The agent's write_compose_post routes the drafted caption here (via the
+   *  canvas_update `__compose` marker) so it lands in the editor, not the chat. */
+  composeOpsRef?: { current: { apply: (patch: Record<string, unknown>) => void } | null };
+  /** Agent busy flag — clears the "writing…" loader when it goes idle. */
+  working?: boolean;
+}) {
   const [accounts, setAccounts] = useState<PlatformAcc[]>([]);
   const [loading, setLoading] = useState(true);
+  const [aiArmed, setAiArmed] = useState(false);
 
   const [caption, setCaption] = useState("");
   const [media, setMedia] = useState<string[]>([]);
@@ -396,10 +405,44 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
     }
   };
 
+  // The agent's write_compose_post lands here: drop the drafted caption straight
+  // into the editor and pre-select any platforms it chose. [[agent-writes-into-ui-element-not-chat]]
+  const applyAgentPatch = useCallback((patch: Record<string, unknown>) => {
+    const cap = typeof patch.caption === "string" ? patch.caption : null;
+    const plats = Array.isArray(patch.platforms)
+      ? (patch.platforms as unknown[]).filter((p): p is string => typeof p === "string").map((p) => p.toLowerCase())
+      : null;
+    if (cap !== null) { setCaption(cap); setDone(null); }
+    if (plats && plats.length) {
+      const wanted = new Set(plats);
+      setSelected((prev) => {
+        const ids = targets.filter((t) => wanted.has(t.platform.toLowerCase()) || (wanted.has("feed") && t.feed)).map((t) => t.id);
+        return ids.length ? Array.from(new Set(ids)) : prev;
+      });
+    }
+    setAiArmed(false);
+  }, [targets]);
+
+  // Expose the applier to the agent bridge (reassigned as targets change so the
+  // platform mapping stays fresh).
+  useEffect(() => {
+    if (composeOpsRef) composeOpsRef.current = { apply: applyAgentPatch };
+    return () => { if (composeOpsRef) composeOpsRef.current = null; };
+  }, [composeOpsRef, applyAgentPatch]);
+
+  // Fallback: if the agent finishes without writing a caption, clear the loader
+  // when it goes busy → idle (never leave a stuck spinner). [[agent-writes-into-ui-element-not-chat]]
+  const prevWorking = useRef(false);
+  useEffect(() => {
+    if (prevWorking.current && !working) setAiArmed(false);
+    prevWorking.current = !!working;
+  }, [working]);
+
   const askAi = () => {
     if (!onAsk) return;
-    const hint = caption.trim() ? ` Here's my rough idea: "${caption.trim()}".` : "";
-    onAsk(`Help me write an engaging social post. Ask me the goal, vibe, and which platforms, then draft the caption with hashtags.${hint}`);
+    setAiArmed(true);
+    const hint = caption.trim() ? ` My rough idea: "${caption.trim()}".` : "";
+    onAsk(`Draft an engaging social post caption for me and put it straight into the composer. First ask me the goal, the vibe, and which platforms to post to — use quick clickable option cards (ask_choice), and let me pick multiple platforms. Then call write_compose_post to write the caption into the editor (with hashtags) — do not paste the caption in the chat.${hint}`);
   };
 
   if (loading) {
@@ -486,20 +529,27 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
                   <span className="flex items-center gap-2">
                     <span className="text-[11.5px] font-medium text-muted-foreground">Caption</span>
                     {onAsk && (
-                      <button type="button" onClick={askAi} className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground">
-                        <Sparkles className="h-3 w-3 text-brand-500" /> Ask AI to write it
+                      <button type="button" onClick={askAi} disabled={aiArmed} className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground disabled:opacity-70">
+                        {aiArmed ? <FlowLoader size={11} /> : <Sparkles className="h-3 w-3 text-brand-500" />} {aiArmed ? "Writing…" : "Ask AI to write it"}
                       </button>
                     )}
                   </span>
                   <span className={cn("text-[11px] tabular-nums", over ? "text-rose-500 font-semibold" : "text-muted-foreground")}>{chars.toLocaleString()} / {CAPTION_MAX.toLocaleString()}</span>
                 </span>
-                <textarea
-                  rows={6}
-                  value={caption}
-                  onChange={(e) => { setCaption(e.target.value); setDone(null); }}
-                  placeholder="What do you want to say? Use #hashtags and @mentions — they're picked up automatically."
-                  className={cn(FIELD, "resize-y leading-relaxed")}
-                />
+                <div className="relative">
+                  <textarea
+                    rows={6}
+                    value={caption}
+                    onChange={(e) => { setCaption(e.target.value); setDone(null); }}
+                    placeholder={aiArmed ? "" : "What do you want to say? Use #hashtags and @mentions — they're picked up automatically."}
+                    className={cn(FIELD, "resize-y leading-relaxed", aiArmed && "border-brand-500/50")}
+                  />
+                  {aiArmed && !caption && (
+                    <span className="pointer-events-none absolute inset-x-3 top-3 flex items-center gap-1.5 text-[12px] font-medium text-brand-500">
+                      <FlowLoader size={13} /> The agent is drafting your caption — it&apos;ll appear here…
+                    </span>
+                  )}
+                </div>
               </label>
 
               {/* media (optional) — real upload + media library + preview */}
