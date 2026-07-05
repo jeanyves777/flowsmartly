@@ -21,6 +21,7 @@ const GENERATE_URL = `${HEYGEN_BASE}/v2/video/generate`;
 const STATUS_URL = `${HEYGEN_BASE}/v1/video_status.get`;
 const AVATARS_URL = `${HEYGEN_BASE}/v2/avatars`;
 const VOICES_URL = `${HEYGEN_BASE}/v2/voices`;
+const TEMPLATES_URL = `${HEYGEN_BASE}/v2/templates`;
 const ASSET_UPLOAD_URL = "https://upload.heygen.com/v1/asset";
 const TALKING_PHOTO_URL = "https://upload.heygen.com/v1/talking_photo";
 const TRANSLATE_URL = `${HEYGEN_BASE}/v2/video_translate`;
@@ -81,7 +82,7 @@ interface GenerateOptions {
   quality?: AvatarQuality;
   /** Burn captions into the video. */
   captions?: boolean;
-  /** Avatar background — a hex colour (e.g. "#0ea5e9"); omit/"original" keeps the default. */
+  /** Avatar background — a hex colour ("#0ea5e9") OR an image URL; "original"/empty keeps the default. */
   background?: string | null;
   /** Persist the upstream video_id the moment the job is created, so a restart
    *  mid-poll can resume instead of losing a render the provider is billing. */
@@ -137,6 +138,9 @@ class HeyGenClient {
     };
     if (background && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(background)) {
       videoInput.background = { type: "color", value: background };
+    } else if (background && /^https?:\/\//i.test(background)) {
+      // An image background — e.g. one our own AI generated, or a Media Library asset.
+      videoInput.background = { type: "image", url: background, fit: "cover" };
     }
 
     const body: Record<string, unknown> = {
@@ -255,6 +259,27 @@ class HeyGenClient {
       return out.filter((a) => a.id);
     } catch (e) {
       console.error("[HeyGen] listAvatars failed:", e);
+      return [];
+    }
+  }
+
+  /** List the account's HeyGen templates (real — each carries its own background/music/captions/branding). */
+  async listTemplates(): Promise<{ id: string; name: string; thumbnailUrl?: string }[]> {
+    if (!this.apiKey) return [];
+    try {
+      const res = await fetch(TEMPLATES_URL, { headers: this.headers() });
+      if (!res.ok) return [];
+      const data = await res.json();
+      const templates = (data?.data?.templates ?? data?.templates ?? []) as Array<Record<string, unknown>>;
+      return templates
+        .map((t) => ({
+          id: String(t.template_id ?? t.id ?? ""),
+          name: String(t.name ?? "Template"),
+          thumbnailUrl: (t.thumbnail_image_url as string) || (t.thumbnail as string) || undefined,
+        }))
+        .filter((t) => t.id);
+    } catch (e) {
+      console.error("[HeyGen] listTemplates failed:", e);
       return [];
     }
   }

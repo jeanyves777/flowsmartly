@@ -6,7 +6,7 @@ import Image from "next/image";
 import {
   UserSquare2, Sparkles, Type as TypeIcon, Mic, X, Coins, Play,
   CheckCircle2, Clock, TriangleAlert, ChevronUp, Wand2, AlertTriangle,
-  Trash2, ChevronRight, Film, Loader2, FolderOpen, Languages, Images, Package, Upload, Plus, Sliders, Music, Captions as CaptionsIcon, Palette,
+  Trash2, ChevronRight, Film, Loader2, FolderOpen, Languages, Images, Package, Upload, Plus, Sliders, Captions as CaptionsIcon,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -80,7 +80,8 @@ interface AvatarVideo {
   script?: string | null;
 }
 interface Avatar { id: string; name: string; previewUrl?: string; isCustom: boolean }
-interface Voice { id: string; name: string; language?: string }
+interface Voice { id: string; name: string; language?: string; previewUrl?: string }
+interface Template { id: string; name: string; thumbnailUrl?: string }
 interface Estimate { total: number; qualityLabel: string; availableCredits: number; hasEnoughCredits: boolean; isAdmin: boolean }
 
 const RENDERING = new Set(["PROCESSING", "PENDING", "QUEUED", "COMPOSITING"]);
@@ -197,8 +198,21 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
     setProjectId(videos[0].projectId || "");
   }, [videos]);
 
-  // The canvas shows only the current project's videos.
-  const projectVideos = useMemo(() => videos.filter((v) => (v.projectId || "") === (projectId || "")), [videos, projectId]);
+  // The canvas shows the current project's videos in FORWARD order (scene 1 → N,
+  // new ones appended after the existing, before the "+"). The list arrives
+  // newest-first, so sort ascending by scene order, then by creation time.
+  const projectVideos = useMemo(
+    () =>
+      videos
+        .filter((v) => (v.projectId || "") === (projectId || ""))
+        .slice()
+        .sort((a, b) => {
+          const sa = a.projectSeq ?? 0, sb = b.projectSeq ?? 0;
+          if (sa !== sb) return sa - sb;
+          return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+        }),
+    [videos, projectId],
+  );
 
   // Group all videos into projects (for the switcher + the Library). Labelled by
   // the project's FIRST (oldest) video's title; videos are desc, so last = oldest.
@@ -354,6 +368,23 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
     finally { setGeneratingId(null); }
   }, []);
 
+  // Live-reflect drawer edits on the canvas card (before Save/Generate).
+  const onSceneLive = useCallback((id: string, patch: Partial<AvatarVideo>) => {
+    setVideos((vs) => vs.map((v) => (v.id === id ? { ...v, ...patch } : v)));
+  }, []);
+
+  // Drag-to-reorder scenes within a project (optimistic + persist).
+  const [dragId, setDragId] = useState<string | null>(null);
+  const reorderScenes = useCallback((draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+    const ids = projectVideos.map((v) => v.id);
+    const from = ids.indexOf(draggedId), to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    setVideos((vs) => vs.map((v) => { const idx = ids.indexOf(v.id); return idx >= 0 ? { ...v, projectSeq: idx + 1 } : v; }));
+    fetch("/api/ai/avatar-studio/reorder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderedIds: ids }) }).catch(() => {});
+  }, [projectVideos]);
+
 
   // Header stats reflect the CURRENT project (what's on the canvas); Library shows all.
   const stats = useMemo(() => {
@@ -434,16 +465,26 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               {projectVideos.map((v, i) => (
                 <Fragment key={v.id}>
                   {i > 0 && <span aria-hidden className="h-0.5 w-6 shrink-0 self-center rounded bg-gradient-to-r from-brand-500/60 to-brand-500/40" />}
-                  <RenderNode
-                    v={v}
-                    onPlay={() => isPlayable(v.videoUrl) && setPlay({ url: v.videoUrl, title: v.title, poster: v.thumbnailUrl })}
-                    onOpen={() => setDetailId(v.id)}
-                    onGenerate={() => generateScene(v.id)}
-                    onRemove={() => deleteVideo(v.id)}
-                    onEdit={() => setEditSceneId(v.id)}
-                    generating={generatingId === v.id}
-                    avatarPreview={avatars.find((a) => a.id === v.avatarId)?.previewUrl}
-                  />
+                  <div
+                    draggable
+                    onDragStart={() => setDragId(v.id)}
+                    onDragEnd={() => setDragId(null)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => { e.preventDefault(); if (dragId) reorderScenes(dragId, v.id); setDragId(null); }}
+                    className={cn("flex cursor-grab items-stretch transition active:cursor-grabbing", dragId === v.id && "opacity-40")}
+                  >
+                    <RenderNode
+                      v={v}
+                      onPlay={() => isPlayable(v.videoUrl) && setPlay({ url: v.videoUrl, title: v.title, poster: v.thumbnailUrl })}
+                      onOpen={() => setDetailId(v.id)}
+                      onGenerate={() => generateScene(v.id)}
+                      onRemove={() => deleteVideo(v.id)}
+                      onEdit={() => setEditSceneId(v.id)}
+                      generating={generatingId === v.id}
+                      avatarPreview={avatars.find((a) => a.id === v.avatarId)?.previewUrl}
+                      sceneNumber={i + 1}
+                    />
+                  </div>
                 </Fragment>
               ))}
               {/* connector → add the next video to this same project */}
@@ -746,13 +787,14 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
           onClose={() => setEditSceneId(null)}
           onChanged={() => setLocalRefresh((n) => n + 1)}
           onGenerated={() => { setEditSceneId(null); setLocalRefresh((n) => n + 1); }}
+          onLive={(patch) => onSceneLive(editSceneId, patch)}
         />
       )}
     </div>
   );
 }
 
-function RenderNode({ v, onPlay, onOpen, onGenerate, onRemove, onEdit, generating, avatarPreview }: {
+function RenderNode({ v, onPlay, onOpen, onGenerate, onRemove, onEdit, generating, avatarPreview, sceneNumber }: {
   v: AvatarVideo;
   onPlay: () => void;
   onOpen: () => void;
@@ -761,11 +803,13 @@ function RenderNode({ v, onPlay, onOpen, onGenerate, onRemove, onEdit, generatin
   onEdit: () => void;
   generating: boolean;
   avatarPreview?: string;
+  sceneNumber?: number;
 }) {
   const b = statusBadge(v.status);
   const BadgeIcon = b.icon;
   const ready = (v.status || "").toUpperCase() === "COMPLETED" && isPlayable(v.videoUrl);
   const pct = Math.max(0, Math.min(100, Math.round(v.progress ?? 0)));
+  const sceneNo = sceneNumber ?? v.projectSeq ?? undefined;
 
   // Drafted scene: the SELECTED AVATAR + its settings; the script + full editing live in the drawer.
   if ((v.status || "").toUpperCase() === "DRAFT") {
@@ -778,7 +822,7 @@ function RenderNode({ v, onPlay, onOpen, onGenerate, onRemove, onEdit, generatin
             <div className="grid h-full w-full place-items-center bg-gradient-to-br from-muted/40 to-muted/10 text-muted-foreground"><UserSquare2 className="h-7 w-7" /></div>
           )}
           <span className={cn("absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", b.cls)}><BadgeIcon className="h-3 w-3" /> {b.label}</span>
-          {v.projectSeq ? <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">Scene {v.projectSeq}</span> : null}
+          {sceneNo ? <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">Scene {sceneNo}</span> : null}
           <span className="absolute inset-x-0 bottom-0 block bg-gradient-to-t from-black/85 to-transparent px-2.5 pb-2 pt-8">
             <span className="block truncate text-[12px] font-semibold text-white">{v.avatarName || "Avatar"}</span>
             <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-white/80"><Sliders className="h-3 w-3" /> Tap to edit scene</span>
@@ -1103,43 +1147,45 @@ function Dot() { return <span className="inline-block h-1 w-1 rounded-full bg-mu
 // Scene edit drawer — the HeyGen-style per-scene editor (opens on the right)
 // =============================================================
 
-const BG_SWATCHES: { v: string; label: string; color?: string }[] = [
-  { v: "original", label: "Original" },
-  { v: "#0ea5e9", label: "Sky", color: "#0ea5e9" },
-  { v: "#8b5cf6", label: "Violet", color: "#8b5cf6" },
-  { v: "#10b981", label: "Emerald", color: "#10b981" },
-  { v: "#f59e0b", label: "Amber", color: "#f59e0b" },
-  { v: "#111827", label: "Ink", color: "#111827" },
-  { v: "#ffffff", label: "White", color: "#ffffff" },
-];
-const MUSIC_TRACKS = ["None", "Upbeat", "Calm", "Corporate", "Cinematic"];
-
 interface DrawerState {
   script: string; avatarId: string; voiceId: string; quality: Quality; aspect: Aspect; lengthSeconds: number;
-  captionsOn: boolean; background: string; layout: string; music: string | null; templateId: string | null;
+  captionsOn: boolean; background: string; templateId: string | null;
 }
+const isHex = (s: string) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s);
+const isUrl = (s: string) => /^https?:\/\/|^\/uploads\//i.test(s);
 
-function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGenerated }: {
+function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGenerated, onLive }: {
   sceneId: string;
   avatars: Avatar[];
   voices: Voice[];
   onClose: () => void;
   onChanged: () => void;
   onGenerated: () => void;
+  onLive: (patch: Partial<AvatarVideo>) => void;
 }) {
   const [st, setSt] = useState<DrawerState | null>(null);
   const [seq, setSeq] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<"save" | "generate" | null>(null);
   const [err, setErr] = useState("");
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [bgPrompt, setBgPrompt] = useState("");
+  const [bgBusy, setBgBusy] = useState(false);
+  const [bgPickerOpen, setBgPickerOpen] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const j = await fetch(`/api/ai/avatar-studio/${sceneId}`).then((r) => r.json());
-        if (alive && j?.success && j.data?.state) {
-          const s = j.data.state;
+        const [sceneRes, tplRes] = await Promise.all([
+          fetch(`/api/ai/avatar-studio/${sceneId}`).then((r) => r.json()),
+          fetch("/api/ai/avatar-studio/templates").then((r) => r.json()).catch(() => null),
+        ]);
+        if (!alive) return;
+        if (tplRes?.success) setTemplates(tplRes.data?.templates ?? []);
+        if (sceneRes?.success && sceneRes.data?.state) {
+          const s = sceneRes.data.state;
           setSeq(s.projectSeq ?? null);
           setSt({
             script: s.script || "",
@@ -1150,42 +1196,67 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
             lengthSeconds: [15, 30, 60].includes(s.lengthSeconds) ? s.lengthSeconds : 30,
             captionsOn: !!s.captionsOn,
             background: s.background || "original",
-            layout: s.layout || "original",
-            music: s.music ?? null,
             templateId: s.templateId ?? null,
           });
         }
       } catch { /* ignore */ }
       finally { if (alive) setLoading(false); }
     })();
-    return () => { alive = false; };
+    return () => { alive = false; audioRef.current?.pause(); };
   }, [sceneId, avatars, voices]);
 
-  const set = (patch: Partial<DrawerState>) => setSt((p) => (p ? { ...p, ...patch } : p));
+  // Update local state AND live-reflect the change on the canvas card immediately.
+  const set = (patch: Partial<DrawerState>) => setSt((p) => {
+    if (!p) return p;
+    const next = { ...p, ...patch };
+    const av = avatars.find((a) => a.id === next.avatarId);
+    const vo = voices.find((v) => v.id === next.voiceId);
+    onLive({ avatarId: next.avatarId, avatarName: av?.name, voiceName: vo?.name, quality: next.quality, aspect: next.aspect, lengthSeconds: next.lengthSeconds, captionsOn: next.captionsOn, script: next.script });
+    return next;
+  });
+
   const buildPayload = () => {
     if (!st) return {};
     const av = avatars.find((a) => a.id === st.avatarId);
     const vo = voices.find((v) => v.id === st.voiceId);
-    return { ...st, music: st.music === "None" ? null : st.music, avatarName: av?.name || "Avatar", voiceName: vo?.name || "Voice" };
+    return { ...st, avatarName: av?.name || "Avatar", voiceName: vo?.name || "Voice" };
   };
-  const patch = async () => fetch(`/api/ai/avatar-studio/${sceneId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPayload()) }).then((r) => r.json());
+  const patchScene = async () => fetch(`/api/ai/avatar-studio/${sceneId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildPayload()) }).then((r) => r.json());
 
   const save = async () => {
     setBusy("save"); setErr("");
-    try { const j = await patch(); if (!j?.success) setErr(j?.error?.message || "Save failed."); else onChanged(); }
+    try { const j = await patchScene(); if (!j?.success) setErr(j?.error?.message || "Save failed."); else onChanged(); }
     catch { setErr("Save failed."); } finally { setBusy(null); }
   };
   const generate = async () => {
     setBusy("generate"); setErr("");
     try {
-      await patch();
+      await patchScene();
       const j = await fetch(`/api/ai/avatar-studio/${sceneId}/generate`, { method: "POST" }).then((r) => r.json());
       if (!j?.success) { setErr(j?.error?.message || "Generate failed."); return; }
       onGenerated();
     } catch { setErr("Generate failed."); } finally { setBusy(null); }
   };
 
+  // Generate a background with OUR AI tool (HeyGen's gallery isn't in their API).
+  const genBackground = async () => {
+    if (!st || !bgPrompt.trim()) return;
+    setBgBusy(true); setErr("");
+    try {
+      const j = await fetch("/api/ai/avatar-studio/generate-background", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: bgPrompt.trim(), aspect: st.aspect }) }).then((r) => r.json());
+      if (j?.success && j.data?.url) set({ background: j.data.url }); else setErr(j?.error?.message || "Background generation failed.");
+    } catch { setErr("Background generation failed."); } finally { setBgBusy(false); }
+  };
+
   const selAvatar = st && avatars.find((a) => a.id === st.avatarId);
+  const selVoice = st && voices.find((v) => v.id === st.voiceId);
+  const playVoice = () => {
+    if (!selVoice?.previewUrl) return;
+    audioRef.current?.pause();
+    const a = new Audio(selVoice.previewUrl);
+    audioRef.current = a;
+    a.play().catch(() => {});
+  };
 
   return (
     <div className="absolute inset-0 z-30 flex justify-end bg-black/45" onClick={onClose}>
@@ -1194,7 +1265,7 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Sliders className="h-4 w-4" /></span>
           <div className="min-w-0">
             <p className="text-[13px] font-semibold">Edit scene{seq ? ` ${seq}` : ""}</p>
-            <p className="text-[11px] text-muted-foreground">Avatar, voice, look &amp; captions</p>
+            <p className="text-[11px] text-muted-foreground">Live preview · changes reflect on the canvas</p>
           </div>
           <button onClick={onClose} className="ms-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
@@ -1204,12 +1275,19 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
             <div className="grid place-items-center py-16"><FlowLoader size={30} withMark label="Loading scene…" /></div>
           ) : (
             <>
+              {/* preview: selected avatar (+ background) */}
+              <div className="relative mb-3 aspect-[9/16] w-full max-w-[150px] overflow-hidden rounded-xl border border-border bg-background">
+                {isUrl(st.background) && <Image src={st.background} alt="" fill sizes="150px" className="object-cover" unoptimized />}
+                {isHex(st.background) && <span className="absolute inset-0" style={{ background: st.background }} />}
+                {selAvatar?.previewUrl && <Image src={selAvatar.previewUrl} alt="" fill sizes="150px" className={cn("object-cover", (isUrl(st.background) || isHex(st.background)) && "mix-blend-normal")} unoptimized />}
+              </div>
+
               {/* script */}
               <label className="mb-1 block text-[11.5px] font-semibold">Script</label>
               <textarea value={st.script} onChange={(e) => set({ script: e.target.value })} rows={4} className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
 
               {/* avatar */}
-              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Avatar</label>
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Avatar &amp; look</label>
               <div className="mb-1 flex items-center gap-2 rounded-[10px] border border-border bg-muted/30 p-2">
                 {selAvatar?.previewUrl ? (
                   <Image src={selAvatar.previewUrl} alt="" width={40} height={52} className="rounded-md object-cover" unoptimized />
@@ -1219,8 +1297,8 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
                 <span className="text-[12px] font-semibold">{selAvatar?.name || "Avatar"}</span>
               </div>
               <div className="flex gap-2 overflow-x-auto pb-1">
-                {avatars.slice(0, 24).map((a) => (
-                  <button key={a.id} onClick={() => set({ avatarId: a.id })} className={cn("relative w-14 shrink-0 overflow-hidden rounded-[10px] border transition", a.id === st.avatarId ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
+                {avatars.slice(0, 40).map((a) => (
+                  <button key={a.id} onClick={() => set({ avatarId: a.id })} title={a.name} className={cn("relative w-14 shrink-0 overflow-hidden rounded-[10px] border transition", a.id === st.avatarId ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
                     <div className="relative aspect-[3/4] w-full bg-muted">
                       {a.previewUrl ? <Image src={a.previewUrl} alt="" fill sizes="56px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
                     </div>
@@ -1228,11 +1306,14 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
                 ))}
               </div>
 
-              {/* voice */}
+              {/* voice + preview */}
               <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Voice</label>
-              <select value={st.voiceId} onChange={(e) => set({ voiceId: e.target.value })} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
-                {voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
-              </select>
+              <div className="flex gap-1.5">
+                <select value={st.voiceId} onChange={(e) => set({ voiceId: e.target.value })} className="min-w-0 flex-1 rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
+                  {voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
+                </select>
+                <button onClick={playVoice} disabled={!selVoice?.previewUrl} title="Listen to this voice" className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-border text-brand-500 hover:border-brand-500/60 disabled:opacity-40"><Play className="h-4 w-4 fill-current" /></button>
+              </div>
 
               {/* motion engine */}
               <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Motion engine</label>
@@ -1245,22 +1326,28 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
                 ))}
               </div>
 
-              {/* background */}
-              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Avatar background</label>
-              <div className="flex flex-wrap gap-1.5">
-                {BG_SWATCHES.map((s) => (
-                  <button key={s.v} onClick={() => set({ background: s.v })} title={s.label} className={cn("h-8 w-8 rounded-[8px] border transition", st.background === s.v ? "border-brand-500 ring-1 ring-brand-500" : "border-border")} style={s.color ? { background: s.color } : undefined}>
-                    {!s.color && <Palette className="mx-auto h-4 w-4 text-muted-foreground" />}
-                  </button>
-                ))}
-              </div>
-
-              {/* layout */}
-              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Layout</label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {["original", "circle"].map((l) => (
-                  <button key={l} onClick={() => set({ layout: l })} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-semibold capitalize transition", st.layout === l ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}>{l}</button>
-                ))}
+              {/* background — our AI, Media Library, or a colour (HeyGen's gallery isn't in their API) */}
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Background</label>
+              <div className="rounded-[10px] border border-border p-2">
+                <div className="mb-2 flex items-center gap-2">
+                  {isUrl(st.background) ? (
+                    <Image src={st.background} alt="" width={64} height={40} className="h-10 w-16 rounded object-cover" unoptimized />
+                  ) : isHex(st.background) ? (
+                    <span className="h-10 w-16 rounded" style={{ background: st.background }} />
+                  ) : (
+                    <span className="grid h-10 w-16 place-items-center rounded bg-muted text-[9px] text-muted-foreground">Original</span>
+                  )}
+                  <span className="truncate text-[11px] text-muted-foreground">{isUrl(st.background) ? "Image background" : isHex(st.background) ? st.background : "HeyGen default"}</span>
+                  {st.background !== "original" && <button onClick={() => set({ background: "original" })} className="ms-auto text-[11px] font-semibold text-muted-foreground hover:text-rose-500">Reset</button>}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <label className="inline-flex cursor-pointer items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold hover:border-brand-500/60"><input type="color" className="h-4 w-4 cursor-pointer bg-transparent" onChange={(e) => set({ background: e.target.value })} /> Colour</label>
+                  <button onClick={() => setBgPickerOpen(true)} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold hover:border-brand-500/60"><Images className="h-3 w-3" /> Media Library</button>
+                </div>
+                <div className="mt-2 flex gap-1.5">
+                  <input value={bgPrompt} onChange={(e) => setBgPrompt(e.target.value)} placeholder="Generate a background — e.g. modern office" className="min-w-0 flex-1 rounded-[8px] border border-input bg-background px-2 py-1 text-[11.5px] outline-none focus:border-brand-500/60" />
+                  <button onClick={genBackground} disabled={bgBusy || !bgPrompt.trim()} className="inline-flex shrink-0 items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-60">{bgBusy ? <FlowLoader size={12} tone="white" /> : <Sparkles className="h-3 w-3" />} AI</button>
+                </div>
               </div>
 
               {/* captions */}
@@ -1270,23 +1357,20 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
                 <button onClick={() => set({ captionsOn: true })} className={cn("inline-flex items-center justify-center gap-1 rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-semibold transition", st.captionsOn ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}><CaptionsIcon className="h-3.5 w-3.5" /> On</button>
               </div>
 
-              {/* music */}
-              <label className="mb-1 mt-3 flex items-center gap-1 text-[11.5px] font-semibold"><Music className="h-3.5 w-3.5" /> Music</label>
-              <div className="flex flex-wrap gap-1.5">
-                {MUSIC_TRACKS.map((m) => {
-                  const on = (st.music || "None") === m;
-                  return <button key={m} onClick={() => set({ music: m })} className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition", on ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{m}</button>;
-                })}
-              </div>
-
-              {/* template */}
-              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Template</label>
-              <div className="flex flex-wrap gap-1.5">
-                <button onClick={() => set({ templateId: null })} className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition", !st.templateId ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>None</button>
-                {TEMPLATES.map((t) => (
-                  <button key={t.id} onClick={() => set({ templateId: t.id })} className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition", st.templateId === t.id ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{t.name}</button>
-                ))}
-              </div>
+              {/* template — real HeyGen templates (background + music + caption style baked in) */}
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">HeyGen template <span className="font-normal text-muted-foreground">— carries its own background, music &amp; captions</span></label>
+              {templates.length === 0 ? (
+                <p className="rounded-[10px] border border-dashed border-border bg-muted/20 px-2.5 py-2 text-[10.5px] text-muted-foreground">No HeyGen templates on your account yet. Build one in HeyGen (background + music + caption style) and it appears here to reuse.</p>
+              ) : (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  <button onClick={() => set({ templateId: null })} className={cn("grid h-16 w-12 shrink-0 place-items-center rounded-[8px] border text-[10px] font-semibold transition", !st.templateId ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground")}>None</button>
+                  {templates.map((t) => (
+                    <button key={t.id} onClick={() => set({ templateId: t.id })} title={t.name} className={cn("relative h-16 w-12 shrink-0 overflow-hidden rounded-[8px] border transition", st.templateId === t.id ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
+                      {t.thumbnailUrl ? <Image src={t.thumbnailUrl} alt="" fill sizes="48px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center bg-muted p-1 text-center text-[8px] text-muted-foreground">{t.name}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* format + length */}
               <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Format &amp; length</label>
@@ -1315,6 +1399,15 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
           </button>
         </div>
       </div>
+
+      {/* background picker — a real image from the user's Media Library */}
+      <MediaLibraryPicker
+        open={bgPickerOpen}
+        onClose={() => setBgPickerOpen(false)}
+        onSelect={(url) => { set({ background: url }); setBgPickerOpen(false); }}
+        filterTypes={["image"]}
+        title="Choose a background"
+      />
     </div>
   );
 }

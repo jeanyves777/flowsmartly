@@ -13,6 +13,8 @@
 import { prisma } from "@/lib/db/client";
 import { heygenClient, type HeyGenAvatar, type HeyGenVoice } from "@/lib/ai/heygen-client";
 import { ai } from "@/lib/ai/client";
+import { generateImageForRole } from "@/lib/ai/image-router";
+import type { AvatarAspect } from "./types";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { saveToMediaLibrary } from "@/lib/ai/flow-agent/save-media";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
@@ -382,7 +384,21 @@ export async function draftAvatarProject(input: {
 }): Promise<{ projectId: string; scenes: { id: string; title: string; script: string; seq: number }[] }> {
   const count = Math.max(1, Math.min(10, Math.round(input.sceneCount || 1)));
   const words = Math.max(20, Math.round((input.base.lengthSeconds || 30) * 2)); // ~2 words/sec
-  const projectId = input.base.projectId || `proj_${Date.now()}`;
+  const projectId = input.base.projectId || `proj_${input.userId.slice(-6)}`;
+
+  // Continue the scene numbering after any existing scenes in this project so a
+  // second batch appends (Scene 4, 5, …) instead of colliding with 1, 2, 3.
+  let startSeq = 1;
+  if (input.base.projectId) {
+    const rows = await prisma.cartoonVideo.findMany({
+      where: { userId: input.userId, animationType: ANIMATION_TYPE },
+      select: { metadata: true },
+    });
+    for (const r of rows) {
+      const s = readAvatarState(r.metadata);
+      if ((s.projectId || "") === projectId && (s.projectSeq || 0) >= startSeq) startSeq = (s.projectSeq || 0) + 1;
+    }
+  }
 
   // Draft N distinct scene scripts from the brief (Claude Haiku).
   let drafted: { title?: string; script?: string }[] = [];
@@ -404,7 +420,7 @@ export async function draftAvatarProject(input: {
   for (let i = 0; i < drafted.length; i++) {
     const script = String(drafted[i]?.script || input.brief).trim().slice(0, 3500);
     const title = String(drafted[i]?.title || `Scene ${i + 1}`).trim().slice(0, 80);
-    const state: AvatarVideoState = { ...emptyAvatarState(), ...input.base, projectId, projectSeq: i + 1, mode: "talking", brief: title, script };
+    const state: AvatarVideoState = { ...emptyAvatarState(), ...input.base, projectId, projectSeq: startSeq + i, mode: "talking", brief: title, script };
     const rec = await prisma.cartoonVideo.create({
       data: {
         userId: input.userId,
@@ -504,4 +520,53 @@ export async function listVoicesForUser(): Promise<HeyGenVoice[]> {
   if (!heygenClient.isAvailable()) return FALLBACK_VOICES;
   const list = await heygenClient.listVoices();
   return list.length ? list.slice(0, 60) : FALLBACK_VOICES;
+}
+
+/** Real HeyGen templates (each carries its own background/music/captions/branding). */
+export async function listTemplatesForUser() {
+  return heygenClient.listTemplates();
+}
+
+/**
+ * Generate a scene background with OUR image tool (HeyGen's gallery isn't in
+ * their API). Returns a public URL to use as the avatar's image background.
+ */
+export async function generateSceneBackground(userId: string, prompt: string, aspect: AvatarAspect): Promise<string | null> {
+  const [w, h] = aspect === "16:9" ? [1280, 720] : aspect === "1:1" ? [1080, 1080] : [720, 1280];
+  try {
+    const result = await generateImageForRole(
+      "design_generate",
+      `A clean, professional talking-head video BACKDROP scene — no people, no text, uncluttered, cinematic, well-lit. Scene: ${prompt}`,
+      w, h, { quality: "medium" },
+    );
+    if (!result.base64) return null;
+    const buf = Buffer.from(result.base64, "base64");
+    return await uploadToS3(`heygen/backgrounds/${userId}-${Math.abs(hashString(prompt + w + h))}.jpg`, buf, "image/jpeg");
+  } catch (e) {
+    console.error("[avatar-studio] background generation failed:", e);
+    return null;
+  }
+}
+
+/** Reorder a project's scenes: assign projectSeq by the given id order. */
+export async function reorderProjectScenes(userId: string, orderedIds: string[]): Promise<boolean> {
+  const rows = await prisma.cartoonVideo.findMany({
+    where: { id: { in: orderedIds }, userId, animationType: ANIMATION_TYPE },
+    select: { id: true, metadata: true },
+  });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  let seq = 1;
+  for (const id of orderedIds) {
+    const row = byId.get(id);
+    if (!row) continue;
+    const merged = { ...readAvatarState(row.metadata), projectSeq: seq++ };
+    await prisma.cartoonVideo.update({ where: { id }, data: { metadata: writeAvatarState(merged) } });
+  }
+  return true;
+}
+
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i); h |= 0; }
+  return h;
 }
