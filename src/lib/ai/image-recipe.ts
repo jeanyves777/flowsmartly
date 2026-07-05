@@ -1,18 +1,23 @@
 import type { RecipeConfig } from "./media-policy";
 
 /**
- * ART-DIRECTION RECIPE — the single source of truth for the design-quality
- * prompt layer that lifts EVERY provider (xAI, Gemini, gpt-image) to the
- * agency-grade, gpt-image-example bar. Proven in the July-2026 bake-off: the
- * jump from "plain/basic, card-on-a-background" to full-bleed, richly-designed,
- * correctly-spelled output came from three levers, each gated by a recipe flag
- * the Control Hub can toggle:
+ * ART-DIRECTION RECIPE — the design-quality prompt layer appended to EVERY
+ * provider's design prompt (xAI, Gemini, gpt-image) so they all aim at the same
+ * bar: rich, PHOTOGRAPHIC, agency-grade PRINT-MARKETING flyers (the DESIGN_ESAMPLE
+ * reference set — celebration cards with real composited people, food/product
+ * promos, multi-zone service flyers), NOT flat minimal SaaS slides.
+ *
+ * Rewritten (July-2026) after the gpt-image bake-off: the earlier recipe chased
+ * a "Stripe/Linear/Vercel/Notion" minimal aesthetic, which pushed xAI/Gemini to
+ * clean-but-flat gradient+glassmorphism output. The real bar is expressive,
+ * photographic, decorated design — so the recipe now demands a photoreal hero,
+ * rich occasion-appropriate art direction, and art-directed typography.
+ *
+ * Levers (each Control-Hub toggleable via RecipeConfig):
  *   • fullBleed       — anti-card, edge-to-edge composition
- *   • premiumPolish   — Stripe/Linear-grade depth, glassmorphism, 2K sharpness
+ *   • premiumPolish   — the rich photographic agency-flyer art direction (the big one)
  *   • enforceExactCopy— exact words, zero misspelling/duplication/invention
  *   • singleLogo      — model draws NO brand mark; the real logo composites once
- *
- * This is appended to the pipeline's design prompt so it applies uniformly.
  */
 export function buildArtDirection(opts: {
   recipe: RecipeConfig;
@@ -22,24 +27,36 @@ export function buildArtDirection(opts: {
   const parts: string[] = ["ART DIRECTION — hold every rule below:"];
 
   if (recipe.fullBleed) {
-    // ROOT-CAUSE FIX (July-2026 xAI probe): grok-imagine renders the design as a
-    // physical object with a matte/shadow — a card floating on a second
-    // background — when the prompt (a) uses object words like flyer/poster/card
-    // or "ambient shadow", and (b) lacks explicit edge negatives. The winning
-    // recipe reframes the deliverable as the CANVAS ITSELF and hard-negatives the
-    // border/matte/vignette while asserting the background touches all four edges.
+    // ROOT-CAUSE FIX (xAI probe): grok-imagine renders the design as a physical
+    // object with a matte/shadow — a card floating on a second background — when
+    // the prompt uses object words (flyer/poster/card) without explicit edge
+    // negatives. Reframe the deliverable as the CANVAS ITSELF and hard-negative
+    // the border/matte/vignette. (This is about the FRAME of the output — it does
+    // NOT forbid photographic imagery INSIDE the design; see PHOTOREALISTIC HERO.)
     parts.push(
-      "• FULL-BLEED — THE IMAGE ITSELF IS THE ARTWORK: you are painting directly onto the ENTIRE canvas, edge to edge. This is NOT a photograph of a printed flyer, poster, card, postcard, or sheet of paper, and NOT a design placed on top of any surface, wall, desk, mat, or secondary background. There is exactly ONE layer. The background color/gradient reaches and TOUCHES all four edges — the corner pixels are part of the design. Absolutely NO border, NO frame, NO matte, NO passe-partout, NO vignette, NO rounded outer corners, NO inner card, NO drop shadow around the whole image, and NO darker surround of any kind.",
+      "• FULL-BLEED — THE IMAGE ITSELF IS THE ARTWORK: you are painting directly onto the ENTIRE canvas, edge to edge. This is NOT a photograph of a printed flyer, poster, card, postcard, or sheet of paper, and NOT a design placed on top of any surface, wall, desk, mat, or secondary background. There is exactly ONE layer. The background reaches and TOUCHES all four edges — the corner pixels are part of the design. Absolutely NO border, NO frame, NO matte, NO passe-partout, NO vignette, NO rounded outer corners, NO inner card, NO drop shadow around the whole image, and NO darker surround of any kind.",
     );
   }
   if (recipe.premiumPolish) {
     parts.push(
-      "• PREMIUM FINISH (match the polish of Stripe, Linear, Vercel and Notion marketing): award-winning senior art-director quality. Depth comes from WITHIN the composition — refined gradients, tasteful geometric accents and thin connective lines, subtle glassmorphism panels with 1px light strokes and gentle inner glow, realistic high-fidelity device/product mockups with legible micro-UI where called for. Any glow or shadow stays INSIDE the layout on individual elements — never as a border, matte, halo, or surround around the whole image. Immaculate spacing on a strict grid, rich-but-restrained color, poster-grade sharpness. Rich multi-section hierarchy: header → hero → feature/benefit row → CTA → footer.",
+      "• DESIGN LEVEL — a finished, print-ready MARKETING FLYER from a top creative agency: rich, layered and expressive, on the level of award-winning Behance/Dribbble print work and premium Canva Pro / Adobe Express templates. This is NOT a plain minimal SaaS slide, NOT a simple flat gradient with a few icons, and NOT a corporate stock look. Fill the whole canvas with a confident, dense-but-organized composition and real visual craft.",
+    );
+    parts.push(
+      "• PHOTOREALISTIC HERO — when the subject is a real thing (a person, a family, a product, food, a place, a team), make it a REAL, professional, studio-lit PHOTOGRAPH as the visual centerpiece, cleanly integrated into the layout (crisply cut out, blended, or given a tasteful duotone / selective-color treatment) — tack-sharp, natural and true-to-life, with believable lighting and shadow. Do NOT substitute flat vector, cartoon or clip-art for the hero, and never leave the hero as a plain icon. Reserve crisp line/solid icons for small supporting feature bullets only.",
+    );
+    parts.push(
+      "• RICH ART DIRECTION & DEPTH — real craft, matched to the occasion: for celebrations use balloons, confetti, gold foil, sparkle, ribbons and elegant flourishes; for promotions/services use textured or radial-sunburst backgrounds, foliage, badges/seals, brush strokes, hand-drawn doodles and labels, torn-paper dividers, price cards or a small photo strip where the content calls for it. Layer foreground / midground / background for depth; refined gradients and subtle glassmorphism panels are welcome. Every glow or shadow stays INSIDE the composition on its own element — never a border, matte or halo around the whole image.",
+    );
+    parts.push(
+      "• EXPRESSIVE TYPOGRAPHY — art-directed type like a real designer, NOT one flat sans-serif line: pair a bold display/headline face with an elegant SCRIPT, a high-contrast SERIF, or a chunky rounded display for the emphasis words (names, occasions, key phrases). Big confident headline, clear headline → subhead → body → footer scale, tasteful accent color and an outline/glow on the hero words, immaculate kerning.",
+    );
+    parts.push(
+      "• STRUCTURE — a clear hierarchy that fills the space: branded header (logo + name) → bold hero (headline + the photographic centerpiece) → supporting zone (a benefit/feature row, or Q&A / stats / price cards / a photo strip as fits the message) → strong CTA → footer with the real contact details. Immaculate spacing on a strict grid; balanced and full, never empty or sparse.",
     );
   }
   if (recipe.enforceExactCopy) {
     parts.push(
-      "• TYPOGRAPHY & COPY: ultra-crisp, vector-sharp, PERFECTLY SPELLED. Render ONLY the actual marketing copy provided, EXACTLY — never misspell, duplicate, garble, truncate, or invent text. Kerned and grid-aligned with a clear headline → subhead → body → footer scale. Premium sans-serif. No lorem ipsum, no gibberish micro-text.",
+      "• COPY ACCURACY: all text ultra-crisp, vector-sharp and PERFECTLY SPELLED. Render ONLY the actual marketing copy provided, EXACTLY — never misspell, duplicate, garble, truncate, or invent text. Kerned and grid-aligned. No lorem ipsum, no gibberish micro-text.",
     );
     parts.push(
       "• NO DESIGN-SPEC ANNOTATIONS: this is a finished piece, not a design mockup. Do NOT render any font names, hex color codes (e.g. #E0D1FF), pt/px sizes, color names, measurements, rulers, spec labels, or annotation callouts anywhere — only the real copy.",

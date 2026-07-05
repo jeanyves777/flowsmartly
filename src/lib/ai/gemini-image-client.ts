@@ -82,6 +82,10 @@ class GeminiImageClient {
           ],
           config: {
             responseModalities: ["TEXT", "IMAGE"],
+            // Hard aspect-ratio control. The text hint alone does NOT stop Nano
+            // Banana defaulting to a 1:1 square (portrait flyers came out square);
+            // imageConfig.aspectRatio is the real lever.
+            imageConfig: { aspectRatio },
           },
         });
 
@@ -170,6 +174,10 @@ class GeminiImageClient {
           ],
           config: {
             responseModalities: ["TEXT", "IMAGE"],
+            // Hard aspect-ratio control. The text hint alone does NOT stop Nano
+            // Banana defaulting to a 1:1 square (portrait flyers came out square);
+            // imageConfig.aspectRatio is the real lever.
+            imageConfig: { aspectRatio },
           },
         });
 
@@ -250,7 +258,7 @@ class GeminiImageClient {
                 parts: [{ text: `${prompt}\n\n[Output a single ${aspectRatio} image.]` }],
               },
             ],
-            config: { responseModalities: ["TEXT", "IMAGE"] },
+            config: { responseModalities: ["TEXT", "IMAGE"], imageConfig: { aspectRatio } },
           });
           const parts = response.candidates?.[0]?.content?.parts;
           if (parts) {
