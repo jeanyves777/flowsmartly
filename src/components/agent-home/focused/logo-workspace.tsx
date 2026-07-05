@@ -125,7 +125,7 @@ export function FocusedLogo({ refreshKey, onAsk, working }: { refreshKey?: numbe
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-4xl space-y-4">
+      <div className="w-full space-y-4">
         {/* hero */}
         <section className="rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/10 via-violet-500/5 to-transparent p-5">
           <div className="flex flex-wrap items-center gap-4">
@@ -187,7 +187,7 @@ export function FocusedLogo({ refreshKey, onAsk, working }: { refreshKey?: numbe
                   view reflects the agent working even while it gathers details in chat */}
               {armed && <GeneratingLogos working={working} compact={logos.length > 0} />}
               {logos.length ? (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
                   {logos.map((l) => (
                     <LogoCard key={l.id} logo={l} />
                   ))}
