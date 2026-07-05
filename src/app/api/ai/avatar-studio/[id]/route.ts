@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { presignAllUrls } from "@/lib/utils/s3-client";
-import { getAvatarVideo, deleteAvatarVideo } from "@/lib/avatar-studio";
+import { getAvatarVideo, deleteAvatarVideo, updateDraftScript } from "@/lib/avatar-studio";
 
 /** GET — one avatar video's detail (status, progress, state) for the drawer. */
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -27,6 +27,24 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     state,
   });
   return NextResponse.json({ success: true, data });
+}
+
+/** PATCH — edit a draft scene's script. */
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
+  }
+  const { id } = await params;
+  const body = (await request.json().catch(() => ({}))) as { script?: string };
+  if (typeof body.script !== "string" || !body.script.trim()) {
+    return NextResponse.json({ success: false, error: { message: "Script is required." } }, { status: 400 });
+  }
+  const ok = await updateDraftScript(id, session.userId, body.script);
+  if (!ok) {
+    return NextResponse.json({ success: false, error: { message: "Only draft scenes can be edited." } }, { status: 400 });
+  }
+  return NextResponse.json({ success: true, data: { updated: true } });
 }
 
 /** DELETE — remove an avatar video (guarded by animationType inside the lib). */

@@ -72,7 +72,9 @@ interface AvatarVideo {
   avatarName?: string | null;
   lengthSeconds?: number | null;
   projectId?: string | null;
+  projectSeq?: number | null;
   mode?: string | null;
+  script?: string | null;
 }
 interface Avatar { id: string; name: string; previewUrl?: string; isCustom: boolean }
 interface Voice { id: string; name: string; language?: string }
@@ -87,7 +89,8 @@ function statusBadge(status: string): { label: string; cls: string; icon: Elemen
     case "COMPLETED": return { label: "Ready", cls: "bg-emerald-500/10 text-emerald-500", icon: CheckCircle2 };
     case "FAILED": return { label: "Failed", cls: "bg-rose-500/10 text-rose-500", icon: TriangleAlert };
     case "PROCESSING": return { label: "Rendering", cls: "bg-brand-500/10 text-brand-500", icon: Loader2, spin: true };
-    case "QUEUED": return { label: "Queued", cls: "bg-amber-500/10 text-amber-500", icon: Clock };
+    case "QUEUED": case "PENDING": return { label: "Queued", cls: "bg-amber-500/10 text-amber-500", icon: Clock };
+    case "DRAFT": return { label: "Draft", cls: "bg-muted text-muted-foreground", icon: TypeIcon };
     default: return { label: "Queued", cls: "bg-muted text-muted-foreground", icon: Clock };
   }
 }
@@ -129,6 +132,8 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [sceneCount, setSceneCount] = useState(3);
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [sourceVideoId, setSourceVideoId] = useState("");
   const [targetLanguage, setTargetLanguage] = useState("Spanish");
   const [batchScripts, setBatchScripts] = useState("");
@@ -267,6 +272,27 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
     setBuildErr("");
     setBuilding(true);
     try {
+      // Talking mode = a DRAFT-FIRST multi-scene project. The brief drafts N
+      // scene scripts the user reviews + generates on demand (like Campaign Studio).
+      if (mode === "talking") {
+        const b = script.trim();
+        if (!b) { setBuildErr("Describe what the video series is about."); return; }
+        if (!avatarId) { setBuildErr("Pick an avatar."); return; }
+        if (!voiceId) { setBuildErr("Pick a voice."); return; }
+        const j = await fetch("/api/ai/avatar-studio/draft-project", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            brief: b, sceneCount,
+            avatarId, avatarName: selectedAvatar?.name || "Avatar",
+            voiceId, voiceName: selectedVoice?.name || "Voice",
+            quality, aspect, lengthSeconds: length, projectId: projectId || null,
+          }),
+        }).then((r) => r.json());
+        if (!j?.success) { setBuildErr(j?.error?.message || "Could not draft the scenes."); return; }
+        resetSheet();
+        return;
+      }
+
       let endpoint = "/api/ai/avatar-studio";
       let payload: Record<string, unknown>;
 
@@ -312,6 +338,23 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
     try { await fetch(`/api/ai/avatar-studio/${id}`, { method: "DELETE" }); } catch { /* ignore */ }
     load();
   }, [load]);
+
+  // Generate a drafted scene (charges credits + renders it).
+  const generateScene = useCallback(async (id: string) => {
+    setGeneratingId(id);
+    try {
+      const j = await fetch(`/api/ai/avatar-studio/${id}/generate`, { method: "POST" }).then((r) => r.json());
+      if (!j?.success) setError(j?.error?.message || "Could not generate this scene.");
+      setLocalRefresh((n) => n + 1);
+    } catch { /* ignore */ }
+    finally { setGeneratingId(null); }
+  }, []);
+
+  // Save an edited draft script.
+  const saveScript = useCallback(async (id: string, next: string) => {
+    setVideos((vs) => vs.map((v) => (v.id === id ? { ...v, script: next, title: next.slice(0, 120) } : v)));
+    try { await fetch(`/api/ai/avatar-studio/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ script: next }) }); } catch { /* ignore */ }
+  }, []);
 
   // Header stats reflect the CURRENT project (what's on the canvas); Library shows all.
   const stats = useMemo(() => {
@@ -396,6 +439,10 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
                     v={v}
                     onPlay={() => isPlayable(v.videoUrl) && setPlay({ url: v.videoUrl, title: v.title, poster: v.thumbnailUrl })}
                     onOpen={() => setDetailId(v.id)}
+                    onGenerate={() => generateScene(v.id)}
+                    onRemove={() => deleteVideo(v.id)}
+                    onSaveScript={(s) => saveScript(v.id, s)}
+                    generating={generatingId === v.id}
                   />
                 </Fragment>
               ))}
@@ -453,20 +500,31 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               </>
             )}
 
-            {/* script (talking & photo) */}
+            {/* brief/script (talking & photo) */}
             {(mode === "talking" || mode === "photo") && (
               <>
                 <div className="mt-2.5 flex items-center gap-2">
-                  <label className="text-[11.5px] font-semibold">Script <span className="font-normal text-muted-foreground">— what the avatar says</span></label>
-                  {onAsk && (
-                    <button onClick={() => onAsk(`Write a ${length}s avatar video script about: ${script.trim() || "my latest update"}. Keep it punchy and on-brand.`)} className="ms-auto inline-flex items-center gap-1 rounded-full border border-brand-500/40 bg-brand-500/10 px-2 py-0.5 text-[10.5px] font-bold text-brand-500"><Wand2 className="h-3 w-3" /> Write with AI</button>
-                  )}
+                  <label className="text-[11.5px] font-semibold">
+                    {mode === "talking" ? "Brief" : "Script"}
+                    <span className="font-normal text-muted-foreground"> — {mode === "talking" ? "what the video series is about (the agent scripts the scenes)" : "what the avatar says"}</span>
+                  </label>
                 </div>
                 <textarea
                   value={script} onChange={(e) => setScript(e.target.value)} rows={3}
-                  placeholder="e.g. Spring is here — and so is your glow. Meet our new botanical serum…"
+                  placeholder={mode === "talking" ? "e.g. Launch week for our spring serum — build hype, show the benefits, drive to the sale." : "e.g. Spring is here — and so is your glow. Meet our new botanical serum…"}
                   className="mt-1 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60"
                 />
+                {mode === "talking" && (
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <label className="text-[11.5px] font-semibold">Scenes</label>
+                    <span className="text-[10.5px] text-muted-foreground">— the agent drafts this many, you generate each</span>
+                    <div className="ms-auto flex items-center gap-1.5">
+                      {[1, 3, 4, 6, 8].map((n) => (
+                        <button key={n} onClick={() => setSceneCount(n)} className={cn("h-7 w-7 rounded-[8px] border text-[12px] font-bold transition", sceneCount === n ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{n}</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -615,7 +673,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
           </div>
 
           <div className="flex items-center gap-2 border-t border-border px-3.5 py-2.5">
-            <span className="hidden text-[11px] text-muted-foreground sm:inline">Build charges credits &amp; renders into the canvas.</span>
+            <span className="hidden text-[11px] text-muted-foreground sm:inline">{mode === "talking" ? "Drafting is free — you generate (and pay for) each scene." : "Build charges credits & renders into the canvas."}</span>
             <div className="ms-auto flex items-center gap-2">
               <button onClick={runEstimate} disabled={estimating} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
                 {estimating ? <FlowLoader size={14} /> : <Coins className="h-3.5 w-3.5" />} Estimate
@@ -626,8 +684,8 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
                 : (script.trim() && avatarId && voiceId)
               )} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50">
                 {building ? <FlowLoader size={14} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />}{" "}
-                {mode === "translate" ? "Translate" : mode === "batch" ? `Build ${batchScripts.split("\n").map((s) => s.trim()).filter(Boolean).length} videos` : "Build the video"}
-                {estimate ? ` · ${mode === "batch" ? estimate.total * Math.max(1, batchScripts.split("\n").map((s) => s.trim()).filter(Boolean).length) : estimate.total} cr` : ""}
+                {mode === "translate" ? "Translate" : mode === "batch" ? `Build ${batchScripts.split("\n").map((s) => s.trim()).filter(Boolean).length} videos` : mode === "talking" ? `Plan ${sceneCount} scene${sceneCount === 1 ? "" : "s"}` : "Build the video"}
+                {mode !== "talking" && estimate ? ` · ${mode === "batch" ? estimate.total * Math.max(1, batchScripts.split("\n").map((s) => s.trim()).filter(Boolean).length) : estimate.total} cr` : ""}
               </button>
             </div>
           </div>
@@ -682,13 +740,59 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   );
 }
 
-function RenderNode({ v, onPlay, onOpen }: { v: AvatarVideo; onPlay: () => void; onOpen: () => void }) {
+function RenderNode({ v, onPlay, onOpen, onGenerate, onRemove, onSaveScript, generating }: {
+  v: AvatarVideo;
+  onPlay: () => void;
+  onOpen: () => void;
+  onGenerate: () => void;
+  onRemove: () => void;
+  onSaveScript: (script: string) => void;
+  generating: boolean;
+}) {
   const b = statusBadge(v.status);
   const BadgeIcon = b.icon;
   const ready = (v.status || "").toUpperCase() === "COMPLETED" && isPlayable(v.videoUrl);
   const pct = Math.max(0, Math.min(100, Math.round(v.progress ?? 0)));
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(v.script || "");
+  useEffect(() => { if (!editing) setDraft(v.script || ""); }, [v.script, editing]);
+
+  // Drafted scene: show the script, let the user edit it, then Generate on demand.
+  if ((v.status || "").toUpperCase() === "DRAFT") {
+    return (
+      <div className="flex w-[210px] shrink-0 flex-col rounded-2xl border border-dashed border-border bg-card/60 shadow-sm">
+        <div className="flex items-center gap-1.5 border-b border-border/60 px-2.5 py-2">
+          <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", b.cls)}><BadgeIcon className="h-3 w-3" /> {b.label}</span>
+          {v.projectSeq ? <span className="text-[10.5px] font-semibold text-muted-foreground">Scene {v.projectSeq}</span> : null}
+          <button onClick={onRemove} title="Remove scene" className="ms-auto grid h-6 w-6 place-items-center rounded-md text-muted-foreground transition hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /></button>
+        </div>
+        <div className="flex flex-1 flex-col p-2.5">
+          {editing ? (
+            <>
+              <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={7} className="w-full flex-1 resize-none rounded-[8px] border border-input bg-background px-2 py-1.5 text-[11.5px] leading-relaxed outline-none focus:border-brand-500/60" />
+              <div className="mt-1.5 flex gap-1.5">
+                <button onClick={() => { setEditing(false); setDraft(v.script || ""); }} className="flex-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold hover:text-foreground">Cancel</button>
+                <button onClick={() => { const s = draft.trim() || v.script || ""; onSaveScript(s); setEditing(false); }} className="flex-1 rounded-[8px] bg-brand-500 px-2 py-1 text-[11px] font-semibold text-white">Save</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="line-clamp-[7] flex-1 whitespace-pre-wrap text-[11.5px] leading-relaxed text-foreground">{v.script || "—"}</p>
+              <div className="mt-2 space-y-1.5">
+                <button onClick={onGenerate} disabled={generating} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-60">
+                  {generating ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate
+                </button>
+                <button onClick={() => setEditing(true)} className="inline-flex w-full items-center justify-center gap-1 rounded-[9px] border border-border px-2 py-1.5 text-[11px] font-semibold text-foreground transition hover:border-brand-500/60 hover:text-brand-500"><TypeIcon className="h-3.5 w-3.5" /> Edit script</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-[210px] overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition hover:border-brand-500/50">
+    <div className="w-[210px] shrink-0 overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition hover:border-brand-500/50">
       <div className="relative aspect-[9/16] w-full bg-background">
         {v.thumbnailUrl ? (
           <Image src={v.thumbnailUrl} alt="" fill sizes="210px" className="object-cover" unoptimized />

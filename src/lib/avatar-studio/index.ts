@@ -12,6 +12,7 @@
 
 import { prisma } from "@/lib/db/client";
 import { heygenClient, type HeyGenAvatar, type HeyGenVoice } from "@/lib/ai/heygen-client";
+import { ai } from "@/lib/ai/client";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { saveToMediaLibrary } from "@/lib/ai/flow-agent/save-media";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
@@ -115,7 +116,9 @@ export async function listAvatarVideos(userId: string, limit = 24) {
       avatarName: state.avatarName,
       lengthSeconds: state.lengthSeconds,
       projectId: state.projectId ?? null,
+      projectSeq: state.projectSeq ?? null,
       mode: state.mode,
+      script: state.script,
     };
   });
 }
@@ -358,6 +361,101 @@ export async function startAvatarVideoBatch(input: {
     totalCredits += res.creditsCost;
   }
   return { started, totalCredits };
+}
+
+// -------------------------------------------------------------------------
+// Draft-first multi-scene flow (Campaign-Studio style): the brief drafts N
+// scene scripts up front; each is a DRAFT record the user reviews, edits, and
+// generates on demand (generating is what charges credits + renders).
+// -------------------------------------------------------------------------
+
+export async function draftAvatarProject(input: {
+  userId: string;
+  brief: string;
+  sceneCount: number;
+  base: Omit<AvatarVideoState, "script" | "brief" | "projectSeq">;
+}): Promise<{ projectId: string; scenes: { id: string; title: string; script: string; seq: number }[] }> {
+  const count = Math.max(1, Math.min(10, Math.round(input.sceneCount || 1)));
+  const words = Math.max(20, Math.round((input.base.lengthSeconds || 30) * 2)); // ~2 words/sec
+  const projectId = input.base.projectId || `proj_${Date.now()}`;
+
+  // Draft N distinct scene scripts from the brief (Claude Haiku).
+  let drafted: { title?: string; script?: string }[] = [];
+  try {
+    const json = await ai.generateJSON<{ scenes: { title: string; script: string }[] }>(
+      `You are scripting a ${count}-scene talking-avatar video series. Brief: "${input.brief}". ` +
+      `Write ${count} DISTINCT scenes that together tell a cohesive story for this brief. Each scene is spoken to camera by one avatar. ` +
+      `Each script must be ~${words} words (about ${input.base.lengthSeconds || 30}s), punchy, on-brand, first-person, no stage directions, no emojis. ` +
+      `Return JSON: {"scenes":[{"title":"short label","script":"the spoken words"}, ...]} with exactly ${count} scenes.`,
+      { maxTokens: 2000, temperature: 0.6 },
+    );
+    drafted = Array.isArray(json?.scenes) ? json!.scenes.slice(0, count) : [];
+  } catch { /* fall through to a stub */ }
+  if (drafted.length === 0) {
+    drafted = Array.from({ length: count }, (_, i) => ({ title: `Scene ${i + 1}`, script: input.brief }));
+  }
+
+  const scenes: { id: string; title: string; script: string; seq: number }[] = [];
+  for (let i = 0; i < drafted.length; i++) {
+    const script = String(drafted[i]?.script || input.brief).trim().slice(0, 3500);
+    const title = String(drafted[i]?.title || `Scene ${i + 1}`).trim().slice(0, 80);
+    const state: AvatarVideoState = { ...emptyAvatarState(), ...input.base, projectId, projectSeq: i + 1, mode: "talking", brief: title, script };
+    const rec = await prisma.cartoonVideo.create({
+      data: {
+        userId: input.userId,
+        storyPrompt: title,
+        style: state.quality,
+        animationType: ANIMATION_TYPE,
+        duration: state.lengthSeconds,
+        captionStyle: "avatar",
+        status: "DRAFT",
+        progress: 0,
+        currentStep: "Draft",
+        creditsCost: 0,
+        metadata: writeAvatarState(state),
+      },
+      select: { id: true },
+    });
+    scenes.push({ id: rec.id, title, script, seq: i + 1 });
+  }
+  return { projectId, scenes };
+}
+
+/** Edit a draft scene's script (free). */
+export async function updateDraftScript(id: string, userId: string, script: string): Promise<boolean> {
+  const found = await getAvatarVideo(id, userId);
+  if (!found || (found.row.status !== "DRAFT" && found.row.status !== "FAILED")) return false;
+  const merged = { ...found.state, script: script.trim().slice(0, 3500) };
+  await prisma.cartoonVideo.update({ where: { id }, data: { metadata: writeAvatarState(merged), storyPrompt: (merged.brief || script).slice(0, 120) } });
+  return true;
+}
+
+/** Generate a drafted scene: charge credits, then render it with HeyGen. */
+export async function generateDraftScene(id: string, userId: string, isAdmin = false): Promise<StartAvatarResult> {
+  const found = await getAvatarVideo(id, userId);
+  if (!found) return { ok: false, code: "not_found", message: "Scene not found." };
+  const { state } = found;
+  if (!state.script.trim()) return { ok: false, code: "missing_script", message: "Write the script for this scene first." };
+  if (!state.avatarId || !state.voiceId) return { ok: false, code: "missing_avatar", message: "This scene is missing its avatar or voice." };
+
+  const effectiveQuality: AvatarQuality = state.mode === "photo" ? "avatar_iv" : state.quality;
+  const creditsCost = await estimateAvatarVideoCost(effectiveQuality, state.lengthSeconds, state.mode);
+  const block = await checkCreditsAvailable(userId, creditsCost, false, isAdmin);
+  if (block) return { ok: false, code: block.code, message: block.message };
+
+  if (!isAdmin && creditsCost > 0) {
+    const charge = await creditService.deductCredits({
+      userId, type: TRANSACTION_TYPES.USAGE, amount: creditsCost,
+      referenceType: "avatar_video", referenceId: id, description: `Avatar scene (${state.mode})`,
+      metadata: { feature: effectiveQuality === "avatar_iv" ? "AI_AVATAR_VIDEO_PREMIUM" : "AI_AVATAR_VIDEO" },
+    });
+    if (!charge.success) return { ok: false, code: "insufficient_credits", message: charge.error || "Could not charge credits." };
+  }
+
+  // Record the charge on the row (renderAvatarVideo refunds row.creditsCost on failure).
+  await prisma.cartoonVideo.update({ where: { id }, data: { creditsCost, status: "PENDING", currentStep: "Queued" } });
+  void renderAvatarVideo(id, userId);
+  return { ok: true, id, creditsCost };
 }
 
 // -------------------------------------------------------------------------

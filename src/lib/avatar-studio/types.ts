@@ -22,6 +22,8 @@ export interface AvatarVideoState {
   mode: AvatarMode;
   /** Groups videos built together in one studio session (a "project"). */
   projectId?: string | null;
+  /** 1-based scene order within a project (for the drafted multi-scene plan). */
+  projectSeq?: number | null;
   templateId?: string | null;
   /** Translate mode: source video URL + target language. */
   sourceVideoUrl?: string | null;
