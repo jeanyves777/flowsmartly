@@ -184,7 +184,7 @@ export function FocusedBrand({ dirtyRef, saverRef, refreshKey = 0 }: {
       })()}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl space-y-4">
+        <div className="w-full space-y-4 lg:columns-2 lg:space-y-0 lg:[column-gap:1rem] lg:[&>section]:mb-4 lg:[&>section]:break-inside-avoid">
           {/* Identity */}
           <Section title="Identity" icon={Palette}>
             <div className="grid gap-3 sm:grid-cols-2">
