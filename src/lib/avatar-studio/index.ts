@@ -124,6 +124,7 @@ export async function listAvatarVideos(userId: string, limit = 24) {
       projectSeq: state.projectSeq ?? null,
       mode: state.mode,
       script: state.script,
+      scenesCount: state.scenes?.length ?? 0,
     };
   });
 }

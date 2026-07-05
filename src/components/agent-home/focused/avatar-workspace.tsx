@@ -1,12 +1,12 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ElementType } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ElementType, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   UserSquare2, Sparkles, Type as TypeIcon, Mic, X, Coins, Play,
   CheckCircle2, Clock, TriangleAlert, ChevronUp, Wand2, AlertTriangle,
-  Trash2, ChevronRight, ChevronLeft, Search, Film, Loader2, FolderOpen, Languages, Images, Package, Upload, Plus, Sliders, Captions as CaptionsIcon,
+  Trash2, ChevronRight, ChevronLeft, Search, Film, Loader2, FolderOpen, Languages, Images, Package, Upload, Plus, Sliders, Captions as CaptionsIcon, Clapperboard, GripVertical,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -26,7 +26,10 @@ import { cn } from "@/lib/utils/cn";
 
 type Quality = "standard" | "avatar_iv";
 type Aspect = "9:16" | "1:1" | "16:9";
-type Mode = "talking" | "photo" | "translate" | "batch";
+type Mode = "talking" | "presentation" | "photo" | "translate" | "batch";
+type SceneLayout = "full" | "overlay" | "cutaway";
+type SceneVisualKind = "none" | "image" | "video";
+interface PScene { id: string; script: string; layout: SceneLayout; visualKind: SceneVisualKind; visualUrl?: string | null; isProduct?: boolean; corner?: "tl" | "tr" | "bl" | "br" }
 
 const QUALITIES: { v: Quality; label: string; hint: string }[] = [
   { v: "standard", label: "Standard", hint: "fast · social & outreach" },
@@ -49,6 +52,7 @@ const isLength = (n: unknown): n is number => LENGTHS.some((l) => l.v === n);
 const fmtLen = (s?: number | null): string => (!s ? "" : s < 60 ? `${s}s` : s % 60 === 0 ? `${s / 60} min` : `${Math.round((s / 60) * 10) / 10} min`);
 const MODES: { v: Mode; label: string; icon: ElementType }[] = [
   { v: "talking", label: "Talking video", icon: Film },
+  { v: "presentation", label: "Presentation", icon: Clapperboard },
   { v: "photo", label: "Photo → video", icon: Images },
   { v: "translate", label: "Translate", icon: Languages },
   { v: "batch", label: "Batch", icon: Package },
@@ -83,6 +87,7 @@ interface AvatarVideo {
   projectSeq?: number | null;
   mode?: string | null;
   script?: string | null;
+  scenesCount?: number | null;
 }
 interface Avatar { id: string; name: string; previewUrl?: string; previewVideoUrl?: string; isCustom: boolean; group?: string; groupName?: string; premium?: boolean; defaultVoiceId?: string }
 interface Voice { id: string; name: string; language?: string; previewUrl?: string }
@@ -144,6 +149,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   const [sceneCount, setSceneCount] = useState(3);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [editSceneId, setEditSceneId] = useState<string | null>(null);
+  const [presentationId, setPresentationId] = useState<string | null>(null);
   const [sourceVideoId, setSourceVideoId] = useState("");
   const [targetLanguage, setTargetLanguage] = useState("Spanish");
   const [batchScripts, setBatchScripts] = useState("");
@@ -316,6 +322,29 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
         return;
       }
 
+      // Presentation mode = ONE stitched video of avatar + product/B-roll scenes.
+      // The brief plans the scenes; the user edits them in the storyboard, then renders.
+      if (mode === "presentation") {
+        const b = script.trim();
+        if (!b) { setBuildErr("Describe your presentation."); return; }
+        if (!avatarId) { setBuildErr("Pick an avatar."); return; }
+        if (!voiceId) { setBuildErr("Pick a voice."); return; }
+        const j = await fetch("/api/ai/avatar-studio/draft-presentation", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            brief: b, sceneCount,
+            avatarId, avatarName: selectedAvatar?.name || "Avatar",
+            voiceId, voiceName: selectedVoice?.name || "Voice",
+            quality, aspect, captionsOn: true,
+          }),
+        }).then((r) => r.json());
+        if (!j?.success) { setBuildErr(j?.error?.message || "Could not plan the presentation."); return; }
+        resetSheet();
+        setProjectId(""); // presentations live standalone; focus the canvas there
+        setPresentationId(j.data.id); // open the storyboard editor
+        return;
+      }
+
       let endpoint = "/api/ai/avatar-studio";
       let payload: Record<string, unknown>;
 
@@ -482,9 +511,9 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
                       v={v}
                       onPlay={() => isPlayable(v.videoUrl) && setPlay({ url: v.videoUrl, title: v.title, poster: v.thumbnailUrl })}
                       onOpen={() => setDetailId(v.id)}
-                      onGenerate={() => generateScene(v.id)}
+                      onGenerate={() => v.mode === "presentation" ? setPresentationId(v.id) : generateScene(v.id)}
                       onRemove={() => deleteVideo(v.id)}
-                      onEdit={() => setEditSceneId(v.id)}
+                      onEdit={() => v.mode === "presentation" ? setPresentationId(v.id) : setEditSceneId(v.id)}
                       generating={generatingId === v.id}
                       avatarPreview={avatars.find((a) => a.id === v.avatarId)?.previewUrl}
                       sceneNumber={i + 1}
@@ -546,26 +575,26 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               </>
             )}
 
-            {/* brief/script (talking & photo) */}
-            {(mode === "talking" || mode === "photo") && (
+            {/* brief/script (talking, presentation & photo) */}
+            {(mode === "talking" || mode === "presentation" || mode === "photo") && (
               <>
                 <div className="mt-2.5 flex items-center gap-2">
                   <label className="text-[11.5px] font-semibold">
-                    {mode === "talking" ? "Brief" : "Script"}
-                    <span className="font-normal text-muted-foreground"> — {mode === "talking" ? "what the video series is about (the agent scripts the scenes)" : "what the avatar says"}</span>
+                    {mode === "photo" ? "Script" : "Brief"}
+                    <span className="font-normal text-muted-foreground"> — {mode === "photo" ? "what the avatar says" : mode === "presentation" ? "what the presentation is about (the agent plans the scenes)" : "what the video series is about (the agent scripts the scenes)"}</span>
                   </label>
                 </div>
                 <textarea
                   value={script} onChange={(e) => setScript(e.target.value)} rows={3}
-                  placeholder={mode === "talking" ? "e.g. Launch week for our spring serum — build hype, show the benefits, drive to the sale." : "e.g. Spring is here — and so is your glow. Meet our new botanical serum…"}
+                  placeholder={mode === "presentation" ? "e.g. A 6-scene product launch for our SmartWatch Pro — hook, features, on-wrist demo, and a call to buy." : mode === "talking" ? "e.g. Launch week for our spring serum — build hype, show the benefits, drive to the sale." : "e.g. Spring is here — and so is your glow. Meet our new botanical serum…"}
                   className="mt-1 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60"
                 />
-                {mode === "talking" && (
+                {(mode === "talking" || mode === "presentation") && (
                   <div className="mt-2.5 flex items-center gap-2">
                     <label className="text-[11.5px] font-semibold">Scenes</label>
-                    <span className="text-[10.5px] text-muted-foreground">— the agent drafts this many, you generate each</span>
+                    <span className="text-[10.5px] text-muted-foreground">— {mode === "presentation" ? "the agent plans this many; edit them in the storyboard" : "the agent drafts this many, you generate each"}</span>
                     <div className="ms-auto flex items-center gap-1.5">
-                      {[1, 3, 4, 6, 8].map((n) => (
+                      {(mode === "presentation" ? [3, 4, 6, 8, 10] : [1, 3, 4, 6, 8]).map((n) => (
                         <button key={n} onClick={() => setSceneCount(n)} className={cn("h-7 w-7 rounded-[8px] border text-[12px] font-bold transition", sceneCount === n ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{n}</button>
                       ))}
                     </div>
@@ -631,10 +660,10 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               </>
             )}
 
-            {/* avatar picker (talking & batch) — grouped by identity, drill into looks */}
-            {(mode === "talking" || mode === "batch") && (
+            {/* avatar picker (talking, presentation & batch) — grouped by identity, drill into looks */}
+            {(mode === "talking" || mode === "presentation" || mode === "batch") && (
               <>
-                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Avatar &amp; look</label>
+                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Avatar &amp; look <span className="font-normal text-muted-foreground">{mode === "presentation" ? "· presents every scene" : ""}</span></label>
                 {avatars.length === 0 ? (
                   <span className="text-[11.5px] text-muted-foreground">Loading avatars…</span>
                 ) : (
@@ -654,8 +683,8 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               </>
             )}
 
-            {/* quality (talking & batch) */}
-            {(mode === "talking" || mode === "batch") && (
+            {/* quality (talking, presentation & batch) */}
+            {(mode === "talking" || mode === "presentation" || mode === "batch") && (
               <>
                 <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Quality</label>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -669,23 +698,26 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               </>
             )}
 
-            {/* format + length (not translate) */}
+            {/* format (not translate) */}
             {mode !== "translate" && (
               <>
-                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Format &amp; length</label>
+                <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Format{mode === "presentation" ? "" : " & length"}</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {ASPECTS.map((a) => (
                     <button key={a.v} onClick={() => setAspect(a.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-bold transition", aspect === a.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>{a.label}</button>
                   ))}
                 </div>
-                <div className="mt-1.5 grid grid-cols-3 gap-1.5">
-                  {LENGTHS.map((l) => (
-                    <button key={l.v} onClick={() => setLength(l.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-center transition", length === l.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
-                      <span className="text-[12px] font-bold">{l.label}</span>
-                      <span className="ms-1 text-[10px] text-muted-foreground">{l.hint}</span>
-                    </button>
-                  ))}
-                </div>
+                {/* length — presentation length comes from the scene scripts */}
+                {mode !== "presentation" && (
+                  <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                    {LENGTHS.map((l) => (
+                      <button key={l.v} onClick={() => setLength(l.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-center transition", length === l.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}>
+                        <span className="text-[12px] font-bold">{l.label}</span>
+                        <span className="ms-1 text-[10px] text-muted-foreground">{l.hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </>
             )}
 
@@ -707,7 +739,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
           </div>
 
           <div className="flex items-center gap-2 border-t border-border px-3.5 py-2.5">
-            <span className="hidden text-[11px] text-muted-foreground sm:inline">{mode === "talking" ? "Drafting is free — you generate (and pay for) each scene." : "Build charges credits & renders into the canvas."}</span>
+            <span className="hidden text-[11px] text-muted-foreground sm:inline">{mode === "talking" ? "Drafting is free — you generate (and pay for) each scene." : mode === "presentation" ? "Planning is free — you render the whole presentation once, from the storyboard." : "Build charges credits & renders into the canvas."}</span>
             <div className="ms-auto flex items-center gap-2">
               <button onClick={runEstimate} disabled={estimating} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">
                 {estimating ? <FlowLoader size={14} /> : <Coins className="h-3.5 w-3.5" />} Estimate
@@ -718,8 +750,8 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
                 : (script.trim() && avatarId && voiceId)
               )} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50">
                 {building ? <FlowLoader size={14} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />}{" "}
-                {mode === "translate" ? "Translate" : mode === "batch" ? `Build ${batchScripts.split("\n").map((s) => s.trim()).filter(Boolean).length} videos` : mode === "talking" ? `Plan ${sceneCount} scene${sceneCount === 1 ? "" : "s"}` : "Build the video"}
-                {mode !== "talking" && estimate ? ` · ${mode === "batch" ? estimate.total * Math.max(1, batchScripts.split("\n").map((s) => s.trim()).filter(Boolean).length) : estimate.total} cr` : ""}
+                {mode === "translate" ? "Translate" : mode === "batch" ? `Build ${batchScripts.split("\n").map((s) => s.trim()).filter(Boolean).length} videos` : mode === "presentation" ? `Plan ${sceneCount}-scene presentation` : mode === "talking" ? `Plan ${sceneCount} scene${sceneCount === 1 ? "" : "s"}` : "Build the video"}
+                {mode !== "talking" && mode !== "presentation" && estimate ? ` · ${mode === "batch" ? estimate.total * Math.max(1, batchScripts.split("\n").map((s) => s.trim()).filter(Boolean).length) : estimate.total} cr` : ""}
               </button>
             </div>
           </div>
@@ -783,6 +815,18 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
           onLive={(patch) => onSceneLive(editSceneId, patch)}
         />
       )}
+
+      {/* presentation storyboard editor (multi-scene → one stitched video) */}
+      {presentationId && (
+        <PresentationEditor
+          id={presentationId}
+          avatars={avatars}
+          voices={voices}
+          onClose={() => setPresentationId(null)}
+          onChanged={() => setLocalRefresh((n) => n + 1)}
+          onRendered={() => { setPresentationId(null); setLocalRefresh((n) => n + 1); }}
+        />
+      )}
     </div>
   );
 }
@@ -804,36 +848,43 @@ function RenderNode({ v, onPlay, onOpen, onGenerate, onRemove, onEdit, generatin
   const pct = Math.max(0, Math.min(100, Math.round(v.progress ?? 0)));
   const sceneNo = sceneNumber ?? v.projectSeq ?? undefined;
 
-  // Drafted scene: the SELECTED AVATAR + its settings; the script + full editing live in the drawer.
+  const isPres = v.mode === "presentation";
+
+  // Drafted scene / presentation: the SELECTED AVATAR + its settings; full editing lives in the drawer/storyboard.
   if ((v.status || "").toUpperCase() === "DRAFT") {
     return (
       <div className="flex w-[210px] shrink-0 flex-col overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 shadow-sm">
-        <button onClick={onEdit} title="Open the scene editor" className="relative block aspect-[9/16] w-full bg-background text-left">
+        <button onClick={onEdit} title={isPres ? "Open the storyboard" : "Open the scene editor"} className="relative block aspect-[9/16] w-full bg-background text-left">
           {avatarPreview ? (
             <Image src={avatarPreview} alt="" fill sizes="210px" className="object-cover" unoptimized />
           ) : (
-            <div className="grid h-full w-full place-items-center bg-gradient-to-br from-muted/40 to-muted/10 text-muted-foreground"><UserSquare2 className="h-7 w-7" /></div>
+            <div className="grid h-full w-full place-items-center bg-gradient-to-br from-muted/40 to-muted/10 text-muted-foreground">{isPres ? <Clapperboard className="h-7 w-7" /> : <UserSquare2 className="h-7 w-7" />}</div>
           )}
           <span className={cn("absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", b.cls)}><BadgeIcon className="h-3 w-3" /> {b.label}</span>
-          {sceneNo ? <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">Scene {sceneNo}</span> : null}
+          {!isPres && sceneNo ? <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white">Scene {sceneNo}</span> : null}
+          {isPres ? <span className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-white"><Clapperboard className="h-3 w-3" /> {v.scenesCount ?? 0} scenes</span> : null}
           <span className="absolute inset-x-0 bottom-0 block bg-gradient-to-t from-black/85 to-transparent px-2.5 pb-2 pt-8">
-            <span className="block truncate text-[12px] font-semibold text-white">{v.avatarName || "Avatar"}</span>
-            <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-white/80"><Sliders className="h-3 w-3" /> Tap to edit scene</span>
+            <span className="block truncate text-[12px] font-semibold text-white">{isPres ? (v.title || "Presentation") : (v.avatarName || "Avatar")}</span>
+            <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-semibold text-white/80"><Sliders className="h-3 w-3" /> {isPres ? "Tap to edit storyboard" : "Tap to edit scene"}</span>
           </span>
         </button>
         {/* selected settings summary (no script on the canvas) */}
         <div className="flex flex-wrap items-center gap-1 px-2.5 py-2 text-[10px] text-muted-foreground">
           <span className="rounded bg-muted px-1.5 py-0.5 font-semibold text-foreground">{v.quality === "avatar_iv" ? "Avatar IV" : "Standard"}</span>
-          <span className="inline-flex items-center gap-1"><Mic className="h-3 w-3" />{(v.voiceName || "Voice").split("·")[0].trim().slice(0, 12)}</span>
+          {isPres ? (
+            <span className="inline-flex items-center gap-1"><Clapperboard className="h-3 w-3" />{v.scenesCount ?? 0} scenes</span>
+          ) : (
+            <span className="inline-flex items-center gap-1"><Mic className="h-3 w-3" />{(v.voiceName || "Voice").split("·")[0].trim().slice(0, 12)}</span>
+          )}
           <span>{v.aspect}</span>
-          <span>{fmtLen(v.lengthSeconds)}</span>
+          {!isPres && <span>{fmtLen(v.lengthSeconds)}</span>}
           {v.captionsOn && <CaptionsIcon className="h-3 w-3 text-brand-500" />}
         </div>
         <div className="flex items-center gap-1.5 p-2.5 pt-0">
           <button onClick={onGenerate} disabled={generating} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-60">
-            {generating ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate
+            {generating ? <FlowLoader size={13} tone="white" /> : isPres ? <Clapperboard className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />} {isPres ? "Open storyboard" : "Generate"}
           </button>
-          <button onClick={onRemove} title="Remove scene" className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground transition hover:border-rose-500/50 hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /></button>
+          <button onClick={onRemove} title={isPres ? "Remove presentation" : "Remove scene"} className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground transition hover:border-rose-500/50 hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /></button>
         </div>
       </div>
     );
@@ -1492,6 +1543,304 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
         onSelect={(url) => { set({ background: url }); setBgPickerOpen(false); }}
         filterTypes={["image"]}
         title="Choose a background"
+      />
+    </div>
+  );
+}
+
+// =============================================================
+// Presentation editor — storyboard of scenes (avatar + product/B-roll) that
+// render as ONE stitched video. Lives inside /home/avatar (presentation mode).
+// =============================================================
+const P_LAYOUTS: { v: SceneLayout; label: string; hint: string }[] = [
+  { v: "full", label: "Avatar", hint: "full frame" },
+  { v: "overlay", label: "Overlay", hint: "avatar corner" },
+  { v: "cutaway", label: "Cut-away", hint: "visual only" },
+];
+const P_LAYOUT_LABEL: Record<SceneLayout, string> = { full: "Avatar", overlay: "Overlay", cutaway: "Cut-away" };
+const P_CORNERS: { v: NonNullable<PScene["corner"]>; label: string }[] = [
+  { v: "tl", label: "Top L" }, { v: "tr", label: "Top R" }, { v: "bl", label: "Bot L" }, { v: "br", label: "Bot R" },
+];
+function cornerStyle(c?: PScene["corner"]): CSSProperties {
+  switch (c) {
+    case "tl": return { top: "8%", left: "6%" };
+    case "tr": return { top: "8%", right: "6%" };
+    case "bl": return { bottom: "14%", left: "6%" };
+    default: return { bottom: "14%", right: "6%" };
+  }
+}
+const isVideoUrl = (u?: string | null) => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
+
+function PresentationEditor({ id, avatars, voices, onClose, onChanged, onRendered }: {
+  id: string;
+  avatars: Avatar[];
+  voices: Voice[];
+  onClose: () => void;
+  onChanged: () => void;
+  onRendered: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [scenes, setScenes] = useState<PScene[]>([]);
+  const [avatarId, setAvatarId] = useState("");
+  const [voiceId, setVoiceId] = useState("");
+  const [aspect, setAspect] = useState<Aspect>("9:16");
+  const [sel, setSel] = useState(0);
+  const [credits, setCredits] = useState<number | null>(null);
+  const [rendering, setRendering] = useState(false);
+  const [err, setErr] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [bgBusy, setBgBusy] = useState(false);
+  const [avPickerOpen, setAvPickerOpen] = useState(false);
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const selAvatar = avatars.find((a) => a.id === avatarId);
+  const selVoice = voices.find((v) => v.id === voiceId);
+  const scene: PScene | undefined = scenes[sel];
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const j = await fetch(`/api/ai/avatar-studio/${id}`).then((r) => r.json());
+        if (!alive || !j?.success || !j.data?.state) return;
+        const s = j.data.state;
+        setScenes(Array.isArray(s.scenes) ? s.scenes : []);
+        setAvatarId(s.avatarId || avatars[0]?.id || "");
+        setVoiceId(s.voiceId || voices[0]?.id || "");
+        setAspect(["9:16", "1:1", "16:9"].includes(s.aspect) ? s.aspect : "9:16");
+      } catch { /* ignore */ }
+      finally { if (alive) setLoading(false); }
+    })();
+    return () => { alive = false; audioRef.current?.pause(); };
+  }, [id, avatars, voices]);
+
+  // Persist scenes (debounced) and refresh the DB-priced credit estimate.
+  const persist = useCallback((next: PScene[]) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const j = await fetch(`/api/ai/avatar-studio/${id}/scenes`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scenes: next }),
+        }).then((r) => r.json());
+        if (j?.success) { setCredits(j.data.estimatedCredits ?? null); onChanged(); }
+      } catch { /* ignore */ }
+    }, 600);
+  }, [id, onChanged]);
+
+  const update = (next: PScene[]) => { setScenes(next); persist(next); };
+  const patchScene = (i: number, p: Partial<PScene>) => update(scenes.map((s, idx) => (idx === i ? { ...s, ...p } : s)));
+
+  const saveShared = useCallback(async (p: Record<string, unknown>) => {
+    try { await fetch(`/api/ai/avatar-studio/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(p) }); onChanged(); } catch { /* ignore */ }
+  }, [id, onChanged]);
+
+  const addScene = () => {
+    const ns: PScene = { id: `sc_${Date.now().toString(36)}`, script: "New scene — write what the avatar says here.", layout: "full", visualKind: "none", visualUrl: null, corner: "br" };
+    const next = [...scenes, ns]; update(next); setSel(next.length - 1);
+  };
+  const removeScene = (i: number) => { const next = scenes.filter((_, idx) => idx !== i); update(next); setSel((s) => Math.max(0, Math.min(s, next.length - 1))); };
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= scenes.length) return;
+    const next = scenes.slice(); const [m] = next.splice(from, 1); next.splice(to, 0, m); update(next); setSel(to);
+  };
+
+  const attachVisual = (i: number, url: string) => patchScene(i, {
+    visualKind: isVideoUrl(url) ? "video" : "image",
+    visualUrl: url,
+    isProduct: true,
+    layout: scenes[i].layout === "full" ? "overlay" : scenes[i].layout,
+  });
+  const genVisual = async (i: number) => {
+    if (bgBusy) return;
+    setBgBusy(true); setErr("");
+    try {
+      const prompt = (scenes[i].script || "presentation background").slice(0, 200);
+      const j = await fetch("/api/ai/avatar-studio/generate-background", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt, aspect }),
+      }).then((r) => r.json());
+      if (j?.success && j.data?.url) attachVisual(i, j.data.url); else setErr(j?.error?.message || "Could not generate a visual.");
+    } catch { setErr("Could not generate a visual."); } finally { setBgBusy(false); }
+  };
+
+  const playVoice = () => {
+    if (!selVoice?.previewUrl) return;
+    audioRef.current?.pause();
+    const a = new Audio(selVoice.previewUrl); audioRef.current = a; a.play().catch(() => {});
+  };
+
+  const render = async () => {
+    if (rendering) return;
+    if (scenes.some((s) => !s.script.trim())) { setErr("Every scene needs a script."); return; }
+    setRendering(true); setErr("");
+    try {
+      await fetch(`/api/ai/avatar-studio/${id}/scenes`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scenes }) });
+      const j = await fetch(`/api/ai/avatar-studio/${id}/generate`, { method: "POST" }).then((r) => r.json());
+      if (!j?.success) { setErr(j?.error?.message || "Could not render the presentation."); return; }
+      onRendered();
+    } catch { setErr("Could not render the presentation."); } finally { setRendering(false); }
+  };
+
+  return (
+    <div className="absolute inset-0 z-30 flex flex-col bg-background">
+      {/* header */}
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+        <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Clapperboard className="h-4 w-4" /></span>
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold">Presentation</p>
+          <p className="text-[11px] text-muted-foreground">{scenes.length} scene{scenes.length === 1 ? "" : "s"} · one stitched video</p>
+        </div>
+        <div className="ms-auto flex items-center gap-2">
+          {credits != null && <span className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11.5px] font-semibold"><Coins className="h-3.5 w-3.5 text-brand-500" /> {credits.toLocaleString()} cr</span>}
+          <button onClick={onClose} className="inline-flex items-center gap-1 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60"><X className="h-3.5 w-3.5" /> Close</button>
+          <button onClick={render} disabled={rendering || loading || scenes.length === 0} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50">
+            {rendering ? <FlowLoader size={14} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />} Render presentation{credits != null ? ` · ${credits} cr` : ""}
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="grid flex-1 place-items-center"><FlowLoader size={32} withMark label="Loading your presentation…" /></div>
+      ) : (
+        <div className="flex min-h-0 flex-1">
+          {/* storyboard */}
+          <div className="flex w-[280px] shrink-0 flex-col border-r border-border">
+            <div className="border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Storyboard</div>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2.5">
+              {scenes.map((s, i) => {
+                const thumb = s.visualUrl && s.visualKind !== "none" ? s.visualUrl : selAvatar?.previewUrl;
+                return (
+                  <div
+                    key={s.id}
+                    draggable
+                    onDragStart={() => setDragIdx(i)}
+                    onDragEnd={() => setDragIdx(null)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => { e.preventDefault(); if (dragIdx != null && dragIdx !== i) move(dragIdx, i); setDragIdx(null); }}
+                    onClick={() => setSel(i)}
+                    className={cn("group flex cursor-pointer gap-2 rounded-xl border p-2 transition", i === sel ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50", dragIdx === i && "opacity-40")}
+                  >
+                    <GripVertical className="mt-3 h-4 w-4 shrink-0 cursor-grab text-muted-foreground" />
+                    <div className="relative h-14 w-11 shrink-0 overflow-hidden rounded-lg bg-muted">
+                      {thumb ? <Image src={thumb} alt="" fill sizes="44px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-bold text-muted-foreground">{i + 1}</span>
+                        <span className="rounded bg-brand-500/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-brand-500">{P_LAYOUT_LABEL[s.layout]}</span>
+                        {s.isProduct && s.visualKind !== "none" && <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-500">Visual</span>}
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">{s.script}</p>
+                    </div>
+                    <button onClick={(e) => { e.stopPropagation(); removeScene(i); }} title="Remove scene" className="self-start text-muted-foreground opacity-0 transition hover:text-rose-500 group-hover:opacity-100"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
+                );
+              })}
+              <button onClick={addScene} className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-2.5 text-[12px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-brand-500"><Plus className="h-4 w-4" /> Add scene</button>
+            </div>
+          </div>
+
+          {/* preview */}
+          <div className="grid flex-1 place-items-center bg-gradient-to-b from-transparent to-black/10 p-6">
+            {scene ? (
+              <div className="relative aspect-[9/16] w-full max-w-[300px] overflow-hidden rounded-2xl border border-border bg-[#0c1220] shadow-2xl">
+                {scene.visualUrl && scene.visualKind === "video" ? (
+                  <video src={scene.visualUrl} muted loop autoPlay playsInline className="absolute inset-0 h-full w-full object-cover" />
+                ) : scene.visualUrl && scene.visualKind === "image" ? (
+                  <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${scene.visualUrl}')` }} />
+                ) : null}
+                {scene.layout === "full" && selAvatar?.previewUrl && (
+                  <div className="absolute inset-0 bg-cover bg-top" style={{ backgroundImage: `url('${selAvatar.previewUrl}')` }} />
+                )}
+                {scene.layout === "overlay" && selAvatar?.previewUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={selAvatar.previewUrl} alt="" className="absolute aspect-square w-[34%] rounded-full border-[3px] border-white/90 object-cover shadow-lg" style={cornerStyle(scene.corner)} />
+                )}
+                <span className="absolute left-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">{P_LAYOUT_LABEL[scene.layout]}{scene.layout !== "full" && scene.visualKind === "none" ? " · add a visual" : ""}</span>
+                {scene.script && <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent p-3 text-[11px] text-white">“{scene.script.slice(0, 90)}{scene.script.length > 90 ? "…" : ""}”</span>}
+              </div>
+            ) : <p className="text-[12px] text-muted-foreground">No scene selected.</p>}
+          </div>
+
+          {/* inspector */}
+          <div className="w-[320px] shrink-0 overflow-y-auto border-l border-border p-3.5">
+            {/* shared avatar + voice */}
+            <label className="mb-1 block text-[11.5px] font-semibold">Presenter <span className="font-normal text-muted-foreground">· every scene</span></label>
+            <div className="mb-1.5 flex items-center gap-2 rounded-[10px] border border-border bg-muted/30 p-2">
+              {selAvatar?.previewUrl ? <Image src={selAvatar.previewUrl} alt="" width={34} height={44} className="rounded-md object-cover" unoptimized /> : <span className="grid h-11 w-9 place-items-center rounded-md bg-muted text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
+              <span className="min-w-0 flex-1 truncate text-[12px] font-semibold">{selAvatar?.name || "Avatar"}</span>
+              <button onClick={() => setAvPickerOpen((o) => !o)} className="rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold hover:border-brand-500/60">{avPickerOpen ? "Done" : "Change"}</button>
+            </div>
+            {avPickerOpen && (
+              <div className="mb-2">
+                <AvatarPicker avatars={avatars} value={avatarId} onSelect={(a) => { setAvatarId(a.id); saveShared({ avatarId: a.id, avatarName: a.name }); }} heightClass="max-h-[200px]" />
+              </div>
+            )}
+            <div className="flex gap-1.5">
+              <select value={voiceId} onChange={(e) => { setVoiceId(e.target.value); const v = voices.find((x) => x.id === e.target.value); saveShared({ voiceId: e.target.value, voiceName: v?.name || "Voice" }); }} className="min-w-0 flex-1 rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
+                {voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
+              </select>
+              <button onClick={playVoice} disabled={!selVoice?.previewUrl} title="Listen" className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-border text-brand-500 hover:border-brand-500/60 disabled:opacity-40"><Play className="h-4 w-4 fill-current" /></button>
+            </div>
+
+            {scene && (
+              <>
+                <div className="my-3 h-px bg-border" />
+                <label className="mb-1 block text-[11.5px] font-semibold">Scene {sel + 1} · script</label>
+                <textarea value={scene.script} onChange={(e) => patchScene(sel, { script: e.target.value })} rows={4} className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
+
+                <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Layout</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {P_LAYOUTS.map((l) => (
+                    <button key={l.v} onClick={() => patchScene(sel, { layout: l.v })} className={cn("rounded-[10px] border px-2 py-1.5 text-center transition", scene.layout === l.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}>
+                      <span className="block text-[12px] font-bold leading-tight">{l.label}</span>
+                      <span className="block text-[9.5px] text-muted-foreground">{l.hint}</span>
+                    </button>
+                  ))}
+                </div>
+                {scene.layout === "overlay" && (
+                  <>
+                    <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Avatar corner</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {P_CORNERS.map((c) => (
+                        <button key={c.v} onClick={() => patchScene(sel, { corner: c.v })} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[11.5px] font-semibold transition", scene.corner === c.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}>{c.label}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Scene visual <span className="font-normal text-muted-foreground">· product / reference / B-roll</span></label>
+                {scene.visualUrl && scene.visualKind !== "none" ? (
+                  <div className="mb-2 flex items-center gap-2 rounded-[10px] border border-border p-2">
+                    <div className="relative h-10 w-16 overflow-hidden rounded bg-muted">
+                      {scene.visualKind === "video" ? <video src={scene.visualUrl} muted className="h-full w-full object-cover" /> : <Image src={scene.visualUrl} alt="" fill sizes="64px" className="object-cover" unoptimized />}
+                    </div>
+                    <span className="text-[11px] text-muted-foreground">{scene.visualKind === "video" ? "Video" : "Image"} attached</span>
+                    <button onClick={() => patchScene(sel, { visualKind: "none", visualUrl: null, isProduct: false })} className="ms-auto text-[11px] font-semibold text-muted-foreground hover:text-rose-500">Remove</button>
+                  </div>
+                ) : (
+                  <p className="mb-2 text-[10.5px] text-muted-foreground">Attach a product/reference image or B-roll the avatar presents while talking.</p>
+                )}
+                <div className="flex flex-wrap gap-1.5">
+                  <button onClick={() => genVisual(sel)} disabled={bgBusy} className="inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-60">{bgBusy ? <FlowLoader size={12} tone="white" /> : <Sparkles className="h-3 w-3" />} Generate (AI)</button>
+                  <button onClick={() => setPickerOpen(true)} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold hover:border-brand-500/60"><Images className="h-3 w-3" /> Media Library</button>
+                </div>
+
+                {err && <p className="mt-3 text-[11.5px] text-rose-500">{err}</p>}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <MediaLibraryPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={(url) => { attachVisual(sel, url); setPickerOpen(false); }}
+        filterTypes={["image", "video"]}
+        title="Choose a product / reference / B-roll"
       />
     </div>
   );
