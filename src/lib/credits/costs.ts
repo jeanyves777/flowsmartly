@@ -85,6 +85,14 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_CARTOON_VIDEO: 80,   // 6-8 scene images + TTS audio + FFmpeg (~$0.50 total)
   AI_CARTOON_CHARACTER_REGEN: 10, // Single image regen
 
+  // --- AI Avatar (HeyGen, pay-as-you-go) — costs are PER 30s of output ---
+  // Standard talking-avatar ≈ $1/min → $0.50/30s; ~2x markup at $0.01/credit → 20.
+  AI_AVATAR_VIDEO: 20,          // Standard talking-avatar, per 30s
+  AI_AVATAR_VIDEO_PREMIUM: 80,  // Avatar IV photoreal (~$4/min), per 30s
+  AI_AVATAR_CLONE_PHOTO: 40,    // Photo Avatar — instant, one-time
+  AI_AVATAR_CLONE_VIDEO: 300,   // Instant Avatar / digital twin from 2-min video, one-time
+  AI_AVATAR_TRANSLATE: 40,      // Video translation/dubbing, per 30s of source
+
   // --- AI Landing Page ---
   AI_LANDING_PAGE: 20,    // Claude text generation (~$0.10)
 
@@ -255,6 +263,11 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_DESIGN_LAYOUT_IMAGE: "AI smart layout image generation",
   AI_CARTOON_VIDEO: "AI cartoon video generation",
   AI_CARTOON_CHARACTER_REGEN: "AI character preview regeneration",
+  AI_AVATAR_VIDEO: "AI avatar video (Standard, per 30s)",
+  AI_AVATAR_VIDEO_PREMIUM: "AI avatar video (Avatar IV, per 30s)",
+  AI_AVATAR_CLONE_PHOTO: "AI avatar clone (photo)",
+  AI_AVATAR_CLONE_VIDEO: "AI avatar clone (video digital twin)",
+  AI_AVATAR_TRANSLATE: "AI avatar video translation (per 30s)",
   AI_LANDING_PAGE: "AI landing page generation",
   AI_CHAT_MESSAGE: "FlowAI chat message",
   AI_CHAT_IMAGE: "FlowAI image generation",
