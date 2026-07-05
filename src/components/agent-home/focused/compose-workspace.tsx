@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { PenSquare, Sparkles, Send, CalendarClock, FileEdit, CheckCircle2, ImageIcon, Link2, Plug, Rss, Hash, Clock, X, AlertTriangle, RefreshCw, XCircle, Ban, Search, Eye, MoreHorizontal, Heart, MessageCircle, Share2, ThumbsUp, Repeat2, Bookmark, Globe2, Play, BadgeCheck, CheckCheck } from "lucide-react";
+import { Sparkles, Send, CalendarClock, FileEdit, CheckCircle2, ImageIcon, Link2, Plug, Rss, Hash, Clock, X, AlertTriangle, RefreshCw, XCircle, Ban, Search, Eye, MoreHorizontal, Heart, MessageCircle, Share2, ThumbsUp, Repeat2, Bookmark, Globe2, Play, BadgeCheck, CheckCheck } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { cn } from "@/lib/utils/cn";
@@ -418,206 +418,7 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
-        {/* LEFT: sticky — channels, reconnect, timing */}
-        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
-          {/* identity / ask-AI */}
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="flex items-start gap-2.5">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><PenSquare className="h-5 w-5" /></span>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-[15px] font-bold">New post</h2>
-                <p className="text-[11.5px] text-muted-foreground">Write it, choose where it goes, then post now or schedule.</p>
-              </div>
-            </div>
-            {onAsk && (
-              <button onClick={askAi} className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground">
-                <Sparkles className="h-3.5 w-3.5 text-brand-500" /> Ask AI to write it
-              </button>
-            )}
-          </div>
-
-          {/* targets — one chip per connected account */}
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground"><Plug className="h-3.5 w-3.5" /> Post to</span>
-              <span className="text-[11px] text-muted-foreground">{selected.length} selected</span>
-            </div>
-
-            {/* search + select-all / clear — only when there are real channels to sift */}
-            {targets.length > 1 && (
-              <div className="mb-2.5 space-y-2">
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    value={channelSearch}
-                    onChange={(e) => setChannelSearch(e.target.value)}
-                    placeholder="Search channels…"
-                    className={cn(FIELD, "h-8 py-0 ps-8 pe-7 text-[12px]")}
-                  />
-                  {channelSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setChannelSearch("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-                      title="Clear search"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={selectAll}
-                    disabled={allSelectableSelected}
-                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/40 hover:text-foreground disabled:opacity-50"
-                  >
-                    <CheckCheck className="h-3.5 w-3.5" /> Select all
-                  </button>
-                  <button
-                    type="button"
-                    onClick={clearChannels}
-                    disabled={selected.length <= 1 && selected[0] === "feed"}
-                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/40 hover:text-foreground disabled:opacity-50"
-                  >
-                    <X className="h-3.5 w-3.5" /> Clear
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              {filteredTargets.map((t) => {
-                const on = selected.includes(t.id);
-                const why = incompatibleById[t.id];
-                const disabled = !!why;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => toggle(t.id)}
-                    aria-pressed={on}
-                    disabled={disabled}
-                    title={why ? `Can't post here — ${why}` : undefined}
-                    className={cn(
-                      "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition",
-                      disabled
-                        ? "cursor-not-allowed border-border bg-muted/20 text-muted-foreground opacity-60"
-                        : on
-                          ? "border-brand-500/60 bg-brand-500/10 text-brand-500"
-                          : "border-border bg-muted/40 text-foreground hover:border-brand-500/40",
-                    )}
-                  >
-                    {disabled ? (
-                      <Ban className="h-3.5 w-3.5" />
-                    ) : t.feed ? (
-                      <Rss className="h-3.5 w-3.5" />
-                    ) : t.avatarUrl ? (
-                      <Image src={t.avatarUrl} alt="" width={18} height={18} className="h-[18px] w-[18px] rounded-full object-cover" unoptimized />
-                    ) : (
-                      <Link2 className="h-3.5 w-3.5" />
-                    )}
-                    <span className="capitalize">{t.label}</span>
-                    {t.username && <span className={cn("font-normal", on ? "text-brand-500/80" : "text-muted-foreground")}>@{t.username}</span>}
-                    {t.needsReconnect && !disabled && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
-                    {on && !disabled && <CheckCircle2 className="h-3.5 w-3.5" />}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* no chip matches the channel search */}
-            {targets.length > 1 && filteredTargets.length === 0 && (
-              <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-                <Search className="h-3.5 w-3.5" /> No channels match &ldquo;{channelSearch.trim()}&rdquo;.
-              </p>
-            )}
-
-            {/* why a channel is disabled */}
-            {Object.keys(incompatibleById).length > 0 && (
-              <p className="mt-2 flex items-start gap-1.5 text-[11.5px] text-muted-foreground">
-                <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span>
-                  Some channels are off because of your media:{" "}
-                  {targets
-                    .filter((t) => incompatibleById[t.id])
-                    .map((t) => `${t.label} ${incompatibleById[t.id]}`)
-                    .join("; ")}
-                  .
-                </span>
-              </p>
-            )}
-
-            {targets.length === 1 && (
-              <p className="mt-2 text-[11.5px] text-muted-foreground">No social accounts connected yet — your post goes to the in-app feed. Connect Instagram, X, LinkedIn… from Connections to cross-post.</p>
-            )}
-
-            {/* reconnect awareness — selected accounts that are stale / missing scopes */}
-            {staleSelected.length > 0 && (
-              <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
-                <p className="flex items-center gap-1.5 text-[12px] font-semibold text-amber-600 dark:text-amber-500">
-                  <AlertTriangle className="h-3.5 w-3.5" /> Some connections need attention
-                </p>
-                <div className="mt-2 space-y-1.5">
-                  {staleSelected.map((t) => (
-                    <div key={t.id} className="flex flex-wrap items-center gap-2 text-[11.5px]">
-                      <span className="font-medium capitalize">{t.label}{t.username ? ` @${t.username}` : ""}</span>
-                      <span className="text-muted-foreground">
-                        {t.missingScopes && t.missingScopes.length > 0
-                          ? `is missing permission (${t.missingScopes.join(", ")}) — posting may fail`
-                          : "may be expired — posting may fail"}
-                      </span>
-                      <button
-                        onClick={() => reconnect(t.platform)}
-                        className="ms-auto inline-flex shrink-0 items-center gap-1 text-[11.5px] font-semibold text-amber-600 hover:text-amber-500 dark:text-amber-500"
-                      >
-                        <RefreshCw className="h-3 w-3" /> Reconnect
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* timing */}
-          <div className="rounded-2xl border border-border bg-card p-4">
-            <span className="mb-2 flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground"><Clock className="h-3.5 w-3.5" /> When</span>
-            <div className="flex flex-col gap-1 rounded-[10px] border border-border p-0.5">
-              {([
-                { id: "now", label: "Post now" },
-                { id: "schedule", label: "Schedule" },
-                { id: "draft", label: "Save as draft" },
-              ] as const).map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => { setMode(m.id); setDone(null); if (m.id === "schedule" && !scheduleAt) setScheduleAt(defaultScheduleValue()); }}
-                  className={cn("rounded-lg px-3 py-1.5 text-start text-[12px] font-semibold transition", mode === m.id ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-            {mode === "schedule" && (
-              <label className="mt-2.5 block">
-                <span className="mb-1.5 block text-[11.5px] font-medium text-muted-foreground">Schedule for</span>
-                <input type="datetime-local" value={scheduleAt} onChange={(e) => { setScheduleAt(e.target.value); setDone(null); }} className={FIELD} />
-              </label>
-            )}
-          </div>
-
-          {/* tips */}
-          <div className="space-y-2.5">
-            <Tip icon={Sparkles} title="Let AI draft it" desc="Stuck on words? Ask the agent to write a caption you can tweak." />
-            <Tip icon={Rss} title="Always-on feed" desc="Even with no accounts connected, posts land on your in-app feed." />
-            <Tip icon={CalendarClock} title="Schedule ahead" desc="Pick a future time and it publishes itself automatically." />
-          </div>
-        </aside>
-
-        {/* RIGHT: composer editor + preview — full width */}
-        <div className="min-w-0 flex-1 space-y-4">
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4">
         {/* success confirmation + per-destination publish results */}
         {done && (
           <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4 sm:p-5">
@@ -681,8 +482,15 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
             <div className="min-w-0 space-y-4">
               {/* caption */}
               <label className="block">
-                <span className="mb-1.5 flex items-center justify-between">
-                  <span className="text-[11.5px] font-medium text-muted-foreground">Caption</span>
+                <span className="mb-1.5 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <span className="text-[11.5px] font-medium text-muted-foreground">Caption</span>
+                    {onAsk && (
+                      <button type="button" onClick={askAi} className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-semibold text-muted-foreground transition hover:border-brand-500/60 hover:text-foreground">
+                        <Sparkles className="h-3 w-3 text-brand-500" /> Ask AI to write it
+                      </button>
+                    )}
+                  </span>
                   <span className={cn("text-[11px] tabular-nums", over ? "text-rose-500 font-semibold" : "text-muted-foreground")}>{chars.toLocaleString()} / {CAPTION_MAX.toLocaleString()}</span>
                 </span>
                 <textarea
@@ -748,6 +556,182 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
               <PreviewCard target={activePreview} caption={caption} media={media} isVideo={isVideoUrl} />
             </div>
           </div>
+        </section>
+
+        {/* PUBLISH — where + when + post, compacted below the post window */}
+        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_236px]">
+            {/* Post to — one chip per connected account */}
+            <div className="min-w-0">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground"><Plug className="h-3.5 w-3.5" /> Post to</span>
+                <span className="text-[11px] text-muted-foreground">{selected.length} selected</span>
+              </div>
+
+              {/* search + select-all / clear — only when there are real channels to sift */}
+              {targets.length > 1 && (
+                <div className="mb-2.5 space-y-2">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      value={channelSearch}
+                      onChange={(e) => setChannelSearch(e.target.value)}
+                      placeholder="Search channels…"
+                      className={cn(FIELD, "h-8 py-0 ps-8 pe-7 text-[12px]")}
+                    />
+                    {channelSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setChannelSearch("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+                        title="Clear search"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={selectAll}
+                      disabled={allSelectableSelected}
+                      className="inline-flex flex-1 items-center justify-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/40 hover:text-foreground disabled:opacity-50"
+                    >
+                      <CheckCheck className="h-3.5 w-3.5" /> Select all
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearChannels}
+                      disabled={selected.length <= 1 && selected[0] === "feed"}
+                      className="inline-flex flex-1 items-center justify-center gap-1 rounded-[10px] border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/40 hover:text-foreground disabled:opacity-50"
+                    >
+                      <X className="h-3.5 w-3.5" /> Clear
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                {filteredTargets.map((t) => {
+                  const on = selected.includes(t.id);
+                  const why = incompatibleById[t.id];
+                  const disabled = !!why;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => toggle(t.id)}
+                      aria-pressed={on}
+                      disabled={disabled}
+                      title={why ? `Can't post here — ${why}` : undefined}
+                      className={cn(
+                        "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition",
+                        disabled
+                          ? "cursor-not-allowed border-border bg-muted/20 text-muted-foreground opacity-60"
+                          : on
+                            ? "border-brand-500/60 bg-brand-500/10 text-brand-500"
+                            : "border-border bg-muted/40 text-foreground hover:border-brand-500/40",
+                      )}
+                    >
+                      {disabled ? (
+                        <Ban className="h-3.5 w-3.5" />
+                      ) : t.feed ? (
+                        <Rss className="h-3.5 w-3.5" />
+                      ) : t.avatarUrl ? (
+                        <Image src={t.avatarUrl} alt="" width={18} height={18} className="h-[18px] w-[18px] rounded-full object-cover" unoptimized />
+                      ) : (
+                        <Link2 className="h-3.5 w-3.5" />
+                      )}
+                      <span className="capitalize">{t.label}</span>
+                      {t.username && <span className={cn("font-normal", on ? "text-brand-500/80" : "text-muted-foreground")}>@{t.username}</span>}
+                      {t.needsReconnect && !disabled && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
+                      {on && !disabled && <CheckCircle2 className="h-3.5 w-3.5" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* no chip matches the channel search */}
+              {targets.length > 1 && filteredTargets.length === 0 && (
+                <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                  <Search className="h-3.5 w-3.5" /> No channels match &ldquo;{channelSearch.trim()}&rdquo;.
+                </p>
+              )}
+
+              {/* why a channel is disabled */}
+              {Object.keys(incompatibleById).length > 0 && (
+                <p className="mt-2 flex items-start gap-1.5 text-[11.5px] text-muted-foreground">
+                  <Ban className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span>
+                    Some channels are off because of your media:{" "}
+                    {targets
+                      .filter((t) => incompatibleById[t.id])
+                      .map((t) => `${t.label} ${incompatibleById[t.id]}`)
+                      .join("; ")}
+                    .
+                  </span>
+                </p>
+              )}
+
+              {targets.length === 1 && (
+                <p className="mt-2 text-[11.5px] text-muted-foreground">No social accounts connected yet — your post goes to the in-app feed. Connect Instagram, X, LinkedIn… from Connections to cross-post.</p>
+              )}
+
+              {/* reconnect awareness — selected accounts that are stale / missing scopes */}
+              {staleSelected.length > 0 && (
+                <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                  <p className="flex items-center gap-1.5 text-[12px] font-semibold text-amber-600 dark:text-amber-500">
+                    <AlertTriangle className="h-3.5 w-3.5" /> Some connections need attention
+                  </p>
+                  <div className="mt-2 space-y-1.5">
+                    {staleSelected.map((t) => (
+                      <div key={t.id} className="flex flex-wrap items-center gap-2 text-[11.5px]">
+                        <span className="font-medium capitalize">{t.label}{t.username ? ` @${t.username}` : ""}</span>
+                        <span className="text-muted-foreground">
+                          {t.missingScopes && t.missingScopes.length > 0
+                            ? `is missing permission (${t.missingScopes.join(", ")}) — posting may fail`
+                            : "may be expired — posting may fail"}
+                        </span>
+                        <button
+                          onClick={() => reconnect(t.platform)}
+                          className="ms-auto inline-flex shrink-0 items-center gap-1 text-[11.5px] font-semibold text-amber-600 hover:text-amber-500 dark:text-amber-500"
+                        >
+                          <RefreshCw className="h-3 w-3" /> Reconnect
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* When */}
+            <div className="lg:border-s lg:border-border lg:ps-5">
+              <span className="mb-2 flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground"><Clock className="h-3.5 w-3.5" /> When</span>
+              <div className="flex flex-col gap-1 rounded-[10px] border border-border p-0.5">
+                {([
+                  { id: "now", label: "Post now" },
+                  { id: "schedule", label: "Schedule" },
+                  { id: "draft", label: "Save as draft" },
+                ] as const).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => { setMode(m.id); setDone(null); if (m.id === "schedule" && !scheduleAt) setScheduleAt(defaultScheduleValue()); }}
+                    className={cn("rounded-lg px-3 py-1.5 text-start text-[12px] font-semibold transition", mode === m.id ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              {mode === "schedule" && (
+                <label className="mt-2.5 block">
+                  <span className="mb-1.5 block text-[11.5px] font-medium text-muted-foreground">Schedule for</span>
+                  <input type="datetime-local" value={scheduleAt} onChange={(e) => { setScheduleAt(e.target.value); setDone(null); }} className={FIELD} />
+                </label>
+              )}
+            </div>
+          </div>
 
           {error && <p className="mt-4 flex items-center gap-1.5 text-[12px] text-rose-500"><X className="h-3.5 w-3.5" /> {error}</p>}
 
@@ -769,17 +753,7 @@ export function FocusedCompose({ refreshKey, onAsk }: { refreshKey?: number; onA
             </span>
           </div>
         </section>
-        </div>
       </div>
-    </div>
-  );
-}
-
-function Tip({ icon: Icon, title, desc }: { icon: ElementType; title: string; desc: string }) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-3.5">
-      <div className="flex items-center gap-1.5 text-brand-500"><Icon className="h-4 w-4" /><span className="text-[12px] font-semibold text-foreground">{title}</span></div>
-      <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">{desc}</p>
     </div>
   );
 }
