@@ -3086,6 +3086,8 @@ export async function removeClip(input: {
 export async function addBlankClip(input: {
   campaignId: string;
   userId: string;
+  /** Insert the new blank scene right AFTER this clip id (draft-first insert-between). */
+  afterClipId?: string | null;
 }): Promise<CampaignState> {
   const current = await getCampaign(input.campaignId, input.userId);
   if (!current) throw new Error("Campaign not found");
@@ -3105,10 +3107,18 @@ export async function addBlankClip(input: {
     videoUrl: null,
     error: null,
   };
-  // Keep the brand outro last — insert the new scene right before it.
   const outroIdx = clips.findIndex((c) => c.isOutro);
-  if (outroIdx >= 0) clips.splice(outroIdx, 0, blank);
-  else clips.push(blank);
+  const afterIdx = input.afterClipId ? clips.findIndex((c) => c.id === input.afterClipId) : -1;
+  if (afterIdx >= 0) {
+    // Insert right after the chosen scene — but never after the brand outro (keep it last).
+    let pos = afterIdx + 1;
+    if (outroIdx >= 0 && pos > outroIdx) pos = outroIdx;
+    clips.splice(pos, 0, blank);
+  } else if (outroIdx >= 0) {
+    clips.splice(outroIdx, 0, blank); // keep the outro last
+  } else {
+    clips.push(blank);
+  }
   return updateCampaignState(input.campaignId, input.userId, { clips: reindexClips(clips) });
 }
 

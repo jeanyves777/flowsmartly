@@ -67,7 +67,8 @@ export async function POST(
       }
       case "add_blank": {
         // Insert an empty scene (no render → free). User fills + generates it.
-        const state = await addBlankClip({ campaignId: id, userId: session.userId });
+        // afterClipId (optional) inserts it BETWEEN scenes; else appended before the outro.
+        const state = await addBlankClip({ campaignId: id, userId: session.userId, afterClipId: body.afterClipId });
         return NextResponse.json({ success: true, data: { state } });
       }
       case "reorder": {
