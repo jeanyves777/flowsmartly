@@ -35,6 +35,7 @@ function friendlyActionLabel(toolName: string): string {
     create_automation: "Create the automation",
     update_automation: "Update the automation",
     create_content_campaign: "Create the content campaign",
+    improve_content_campaign: "Improve the content campaign",
     create_proposal: "Create the proposal",
     create_pitch: "Create the pitch",
     send_proposal: "Send the proposal",
