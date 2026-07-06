@@ -116,6 +116,7 @@ export const WORKSPACES: Workspace[] = [
     route: "/websites",
     items: [
       { label: "Websites", route: "/websites", viewKey: "web", desc: "Build & manage your sites" },
+      { label: "Portfolio & résumé", route: "/home/portfolio", viewKey: "portfolio", desc: "A shareable portfolio or digital résumé site" },
       { label: "Landing pages", route: "/landing-pages", viewKey: "landing", desc: "High-converting pages for campaigns" },
       { label: "Domains", route: "/domains", viewKey: "domains", desc: "Connect & manage custom domains" },
     ],

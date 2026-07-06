@@ -1,0 +1,932 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Portfolio &amp; Resume Studio — mockup</title>
+<style>
+  :root{--b:#6d5cff;--b2:#8b5cf6;--ink:#0b1220;--good:#10b981;--good2:#059669;--bg:#0b0d12;--panel:#0e111a;--panel2:#11151f;--line:#1c2130;--line2:#222a3a;--mut:#8b93a4;--tx:#e7ebf3}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  svg{display:block}
+  button{font-family:inherit}
+  /* ===== mockup navigator (not part of product) ===== */
+  .nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:14px;padding:8px 16px;background:#07090d;border-bottom:1px solid var(--line)}
+  .nav .brand{display:flex;align-items:center;gap:9px;font-weight:900;font-size:13px}
+  .nav .brand .lg{height:24px;width:24px;border-radius:7px;background:linear-gradient(135deg,var(--b),var(--b2));display:grid;place-items:center;color:#fff;font-size:13px}
+  .nav .tag{font-size:10.5px;color:var(--mut);border:1px solid var(--line2);border-radius:999px;padding:2px 9px;font-weight:700}
+  .steps{display:flex;gap:4px;margin-left:8px;flex-wrap:wrap}
+  .steps button{border:1px solid var(--line2);background:var(--panel2);color:var(--mut);font-size:12px;font-weight:700;padding:6px 12px;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+  .steps button .n{height:17px;width:17px;border-radius:50%;background:#1a2030;color:var(--mut);font-size:10.5px;display:grid;place-items:center;font-weight:800}
+  .steps button.on{border-color:transparent;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff}
+  .steps button.on .n{background:#ffffff33;color:#fff}
+  .nav .right{margin-left:auto;font-size:11px;color:var(--mut)}
+  /* ===== screens ===== */
+  .screen{display:none}
+  .screen.on{display:block}
+  .stage{height:calc(100vh - 41px);overflow:hidden}
+  /* shared studio chrome */
+  .app{display:grid;grid-template-columns:288px 1fr;height:100%}
+  .chat{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+  .chat h4{margin:0;padding:13px 15px;font-size:11.5px;color:var(--mut);border-bottom:1px solid var(--line);font-weight:800;letter-spacing:.03em;display:flex;align-items:center;gap:7px}
+  .chat h4 .dot{height:7px;width:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px #10b98122}
+  .msgs{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+  .bot,.you{max-width:94%;padding:9px 11px;border-radius:13px;font-size:12.5px;line-height:1.5}
+  .bot{background:#161b28;border:1px solid #222a3a;align-self:flex-start}
+  .you{background:linear-gradient(135deg,var(--b),var(--b2));align-self:flex-end;color:#fff}
+  .bot b{color:#c4b5fd}
+  .toolrow{align-self:flex-start;max-width:94%;background:#0f1626;border:1px solid #1e2b45;border-radius:11px;padding:8px 10px;font-size:11.5px;color:#9fb2d6;display:flex;align-items:center;gap:8px}
+  .toolrow .ic{height:18px;width:18px;border-radius:6px;background:#16233b;display:grid;place-items:center;color:#7aa2ff}
+  .composer{border-top:1px solid var(--line);padding:10px}
+  .composer .inp{display:flex;gap:7px;background:var(--panel2);border:1px solid var(--line2);border-radius:11px;padding:7px 9px}
+  .composer input{flex:1;background:transparent;border:0;color:var(--tx);font-size:12.5px;outline:none}
+  .composer .snd{height:26px;width:26px;border:0;border-radius:8px;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff;display:grid;place-items:center;cursor:pointer}
+  /* canvas */
+  .canvas{min-height:0;display:flex;flex-direction:column}
+  .bar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--line);flex-shrink:0}
+  .bar .icon{height:30px;width:30px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(109,92,255,.28),rgba(139,92,246,.2));color:#b9a9ff}
+  .bar .ttl{font-size:13.5px;font-weight:800;line-height:1.1}
+  .bar .sub{font-size:11px;color:var(--mut)}
+  .seg{display:flex;gap:2px;background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:2px}
+  .seg button{border:0;background:transparent;color:var(--mut);font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:7px;cursor:pointer}
+  .seg button.on{background:#20263a;color:var(--tx)}
+  .bar .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .btn{border:1px solid var(--line2);background:var(--panel2);color:#c9cfda;font-size:12px;font-weight:700;padding:7px 12px;border-radius:10px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+  .btn.pri{border:0;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff}
+  .btn.pub{border:0;background:linear-gradient(135deg,var(--good),var(--good2));color:#fff}
+  .foot{border-top:1px solid var(--line);padding:9px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+  .foot .note{font-size:11.5px;color:var(--mut)}
+  .foot .grp{margin-left:auto;display:flex;gap:8px}
+  .rlab{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);margin:2px 0 8px}
+  .muted{color:var(--mut)}
+
+  /* ===================== SCREEN 1 — START ===================== */
+  .start{display:grid;grid-template-columns:288px 1fr;height:100%}
+  .startbody{overflow:auto;padding:34px 48px;display:flex;flex-direction:column;align-items:stretch}
+  .kick{max-width:none;width:100%}
+  .kick .eyebrow{font-size:11.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#a99bff}
+  .kick h1{font-size:30px;font-weight:900;letter-spacing:-.02em;margin:8px 0 6px}
+  .kick h1 span{background:linear-gradient(120deg,#c4b5fd,#7aa2ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .kick p.lede{font-size:14.5px;color:#aeb6c6;max-width:640px;margin:0 0 22px}
+  .pick{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .pcard{position:relative;border:1px solid var(--line2);background:linear-gradient(180deg,#0f131e,#0d1019);border-radius:18px;padding:20px;cursor:pointer;transition:.15s;overflow:hidden}
+  .pcard:hover{transform:translateY(-2px);border-color:#3a3670}
+  .pcard.sel{border-color:transparent;box-shadow:0 0 0 2px var(--b),0 20px 50px #6d5cff33}
+  .pcard .badge{position:absolute;top:14px;right:14px;font-size:10px;font-weight:800;color:#c4b5fd;background:#221d43;border:1px solid #382f6b;border-radius:999px;padding:3px 9px}
+  .pcard .pi{height:44px;width:44px;border-radius:13px;display:grid;place-items:center;font-size:22px;margin-bottom:12px}
+  .pi.biz{background:linear-gradient(135deg,#6d5cff,#8b5cf6)}
+  .pi.per{background:linear-gradient(135deg,#0ea5e9,#22d3ee)}
+  .pcard h3{margin:0 0 4px;font-size:17px;font-weight:800}
+  .pcard .d{font-size:12.5px;color:#aeb6c6;line-height:1.5;margin-bottom:12px}
+  .pcard ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+  .pcard li{font-size:12px;color:#c9cfda;display:flex;gap:8px;align-items:flex-start}
+  .pcard li svg{margin-top:2px;color:#7c6bff;flex-shrink:0}
+  /* onboarding panel */
+  .onb{margin-top:22px;border:1px solid var(--line2);border-radius:16px;background:#0d1019;padding:18px}
+  .onb .hd{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .onb .hd .n{height:22px;width:22px;border-radius:7px;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800}
+  .onb .hd b{font-size:13.5px}
+  .drop{border:1.5px dashed #33406a;border-radius:14px;padding:26px;text-align:center;background:linear-gradient(180deg,#0c1220,#0b0f1a);cursor:pointer;transition:.15s}
+  .drop:hover{border-color:var(--b);background:#0e1526}
+  .drop .up{height:46px;width:46px;border-radius:14px;background:#141d33;display:grid;place-items:center;margin:0 auto 10px;color:#7aa2ff}
+  .drop b{font-size:13.5px}
+  .drop .s{font-size:11.5px;color:var(--mut);margin-top:3px}
+  .or{display:flex;align-items:center;gap:12px;color:var(--mut);font-size:11px;margin:14px 0}
+  .or:before,.or:after{content:"";height:1px;flex:1;background:var(--line2)}
+  .altrow{display:flex;gap:10px;flex-wrap:wrap}
+  .alt{flex:1;min-width:180px;border:1px solid var(--line2);background:var(--panel2);border-radius:12px;padding:12px 13px;display:flex;gap:10px;align-items:center;cursor:pointer}
+  .alt:hover{border-color:#3a3670}
+  .alt .ic{height:32px;width:32px;border-radius:9px;background:#141d33;display:grid;place-items:center;color:#7aa2ff;flex-shrink:0}
+  .alt b{font-size:12.5px;display:block}
+  .alt .s{font-size:11px;color:var(--mut)}
+  .unlock{margin-top:20px;display:flex;align-items:center;gap:14px;border:1px solid #2a2550;background:linear-gradient(90deg,#150f2e,#0d1019);border-radius:14px;padding:14px 16px}
+  .unlock .k{height:38px;width:38px;border-radius:11px;background:linear-gradient(135deg,var(--b),var(--b2));display:grid;place-items:center;color:#fff;flex-shrink:0}
+  .unlock b{font-size:13px}
+  .unlock p{margin:2px 0 0;font-size:12px;color:#aeb6c6}
+  .unlock .go{margin-left:auto}
+
+  /* ===================== SCREEN 2 — PORTAL EDITOR ===================== */
+  .edbody{flex:1;display:grid;grid-template-columns:1fr 300px;min-height:0}
+  .preview{overflow:auto;background:#0a0c11;padding:22px 28px;display:flex;justify-content:center}
+  .frame{width:100%;max-width:980px;background:#fff;color:#1b2330;border-radius:16px;overflow:hidden;box-shadow:0 26px 70px #000a}
+  /* section wrapper w/ hover controls */
+  .sec{position:relative;border:2px solid transparent;transition:.12s}
+  .sec:hover{border-color:#6d5cff}
+  .sec .sctl{position:absolute;top:6px;right:6px;display:none;gap:4px;z-index:3}
+  .sec:hover .sctl{display:flex}
+  .sctl button{height:26px;padding:0 8px;border:0;border-radius:8px;background:#0b1220ee;color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px;cursor:pointer;backdrop-filter:blur(4px)}
+  .sctl button:hover{background:#6d5cff}
+  .sec .stag{position:absolute;top:6px;left:6px;display:none;font-size:10px;font-weight:800;color:#fff;background:#6d5cff;border-radius:6px;padding:2px 7px;z-index:3}
+  .sec:hover .stag{display:block}
+  /* business preview content */
+  .hero{padding:34px 30px;background:linear-gradient(135deg,#151a2e,#221b45);color:#fff;position:relative}
+  .hero .logo{height:40px;width:40px;border-radius:11px;background:linear-gradient(135deg,#6d5cff,#8b5cf6);display:grid;place-items:center;font-weight:900;margin-bottom:14px}
+  .hero h2{margin:0;font-size:26px;font-weight:900;letter-spacing:-.02em}
+  .hero .role{font-size:13.5px;color:#c8c2ee;margin-top:5px}
+  .hero .bio{font-size:13px;color:#d7d3ef;margin-top:10px;max-width:440px;line-height:1.6}
+  .hero .cta{margin-top:16px;display:flex;gap:8px}
+  .hero .cta a{font-size:12px;font-weight:800;padding:8px 14px;border-radius:10px;background:#fff;color:#2a2158;text-decoration:none}
+  .hero .cta a.ghost{background:#ffffff22;color:#fff}
+  .sech{font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#6d5cff;margin:0 0 14px}
+  .about{padding:26px 30px}
+  .about p{margin:0;font-size:13.5px;line-height:1.7;color:#3a4453}
+  .work{padding:24px 30px;background:#f7f8fb}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .proj{background:#fff;border:1px solid #eceef2;border-radius:12px;overflow:hidden}
+  .proj .ph{height:88px;background-size:cover;background-position:center}
+  .proj .pb{padding:10px 11px}
+  .proj b{font-size:12.5px}
+  .proj p{margin:3px 0 0;font-size:11px;color:#67707d;line-height:1.4}
+  .skills{padding:24px 30px}
+  .chiprow{display:flex;flex-wrap:wrap;gap:7px}
+  .sk{font-size:11.5px;font-weight:700;color:#4b3fb8;background:#efedff;border-radius:999px;padding:5px 11px}
+  .contact{padding:26px 30px;background:linear-gradient(135deg,#101426,#1c1740);color:#fff;text-align:center}
+  .contact h3{margin:0 0 6px;font-size:19px;font-weight:900}
+  .contact p{margin:0 0 14px;font-size:12.5px;color:#c8c2ee}
+  .contact .cbtn{display:inline-block;font-size:12.5px;font-weight:800;padding:9px 18px;border-radius:11px;background:linear-gradient(135deg,#6d5cff,#8b5cf6);color:#fff}
+  /* resume preview content */
+  .resume{display:none}
+  .rhero{padding:30px;display:flex;gap:18px;align-items:center;border-bottom:3px solid #6d5cff}
+  .rhero .av{height:74px;width:74px;border-radius:50%;background-size:cover;background-position:center;flex-shrink:0;box-shadow:0 0 0 3px #efedff}
+  .rhero h2{margin:0;font-size:24px;font-weight:900}
+  .rhero .role{font-size:13px;color:#6d5cff;font-weight:700;margin-top:2px}
+  .rhero .meta{font-size:11.5px;color:#67707d;margin-top:6px;display:flex;gap:12px;flex-wrap:wrap}
+  .rbody{display:grid;grid-template-columns:1.5fr 1fr;gap:0}
+  .rmain{padding:22px 26px;border-right:1px solid #eceef2}
+  .rside{padding:22px 22px;background:#f7f8fb}
+  .xp{position:relative;padding-left:16px;margin-bottom:16px}
+  .xp:before{content:"";position:absolute;left:0;top:5px;height:9px;width:9px;border-radius:50%;background:#6d5cff}
+  .xp:after{content:"";position:absolute;left:4px;top:14px;bottom:-12px;width:1.5px;background:#e3e6ec}
+  .xp:last-child:after{display:none}
+  .xp b{font-size:13px}
+  .xp .co{font-size:12px;color:#6d5cff;font-weight:700}
+  .xp .dt{font-size:11px;color:#8b93a4}
+  .xp p{margin:5px 0 0;font-size:11.5px;color:#5a636f;line-height:1.5}
+  .bars .brow{margin-bottom:9px}
+  .bars .bl{display:flex;justify-content:space-between;font-size:11.5px;font-weight:700;margin-bottom:3px}
+  .bars .bt{height:6px;border-radius:999px;background:#e5e2ff;overflow:hidden}
+  .bars .bt i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#6d5cff,#8b5cf6)}
+  /* add-section palette (right rail) */
+  .rail{border-left:1px solid var(--line);background:var(--panel);overflow:auto;padding:13px}
+  .seclist{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+  .seci{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--line2);border-radius:10px;padding:8px 9px;cursor:grab}
+  .seci:hover{border-color:#3a3670}
+  .seci .drag{color:#4a5468;cursor:grab}
+  .seci .nm{font-size:12px;font-weight:700;flex:1}
+  .seci .eye{color:var(--mut);cursor:pointer}
+  .seci.off{opacity:.5}
+  .addgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px}
+  .addc{border:1px dashed #2a3346;border-radius:10px;padding:9px;text-align:center;cursor:pointer;font-size:11px;font-weight:700;color:#aeb6c6;background:#0e121b}
+  .addc:hover{border-color:var(--b);color:#c4b5fd}
+  .addc .em{font-size:16px;display:block;margin-bottom:3px}
+  .kit{border:1px solid var(--line2);border-radius:12px;padding:12px;background:var(--panel2);margin-bottom:14px}
+  .kit .krow{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .kit .sw{height:26px;width:26px;border-radius:8px;border:1px solid #ffffff22}
+  .kit .kmini{font-size:11px;color:var(--mut)}
+  .tmpls{display:flex;gap:7px;overflow:auto;padding-bottom:4px}
+  .tmpl{flex-shrink:0;width:78px;cursor:pointer}
+  .tmpl .tp{height:56px;border-radius:9px;border:2px solid var(--line2);overflow:hidden}
+  .tmpl.on .tp{border-color:var(--b)}
+  .tmpl .tn{font-size:10.5px;color:var(--mut);text-align:center;margin-top:4px;font-weight:700}
+  .media{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .media .m{aspect-ratio:1;border-radius:8px;background-size:cover;background-position:center;cursor:pointer}
+  .media .madd{aspect-ratio:1;border-radius:8px;border:1px dashed #2a3346;display:grid;place-items:center;color:var(--mut);cursor:pointer;font-size:20px}
+
+  /* ===================== SCREEN 3 — PUBLISH & SHARE ===================== */
+  .pubwrap{overflow:auto;padding:28px 40px}
+  .pubcol{width:100%;max-width:none;display:grid;grid-template-columns:1fr 360px;gap:24px}
+  .pcardp{border:1px solid var(--line2);border-radius:16px;background:#0d1019;padding:18px;margin-bottom:16px}
+  .pcardp h3{margin:0 0 3px;font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px}
+  .pcardp .sub{font-size:12px;color:var(--mut);margin-bottom:14px}
+  .step-pill{height:20px;width:20px;border-radius:50%;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff;font-size:11px;font-weight:800;display:grid;place-items:center}
+  .dsearch{display:flex;gap:8px;margin-bottom:12px}
+  .dsearch input{flex:1;background:var(--panel2);border:1px solid var(--line2);border-radius:11px;padding:10px 12px;color:var(--tx);font-size:13px;outline:none}
+  .dsearch input:focus{border-color:var(--b)}
+  .dres{display:flex;flex-direction:column;gap:7px}
+  .dr{display:flex;align-items:center;gap:10px;border:1px solid var(--line2);border-radius:11px;padding:10px 12px;background:var(--panel2)}
+  .dr.best{border-color:#2f6b4a;background:linear-gradient(90deg,#0e1a15,#0d1019)}
+  .dr .dn{font-size:13px;font-weight:700}
+  .dr .dn .tld{color:#7aa2ff}
+  .dr .bstg{font-size:9.5px;font-weight:800;color:#34d399;border:1px solid #2f6b4a;border-radius:999px;padding:1px 7px;margin-left:6px}
+  .dr .pr{margin-left:auto;font-size:12.5px;font-weight:800}
+  .dr .pr s{color:var(--mut);font-weight:600;margin-right:5px;font-size:11px}
+  .dr .buy{border:0;border-radius:9px;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff;font-size:11.5px;font-weight:800;padding:7px 12px;cursor:pointer}
+  .dr.taken{opacity:.5}
+  .dr.taken .pr{color:var(--mut);font-weight:600;font-size:11px}
+  .attach{margin-top:12px;display:flex;align-items:center;gap:10px;font-size:11.5px;color:#9fb2d6;background:#0f1626;border:1px solid #1e2b45;border-radius:11px;padding:9px 11px}
+  .attach .sp{height:16px;width:16px;border-radius:50%;border:2px solid #2b3a5a;border-top-color:#7aa2ff;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .free{display:flex;align-items:center;gap:10px;border:1px solid var(--line2);border-radius:11px;padding:11px 12px;background:var(--panel2)}
+  .free .u{font-size:13px;font-weight:700}
+  .free .u .sub2{color:#7aa2ff}
+  .free .cur{margin-left:auto;font-size:10px;font-weight:800;color:#34d399;background:#0e1a15;border:1px solid #2f6b4a;border-radius:999px;padding:3px 9px}
+  /* QR panel */
+  .qrbox{border:1px solid var(--line2);border-radius:16px;background:linear-gradient(180deg,#0f131e,#0d1019);padding:18px;position:sticky;top:0}
+  .qrframe{background:#fff;border-radius:14px;padding:16px;display:flex;flex-direction:column;align-items:center}
+  .qr{position:relative;height:168px;width:168px}
+  .qr .grid{display:grid;grid-template-columns:repeat(11,1fr);grid-template-rows:repeat(11,1fr);gap:2px;height:100%;width:100%}
+  .qr .grid i{border-radius:2px}
+  .qr .lg{position:absolute;inset:0;margin:auto;height:44px;width:44px;border-radius:11px;background:linear-gradient(135deg,var(--b),var(--b2));display:grid;place-items:center;color:#fff;font-weight:900;font-size:18px;box-shadow:0 0 0 5px #fff}
+  .qrframe .qn{margin-top:12px;font-size:13px;font-weight:800;color:#1b2330}
+  .qrframe .qu{font-size:11px;color:#8b93a4}
+  .qropts{display:flex;gap:6px;margin-top:12px}
+  .qropts button{flex:1;border:1px solid var(--line2);background:var(--panel2);color:#c9cfda;font-size:11px;font-weight:700;padding:8px;border-radius:9px;cursor:pointer;display:inline-flex;justify-content:center;align-items:center;gap:5px}
+  .qropts button.pri{border:0;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff}
+  .linkrow{display:flex;gap:7px;margin-top:12px}
+  .linkrow input{flex:1;background:var(--panel2);border:1px solid var(--line2);border-radius:9px;padding:8px 10px;color:#c9cfda;font-size:11.5px;outline:none}
+  .linkrow .cp{border:0;border-radius:9px;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff;font-size:11.5px;font-weight:800;padding:0 13px;cursor:pointer}
+  .qbrand{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--mut);margin-top:12px;justify-content:center}
+  .qbrand .sw{height:14px;width:14px;border-radius:4px}
+
+  /* ===================== SCREEN 4 — PUBLIC PAGE ===================== */
+  .pubview{height:100%;display:flex;flex-direction:column;background:#0a0c11}
+  .browser{position:relative;margin:12px auto 0;width:calc(100% - 48px);max-width:none;background:#0d1019;border:1px solid var(--line2);border-radius:14px 14px 0 0;overflow:hidden;flex:1;display:flex;flex-direction:column;min-height:0}
+  .bchrome{display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid var(--line2);background:#0b0e16}
+  .bdots{display:flex;gap:6px}
+  .bdots i{height:11px;width:11px;border-radius:50%}
+  .burl{flex:1;display:flex;align-items:center;gap:8px;background:#12151f;border:1px solid var(--line2);border-radius:9px;padding:6px 11px;font-size:12px;color:#c9cfda}
+  .burl .lock{color:#34d399}
+  .burl .u{font-weight:700}
+  .burl .u b{color:#fff}
+  .bview{overflow:auto;background:#fff;color:#1b2330;flex:1}
+  .badge-live{margin-left:auto;font-size:10px;font-weight:800;color:#34d399;background:#0e1a15;border:1px solid #2f6b4a;border-radius:999px;padding:3px 9px}
+  /* reuse .hero/.about/.work etc for public — larger */
+  .pubtoggle{display:flex;justify-content:center;gap:10px;padding:12px;flex-wrap:wrap}
+  /* access controls (screen 3) */
+  .acctl{margin-bottom:12px}
+  .acl{font-size:11.5px;font-weight:700;color:#c9cfda;margin-bottom:6px}
+  .seg.wide{width:100%}
+  .seg.wide button{flex:1;text-align:center;padding:7px 6px}
+  .verifybox{border:1px solid #2a2550;background:linear-gradient(90deg,#150f2e,#0d1019);border-radius:12px;padding:12px 13px;margin-top:8px}
+  .vhd{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+  .vic{height:26px;width:26px;border-radius:8px;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff;display:grid;place-items:center;font-size:13px}
+  .vhd b{font-size:13px}
+  .vsw{margin-left:auto;font-size:10px;font-weight:800;color:#34d399;background:#0e1a15;border:1px solid #2f6b4a;border-radius:999px;padding:3px 9px}
+  .verifybox p{margin:0 0 8px;font-size:11.5px;color:#aeb6c6;line-height:1.5}
+  .vbene{font-size:11.5px;color:#c4b5fd;font-weight:600}
+  /* visitor verification gate (screen 4) */
+  .gate{position:absolute;top:46px;left:0;right:0;bottom:0;display:none;place-items:center;background:rgba(8,10,14,.62);backdrop-filter:blur(7px);z-index:20;padding:22px}
+  .gate.on{display:grid}
+  .gatecard{width:100%;max-width:430px;background:#fff;color:#1b2330;border-radius:18px;padding:26px;box-shadow:0 30px 80px #000c;text-align:center}
+  .gatecard .gi{height:54px;width:54px;border-radius:15px;margin:0 auto 14px;display:grid;place-items:center;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff;font-size:24px}
+  .gatecard h3{margin:0 0 5px;font-size:20px;font-weight:900}
+  .gatecard p{margin:0 0 15px;font-size:12.5px;color:#67707d;line-height:1.55}
+  .who{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:#6d5cff;background:#efedff;border-radius:999px;padding:5px 12px;margin-bottom:14px}
+  .gfield input{width:100%;border:1.5px solid #dfe3ea;border-radius:11px;padding:12px 13px;font-size:14px;outline:none;text-align:center}
+  .gfield input:focus{border-color:#6d5cff}
+  .gbtn{width:100%;border:0;border-radius:11px;background:linear-gradient(135deg,var(--b),var(--b2));color:#fff;font-weight:800;font-size:14px;padding:12px;margin-top:11px;cursor:pointer}
+  .codeboxes{display:flex;gap:8px;justify-content:center;margin:8px 0 4px}
+  .codeboxes i{height:48px;width:40px;border:1.5px solid #dfe3ea;border-radius:11px;display:grid;place-items:center;font-size:21px;font-weight:800;font-style:normal;color:#1b2330}
+  .codeboxes i.f{border-color:#6d5cff;color:#6d5cff;box-shadow:0 0 0 3px #6d5cff22}
+  .gfoot{margin-top:14px;font-size:11px;color:#9aa2af}
+  .gate-step{display:none}.gate-step.on{display:block}
+  .dllock{width:100%;display:block;text-align:center;font-size:13px;font-weight:800;padding:11px;border:0;border-radius:11px;background:#14b8a6;color:#fff;cursor:pointer;margin-top:18px}
+  .dlnote{text-align:center;font-size:10.5px;color:#8b93a4;margin-top:7px}
+  /* style gallery + hero media (screen 2 rail) */
+  .styles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
+  .sty{cursor:pointer}
+  .sty .stp{position:relative;height:44px;border-radius:9px;border:2px solid var(--line2);overflow:hidden}
+  .sty.on .stp{border-color:var(--b);box-shadow:0 0 0 3px #6d5cff22}
+  .sty .stn{font-size:10px;color:var(--mut);text-align:center;margin-top:4px;font-weight:700}
+  .sty.on .stn{color:#c4b5fd}
+  .vbadge{position:absolute;top:3px;right:3px;height:15px;padding:0 5px;border-radius:999px;background:#0b1220cc;color:#fff;font-size:8px;font-weight:800;display:inline-flex;align-items:center}
+  .stp.spotlight{background:linear-gradient(135deg,#6d5cff,#8b5cf6)}
+  .stp.cinematic{background:radial-gradient(circle at 50% 42%,#3b4657,#0b1220)}
+  .stp.showcase{background:linear-gradient(135deg,#14b8a6,#0ea5e9)}
+  .stp.editorial{background:linear-gradient(135deg,#efeadd,#d9cfb8)}
+  .stp.neon{background:linear-gradient(135deg,#7c3aed,#ec4899)}
+  .stp.cardstyle{background:linear-gradient(135deg,#e2e8f0,#94a3b8)}
+  /* ad hero (screen 4 business — cinematic / video) */
+  .adhero{position:relative;color:#fff}
+  .adhero-media{position:relative;height:360px;background-size:cover;background-position:center;display:grid;place-items:center}
+  .adhero-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,18,32,.35),rgba(11,18,32,.92))}
+  .playbtn{position:relative;height:68px;width:68px;border-radius:50%;border:0;background:#ffffffee;color:#0b1220;font-size:22px;cursor:pointer;box-shadow:0 12px 44px #000a;display:grid;place-items:center;transition:.15s}
+  .playbtn:hover{transform:scale(1.06)}
+  .reel{position:absolute;top:16px;left:16px;font-size:11px;font-weight:800;color:#fff;background:rgba(11,18,32,.55);border:1px solid #ffffff33;border-radius:999px;padding:5px 11px;backdrop-filter:blur(4px)}
+  .adhero-copy{position:absolute;left:0;right:0;bottom:0;padding:26px 40px}
+  .adhero-copy .logo{height:38px;width:38px;border-radius:11px;background:linear-gradient(135deg,#6d5cff,#8b5cf6);display:grid;place-items:center;font-weight:900;margin-bottom:10px}
+  .adhero-copy h2{margin:0;font-size:34px;font-weight:900;letter-spacing:-.02em}
+  .adhero-copy .role{font-size:15px;color:#d7d3ef;margin-top:4px}
+  .adhero-copy .cta{margin-top:14px;display:flex;gap:8px}
+  .adhero-copy .cta a{font-size:12.5px;font-weight:800;padding:9px 16px;border-radius:10px;background:#fff;color:#2a2158;text-decoration:none}
+  .adhero-copy .cta a.ghost{background:#ffffff22;color:#fff}
+  .stylechip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:#c4b5fd;background:#1a1440;border:1px solid #322a63;border-radius:999px;padding:4px 11px}
+</style></head>
+<body>
+
+<!-- ===== MOCKUP NAVIGATOR ===== -->
+<div class="nav">
+  <div class="brand"><span class="lg">◆</span> FlowSmartly</div>
+  <span class="tag">Portfolio &amp; Resume Studio · mockup</span>
+  <div class="steps">
+    <button class="on" data-s="1"><span class="n">1</span> Start</button>
+    <button data-s="2"><span class="n">2</span> Portal editor</button>
+    <button data-s="3"><span class="n">3</span> Publish &amp; share</button>
+    <button data-s="4"><span class="n">4</span> Public page</button>
+  </div>
+  <div class="right">Click the steps to preview each screen →</div>
+</div>
+
+<!-- ========================================================= -->
+<!-- SCREEN 1 — START / ONBOARD                                -->
+<!-- ========================================================= -->
+<section class="screen on" id="s1">
+ <div class="stage"><div class="start">
+  <div class="chat">
+    <h4><span class="dot"></span> Agent</h4>
+    <div class="msgs">
+      <div class="bot">Let's build your site. Are we making a <b>Business Portfolio</b> or a <b>Personal Resume</b>? I'll create it, put it on a live domain, and give you a branded QR to share. ✨</div>
+      <div class="you">Personal resume — here's my CV.</div>
+      <div class="toolrow"><span class="ic">↑</span> Reading <b style="color:#cfe0ff">Jordan-Lee-CV.pdf</b> · extracting experience, skills, education…</div>
+      <div class="bot">Got it — I pulled <b>4 roles</b>, <b>11 skills</b> and your education. Building your resume site now →</div>
+    </div>
+    <div class="composer"><div class="inp"><input placeholder="Tell the agent what to build…"/><button class="snd">↑</button></div></div>
+  </div>
+
+  <div class="startbody">
+   <div class="kick">
+    <div class="eyebrow">New agent skill</div>
+    <h1>Your own <span>portfolio &amp; resume site</span>, built and hosted for you.</h1>
+    <p class="lede">Pick a type and the agent builds a complete, on-brand site — you edit it in the portal, then publish it to a real domain with a branded QR code to share anywhere.</p>
+
+    <div class="pick">
+      <div class="pcard" data-pick="biz" onclick="pick('biz')">
+        <span class="badge">For business</span>
+        <div class="pi biz">🏢</div>
+        <h3>Business Portfolio</h3>
+        <div class="d">A polished showcase for a company, freelancer or studio — services, projects, testimonials & contact.</div>
+        <ul>
+          <li>✦ Built from your Brand Kit — logo, colours, voice</li>
+          <li>✦ Project gallery, services & client testimonials</li>
+          <li>✦ Lead capture / contact built in</li>
+        </ul>
+      </div>
+      <div class="pcard sel" data-pick="per" onclick="pick('per')">
+        <span class="badge">For people</span>
+        <div class="pi per">👤</div>
+        <h3>Personal · Digital Resume</h3>
+        <div class="d">A modern résumé site from your existing CV — experience, skills, education, all shareable in one link.</div>
+        <ul>
+          <li>✦ Upload a résumé — the agent builds the site</li>
+          <li>✦ Experience timeline, skill bars, downloads</li>
+          <li>✦ One link + QR to send to recruiters</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- onboarding (personal shown by default) -->
+    <div class="onb" id="onbPer">
+      <div class="hd"><span class="n">1</span> <b>Start from your résumé</b> <span class="muted" style="font-size:11.5px">— the agent reads it and builds every section</span></div>
+      <div class="drop">
+        <div class="up"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></div>
+        <b>Drop your résumé / CV here</b>
+        <div class="s">PDF, DOCX or an image · or paste a LinkedIn URL — we auto-fill everything</div>
+      </div>
+      <div class="or">or</div>
+      <div class="altrow">
+        <div class="alt"><span class="ic">🔗</span><div><b>Import from LinkedIn</b><span class="s">Paste your profile URL</span></div></div>
+        <div class="alt"><span class="ic">💬</span><div><b>Build with the agent</b><span class="s">Answer a few questions in chat</span></div></div>
+      </div>
+    </div>
+
+    <!-- onboarding (business — hidden by default) -->
+    <div class="onb" id="onbBiz" style="display:none">
+      <div class="hd"><span class="n">1</span> <b>Start from your business</b> <span class="muted" style="font-size:11.5px">— we reuse everything you already have</span></div>
+      <div class="altrow">
+        <div class="alt"><span class="ic">🎨</span><div><b>Use my Brand Kit</b><span class="s">Logo, colours & voice — already set up</span></div></div>
+        <div class="alt"><span class="ic">🌐</span><div><b>Import my website</b><span class="s">Pull copy & images from a URL</span></div></div>
+        <div class="alt"><span class="ic">📄</span><div><b>Upload a deck / profile</b><span class="s">Company profile, capabilities PDF</span></div></div>
+      </div>
+    </div>
+
+    <div class="unlock">
+      <span class="k"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+      <div>
+        <b>Goes live on your own domain</b>
+        <p>Publish free at <b style="color:#7aa2ff">yourname.flowsmartly.site</b>, or let the agent buy &amp; attach a custom domain automatically — you approve the exact charge first.</p>
+      </div>
+      <button class="btn pri go">Build my site →</button>
+    </div>
+   </div>
+  </div>
+ </div></div>
+</section>
+
+<!-- ========================================================= -->
+<!-- SCREEN 2 — PORTAL EDITOR                                   -->
+<!-- ========================================================= -->
+<section class="screen" id="s2">
+ <div class="stage"><div class="app">
+  <div class="chat">
+    <h4><span class="dot"></span> Agent</h4>
+    <div class="msgs">
+      <div class="bot">Your resume site is built from <b>Jordan-Lee-CV.pdf</b>. Everything's editable — click any block, or just tell me what to change.</div>
+      <div class="you">Add a "Projects" section with my 3 case studies and make the accent teal.</div>
+      <div class="toolrow"><span class="ic">✦</span> edit_portfolio · added <b style="color:#cfe0ff">Projects</b> section + set accent <b style="color:#cfe0ff">#14b8a6</b></div>
+      <div class="bot">Added a <b>Projects</b> section with 3 cards and switched your accent to teal. Reordered it above Skills — drag it anywhere in the panel on the right. →</div>
+      <div class="you">Perfect. Publish it.</div>
+      <div class="bot">Taking you to publish — pick a domain and I'll attach it + generate your branded QR. →</div>
+    </div>
+    <div class="composer"><div class="inp"><input placeholder="Add a section, rewrite copy, change colours…"/><button class="snd">↑</button></div></div>
+  </div>
+
+  <div class="canvas">
+    <div class="bar">
+      <span class="icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></span>
+      <div><div class="ttl">Portfolio Studio</div><div class="sub">Jordan Lee · Digital Resume · draft</div></div>
+      <div class="seg" style="margin-left:8px">
+        <button id="tglBiz" onclick="setKind('biz')">Business</button>
+        <button id="tglPer" class="on" onclick="setKind('per')">Resume</button>
+      </div>
+      <div class="seg">
+        <button class="on">Edit</button><button>Preview</button>
+      </div>
+      <div class="sp">
+        <button class="btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18"/></svg> Add section</button>
+        <button class="btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg> Saved</button>
+        <button class="btn pub" onclick="go(3)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/></svg> Publish</button>
+      </div>
+    </div>
+
+    <div class="edbody">
+      <!-- LIVE PREVIEW -->
+      <div class="preview">
+        <div class="frame">
+
+          <!-- ===== BUSINESS PORTFOLIO (hidden by default) ===== -->
+          <div id="pvBiz" style="display:none">
+            <div class="sec"><span class="stag">Hero</span>
+              <div class="sctl"><button>✎ Edit</button><button>🖼 Media</button><button>⌄</button></div>
+              <div class="hero">
+                <div class="logo">◆</div>
+                <h2>Northwind Studio</h2>
+                <div class="role">Brand & product design for ambitious teams</div>
+                <div class="bio">We help startups look like the category leader — identity, websites and product design shipped in weeks, not months.</div>
+                <div class="cta"><a href="#">Start a project</a><a href="#" class="ghost">See our work</a></div>
+              </div>
+            </div>
+            <div class="sec"><span class="stag">About</span>
+              <div class="sctl"><button>✎ Edit</button><button>⌄</button></div>
+              <div class="about"><div class="sech">Who we are</div>
+                <p>A small senior team of designers and engineers. We've shipped 40+ products for founders across fintech, health and climate — every one built to convert.</p></div>
+            </div>
+            <div class="sec"><span class="stag">Projects</span>
+              <div class="sctl"><button>✎ Edit</button><button>🖼 Media</button><button>＋ Card</button><button>⌄</button></div>
+              <div class="work"><div class="sech">Selected work</div>
+                <div class="grid3">
+                  <div class="proj"><div class="ph" style="background-image:url('https://images.unsplash.com/photo-1618761714954-0b8cd0026356?w=300&q=60')"></div><div class="pb"><b>Lumen Health</b><p>Brand + app for a telehealth startup</p></div></div>
+                  <div class="proj"><div class="ph" style="background-image:url('https://images.unsplash.com/photo-1559028012-481c04fa702d?w=300&q=60')"></div><div class="pb"><b>Cadence</b><p>Fintech dashboard redesign</p></div></div>
+                  <div class="proj"><div class="ph" style="background-image:url('https://images.unsplash.com/photo-1522542550221-31fd19575a2d?w=300&q=60')"></div><div class="pb"><b>Terra</b><p>Climate reporting platform</p></div></div>
+                </div></div>
+            </div>
+            <div class="sec"><span class="stag">Services</span>
+              <div class="sctl"><button>✎ Edit</button><button>⌄</button></div>
+              <div class="skills"><div class="sech">What we do</div>
+                <div class="chiprow"><span class="sk">Brand identity</span><span class="sk">Web design</span><span class="sk">Product / UX</span><span class="sk">Webflow build</span><span class="sk">Design systems</span><span class="sk">Motion</span></div></div>
+            </div>
+            <div class="sec"><span class="stag">Contact</span>
+              <div class="sctl"><button>✎ Edit</button><button>⌄</button></div>
+              <div class="contact"><h3>Let's build something.</h3><p>Book a free 20-minute intro call.</p><span class="cbtn">hello@northwind.studio</span></div>
+            </div>
+          </div>
+
+          <!-- ===== PERSONAL RESUME (shown by default) ===== -->
+          <div id="pvPer" class="resume" style="display:block">
+            <div class="sec"><span class="stag">Header</span>
+              <div class="sctl"><button>✎ Edit</button><button>🖼 Photo</button></div>
+              <div class="rhero">
+                <div class="av" style="background-image:url('https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&q=60')"></div>
+                <div>
+                  <h2>Jordan Lee</h2>
+                  <div class="role">Senior Product Designer</div>
+                  <div class="meta"><span>📍 Austin, TX</span><span>✉ jordan@lee.design</span><span>🔗 jordanlee.co</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="rbody">
+              <div class="rmain">
+                <div class="sec"><span class="stag">Experience</span>
+                  <div class="sctl"><button>✎ Edit</button><button>＋ Role</button><button>⌄</button></div>
+                  <div style="padding:4px 2px 8px"><div class="sech" style="color:#14b8a6">Experience</div>
+                    <div class="xp"><b>Senior Product Designer</b><div class="co">Figma · Remote</div><div class="dt">2022 — Present</div><p>Led redesign of the collaboration surface used by 4M+ users; grew activation 18%.</p></div>
+                    <div class="xp"><b>Product Designer</b><div class="co">Stripe</div><div class="dt">2019 — 2022</div><p>Owned checkout & billing UX across web and mobile SDKs.</p></div>
+                    <div class="xp"><b>UX Designer</b><div class="co">Shopify</div><div class="dt">2017 — 2019</div><p>Merchant onboarding flows; shipped the theme editor v2.</p></div>
+                  </div>
+                </div>
+                <div class="sec"><span class="stag">Projects · new</span>
+                  <div class="sctl"><button>✎ Edit</button><button>🖼 Media</button><button>⌄</button></div>
+                  <div style="padding:4px 2px 8px"><div class="sech" style="color:#14b8a6">Selected projects</div>
+                    <div class="grid3" style="grid-template-columns:1fr 1fr">
+                      <div class="proj"><div class="ph" style="background-image:url('https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=300&q=60')"></div><div class="pb"><b>Design system</b><p>120-component library</p></div></div>
+                      <div class="proj"><div class="ph" style="background-image:url('https://images.unsplash.com/photo-1551650975-87deedd944c3?w=300&q=60')"></div><div class="pb"><b>Mobile checkout</b><p>+22% conversion</p></div></div>
+                    </div></div>
+                </div>
+              </div>
+              <div class="rside">
+                <div class="sec"><span class="stag">Skills</span>
+                  <div class="sctl"><button>✎ Edit</button><button>⌄</button></div>
+                  <div style="padding:2px"><div class="sech" style="color:#14b8a6">Skills</div>
+                    <div class="bars">
+                      <div class="brow"><div class="bl"><span>Product design</span><span>95%</span></div><div class="bt"><i style="width:95%;background:linear-gradient(90deg,#14b8a6,#0ea5e9)"></i></div></div>
+                      <div class="brow"><div class="bl"><span>Prototyping</span><span>90%</span></div><div class="bt"><i style="width:90%;background:linear-gradient(90deg,#14b8a6,#0ea5e9)"></i></div></div>
+                      <div class="brow"><div class="bl"><span>Design systems</span><span>88%</span></div><div class="bt"><i style="width:88%;background:linear-gradient(90deg,#14b8a6,#0ea5e9)"></i></div></div>
+                      <div class="brow"><div class="bl"><span>User research</span><span>80%</span></div><div class="bt"><i style="width:80%;background:linear-gradient(90deg,#14b8a6,#0ea5e9)"></i></div></div>
+                    </div></div>
+                </div>
+                <div class="sec"><span class="stag">Education</span>
+                  <div class="sctl"><button>✎ Edit</button><button>⌄</button></div>
+                  <div style="padding:2px;margin-top:10px"><div class="sech" style="color:#14b8a6">Education</div>
+                    <div class="xp" style="padding-left:14px"><b>BFA, Design</b><div class="co">RISD</div><div class="dt">2013 — 2017</div></div>
+                  </div>
+                </div>
+                <div class="sec"><span class="stag">Download</span>
+                  <div class="sctl"><button>✎ Edit</button></div>
+                  <div style="padding:8px 2px"><a href="#" style="display:block;text-align:center;font-size:12px;font-weight:800;padding:9px;border-radius:10px;background:#14b8a6;color:#fff;text-decoration:none">⬇ Download PDF résumé</a></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- add section affordance -->
+          <div style="padding:14px;background:#f0f2f6;text-align:center">
+            <span style="display:inline-flex;align-items:center;gap:7px;border:1.5px dashed #b9c0cc;color:#6d5cff;border-radius:11px;padding:9px 16px;font-size:12.5px;font-weight:800;cursor:pointer">＋ Add a section — agent fills it</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- RIGHT RAIL -->
+      <div class="rail">
+        <div class="rlab">Sections · drag to reorder</div>
+        <div class="seclist" id="secList">
+          <div class="seci"><span class="drag">⋮⋮</span><span class="nm">Header</span><span class="eye">👁</span></div>
+          <div class="seci"><span class="drag">⋮⋮</span><span class="nm">Experience</span><span class="eye">👁</span></div>
+          <div class="seci" style="border-color:#2f6b4a;background:#0e1a15"><span class="drag">⋮⋮</span><span class="nm">Projects <span style="color:#34d399;font-size:10px;font-weight:800">· new</span></span><span class="eye">👁</span></div>
+          <div class="seci"><span class="drag">⋮⋮</span><span class="nm">Skills</span><span class="eye">👁</span></div>
+          <div class="seci"><span class="drag">⋮⋮</span><span class="nm">Education</span><span class="eye">👁</span></div>
+          <div class="seci off"><span class="drag">⋮⋮</span><span class="nm">Testimonials</span><span class="eye">🚫</span></div>
+        </div>
+
+        <div class="rlab">Add a section</div>
+        <div class="addgrid">
+          <div class="addc"><span class="em">🖼</span>Gallery</div>
+          <div class="addc"><span class="em">⭐</span>Testimonials</div>
+          <div class="addc"><span class="em">🎬</span>Video</div>
+          <div class="addc"><span class="em">📊</span>Stats</div>
+          <div class="addc"><span class="em">💬</span>Contact form</div>
+          <div class="addc"><span class="em">✦</span>Custom (AI)</div>
+        </div>
+
+        <div class="rlab">Brand kit</div>
+        <div class="kit">
+          <div class="krow"><span class="sw" style="background:#14b8a6"></span><span class="sw" style="background:#0ea5e9"></span><span class="sw" style="background:#0b1220"></span><span class="kmini">Accent · Teal (agent-set)</span></div>
+          <div class="krow"><span class="sw" style="background:linear-gradient(135deg,#14b8a6,#0ea5e9);display:grid;place-items:center;color:#fff;font-weight:900;font-size:12px">JL</span><span class="kmini">Logo / monogram</span></div>
+          <div class="krow"><span class="kmini" style="font-family:Georgia,serif;font-size:14px;color:#e7ebf3">Aa</span><span class="kmini">Font · Inter / Fraunces</span></div>
+        </div>
+
+        <div class="rlab">Style · pick a look (portfolio, not a website)</div>
+        <div class="styles">
+          <div class="sty on" onclick="pickStyle(this)"><div class="stp spotlight"></div><div class="stn">Spotlight</div></div>
+          <div class="sty" onclick="pickStyle(this)"><div class="stp cinematic"><span class="vbadge">▶</span></div><div class="stn">Cinematic</div></div>
+          <div class="sty" onclick="pickStyle(this)"><div class="stp showcase"></div><div class="stn">Showcase</div></div>
+          <div class="sty" onclick="pickStyle(this)"><div class="stp editorial"></div><div class="stn">Editorial</div></div>
+          <div class="sty" onclick="pickStyle(this)"><div class="stp neon"><span class="vbadge">▶</span></div><div class="stn">Neon</div></div>
+          <div class="sty" onclick="pickStyle(this)"><div class="stp cardstyle"></div><div class="stn">Résumé Card</div></div>
+        </div>
+        <div class="rlab" style="margin-top:12px">Hero media</div>
+        <div class="seg wide"><button class="on">🖼 Image</button><button>▶ Video</button><button>Text only</button></div>
+        <p class="muted" style="font-size:10.5px;margin:7px 0 0;line-height:1.5">Spotlight, Cinematic &amp; Neon support a full-bleed <b style="color:#c4b5fd">video hero</b> (▶) — a digital-ad feel. Preview it on the Public page (Business).</p>
+
+        <div class="rlab" style="margin-top:14px">Media library</div>
+        <div class="media">
+          <div class="m" style="background-image:url('https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=120&q=50')"></div>
+          <div class="m" style="background-image:url('https://images.unsplash.com/photo-1551650975-87deedd944c3?w=120&q=50')"></div>
+          <div class="m" style="background-image:url('https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&q=50')"></div>
+          <div class="madd">＋</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span class="note">Autosaved · Draft not yet public. Publishing puts it live on your domain with a shareable link + branded QR.</span>
+      <div class="grp">
+        <button class="btn">Preview</button>
+        <button class="btn pub" onclick="go(3)">Publish &amp; get QR →</button>
+      </div>
+    </div>
+  </div>
+ </div></div>
+</section>
+
+<!-- ========================================================= -->
+<!-- SCREEN 3 — PUBLISH & SHARE                                 -->
+<!-- ========================================================= -->
+<section class="screen" id="s3">
+ <div class="stage"><div class="app">
+  <div class="chat">
+    <h4><span class="dot"></span> Agent</h4>
+    <div class="msgs">
+      <div class="bot">Ready to publish <b>Jordan Lee — Resume</b>. You can go live free on a FlowSmartly subdomain, or I'll grab a custom domain and attach it automatically.</div>
+      <div class="you">Get me jordanlee.co if it's free.</div>
+      <div class="toolrow"><span class="ic">🔎</span> check_domain · <b style="color:#cfe0ff">jordanlee.co</b> is available — $14.00/yr</div>
+      <div class="bot">✅ <b>jordanlee.co</b> is available for <b>$14.00/yr</b>. Want me to buy it and point it at your site? I'll charge your saved card + the domain shows up live in ~2 min.</div>
+      <div class="you">Yes, buy & attach it.</div>
+      <div class="toolrow"><span class="ic">🌐</span> buy_domain → attach_domain · provisioning DNS + SSL…</div>
+      <div class="bot">Purchased & attaching now — SSL issuing. I also generated your <b>branded QR</b> in your teal Brand Kit. →</div>
+      <div class="you">Also make people verify their email before they can download my résumé.</div>
+      <div class="toolrow"><span class="ic">🔒</span> set_access · downloads → <b style="color:#cfe0ff">verified email</b></div>
+      <div class="bot">Done — I turned on the <b>email-verification gate</b> for downloads. Visitors confirm a 6-digit code and each one is saved to your <b>Contacts</b>. Preview it on the public page →</div>
+    </div>
+    <div class="composer"><div class="inp"><input placeholder="Ask for another domain, or change the QR style…"/><button class="snd">↑</button></div></div>
+  </div>
+
+  <div class="canvas">
+    <div class="bar">
+      <span class="icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/></svg></span>
+      <div><div class="ttl">Publish &amp; Share</div><div class="sub">Jordan Lee · Digital Resume</div></div>
+      <div class="sp"><button class="btn" onclick="go(2)">← Back to editor</button><button class="btn pub" onclick="go(4)">View live page →</button></div>
+    </div>
+
+    <div class="pubwrap">
+      <div class="pubcol">
+        <!-- LEFT: domain -->
+        <div>
+          <div class="pcardp">
+            <h3><span class="step-pill">1</span> Choose where it lives</h3>
+            <div class="sub">Publish free instantly, or attach a custom domain — fully agent-driven, no DNS to touch.</div>
+            <div class="free">
+              <div class="u">Free subdomain — <span class="sub2">jordanlee.flowsmartly.site</span></div>
+              <span class="cur">Included</span>
+            </div>
+
+            <div style="height:16px"></div>
+            <div class="rlab">Or get a custom domain</div>
+            <div class="dsearch">
+              <input value="jordanlee" id="dq"/><span style="align-self:center;color:var(--mut);font-size:13px">.co / .com / .me…</span>
+            </div>
+            <div class="dres">
+              <div class="dr best">
+                <div class="dn">jordanlee<span class="tld">.co</span> <span class="bstg">✓ available</span></div>
+                <div class="pr"><s>$18</s>$14.00/yr</div>
+                <button class="buy" onclick="attach()">Buy &amp; attach</button>
+              </div>
+              <div class="dr">
+                <div class="dn">jordanlee<span class="tld">.me</span></div>
+                <div class="pr">$9.00/yr</div>
+                <button class="buy" onclick="attach()">Buy &amp; attach</button>
+              </div>
+              <div class="dr taken">
+                <div class="dn">jordanlee<span class="tld">.com</span></div>
+                <div class="pr">Taken</div>
+                <button class="buy" style="background:#1a2030;color:#6a7488" disabled>Unavailable</button>
+              </div>
+            </div>
+            <div class="attach" id="attachRow" style="display:none">
+              <span class="sp"></span> Purchasing <b style="color:#cfe0ff">jordanlee.co</b> · issuing SSL &amp; pointing it at your site… <span style="margin-left:auto;color:#34d399;font-weight:700">auto-attach</span>
+            </div>
+            <p class="muted" style="font-size:11px;margin:12px 0 0">The agent registers the domain and wires DNS + HTTPS to this page automatically. You approve the exact charge before it buys.</p>
+          </div>
+
+          <div class="pcardp">
+            <h3><span class="step-pill">2</span> Access &amp; privacy</h3>
+            <div class="sub">Control who can view and download. Turn on email verification and every visitor becomes a saved contact.</div>
+            <div class="acctl">
+              <div class="acl">Who can view the page</div>
+              <div class="seg wide"><button class="on">Anyone</button><button>Verify email</button><button>Password</button></div>
+            </div>
+            <div class="acctl">
+              <div class="acl">Résumé / file downloads</div>
+              <div class="seg wide"><button>Anyone</button><button class="on">Verify email</button><button>Off · view-only</button></div>
+            </div>
+            <div class="verifybox">
+              <div class="vhd"><span class="vic">✉</span><b>Email-verification gate</b><span class="vsw">● On</span></div>
+              <p>Visitors enter their email and a 6-digit code we send them — no accounts, no setup. Gate viewing, downloads, or both.</p>
+              <div class="vbene">✓ Every verified visitor is auto-saved to your Contacts / Leads</div>
+            </div>
+            <div class="free" style="margin-top:10px"><div class="u">🔎 Search-engine indexing</div><span class="cur">On</span></div>
+          </div>
+        </div>
+
+        <!-- RIGHT: QR + link -->
+        <div>
+          <div class="qrbox">
+            <div class="rlab">Branded QR — matches your Brand Kit</div>
+            <div class="qrframe">
+              <div class="qr"><div class="grid" id="qrGrid"></div><div class="lg">JL</div></div>
+              <div class="qn">Jordan Lee</div>
+              <div class="qu">jordanlee.co</div>
+            </div>
+            <div class="qbrand"><span class="sw" style="background:#14b8a6"></span><span class="sw" style="background:#0ea5e9"></span> Coloured to your accent · logo centred</div>
+            <div class="qropts">
+              <button class="pri">⬇ PNG</button>
+              <button>⬇ SVG</button>
+              <button>🎨 Restyle</button>
+            </div>
+            <div class="linkrow">
+              <input value="https://jordanlee.co" readonly/>
+              <button class="cp" onclick="this.textContent='Copied ✓'">Copy</button>
+            </div>
+            <div class="qropts" style="margin-top:8px">
+              <button>✉ Email</button><button>💬 WhatsApp</button><button>🔗 More</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span class="note">Publishing charges: <b style="color:#e7ebf3">domain $14.00/yr</b> + <b style="color:#e7ebf3">hosting from your credits</b>. You'll confirm before anything is charged.</span>
+      <div class="grp"><button class="btn pub" onclick="go(4)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg> Publish &amp; go live</button></div>
+    </div>
+  </div>
+ </div></div>
+</section>
+
+<!-- ========================================================= -->
+<!-- SCREEN 4 — PUBLIC PAGE                                     -->
+<!-- ========================================================= -->
+<section class="screen" id="s4">
+ <div class="stage"><div class="pubview">
+   <div class="pubtoggle">
+     <div class="seg">
+       <button id="pubBiz" onclick="setPub('biz')">Business portfolio</button>
+       <button id="pubPer" class="on" onclick="setPub('per')">Personal resume</button>
+     </div>
+     <div class="seg">
+       <button id="gvOpen" class="on" onclick="setGate('open')">Open</button>
+       <button id="gvGate" onclick="setGate('gate')">🔒 Email-gated</button>
+     </div>
+   </div>
+   <div class="browser">
+     <div class="gate" id="pubGate">
+       <div class="gatecard">
+         <div class="gate-step on" id="gStep1">
+           <div class="gi">✉</div>
+           <span class="who">🔒 Requested by <b id="gOwner">Jordan Lee</b></span>
+           <h3>Verify your email to continue</h3>
+           <p>Enter your email and we'll send a 6-digit code — no account needed. Your email is shared with the owner as a contact.</p>
+           <div class="gfield"><input id="gEmail" placeholder="you@email.com"/></div>
+           <button class="gbtn" onclick="gateNext()">Send me a code →</button>
+           <div class="gfoot">Protected by <b style="color:#6d5cff">FlowSmartly</b> · no spam, ever</div>
+         </div>
+         <div class="gate-step" id="gStep2">
+           <div class="gi">🔑</div>
+           <h3>Enter your code</h3>
+           <p>We sent a 6-digit code to <b id="gEmailEcho">you@email.com</b>.</p>
+           <div class="codeboxes"><i class="f">4</i><i>1</i><i>9</i><i>2</i><i>0</i><i>7</i></div>
+           <button class="gbtn" onclick="gateUnlock()">Verify &amp; continue →</button>
+           <div class="gfoot">Didn't get it? <b style="color:#6d5cff">Resend</b> · <span style="cursor:pointer;text-decoration:underline" onclick="gateBack()">change email</span></div>
+         </div>
+         <div class="gate-step" id="gStep3">
+           <div class="gi" style="background:linear-gradient(135deg,#10b981,#059669)">✓</div>
+           <h3>You're verified</h3>
+           <p>Thanks! You now have full view &amp; download access to this page.</p>
+           <button class="gbtn" style="background:linear-gradient(135deg,#10b981,#059669)" onclick="closeGate()">Continue →</button>
+         </div>
+       </div>
+     </div>
+     <div class="bchrome">
+       <div class="bdots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+       <div class="burl"><span class="lock">🔒</span><span class="u" id="pubUrl"><b>jordanlee.co</b></span></div>
+       <span class="badge-live">● Live</span>
+     </div>
+     <div class="bview">
+       <!-- resume public -->
+       <div id="pubPerV">
+         <div class="rhero" style="padding:40px">
+           <div class="av" style="height:92px;width:92px;background-image:url('https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&q=60')"></div>
+           <div><h2 style="font-size:30px">Jordan Lee</h2><div class="role" style="color:#14b8a6;font-size:15px">Senior Product Designer</div>
+             <div class="meta" style="margin-top:8px"><span>📍 Austin, TX</span><span>✉ jordan@lee.design</span><span>🔗 jordanlee.co</span><span>in /jordanlee</span></div></div>
+         </div>
+         <div class="rbody">
+           <div class="rmain" style="padding:30px 34px">
+             <div class="sech" style="color:#14b8a6">Experience</div>
+             <div class="xp"><b>Senior Product Designer</b><div class="co" style="color:#14b8a6">Figma · Remote</div><div class="dt">2022 — Present</div><p>Led redesign of the collaboration surface used by 4M+ users; grew activation 18%.</p></div>
+             <div class="xp"><b>Product Designer</b><div class="co" style="color:#14b8a6">Stripe</div><div class="dt">2019 — 2022</div><p>Owned checkout & billing UX across web and mobile SDKs.</p></div>
+             <div class="xp"><b>UX Designer</b><div class="co" style="color:#14b8a6">Shopify</div><div class="dt">2017 — 2019</div><p>Merchant onboarding flows; shipped the theme editor v2.</p></div>
+             <div class="sech" style="color:#14b8a6;margin-top:20px">Selected projects</div>
+             <div class="grid3" style="grid-template-columns:1fr 1fr">
+               <div class="proj"><div class="ph" style="height:110px;background-image:url('https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=300&q=60')"></div><div class="pb"><b>Design system</b><p>120-component library</p></div></div>
+               <div class="proj"><div class="ph" style="height:110px;background-image:url('https://images.unsplash.com/photo-1551650975-87deedd944c3?w=300&q=60')"></div><div class="pb"><b>Mobile checkout</b><p>+22% conversion</p></div></div>
+             </div>
+           </div>
+           <div class="rside" style="padding:30px 26px">
+             <div class="sech" style="color:#14b8a6">Skills</div>
+             <div class="bars">
+               <div class="brow"><div class="bl"><span>Product design</span><span>95%</span></div><div class="bt"><i style="width:95%;background:linear-gradient(90deg,#14b8a6,#0ea5e9)"></i></div></div>
+               <div class="brow"><div class="bl"><span>Prototyping</span><span>90%</span></div><div class="bt"><i style="width:90%;background:linear-gradient(90deg,#14b8a6,#0ea5e9)"></i></div></div>
+               <div class="brow"><div class="bl"><span>Design systems</span><span>88%</span></div><div class="bt"><i style="width:88%;background:linear-gradient(90deg,#14b8a6,#0ea5e9)"></i></div></div>
+             </div>
+             <div class="sech" style="color:#14b8a6;margin-top:20px">Education</div>
+             <div class="xp" style="padding-left:14px"><b>BFA, Design</b><div class="co" style="color:#14b8a6">RISD</div><div class="dt">2013 — 2017</div></div>
+             <button class="dllock" onclick="openGate()">🔒 Verify email to download</button>
+             <div class="dlnote">Owner requires a verified email for downloads</div>
+           </div>
+         </div>
+         <div style="text-align:center;padding:16px;font-size:11px;color:#9aa2af;background:#f7f8fb">Made with <b style="color:#6d5cff">FlowSmartly</b></div>
+       </div>
+
+       <!-- business public -->
+       <div id="pubBizV" style="display:none">
+         <div class="adhero">
+           <div class="adhero-media" style="background-image:url('https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=1000&q=60')">
+             <div class="adhero-scrim"></div>
+             <span class="reel">● Showreel · 0:15</span>
+             <button class="playbtn">▶</button>
+           </div>
+           <div class="adhero-copy">
+             <div class="logo">◆</div>
+             <h2>Northwind Studio</h2>
+             <div class="role">Brand & product design for ambitious teams</div>
+             <div class="cta"><a href="#">Start a project</a><a href="#" class="ghost">▶ Watch the reel</a></div>
+           </div>
+         </div>
+         <div style="padding:14px 40px 0"><span class="stylechip">✦ Cinematic style · video hero</span></div>
+         <div class="work" style="padding:34px 44px"><div class="sech">Selected work</div>
+           <div class="grid3">
+             <div class="proj"><div class="ph" style="height:130px;background-image:url('https://images.unsplash.com/photo-1618761714954-0b8cd0026356?w=300&q=60')"></div><div class="pb"><b>Lumen Health</b><p>Brand + app for a telehealth startup</p></div></div>
+             <div class="proj"><div class="ph" style="height:130px;background-image:url('https://images.unsplash.com/photo-1559028012-481c04fa702d?w=300&q=60')"></div><div class="pb"><b>Cadence</b><p>Fintech dashboard redesign</p></div></div>
+             <div class="proj"><div class="ph" style="height:130px;background-image:url('https://images.unsplash.com/photo-1522542550221-31fd19575a2d?w=300&q=60')"></div><div class="pb"><b>Terra</b><p>Climate reporting platform</p></div></div>
+           </div>
+         </div>
+         <div class="contact" style="padding:44px"><h3 style="font-size:24px">Let's build something.</h3><p>Book a free 20-minute intro call.</p><span class="cbtn">hello@northwind.studio</span></div>
+         <div style="text-align:center;padding:16px;font-size:11px;color:#9aa2af;background:#f7f8fb">Made with <b style="color:#6d5cff">FlowSmartly</b></div>
+       </div>
+     </div>
+   </div>
+ </div></div>
+</section>
+
+<script>
+  // screen switch
+  function go(n){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('on'));
+    document.getElementById('s'+n).classList.add('on');
+    document.querySelectorAll('.steps button').forEach(b=>b.classList.toggle('on', b.dataset.s==String(n)));
+    window.scrollTo(0,0);
+  }
+  document.querySelectorAll('.steps button').forEach(b=>b.onclick=()=>go(b.dataset.s));
+
+  // screen 1 — pick type
+  function pick(k){
+    document.querySelectorAll('.pcard').forEach(c=>c.classList.toggle('sel', c.dataset.pick===k));
+    document.getElementById('onbPer').style.display = k==='per'?'block':'none';
+    document.getElementById('onbBiz').style.display = k==='biz'?'block':'none';
+  }
+  document.querySelector('.unlock .go').onclick=()=>go(2);
+
+  // screen 2 — style picker
+  function pickStyle(el){
+    el.parentElement.querySelectorAll('.sty').forEach(s=>s.classList.remove('on'));
+    el.classList.add('on');
+  }
+  // screen 2 — kind toggle
+  function setKind(k){
+    document.getElementById('pvBiz').style.display = k==='biz'?'block':'none';
+    document.getElementById('pvPer').style.display = k==='per'?'block':'none';
+    document.getElementById('tglBiz').classList.toggle('on', k==='biz');
+    document.getElementById('tglPer').classList.toggle('on', k==='per');
+  }
+
+  // screen 3 — attach animation
+  function attach(){
+    document.getElementById('attachRow').style.display='flex';
+    setTimeout(()=>go(4), 1400);
+  }
+  // build fake QR
+  (function(){
+    const g=document.getElementById('qrGrid'); if(!g) return;
+    const seed=[1,0,1,1,0,1,0,1,1,0,1, 0,1,0,0,1,0,1,0,0,1,0, 1,1,1,0,1,1,0,1,1,1,0, 1,0,0,1,0,0,1,0,0,1,1, 0,1,1,0,1,1,0,1,1,0,0];
+    for(let i=0;i<121;i++){
+      const on=(seed[i%seed.length]+ (i*7%3===0?1:0))%2===1;
+      const cell=document.createElement('i');
+      // finder-pattern corners
+      const r=Math.floor(i/11), c=i%11;
+      const corner=(r<3&&c<3)||(r<3&&c>7)||(r>7&&c<3);
+      cell.style.background = corner? '#0b1220' : (on? '#14b8a6' : '#eef2f7');
+      g.appendChild(cell);
+    }
+  })();
+
+  // screen 4 — public toggle
+  function setPub(k){
+    document.getElementById('pubPerV').style.display = k==='per'?'block':'none';
+    document.getElementById('pubBizV').style.display = k==='biz'?'block':'none';
+    document.getElementById('pubPer').classList.toggle('on', k==='per');
+    document.getElementById('pubBiz').classList.toggle('on', k==='biz');
+    document.getElementById('pubUrl').innerHTML = k==='per'? '<b>jordanlee.co</b>' : '<b>northwind.studio</b>';
+    document.getElementById('gOwner').textContent = k==='per'? 'Jordan Lee' : 'Northwind Studio';
+  }
+
+  // screen 4 — visitor email-verification gate
+  function gstep(id){ ['gStep1','gStep2','gStep3'].forEach(s=>document.getElementById(s).classList.toggle('on', s===id)); }
+  function setGate(m){
+    document.getElementById('pubGate').classList.toggle('on', m==='gate');
+    document.getElementById('gvOpen').classList.toggle('on', m==='open');
+    document.getElementById('gvGate').classList.toggle('on', m==='gate');
+    gstep('gStep1');
+  }
+  function openGate(){ document.getElementById('pubGate').classList.add('on'); gstep('gStep1'); }
+  function closeGate(){ document.getElementById('pubGate').classList.remove('on'); document.getElementById('gvOpen').classList.add('on'); document.getElementById('gvGate').classList.remove('on'); }
+  function gateNext(){ var e=(document.getElementById('gEmail').value||'').trim()||'you@email.com'; document.getElementById('gEmailEcho').textContent=e; gstep('gStep2'); }
+  function gateBack(){ gstep('gStep1'); }
+  function gateUnlock(){ gstep('gStep3'); }
+</script>
+</body></html>
