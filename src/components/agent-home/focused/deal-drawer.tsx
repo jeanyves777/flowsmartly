@@ -104,7 +104,7 @@ export function DealDrawer({
 
           {/* Pitch / proposal */}
           {opp.pitchId ? (
-            <a href={`/pitch-board?pitch=${opp.pitchId}`} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2.5 text-[12.5px] font-semibold hover:border-brand-500/50">
+            <a href={`/home?pitch=${opp.pitchId}`} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2.5 text-[12.5px] font-semibold hover:border-brand-500/50">
               <span className="inline-flex items-center gap-2"><FileText className="h-4 w-4 text-brand-500" /> Open pitch / proposal</span>
               <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
             </a>

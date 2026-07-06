@@ -221,8 +221,6 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
       return `The user is in the **Print Studio** designing something to PRINT (flyer, poster, business card, table tent, bi-fold/tri-fold brochure, or postcard). If no print canvas is open yet, FIRST call start_print_project with the right format to open the editable print canvas, then design it with update_canvas (copy, accent, print size) and add_design_page for multi-page/panel pieces (card front/back, brochure panels) — exactly like the design canvas, but keep content inside the safe area and mind the fold lines. Pick a fitting print size for the format (the canvas shows bleed/safe/fold guides). Confirm in one short sentence when it's ready.`;
     case "delivery":
       return `The user is on the **Delivery** surface (order delivery + drivers). Help them with delivery status, assignments, and fulfillment.`;
-    case "adbuilder":
-      return `The user is on the **Ad builder** surface (their ad campaigns — spend, reach, ROAS). Building/launching a NEW ad campaign is generative: gather what they're promoting (a post, product, or link), the goal, audience, and budget, then create and launch it with the ad tool.`;
     case "storyad":
       return `The user is on the **Story-Ad** surface (cinematic AI ad movies + render status). Making a new story-ad is a generative video build — use the story-ad tool when they ask.`;
     case "calendar":
@@ -248,7 +246,10 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
 }
 
 // Focused surfaces that get their own traceable path (/home/<view>).
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "grow", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+// "grow" and "business" are category CONTAINERS (they open a nav panel, not a
+// real surface) — deliberately excluded so /home/grow and /home/business deep-
+// link cleanly to Home instead of a "coming soon" placeholder.
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
