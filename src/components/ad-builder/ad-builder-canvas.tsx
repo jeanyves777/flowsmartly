@@ -34,6 +34,11 @@ import { cn } from "@/lib/utils/cn";
 import { useAdCampaign } from "./use-ad-campaign";
 import type { CostEstimate } from "./use-ad-campaign";
 import type { CampaignStyle } from "@/lib/story-ad-campaign/types";
+import { useMobileChat } from "@/components/agent-home/mobile-chat-context";
+
+// Mobile "collect via chat" starter — on a phone the draggable canvas brief is
+// replaced by a chat handoff (the agent drafts the video onto the canvas).
+const STORYAD_STARTER = "Create a 30-second cinematic story-ad video for my brand — about [what it's about / the product] — and draft it onto the canvas.";
 
 // ---------------------------------------------------------------------------
 // Node-canvas Ad Builder — a guided, INLINE, card-by-card pipeline:
@@ -125,6 +130,7 @@ export function AdBuilderCanvas({ embedded = false, refreshKey, canvasRef }: {
   canvasRef?: MutableRefObject<{ getContext: () => string; loadCampaign: (id: string) => void } | null>;
 } = {}) {
   const camp = useAdCampaign();
+  const { isMobile, seedComposer } = useMobileChat();
   // When mounted inside the /home Video Studio focused view we hide the full-page
   // chrome (logo/back link), portal our actions into the shared header slot, and
   // do NOT touch the URL (/home owns ?conversationId). The standalone /ad-builder
@@ -1374,6 +1380,20 @@ export function AdBuilderCanvas({ embedded = false, refreshKey, canvasRef }: {
           if (cid) void camp.setCharacterImage(cid, url);
         }}
       />
+
+      {/* Mobile: the draggable brief canvas is desktop-first, so on a phone (with
+          no campaign yet) hand off to chat — the agent drafts the video onto this
+          canvas, which the user then reviews + generates here. */}
+      {embedded && isMobile && !campaignId && (
+        <div className="absolute inset-0 z-50 grid place-items-center bg-background/95 p-6 text-center">
+          <div className="max-w-xs">
+            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 text-white"><Clapperboard className="h-6 w-6" /></div>
+            <h3 className="text-[16px] font-bold">Plan your video in chat</h3>
+            <p className="mx-auto mt-1 text-[12.5px] text-muted-foreground">Tell the agent what you want and it drafts the whole video onto this canvas — then review + generate each scene here. Open one from the Library to view it.</p>
+            <button onClick={() => seedComposer(STORYAD_STARTER)} className="mt-4 inline-flex items-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Plan a video (chat)</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
