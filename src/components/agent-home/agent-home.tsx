@@ -320,6 +320,9 @@ export function AgentHome() {
   const [brandColors, setBrandColors] = useState<string[]>([]);
   const [brandContact, setBrandContact] = useState<BrandContact | null>(null);
   const [brandLogo, setBrandLogo] = useState<string | null>(null);
+  // The profile icon shows the brand mark once the kit is set up: prefer the
+  // square iconLogo (made for avatars/feeds), fall back to the full logo.
+  const [brandIcon, setBrandIcon] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
@@ -349,7 +352,10 @@ export function AgentHome() {
           if (!alive || !b?.success) return;
           const bk = b.data?.brandKit;
           if (bk?.name) setBrandName(bk.name);
-          setBrandLogo(typeof bk?.logo === "string" && bk.logo ? bk.logo : null);
+          const fullLogo = typeof bk?.logo === "string" && bk.logo ? bk.logo : null;
+          const iconLogo = typeof bk?.iconLogo === "string" && bk.iconLogo ? bk.iconLogo : null;
+          setBrandLogo(fullLogo);
+          setBrandIcon(iconLogo || fullLogo); // profile icon: square icon logo first, else full logo
           // Contact details + social handles → the canvas "Contact" tab.
           const addr = [bk?.city, bk?.state].filter(Boolean).join(", ") || bk?.address || undefined;
           const h = (bk?.handles && typeof bk.handles === "object") ? bk.handles : {};
@@ -857,8 +863,15 @@ export function AgentHome() {
           <ThemeMenu />
         </div>
         <div className="relative shrink-0" ref={userMenuRef}>
-          <button onClick={() => setUserMenuOpen((o) => !o)} className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-pink-500 to-violet-500 text-[12px] font-bold text-white ring-offset-2 ring-offset-background transition hover:ring-2 hover:ring-brand-500/50" aria-label="Account menu">
-            {initials}
+          <button onClick={() => setUserMenuOpen((o) => !o)} className="relative grid h-8 w-8 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-pink-500 to-violet-500 text-[12px] font-bold text-white ring-offset-2 ring-offset-background transition hover:ring-2 hover:ring-brand-500/50" aria-label="Account menu" title={brandName || user?.name || "Account menu"}>
+            {brandIcon ? (
+              // Brand mark from the kit (square icon logo, else full logo). White
+              // backing so a transparent logo still reads on the dark header.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={brandIcon} alt="" className="absolute inset-0 h-full w-full bg-white object-cover" />
+            ) : (
+              initials
+            )}
           </button>
           {userMenuOpen && (
             <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl">
