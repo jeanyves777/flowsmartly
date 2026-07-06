@@ -67,6 +67,7 @@ export function FocusedPortfolio({
   const [copied, setCopied] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(true);
   const [armed, setArmed] = useState(false);
+  const [brand, setBrand] = useState<{ name: string; about: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -86,6 +87,19 @@ export function FocusedPortfolio({
     })();
     return () => { alive = false; };
   }, [refreshKey, load]);
+
+  // Brand Kit already holds the business name + what it does — prefill the brief.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/brand").then((r) => r.json()).then((j) => {
+      const bk = j?.data?.brandKit;
+      if (alive && bk?.name) {
+        const about = String(bk.description || bk.tagline || [bk.industry, bk.niche].filter(Boolean).join(" — ") || "");
+        setBrand({ name: String(bk.name), about });
+      }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const patch = useCallback(async (body: Record<string, unknown>) => {
     if (!p) return;
@@ -129,6 +143,7 @@ export function FocusedPortfolio({
 
         {sheetOpen && !armed && (
           <PortfolioBriefSheet
+            brand={brand}
             onClose={() => setSheetOpen(false)}
             onBuild={(prompt) => { setSheetOpen(false); setArmed(true); onAsk(prompt); }}
             onBuildFiles={onAskFiles ? (prompt, atts) => { setSheetOpen(false); setArmed(true); onAskFiles(prompt, atts); } : undefined}
@@ -277,7 +292,7 @@ function TabBtn({ active, onClick, icon: Icon, children }: { active: boolean; on
 /* ── Brief BOTTOM-SHEET (the system brief pattern — slides up from the bottom,
    full-width inset card over a dimmed backdrop; NEVER a centered modal). Mirrors
    pitch-studio / campaign-studio / video-workspace. [[reel-studio]] */
-function PortfolioBriefSheet({ onClose, onBuild, onBuildFiles }: { onClose: () => void; onBuild: (prompt: string) => void; onBuildFiles?: (prompt: string, atts: Attach[]) => void }) {
+function PortfolioBriefSheet({ brand, onClose, onBuild, onBuildFiles }: { brand: { name: string; about: string } | null; onClose: () => void; onBuild: (prompt: string) => void; onBuildFiles?: (prompt: string, atts: Attach[]) => void }) {
   const [kind, setKind] = useState<"business" | "personal">("business");
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
@@ -285,7 +300,16 @@ function PortfolioBriefSheet({ onClose, onBuild, onBuildFiles }: { onClose: () =
   const [url, setUrl] = useState("");
   const [source, setSource] = useState<"brand" | "website" | "deck">("brand");
   const [file, setFile] = useState<{ name: string; dataUrl: string } | null>(null);
+  const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Prefill from the Brand Kit (business) — the name + what-it-does are already
+  // on file. Stops once the user edits; clears for personal (a person's name).
+  useEffect(() => {
+    if (touched) return;
+    if (kind === "business" && brand) { setName(brand.name); setGoal(brand.about); }
+    else if (kind === "personal") { setName(""); setGoal(""); }
+  }, [brand, kind, touched]);
 
   const pickFile = (f: File | null) => {
     if (!f) return;
@@ -362,8 +386,8 @@ function PortfolioBriefSheet({ onClose, onBuild, onBuildFiles }: { onClose: () =
           )}
 
           <div className="mt-3.5 grid gap-4 sm:grid-cols-2">
-            <Field label={kind === "personal" ? "Your name *" : "Business / studio name *"}><input value={name} onChange={(e) => setName(e.target.value)} className={PF_FIELD} placeholder={kind === "personal" ? "Jordan Lee" : "Northwind Studio"} /></Field>
-            <Field label={kind === "personal" ? "Role / headline" : "What you do / what it's for"}><input value={goal} onChange={(e) => setGoal(e.target.value)} className={PF_FIELD} placeholder={kind === "personal" ? "Senior Product Designer — 8 yrs in fintech & health" : "Brand & product design studio for startups — services & projects"} /></Field>
+            <Field label={kind === "personal" ? "Your name *" : "Business / studio name *"}><input value={name} onChange={(e) => { setTouched(true); setName(e.target.value); }} className={PF_FIELD} placeholder={kind === "personal" ? "Jordan Lee" : "Northwind Studio"} /></Field>
+            <Field label={kind === "personal" ? "Role / headline" : "What you do / what it's for"}><input value={goal} onChange={(e) => { setTouched(true); setGoal(e.target.value); }} className={PF_FIELD} placeholder={kind === "personal" ? "Senior Product Designer — 8 yrs in fintech & health" : "Brand & product design studio for startups — services & projects"} /></Field>
           </div>
 
           {/* Style gallery — visual thumbnails, full width (up to 6 across) */}
