@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Sparkles, ExternalLink, Rocket, Share2, ShieldCheck, Eye, Lock, Globe,
-  Copy, Check, Wand2, LayoutTemplate, UserRound, Building2, FileUp, Download, ArrowLeft,
+  Copy, Check, Wand2, LayoutTemplate, UserRound, Building2, FileUp, Download, X,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
@@ -61,7 +61,7 @@ export function FocusedPortfolio({
   const [previewKey, setPreviewKey] = useState(0);
   const [tab, setTab] = useState<"preview" | "share">("preview");
   const [copied, setCopied] = useState(false);
-  const [building, setBuilding] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(true);
   const [armed, setArmed] = useState(false);
 
   const load = useCallback(async () => {
@@ -103,22 +103,32 @@ export function FocusedPortfolio({
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading Portfolio Studio…" /></div>;
   }
 
-  // ── Starting point — a brief the agent builds from (system pattern) ────────
+  // ── Starting point — brief BOTTOM-SHEET (system pattern; never a centered
+  // modal). Auto-opens over the empty studio; matches Video/Pitch/Campaign.
   if (!p) {
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-2xl">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="grid h-full place-items-center px-6 text-center">
           {armed ? (
-            <BuildingCard onReset={() => setArmed(false)} />
-          ) : building ? (
-            <PortfolioBuilder
-              onCancel={() => setBuilding(false)}
-              onBuild={(prompt) => { setBuilding(false); setArmed(true); onAsk(prompt); }}
-            />
+            <BuildingCard onReset={() => { setArmed(false); setSheetOpen(true); }} />
           ) : (
-            <EmptyStart onStart={() => setBuilding(true)} />
+            <div className="max-w-sm">
+              <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 text-white"><LayoutTemplate className="h-6 w-6" /></div>
+              <h3 className="text-[16px] font-bold">Build your portfolio or résumé</h3>
+              <p className="mx-auto mt-1 text-[12.5px] text-muted-foreground">Fill the brief and the agent builds a complete, on-brand site you edit here.</p>
+              {!sheetOpen && (
+                <button onClick={() => setSheetOpen(true)} className="mt-4 inline-flex items-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Start a brief</button>
+              )}
+            </div>
           )}
         </div>
+
+        {sheetOpen && !armed && (
+          <PortfolioBriefSheet
+            onClose={() => setSheetOpen(false)}
+            onBuild={(prompt) => { setSheetOpen(false); setArmed(true); onAsk(prompt); }}
+          />
+        )}
       </div>
     );
   }
@@ -259,23 +269,10 @@ function TabBtn({ active, onClick, icon: Icon, children }: { active: boolean; on
   );
 }
 
-/* ── Starting point: compact empty state → inline brief (system pattern) ───── */
-function EmptyStart({ onStart }: { onStart: () => void }) {
-  return (
-    <section className="rounded-2xl border border-border bg-card p-6 text-center sm:p-8">
-      <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 text-white"><LayoutTemplate className="h-6 w-6" /></div>
-      <h3 className="text-[17px] font-bold">Build your portfolio or résumé</h3>
-      <p className="mx-auto mt-1.5 max-w-md text-[13px] text-muted-foreground">
-        Give the agent a short brief — a business portfolio or a personal résumé — and it builds a complete, on-brand site you edit here, then publish to a real domain with a branded QR.
-      </p>
-      <button onClick={onStart} className="mt-5 inline-flex items-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
-        <Sparkles className="h-4 w-4" /> Start a brief
-      </button>
-    </section>
-  );
-}
-
-function PortfolioBuilder({ onCancel, onBuild }: { onCancel: () => void; onBuild: (prompt: string) => void }) {
+/* ── Brief BOTTOM-SHEET (the system brief pattern — slides up from the bottom,
+   full-width inset card over a dimmed backdrop; NEVER a centered modal). Mirrors
+   pitch-studio / campaign-studio / video-workspace. [[reel-studio]] */
+function PortfolioBriefSheet({ onClose, onBuild }: { onClose: () => void; onBuild: (prompt: string) => void }) {
   const [kind, setKind] = useState<"business" | "personal">("business");
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
@@ -304,46 +301,77 @@ function PortfolioBuilder({ onCancel, onBuild }: { onCancel: () => void; onBuild
   };
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <button onClick={onCancel} aria-label="Back" className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ArrowLeft className="h-4 w-4" /></button>
-        <div className="min-w-0">
-          <h3 className="text-[15px] font-bold leading-tight">New portfolio</h3>
-          <p className="text-[11.5px] text-muted-foreground">Fill the brief — the agent builds it with these details, no back-and-forth.</p>
+    <>
+      <button aria-label="Close brief" onClick={onClose} className="absolute inset-0 z-20 cursor-default bg-black/45 animate-in fade-in" />
+      <div className="absolute inset-x-3 bottom-3 z-30 flex max-h-[86%] flex-col rounded-2xl border border-border bg-card shadow-2xl animate-in slide-in-from-bottom-8 duration-200 sm:inset-x-5 sm:bottom-4">
+        <div className="relative flex items-center gap-2 px-3.5 pb-1.5 pt-3">
+          <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
+          <span className="rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-brand-500">Brief</span>
+          <span className="text-[11px] text-muted-foreground">new portfolio · the agent builds it from these details</span>
+          <button onClick={onClose} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 gap-y-3.5">
-        <div>
-          <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Type</p>
-          <div className="inline-flex rounded-[10px] border border-border bg-background p-0.5">
-            <button onClick={() => setKind("business")} className={cn("inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12.5px] font-semibold transition", kind === "business" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground")}><Building2 className="h-3.5 w-3.5" /> Business portfolio</button>
-            <button onClick={() => setKind("personal")} className={cn("inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12.5px] font-semibold transition", kind === "personal" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground")}><UserRound className="h-3.5 w-3.5" /> Personal résumé</button>
+        <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-4">
+          <div className="mx-auto w-full max-w-2xl">
+            {/* Type */}
+            <div className="mb-3 inline-flex rounded-[10px] border border-border bg-background p-0.5">
+              <button onClick={() => setKind("business")} className={cn("inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12.5px] font-semibold transition", kind === "business" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground")}><Building2 className="h-3.5 w-3.5" /> Business portfolio</button>
+              <button onClick={() => setKind("personal")} className={cn("inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12.5px] font-semibold transition", kind === "personal" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground")}><UserRound className="h-3.5 w-3.5" /> Personal résumé</button>
+            </div>
+
+            <Field label={kind === "personal" ? "Your name *" : "Business / studio name *"}><input value={name} onChange={(e) => setName(e.target.value)} className={PF_FIELD} placeholder={kind === "personal" ? "Jordan Lee" : "Northwind Studio"} /></Field>
+            <div className="mt-3">
+              <Field label={kind === "personal" ? "Role / headline" : "What you do / what it's for"}><textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} className={cn(PF_FIELD, "resize-y")} placeholder={kind === "personal" ? "Senior Product Designer — 8 yrs in fintech & health" : "Brand & product design studio for startups — services, projects & contact"} /></Field>
+            </div>
+
+            {/* Style gallery — visual thumbnails so you SEE what you're picking */}
+            <p className="mb-2 mt-3.5 text-[11.5px] font-semibold">Style <span className="font-normal text-muted-foreground">· a portfolio look, not a website</span></p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {TEMPLATES.map((t) => (
+                <button key={t.id} type="button" onClick={() => setStyle(t.id)} className={cn("group overflow-hidden rounded-xl border-2 text-left transition", style === t.id ? "border-brand-500 ring-2 ring-brand-500/20" : "border-border hover:border-brand-500/40")}>
+                  <StyleThumb id={t.id} />
+                  <div className="flex items-center gap-1.5 px-2 py-1.5">
+                    <span className="text-[11.5px] font-semibold">{t.name}</span>
+                    {t.video && <span className="ms-auto inline-flex items-center gap-0.5 rounded-full bg-brand-500/10 px-1.5 py-0.5 text-[9px] font-bold text-brand-500">▶ video</span>}
+                    {style === t.id && !t.video && <Check className="ms-auto h-3.5 w-3.5 text-brand-500" />}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {kind === "personal" && (
+              <p className="mt-3 flex items-center gap-1.5 text-[11.5px] text-muted-foreground"><FileUp className="h-3.5 w-3.5 shrink-0" /> Tip: attach your CV in the chat below — the agent reads it and fills every section.</p>
+            )}
+            {error && <p className="mt-2 text-[12px] text-rose-500">{error}</p>}
+
+            <button onClick={build} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Build it</button>
+            <p className="mt-2 text-center text-[11px] text-muted-foreground">Free subdomain or a custom domain · the agent confirms before anything bills.</p>
           </div>
         </div>
-        <Field label={kind === "personal" ? "Your name *" : "Business / studio name *"}><input value={name} onChange={(e) => setName(e.target.value)} className={PF_FIELD} placeholder={kind === "personal" ? "Jordan Lee" : "Northwind Studio"} /></Field>
-        <Field label={kind === "personal" ? "Role / headline" : "What you do / what it's for"}><textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} className={cn(PF_FIELD, "resize-y")} placeholder={kind === "personal" ? "Senior Product Designer — 8 yrs in fintech & health" : "Brand & product design studio for startups — services, projects & contact"} /></Field>
-        <div>
-          <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Style</p>
-          <div className="flex flex-wrap gap-1.5">
-            {TEMPLATES.map((t) => (
-              <button key={t.id} onClick={() => setStyle(t.id)} className={cn("rounded-full border px-2.5 py-1 text-[12px] font-semibold transition", style === t.id ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{t.video ? "▶ " : ""}{t.name}</button>
-            ))}
-          </div>
-        </div>
-        {kind === "personal" && (
-          <p className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground"><FileUp className="h-3.5 w-3.5 shrink-0" /> Tip: attach your CV in the chat below — the agent reads it and fills every section.</p>
-        )}
-        {error && <p className="text-[12px] text-rose-500">{error}</p>}
       </div>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-        <button onClick={build} className="inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Build it</button>
-        <button onClick={onCancel} className="rounded-[11px] px-3 py-2.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground">Cancel</button>
-        <span className="ms-auto hidden text-[11px] text-muted-foreground sm:block">Free subdomain or a custom domain · the agent confirms before anything bills.</span>
-      </div>
-    </section>
+    </>
   );
+}
+
+/* Tiny CSS mock of each style so the user sees the look before picking. */
+function StyleThumb({ id }: { id: string }) {
+  const base = "h-[62px] w-full";
+  switch (id) {
+    case "spotlight":
+      return <div className={cn(base, "flex flex-col justify-end gap-1 bg-gradient-to-br from-brand-500 to-violet-500 p-2")}><div className="h-1.5 w-2/3 rounded-full bg-white/90" /><div className="h-1 w-1/2 rounded-full bg-white/50" /></div>;
+    case "cinematic":
+      return <div className={cn(base, "relative grid place-items-center bg-gradient-to-b from-slate-500 to-slate-900")}><div className="grid h-5 w-5 place-items-center rounded-full bg-white/90 text-[8px] text-slate-900">▶</div><div className="absolute bottom-1.5 left-2 h-1 w-1/2 rounded-full bg-white/70" /></div>;
+    case "showcase":
+      return <div className={cn(base, "grid grid-cols-3 grid-rows-2 gap-1 bg-muted p-1.5")}>{Array.from({ length: 6 }).map((_, i) => <div key={i} className="rounded-[3px] bg-brand-500/30" />)}</div>;
+    case "editorial":
+      return <div className={cn(base, "bg-[#efeadd] p-2")}><div className="mb-1 h-1.5 w-1/2 rounded-full bg-slate-700" /><div className="grid grid-cols-2 gap-1.5"><div className="h-7 rounded bg-slate-300" /><div className="space-y-1 pt-0.5"><div className="h-0.5 w-full rounded bg-slate-400" /><div className="h-0.5 w-5/6 rounded bg-slate-400" /><div className="h-0.5 w-full rounded bg-slate-400" /><div className="h-0.5 w-2/3 rounded bg-slate-400" /></div></div></div>;
+    case "neon":
+      return <div className={cn(base, "flex flex-col justify-end gap-1 bg-gradient-to-br from-fuchsia-600 via-purple-700 to-slate-900 p-2")}><div className="h-1.5 w-2/3 rounded-full bg-white/90" /><div className="h-1 w-1/3 rounded-full bg-cyan-300/80" /></div>;
+    case "card":
+      return <div className={cn(base, "flex items-center gap-2 bg-white p-2")}><div className="h-7 w-7 shrink-0 rounded-full bg-brand-500/30" /><div className="flex-1 space-y-1"><div className="h-1.5 w-2/3 rounded-full bg-slate-400" /><div className="h-1 w-1/2 rounded-full bg-brand-500/50" /><div className="h-0.5 w-full rounded-full bg-slate-200" /><div className="h-0.5 w-5/6 rounded-full bg-slate-200" /></div></div>;
+    default:
+      return <div className={cn(base, "bg-muted")} />;
+  }
 }
 
 function BuildingCard({ onReset }: { onReset: () => void }) {
