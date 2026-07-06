@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
 import Image from "next/image";
-import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Trash2, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users } from "lucide-react";
+import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Trash2, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users, Palette } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { StoreCallToAction } from "./store-cta";
+import { StoreStudio } from "./store-studio";
 import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
@@ -84,6 +85,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
   const [stats, setStats] = useState<OrderStats>({});
   const [loading, setLoading] = useState(true);
   const [section, setSection] = useState<Section>("products");
+  const [studioOpen, setStudioOpen] = useState(false);
 
   // Product form: "new" (add), a product id (edit), or null (closed).
   const [editing, setEditing] = useState<"new" | string | null>(null);
@@ -376,6 +378,13 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
     );
   }
 
+  // Studio mode — the full storefront DESIGN editor (Store Info, Hero, Categories,
+  // Navigation, FAQ, Pages, AI Redesign, Domains, Status). Renders full-bleed; back
+  // returns here and refreshes. Replaces the legacy /ecommerce/design page.
+  if (studioOpen && store) {
+    return <StoreStudio storeId={store.id} onBack={() => { setStudioOpen(false); loadData(); }} onOpenView={onOpenView} onAsk={onAsk} />;
+  }
+
   const cur = store?.currency || "USD";
   const hasProductFilters = !!(pSearch.trim() || pStatus || pCategory);
   const hasOrderFilters = !!(oSearch.trim() || oStatus || oPayment);
@@ -412,7 +421,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
                 <p className="truncate text-[11.5px] text-muted-foreground">{store?.region ? `${store.region} · ` : ""}{cur}</p>
               </div>
             </div>
-            <div className="mt-2.5 flex items-center gap-2">
+            <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <span className={cn("rounded-full px-2 py-0.5 text-[10.5px] font-semibold", store?.isActive ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{store?.isActive ? "Live" : "Draft"}</span>
               {store?.slug && (
                 <a href={`/store/${store.slug}`} target="_blank" rel="noreferrer" className="ms-auto inline-flex items-center gap-1.5 rounded-[9px] border border-border px-2.5 py-1 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">
@@ -420,6 +429,12 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
                 </a>
               )}
             </div>
+            <button
+              onClick={() => setStudioOpen(true)}
+              className="mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-brand-500/40 bg-brand-500/5 px-3 py-2 text-[12.5px] font-semibold text-brand-500 hover:bg-brand-500/10"
+            >
+              <Palette className="h-3.5 w-3.5" /> Design studio
+            </button>
 
             <div className="mt-4 space-y-1.5">
               <StatRow icon={Coins} label="Revenue" value={money(stats.totalRevenueCents ?? store?.totalRevenueCents, cur)} />
