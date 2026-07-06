@@ -5,6 +5,11 @@ import { createPortal } from "react-dom";
 import { Workflow, Sparkles, Mail, MessageSquare, Send, Clock, Cake, Gift, PartyPopper, RotateCcw, AlertTriangle, ShoppingCart, MoonStar, CalendarHeart, RefreshCw, Zap, Pause, Play, ChevronRight, X, Pencil, Trash2, Users, User, Layers, Save, CheckCircle2, XCircle, MinusCircle, Globe, Plus, LayoutGrid, Rocket, Check, Target, ArrowLeft, ArrowRight, ArrowLeftRight } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
+import { useMobileChat } from "../mobile-chat-context";
+
+// Mobile "collect via chat" starter — the flow canvas is desktop-first; on a
+// phone hand off to chat (the agent builds the flow live via update_followup_canvas).
+const FOLLOWUP_STARTER = "Build a follow-up automation for [my audience] — a multi-step email/SMS sequence that [goal, e.g. wins back customers who haven't ordered in 60 days].";
 
 /**
  * Follow-ups — an AI FLOW PLAYGROUND (the same canvas language as the Video
@@ -143,6 +148,7 @@ const DEFAULT_STEPS = (): FlowStep[] => [
 ];
 
 export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: { refreshKey?: number; onAsk?: (prompt: string) => void; agentBusy?: boolean; canvasRef?: { current: { getContext: () => string; applyPatch: (patch: Record<string, unknown>) => void } | null } }) {
+  const { isMobile, seedComposer } = useMobileChat();
   const [automations, setAutomations] = useState<Automation[]>([]);
   // Portal the header actions into the FocusedView shell header (#fv-header-slot)
   // so there's ONE top bar instead of a second full-width toolbar under it.
@@ -236,6 +242,7 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
 
   // Build the structured brief and hand it to the agent (the launch).
   const buildWithAI = () => {
+    if (isMobile) { seedComposer(FOLLOWUP_STARTER); return; }
     if (!onAsk) return;
     let aud = "";
     if (mode === "single") {
@@ -525,6 +532,19 @@ export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: 
           onNew={() => { setLibOpen(false); newFlow(); }}
           onClose={() => setLibOpen(false)}
         />
+      )}
+
+      {/* Mobile: the flow-builder canvas is desktop-first, so on a phone hand off
+          to chat — the agent builds the personalized flow live onto this canvas. */}
+      {isMobile && !libOpen && !openAutomation && (
+        <div className="absolute inset-0 z-40 grid place-items-center bg-background/95 p-6 text-center">
+          <div className="max-w-xs">
+            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 text-white"><Workflow className="h-6 w-6" /></div>
+            <h3 className="text-[16px] font-bold">Build your follow-up in chat</h3>
+            <p className="mx-auto mt-1 text-[12.5px] text-muted-foreground">Tell the agent who to reach and the goal — it builds the personalized multi-step flow onto this canvas. Open one from the Library to manage it.</p>
+            <button onClick={() => seedComposer(FOLLOWUP_STARTER)} className="mt-4 inline-flex items-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Build in chat</button>
+          </div>
+        </div>
       )}
 
       {/* agent working banner */}
