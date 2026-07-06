@@ -237,11 +237,11 @@ export const FEATURE_CATALOG: FeatureEntry[] = [
   {
     id: "flowshop-stores",
     title: "FlowShop — ecommerce stores",
-    description: "Build a real self-hostable ecommerce store with AI (template + content + products). The agent builds it for you via build_store.",
-    route: "/ecommerce",
+    description: "Build a real self-hostable ecommerce store with AI, plus a full Store Studio editor. The agent builds it (build_store), reads it (get_store_content), and edits or redesigns the storefront (edit_store).",
+    route: "/home/sell",
     plans: ["PRO", "BUSINESS", "ENTERPRISE"],
-    tools: ["build_store"],
-    keywords: ["shop", "store", "ecommerce", "products", "checkout", "cart", "build a store", "online store", "sell products"],
+    tools: ["build_store", "get_store_content", "edit_store", "add_product", "update_product"],
+    keywords: ["shop", "store", "ecommerce", "products", "checkout", "cart", "build a store", "online store", "sell products", "edit my store", "storefront design"],
     category: "ecommerce",
   },
   {
