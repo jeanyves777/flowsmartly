@@ -8,6 +8,10 @@ import {
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
 import { cn } from "@/lib/utils/cn";
+import { useMobileChat } from "../mobile-chat-context";
+
+// Mobile "collect via chat" starter (edit + send; the agent builds the portfolio).
+const PORTFOLIO_STARTER = "Build me a branded portfolio / résumé site — I'm a [your role] and here's my experience: [paste or describe].";
 
 const PF_FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 
@@ -63,6 +67,8 @@ export function FocusedPortfolio({
   const [copied, setCopied] = useState(false);
   const [building, setBuilding] = useState(false);
   const [armed, setArmed] = useState(false);
+  const { isMobile, seedComposer } = useMobileChat();
+  const openPortfolioBuilder = () => { if (isMobile) { seedComposer(PORTFOLIO_STARTER); return; } setBuilding(true); };
 
   const load = useCallback(async () => {
     try {
@@ -116,7 +122,7 @@ export function FocusedPortfolio({
               onBuild={(prompt) => { setBuilding(false); setArmed(true); onAsk(prompt); }}
             />
           ) : (
-            <EmptyStart onStart={() => setBuilding(true)} />
+            <EmptyStart onStart={openPortfolioBuilder} />
           )}
         </div>
       </div>
