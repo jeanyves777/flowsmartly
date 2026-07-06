@@ -33,8 +33,8 @@ export interface LogoPlacement {
 // or covering the headline. top-right x leaves a ~15% logo flush near the right
 // edge with a small margin.
 const CORNER_TO_PLACEMENT: Record<LogoCorner, { x: number; y: number; sizePercent: number }> = {
-  "top-left": { x: 0.04, y: 0.035, sizePercent: 15 },
-  "top-right": { x: 0.81, y: 0.035, sizePercent: 15 },
+  "top-left": { x: 0.04, y: 0.035, sizePercent: 13 },
+  "top-right": { x: 0.84, y: 0.035, sizePercent: 13 },
 };
 
 async function shrinkForVision(buffer: Buffer): Promise<{ base64: string; mediaType: "image/jpeg" }> {

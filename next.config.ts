@@ -3,6 +3,14 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
 
+  // `next build` type-checks the WHOLE project in one tsc pass, which OOM'd the
+  // VPS build ("Ineffective mark-compacts near heap limit") as the codebase grew,
+  // taking the app process down with it. Types + lint are already enforced by the
+  // CI gate (.github/workflows/ci.yml runs `tsc --noEmit`), so skip the redundant
+  // in-build pass to keep the deploy build within the box's RAM.
+  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
+
   // Exclude reference stores, generated stores/sites, docker from compilation
   webpack: (config) => {
     config.watchOptions = {

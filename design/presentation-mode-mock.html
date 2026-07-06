@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Presentation Studio — mock</title>
+<style>
+  :root{
+    --bg:#0b0f17; --panel:#111725; --panel2:#0e1420; --card:#151d2e; --border:#20293c;
+    --text:#e6edf6; --muted:#8b97ad; --brand:#0ea5e9; --violet:#8b5cf6; --amber:#f59e0b;
+    --grad:linear-gradient(90deg,#0ea5e9,#8b5cf6);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--text);font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
+  .app{display:flex;flex-direction:column;height:100vh}
+  /* header */
+  header{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--panel2)}
+  .logo{width:26px;height:26px;border-radius:8px;background:var(--grad);display:grid;place-items:center;font-weight:800;color:#fff;font-size:13px}
+  .title{font-weight:700;font-size:15px}
+  .sub{color:var(--muted);font-size:12px}
+  .chip{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--border);border-radius:999px;padding:5px 10px;font-size:12px}
+  .chip img{width:20px;height:26px;object-fit:cover;border-radius:5px}
+  .chip .dot{width:14px;height:14px;border-radius:50%;background:var(--grad)}
+  .spacer{flex:1}
+  .est{color:var(--muted);font-size:12px;text-align:right}
+  .est b{color:var(--text)}
+  .btn{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:10px;padding:8px 12px;font-size:12.5px;font-weight:600;cursor:pointer}
+  .btn.primary{border:none;background:var(--grad);color:#fff;box-shadow:0 6px 18px rgba(14,165,233,.25)}
+  .btn:hover{border-color:#33507a}
+  /* body split */
+  .main{display:flex;min-height:0;flex:1}
+  .board{width:340px;border-right:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column}
+  .board h3{margin:0;padding:12px 14px;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+  .scenes{overflow:auto;padding:10px;display:flex;flex-direction:column;gap:9px}
+  .scene{position:relative;display:flex;gap:9px;padding:9px;border:1px solid var(--border);border-radius:12px;background:var(--card);cursor:pointer}
+  .scene.sel{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand) inset}
+  .grip{color:var(--muted);cursor:grab;align-self:center;font-size:16px;line-height:1}
+  .thumb{position:relative;width:44px;height:58px;border-radius:8px;overflow:hidden;flex:none;background:#0c1220}
+  .thumb img{width:100%;height:100%;object-fit:cover}
+  .thumb .pin{position:absolute;right:2px;bottom:2px;width:20px;height:20px;border-radius:50%;border:2px solid #fff;object-fit:cover}
+  .thumb .full-broll{position:absolute;inset:0}
+  .scene .meta{min-width:0;flex:1}
+  .scene .top{display:flex;align-items:center;gap:6px}
+  .badge{font-size:9.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:2px 6px;border-radius:6px}
+  .badge.avatar{background:rgba(14,165,233,.16);color:#7cc9f0}
+  .badge.broll{background:rgba(139,92,246,.18);color:#c3b0f5}
+  .badge.product{background:rgba(245,158,11,.16);color:#f0c473}
+  .scene .no{color:var(--muted);font-size:11px;font-weight:700}
+  .scene .snip{color:var(--muted);font-size:11.5px;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .scene .dur{position:absolute;right:8px;bottom:7px;font-size:10px;color:var(--muted)}
+  .addwrap{padding:10px;border-top:1px solid var(--border);position:relative}
+  .add{width:100%;border:1px dashed #33415e;background:transparent;color:var(--text);border-radius:11px;padding:10px;font-weight:700;font-size:12.5px;cursor:pointer}
+  .add:hover{border-color:var(--brand);color:#fff}
+  .menu{position:absolute;left:10px;right:10px;bottom:54px;background:#0e1626;border:1px solid var(--border);border-radius:12px;padding:6px;display:none;box-shadow:0 12px 30px rgba(0,0,0,.5)}
+  .menu.open{display:block}
+  .menu button{display:flex;gap:9px;width:100%;text-align:left;background:transparent;border:0;color:var(--text);padding:9px;border-radius:9px;cursor:pointer;font-size:12.5px}
+  .menu button:hover{background:var(--card)}
+  .menu .mi{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:12px}
+  /* stage */
+  .stage{flex:1;display:flex;min-width:0}
+  .preview{flex:1;display:grid;place-items:center;padding:22px;background:radial-gradient(1200px 400px at 50% -10%,rgba(139,92,246,.08),transparent),var(--panel2)}
+  .frame{position:relative;width:min(46vh,340px);aspect-ratio:9/16;border-radius:18px;overflow:hidden;border:1px solid var(--border);background:#0c1220;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  .frame .bg{position:absolute;inset:0;background-size:cover;background-position:center}
+  .frame .avatar-full{position:absolute;inset:0;background-size:cover;background-position:center top}
+  .frame .avatar-corner{position:absolute;width:34%;aspect-ratio:1;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.9);box-shadow:0 8px 20px rgba(0,0,0,.4)}
+  .frame .product-side{position:absolute;width:40%;border-radius:12px;object-fit:cover;box-shadow:0 10px 24px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15)}
+  .frame .cap{position:absolute;left:0;right:0;bottom:0;padding:14px 12px;background:linear-gradient(transparent,rgba(0,0,0,.75));font-size:12px}
+  .frame .tag{position:absolute;top:10px;left:10px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;background:rgba(0,0,0,.5);padding:3px 7px;border-radius:6px}
+  /* inspector */
+  .insp{width:320px;border-left:1px solid var(--border);background:var(--panel);overflow:auto;padding:14px}
+  .insp .lbl{font-size:11.5px;font-weight:700;margin:14px 0 6px}
+  .insp .lbl:first-child{margin-top:0}
+  textarea,input[type=text]{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:9px;font:inherit;font-size:12.5px;resize:vertical}
+  .seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .seg.two{grid-template-columns:1fr 1fr}
+  .opt{border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:9px;padding:8px 6px;font-size:11.5px;font-weight:600;cursor:pointer;text-align:center}
+  .opt.on{border-color:var(--brand);background:rgba(14,165,233,.12);color:#bfe3fb}
+  .opt small{display:block;color:var(--muted);font-weight:500;font-size:9.5px;margin-top:2px}
+  .opt.on small{color:#9fd7f5}
+  .src{display:flex;gap:6px;flex-wrap:wrap}
+  .src .opt{flex:1;min-width:70px}
+  .hint{color:var(--muted);font-size:11px;margin-top:6px}
+  .divider{height:1px;background:var(--border);margin:14px 0}
+  .footer{display:flex;align-items:center;gap:12px;padding:12px 18px;border-top:1px solid var(--border);background:var(--panel2)}
+  .note{color:var(--muted);font-size:11.5px}
+  .kbd{font-size:10px;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:1px 5px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">F</div>
+    <div>
+      <div class="title">Presentation Studio <span class="sub">— one stitched video · avatar + product/B-roll scenes</span></div>
+    </div>
+    <div class="spacer"></div>
+    <span class="chip"><img src="https://files2.heygen.ai/avatar/v3/2a7a2d4b8c1f4e0a9c3f5b6d7e8f9012_45400/preview_target.webp" onerror="this.style.display='none'"/> Annie · Grey Jacket</span>
+    <span class="chip"><span class="dot"></span> Emma · English</span>
+    <span class="chip">9:16</span>
+    <div class="est">~<b>2:10</b> total<br><b>—</b> credits <span class="sub">(from balance)</span></div>
+  </header>
+
+  <div class="main">
+    <!-- storyboard -->
+    <div class="board">
+      <h3>Storyboard · drag to reorder</h3>
+      <div class="scenes" id="scenes"></div>
+      <div class="addwrap">
+        <div class="menu" id="menu">
+          <button data-add="avatar"><span class="mi" style="background:rgba(14,165,233,.16)">🧑</span> Avatar scene <span class="sub" style="margin-left:auto">talking to camera</span></button>
+          <button data-add="broll"><span class="mi" style="background:rgba(139,92,246,.18)">🎞️</span> B-roll scene <span class="sub" style="margin-left:auto">image / video in motion</span></button>
+          <button data-add="product"><span class="mi" style="background:rgba(245,158,11,.16)">📦</span> Product scene <span class="sub" style="margin-left:auto">present a product/reference</span></button>
+        </div>
+        <button class="add" id="addBtn">+ Add scene</button>
+      </div>
+    </div>
+
+    <!-- stage -->
+    <div class="stage">
+      <div class="preview">
+        <div class="frame" id="frame">
+          <div class="bg" id="pvBg"></div>
+          <div class="avatar-full" id="pvAvatarFull"></div>
+          <img class="product-side" id="pvProduct" alt="" />
+          <img class="avatar-corner" id="pvAvatarCorner" alt="" />
+          <div class="tag" id="pvTag">Scene</div>
+          <div class="cap" id="pvCap"></div>
+        </div>
+      </div>
+
+      <!-- inspector -->
+      <div class="insp" id="insp"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="note">🎬 Renders as <b>one continuous video</b> — scenes stitched in order. Product/reference images must be uploaded or picked from your Library (public URL).</span>
+    <div class="spacer"></div>
+    <span class="note">Credits shown come from your balance & admin pricing — never hardcoded.</span>
+    <button class="btn primary">Render presentation →</button>
+  </div>
+</div>
+
+<script>
+/* ---- sample media (royalty-free placeholders) ---- */
+const AV = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=400&q=70&auto=format";
+const AV2 = "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&q=70&auto=format";
+const OFFICE = "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&q=70&auto=format";
+const CITY = "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=70&auto=format";
+const PRODUCT = "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&q=70&auto=format"; // watch
+const SHOE = "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=70&auto=format";
+
+/* ---- state ---- */
+let scenes = [
+  { type:"avatar", script:"Hey! Big news — our new SmartWatch Pro just dropped, and it changes everything about your day.", layout:"full", bg:"none", avatar:AV, product:null, placement:"beside", corner:"br", dur:"0:22" },
+  { type:"product", script:"Take a look. Titanium body, 3-day battery, and a display that pops in sunlight.", layout:"overlay", bg:"broll", avatar:AV, product:PRODUCT, placement:"beside", corner:"br", dur:"0:26" },
+  { type:"broll", script:"It tracks everything — from your morning run to your deepest sleep — automatically.", layout:"cutaway", bg:"video", avatar:AV, product:null, placement:"beside", corner:"br", dur:"0:24" },
+  { type:"product", script:"And here it is on the wrist. Comfortable, light, and it just looks premium.", layout:"withAvatar", bg:"none", avatar:AV2, product:SHOE, placement:"withAvatar", corner:"br", dur:"0:28" },
+  { type:"avatar", script:"Tap the link, grab yours today, and feel the difference. You won't look back.", layout:"full", bg:"office", avatar:AV, product:null, placement:"beside", corner:"br", dur:"0:20" },
+];
+let sel = 0;
+
+const BG_URL = { none:null, office:OFFICE, city:CITY, broll:OFFICE, video:CITY };
+const cornerPos = { tl:{top:"10%",left:"6%"}, tr:{top:"10%",right:"6%"}, bl:{bottom:"16%",left:"6%"}, br:{bottom:"16%",right:"6%"} };
+
+/* ---- render storyboard ---- */
+function badge(t){ return t==="avatar"?'<span class="badge avatar">Avatar</span>': t==="broll"?'<span class="badge broll">B-roll</span>':'<span class="badge product">Product</span>'; }
+function renderBoard(){
+  const el = document.getElementById("scenes"); el.innerHTML="";
+  scenes.forEach((s,i)=>{
+    const d=document.createElement("div");
+    d.className="scene"+(i===sel?" sel":"");
+    d.onclick=()=>{sel=i;renderAll();};
+    const thumbInner = s.bg!=="none" && BG_URL[s.bg]
+      ? `<div class="full-broll" style="background:url('${BG_URL[s.bg]}') center/cover"></div>${s.avatar&&s.layout!=='cutaway'?`<img class="pin" src="${s.avatar}"/>`:''}${s.product?`<img class="pin" style="left:2px;right:auto;border-radius:4px" src="${s.product}"/>`:''}`
+      : `<img src="${s.avatar}"/>${s.product?`<img class="pin" style="border-radius:4px" src="${s.product}"/>`:''}`;
+    d.innerHTML=`
+      <div class="grip">⋮⋮</div>
+      <div class="thumb">${thumbInner}</div>
+      <div class="meta">
+        <div class="top"><span class="no">${i+1}</span> ${badge(s.type)} ${s.product?'<span class="badge product">📦</span>':''}</div>
+        <div class="snip">${s.script}</div>
+      </div>
+      <div class="dur">${s.dur}</div>`;
+    el.appendChild(d);
+  });
+}
+
+/* ---- render preview ---- */
+function renderPreview(){
+  const s=scenes[sel];
+  const bg=document.getElementById("pvBg");
+  const full=document.getElementById("pvAvatarFull");
+  const corner=document.getElementById("pvAvatarCorner");
+  const prod=document.getElementById("pvProduct");
+  const tag=document.getElementById("pvTag");
+  document.getElementById("pvCap").textContent = '“'+s.script+'”';
+
+  // reset
+  corner.style.display="none"; full.style.display="none"; prod.style.display="none"; bg.style.background="#0c1220";
+  Object.assign(corner.style,{top:"",left:"",right:"",bottom:""});
+  Object.assign(prod.style,{top:"",left:"",right:"",bottom:""});
+
+  const bgUrl = BG_URL[s.bg];
+  if(bgUrl) bg.style.background = `url('${bgUrl}') center/cover`;
+
+  if(s.layout==="full"){
+    tag.textContent="Avatar · full";
+    full.style.display="block"; full.style.background=`url('${s.avatar}') center top/cover`;
+  } else if(s.layout==="overlay"){
+    tag.textContent="Avatar overlay + visual";
+    // background is the b-roll/product scene
+    if(!bgUrl && s.product){ bg.style.background=`url('${s.product}') center/cover`; }
+    corner.style.display="block"; corner.src=s.avatar;
+    Object.assign(corner.style, cornerPos[s.corner]);
+  } else if(s.layout==="cutaway"){
+    tag.textContent="Cut-away · voiceover";
+    if(!bgUrl && s.product){ bg.style.background=`url('${s.product}') center/cover`; }
+    // no avatar shown
+  } else if(s.layout==="withAvatar"){
+    tag.textContent="Avatar IV · with product";
+    full.style.display="block"; full.style.background=`url('${s.avatar}') center top/cover`;
+    if(s.product){ prod.style.display="block"; prod.src=s.product; Object.assign(prod.style,{bottom:"20%",right:"6%"}); }
+  }
+  // product placement (for avatar/full scenes that attach a product beside)
+  if(s.product && s.placement==="beside" && s.layout!=="withAvatar" && s.layout!=="cutaway" && s.layout!=="overlay"){
+    prod.style.display="block"; prod.src=s.product; Object.assign(prod.style,{bottom:"22%",right:"6%"});
+  }
+}
+
+/* ---- inspector ---- */
+function opt(val,cur,label,sub,attr){ return `<div class="opt ${val===cur?'on':''}" data-${attr}="${val}">${label}${sub?`<small>${sub}</small>`:''}</div>`; }
+function renderInsp(){
+  const s=scenes[sel];
+  const el=document.getElementById("insp");
+  const isProduct = !!s.product || s.type==="product";
+  el.innerHTML=`
+    <div class="lbl">Scene ${sel+1} · script (what the avatar says)</div>
+    <textarea rows="4" id="scr">${s.script}</textarea>
+
+    <div class="lbl">Layout</div>
+    <div class="seg">
+      ${opt("full",s.layout,"Avatar","full frame","layout")}
+      ${opt("overlay",s.layout,"Overlay","avatar corner","layout")}
+      ${opt("cutaway",s.layout,"Cut-away","visual only","layout")}
+    </div>
+    <div class="seg" style="margin-top:6px">
+      ${opt("withAvatar",s.layout,"With avatar","Avatar IV · in-shot product","layout")}
+    </div>
+    <div class="hint">Overlay = avatar as a circular corner presenter over the visual. Cut-away = full visual with voiceover. With avatar = photoreal Avatar IV rendered alongside the product (reference image).</div>
+
+    ${s.layout==="overlay"?`
+    <div class="lbl">Avatar corner</div>
+    <div class="seg two">
+      ${opt("tl",s.corner,"Top L","","corner")}${opt("tr",s.corner,"Top R","","corner")}
+      ${opt("bl",s.corner,"Bot L","","corner")}${opt("br",s.corner,"Bot R","","corner")}
+    </div>`:""}
+
+    <div class="divider"></div>
+    <div class="lbl">Scene visual / background</div>
+    <div class="seg">
+      ${opt("none",s.bg,"None","avatar only","bg")}
+      ${opt("office",s.bg,"Image","AI / library","bg")}
+      ${opt("video",s.bg,"Video","in motion","bg")}
+    </div>
+    <div class="src" style="margin-top:8px">
+      <div class="opt">✦ Generate (AI)</div>
+      <div class="opt">🗂 Media Library</div>
+      <div class="opt">⬆ Upload</div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="lbl">Product / reference image ${s.product?'· attached':''}</div>
+    ${s.product?`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><img src="${s.product}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border)"/><span class="note">Avatar presents this while talking.</span><span class="spacer"></span><button class="btn" data-rmprod="1" style="padding:5px 9px">Remove</button></div>`:''}
+    <div class="src">
+      <div class="opt" data-addprod="1">⬆ Upload product</div>
+      <div class="opt" data-addprod="1">🗂 From Library</div>
+    </div>
+    ${s.product?`
+    <div class="lbl">How the avatar uses it</div>
+    <div class="seg">
+      ${opt("behind",s.placement,"Behind","as backdrop","placement")}
+      ${opt("beside",s.placement,"Beside","product card","placement")}
+      ${opt("withAvatar",s.placement,"With avatar","in-shot (IV)","placement")}
+    </div>`:''}
+
+    <div class="divider"></div>
+    <div class="note">Shared across the presentation: <b>Annie · Grey Jacket</b> + <b>Emma (English)</b>. Change per-scene in the full editor.</div>
+  `;
+  // wire
+  el.querySelector("#scr").oninput=(e)=>{scenes[sel].script=e.target.value; document.getElementById("pvCap").textContent='“'+e.target.value+'”'; renderBoard();};
+  el.querySelectorAll("[data-layout]").forEach(o=>o.onclick=()=>{scenes[sel].layout=o.dataset.layout; if(o.dataset.layout==='withAvatar'){scenes[sel].placement='withAvatar';} renderAll();});
+  el.querySelectorAll("[data-corner]").forEach(o=>o.onclick=()=>{scenes[sel].corner=o.dataset.corner; renderAll();});
+  el.querySelectorAll("[data-bg]").forEach(o=>o.onclick=()=>{scenes[sel].bg=o.dataset.bg; renderAll();});
+  el.querySelectorAll("[data-placement]").forEach(o=>o.onclick=()=>{scenes[sel].placement=o.dataset.placement; if(o.dataset.placement==='withAvatar'){scenes[sel].layout='withAvatar';} if(o.dataset.placement==='behind'){scenes[sel].bg='office';} renderAll();});
+  el.querySelectorAll("[data-addprod]").forEach(o=>o.onclick=()=>{scenes[sel].product=PRODUCT; scenes[sel].placement='beside'; renderAll();});
+  const rm=el.querySelector("[data-rmprod]"); if(rm) rm.onclick=()=>{scenes[sel].product=null; renderAll();};
+}
+
+function renderAll(){ renderBoard(); renderPreview(); renderInsp(); }
+
+/* add-scene menu */
+const menu=document.getElementById("menu");
+document.getElementById("addBtn").onclick=()=>menu.classList.toggle("open");
+menu.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>{
+  const t=b.dataset.add;
+  const base={ avatar:{type:"avatar",layout:"full",bg:"none",product:null},
+               broll:{type:"broll",layout:"cutaway",bg:"video",product:null},
+               product:{type:"product",layout:"overlay",bg:"broll",product:PRODUCT,placement:"beside"} }[t];
+  scenes.push(Object.assign({script:"New scene — write what the avatar says here.",avatar:AV,corner:"br",placement:"beside",dur:"0:20"},base));
+  sel=scenes.length-1; menu.classList.remove("open"); renderAll();
+});
+
+renderAll();
+</script>
+</body>
+</html>

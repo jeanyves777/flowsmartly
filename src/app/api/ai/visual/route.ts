@@ -693,7 +693,7 @@ function sanitizeBrandIdentityForPrompt(value: unknown, hasRealLogo: boolean): R
   const source = compacted && typeof compacted === "object" && !Array.isArray(compacted)
     ? compacted as Record<string, unknown>
     : {};
-  const blocked = /(^|_)(logo|iconLogo|brandLogo|logoUrl|iconLogoUrl|wordmark|emblem|seal|crest)(_|$)/i;
+  const blocked = /(^|_)(logo|iconLogo|brandLogo|logoUrl|iconLogoUrl|wordmark|emblem|seal|crest|hashtags?)(_|$)/i;
   const sanitized = Object.fromEntries(
     Object.entries(source).filter(([key, item]) => {
       if (blocked.test(key)) return false;
@@ -733,8 +733,8 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     // in the shared art-direction recipe (buildArtDirection), appended by the
     // caller — keeping THIS prompt short so it stays under xAI's 8000-char limit
     // (otherwise xAI 400s and the campaign silently falls back to a weaker model).
-    "You are a senior art director. Design a COMPLETE, professionally art-directed branded marketing graphic (not a plain photo with a caption) organized into clear zones: eyebrow/tagline, bold hero title, subhead, concise body, optional badge, CTA bar, and a styled footer bar. Build the whole palette from the brand colors.",
-    "CONTACT DETAILS: present the brand's contact info as a styled footer strip, using ONLY the EXACT values from the brand context below — copy them character-for-character; never invent or use placeholders (no '555-…', 'info@example', '123 Main St', fake @handle). Omit any value not provided.",
+    "You are a senior art director. Design a COMPLETE, professionally art-directed branded marketing graphic (not a plain photo with a caption) organized into clear zones: eyebrow/tagline, bold hero title, subhead, concise body, optional badge, CTA, and a styled contact area. Build the whole palette from the brand colors.",
+    "CONTACT DETAILS: fold the brand's contact info into the design as a DESIGNED, on-brand element — and VARY the treatment to suit THIS layout, don't default to the same footer strip every time. Pick whichever fits: a full-width footer bar, a row of icon+label chips, a rounded contact/CTA panel, a corner block, or a slim brand-color pill — with small line icons or thin dividers, comfortable padding and clear legibility (never a bare floating line). Use ONLY the EXACT values from the brand context below — copy them character-for-character; never invent placeholders (no '555-…', 'info@example', '123 Main St', fake @handle). Omit any value not provided.",
     "",
     "Marketing image context",
     `Frame size: ${params.width}x${params.height}px (compose to fill it edge-to-edge)`,
@@ -759,7 +759,7 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     params.logoReferenceUrl
       ? "Brand logo handling (CRITICAL): the LAST attached reference image is the brand's REAL logo. PLACE THAT EXACT logo into THIS design as the real brand mark — reproduce it faithfully (same shapes, colors, and lettering; do NOT redraw, restyle, recolor, crop, or invent it). Position it cleanly in the header / a top corner at a tasteful size with generous clear margin, and arrange ALL headline, subhead, body, and contact text so that NOTHING overlaps, touches, or crowds the logo — leave a calm clear zone around it. The logo is part of the image you generate now; it will NOT be added afterward, so it must already be present, sharp, and unobstructed. Do not also render the brand name as a separate wordmark next to it."
       : params.brandLogo
-        ? "Brand logo handling: the real brand logo file is provided to FlowSmartly separately and may be composited after generation. Do not invent, redraw, approximate, stylize, or copy any logo/wordmark/emblem from the template. Do not draw a visible logo placeholder, blank or white logo box, dashed frame, label, watermark, or reserved logo-space indicator; let the design and background remain natural anywhere a logo may later sit."
+        ? "Brand logo handling (CRITICAL): the real brand logo is added to the top-left corner AFTER generation. Simply keep the top-left area (about the top 18% height × left 28% width) as plain, calm, uncluttered BACKGROUND — ordinary background only. Do NOT draw a white box, rectangle, panel, frame, or placeholder there, and do NOT write any label or words (never 'logo', 'reserved', 'zone'); it must look like normal empty background. Keep the eyebrow/tagline and headline out of that corner — start them to the right of or below it, never a text line across the top."
         : "Brand logo handling: no real logo file was provided; use brand name text only if needed, never create a fake emblem.",
     "",
     "User prompt:",

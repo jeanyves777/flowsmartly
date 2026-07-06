@@ -6,7 +6,7 @@ import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard,
-  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, type LucideIcon,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, UserSquare2, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -53,6 +53,7 @@ import { FocusedMedia } from "./focused/media-workspace";
 import { FocusedLogo } from "./focused/logo-workspace";
 import { FocusedVoice } from "./focused/voice-workspace";
 import { FocusedVideo } from "./focused/video-workspace";
+import { FocusedAvatar } from "./focused/avatar-workspace";
 import { FocusedDelivery } from "./focused/delivery-workspace";
 import { FocusedAdBuilder } from "./focused/adbuilder-workspace";
 import { FocusedCalendar } from "./focused/calendar-workspace";
@@ -111,6 +112,7 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   media: "Ask the agent to find or generate media — e.g. “make me a product image”.",
   logo: "Ask the agent to generate a logo for your brand.",
   video: "Ask the agent to create a video — an ad, promo, or reel.",
+  avatar: "Ask the agent to make an avatar video — e.g. “a 30s intro of my avatar for our launch”.",
   delivery: "Ask the agent about deliveries — e.g. “which orders are out for delivery?”.",
   adbuilder: "Ask the agent to build & launch an ad — e.g. “run an ad for my new product, $10/day, target Austin”.",
   storyad: "Ask the agent to make a Story-Ad movie — a cinematic AI video ad for a product or offer.",
@@ -149,6 +151,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   logo: { label: "Logo studio", subtitle: "Your generated logos", icon: Palette },
   video: { label: "Video studio", subtitle: "Brief → estimate → build, right on the canvas", icon: Clapperboard },
   voice: { label: "Voice studio", subtitle: "Voiceovers, narration & voice cloning", icon: Mic },
+  avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
   plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
@@ -217,6 +220,8 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
       return `The user is on the **Video studio** (their AI-generated videos). Help them create a video (generate_video / story-ad).`;
     case "voice":
       return `The user is on the **Voice Studio** (AI voiceovers, narration & voice cloning). Making a voiceover is a generative task — help them write a punchy script for their goal, then they set the voice (gender/accent/style/speed) and click Generate; the audio lands in the studio and their Media library. They can also clone a voice from a sample.`;
+    case "avatar":
+      return `The user is on the **Avatar Studio**. Never name or hint at any third-party provider to the user — this is FlowSmartly's own studio. INTERVIEW first (goal, tone, length), then use create_avatar_video — it renders into the studio canvas live and saves to the Library. It has modes: 'talking' (write a script → talking-avatar video; recommend Standard for social/outreach or Avatar IV for photoreal hero/ad), 'translate' (dub one of their FINISHED videos into another language — set targetLanguage), and 'batch' (many videos at once — pass a list of scripts). For a multi-scene PRESENTATION (a presenter avatar plus product/reference images or B-roll in one stitched video), use create_presentation — it plans the scenes for free onto the canvas as a Presentation node; the user opens the storyboard to attach per-scene visuals and render (only autoRender if they explicitly ask). Costs are in credits (priced from the DB/admin — never quote dollars). For 'photo → video' the user uploads a photo in the studio UI. To make a reusable avatar or cloned voice, use clone_avatar (consent-gated).`;
     case "print":
       return `The user is in the **Print Studio** designing something to PRINT (flyer, poster, business card, table tent, bi-fold/tri-fold brochure, or postcard). If no print canvas is open yet, FIRST call start_print_project with the right format to open the editable print canvas, then design it with update_canvas (copy, accent, print size) and add_design_page for multi-page/panel pieces (card front/back, brochure panels) — exactly like the design canvas, but keep content inside the safe area and mind the fold lines. Pick a fitting print size for the format (the canvas shows bleed/safe/fold guides). Confirm in one short sentence when it's ready.`;
     case "delivery":
@@ -249,7 +254,7 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
 // "grow" and "business" are category CONTAINERS (they open a nav panel, not a
 // real surface) — deliberately excluded so /home/grow and /home/business deep-
 // link cleanly to Home instead of a "coming soon" placeholder.
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
@@ -316,6 +321,9 @@ export function AgentHome() {
   const [brandColors, setBrandColors] = useState<string[]>([]);
   const [brandContact, setBrandContact] = useState<BrandContact | null>(null);
   const [brandLogo, setBrandLogo] = useState<string | null>(null);
+  // The profile icon shows the brand mark once the kit is set up: prefer the
+  // square iconLogo (made for avatars/feeds), fall back to the full logo.
+  const [brandIcon, setBrandIcon] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const accountRef = useRef<HTMLDivElement>(null);
@@ -345,7 +353,10 @@ export function AgentHome() {
           if (!alive || !b?.success) return;
           const bk = b.data?.brandKit;
           if (bk?.name) setBrandName(bk.name);
-          setBrandLogo(typeof bk?.logo === "string" && bk.logo ? bk.logo : null);
+          const fullLogo = typeof bk?.logo === "string" && bk.logo ? bk.logo : null;
+          const iconLogo = typeof bk?.iconLogo === "string" && bk.iconLogo ? bk.iconLogo : null;
+          setBrandLogo(fullLogo);
+          setBrandIcon(iconLogo || fullLogo); // profile icon: square icon logo first, else full logo
           // Contact details + social handles → the canvas "Contact" tab.
           const addr = [bk?.city, bk?.state].filter(Boolean).join(", ") || bk?.address || undefined;
           const h = (bk?.handles && typeof bk.handles === "object") ? bk.handles : {};
@@ -440,6 +451,13 @@ export function AgentHome() {
     toBottom();
     return () => { sc?.removeEventListener("scroll", onScroll); ro.disconnect(); };
   }, [messages.length === 0, conversationId, focused]);
+  // Follow STREAMING growth too: the agent streams tokens / plan cards INTO an
+  // existing message (message count unchanged), and the ResizeObserver above
+  // misses it because the scroll container's own box size is fixed (flex-1) — only
+  // its scrollHeight grows. Re-scroll on every message-content change while pinned.
+  useEffect(() => {
+    if (pinnedRef.current) bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [messages, sending]);
 
   // Deep-link: load ?conversationId= on first mount, and keep the URL in sync
   // as the active conversation changes — so any chat is shareable / revisitable.
@@ -838,6 +856,7 @@ export function AgentHome() {
         </button>
         <button onClick={() => guardNav(handleNewChat)} title="New chat" aria-label="New chat" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground md:hidden"><SquarePen className="h-[18px] w-[18px]" /></button>
         <button onClick={() => setHistoryOpen(true)} title="History" aria-label="History" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground md:hidden"><History className="h-[18px] w-[18px]" /></button>
+        <div className="md:hidden"><ThemeMenu /></div>
         <div className="hidden items-center gap-1 md:flex">
           <button onClick={() => guardNav(handleNewChat)} title="New chat" aria-label="New chat" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground"><SquarePen className="h-[18px] w-[18px]" /></button>
           <button onClick={() => setHistoryOpen(true)} title="History" aria-label="History" className="grid h-9 w-9 place-items-center rounded-[10px] border border-border bg-card text-muted-foreground transition-colors hover:border-brand-500/60 hover:text-foreground"><History className="h-[18px] w-[18px]" /></button>
@@ -845,8 +864,15 @@ export function AgentHome() {
           <ThemeMenu />
         </div>
         <div className="relative shrink-0" ref={userMenuRef}>
-          <button onClick={() => setUserMenuOpen((o) => !o)} className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-pink-500 to-violet-500 text-[12px] font-bold text-white ring-offset-2 ring-offset-background transition hover:ring-2 hover:ring-brand-500/50" aria-label="Account menu">
-            {initials}
+          <button onClick={() => setUserMenuOpen((o) => !o)} className="relative grid h-8 w-8 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-pink-500 to-violet-500 text-[12px] font-bold text-white ring-offset-2 ring-offset-background transition hover:ring-2 hover:ring-brand-500/50" aria-label="Account menu" title={brandName || user?.name || "Account menu"}>
+            {brandIcon ? (
+              // Brand mark from the kit (square icon logo, else full logo). White
+              // backing so a transparent logo still reads on the dark header.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={brandIcon} alt="" className="absolute inset-0 h-full w-full bg-white object-cover" />
+            ) : (
+              initials
+            )}
           </button>
           {userMenuOpen && (
             <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl">
@@ -1142,6 +1168,8 @@ export function AgentHome() {
                   <FocusedVoice onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "video" ? (
                   <FocusedVideo onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "avatar" ? (
+                  <FocusedAvatar onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (
                   <FocusedDelivery onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "adbuilder" ? (

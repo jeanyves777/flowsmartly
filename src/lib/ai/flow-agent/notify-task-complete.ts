@@ -14,6 +14,21 @@ import { sendWebPushToUser } from "@/lib/notifications/web-push";
  * (`/flow-ai?conversationId=X&taskId=Y`) so they see the completed
  * result inline. Phase 3 will add a Web Push / FCM hook here.
  */
+/**
+ * Only LONG-RUNNING jobs (minutes — the user has likely left the tab) warrant
+ * an EMAIL. Quick generations (a flyer/design, an image, a canvas edit, a
+ * proposal, narration) get the in-app bell + web push only, so we don't spam
+ * the inbox for a few-second task.
+ */
+const EMAIL_WORTHY_KINDS = new Set<string>([
+  "generate_video",
+  "start_story_ad_campaign",
+  "build_store",
+  "build_website",
+  "create_content_campaign",
+  "import_contacts_csv",
+]);
+
 export interface NotifyAgentTaskCompleteInput {
   userId: string;
   taskId: string;
@@ -65,7 +80,9 @@ export async function notifyAgentTaskComplete(
     console.error("[flow-agent] web push failed:", e);
   }
 
-  // ── 2. email (best-effort) ────────────────────────────────────────
+  // ── 2. email — only for LONG-RUNNING jobs (see EMAIL_WORTHY_KINDS). Quick
+  // generations already surfaced via the in-app bell + web push above. ──
+  if (!EMAIL_WORTHY_KINDS.has(input.kind)) return;
   try {
     const user = await prisma.user.findUnique({
       where: { id: input.userId },

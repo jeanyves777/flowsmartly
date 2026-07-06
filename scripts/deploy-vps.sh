@@ -101,7 +101,16 @@ else
   echo "Dependencies unchanged & provisioned (${NEW_LOCK_HASH}) — skipping npm install"
 fi
 
-# --- 4. prisma client ---------------------------------------------------------
+# --- 4. prisma: sync the DB schema, then generate the client ------------------
+# db push makes the prod DB match schema.prisma — it ADDS any table/column that
+# exists in code but not yet in prod (this is how features ship their schema;
+# the deploy is the single place prod schema advances). It is ADDITIVE and does
+# NOT drop data. Running non-interactively (SSH, no TTY), Prisma ABORTS the deploy
+# if a change would be destructive instead of dropping data — so we deliberately
+# do NOT pass --accept-data-loss; a destructive diff should fail loudly and be
+# resolved by hand, never silently lose rows.
+log "Syncing DB schema (prisma db push — additive)"
+npx prisma db push --skip-generate
 log "Generating Prisma client"
 npx prisma generate
 

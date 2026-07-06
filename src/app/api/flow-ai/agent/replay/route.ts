@@ -149,7 +149,10 @@ export async function GET(req: NextRequest) {
       summary: p.summary,
       steps: safeArray(p.steps),
       totalCreditCost: p.totalCreditCost,
-      status: p.status,
+      // "executed" is our internal "confirmed AND already ran" marker — the card
+      // UI only knows pending/confirmed/rejected/expired, so present it as a
+      // resolved (confirmed) card, never a fresh pending one with Confirm buttons.
+      status: p.status === "executed" ? "confirmed" : p.status,
       expiresAt: p.expiresAt.toISOString(),
       resolvedAt: p.resolvedAt?.toISOString() ?? null,
       seq: p.seq,
