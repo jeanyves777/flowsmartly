@@ -366,12 +366,10 @@ function PortfolioBriefSheet({ brand, onClose, onBuild, onBuildFiles }: { brand:
           {/* Start from — the onboarding inputs */}
           <p className="mb-1.5 text-[11.5px] font-semibold">{kind === "personal" ? "Start from your résumé" : "Start from your business"} <span className="font-normal text-muted-foreground">{kind === "personal" ? "· the agent reads it and builds every section" : "· we reuse what you already have"}</span></p>
           {kind === "personal" ? (
-            <div className="grid gap-2 sm:grid-cols-[1.4fr_1fr]">
+            <div>
               <FileDrop file={file} onPick={pickFile} label="Drop your résumé / CV here" hint="PDF, DOCX or an image · the agent reads it" />
-              <div className="flex flex-col justify-center gap-2">
-                <Field label="…or paste a LinkedIn / profile URL"><input value={url} onChange={(e) => setUrl(e.target.value)} className={PF_FIELD} placeholder="https://linkedin.com/in/you" /></Field>
-                <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Sparkles className="h-3 w-3 shrink-0 text-brand-500" /> No file? Just hit Build — the agent asks you in chat.</p>
-              </div>
+              <div className="mt-2"><Field label="…or paste a LinkedIn / profile URL"><input value={url} onChange={(e) => setUrl(e.target.value)} className={PF_FIELD} placeholder="https://linkedin.com/in/you" /></Field></div>
+              <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground"><Sparkles className="h-3 w-3 shrink-0 text-brand-500" /> No file? Just hit Build — the agent asks you in chat.</p>
             </div>
           ) : (
             <div>
