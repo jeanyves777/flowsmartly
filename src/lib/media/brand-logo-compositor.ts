@@ -102,11 +102,14 @@ export async function compositeBrandLogoOnImageBuffer(params: {
   const minReadableW = Math.round(Math.min(imgW, imgH) * 0.12);
   const baseTargetW = Math.round(imgW * (pct / 100));
   const wideLogoBoost = aspect > 2 ? Math.round(imgW * 0.18) : 0;
-  const targetW = clamp(Math.max(baseTargetW, minReadableW, wideLogoBoost), 96, Math.round(imgW * 0.28));
+  // Cap the mark so it fits INSIDE the reserved top-left safe-zone the prompt
+  // keeps clear (~top 18% height × left 28% width) with margin — an oversized
+  // logo is what used to spill onto the headline.
+  const targetW = clamp(Math.max(baseTargetW, minReadableW, wideLogoBoost), 96, Math.round(imgW * 0.22));
   const targetH = clamp(
-    aspect > 2 ? Math.round(imgH * 0.11) : Math.round(imgH * 0.14),
+    aspect > 2 ? Math.round(imgH * 0.1) : Math.round(imgH * 0.13),
     80,
-    Math.round(imgH * 0.2)
+    Math.round(imgH * 0.15)
   );
 
   const resizedLogo = await sharp(trimmedLogo)

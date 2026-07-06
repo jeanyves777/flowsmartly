@@ -693,7 +693,7 @@ function sanitizeBrandIdentityForPrompt(value: unknown, hasRealLogo: boolean): R
   const source = compacted && typeof compacted === "object" && !Array.isArray(compacted)
     ? compacted as Record<string, unknown>
     : {};
-  const blocked = /(^|_)(logo|iconLogo|brandLogo|logoUrl|iconLogoUrl|wordmark|emblem|seal|crest)(_|$)/i;
+  const blocked = /(^|_)(logo|iconLogo|brandLogo|logoUrl|iconLogoUrl|wordmark|emblem|seal|crest|hashtags?)(_|$)/i;
   const sanitized = Object.fromEntries(
     Object.entries(source).filter(([key, item]) => {
       if (blocked.test(key)) return false;
@@ -734,7 +734,7 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     // caller — keeping THIS prompt short so it stays under xAI's 8000-char limit
     // (otherwise xAI 400s and the campaign silently falls back to a weaker model).
     "You are a senior art director. Design a COMPLETE, professionally art-directed branded marketing graphic (not a plain photo with a caption) organized into clear zones: eyebrow/tagline, bold hero title, subhead, concise body, optional badge, CTA bar, and a styled footer bar. Build the whole palette from the brand colors.",
-    "CONTACT DETAILS: present the brand's contact info as a styled footer strip, using ONLY the EXACT values from the brand context below — copy them character-for-character; never invent or use placeholders (no '555-…', 'info@example', '123 Main St', fake @handle). Omit any value not provided.",
+    "CONTACT DETAILS: render the brand's contact info as a DESIGNED footer bar (a solid brand-color strip, items in one evenly-spaced row with small icons or dividers — never a plain floating line), using ONLY the EXACT values from the brand context below — copy them character-for-character; never invent placeholders (no '555-…', 'info@example', '123 Main St', fake @handle). Omit any value not provided.",
     "",
     "Marketing image context",
     `Frame size: ${params.width}x${params.height}px (compose to fill it edge-to-edge)`,
@@ -759,7 +759,7 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     params.logoReferenceUrl
       ? "Brand logo handling (CRITICAL): the LAST attached reference image is the brand's REAL logo. PLACE THAT EXACT logo into THIS design as the real brand mark — reproduce it faithfully (same shapes, colors, and lettering; do NOT redraw, restyle, recolor, crop, or invent it). Position it cleanly in the header / a top corner at a tasteful size with generous clear margin, and arrange ALL headline, subhead, body, and contact text so that NOTHING overlaps, touches, or crowds the logo — leave a calm clear zone around it. The logo is part of the image you generate now; it will NOT be added afterward, so it must already be present, sharp, and unobstructed. Do not also render the brand name as a separate wordmark next to it."
       : params.brandLogo
-        ? "Brand logo handling: the real brand logo file is provided to FlowSmartly separately and may be composited after generation. Do not invent, redraw, approximate, stylize, or copy any logo/wordmark/emblem from the template. Do not draw a visible logo placeholder, blank or white logo box, dashed frame, label, watermark, or reserved logo-space indicator; let the design and background remain natural anywhere a logo may later sit."
+        ? "Brand logo handling (CRITICAL): the real brand logo is composited into the TOP-LEFT corner AFTER generation. Keep that corner (about the top 18% height × left 28% width) as clean negative space — no text, faces, busy detail, or placeholder there; keep the eyebrow/tagline and headline out of it, starting them to the RIGHT of or BELOW it, never spanning a text line across the top through it. Do not draw any logo/wordmark yourself — just leave clean space."
         : "Brand logo handling: no real logo file was provided; use brand name text only if needed, never create a fake emblem.",
     "",
     "User prompt:",

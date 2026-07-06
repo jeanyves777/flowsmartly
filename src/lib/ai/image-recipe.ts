@@ -48,10 +48,10 @@ export function buildArtDirection(opts: {
       "• RICH ART DIRECTION & DEPTH — real craft, matched to the occasion: for celebrations use balloons, confetti, gold foil, sparkle, ribbons and elegant flourishes; for promotions/services use textured or radial-sunburst backgrounds, foliage, badges/seals, brush strokes, hand-drawn doodles and labels, torn-paper dividers, price cards or a small photo strip where the content calls for it. Layer foreground / midground / background for depth; refined gradients and subtle glassmorphism panels are welcome. Every glow or shadow stays INSIDE the composition on its own element — never a border, matte or halo around the whole image.",
     );
     parts.push(
-      "• EXPRESSIVE TYPOGRAPHY — art-directed type like a real designer, NOT one flat sans-serif line: pair a bold display/headline face with an elegant SCRIPT, a high-contrast SERIF, or a chunky rounded display for the emphasis words (names, occasions, key phrases). Big confident headline, clear headline → subhead → body → footer scale, tasteful accent color and an outline/glow on the hero words, immaculate kerning.",
+      "• EXPRESSIVE TYPOGRAPHY — art-directed type like a real designer, NOT one flat sans-serif line: pair a bold display/headline face with an elegant SCRIPT, high-contrast SERIF, or chunky rounded display for the emphasis words (names, occasions, key phrases). Give the headline clear DOMINANCE with a big size jump over the subhead, and keep EVERY line highly legible — never run thin script over a busy or low-contrast area; add a soft shadow/outline or a clean backing panel where it aids readability. Clear headline → subhead → body → footer scale, one tasteful accent color, immaculate kerning.",
     );
     parts.push(
-      "• STRUCTURE — a clear hierarchy that fills the space: branded header (logo + name) → bold hero (headline + the photographic centerpiece) → supporting zone (a benefit/feature row, or Q&A / stats / price cards / a photo strip as fits the message) → strong CTA → footer with the real contact details. Immaculate spacing on a strict grid; balanced and full, never empty or sparse.",
+      "• STRUCTURE — a clear hierarchy that fills the space: branded header (logo + name) → bold hero (headline + the photographic centerpiece) → supporting zone (a benefit/feature row, or Q&A / stats / price cards / a photo strip as fits the message) → strong CTA → a DESIGNED footer bar (a solid brand-color strip) carrying the real contact details in one evenly-spaced row with small line icons or thin dividers between items. Immaculate spacing on a strict grid; balanced and full, never empty or sparse.",
     );
   }
   if (recipe.enforceExactCopy) {
@@ -65,7 +65,7 @@ export function buildArtDirection(opts: {
   if (recipe.singleLogo) {
     parts.push(
       hasLogo
-        ? "• LOGO — DRAW NONE, RESERVE TOP-LEFT: do NOT render any logo, wordmark, emblem, icon mark, seal, crest, monogram, mascot, or brand-name lettering ANYWHERE. The user's REAL logo is composited on afterward exactly once IN THE TOP-LEFT CORNER, so keep that corner (roughly the top 16% of the height and left 30% of the width) as clean, calm background only — no headline, no text, no key graphics, no placeholder box/frame/label/watermark there. Start the headline below or to the right of that reserved corner. Exactly one brand mark will exist — the real one added later."
+        ? "• LOGO — DRAW NONE, RESERVE TOP-LEFT: do NOT render any logo, wordmark, emblem, icon mark, seal, crest, monogram, mascot, or brand-name lettering ANYWHERE. The user's REAL logo is composited on afterward exactly once IN THE TOP-LEFT CORNER, so keep that corner (about the top 18% of the height and left 28% of the width) as clean, calm background only — NO text at all there, no key graphics, no placeholder box/frame/label/watermark. Keep the EYEBROW/TAGLINE and headline out of it too — start them to the RIGHT of or BELOW the reserved corner, and never run a line of text across the full top edge through it. Exactly one brand mark will exist — the real one added later."
         : "• ONE brand mark only: if a brand name is shown, render it a SINGLE time in the header as clean text — never repeat it, and never invent a logo symbol, emblem, seal, or monogram the brand did not provide.",
     );
   }
