@@ -163,12 +163,16 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   const cc = input.canvasContext || "";
   const isAdCanvas = cc.startsWith("[ADBUILDER]");
   const isFollowupCanvas = cc.startsWith("[FOLLOWUP]");
-  const isDesignCanvas = !!cc && !isAdCanvas && !isFollowupCanvas;
+  const isStoryAdCanvas = cc.startsWith("[STORYAD]"); // the /home/video Video Studio canvas
+  const isDesignCanvas = !!cc && !isAdCanvas && !isFollowupCanvas && !isStoryAdCanvas;
   const DESIGN_CANVAS_TOOLS = new Set(["update_canvas", "add_canvas_object", "add_design_page", "start_print_project", "place_design_on_product"]);
   const exposedTools = tools.filter((t) => {
     if (DESIGN_CANVAS_TOOLS.has(t.name)) return isDesignCanvas;
     if (t.name === "update_ad_canvas") return isAdCanvas;
     if (t.name === "update_followup_canvas") return isFollowupCanvas;
+    // draft_story_ad_campaign only makes sense with the Video Studio canvas open to
+    // receive the draft. Elsewhere, video creation uses start_story_ad_campaign.
+    if (t.name === "draft_story_ad_campaign") return isStoryAdCanvas;
     return true;
   });
   const clientToolDefs = exposedTools.map((t) => ({
@@ -219,6 +223,10 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
     systemPrompt +=
       `\n\n## Active Follow-ups flow canvas (focused view)\n${cc}\n\n` +
       "The user has the Follow-ups flow canvas OPEN. When they ask you to build / generate / write the follow-up sequence, FILL THE CANVAS LIVE with `update_followup_canvas` so it appears on screen: set the audience mode and write the ordered, genuinely-good PERSONALIZED message steps (use {{first_name}} / {{company}} merge fields; set each step's channel, timing/waitDays and copy — never leave a step empty). Do this FIRST, then reply in ONE short sentence. Ask a single follow-up only if needed. When they want it live, call propose_plan; on confirm, create & schedule it. It's FREE and instant — fill the canvas first, talk second.";
+  } else if (isStoryAdCanvas) {
+    systemPrompt +=
+      `\n\n## Active Video Studio canvas (focused view)\n${cc}\n\n` +
+      "The user has the Video Studio (/home/video) canvas OPEN — a DRAFT-FIRST video-ad playground. When they ask you to make / plan / draft a video ad, call `draft_story_ad_campaign` (write the `brief` from their request; pick style cinematic/3d/narrated + durationSeconds 30/60/90). It DRAFTS the cast + a scene-by-scene script onto the canvas as review cards WITHOUT rendering — the user then reviews each node and generates the scene clips + final video on demand. Draft FIRST, then reply in ONE short sentence pointing them to the canvas to review + generate. Do NOT use start_story_ad_campaign here (that auto-renders elsewhere); the whole point of this surface is review-first. Only ask a single follow-up if you genuinely can't write the brief.";
   } else if (isDesignCanvas) {
     systemPrompt +=
       `\n\n## Active design canvas (focused view)\n${cc}\n\n` +
