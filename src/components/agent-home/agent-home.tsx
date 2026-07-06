@@ -56,6 +56,7 @@ import { FocusedVideo } from "./focused/video-workspace";
 import { FocusedAvatar } from "./focused/avatar-workspace";
 import { FocusedDelivery } from "./focused/delivery-workspace";
 import { FocusedAdBuilder } from "./focused/adbuilder-workspace";
+import { AdBuilderCanvas } from "@/components/ad-builder/ad-builder-canvas";
 import { FocusedCalendar } from "./focused/calendar-workspace";
 import { FocusedPublish } from "./focused/publish-workspace";
 import { FocusedConnections } from "./focused/connections-workspace";
@@ -1167,7 +1168,7 @@ export function AgentHome() {
                 ) : focused === "voice" ? (
                   <FocusedVoice onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "video" ? (
-                  <FocusedVideo onAsk={sendAction} refreshKey={actionCount} />
+                  <AdBuilderCanvas embedded />
                 ) : focused === "avatar" ? (
                   <FocusedAvatar onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (

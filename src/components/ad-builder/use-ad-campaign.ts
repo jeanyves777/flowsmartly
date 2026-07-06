@@ -277,11 +277,11 @@ export function useAdCampaign() {
   );
 
   /** Insert a new blank scene (free) before the outro; user fills + generates it. */
-  const addScene = useCallback(async (id = campaignId): Promise<void> => {
+  const addScene = useCallback(async (id = campaignId, afterClipId?: string | null): Promise<void> => {
     if (!id) return;
     const json = await postJson<{ state: CampaignState }>(
       `/api/ai/story-ad-campaign/${id}/clips/manage`,
-      { action: "add_blank" },
+      { action: "add_blank", afterClipId: afterClipId ?? undefined },
     );
     if (json.success && json.data?.state) setState(json.data.state);
   }, [campaignId]);

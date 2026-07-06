@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -116,8 +117,24 @@ interface Stage {
   progress?: number;
 }
 
-export function AdBuilderCanvas() {
+export function AdBuilderCanvas({ embedded = false }: { embedded?: boolean } = {}) {
   const camp = useAdCampaign();
+  // When mounted inside the /home Video Studio focused view we hide the full-page
+  // chrome (logo/back link), portal our actions into the shared header slot, and
+  // do NOT touch the URL (/home owns ?conversationId). The standalone /ad-builder
+  // route keeps its own top bar + ?c= deep-linking.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { if (embedded) setHeaderSlot(document.getElementById("fv-header-slot")); }, [embedded]);
+  const [libOpen, setLibOpen] = useState(false);
+  const [library, setLibrary] = useState<Array<{ id: string; title: string; status: string; thumbnailUrl?: string | null }>>([]);
+  const loadLibrary = useCallback(async () => {
+    try {
+      const j = await fetch("/api/ai/story-ad-campaign").then((r) => r.json());
+      const rows = (j?.data?.campaigns ?? j?.data?.videos ?? j?.data ?? []) as Array<Record<string, unknown>>;
+      if (Array.isArray(rows)) setLibrary(rows.map((r) => ({ id: String(r.id), title: String(r.title ?? r.brief ?? r.storyPrompt ?? "Video"), status: String(r.status ?? "DRAFT"), thumbnailUrl: (r.thumbnailUrl as string) ?? null })));
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => { if (embedded) void loadLibrary(); }, [embedded, loadLibrary]);
   const { state, campaignId, error } = camp;
 
   const [brief, setBrief] = useState("");
@@ -162,6 +179,7 @@ export function AdBuilderCanvas() {
 
   // Restore a workspace from the URL (?c=<id>) on first mount, so a refresh keeps the work.
   useEffect(() => {
+    if (embedded) return; // /home owns the URL
     const cid = searchParams.get("c");
     if (cid) {
       void camp.load(cid).then((s) => {
@@ -178,10 +196,11 @@ export function AdBuilderCanvas() {
 
   // Each campaign gets its own URL (?c=<id>) so refresh/share restores that workspace.
   useEffect(() => {
+    if (embedded) return; // /home owns the URL
     if (campaignId && searchParams.get("c") !== campaignId) {
       router.replace(`/ad-builder?c=${campaignId}`, { scroll: false });
     }
-  }, [campaignId, searchParams, router]);
+  }, [embedded, campaignId, searchParams, router]);
 
   // Depend on the STABLE estimateCost callback, not the whole `camp` object
   // (which is a fresh literal every render and would re-fire the effect forever
@@ -612,31 +631,98 @@ export function AdBuilderCanvas() {
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-background text-foreground">
-      {/* top bar */}
-      <div className="absolute inset-x-0 top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/90 px-4 backdrop-blur">
-        <Link
-          href="/dashboard"
-          title="Back to dashboard"
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Link>
-        <Image src="/logo.png" alt="FlowSmartly" width={140} height={35} className="h-7 w-auto" priority unoptimized />
-        <span className="hidden text-xs text-muted-foreground sm:inline">Studio › Ad Builder</span>
-        {stage && (
-          <span className="flex items-center gap-1.5 text-xs text-brand-500">
-            <FlowActionSpinner size={14} /> {stage.note}
-            {typeof stage.progress === "number" ? ` · ${stage.progress}%` : ""}
-          </span>
-        )}
-        <div className="flex-1" />
-        <Link
-          href="/ad-builder/campaign"
-          className="flex items-center gap-1.5 rounded-lg border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
-        >
-          <FolderOpen className="h-3.5 w-3.5" /> My campaigns
-        </Link>
-      </div>
+      {/* full-page top bar — standalone /ad-builder only */}
+      {!embedded && (
+        <div className="absolute inset-x-0 top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-card/90 px-4 backdrop-blur">
+          <Link
+            href="/dashboard"
+            title="Back to dashboard"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <Image src="/logo.png" alt="FlowSmartly" width={140} height={35} className="h-7 w-auto" priority unoptimized />
+          <span className="hidden text-xs text-muted-foreground sm:inline">Studio › Ad Builder</span>
+          {stage && (
+            <span className="flex items-center gap-1.5 text-xs text-brand-500">
+              <FlowActionSpinner size={14} /> {stage.note}
+              {typeof stage.progress === "number" ? ` · ${stage.progress}%` : ""}
+            </span>
+          )}
+          <div className="flex-1" />
+          <Link
+            href="/ad-builder/campaign"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+          >
+            <FolderOpen className="h-3.5 w-3.5" /> My campaigns
+          </Link>
+        </div>
+      )}
+
+      {/* embedded (/home/video): portal actions into the shared focused-view header */}
+      {embedded && headerSlot && createPortal(
+        <>
+          {stage && (
+            <span className="hidden items-center gap-1.5 whitespace-nowrap text-[11.5px] text-brand-500 xl:inline-flex">
+              <FlowActionSpinner size={13} /> {stage.note}{typeof stage.progress === "number" ? ` · ${stage.progress}%` : ""}
+            </span>
+          )}
+          <button onClick={() => { setLibOpen(true); void loadLibrary(); }} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground">
+            <FolderOpen className="h-3.5 w-3.5" /> Library{library.length ? ` · ${library.length}` : ""}
+          </button>
+          <button onClick={() => { window.location.reload(); }} className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-semibold text-white shadow-sm">
+            <Clapperboard className="h-3.5 w-3.5" /> New video
+          </button>
+        </>,
+        headerSlot,
+      )}
+
+      {/* Library overlay (/home/video) — all video projects; click to open on the canvas */}
+      {embedded && libOpen && (
+        <div className="absolute inset-0 z-40 flex flex-col bg-background/97 backdrop-blur">
+          <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+            <div>
+              <h3 className="text-[14px] font-bold leading-tight">Video Library</h3>
+              <p className="text-[11.5px] text-muted-foreground">Your video projects — click one to open it on the canvas.</p>
+            </div>
+            <button onClick={() => setLibOpen(false)} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground">✕</button>
+          </div>
+          <div className="grid flex-1 grid-cols-2 gap-3 overflow-auto p-4 sm:grid-cols-3 md:grid-cols-4">
+            {library.length === 0 ? (
+              <p className="col-span-full py-10 text-center text-[12px] text-muted-foreground">No videos yet — write a brief to start one.</p>
+            ) : (
+              library.map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => {
+                    setLibOpen(false);
+                    void camp.load(v.id).then((s) => {
+                      if (!s) return;
+                      setCostApproved(s.characters.length > 0);
+                      if (s.style) setStyle(s.style);
+                      if (s.durationSeconds) setLengthSec(s.durationSeconds);
+                    });
+                  }}
+                  className="overflow-hidden rounded-xl border border-border bg-card text-left transition hover:border-brand-500/60"
+                >
+                  <div className="relative aspect-video bg-muted">
+                    {v.thumbnailUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={v.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="grid h-full w-full place-items-center text-muted-foreground"><Clapperboard className="h-6 w-6" /></span>
+                    )}
+                  </div>
+                  <div className="p-2">
+                    <p className="truncate text-[12px] font-semibold">{v.title}</p>
+                    <p className="text-[10.5px] text-muted-foreground">{v.status}</p>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* error toast (inline strip) */}
       {shownError && (
@@ -651,7 +737,7 @@ export function AdBuilderCanvas() {
       {/* canvas */}
       <div
         ref={stageRef}
-        className="absolute inset-y-0 left-0 right-0 top-14 cursor-grab touch-none overflow-hidden bg-muted/20"
+        className={`absolute inset-y-0 left-0 cursor-grab touch-none overflow-hidden bg-muted/20 ${embedded ? "top-0 right-0" : "top-14 right-0"}`}
         onPointerDown={onStagePointerDown}
         onPointerMove={onStagePointerMove}
         onPointerUp={onStagePointerUp}
@@ -810,7 +896,7 @@ export function AdBuilderCanvas() {
 
                 {/* on-card generate / regenerate for character + clip nodes */}
                 {(n.kind === "character" || n.kind === "clip") && n.refId && (
-                  <div className="border-t border-border px-2.5 py-2">
+                  <div className="flex gap-1.5 border-t border-border px-2.5 py-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -821,7 +907,7 @@ export function AdBuilderCanvas() {
                         if (n.kind === "character" && n.refId) void onGenerateCharacter(n.refId);
                         else if (n.kind === "clip" && n.refId) void onRenderClip(n.refId);
                       }}
-                      className="h-7 w-full gap-1.5 text-[11px]"
+                      className="h-7 flex-1 gap-1.5 text-[11px]"
                     >
                       {n.status === "generating" ? (
                         <FlowActionSpinner size={12} className="text-current" />
@@ -832,6 +918,19 @@ export function AdBuilderCanvas() {
                       )}
                       {n.thumb ? "Regenerate" : n.kind === "character" ? "Generate image" : "Generate scene"}
                     </Button>
+                    {/* insert a NEW blank scene right after this one (draft-first, free) */}
+                    {n.kind === "clip" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        title="Insert a new scene after this one"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); if (campaignId && n.refId) void camp.addScene(campaignId, n.refId); }}
+                        className="h-7 w-7 shrink-0 p-0"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 )}
 
