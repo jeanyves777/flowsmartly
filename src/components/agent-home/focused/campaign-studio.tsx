@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { Sparkles, CalendarClock, RotateCcw, Check, ImageIcon, Trash2, Plus, Pencil, X, ChevronRight, PanelRight, Film, RefreshCw, Maximize2, Download } from "lucide-react";
+import { Sparkles, CalendarClock, RotateCcw, Check, ImageIcon, Trash2, Plus, Pencil, X, ChevronRight, PanelRight, Film, RefreshCw, Maximize2, Download, Play, Pause } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -77,7 +77,18 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   const [videoType, setVideoType] = useState("reel");
   const [videoSecs, setVideoSecs] = useState(8);
   const [briefOpen, setBriefOpen] = useState(false);
+  // When set, the brief modal is in EDIT ("Improve") mode for this campaignId —
+  // pre-filled with its data; submitting improves it in place instead of creating.
+  const [editId, setEditId] = useState<string | null>(null);
   const [railOpen, setRailOpen] = useState(true);
+  // Control-bar state: bulk action in flight, inline campaign-name edit, delete confirm.
+  const [bulkBusy, setBulkBusy] = useState<"activate" | "pause" | "delete" | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  // The agent is improving the whole campaign in place — poll so the rewritten
+  // captions + prompts stream onto the cards as the background task rewrites them.
+  const [improving, setImproving] = useState(false);
   const [campaignList, setCampaignList] = useState<{ id: string; name: string; status: string; updatedAt?: string }[]>([]);
   // Per-post media generation — drives the in-card loader on the exact post the
   // agent is working on. Cleared when the turn ends (media landed) or on timeout.
@@ -164,6 +175,26 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generating, campaign, refreshKey]);
 
+  // While improving: the count doesn't change (posts are rewritten in place), so
+  // poll on a timer to stream the fresh captions/prompts in, bounded so the header
+  // spinner never sticks. We track the deadline in a ref (not a setTimeout) so the
+  // per-tick reload — which replaces `campaign` — can't keep resetting the timeout.
+  const improveDeadlineRef = useRef(0);
+  useEffect(() => {
+    if (!improving) return;
+    const cid = campaign?.id;
+    if (!cid) return;
+    improveDeadlineRef.current = Date.now() + 120000;
+    let stop = false;
+    const iv = setInterval(() => {
+      if (stop) return;
+      if (Date.now() > improveDeadlineRef.current) { setImproving(false); return; }
+      loadStudio(cid);
+    }, 4000);
+    return () => { stop = true; clearInterval(iv); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [improving]);
+
   // agent turn ended → reload the open campaign so agent edits show (do NOT clear
   // `generating` here — the poll above owns that). Per-post media tools run in the
   // foreground, so once the turn ends the media has landed → clear the per-post
@@ -232,6 +263,66 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
     onAsk(`Regenerate the "${campaign.name}" content campaign (campaignId: ${campaign.id}) with fresh captions${mediaMode !== "none" ? " + media" : ""} — call create_content_campaign again with an improved brief for the same goal. It reopens here.`);
   };
 
+  // ── control bar: act on EVERY post at once (Active / Pause / Delete) ──
+  const bulk = async (action: "activate" | "pause" | "delete") => {
+    if (!campaign || bulkBusy) return;
+    setBulkBusy(action);
+    try {
+      const j = await fetch(`/api/content/campaigns/${campaign.id}/bulk`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }),
+      }).then((r) => r.json()).catch(() => null);
+      if (!j?.success) { toast({ title: "Couldn't update the campaign", description: j?.error?.message || "Try again." }); return; }
+      if (action === "delete") {
+        toast({ title: j.data?.message || "Campaign deleted" });
+        setCampaign(null); setPosts([]); setConfirmDelete(false);
+        loadCampaigns();
+        const next = await newestCampaign();
+        if (next) await openFromLibrary(next); else setBriefOpen(true);
+      } else {
+        toast({ title: action === "activate" ? "Campaign active" : "Campaign paused", description: j.data?.message });
+        await loadStudio(campaign.id);
+        loadCampaigns();
+      }
+    } finally { setBulkBusy(null); }
+  };
+
+  // Inline-rename the campaign (control-bar name input → PATCH).
+  const saveName = async () => {
+    const v = nameDraft.trim();
+    setEditingName(false);
+    if (!campaign || !v || v === campaign.name) return;
+    setCampaign((c) => (c ? { ...c, name: v } : c)); // optimistic
+    const j = await fetch(`/api/content/campaigns/${campaign.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: v }),
+    }).then((r) => r.json()).catch(() => null);
+    if (j?.success) loadCampaigns();
+    else { toast({ title: "Couldn't rename", description: "Try again." }); await loadStudio(campaign.id); }
+  };
+
+  // "Improve" → reopen the brief modal PRE-FILLED with this campaign in edit mode.
+  const openImprove = () => {
+    if (!campaign) return;
+    setEditId(campaign.id);
+    setName(campaign.name);
+    setBrief(campaign.brief || "");
+    setPlatforms(campaign.platforms.length ? campaign.platforms : ["feed"]);
+    if (campaign.tone) setTone(campaign.tone);
+    setBriefOpen(true);
+  };
+
+  // Submit the brief in EDIT mode → agent rewrites the existing posts in place.
+  const improveCampaign = () => {
+    if (!editId || !campaign) return;
+    if (!brief.trim() || !name.trim()) { toast({ title: "Add a name + brief", description: "Tell the agent how to improve the campaign." }); return; }
+    setImproving(true);
+    onAsk(`Improve the "${name.trim()}" content campaign (campaignId: ${editId}). First call propose_plan (rewriting ${Math.max(1, posts.length)} post captions + media prompts — no media rendered) so I can approve, then call improve_content_campaign with campaignId="${editId}", brief="${brief.trim().replace(/"/g, "'")}", tone="${tone}", platforms=${JSON.stringify(platforms)}. Rewrite the EXISTING posts IN PLACE to match the improved brief — do NOT create a new campaign and do NOT generate media. They refresh here in the studio.`);
+    setBriefOpen(false); setEditId(null);
+    toast({ title: "Improving campaign", description: "The agent is rewriting the posts to match your update." });
+  };
+
+  // Close the brief modal, always dropping edit mode so the next open is clean.
+  const closeBrief = () => { setBriefOpen(false); setEditId(null); };
+
   // ── per-post edits (direct API + agent) ──
   const patchPost = async (id: string, body: Record<string, unknown>, ok?: string) => {
     const j = await fetch(`/api/content/posts/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json()).catch(() => null);
@@ -274,6 +365,10 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
 
   const draftCount = posts.filter((p) => p.status === "DRAFT").length;
   const scheduledCount = posts.filter((p) => p.status === "SCHEDULED").length;
+  const pausedCount = posts.filter((p) => p.status?.toUpperCase() === "PAUSED").length;
+  // Live state drives the Active/Pause toggle: any scheduled post = active; else
+  // any paused post = paused; else it's still a draft awaiting activation.
+  const liveState: "active" | "paused" | "draft" = scheduledCount > 0 ? "active" : pausedCount > 0 ? "paused" : "draft";
   const isNew = !target?.campaignId && !campaign;
 
   return (
@@ -293,10 +388,55 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
             <EmptyPlayground onPlan={() => setBriefOpen(true)} />
           ) : campaign ? (
             <div className="px-4 py-5 sm:px-6">
-              <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="text-[20px] font-black">{posts.length} posts</span>
-                <span className="text-[12.5px] text-muted-foreground">{campaign.brief}</span>
-                {generating && <FlowLoader size={14} />}
+              {/* control bar: editable name + posts count + Active/Pause/Improve/Delete
+                  for the WHOLE campaign (the description now lives only in the right rail). */}
+              <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="flex min-w-[180px] flex-1 items-center gap-2">
+                  {editingName ? (
+                    <input
+                      autoFocus
+                      value={nameDraft}
+                      onChange={(e) => setNameDraft(e.target.value)}
+                      onBlur={saveName}
+                      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); else if (e.key === "Escape") { setNameDraft(campaign.name); e.currentTarget.blur(); } }}
+                      className="min-w-0 flex-1 rounded-[8px] border border-brand-500/50 bg-background px-2 py-1 text-[19px] font-black outline-none"
+                    />
+                  ) : (
+                    <button onClick={() => { setNameDraft(campaign.name); setEditingName(true); }} title="Rename campaign" className="group inline-flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-[20px] font-black">{campaign.name}</span>
+                      <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-70" />
+                    </button>
+                  )}
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground">{posts.length} post{posts.length === 1 ? "" : "s"}</span>
+                  {(generating || improving) && <FlowLoader size={14} />}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {/* Active / Pause — controls every post at once */}
+                  <div className="inline-flex overflow-hidden rounded-[10px] border border-border">
+                    <button
+                      onClick={() => bulk("activate")}
+                      disabled={!!bulkBusy || liveState === "active"}
+                      title="Schedule every post to auto-publish"
+                      className={cn("inline-flex items-center gap-1 px-2.5 py-1.5 text-[12px] font-semibold transition disabled:cursor-default", liveState === "active" ? "bg-brand-500/15 text-brand-500" : "text-muted-foreground hover:bg-muted hover:text-foreground")}
+                    >
+                      {bulkBusy === "activate" ? <FlowLoader size={13} /> : <Play className="h-3.5 w-3.5" />} Active
+                    </button>
+                    <button
+                      onClick={() => bulk("pause")}
+                      disabled={!!bulkBusy || liveState !== "active"}
+                      title="Pull every post out of the publish queue"
+                      className={cn("inline-flex items-center gap-1 border-s border-border px-2.5 py-1.5 text-[12px] font-semibold transition disabled:cursor-default disabled:opacity-50", liveState === "paused" ? "bg-amber-500/15 text-amber-500" : "text-muted-foreground hover:bg-muted hover:text-foreground")}
+                    >
+                      {bulkBusy === "pause" ? <FlowLoader size={13} /> : <Pause className="h-3.5 w-3.5" />} Pause
+                    </button>
+                  </div>
+                  <button onClick={openImprove} title="Reopen the brief to improve every post" className="inline-flex items-center gap-1.5 rounded-[10px] border border-brand-500/40 px-2.5 py-1.5 text-[12px] font-semibold text-brand-500 transition hover:bg-brand-500/10">
+                    <Sparkles className="h-3.5 w-3.5" /> Improve
+                  </button>
+                  <button onClick={() => setConfirmDelete(true)} disabled={!!bulkBusy} title="Delete the whole campaign" className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1.5 text-[12px] font-semibold text-rose-500 transition hover:border-rose-500/50 hover:bg-rose-500/5">
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </button>
+                </div>
               </div>
               {/* dotted timeline of scheduled posts */}
               <div className="relative space-y-3 ps-6">
@@ -354,7 +494,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
               {/* Campaigns library */}
               <div className="mb-1.5 flex items-center justify-between">
                 <p className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Campaigns</p>
-                <button onClick={() => { setName(""); setBrief(""); setBriefOpen(true); }} className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-500 hover:underline"><Plus className="h-3 w-3" /> New</button>
+                <button onClick={() => { setEditId(null); setName(""); setBrief(""); setBriefOpen(true); }} className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-500 hover:underline"><Plus className="h-3 w-3" /> New</button>
               </div>
               <div className="space-y-1">
                 {campaignList.length === 0 ? (
@@ -416,13 +556,18 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
       {/* BRIEF — bottom-sheet modal (matches the Lead Studio Search brief) */}
       {briefOpen && (
         <div className="absolute inset-0 z-40">
-          <button aria-label="Close" onClick={() => setBriefOpen(false)} className="absolute inset-0 bg-black/45" />
+          <button aria-label="Close" onClick={closeBrief} className="absolute inset-0 bg-black/45" />
           <div className="absolute inset-x-3 bottom-3 flex max-h-[86%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
             <div className="relative border-b border-border px-5 pb-3 pt-4">
               <span className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full bg-border" />
-              <h4 className="flex items-center gap-2 text-[15px] font-bold"><Sparkles className="h-4 w-4 text-brand-500" /> Campaign brief</h4>
-              <p className="mt-0.5 text-[11.5px] text-muted-foreground">Tell the agent the goal — it drafts a calendar of on-brand posts (captions + images) you review, then approve to auto-publish.</p>
-              <button onClick={() => setBriefOpen(false)} className="absolute end-4 top-4 grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+              {editId && (
+                <div className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-brand-500/10 px-2.5 py-1 text-[11px] font-bold text-brand-500">
+                  <Pencil className="h-3 w-3" /> Editing: {name || "campaign"}
+                </div>
+              )}
+              <h4 className="flex items-center gap-2 text-[15px] font-bold"><Sparkles className="h-4 w-4 text-brand-500" /> {editId ? "Improve campaign" : "Campaign brief"}</h4>
+              <p className="mt-0.5 text-[11.5px] text-muted-foreground">{editId ? "Update the goal, tone or destinations — the agent rewrites every existing post's caption + media prompt in place (nothing new is created and no media is re-rendered)." : "Tell the agent the goal — it drafts a calendar of on-brand posts (captions + images) you review, then approve to auto-publish."}</p>
+              <button onClick={closeBrief} className="absolute end-4 top-4 grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
             </div>
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
               <BriefSuggest kind="campaign" context={brief} onApply={applyCampaignProposal} />
@@ -444,39 +589,45 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
                   </div>
                   {connectedPlatforms.length === 0 && <p className="mt-1 text-[11px] text-muted-foreground">No social accounts connected — you can still post to your feed.</p>}
                 </Field>
-                <Field label="Duration">
-                  <select value={days} onChange={(e) => setDays(Number(e.target.value))} className={FLD}>{DURATIONS.map((d) => <option key={d.v} value={d.v}>{d.label}</option>)}</select>
-                </Field>
-                <Field label="Cadence">
-                  <select value={perWeek} onChange={(e) => setPerWeek(Number(e.target.value))} className={FLD}>{CADENCES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}</select>
-                </Field>
-                <Field label="Content" span>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Chip label="AI images" active={mediaMode === "ai"} onClick={() => setMediaMode("ai")} />
-                    <Chip label="AI video" active={mediaMode === "video"} onClick={() => setMediaMode("video")} />
-                    <Chip label="Mix (image + video)" active={mediaMode === "mix"} onClick={() => setMediaMode("mix")} />
-                    <Chip label="Text-only" active={mediaMode === "none"} onClick={() => setMediaMode("none")} />
-                  </div>
-                  {(mediaMode === "video" || mediaMode === "mix") && (
-                    <p className="mt-1.5 text-[11px] text-amber-500">Video posts cost ~30 credits each — the plan will show the total before you confirm.</p>
-                  )}
-                </Field>
-                {(mediaMode === "video" || mediaMode === "mix") && (
+                {/* Length + cadence + media mode only apply to a NEW campaign —
+                    Improve keeps the existing posts/count/media, so hide them there. */}
+                {!editId && (
                   <>
-                    <Field label="Video style">
-                      <div className="flex flex-wrap gap-1.5">
-                        {[["reel", "Reel"], ["slideshow", "Slideshow"], ["cinematic", "Cinematic"], ["product", "Product"]].map(([v, l]) => (
-                          <Chip key={v} label={l} active={videoType === v} onClick={() => setVideoType(v)} />
-                        ))}
-                      </div>
+                    <Field label="Duration">
+                      <select value={days} onChange={(e) => setDays(Number(e.target.value))} className={FLD}>{DURATIONS.map((d) => <option key={d.v} value={d.v}>{d.label}</option>)}</select>
                     </Field>
-                    <Field label="Video length">
-                      <div className="flex flex-wrap gap-1.5">
-                        {[[8, "~8s"], [15, "~15s"]].map(([v, l]) => (
-                          <Chip key={v} label={l as string} active={videoSecs === v} onClick={() => setVideoSecs(v as number)} />
-                        ))}
-                      </div>
+                    <Field label="Cadence">
+                      <select value={perWeek} onChange={(e) => setPerWeek(Number(e.target.value))} className={FLD}>{CADENCES.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}</select>
                     </Field>
+                    <Field label="Content" span>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Chip label="AI images" active={mediaMode === "ai"} onClick={() => setMediaMode("ai")} />
+                        <Chip label="AI video" active={mediaMode === "video"} onClick={() => setMediaMode("video")} />
+                        <Chip label="Mix (image + video)" active={mediaMode === "mix"} onClick={() => setMediaMode("mix")} />
+                        <Chip label="Text-only" active={mediaMode === "none"} onClick={() => setMediaMode("none")} />
+                      </div>
+                      {(mediaMode === "video" || mediaMode === "mix") && (
+                        <p className="mt-1.5 text-[11px] text-amber-500">Video posts cost ~30 credits each — the plan will show the total before you confirm.</p>
+                      )}
+                    </Field>
+                    {(mediaMode === "video" || mediaMode === "mix") && (
+                      <>
+                        <Field label="Video style">
+                          <div className="flex flex-wrap gap-1.5">
+                            {[["reel", "Reel"], ["slideshow", "Slideshow"], ["cinematic", "Cinematic"], ["product", "Product"]].map(([v, l]) => (
+                              <Chip key={v} label={l} active={videoType === v} onClick={() => setVideoType(v)} />
+                            ))}
+                          </div>
+                        </Field>
+                        <Field label="Video length">
+                          <div className="flex flex-wrap gap-1.5">
+                            {[[8, "~8s"], [15, "~15s"]].map(([v, l]) => (
+                              <Chip key={v} label={l as string} active={videoSecs === v} onClick={() => setVideoSecs(v as number)} />
+                            ))}
+                          </div>
+                        </Field>
+                      </>
+                    )}
                   </>
                 )}
               </div>
@@ -485,12 +636,34 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
               {(() => {
                 const ready = !!name.trim() && !!brief.trim() && platforms.length > 0;
                 return (
-                  <button onClick={startGenerate} disabled={generating || !ready} className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:cursor-not-allowed disabled:opacity-50">
-                    {generating ? <FlowLoader size={15} tone="white" /> : <Sparkles className="h-4 w-4" />} Generate {Math.min(30, Math.max(1, Math.round((days / 7) * perWeek)))} posts
+                  <button onClick={editId ? improveCampaign : startGenerate} disabled={generating || improving || !ready} className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30 disabled:cursor-not-allowed disabled:opacity-50">
+                    {generating || improving ? <FlowLoader size={15} tone="white" /> : <Sparkles className="h-4 w-4" />} {editId ? `Improve ${Math.max(1, posts.length)} post${posts.length === 1 ? "" : "s"}` : `Generate ${Math.min(30, Math.max(1, Math.round((days / 7) * perWeek)))} posts`}
                   </button>
                 );
               })()}
-              <span className="text-[11.5px] text-muted-foreground">{!name.trim() || !brief.trim() ? "Add a campaign name + goal to continue." : platforms.length === 0 ? "Pick at least one destination." : "The agent drafts each post + on-brand media and streams them onto the page."}</span>
+              <span className="text-[11.5px] text-muted-foreground">{!name.trim() || !brief.trim() ? "Add a campaign name + goal to continue." : platforms.length === 0 ? "Pick at least one destination." : editId ? "The agent rewrites every post's caption + media prompt in place." : "The agent drafts each post + on-brand media and streams them onto the page."}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete-whole-campaign confirmation */}
+      {confirmDelete && campaign && (
+        <div className="absolute inset-0 z-50 grid place-items-center p-4">
+          <button aria-label="Cancel" onClick={() => setConfirmDelete(false)} className="absolute inset-0 bg-black/50" />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-rose-500/10 text-rose-500"><Trash2 className="h-4 w-4" /></span>
+              <h4 className="text-[15px] font-bold">Delete this campaign?</h4>
+            </div>
+            <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+              <span className="font-semibold text-foreground">{campaign.name}</span> and all {posts.length} of its post{posts.length === 1 ? "" : "s"} will be removed. Scheduled posts won&apos;t publish. This can&apos;t be undone.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setConfirmDelete(false)} disabled={bulkBusy === "delete"} className="rounded-[10px] border border-border px-3 py-1.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50">Cancel</button>
+              <button onClick={() => bulk("delete")} disabled={bulkBusy === "delete"} className="inline-flex items-center gap-1.5 rounded-[10px] bg-rose-500 px-3.5 py-1.5 text-[12.5px] font-bold text-white hover:bg-rose-600 disabled:opacity-60">
+                {bulkBusy === "delete" ? <FlowLoader size={14} tone="white" /> : <Trash2 className="h-3.5 w-3.5" />} Delete campaign
+              </button>
             </div>
           </div>
         </div>
@@ -584,7 +757,7 @@ function PostCard({ post, onCaption, onPrompt, onReschedule, onRemove, onAiCapti
       <div className="flex items-center gap-2 border-b border-border/70 px-3.5 py-2">
         <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-[11.5px] font-bold">{fmtWhen(post.scheduledAt)}</span>
-        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", st === "SCHEDULED" ? "bg-brand-500/10 text-brand-500" : st === "PUBLISHED" ? "bg-brand-500 text-white" : "bg-muted text-muted-foreground")}>{st === "SCHEDULED" ? "Scheduled" : st === "PUBLISHED" ? "Published" : "Draft"}</span>
+        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", st === "SCHEDULED" ? "bg-brand-500/10 text-brand-500" : st === "PUBLISHED" ? "bg-brand-500 text-white" : st === "PAUSED" ? "bg-amber-500/10 text-amber-500" : "bg-muted text-muted-foreground")}>{st === "SCHEDULED" ? "Scheduled" : st === "PUBLISHED" ? "Published" : st === "PAUSED" ? "Paused" : "Draft"}</span>
         {planned && <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-500">{kind === "video" ? "Video" : "Image"} · not generated</span>}
         <span className="ms-auto flex gap-1">{plats.map((p) => { const m = platMeta(p); return <span key={p} className="grid h-5 w-5 place-items-center rounded-md text-[9px] font-bold text-white" style={{ background: m.bg }}>{m.label}</span>; })}</span>
       </div>
