@@ -10,6 +10,10 @@ import {
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { useMobileChat } from "../mobile-chat-context";
+
+// Mobile "collect via chat" starter (edit + send; the agent gathers the script/voice).
+const AVATAR_STARTER = "Make a 30-second talking-avatar video introducing my brand — [what it should say / the topic].";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -110,6 +114,7 @@ function statusBadge(status: string): { label: string; cls: string; icon: Elemen
 }
 
 export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+  const { isMobile, seedComposer } = useMobileChat();
   const [videos, setVideos] = useState<AvatarVideo[]>([]);
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
@@ -280,7 +285,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   };
   const onPhotoFromLibrary = (url: string) => { setMediaPickerOpen(false); void submitPhoto({ imageUrl: url }, url); };
 
-  const openSheet = () => { setBuildErr(""); setSheetOpen(true); }; // estimate auto-pulls via the effect
+  const openSheet = () => { if (isMobile) { seedComposer(AVATAR_STARTER); return; } setBuildErr(""); setSheetOpen(true); }; // estimate auto-pulls via the effect
   const startNewProject = () => { setProjectId(newProjectId()); openSheet(); }; // top "New video" — fresh project
   const addToProject = () => { openSheet(); }; // canvas "+" — next video in the same project
 

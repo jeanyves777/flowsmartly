@@ -8,6 +8,10 @@ import {
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
+import { useMobileChat } from "../mobile-chat-context";
+
+// Mobile "collect via chat" starter (edit + send; the agent runs the search).
+const LEADS_STARTER = "Find 50 [type of business] in [city, state] with a phone and website, and save them to a new lead list.";
 import { RoiDashboard } from "./roi-dashboard";
 import { LeadsAutomation } from "./leads-automation";
 import { BriefSuggest, type BriefProposal } from "./brief-suggest";
@@ -42,6 +46,8 @@ const SEL = "rounded-[9px] border border-input bg-background px-2.5 py-2 text-[1
 
 export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy, onPitchLead, onOpenPitch }: { refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean; onPitchLead?: (l: SavedLead) => void; onOpenPitch?: (pitchId: string) => void }) {
   const { toast } = useToast();
+  const { isMobile, seedComposer } = useMobileChat();
+  const openLeadBrief = () => { if (isMobile) { seedComposer(LEADS_STARTER); return; } setBriefOpen(true); };
   const [screen, setScreen] = useState<Screen>("find");
   // The menu is controlled from the surface header toggle when `menuOpen` is
   // passed; otherwise it falls back to local state (standalone use).
@@ -237,7 +243,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
       <div className="min-w-0 flex-1 overflow-y-auto px-4 pb-6 pt-3.5 sm:px-5">
         {screen === "find" ? (
           <FindScreen state={findState} results={results} resultList={resultList}
-            onOpenBrief={() => setBriefOpen(true)} onBuild={() => { if (resultList) buildAutomation(resultList); }}
+            onOpenBrief={openLeadBrief} onBuild={() => { if (resultList) buildAutomation(resultList); }}
             enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={() => { if (resultList) enrichAll(results, `in the "${resultList.name}" list`); }} onOpenLead={setDetailLead} />
         ) : screen === "contacts" ? (
           <ContactsScreen leads={allLeads} loaded={loadedLeads} enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={(ls, label) => enrichAll(ls, label)} onOpenLead={setDetailLead} scope={contactScope} onClearScope={() => setContactScope(null)} />
@@ -259,7 +265,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
       {/* RIGHT MENU (collapsible from the surface-header toggle) */}
       {menuOpen && (
         <aside className="hidden w-[236px] shrink-0 flex-col gap-2.5 overflow-y-auto border-s border-border bg-card/40 p-3 lg:flex">
-          <button onClick={() => { setScreen("find"); setBriefOpen(true); }} className="inline-flex items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Find leads</button>
+          <button onClick={() => { setScreen("find"); openLeadBrief(); }} className="inline-flex items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Find leads</button>
           <p className="px-2 pt-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground/70">Workspace</p>
           <nav className="flex flex-col gap-0.5">
             {NAV.map((n) => (

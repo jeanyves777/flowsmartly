@@ -7,6 +7,12 @@ import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { BriefSuggest, type BriefProposal } from "./brief-suggest";
+import { useMobileChat } from "../mobile-chat-context";
+import { isMobileViewport } from "@/hooks/use-is-mobile";
+
+// Mobile "collect via chat" starters (the user edits + sends; the agent then
+// gathers any missing details conversationally).
+const NEW_CAMPAIGN_STARTER = "Plan a content campaign for my brand — about [what it's about + the goal], posting 3× a week for 2 weeks with on-brand AI images.";
 
 /**
  * Campaign Studio — the content-campaign playground (per the approved mock,
@@ -57,6 +63,9 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   target: CampaignTarget | null; onAsk: (p: string) => void; refreshKey?: number; onOpenView?: (key: string) => void;
 }) {
   const { toast } = useToast();
+  const { isMobile, seedComposer } = useMobileChat();
+  // Desktop opens the brief modal; mobile seeds the chat composer instead.
+  const planCampaign = () => { setEditId(null); setName(""); setBrief(""); if (isMobile) seedComposer(NEW_CAMPAIGN_STARTER); else setBriefOpen(true); };
   const [campaign, setCampaign] = useState<CampaignMeta | null>(null);
   const [posts, setPosts] = useState<CampaignPost[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,7 +157,9 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   }, [target, loadStudio]);
 
   // Open the brief modal automatically for a fresh studio (no campaign yet).
-  useEffect(() => { setBriefOpen(!target?.campaignId); }, [target]);
+  // …but never auto-pop a data-fill modal on mobile (there the agent collects
+  // inputs via chat — the empty state's CTA seeds the composer instead).
+  useEffect(() => { setBriefOpen(!target?.campaignId && !isMobileViewport()); }, [target]);
 
   // While generating: adopt the freshly-created campaign, then keep polling so
   // posts stream in live. Clear ONLY when all planned posts have landed (or a
@@ -302,6 +313,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   // "Improve" → reopen the brief modal PRE-FILLED with this campaign in edit mode.
   const openImprove = () => {
     if (!campaign) return;
+    if (isMobile) { seedComposer(`Improve my "${campaign.name}" content campaign — [what to change, e.g. punchier captions, a bolder tone, a stronger CTA].`); return; }
     setEditId(campaign.id);
     setName(campaign.name);
     setBrief(campaign.brief || "");
@@ -385,7 +397,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
               </div>
             </div>
           ) : isNew ? (
-            <EmptyPlayground onPlan={() => setBriefOpen(true)} />
+            <EmptyPlayground onPlan={planCampaign} />
           ) : campaign ? (
             <div className="px-4 py-5 sm:px-6">
               {/* control bar: editable name + posts count + Active/Pause/Improve/Delete
@@ -494,7 +506,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
               {/* Campaigns library */}
               <div className="mb-1.5 flex items-center justify-between">
                 <p className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Campaigns</p>
-                <button onClick={() => { setEditId(null); setName(""); setBrief(""); setBriefOpen(true); }} className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-500 hover:underline"><Plus className="h-3 w-3" /> New</button>
+                <button onClick={planCampaign} className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-500 hover:underline"><Plus className="h-3 w-3" /> New</button>
               </div>
               <div className="space-y-1">
                 {campaignList.length === 0 ? (

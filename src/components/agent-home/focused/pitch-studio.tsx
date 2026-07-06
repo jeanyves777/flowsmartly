@@ -6,6 +6,10 @@ import { FileText, Download, Sparkles, Plus, RotateCcw, X, GripVertical, Chevron
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
+import { useMobileChat } from "../mobile-chat-context";
+
+// Mobile "collect via chat" starter (edit + send; the agent researches + drafts it).
+const PITCH_STARTER = "Draft a branded service proposal for [company / prospect] — [what I'm offering] — using my Brand Kit.";
 import { getProposalTheme, isServiceProposalContent, visibleOnWhite } from "@/lib/pitch/proposal-detail-helpers";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
 import { PitchDocument, Editable } from "./pitch-document";
@@ -31,6 +35,8 @@ const PITCH_TYPES: { id: "deck" | "visual" | "email"; label: string; desc: strin
 ];
 
 export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: PitchTarget | null; onAsk: (p: string) => void; refreshKey?: number }) {
+  const { isMobile, seedComposer } = useMobileChat();
+  const openPitchBrief = () => { if (isMobile) { seedComposer(PITCH_STARTER); return; } setSheetOpen(true); };
   const { toast } = useToast();
   const [pitch, setPitch] = useState<PitchRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -238,7 +244,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
           {isNew ? (<>
             <h3 className="mt-4 text-[15px] font-bold">Draft a new proposal</h3>
             <p className="mx-auto mt-1.5 max-w-sm text-[12.5px] text-muted-foreground">Tell the agent who this is for and what you're offering — it researches them and builds a branded, PDF-ready proposal from your Brand Kit, right here.</p>
-            <button onClick={() => setSheetOpen(true)} className="mt-4 inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
+            <button onClick={openPitchBrief} className="mt-4 inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
           </>) : canGenerate ? (<>
             <h3 className="mt-4 text-[15px] font-bold">Draft a proposal for {displayName}</h3>
             <p className="mt-1.5 text-[12.5px] text-muted-foreground">The agent researches this prospect and builds a branded, PDF-ready proposal from your Brand Kit. Edit every block here and attach it to your outreach.</p>

@@ -10,6 +10,11 @@ import { GENDERS, ACCENTS, STYLES, VOICE_PRESETS, getOpenAIVoice, type VoiceGend
 import { AudioPlayer } from "@/components/voice-studio/audio-player";
 import { VoiceRecorderModal } from "@/components/voice-studio/voice-recorder-modal";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { useMobileChat } from "../mobile-chat-context";
+import { isMobileViewport } from "@/hooks/use-is-mobile";
+
+// Mobile "collect via chat" starter (edit + send; the agent writes the script).
+const VOICE_STARTER = "Write a 60-second professional voiceover script for my brand — about [topic] — then I'll pick the voice.";
 import { AgentWorkingCard } from "./agent-working-card";
 
 /**
@@ -38,6 +43,8 @@ const DURATIONS = [30, 60, 90, 120];
 
 export function FocusedVoice({ refreshKey, onAsk, onOpenView, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; onOpenView?: (key: string) => void; working?: boolean }) {
   const { toast } = useToast();
+  const { isMobile, seedComposer } = useMobileChat();
+  const openVoiceBrief = () => { if (isMobile) { seedComposer(VOICE_STARTER); return; } setBriefOpen(true); };
   const [briefOpen, setBriefOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(true);
   const openedOnce = useRef(false);
@@ -123,7 +130,7 @@ export function FocusedVoice({ refreshKey, onAsk, onOpenView, working }: { refre
 
   // Open the brief automatically on a fresh, empty studio (matches Campaign Studio).
   useEffect(() => {
-    if (!loading && !openedOnce.current) { openedOnce.current = true; if (history.length === 0) setBriefOpen(true); }
+    if (!loading && !openedOnce.current) { openedOnce.current = true; if (history.length === 0 && !isMobileViewport()) setBriefOpen(true); }
   }, [loading, history.length]);
 
   const wordCount = script.trim() ? script.trim().split(/\s+/).length : 0;
@@ -295,7 +302,7 @@ export function FocusedVoice({ refreshKey, onAsk, onOpenView, working }: { refre
             <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h3 className="text-[16px] font-black">Your voiceover</h3>
-                <button onClick={() => { setAudio(null); setBriefOpen(true); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> New voiceover</button>
+                <button onClick={() => { setAudio(null); openVoiceBrief(); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> New voiceover</button>
               </div>
               <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
                 <AudioPlayer audioUrl={audio.url} downloadName={script.trim().slice(0, 40) || "voiceover"} />
@@ -326,7 +333,7 @@ export function FocusedVoice({ refreshKey, onAsk, onOpenView, working }: { refre
                 <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Mic className="h-7 w-7" /></span>
                 <h3 className="mt-4 text-[15px] font-bold">Create a voiceover</h3>
                 <p className="mx-auto mt-1.5 max-w-sm text-[12.5px] text-muted-foreground">Write a script and pick a voice — the agent renders studio-quality audio, right here. Voiceovers save to your Library and Media library.</p>
-                <button onClick={() => setBriefOpen(true)} className="mt-4 inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
+                <button onClick={openVoiceBrief} className="mt-4 inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
               </div>
             </div>
           )}
@@ -343,7 +350,7 @@ export function FocusedVoice({ refreshKey, onAsk, onOpenView, working }: { refre
               {/* Library */}
               <div className="mb-1.5 flex items-center justify-between">
                 <p className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Library</p>
-                <button onClick={() => { setAudio(null); setBriefOpen(true); }} className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-500 hover:underline"><Plus className="h-3 w-3" /> New</button>
+                <button onClick={() => { setAudio(null); openVoiceBrief(); }} className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-500 hover:underline"><Plus className="h-3 w-3" /> New</button>
               </div>
               <div className="space-y-1">
                 {history.length === 0 ? (

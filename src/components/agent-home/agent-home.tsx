@@ -18,6 +18,8 @@ import { BrandMark, BrandWordmark } from "./brand-mark";
 import { LanguageSwitcher } from "./language-switcher";
 import { useHomeAgent, type ConversationSummary } from "./use-home-agent";
 import { AgentNavContext } from "@/components/flow-ai/agent-nav-context";
+import { MobileChatProvider } from "./mobile-chat-context";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { HomeMessageView } from "./home-message";
 import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
@@ -754,6 +756,16 @@ export function AgentHome() {
             : focused === "video" ? (videoOpsRef.current?.getContext() || undefined)
               : undefined;
   const sendAction = (p: string) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
+  // Mobile "collect via chat" bridge: on phones, studios seed the composer with
+  // an editable starter (user edits + sends) instead of opening a data-fill
+  // modal. `seedComposer` fills the focused composer + reveals the chat overlay.
+  const isMobile = useIsMobile();
+  const [composerSeed, setComposerSeed] = useState<{ text: string; nonce: number } | null>(null);
+  const [revealChat, setRevealChat] = useState(0);
+  const seedComposer = useCallback((text: string) => {
+    setComposerSeed((s) => ({ text, nonce: (s?.nonce ?? 0) + 1 }));
+    setRevealChat((n) => n + 1);
+  }, []);
   // A photo SLOT's "Generate" button — drive the agent to generate a contextual
   // photo and drop it into that exact slot (it may ask one clarifying question).
   const sendFillSlot = (layer: { id: string; label?: string; genHint?: string }, doc: DesignDoc) => send(
@@ -793,6 +805,7 @@ export function AgentHome() {
 
   return (
     <AgentNavContext.Provider value={navigateInApp}>
+    <MobileChatProvider value={{ isMobile, seedComposer }}>
     <div
       dir={dir}
       className="flex h-[100dvh] flex-col bg-background text-foreground"
@@ -956,6 +969,7 @@ export function AgentHome() {
               subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "billing" ? "Credits · plan · usage · transactions" : focused === "connections" ? "Connect your social accounts" : fMeta ? fMeta.subtitle : WS_DESC[focused]}
               icon={FIcon}
               agentBusy={sending}
+              revealChat={revealChat}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
               headerActions={focused === "leads" ? (
                 <button onClick={() => setLeadsMenuOpen((v) => !v)} title="Show / hide menu" className="grid h-8 w-8 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground">
@@ -975,7 +989,7 @@ export function AgentHome() {
                     <div ref={bottomRef} />
                   </div>
                   <div className="border-t border-border p-3">
-                    <Composer onSend={(t, sm, atts) => send(t, sm, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { attachments: atts })} sending={sending} placeholder={s.placeholder} autoFocus />
+                    <Composer onSend={(t, sm, atts) => send(t, sm, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { attachments: atts })} sending={sending} placeholder={s.placeholder} autoFocus seed={composerSeed} />
                   </div>
                 </>
               }
@@ -1334,6 +1348,7 @@ export function AgentHome() {
         </div>
       )}
     </div>
+    </MobileChatProvider>
     </AgentNavContext.Provider>
   );
 }
