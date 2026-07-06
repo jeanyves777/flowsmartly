@@ -20,6 +20,7 @@ export function FocusedView({
   onClose,
   headerActions,
   agentBusy,
+  revealChat,
 }: {
   title: string;
   subtitle?: string;
@@ -31,12 +32,19 @@ export function FocusedView({
   headerActions?: ReactNode;
   /** True while the agent is actively working — drives the live status indicator. */
   agentBusy?: boolean;
+  /** Bump to force the mobile chat overlay open (e.g. after seeding the composer). */
+  revealChat?: number;
 }) {
   const [chatW, setChatW] = useState(404);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileChat, setMobileChat] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
+
+  // A seeded composer must become visible on mobile — open the chat overlay.
+  useEffect(() => {
+    if (revealChat) setMobileChat(true);
+  }, [revealChat]);
 
   useEffect(() => {
     const move = (e: MouseEvent) => {

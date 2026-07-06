@@ -11,6 +11,11 @@ import {
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
+import { useMobileChat } from "../mobile-chat-context";
+import { isMobileViewport } from "@/hooks/use-is-mobile";
+
+// Mobile "collect via chat" starter (edit + send; the agent gathers the rest).
+const STORYAD_STARTER = "Create a 30-second cinematic story-ad video for my brand — about [what it's about / the product] — and get it started.";
 
 /**
  * Video studio — a new-design PLAYGROUND (the legacy ad-builder node canvas,
@@ -133,6 +138,7 @@ function clipBadge(status: ClipStatus): { label: string; cls: string; icon: Elem
 }
 
 export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+  const { isMobile, seedComposer } = useMobileChat();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   // Portal the header actions into the FocusedView shell header (#fv-header-slot)
   // so there's ONE top bar instead of a second full-width toolbar under it.
@@ -208,11 +214,11 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
     setSheetOpen(false);
   };
 
-  const openSheet = () => { setSubmitted(false); setSheetOpen(true); };
+  const openSheet = () => { if (isMobile) { seedComposer(STORYAD_STARTER); return; } setSubmitted(false); setSheetOpen(true); };
 
   // Open the brief on a fresh, empty studio (Campaign-Studio pattern).
   useEffect(() => {
-    if (!loading && !openedOnce.current) { openedOnce.current = true; if (campaigns.length === 0) setSheetOpen(true); }
+    if (!loading && !openedOnce.current) { openedOnce.current = true; if (campaigns.length === 0 && !isMobileViewport()) setSheetOpen(true); }
   }, [loading, campaigns.length]);
 
   // Delete a render from the library (optimistic, then reconcile).

@@ -31,11 +31,15 @@ export function Composer({
   sending,
   placeholder,
   autoFocus = false,
+  seed,
 }: {
   onSend: (text: string, superMode: boolean, attachments?: ComposerAttachment[]) => void;
   sending: boolean;
   placeholder: string;
   autoFocus?: boolean;
+  /** Mobile "collect via chat": pre-fill the draft with an editable starter the
+   *  user reviews + sends. `nonce` bumps so re-seeding the SAME text re-applies. */
+  seed?: { text: string; nonce: number } | null;
 }) {
   const [draft, setDraft] = useState("");
   const [modeKey, setModeKey] = useState("standard");
@@ -57,6 +61,23 @@ export function Composer({
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, 120) + "px";
   };
+
+  // Seed the draft (mobile "collect via chat") — fill, focus + place the cursor
+  // at the end so the user can edit before sending. Keyed on nonce so the same
+  // starter can be re-applied.
+  useEffect(() => {
+    if (!seed || !seed.nonce) return;
+    setDraft(seed.text);
+    const el = taRef.current;
+    if (el) {
+      requestAnimationFrame(() => {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+        autosize(el);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed?.nonce]);
 
   useEffect(() => {
     if (!modeOpen) return;

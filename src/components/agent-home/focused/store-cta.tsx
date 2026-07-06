@@ -3,6 +3,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Store, Sparkles, Check, BadgePercent, CreditCard, Wallet, Gift, ArrowLeft, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { useMobileChat } from "../mobile-chat-context";
+
+// Mobile "collect via chat" starter (edit + send; the agent builds the store).
+const STORE_STARTER = "Build me a branded online store called [store name] selling [what you sell], modern style, with a few starter products.";
 
 /**
  * StoreCallToAction — the "no store yet" surface for the Sell workspace. Instead
@@ -39,6 +43,7 @@ export function StoreCallToAction({ onBuild, onTopUp, compact }: { onBuild: (pro
   // The CTA gathers a brief in the UI BEFORE spinning the agent. "Create my
   // store" reveals the inline form; only "Build my store" calls onBuild().
   const [briefing, setBriefing] = useState(false);
+  const { isMobile, seedComposer } = useMobileChat();
   // Live pricing + balance (no hardcoded prices). null = still loading.
   const [cost, setCost] = useState<number | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
@@ -94,7 +99,7 @@ export function StoreCallToAction({ onBuild, onTopUp, compact }: { onBuild: (pro
             {/* charges — transparent, live (no hardcoded prices) */}
             <Charges cost={cost} />
 
-            <button onClick={() => setBriefing(true)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
+            <button onClick={() => { if (isMobile) { seedComposer(STORE_STARTER); return; } setBriefing(true); }} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
               <Sparkles className="h-4 w-4" /> Create my store
             </button>
             <p className="mt-2 text-center text-[11px] text-muted-foreground">No charge until you launch — you confirm before anything bills.</p>

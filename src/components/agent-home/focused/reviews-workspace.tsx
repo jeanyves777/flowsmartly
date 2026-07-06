@@ -8,6 +8,11 @@ import {
   Filter, BadgeCheck, ListTree, RefreshCw, Pencil, Building2, Save, Layers,
   TrendingUp, Lightbulb, Zap, Globe, Inbox, ArrowRight, Coins, BarChart3,
 } from "lucide-react";
+import { useMobileChat } from "../mobile-chat-context";
+import { isMobileViewport } from "@/hooks/use-is-mobile";
+
+// Mobile "collect via chat" starter (edit + send; the agent sets up the listing).
+const REVIEWS_STARTER = "Set up my local review presence for my business and help me request more reviews from recent customers.";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 
@@ -1080,13 +1085,15 @@ const SETUP_BENEFITS: { icon: ElementType; title: string; desc: string }[] = [
 ];
 
 function PresenceSetup({ onActivated }: { onActivated: (p: Profile) => void }) {
+  const { isMobile, seedComposer } = useMobileChat();
+  const openSetup = () => { if (isMobile) { seedComposer(REVIEWS_STARTER); return; } setSetupOpen(true); };
   const [form, setForm] = useState({
     businessName: "", industry: "", phone: "", email: "", website: "",
     address: "", city: "", state: "", zip: "", country: "US", description: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [setupOpen, setSetupOpen] = useState(true); // brief bottom-sheet auto-opens (Campaign-Studio pattern)
+  const [setupOpen, setSetupOpen] = useState(() => !isMobileViewport()); // auto-opens on desktop; mobile seeds the composer instead
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   // Prefill from the Brand Kit (best-effort) so the user rarely types from scratch.
@@ -1167,7 +1174,7 @@ function PresenceSetup({ onActivated }: { onActivated: (p: Profile) => void }) {
             <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><MapPin className="h-7 w-7" /></span>
             <h2 className="mt-3 text-[24px] font-extrabold">Get found everywhere</h2>
             <p className="mx-auto mt-1.5 max-w-xl text-[13.5px] leading-relaxed text-muted-foreground">Build your local presence — listed across the top directories, every review in one inbox, and a live local-SEO health score. Fill in your business once and activate.</p>
-            <button onClick={() => setSetupOpen(true)} className="mt-5 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Set up my presence</button>
+            <button onClick={openSetup} className="mt-5 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-6 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Set up my presence</button>
           </div>
 
           {/* benefits — full-width grid */}
