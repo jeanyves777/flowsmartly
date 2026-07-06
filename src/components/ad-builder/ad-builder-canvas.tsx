@@ -1026,7 +1026,7 @@ export function AdBuilderCanvas({ embedded = false, refreshKey, canvasRef }: {
 
       {/* inspector — bottom sheet (chat-style), for editing + per-node detail */}
       {selected && (
-        <div className="absolute inset-x-0 bottom-0 z-30 mx-auto flex max-h-[70%] w-full flex-col rounded-t-2xl border-t border-border bg-card shadow-[0_-12px_40px_rgba(0,0,0,.18)] sm:max-w-2xl sm:rounded-t-3xl">
+        <div className="absolute inset-x-3 bottom-3 z-30 flex max-h-[86%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
           <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-muted-foreground/30" />
           <div className="flex shrink-0 items-center gap-2 px-4 py-2.5">
             <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold capitalize", KIND_BADGE[selected.kind])}>

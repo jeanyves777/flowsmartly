@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Mic, Sparkles, Loader2, Trash2, Headphones, AudioLines, Plus, Upload, Wand2, Save, X, ChevronRight, PanelRight } from "lucide-react";
+import { Mic, Sparkles, Trash2, Headphones, AudioLines, Plus, Upload, Wand2, Save, X, ChevronRight, PanelRight, UserRound, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
@@ -36,7 +36,7 @@ interface VoiceGenItem {
 const TONES = ["Professional", "Casual", "Persuasive", "Informative", "Storytelling"];
 const DURATIONS = [30, 60, 90, 120];
 
-export function FocusedVoice({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
+export function FocusedVoice({ refreshKey, onAsk, onOpenView, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; onOpenView?: (key: string) => void; working?: boolean }) {
   const { toast } = useToast();
   const [briefOpen, setBriefOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(true);
@@ -298,12 +298,27 @@ export function FocusedVoice({ refreshKey, onAsk, working }: { refreshKey?: numb
                 <button onClick={() => { setAudio(null); setBriefOpen(true); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> New voiceover</button>
               </div>
               <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-                <AudioPlayer audioUrl={audio.url} />
+                <AudioPlayer audioUrl={audio.url} downloadName={script.trim().slice(0, 40) || "voiceover"} />
                 <div className="mt-2.5 flex flex-wrap items-center gap-2">
                   <input value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder="Save this voice as…" className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-[12.5px] outline-none focus:border-brand-500/60" />
-                  <button onClick={saveProfile} disabled={!profileName.trim() || savingProfile} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 disabled:opacity-60">{savingProfile ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save voice</button>
+                  <button onClick={saveProfile} disabled={!profileName.trim() || savingProfile} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 disabled:opacity-60">{savingProfile ? <FlowLoader size={14} /> : <Save className="h-3.5 w-3.5" />} Save voice</button>
                 </div>
               </section>
+
+              {/* Build your AI twin — a strong path from voice → talking avatar. */}
+              {onOpenView && (
+                <button
+                  onClick={() => onOpenView("avatar")}
+                  className="group/twin mt-3 flex w-full items-center gap-3 rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/10 to-brand-500/5 p-4 text-left transition hover:border-violet-500/60"
+                >
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-violet-500/15 text-violet-400"><UserRound className="h-5 w-5" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[13.5px] font-bold">Bring this voice to life — build your AI twin</span>
+                    <span className="block text-[12px] text-muted-foreground">Put your voice on a talking avatar and make videos in Avatar Studio.</span>
+                  </span>
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-violet-500 to-brand-500 px-3.5 py-2 text-[12.5px] font-semibold text-white shadow-sm">Avatar Studio <ArrowRight className="h-3.5 w-3.5 transition group-hover/twin:translate-x-0.5" /></span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid h-full place-items-center p-8 text-center">
@@ -351,10 +366,26 @@ export function FocusedVoice({ refreshKey, onAsk, working }: { refreshKey?: numb
                     {p.type === "cloned" ? <AudioLines className="h-3.5 w-3.5 shrink-0 text-violet-400" /> : <Headphones className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                     <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
                     <button onClick={() => selectProfile(p)} className="shrink-0 rounded-md bg-brand-500/10 px-2 py-0.5 text-[10.5px] font-bold text-brand-500 opacity-0 transition group-hover:opacity-100">Use</button>
+                    <button onClick={() => onOpenView?.("avatar")} title="Use on an avatar" className="shrink-0 text-muted-foreground opacity-0 transition hover:text-violet-500 group-hover:opacity-100"><UserRound className="h-3.5 w-3.5" /></button>
                     <button onClick={() => deleteProfile(p.id)} title="Delete" className="shrink-0 text-muted-foreground opacity-0 transition hover:text-rose-500 group-hover:opacity-100"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                 ))}
               </div>
+
+              {/* Build your AI twin — take these voices onto a talking avatar. */}
+              {onOpenView && (
+                <button
+                  onClick={() => onOpenView("avatar")}
+                  className="group/twin mt-2.5 flex w-full items-center gap-2.5 rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-500/10 to-brand-500/5 p-2.5 text-left transition hover:border-violet-500/60"
+                >
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-violet-500/15 text-violet-400"><UserRound className="h-4 w-4" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[11.5px] font-bold">Build your AI twin</span>
+                    <span className="block text-[10.5px] leading-snug text-muted-foreground">Put your voice on a talking avatar in Avatar Studio</span>
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-violet-400 transition group-hover/twin:translate-x-0.5" />
+                </button>
+              )}
 
               {/* Clone a voice */}
               <p className="mb-1.5 mt-4 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground/70">Clone a voice</p>
@@ -366,7 +397,7 @@ export function FocusedVoice({ refreshKey, onAsk, working }: { refreshKey?: numb
                     <button onClick={() => cloneUpRef.current?.click()} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60"><Upload className="h-3.5 w-3.5" /> Upload</button>
                   </div>
                   {cloneFile && <p className="text-[10.5px] text-emerald-500">✓ Sample ready{cloneProvider === "openai" && !consentFile ? " (consent needed)" : ""}</p>}
-                  <button onClick={cloneVoice} disabled={!cloneFile || !cloneName.trim() || cloning || (cloneProvider === "openai" && !consentFile)} className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-50">{cloning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <>Clone{cloneCost != null && <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-bold">{cloneCost} cr</span>}</>}</button>
+                  <button onClick={cloneVoice} disabled={!cloneFile || !cloneName.trim() || cloning || (cloneProvider === "openai" && !consentFile)} className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-50">{cloning ? <FlowLoader size={14} /> : <>Clone{cloneCost != null && <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-bold">{cloneCost} cr</span>}</>}</button>
                   <input ref={cloneUpRef} type="file" accept="audio/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) setCloneFile(f); e.target.value = ""; }} />
                 </div>
               ) : (
@@ -410,7 +441,7 @@ export function FocusedVoice({ refreshKey, onAsk, working }: { refreshKey?: numb
                       <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="What's it about? e.g. “a 30-sec promo for our new managed-IT plan”" className="w-full rounded-lg border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
                       <div><p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Tone</p><div className="flex flex-wrap gap-1.5">{TONES.map((t) => <Chip key={t} on={tone === t} onClick={() => setTone(t)}>{t}</Chip>)}</div></div>
                       <div><p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Length</p><div className="flex flex-wrap gap-1.5">{DURATIONS.map((d) => <Chip key={d} on={duration === d} onClick={() => setDuration(d)}>{d}s</Chip>)}</div></div>
-                      <button onClick={draftScript} disabled={!topic.trim() || genScript || scriptCost == null} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 disabled:opacity-60">{genScript ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5 text-brand-500" />} Draft my script</button>
+                      <button onClick={draftScript} disabled={!topic.trim() || genScript || scriptCost == null} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 disabled:opacity-60">{genScript ? <FlowLoader size={14} /> : <Wand2 className="h-3.5 w-3.5 text-brand-500" />} Draft my script</button>
                     </div>
                   )}
                 </div>

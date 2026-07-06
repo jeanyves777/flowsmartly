@@ -331,15 +331,15 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
       {/* Brief bottom-sheet — the system brief modal, loads up from the bottom (matches Video/Avatar studios) */}
       {isNew && sheetOpen && (
         <>
-          <button aria-label="Close brief" onClick={() => setSheetOpen(false)} className="absolute inset-0 z-20 cursor-default bg-black/30 animate-in fade-in" />
-          <div className="absolute inset-x-0 bottom-0 z-30 mx-auto w-full max-w-2xl rounded-t-2xl border border-border bg-card shadow-2xl animate-in slide-in-from-bottom-8 duration-200">
+          <button aria-label="Close brief" onClick={() => setSheetOpen(false)} className="absolute inset-0 z-20 cursor-default bg-black/45 animate-in fade-in" />
+          <div className="absolute inset-x-3 bottom-3 z-30 flex max-h-[86%] flex-col rounded-2xl border border-border bg-card shadow-2xl animate-in slide-in-from-bottom-8 duration-200 sm:inset-x-5 sm:bottom-4">
             <div className="relative flex items-center gap-2 px-3.5 pb-1.5 pt-3">
               <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
               <span className="rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-brand-500">Brief</span>
               <span className="text-[11px] text-muted-foreground">new proposal</span>
               <button onClick={() => setSheetOpen(false)} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
             </div>
-            <div className="max-h-[52vh] overflow-y-auto px-3.5 pb-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-4">
               <label className="mb-1 block text-[11.5px] font-semibold">Who’s it for &amp; what are you offering?</label>
               <textarea autoFocus value={newBrief} onChange={(e) => setNewBrief(e.target.value)} rows={3} placeholder="e.g. A proposal for Riverside Dental offering our social-media management + monthly content package." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" />
               <div className="mt-2.5"><BriefSuggest kind="proposal" onApply={(p) => { if (typeof p.brief === "string" && p.brief.trim()) setNewBrief(p.brief.trim()); }} /></div>
