@@ -756,6 +756,7 @@ export function AgentHome() {
             : focused === "video" ? (videoOpsRef.current?.getContext() || undefined)
               : undefined;
   const sendAction = (p: string) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
+  const sendActionFiles = (p: string, atts: { dataUrl?: string; url?: string; name: string }[]) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true, attachments: atts });
   // Mobile "collect via chat" bridge: on phones, studios seed the composer with
   // an editable starter (user edits + sends) instead of opening a data-fill
   // modal. `seedComposer` fills the focused composer + reveals the chat overlay.
@@ -1152,7 +1153,7 @@ export function AgentHome() {
                 ) : focused === "web" ? (
                   <FocusedWeb onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "portfolio" ? (
-                  <FocusedPortfolio onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
+                  <FocusedPortfolio onAsk={sendAction} onAskFiles={sendActionFiles} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "landing" ? (
                   <FocusedLanding onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "outreach" ? (
