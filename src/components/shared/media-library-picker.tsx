@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Search, Image as ImageIcon, Video, FolderOpen, Check, ChevronLeft, ChevronRight, Play, FileText, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -77,8 +77,12 @@ export function MediaLibraryPicker({
   const mediaLabel = isVideoMode ? "video" : "file";
   const displayTitle = title || (isVideoMode ? "Select Video" : "Select from Media Library");
 
-  // Map filterTypes to API type param
-  const getApiTypeParam = useCallback((): string => {
+  // Map filterTypes → API `type` param. Keyed on a STABLE string (join) so that
+  // an inline `filterTypes` array prop / the `= ["image"]` default (a fresh array
+  // every render) doesn't churn the fetch callback and spin the picker in an
+  // infinite reload loop (the "shaking" empty grid).
+  const filterKey = filterTypes.join(",");
+  const apiType = useMemo(() => {
     const typeMap: Record<string, string> = {
       image: "image",
       video: "video",
@@ -90,11 +94,11 @@ export function MediaLibraryPicker({
       webp: "image",
     };
     const dbTypes = new Set<string>();
-    for (const ft of filterTypes) {
+    for (const ft of filterKey ? filterKey.split(",") : []) {
       if (typeMap[ft]) dbTypes.add(typeMap[ft]);
     }
     return Array.from(dbTypes).join(",");
-  }, [filterTypes]);
+  }, [filterKey]);
 
   // Fetch media files
   const fetchFiles = useCallback(async () => {
@@ -105,7 +109,6 @@ export function MediaLibraryPicker({
         page: page.toString(),
         limit: limit.toString(),
       });
-      const apiType = getApiTypeParam();
       if (apiType) params.set("type", apiType);
       if (searchQuery) params.set("search", searchQuery);
       if (activeFolderId) params.set("folderId", activeFolderId);
@@ -123,7 +126,7 @@ export function MediaLibraryPicker({
     } finally {
       setIsLoading(false);
     }
-  }, [open, page, searchQuery, activeFolderId, getApiTypeParam]);
+  }, [open, page, searchQuery, activeFolderId, apiType]);
 
   // Fetch folders
   const fetchFolders = useCallback(async () => {
