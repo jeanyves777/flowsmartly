@@ -711,9 +711,9 @@ function SumRow({ label, value }: { label: string; value: string }) {
 
 function ProductPicker({ products, selected, onPick, onClose }: { products: ProductOption[]; selected: string | null; onPick: (id: string) => void; onClose: () => void }) {
   return (
-    <div className="absolute inset-0 z-50 flex justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50" />
-      <div className="absolute bottom-0 flex max-h-[80%] w-full max-w-[760px] flex-col rounded-t-[18px] border border-b-0 border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="absolute inset-0 z-40" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/45" />
+      <div className="absolute inset-x-3 bottom-3 flex max-h-[86%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4" onClick={(e) => e.stopPropagation()}>
         <div className="relative flex items-center gap-2 px-4 pb-2 pt-4">
           <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
           <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold"><Package className="h-4 w-4 text-brand-500" /> Pick a product to advertise</span>

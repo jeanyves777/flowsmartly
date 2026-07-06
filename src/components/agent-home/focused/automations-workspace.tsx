@@ -581,9 +581,9 @@ const SHEET_FIELD = "w-full rounded-[10px] border border-input bg-background px-
 function StepSheet({ step, index, isFirst, onPatch, onClose }: { step: FlowStep; index: number; isFirst: boolean; onPatch: (p: Partial<FlowStep>) => void; onClose: () => void }) {
   const insertMerge = (f: string) => onPatch({ msg: `${step.msg}${step.msg && !step.msg.endsWith(" ") ? " " : ""}{{${f}}}` });
   return (
-    <div className="absolute inset-0 z-50 flex justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50" />
-      <div className="absolute bottom-0 flex max-h-[80%] w-full max-w-[720px] flex-col rounded-t-[18px] border border-b-0 border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="absolute inset-0 z-40" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/45" />
+      <div className="absolute inset-x-3 bottom-3 flex max-h-[86%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4" onClick={(e) => e.stopPropagation()}>
         <div className="relative flex items-center gap-2 px-4 pb-2 pt-4">
           <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
           <span className="rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-brand-500">Step {index}</span>
@@ -661,9 +661,9 @@ function AudiencePicker({ mode, contacts, lists, single, selected, segment, onPi
   useEffect(() => { const t = setTimeout(() => onSearch(q), 250); return () => clearTimeout(t); }, [q, onSearch]);
   const title = mode === "segment" ? "Choose a segment" : mode === "single" ? "Choose a contact" : "Select contacts";
   return (
-    <div className="absolute inset-0 z-50 flex justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/50" />
-      <div className="absolute bottom-0 flex max-h-[80%] w-full max-w-[720px] flex-col rounded-t-[18px] border border-b-0 border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="absolute inset-0 z-40" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/45" />
+      <div className="absolute inset-x-3 bottom-3 flex max-h-[86%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4" onClick={(e) => e.stopPropagation()}>
         <div className="relative flex items-center gap-2 px-4 pb-2 pt-4">
           <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
           <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold"><Target className="h-4 w-4 text-brand-500" /> {title}</span>
