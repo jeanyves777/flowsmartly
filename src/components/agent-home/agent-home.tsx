@@ -204,7 +204,7 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
     case "sms":
       return `The user is on the **SMS** surface (SMS campaigns/blasts). Help them create or send an SMS blast and check delivery.`;
     case "whatsapp":
-      return `The user is on the **WhatsApp** surface (broadcasts/automations). Help them set up WhatsApp messaging.`;
+      return `The user is on the **WhatsApp** surface. When they describe what their WhatsApp AI assistant should do (its goal, tone, what it knows, whether it qualifies leads, books appointments, or hands off to a human) or say "turn it on/off", use configure_whatsapp_agent to set it up on their behalf — infer the fields from their words, don't hand them a checklist.`;
     case "teams":
       return `The user is on the **Teams** surface (members + invites). Help them invite or manage teammates and roles.`;
     case "referrals":

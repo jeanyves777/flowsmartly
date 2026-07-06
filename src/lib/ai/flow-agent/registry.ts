@@ -146,6 +146,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { fulfillOrder } = await import("./tools/fulfill-order");
   const { listConnectedSocials } = await import("./tools/list-connected-socials");
   const { setupLocalPresence } = await import("./tools/setup-local-presence");
+  const { configureWhatsappAgent } = await import("./tools/configure-whatsapp-agent");
   const { updateBusinessListing } = await import("./tools/update-business-listing");
   const { respondToReview } = await import("./tools/respond-to-review");
   const { remember } = await import("./tools/remember");
@@ -232,6 +233,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(fulfillOrder);
   flowAgentTools.register(listConnectedSocials);
   flowAgentTools.register(setupLocalPresence);
+  flowAgentTools.register(configureWhatsappAgent);
   flowAgentTools.register(updateBusinessListing);
   flowAgentTools.register(respondToReview);
   flowAgentTools.register(remember);
