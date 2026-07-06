@@ -247,11 +247,11 @@ export const FEATURE_CATALOG: FeatureEntry[] = [
   {
     id: "website-builder",
     title: "Website builder",
-    description: "AI-generated multi-page marketing website with editor + hosting. The agent builds it for you via build_website.",
-    route: "/websites",
+    description: "AI-generated multi-page marketing website with a full studio editor + hosting. The agent builds it (build_website), reads it (get_website_content), and edits or redesigns it (edit_website).",
+    route: "/home/web",
     plans: null,
-    tools: ["build_website"],
-    keywords: ["website", "site", "landing", "page", "marketing", "build a website", "make me a site", "web page"],
+    tools: ["build_website", "get_website_content", "edit_website", "update_website"],
+    keywords: ["website", "site", "landing", "page", "marketing", "build a website", "make me a site", "web page", "edit my site", "change my website"],
     category: "ecommerce",
   },
 

@@ -3,7 +3,8 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { buildSite, deploySite, getSiteDir, buildSiteV3, deploySiteV3 } from "@/lib/website/site-builder";
+import { getSiteDir } from "@/lib/website/site-builder";
+import { rebuildAndDeploy } from "@/lib/website/site-editor";
 
 /**
  * POST /api/websites/[id]/rebuild
@@ -98,33 +99,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
-    // Build and deploy in background using correct builder for the site version
-    const isV3 = website.generatorVersion === "v3";
-    (async () => {
-      if (isV3) {
-        const buildResult = await buildSiteV3(id);
-        if (buildResult.success) await deploySiteV3(id, website.slug);
-      } else {
-        const buildResult = await buildSite(id);
-        if (buildResult.success) {
-          await deploySite(id, website.slug);
-          // Update page count from output
-          const outputDir = process.platform === "win32"
-            ? join(siteDir, "..", "..", "sites-output", website.slug)
-            : `/var/www/flowsmartly/sites-output/${website.slug}`;
-          try {
-            const { readdirSync } = await import("fs");
-            const htmlFiles = readdirSync(outputDir).filter(
-              (f: string) => f.endsWith(".html") && f !== "404.html" && f !== "_error.html"
-            );
-            await prisma.website.update({
-              where: { id },
-              data: { pageCount: htmlFiles.length },
-            });
-          } catch {}
-        }
-      }
-    })().catch((err) => console.error("[Rebuild] Failed:", err));
+    // Build + deploy in the background (fire-and-forget) via the shared engine —
+    // same build/deploy path the editor and the flow-agent use.
+    rebuildAndDeploy({ id, slug: website.slug, generatedPath: siteDir, generatorVersion: website.generatorVersion })
+      .catch((err) => console.error("[Rebuild] Failed:", err));
 
     return NextResponse.json({ success: true, message: "Syncing data and rebuilding..." });
   } catch (err) {

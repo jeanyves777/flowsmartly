@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { AgentWorkingCard } from "./agent-working-card";
+import { WebsiteStudio } from "./website-studio";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -38,6 +39,7 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView, working }: { refresh
   const [sites, setSites] = useState<Website[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [studioId, setStudioId] = useState<string | null>(null);
   const [building, setBuilding] = useState(false);
   const [armed, setArmed] = useState(false);
   const prevCount = useRef(0);
@@ -83,6 +85,13 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView, working }: { refresh
     if (armed && sites.length > prevCount.current) setArmed(false);
     prevCount.current = sites.length;
   }, [sites.length, armed]);
+
+  // Studio mode — the full editor for one site. Renders full-bleed (it has its
+  // own layout); back returns to the list and refreshes it (name/publish may
+  // have changed). This replaces the legacy /websites/[id]/edit page.
+  if (studioId) {
+    return <WebsiteStudio siteId={studioId} onBack={() => { setStudioId(null); load(); }} onOpenView={onOpenView} onAsk={onAsk} />;
+  }
 
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your websites…" /></div>;
@@ -159,6 +168,7 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView, working }: { refresh
                     onChanged={load}
                     onBuildStarted={startPoll}
                     onOpenView={onOpenView}
+                    onOpenStudio={() => setStudioId(s.id)}
                   />
                 ))}
               </div>
@@ -259,13 +269,14 @@ function WebsiteBuilder({ onCancel, onBuild }: { onCancel: () => void; onBuild: 
 /* ── Website row (collapsed summary + expandable detail/edit) ─────────────── */
 type Confirm = null | "delete" | "publish";
 
-function SiteRow({ site, open, onToggle, onChanged, onBuildStarted, onOpenView }: {
+function SiteRow({ site, open, onToggle, onChanged, onBuildStarted, onOpenView, onOpenStudio }: {
   site: Website;
   open: boolean;
   onToggle: () => void;
   onChanged: () => Promise<Website[]>;
   onBuildStarted: () => void;
   onOpenView?: (key: string) => void;
+  onOpenStudio: () => void;
 }) {
   const [busy, setBusy] = useState<null | "rebuild" | "delete" | "publish">(null);
   const [confirm, setConfirm] = useState<Confirm>(null);
@@ -338,6 +349,7 @@ function SiteRow({ site, open, onToggle, onChanged, onBuildStarted, onOpenView }
         {site.customDomain && (
           <a href={`https://${site.customDomain}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><ExternalLink className="h-3.5 w-3.5" /> Visit</a>
         )}
+        <button onClick={onOpenStudio} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Pencil className="h-3.5 w-3.5" /> Open studio</button>
         <button onClick={onToggle} className="grid h-8 w-8 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground" aria-label="Toggle details">
           <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
         </button>
