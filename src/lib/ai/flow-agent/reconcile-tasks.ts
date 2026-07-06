@@ -217,6 +217,57 @@ export interface RecoveryResult {
 }
 
 /**
+ * Watchdog for the fire-and-forget CartoonVideo renders (story-ad movie / campaign,
+ * avatar video). They run IN-PROCESS (setImmediate) and are ABANDONED when the
+ * worker restarts — every deploy pm2-reloads — leaving the row orphaned in a
+ * RENDERING status (e.g. progress 63) with no code left to finish or fail it, so
+ * the UI shows an endless "…still rendering". A LIVE render bumps `updatedAt` every
+ * few seconds (progress heartbeat), so a row untouched for STALE_MIN is definitively
+ * dead: mark it FAILED and refund the credits. Only touches active RENDER states —
+ * never the draft / awaiting-approval states of the review-first flow.
+ */
+async function recoverStuckCartoonRenders(): Promise<{ scanned: number; failed: number }> {
+  const STALE_MIN = 20;
+  const cutoff = new Date(Date.now() - STALE_MIN * 60_000);
+  const stuck = await prisma.cartoonVideo.findMany({
+    where: {
+      status: { in: ["PENDING", "PROCESSING", "COMPOSITING"] }, // NOT drafts/AWAITING_APPROVAL/etc.
+      updatedAt: { lt: cutoff },
+      animationType: { in: ["story_ad_movie", "story_ad_campaign", "avatar_video"] },
+    },
+    select: { id: true, userId: true, creditsCost: true, animationType: true },
+    take: 50,
+  }).catch(() => [] as { id: string; userId: string; creditsCost: number; animationType: string }[]);
+
+  let failed = 0;
+  for (const row of stuck) {
+    // Flip atomically so only ONE cron run fails+refunds (idempotent, no double refund).
+    const flipped = await prisma.cartoonVideo.updateMany({
+      where: { id: row.id, status: { in: ["PENDING", "PROCESSING", "COMPOSITING"] } },
+      data: {
+        status: "FAILED",
+        currentStep: "Interrupted — refunded",
+        errorMessage: "The render was interrupted (the app updated mid-render). Your credits were refunded — please start it again.",
+      },
+    }).catch(() => ({ count: 0 }));
+    if (flipped.count === 0) continue; // another run already handled it
+    failed++;
+    if (row.creditsCost > 0) {
+      await creditService.addCredits({
+        userId: row.userId,
+        amount: row.creditsCost,
+        type: "REFUND",
+        description: `Refund: ${row.animationType} render interrupted`,
+        referenceType: "cartoon_video",
+        referenceId: row.id,
+      }).catch((e) => console.error("[reconcile-tasks] stuck-render refund failed:", e));
+    }
+  }
+  if (failed) console.log(`[reconcile-tasks] stuck-render watchdog: failed + refunded ${failed} orphaned render(s)`);
+  return { scanned: stuck.length, failed };
+}
+
+/**
  * Walk orphaned tasks. Video tasks with a provider handle are RESUMED; tasks
  * with no handle (or non-video) that have been stuck too long are failed.
  */
@@ -269,6 +320,13 @@ export async function runTaskRecovery(): Promise<RecoveryResult> {
         result.stillPending++;
       }
     }
+
+    // Safety net for the in-process CartoonVideo renders the AgentTask loop above
+    // doesn't cover (story-ad movie/campaign, avatar video) — fail+refund any left
+    // orphaned by a worker restart so the UI never sits at an endless % forever.
+    const stuckRenders = await recoverStuckCartoonRenders();
+    result.scanned += stuckRenders.scanned;
+    result.failed += stuckRenders.failed;
 
     if (result.recovered || result.failed) {
       console.log(
