@@ -112,7 +112,9 @@ export async function generateBrandedImage(
         value: brandKit.uniqueValue || null,
         products: parseJson<unknown[]>(brandKit.products, []),
         keywords: parseJson<unknown[]>(brandKit.keywords, []),
-        hashtags: parseJson<unknown[]>(brandKit.hashtags, []),
+        // hashtags are DELIBERATELY omitted — they belong in the social CAPTION,
+        // never rendered on the image. (They used to leak in via this serialized
+        // brand-identity JSON and print as literal "#Tag" text on the design.)
         // NOTE: color NAMES only (no raw hex) so the model can't render the hex
         // as literal text on the design. Real hex still flows via visualBody.brandColors.
         palette,
@@ -138,10 +140,10 @@ export async function generateBrandedImage(
     ? `Show the brand name "${brandKit.name}" as a clear header at the top.`
     : null;
   const contactRule = contactLine
-    ? `Include these REAL contact details, copied exactly (never invent): ${contactLine}.`
+    ? `Include these REAL contact details, copied exactly (never invent), laid out as ONE clean footer bar (a slim contrasting strip, items separated by thin dividers or small line icons, evenly spaced and legible): ${contactLine}.`
     : null;
   const antiInventionPolicy =
-    "Render ONLY the messaging, names, dates, and visuals provided. Do not invent products, people, prices, dates, claims, or testimonials.";
+    "Render ONLY the messaging, names, dates, and visuals provided. Do not invent products, people, prices, dates, claims, or testimonials. Do NOT render any hashtags (#…) anywhere on the image.";
 
   const imagePrompt = withLanguagePrefix(
     [
