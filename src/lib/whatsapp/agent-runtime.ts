@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { ai } from "@/lib/ai/client";
+import { getAgentModel } from "@/lib/ai/agent-model";
 import {
   parseWhatsAppAgentSettings,
   WHATSAPP_AGENT_ACTION_TYPE,
@@ -64,9 +65,12 @@ export async function generateWhatsAppAgentReply(input: GenerateWhatsAppAgentRep
   }
 
   try {
+    // Respect the central, admin-editable model config (no hardcoded model);
+    // the shared client further normalizes premium models to Haiku.
+    const model = await getAgentModel();
     const reply = await ai.generateConversation(history, {
       systemPrompt: buildSystemPrompt(settings),
-      model: process.env.WHATSAPP_AGENT_MODEL, // normalized to Haiku by the client
+      model,
       maxTokens: 400,
       temperature: 0.4,
     });
