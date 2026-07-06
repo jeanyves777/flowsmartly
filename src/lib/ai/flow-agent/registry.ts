@@ -124,6 +124,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { getCalendar } = await import("./tools/get-calendar");
   const { updateAutomation } = await import("./tools/update-automation");
   const { getCreditsHistory } = await import("./tools/get-credits-history");
+  const { buyCredits } = await import("./tools/buy-credits");
   const { setPreferredLanguage } = await import("./tools/set-preferred-language");
   const { importContactsCsv } = await import("./tools/import-contacts-csv");
   const { deletePost } = await import("./tools/delete-post");
@@ -211,6 +212,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(getCalendar);
   flowAgentTools.register(updateAutomation);
   flowAgentTools.register(getCreditsHistory);
+  flowAgentTools.register(buyCredits);
   flowAgentTools.register(setPreferredLanguage);
   flowAgentTools.register(importContactsCsv);
   flowAgentTools.register(deletePost);

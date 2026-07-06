@@ -522,9 +522,11 @@ export function PlanProposalCard({
             ))}
           </ol>
         )}
-        <div className="text-[11px] text-muted-foreground border-t border-border pt-2">
-          Estimated cost: <span className="font-semibold text-foreground">{proposal.totalCreditCost} credits</span>
-        </div>
+        {proposal.totalCreditCost > 0 && (
+          <div className="text-[11px] text-muted-foreground border-t border-border pt-2">
+            Estimated cost: <span className="font-semibold text-foreground">{proposal.totalCreditCost} credits</span>
+          </div>
+        )}
       </div>
       {(showButtons || processing) && (
         <div className="px-3.5 py-2.5 bg-muted/40 flex items-center gap-2 border-t border-border">

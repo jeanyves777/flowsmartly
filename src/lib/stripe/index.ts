@@ -203,6 +203,9 @@ export async function createCreditPaymentIntent(params: {
   packageId: string;
   customerId: string;
   paymentMethodId: string;
+  /** true for a merchant-initiated charge on a saved card (e.g. the in-chat agent
+   *  top-up). If the card needs 3DS, Stripe throws `authentication_required`. */
+  offSession?: boolean;
 }) {
   if (!stripe) {
     throw new Error("Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.");
@@ -222,6 +225,7 @@ export async function createCreditPaymentIntent(params: {
     customer: params.customerId,
     payment_method: params.paymentMethodId,
     confirm: true,
+    off_session: params.offSession ?? false,
     automatic_payment_methods: {
       enabled: true,
       allow_redirects: "never",
@@ -240,6 +244,65 @@ export async function createCreditPaymentIntent(params: {
     status: paymentIntent.status,
     paymentIntentId: paymentIntent.id,
   };
+}
+
+// ── PaymentIntent for a CUSTOM credit top-up (agent inline purchase) ──
+
+export async function createCustomCreditPaymentIntent(params: {
+  userId: string;
+  customerId: string;
+  paymentMethodId: string;
+  credits: number;
+  priceCents: number;
+  offSession?: boolean;
+}) {
+  if (!stripe) {
+    throw new Error("Stripe is not configured. Please set STRIPE_SECRET_KEY environment variable.");
+  }
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: params.priceCents,
+    currency: "usd",
+    customer: params.customerId,
+    payment_method: params.paymentMethodId,
+    confirm: true,
+    off_session: params.offSession ?? false,
+    automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+    metadata: {
+      userId: params.userId,
+      packageId: "custom",
+      credits: String(params.credits),
+      bonus: "0",
+      type: "credit_purchase",
+    },
+  });
+  return {
+    clientSecret: paymentIntent.client_secret,
+    status: paymentIntent.status,
+    paymentIntentId: paymentIntent.id,
+  };
+}
+
+// ── The user's DEFAULT saved card (for an inline agent charge) ──
+
+export async function getDefaultPaymentMethod(
+  customerId: string,
+): Promise<{ id: string; brand: string; last4: string } | null> {
+  if (!stripe) return null;
+  try {
+    const list = await stripe.paymentMethods.list({ customer: customerId, type: "card" });
+    if (list.data.length === 0) return null;
+    let defaultPm: string | null = null;
+    try {
+      const customer = await stripe.customers.retrieve(customerId);
+      if (customer && !("deleted" in customer && customer.deleted)) {
+        defaultPm = ((customer as Stripe.Customer).invoice_settings?.default_payment_method as string | null) ?? null;
+      }
+    } catch { /* fall back to first card */ }
+    const chosen = list.data.find((pm) => pm.id === defaultPm) ?? list.data[0];
+    return { id: chosen.id, brand: chosen.card?.brand || "card", last4: chosen.card?.last4 || "????" };
+  } catch {
+    return null;
+  }
 }
 
 // ── Create Subscription inline (no redirect) ──

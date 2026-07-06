@@ -144,12 +144,12 @@ export function CreditPurchaseModal() {
   const handleBuyNow = () => {
     const pkg = selectedPkg || recommendedPkg?.id;
     closeCreditPurchaseModal();
-    router.push(`/buy-credits${pkg ? `?package=${pkg}` : ""}`);
+    router.push(`/home/credits${pkg ? `?package=${pkg}` : ""}`);
   };
 
   const handleUpgrade = () => {
     closeCreditPurchaseModal();
-    router.push("/settings/upgrade");
+    router.push("/home/plans");
   };
 
   const handleClose = () => {
