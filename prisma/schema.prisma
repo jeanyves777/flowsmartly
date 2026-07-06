@@ -155,6 +155,7 @@ model User {
   userFeatures          UserFeature[]
   emailTemplates        EmailTemplate[]
   websites              Website[]
+  portfolios            Portfolio[]
   websiteBlogPosts      WebsiteBlogPost[]
   websiteDomains        WebsiteDomain[]
   feedbackReports       FeedbackReport[]
@@ -1312,6 +1313,7 @@ model BrandKit {
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   emailTemplates EmailTemplate[]
   websites       Website[]
+  portfolios     Portfolio[]
 
   @@index([userId])
   @@index([isDefault])
@@ -5428,6 +5430,106 @@ model Website {
   @@index([slug])
   @@index([customDomain])
   @@index([status])
+}
+
+// ── Portfolio / Digital Resume Studio ────────────────────────────────────────
+// A lightweight, server-rendered public site — a business PORTFOLIO or a
+// personal digital RESUME. Content is structured JSON (sections) rendered by
+// (public)/pf/[slug]. Deliberately NOT the heavy Website generator (V2 file-gen
+// / V3 SSR): a portfolio is data + a server component, which also lets us own
+// the visitor email-verification gate. Reuses domains manager, QRCodeDisplay,
+// getUserBrand, creditService, and the flow-agent tool/registry pattern.
+model Portfolio {
+  id         String  @id @default(cuid())
+  userId     String
+  brandKitId String?
+
+  // Kind + identity
+  kind         String  @default("business") // "business" | "personal"
+  name         String // site name OR the person's full name
+  slug         String  @unique
+  customDomain String?
+
+  // Header content
+  headline    String? // role / tagline (e.g. "Senior Product Designer")
+  subheadline String?
+  bio         String? // longer intro paragraph
+  avatarUrl   String? // portrait (personal) — S3
+  logoUrl     String? // logo / monogram (business) — S3
+
+  // Hero media — some styles show a video (or image) full-bleed in the hero,
+  // for a "digital advertisement portfolio" feel rather than a plain website.
+  heroMediaType String? // "image" | "video" | "none"
+  heroMediaUrl  String? // S3 URL of the hero image/video
+  heroPosterUrl String? // poster frame shown before a hero video plays
+
+  // Theme (JSON): { accent, accent2, font, template }
+  theme String @default("{}")
+
+  // Sections (JSON array of { id, type, title, visible, data })
+  sections String @default("[]")
+
+  // Contact (JSON): { email, phone, location, website, links: [{label,url}] }
+  contact String @default("{}")
+
+  // Downloadable résumé / file (S3) surfaced as a "Download" action
+  resumeFileUrl   String? // generated/downloadable PDF
+  resumeSourceUrl String? // the doc the user uploaded to seed it (S3)
+
+  // Access & privacy (visitor-facing gate)
+  viewAccess     String  @default("public") // "public" | "email" | "password"
+  downloadAccess String  @default("public") // "public" | "email" | "off"
+  password       String? // when viewAccess = "password"
+  seoIndex       Boolean @default(true)
+
+  // SEO
+  seoTitle       String?
+  seoDescription String?
+  seoImage       String?
+
+  // Status
+  status      String    @default("DRAFT") // "DRAFT" | "PUBLISHED"
+  publishedAt DateTime?
+  totalViews  Int       @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandKit BrandKit?          @relation(fields: [brandKitId], references: [id], onDelete: SetNull)
+  visitors PortfolioVisitor[]
+
+  @@index([userId])
+  @@index([slug])
+  @@index([customDomain])
+  @@index([status])
+}
+
+// A visitor who entered their email to view/download a gated portfolio. On a
+// successful verification we ALSO upsert a Contact (lead capture) for the owner.
+model PortfolioVisitor {
+  id          String @id @default(cuid())
+  portfolioId String
+
+  email         String
+  code          String? // 6-digit code (cleared after successful verify)
+  codeExpiresAt DateTime?
+  verified      Boolean   @default(false)
+  verifiedAt    DateTime?
+  attempts      Int       @default(0)
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  portfolio Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioId, email])
+  @@index([portfolioId])
+  @@index([email])
 }
 
 model WebsiteBlogPost {

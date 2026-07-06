@@ -65,6 +65,7 @@ import { FocusedConnections } from "./focused/connections-workspace";
 import { FocusedSell } from "./focused/sell-workspace";
 import { StoreCallToAction } from "./focused/store-cta";
 import { FocusedWeb, FocusedLanding } from "./focused/web-workspace";
+import { FocusedPortfolio } from "./focused/portfolio-workspace";
 import { FocusedOutreach } from "./focused/outreach-workspace";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
@@ -175,6 +176,8 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
       return `The user has the **Sell** workspace open — their store, products, orders, AND the full **Store Studio** design editor. OPERATE the store for them. For PRODUCTS/ORDERS: add_product, update_product, delete_product, fulfill_order (a product name + price is enough to add one). To BUILD a store they don't have: build_store. To EDIT the STOREFRONT DESIGN/CONTENT (store name/tagline/description, CTA, hero headline/subheadline/style/slideshow, categories, nav/footer links, FAQ, or a section's layout): FIRST call get_store_content (see the current content + editable sections), then use edit_store — mode:'content' for text/data (send a PARTIAL patch; LISTS like navLinks/footerLinks/faq/categories are replaced wholesale so include existing items) or mode:'redesign' with a section + instructions for a layout/design change. Either way the store rebuilds and you're notified when live. Don't tell them to open the editor manually.`;
     case "publish":
       return `The user has the **Publish** workspace open (posts, scheduling, content calendar). Default their intent to creating, scheduling, or managing posts.`;
+    case "portfolio":
+      return `The user has the **Portfolio Studio** open — their Portfolio / Digital Résumé site (a shareable public page, distinct from the Website Studio). OPERATE it for them; don't tell them to open menus. To BUILD one they don't have: build_portfolio — ask business vs personal; for a personal résumé, have them upload their CV and READ it to extract experience/skills/education; pull business content from the Brand Kit. To EDIT: call get_portfolio_content first (current header, sections, style, hero media, access), then edit_portfolio — send a PARTIAL patch; the \`sections\` array is replaced wholesale so include existing items you keep. Pick a STYLE that reads like a portfolio/digital-ad piece (spotlight/cinematic/showcase/editorial/neon/card); spotlight/cinematic/neon support a full-bleed VIDEO hero. To gate access, set access.view or access.download to 'email' (visitors verify a 6-digit code and are saved to Contacts). To go live set status:'PUBLISHED'; a custom domain can be attached from the Domains surface. Don't just describe steps — do the work.`;
     case "web":
       return `The user has the **Web** workspace open — their website + the full **Website Studio** editor. OPERATE the site for them; don't tell them to open menus. To BUILD a new site use build_website. To EDIT the existing one, FIRST call get_website_content (see the current content + which sections are editable), then use edit_website: mode:'content' for text/data (company info, tagline, phone/email/address, the CTA button, services, team, FAQ, testimonials + layout, stats, nav/footer links, contact info + Google map, Google Reviews) — send a PARTIAL patch, but LISTS (services/faq/testimonials/links) are replaced wholesale so include the existing items too; or mode:'redesign' with a section + instructions for a layout/design change or a new section. Either way the site rebuilds and you're notified when it's live. For publish/unpublish/rename/SEO use update_website. Landing pages are generative — gather the goal/offer/audience, then generate.`;
     case "outreach":
@@ -257,7 +260,7 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
 // "grow" and "business" are category CONTAINERS (they open a nav panel, not a
 // real surface) — deliberately excluded so /home/grow and /home/business deep-
 // link cleanly to Home instead of a "coming soon" placeholder.
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
@@ -1148,6 +1151,8 @@ export function AgentHome() {
                   <FocusedSell onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "web" ? (
                   <FocusedWeb onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
+                ) : focused === "portfolio" ? (
+                  <FocusedPortfolio onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "landing" ? (
                   <FocusedLanding onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "outreach" ? (
