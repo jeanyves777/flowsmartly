@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Sparkles, ExternalLink, Rocket, Share2, ShieldCheck, Eye, Lock, Globe,
-  Copy, Check, Wand2, LayoutTemplate, UserRound, Building2, FileUp, Download,
+  Copy, Check, Wand2, LayoutTemplate, UserRound, Building2, FileUp, Download, ArrowLeft,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
+import { cn } from "@/lib/utils/cn";
+
+const PF_FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 
 /**
  * Portfolio / Digital Resume Studio surface (/home/portfolio). Real data via
@@ -58,6 +61,8 @@ export function FocusedPortfolio({
   const [previewKey, setPreviewKey] = useState(0);
   const [tab, setTab] = useState<"preview" | "share">("preview");
   const [copied, setCopied] = useState(false);
+  const [building, setBuilding] = useState(false);
+  const [armed, setArmed] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -98,40 +103,21 @@ export function FocusedPortfolio({
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading Portfolio Studio…" /></div>;
   }
 
-  // ── Empty state → build CTA (agent-driven) ────────────────────────────────
+  // ── Starting point — a brief the agent builds from (system pattern) ────────
   if (!p) {
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-6 lg:px-10">
-        <div className="mx-auto max-w-3xl">
-          <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-brand-500">New agent skill</div>
-          <h1 className="text-2xl font-black tracking-tight sm:text-[28px]">Your own portfolio &amp; résumé site</h1>
-          <p className="mt-1.5 max-w-xl text-[14px] text-muted-foreground">
-            The agent builds a complete, on-brand site — you edit it here, then publish it to a real domain with a branded QR to share anywhere.
-          </p>
-
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <button
-              onClick={() => onAsk("Build me a BUSINESS portfolio site. Ask me anything you need, use my Brand Kit, then build it.")}
-              className="group rounded-2xl border border-border bg-card p-5 text-left transition hover:border-brand-500/50 hover:shadow-lg"
-            >
-              <div className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 text-white"><Building2 className="h-5 w-5" /></div>
-              <div className="text-[15px] font-bold">Business Portfolio</div>
-              <p className="mt-1 text-[12.5px] text-muted-foreground">Services, projects, testimonials &amp; contact — built from your Brand Kit.</p>
-            </button>
-            <button
-              onClick={() => onAsk("Build me a PERSONAL résumé site. I'll upload my CV — read it and build my experience, skills and education.")}
-              className="group rounded-2xl border border-border bg-card p-5 text-left transition hover:border-brand-500/50 hover:shadow-lg"
-            >
-              <div className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-sky-500 to-cyan-400 text-white"><UserRound className="h-5 w-5" /></div>
-              <div className="text-[15px] font-bold">Personal · Digital Résumé</div>
-              <p className="mt-1 flex items-center gap-1.5 text-[12.5px] text-muted-foreground"><FileUp className="h-3.5 w-3.5" /> Upload a CV — the agent builds every section.</p>
-            </button>
-          </div>
-
-          <div className="mt-5 flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3 text-[12.5px] text-muted-foreground">
-            <Lock className="h-4 w-4 shrink-0 text-brand-500" />
-            Goes live on <b className="text-foreground">yourname.flowsmartly.site</b> free, or the agent buys &amp; attaches a custom domain — you approve the charge first.
-          </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-2xl">
+          {armed ? (
+            <BuildingCard onReset={() => setArmed(false)} />
+          ) : building ? (
+            <PortfolioBuilder
+              onCancel={() => setBuilding(false)}
+              onBuild={(prompt) => { setBuilding(false); setArmed(true); onAsk(prompt); }}
+            />
+          ) : (
+            <EmptyStart onStart={() => setBuilding(true)} />
+          )}
         </div>
       </div>
     );
@@ -270,5 +256,112 @@ function TabBtn({ active, onClick, icon: Icon, children }: { active: boolean; on
     <button onClick={onClick} className={`inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12px] font-semibold transition ${active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground"}`}>
       <Icon className="h-3.5 w-3.5" /> {children}
     </button>
+  );
+}
+
+/* ── Starting point: compact empty state → inline brief (system pattern) ───── */
+function EmptyStart({ onStart }: { onStart: () => void }) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-6 text-center sm:p-8">
+      <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 text-white"><LayoutTemplate className="h-6 w-6" /></div>
+      <h3 className="text-[17px] font-bold">Build your portfolio or résumé</h3>
+      <p className="mx-auto mt-1.5 max-w-md text-[13px] text-muted-foreground">
+        Give the agent a short brief — a business portfolio or a personal résumé — and it builds a complete, on-brand site you edit here, then publish to a real domain with a branded QR.
+      </p>
+      <button onClick={onStart} className="mt-5 inline-flex items-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+        <Sparkles className="h-4 w-4" /> Start a brief
+      </button>
+    </section>
+  );
+}
+
+function PortfolioBuilder({ onCancel, onBuild }: { onCancel: () => void; onBuild: (prompt: string) => void }) {
+  const [kind, setKind] = useState<"business" | "personal">("business");
+  const [name, setName] = useState("");
+  const [goal, setGoal] = useState("");
+  const [style, setStyle] = useState("spotlight");
+  const [error, setError] = useState<string | null>(null);
+
+  const build = () => {
+    if (!name.trim()) { setError("Add a name."); return; }
+    const styleName = TEMPLATES.find((t) => t.id === style)?.name || style;
+    const prompt = kind === "personal"
+      ? [
+          "Build me a PERSONAL RÉSUMÉ site now with build_portfolio (kind:'personal'). If I attached my CV, READ it and extract experience, skills and education; if I didn't, ask me in ONE short line to upload it. Otherwise don't ask questions — build it and save it as a draft.",
+          `- Name: ${name.trim()}`,
+          goal.trim() ? `- Role / headline: ${goal.trim()}` : "",
+          `- Style: ${styleName}`,
+          "Confirm in ONE short sentence when it's ready.",
+        ].filter(Boolean).join("\n")
+      : [
+          "Build me a BUSINESS PORTFOLIO site now with build_portfolio (kind:'business') using my Brand Kit. Don't ask questions — design and build it, write the copy, and save it as a draft.",
+          `- Business / name: ${name.trim()}`,
+          goal.trim() ? `- What we do / it's for: ${goal.trim()}` : "",
+          `- Style: ${styleName}`,
+          "Confirm in ONE short sentence when it's ready.",
+        ].filter(Boolean).join("\n");
+    onBuild(prompt);
+  };
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+      <div className="mb-4 flex items-center gap-2">
+        <button onClick={onCancel} aria-label="Back" className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ArrowLeft className="h-4 w-4" /></button>
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-bold leading-tight">New portfolio</h3>
+          <p className="text-[11.5px] text-muted-foreground">Fill the brief — the agent builds it with these details, no back-and-forth.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-y-3.5">
+        <div>
+          <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Type</p>
+          <div className="inline-flex rounded-[10px] border border-border bg-background p-0.5">
+            <button onClick={() => setKind("business")} className={cn("inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12.5px] font-semibold transition", kind === "business" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground")}><Building2 className="h-3.5 w-3.5" /> Business portfolio</button>
+            <button onClick={() => setKind("personal")} className={cn("inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12.5px] font-semibold transition", kind === "personal" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground")}><UserRound className="h-3.5 w-3.5" /> Personal résumé</button>
+          </div>
+        </div>
+        <Field label={kind === "personal" ? "Your name *" : "Business / studio name *"}><input value={name} onChange={(e) => setName(e.target.value)} className={PF_FIELD} placeholder={kind === "personal" ? "Jordan Lee" : "Northwind Studio"} /></Field>
+        <Field label={kind === "personal" ? "Role / headline" : "What you do / what it's for"}><textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} className={cn(PF_FIELD, "resize-y")} placeholder={kind === "personal" ? "Senior Product Designer — 8 yrs in fintech & health" : "Brand & product design studio for startups — services, projects & contact"} /></Field>
+        <div>
+          <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Style</p>
+          <div className="flex flex-wrap gap-1.5">
+            {TEMPLATES.map((t) => (
+              <button key={t.id} onClick={() => setStyle(t.id)} className={cn("rounded-full border px-2.5 py-1 text-[12px] font-semibold transition", style === t.id ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{t.video ? "▶ " : ""}{t.name}</button>
+            ))}
+          </div>
+        </div>
+        {kind === "personal" && (
+          <p className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground"><FileUp className="h-3.5 w-3.5 shrink-0" /> Tip: attach your CV in the chat below — the agent reads it and fills every section.</p>
+        )}
+        {error && <p className="text-[12px] text-rose-500">{error}</p>}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
+        <button onClick={build} className="inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Build it</button>
+        <button onClick={onCancel} className="rounded-[11px] px-3 py-2.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground">Cancel</button>
+        <span className="ms-auto hidden text-[11px] text-muted-foreground sm:block">Free subdomain or a custom domain · the agent confirms before anything bills.</span>
+      </div>
+    </section>
+  );
+}
+
+function BuildingCard({ onReset }: { onReset: () => void }) {
+  return (
+    <section className="rounded-2xl border border-border bg-card p-8 text-center">
+      <div className="mx-auto mb-3"><FlowLoader size={30} withMark /></div>
+      <h3 className="text-[15px] font-bold">Building your site…</h3>
+      <p className="mx-auto mt-1 max-w-sm text-[12.5px] text-muted-foreground">The agent is on it — follow along in the chat. It'll appear here the moment it's ready.</p>
+      <button onClick={onReset} className="mt-4 text-[12px] font-semibold text-muted-foreground hover:text-foreground">Start over</button>
+    </section>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-[11.5px] font-medium text-muted-foreground">{label}</span>
+      {children}
+    </label>
   );
 }
