@@ -64,6 +64,19 @@ export const createBrandedDesign: FlowAgentTool = {
   // Free base — the FlowCreative pipeline charges AI_VISUAL_DESIGN itself.
   costKey: "AGENT_PROPOSE_PLAN",
   mutating: true,
+  // Accurate cost for the auto-confirm card when the model calls this without a
+  // prior propose_plan: the pipeline bills AI_VISUAL_DESIGN (×3 for Premium),
+  // not the ~0 base costKey — so the card never under-quotes.
+  autoPlanCost: async (input) => {
+    const premium = typeof input.tier === "string" && /premium/i.test(input.tier);
+    const base = await getDynamicCreditCost("AI_VISUAL_DESIGN").catch(() => 0);
+    const credits = premium ? base * 3 : base;
+    return {
+      credits,
+      label: premium ? "Create your design (Premium)" : "Create your design",
+      detail: premium ? "Premium engine — sharper text & detail" : "Standard engine",
+    };
+  },
   handler: async (input, ctx) => {
     const promptText = typeof input.prompt === "string" ? input.prompt.trim() : "";
     if (!promptText) {

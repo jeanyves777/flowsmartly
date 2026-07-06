@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { getAgentModel } from "@/lib/ai/agent-model";
 import { prisma } from "@/lib/db/client";
@@ -15,6 +16,36 @@ import type {
 } from "./tool-context";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+/** Friendly one-line action name for the auto-confirm card the loop shows when a
+ *  mutating tool is called without a prior propose_plan. */
+function friendlyActionLabel(toolName: string): string {
+  const LABELS: Record<string, string> = {
+    create_branded_design: "Create your design",
+    generate_image: "Generate the image",
+    edit_image: "Edit the image",
+    export_image: "Export the image",
+    generate_video: "Generate the video",
+    create_avatar_video: "Create the avatar video",
+    create_presentation: "Create the presentation",
+    schedule_social_post: "Schedule the post",
+    create_email_campaign: "Create the email campaign",
+    send_email_campaign: "Send the email campaign",
+    send_test_email_campaign: "Send a test email",
+    create_automation: "Create the automation",
+    update_automation: "Update the automation",
+    create_content_campaign: "Create the content campaign",
+    create_proposal: "Create the proposal",
+    create_pitch: "Create the pitch",
+    send_proposal: "Send the proposal",
+    build_website: "Build the website",
+    build_store: "Build the store",
+    start_story_ad_campaign: "Create the story-ad movie",
+    configure_whatsapp_agent: "Set up the WhatsApp assistant",
+    update_brand_identity: "Save your brand kit",
+  };
+  return LABELS[toolName] ?? `Run ${toolName.replace(/_/g, " ")}`;
+}
 
 /**
  * Flow-AI streaming agent loop.
@@ -379,14 +410,62 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
         if (row) { resolvedPlanId = row.id; confirmedPlans.add(row.id); }
       }
       if (!resolvedPlanId) {
-        const errResult: ToolResult = {
-          ok: false,
-          error_code: "validation_failed",
-          message: `This tool requires a confirmed plan first. Call \`propose_plan\` with concrete steps + credit cost, wait for the user's confirmation, then call this tool again with planId set to the confirmed plan's id.`,
-          recoverable: true,
-        };
-        await logToolCall(tool, rawInput, errResult, toolUseId, Date.now() - startMs, 0);
-        return errResult;
+        // SMART AUTO-CONFIRM. The model called a mutating tool without first
+        // calling propose_plan — cheap models routinely skip the protocol and
+        // then loop on the old dead-end error ("requires a confirmed plan").
+        // Instead of dead-ending, WE show the user a one-step Confirm card for
+        // THIS exact action (with an accurate cost) and run it on Confirm. The
+        // confirm-before-charge guarantee is fully preserved — nothing runs or
+        // gets charged until the user taps Confirm.
+        const est = tool.autoPlanCost ? await tool.autoPlanCost(rawInput).catch(() => null) : null;
+        const credits = Math.max(0, Math.round(
+          est?.credits ?? (await getDynamicCreditCost(tool.costKey).catch(() => 0)) ?? 0,
+        ));
+        const label = est?.label ?? friendlyActionLabel(tool.name);
+        const step = { id: "s1", title: label, detail: est?.detail, toolName: tool.name, creditCost: credits || undefined };
+        const autoPlanId = `plan_${randomUUID().slice(0, 12)}`;
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+        try {
+          const seq = await nextSeqForConversation(input.conversationId);
+          await prisma.agentPlanProposal.create({
+            data: {
+              id: autoPlanId,
+              conversationId: input.conversationId,
+              messageId: input.messageId,
+              userId: input.userId,
+              summary: label,
+              steps: JSON.stringify([step]),
+              totalCreditCost: credits,
+              status: "pending",
+              expiresAt,
+              seq,
+            },
+          });
+        } catch { /* non-fatal — awaitConfirmation still gates execution */ }
+        proposedPlans.push(autoPlanId);
+        input.emit({ type: "plan_proposal", id: autoPlanId, steps: [step], summary: label, totalCreditCost: credits });
+        const confirmed = await input.awaitConfirmation(autoPlanId);
+        try {
+          const current = await prisma.agentPlanProposal.findUnique({ where: { id: autoPlanId }, select: { status: true } });
+          if (!current || current.status === "pending") {
+            await prisma.agentPlanProposal.update({
+              where: { id: autoPlanId },
+              data: { status: confirmed ? "confirmed" : "expired", resolvedAt: new Date() },
+            });
+          }
+        } catch { /* ignore reconcile errors */ }
+        if (!confirmed) {
+          const errResult: ToolResult = {
+            ok: false,
+            error_code: "user_canceled",
+            message: `The user didn't confirm "${label}". Don't run it. Briefly ask what they'd like to change, then re-propose once you know — a cancel means "let's adjust", never go silent.`,
+            recoverable: true,
+          };
+          await logToolCall(tool, rawInput, errResult, toolUseId, Date.now() - startMs, 0);
+          return errResult;
+        }
+        resolvedPlanId = autoPlanId;
+        confirmedPlans.add(autoPlanId);
       }
     }
 

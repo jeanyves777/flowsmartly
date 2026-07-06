@@ -35,6 +35,15 @@ export interface FlowAgentTool {
    */
   mutating: boolean;
   /**
+   * Optional: an accurate credit estimate + labels for the one-step "Confirm"
+   * card the loop AUTO-SHOWS when this MUTATING tool is called without a prior
+   * propose_plan (cheap models routinely skip the protocol). Defaults to the
+   * tool's `costKey` price — implement it only for tools that bill a DIFFERENT
+   * amount internally (e.g. create_branded_design bills AI_VISUAL_DESIGN, ×3 for
+   * Premium). Never throws — return your best estimate.
+   */
+  autoPlanCost?: (input: Record<string, unknown>) => Promise<{ credits: number; label: string; detail?: string }>;
+  /**
    * Handler — returns a ToolResult. Never throws. The agent loop charges
    * credits BEFORE invoking the handler (so a tool that depends on credit
    * deduction succeeds against the real balance).
