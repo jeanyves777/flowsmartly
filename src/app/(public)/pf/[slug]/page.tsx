@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db/client";
+import { getSession } from "@/lib/auth/session";
 import { getPortfolioBySlug, serializePortfolio } from "@/lib/portfolio/portfolio-editor";
 import { accessCookieName, hasVerifiedAccess } from "@/lib/portfolio/verification";
 import { PortfolioPublic } from "@/components/portfolio/portfolio-public";
@@ -25,14 +26,24 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function PortfolioPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const row = await getPortfolioBySlug(slug);
-  if (!row || row.deletedAt || row.status !== "PUBLISHED") notFound();
+  if (!row || row.deletedAt) notFound();
+
+  // The owner can always preview their own DRAFT (and bypass their own gate) —
+  // this is what the Studio's live preview iframe renders. Everyone else only
+  // sees PUBLISHED portfolios.
+  const session = await getSession().catch(() => null);
+  const isOwner = !!session && session.userId === row.userId;
+  if (row.status !== "PUBLISHED" && !isOwner) notFound();
+
   const p = serializePortfolio(row);
 
-  // Count a view — fire-and-forget so it never blocks the render.
-  prisma.portfolio.update({ where: { id: row.id }, data: { totalViews: { increment: 1 } } }).catch(() => {});
+  // Count a view — fire-and-forget; skip the owner's own previews.
+  if (!isOwner) {
+    prisma.portfolio.update({ where: { id: row.id }, data: { totalViews: { increment: 1 } } }).catch(() => {});
+  }
 
   const store = await cookies();
-  const hasAccess = await hasVerifiedAccess(row.id, store.get(accessCookieName(row.id))?.value);
+  const hasAccess = isOwner || (await hasVerifiedAccess(row.id, store.get(accessCookieName(row.id))?.value));
 
   // View gated behind email verification → show the gate instead of content.
   if (p.access.view === "email" && !hasAccess) {
