@@ -550,6 +550,9 @@ export function AgentHome() {
   // send the agent) + applyPatch (the agent's update_ad_canvas / update_followup_
   // canvas fields, routed here via the `__ad` / `__followup` markers).
   const adOpsRef = useRef<{ getContext: () => string; applyPatch: (patch: Record<string, unknown>) => void } | null>(null);
+  // Video Studio (/home/video) bridge: getContext feeds the [STORYAD] canvas
+  // context to the agent; loadCampaign lets the agent's draft appear on the canvas.
+  const videoOpsRef = useRef<{ getContext: () => string; loadCampaign: (id: string) => void } | null>(null);
   const followupOpsRef = useRef<{ getContext: () => string; applyPatch: (patch: Record<string, unknown>) => void } | null>(null);
   // Which canvas is live, for routing agent patches to the right document.
   const focusedRef = useRef(focused);
@@ -583,6 +586,9 @@ export function AgentHome() {
       if (adCmd && typeof adCmd === "object") { adOpsRef.current?.applyPatch(adCmd as Record<string, unknown>); return; }
       const followupCmd = (patch as { __followup?: unknown }).__followup;
       if (followupCmd && typeof followupCmd === "object") { followupOpsRef.current?.applyPatch(followupCmd as Record<string, unknown>); return; }
+      // Video Studio: the agent drafted a story-ad campaign — load it onto the canvas.
+      const storyadCmd = (patch as { __storyad?: { campaignId?: string } }).__storyad;
+      if (storyadCmd && typeof storyadCmd === "object" && storyadCmd.campaignId) { videoOpsRef.current?.loadCampaign(storyadCmd.campaignId); return; }
       // Route the edit to whichever canvas is open (Print has its own document).
       const apply = (d: DesignDoc) => applyDesignPatch(d, patch);
       if (focusedRef.current === "print") setPrintDesign(apply); else setDesign(apply);
@@ -742,7 +748,8 @@ export function AgentHome() {
       : focused === "create" ? designCanvasContext(design)
         : focused === "adbuilder" ? (adOpsRef.current?.getContext() || undefined)
           : focused === "automations" ? (followupOpsRef.current?.getContext() || undefined)
-            : undefined;
+            : focused === "video" ? (videoOpsRef.current?.getContext() || undefined)
+              : undefined;
   const sendAction = (p: string) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
   // A photo SLOT's "Generate" button — drive the agent to generate a contextual
   // photo and drop it into that exact slot (it may ask one clarifying question).
@@ -1168,7 +1175,7 @@ export function AgentHome() {
                 ) : focused === "voice" ? (
                   <FocusedVoice onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "video" ? (
-                  <AdBuilderCanvas embedded />
+                  <AdBuilderCanvas embedded refreshKey={actionCount} canvasRef={videoOpsRef} />
                 ) : focused === "avatar" ? (
                   <FocusedAvatar onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (

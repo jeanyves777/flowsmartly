@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import Image from "next/image";
@@ -117,7 +117,13 @@ interface Stage {
   progress?: number;
 }
 
-export function AdBuilderCanvas({ embedded = false }: { embedded?: boolean } = {}) {
+export function AdBuilderCanvas({ embedded = false, refreshKey, canvasRef }: {
+  embedded?: boolean;
+  /** Bumps when the agent acts — reload the Library so agent-created videos show. */
+  refreshKey?: number;
+  /** Bridge for the /home agent: read the canvas state + drop a drafted campaign on it. */
+  canvasRef?: MutableRefObject<{ getContext: () => string; loadCampaign: (id: string) => void } | null>;
+} = {}) {
   const camp = useAdCampaign();
   // When mounted inside the /home Video Studio focused view we hide the full-page
   // chrome (logo/back link), portal our actions into the shared header slot, and
@@ -221,6 +227,33 @@ export function AdBuilderCanvas({ embedded = false }: { embedded?: boolean } = {
   useEffect(() => {
     if (campaignId) void refreshCost(campaignId);
   }, [campaignId, state?.clips?.length, refreshCost]);
+
+  // Reload the Library when the agent acts (a drafted/created campaign should show).
+  useEffect(() => { if (embedded && refreshKey !== undefined) void loadLibrary(); }, [embedded, refreshKey, loadLibrary]);
+
+  // Publish the agent bridge (embedded /home/video): getContext feeds the [STORYAD]
+  // canvas state to the agent; loadCampaign drops the agent's drafted campaign onto
+  // the canvas (its brief/cast/scene nodes appear as review cards, unrendered).
+  useEffect(() => {
+    if (!canvasRef) return;
+    canvasRef.current = {
+      getContext: () =>
+        "[STORYAD] The Video Studio canvas is OPEN (draft-first video-ad playground). " +
+        (campaignId
+          ? `Current campaign: id=${campaignId}, style=${style}, ${lengthSec}s, phase=${state?.phase ?? "brief"}, cast=${state?.characters?.length ?? 0}, scenes=${state?.clips?.length ?? 0}.`
+          : "No campaign yet — the brief node is empty. Use draft_story_ad_campaign to draft one."),
+      loadCampaign: (id: string) => {
+        void camp.load(id).then((s) => {
+          if (!s) return;
+          setCostApproved(s.characters.length > 0);
+          if (s.style) setStyle(s.style);
+          if (s.durationSeconds) setLengthSec(s.durationSeconds);
+        });
+      },
+    };
+    return () => { if (canvasRef) canvasRef.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasRef, campaignId, style, lengthSec, state?.phase, state?.characters?.length, state?.clips?.length]);
 
   // Derived pipeline gates.
   const chars = useMemo(() => state?.characters ?? [], [state]);

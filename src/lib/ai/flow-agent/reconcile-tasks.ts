@@ -231,19 +231,29 @@ async function recoverStuckCartoonRenders(): Promise<{ scanned: number; failed: 
   const cutoff = new Date(Date.now() - STALE_MIN * 60_000);
   const stuck = await prisma.cartoonVideo.findMany({
     where: {
-      status: { in: ["PENDING", "PROCESSING", "COMPOSITING"] }, // NOT drafts/AWAITING_APPROVAL/etc.
       updatedAt: { lt: cutoff },
-      animationType: { in: ["story_ad_movie", "story_ad_campaign", "avatar_video"] },
+      OR: [
+        // story_ad_campaign is DRAFT-FIRST: a PENDING row is a draft the user is
+        // still reviewing (NOT an active render), and single-clip renders leave the
+        // row PENDING too — so ONLY the final stitch (COMPOSITING) can be a dead
+        // worker here. (Stuck individual clips are handled per-clip elsewhere.)
+        { animationType: "story_ad_campaign", status: "COMPOSITING" },
+        // Monolithic fire-and-forget renders (start immediately on create): any
+        // non-terminal render state gone stale = the worker died. Their drafts sit
+        // in "DRAFT", never PENDING, so PENDING here always means "queued/rendering".
+        { animationType: { in: ["story_ad_movie", "avatar_video"] }, status: { in: ["PENDING", "PROCESSING", "COMPOSITING"] } },
+      ],
     },
-    select: { id: true, userId: true, creditsCost: true, animationType: true },
+    select: { id: true, userId: true, creditsCost: true, animationType: true, status: true },
     take: 50,
-  }).catch(() => [] as { id: string; userId: string; creditsCost: number; animationType: string }[]);
+  }).catch(() => [] as { id: string; userId: string; creditsCost: number; animationType: string; status: string }[]);
 
   let failed = 0;
   for (const row of stuck) {
-    // Flip atomically so only ONE cron run fails+refunds (idempotent, no double refund).
+    // Flip atomically ONLY if still in the exact stale status (idempotent, and never
+    // clobbers a draft that changed status between the scan and now).
     const flipped = await prisma.cartoonVideo.updateMany({
-      where: { id: row.id, status: { in: ["PENDING", "PROCESSING", "COMPOSITING"] } },
+      where: { id: row.id, status: row.status },
       data: {
         status: "FAILED",
         currentStep: "Interrupted — refunded",
