@@ -279,9 +279,10 @@ export async function POST(req: NextRequest) {
     where: { conversationId },
     orderBy: { createdAt: "desc" },
     take: 6,
-    select: { summary: true, status: true, totalCreditCost: true },
+    select: { id: true, summary: true, status: true, totalCreditCost: true },
   });
   const recentProposals = recentProposalRows.map((p) => ({
+    id: p.id,
     summary: p.summary,
     status: p.status,
     totalCreditCost: p.totalCreditCost,
