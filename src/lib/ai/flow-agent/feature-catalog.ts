@@ -350,7 +350,7 @@ export const FEATURE_CATALOG: FeatureEntry[] = [
     id: "credits",
     title: "Credits balance & top-up",
     description: "View remaining credits, purchase more, see transactions.",
-    route: "/buy-credits",
+    route: "/home/credits",
     plans: null,
     tools: ["who_am_i"],
     keywords: ["credit", "balance", "buy", "purchase", "topup", "billing", "subscription"],

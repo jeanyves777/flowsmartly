@@ -269,7 +269,7 @@ function renderBlock(block: Block, key: number): React.ReactNode {
 // for "any system info link rendered in a nice clickable card not plain link".
 // Whitelisted so we never linkify "and/or", "24/7", a date "12/25", etc.
 const INTERNAL_ROUTE_SEGMENTS = [
-  "buy-credits", "credits", "billing", "subscription", "subscriptions", "pricing", "plans", "upgrade",
+  "home", "buy-credits", "credits", "billing", "subscription", "subscriptions", "pricing", "plans", "upgrade",
   "settings", "brand-kit", "studio", "websites", "ecommerce", "content", "flow-ai",
   "tools", "media", "designs", "account", "contacts", "campaigns", "automations",
   "analytics", "posts", "calendar", "earnings", "payouts", "dashboard", "store",
@@ -278,18 +278,24 @@ const INTERNAL_ROUTE_SEGMENTS = [
 // Routes that should read as a primary call-to-action (money / plan), so the
 // "out of credits" reply shows an inviting button, not a bland link.
 const PRIMARY_ROUTE_SEGMENTS = new Set([
-  "buy-credits", "billing", "subscription", "subscriptions", "pricing", "plans", "upgrade",
+  "buy-credits", "credits", "billing", "subscription", "subscriptions", "pricing", "plans", "upgrade",
 ]);
 
-// Bare paths the agent sometimes emits that 404 → rewrite to the real page.
+// Bare / legacy paths the agent sometimes emits → rewrite to the NEW-design
+// surfaces so the "Add credits" / "Upgrade" chips never land on a legacy page.
+// [[new-design-no-legacy]]
 const ROUTE_ALIASES: Record<string, string> = {
-  "/credits": "/buy-credits",
-  "/upgrade": "/settings/upgrade",
+  "/credits": "/home/credits",
+  "/buy-credits": "/home/credits",
+  "/upgrade": "/home/plans",
+  "/settings/upgrade": "/home/plans",
+  "/pricing": "/home/plans",
+  "/billing": "/home/billing",
 };
 
 const ROUTE_LABELS: Record<string, string> = {
   "buy-credits": "Add credits",
-  credits: "Credits",
+  credits: "Add credits",
   billing: "Billing",
   subscription: "Manage plan",
   subscriptions: "Manage plan",
@@ -353,9 +359,13 @@ function humanizeSegment(seg: string): string {
 /** Render an internal app path as a clickable chip — primary CTA for money/plan routes. */
 function renderInternalPath(rawPath: string, key: number): React.ReactNode {
   let path = rawPath.replace(/\/$/, "") || rawPath;
-  // Rewrite bare aliases (e.g. /credits → /buy-credits) so the link never 404s.
+  // Rewrite bare/legacy aliases (e.g. /buy-credits → /home/credits) so the link
+  // lands on the NEW design and never 404s.
   if (ROUTE_ALIASES[path]) path = ROUTE_ALIASES[path];
-  const seg = path.split("/")[1]?.toLowerCase() ?? "";
+  const parts = path.split("/").filter(Boolean);
+  // For /home/<view> the meaningful segment is the VIEW (credits/plans/billing),
+  // not "home" — chip + label + primary-CTA styling key off that.
+  const seg = (parts[0] === "home" && parts[1] ? parts[1] : parts[0] ?? "").toLowerCase();
   const isCreditsHistory = path === "/credits/history";
   const primary = PRIMARY_ROUTE_SEGMENTS.has(seg) && !isCreditsHistory;
   const label = isCreditsHistory ? "Credits history" : ROUTE_LABELS[seg] ?? humanizeSegment(seg);

@@ -484,7 +484,7 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
         const errResult: ToolResult = {
           ok: false,
           error_code: "insufficient_credits",
-          message: `Not enough credits to run ${tool.name}. Suggest the user top up at /buy-credits.`,
+          message: `Not enough credits to run ${tool.name}. Offer to top them up right here — call buy_credits (they can pick a pack or a custom amount and pay on their saved card inline), or point them to /home/credits.`,
           recoverable: true,
           meta: { balanceAfter, costKey: tool.costKey },
         };

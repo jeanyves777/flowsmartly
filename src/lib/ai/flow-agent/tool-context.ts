@@ -68,6 +68,7 @@ export type ToolResult<T = unknown> =
 
 export type ToolErrorCode =
   | "insufficient_credits"
+  | "no_payment_method"
   | "plan_required"
   | "missing_input"
   | "not_found"
