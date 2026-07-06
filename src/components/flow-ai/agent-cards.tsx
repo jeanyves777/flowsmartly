@@ -665,7 +665,7 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
       {isDone && mediaUrl && !isCanvasObject && (
         <div className="bg-muted/30">
           {isVideo ? (
-            <video src={mediaUrl} controls className="block w-full max-h-[60vh] bg-black" />
+            <video src={mediaUrl} controls className="block w-full max-h-72 bg-black object-contain" />
           ) : isAudio ? (
             <div className="px-3.5 py-3">
               <audio src={mediaUrl} controls preload="metadata" className="w-full" />
@@ -683,7 +683,7 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
                 width={512}
                 height={512}
                 unoptimized
-                className="block w-full h-auto"
+                className="block w-full max-h-72 object-contain bg-muted/40"
               />
               <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-black/55 text-white opacity-0 group-hover:opacity-100 transition-opacity">
                 <Maximize2 className="h-3 w-3" /> View
