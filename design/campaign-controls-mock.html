@@ -1,0 +1,295 @@
+<title>Campaign Studio — control bar + Improve</title>
+<style>
+  :root {
+    --brand: #6d5cff; --brand-soft: #6d5cff26; --violet: #8b5cf6;
+    --amber: #f59e0b; --amber-soft: #f59e0b1a; --rose: #f43f5e; --rose-soft: #f43f5e14;
+    --bg: #f6f7fb; --card: #ffffff; --card-2: #fbfbfe;
+    --fg: #0b1220; --muted-fg: #64708a; --muted: #eef0f6; --border: #e4e7f0;
+    --shadow: 0 20px 50px -18px #1b1f3340;
+    --radius: 16px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #070b16; --card: #101728; --card-2: #0c1322;
+      --fg: #eef1f8; --muted-fg: #8b97b0; --muted: #1a2338; --border: #223049;
+      --brand-soft: #6d5cff2e; --shadow: 0 24px 60px -20px #000a;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f7fb; --card: #ffffff; --card-2: #fbfbfe;
+    --fg: #0b1220; --muted-fg: #64708a; --muted: #eef0f6; --border: #e4e7f0;
+    --brand-soft: #6d5cff26; --shadow: 0 20px 50px -18px #1b1f3340;
+  }
+  :root[data-theme="dark"] {
+    --bg: #070b16; --card: #101728; --card-2: #0c1322;
+    --fg: #eef1f8; --muted-fg: #8b97b0; --muted: #1a2338; --border: #223049;
+    --brand-soft: #6d5cff2e; --shadow: 0 24px 60px -20px #000a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; line-height: 1.4;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 22px 18px 60px; }
+  .topline { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 18px; }
+  .topline h1 { font-size: 15px; font-weight: 800; margin: 0; letter-spacing: -.01em; }
+  .topline .sub { font-size: 12px; color: var(--muted-fg); }
+  .seg { margin-left: auto; display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--card); }
+  .seg button { border: 0; background: transparent; color: var(--muted-fg); font: inherit; font-size: 12px; font-weight: 700; padding: 7px 12px; cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand); }
+
+  /* studio frame */
+  .studio { display: grid; grid-template-columns: 1fr 260px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); overflow: hidden; box-shadow: var(--shadow); position: relative; min-height: 560px; }
+  @media (max-width: 720px) { .studio { grid-template-columns: 1fr; } .rail { display: none; } }
+  .col { padding: 20px 22px; }
+
+  /* CONTROL BAR (the deliverable) */
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 18px; }
+  .name-group { display: flex; min-width: 180px; flex: 1; align-items: center; gap: 8px; }
+  .cname { font-size: 20px; font-weight: 900; letter-spacing: -.02em; background: transparent; border: 1px solid transparent; border-radius: 8px; color: var(--fg); padding: 3px 6px; margin: -3px -6px; max-width: 100%; }
+  .cname:focus { outline: none; border-color: #6d5cff80; background: var(--card-2); }
+  .pencil { width: 14px; height: 14px; color: var(--muted-fg); opacity: 0; transition: opacity .15s; }
+  .name-group:hover .pencil { opacity: .7; }
+  .chip { flex: none; background: var(--muted); color: var(--muted-fg); font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .toggle button { display: inline-flex; align-items: center; gap: 5px; border: 0; background: transparent; color: var(--muted-fg); font: inherit; font-size: 12px; font-weight: 700; padding: 7px 10px; cursor: pointer; }
+  .toggle button + button { border-left: 1px solid var(--border); }
+  .toggle button.on-active[data-state="active"] { background: var(--brand-soft); color: var(--brand); }
+  .toggle button.on-pause[data-state="paused"] { background: var(--amber-soft); color: var(--amber); }
+  .toggle button:disabled { cursor: default; opacity: .55; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: transparent; border-radius: 10px; font: inherit; font-size: 12px; font-weight: 700; padding: 7px 10px; cursor: pointer; color: var(--muted-fg); }
+  .btn:hover { color: var(--fg); }
+  .btn.improve { border-color: #6d5cff66; color: var(--brand); }
+  .btn.improve:hover { background: var(--brand-soft); }
+  .btn.delete { color: var(--rose); }
+  .btn.delete:hover { border-color: #f43f5e80; background: var(--rose-soft); }
+  .ico { width: 14px; height: 14px; }
+
+  /* timeline + post cards */
+  .timeline { position: relative; padding-left: 24px; display: flex; flex-direction: column; gap: 12px; }
+  .timeline::before { content: ""; position: absolute; left: 9px; top: 10px; bottom: 10px; width: 1px; background: linear-gradient(var(--brand), var(--border)); }
+  .node { position: relative; }
+  .node::before { content: ""; position: absolute; left: -19px; top: 20px; width: 12px; height: 12px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 4px var(--card); }
+  .pcard { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--card); }
+  .pcard .head { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 11.5px; }
+  .pcard .when { font-weight: 800; }
+  .badge { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+  .b-sched { background: var(--brand-soft); color: var(--brand); }
+  .b-paused { background: var(--amber-soft); color: var(--amber); }
+  .plats { margin-left: auto; display: flex; gap: 4px; }
+  .plat { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; font-size: 9px; font-weight: 800; color: #fff; }
+  .pbody { display: grid; grid-template-columns: 96px 1fr; gap: 12px; padding: 14px; }
+  .thumb { height: 96px; border-radius: 12px; border: 1px dashed var(--border); background: linear-gradient(135deg,#6d5cff22,#8b5cf618); display: grid; place-items: center; color: #6d5cff88; }
+  .cap { font-size: 12.5px; color: color-mix(in srgb, var(--fg) 88%, transparent); }
+  .cap .tags { color: var(--brand); }
+
+  /* right rail */
+  .rail { border-left: 1px solid var(--border); background: var(--card-2); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .rail .label { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted-fg); }
+  .rail .clist { display: flex; flex-direction: column; gap: 4px; }
+  .citem { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .citem.sel { background: var(--brand-soft); color: var(--brand); }
+  .citem .live { margin-left: auto; font-size: 9px; font-weight: 800; text-transform: uppercase; background: var(--brand-soft); color: var(--brand); padding: 2px 6px; border-radius: 999px; }
+  .briefbox { border: 1px solid var(--border); border-radius: 10px; background: var(--card); padding: 10px; font-size: 12px; color: color-mix(in srgb, var(--fg) 86%, transparent); }
+  .postingto { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--card); border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 600; }
+  .regen { margin-top: 4px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 10px; padding: 8px; font-size: 12px; font-weight: 700; color: var(--muted-fg); cursor: pointer; background: transparent; }
+
+  /* overlays */
+  .scrim { position: absolute; inset: 0; background: #05070fbf; display: none; z-index: 20; }
+  .scrim.show { display: block; }
+  .sheet { position: absolute; left: 20px; right: 20px; bottom: 18px; max-height: 84%; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border); border-radius: 20px; box-shadow: var(--shadow); overflow: hidden; }
+  .sheet .sh-head { position: relative; padding: 16px 20px 12px; border-bottom: 1px solid var(--border); }
+  .grabber { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); width: 40px; height: 4px; border-radius: 999px; background: var(--border); }
+  .edit-pill { display: inline-flex; align-items: center; gap: 6px; background: var(--brand-soft); color: var(--brand); font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 999px; margin-bottom: 6px; }
+  .sh-head h3 { margin: 0; font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .sh-head p { margin: 3px 0 0; font-size: 11.5px; color: var(--muted-fg); max-width: 62ch; }
+  .sh-x { position: absolute; right: 16px; top: 16px; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 9px; background: transparent; color: var(--muted-fg); cursor: pointer; }
+  .sh-body { padding: 18px 20px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field.span { grid-column: 1 / -1; }
+  .field .flabel { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-fg); }
+  .inp { border: 1px solid var(--border); background: var(--bg); border-radius: 10px; padding: 9px 11px; font: inherit; font-size: 13px; color: var(--fg); }
+  .inp:focus { outline: none; border-color: #6d5cff99; }
+  textarea.inp { resize: none; }
+  .chiprow { display: flex; flex-wrap: wrap; gap: 6px; }
+  .selchip { border: 1px solid var(--border); background: transparent; color: var(--muted-fg); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .selchip.on { border-color: #6d5cff99; background: var(--brand-soft); color: var(--brand); }
+  .sh-foot { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-top: 1px solid var(--border); }
+  .cta { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 10px; background: linear-gradient(90deg, var(--brand), var(--violet)); color: #fff; font: inherit; font-size: 13px; font-weight: 700; padding: 9px 16px; cursor: pointer; box-shadow: 0 10px 24px -10px #6d5cffaa; }
+  .foot-note { font-size: 11.5px; color: var(--muted-fg); }
+
+  .confirm { position: absolute; inset: 0; z-index: 30; display: none; place-items: center; padding: 16px; }
+  .confirm.show { display: grid; }
+  .confirm .box { position: relative; z-index: 2; width: 100%; max-width: 380px; background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 20px; box-shadow: var(--shadow); }
+  .confirm h4 { margin: 0 0 8px; font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .confirm .rose-dot { width: 30px; height: 30px; border-radius: 999px; background: var(--rose-soft); color: var(--rose); display: grid; place-items: center; }
+  .confirm p { margin: 0; font-size: 12.5px; color: var(--muted-fg); }
+  .confirm .row { margin-top: 16px; display: flex; justify-content: flex-end; gap: 8px; }
+  .del-final { display: inline-flex; align-items: center; gap: 6px; border: 0; background: var(--rose); color: #fff; border-radius: 10px; padding: 8px 14px; font: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; }
+  .themeToggle { position: fixed; right: 16px; bottom: 16px; z-index: 50; border: 1px solid var(--border); background: var(--card); color: var(--fg); border-radius: 999px; padding: 8px 14px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow); }
+  .note { margin-top: 14px; font-size: 12px; color: var(--muted-fg); display: flex; gap: 8px; align-items: flex-start; }
+  .note b { color: var(--fg); font-weight: 700; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <div class="topline">
+    <div>
+      <h1>Campaign Studio — new control bar &amp; Improve</h1>
+      <div class="sub">Editable name · Active / Pause / Delete over all posts · Improve reopens the brief in edit mode</div>
+    </div>
+    <div class="seg" role="group" aria-label="Demo state">
+      <button id="segActive" aria-pressed="true" onclick="setLive('active')">Live · Active</button>
+      <button id="segPaused" aria-pressed="false" onclick="setLive('paused')">Paused</button>
+    </div>
+  </div>
+
+  <div class="studio">
+    <div class="col">
+      <!-- CONTROL BAR -->
+      <div class="bar">
+        <div class="name-group">
+          <input class="cname" id="cname" value="Spring Skincare Launch" aria-label="Campaign name" spellcheck="false" />
+          <svg class="pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          <span class="chip" id="countChip">4 posts</span>
+        </div>
+        <div class="controls">
+          <div class="toggle" id="toggle">
+            <button class="on-active" data-state="active" onclick="setLive('active')" title="Schedule every post to auto-publish">
+              <svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Active
+            </button>
+            <button class="on-pause" data-state="active" onclick="setLive('paused')" title="Pull every post out of the publish queue">
+              <svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg> Pause
+            </button>
+          </div>
+          <button class="btn improve" onclick="openImprove()" title="Reopen the brief to improve every post">
+            <svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 6.9L21 11l-6.6 2.1L12 20l-2.4-6.9L3 11l6.6-2.1z"/></svg> Improve
+          </button>
+          <button class="btn delete" onclick="openDelete()" title="Delete the whole campaign">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg> Delete
+          </button>
+        </div>
+      </div>
+
+      <!-- posts -->
+      <div class="timeline" id="timeline">
+        <div class="node">
+          <div class="pcard">
+            <div class="head"><span class="when">Mon, Apr 8 · 9:00 AM</span><span class="badge b-sched statusbadge">Scheduled</span>
+              <span class="plats"><span class="plat" style="background:linear-gradient(45deg,#f58529,#dd2a7b,#8134af)">IG</span><span class="plat" style="background:#1877f2">f</span></span></div>
+            <div class="pbody"><div class="thumb"><svg class="ico" style="width:24px;height:24px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></div>
+              <div class="cap">Meet the botanical serum your skin has been thirsty for. 🌿 Launch week: 15% off, three days only.<br><span class="tags">#GlowUp #BotanicalSkincare #LaunchWeek</span></div></div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="pcard">
+            <div class="head"><span class="when">Wed, Apr 10 · 12:00 PM</span><span class="badge b-sched statusbadge">Scheduled</span>
+              <span class="plats"><span class="plat" style="background:linear-gradient(45deg,#f58529,#dd2a7b,#8134af)">IG</span></span></div>
+            <div class="pbody"><div class="thumb"><svg class="ico" style="width:24px;height:24px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></div>
+              <div class="cap">Three drops, morning and night. Real results your mirror will notice by day 14.<br><span class="tags">#SkincareRoutine #CleanBeauty</span></div></div>
+          </div>
+        </div>
+        <div class="node">
+          <div class="pcard">
+            <div class="head"><span class="when">Fri, Apr 12 · 5:00 PM</span><span class="badge b-sched statusbadge">Scheduled</span>
+              <span class="plats"><span class="plat" style="background:#1877f2">f</span><span class="plat" style="background:#0a66c2">in</span></span></div>
+            <div class="pbody"><div class="thumb"><svg class="ico" style="width:24px;height:24px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></div>
+              <div class="cap">Last call — launch pricing ends tonight. Your calmest, brightest skin starts here.<br><span class="tags">#LimitedTime #SelfCareSunday</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- right rail -->
+    <aside class="rail">
+      <div class="label" style="border-bottom:1px solid var(--border);padding-bottom:8px;margin:-2px -4px 4px">Campaign Studio</div>
+      <div class="label">Campaigns</div>
+      <div class="clist">
+        <div class="citem sel">🗓️ Spring Skincare Launch <span class="live">Live</span></div>
+        <div class="citem">🗓️ March Newsletter</div>
+      </div>
+      <div class="label" style="margin-top:6px">Brief</div>
+      <div class="briefbox">Introduce the new botanical serum and drive launch-week sales with 15% off across IG + Facebook.</div>
+      <div class="label" style="margin-top:6px">Posting to</div>
+      <div class="postingto">
+        <span class="pill"><span class="plat" style="background:linear-gradient(45deg,#f58529,#dd2a7b,#8134af)">IG</span>Instagram</span>
+        <span class="pill"><span class="plat" style="background:#1877f2">f</span>Facebook</span>
+      </div>
+      <button class="regen"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg> Regenerate campaign</button>
+    </aside>
+
+    <!-- IMPROVE (edit-mode brief) -->
+    <div class="scrim" id="improveScrim" onclick="closeImprove()"></div>
+    <div class="sheet" id="improveSheet" style="display:none" role="dialog" aria-label="Improve campaign">
+      <div class="sh-head">
+        <span class="grabber"></span>
+        <span class="edit-pill"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> Editing: Spring Skincare Launch</span>
+        <h3><svg class="ico" viewBox="0 0 24 24" fill="var(--brand)"><path d="M12 2l2.4 6.9L21 11l-6.6 2.1L12 20l-2.4-6.9L3 11l6.6-2.1z"/></svg> Improve campaign</h3>
+        <p>Update the goal, tone or destinations — the agent rewrites every existing post's caption + media prompt in place (nothing new is created and no media is re-rendered).</p>
+        <button class="sh-x" onclick="closeImprove()" aria-label="Close">✕</button>
+      </div>
+      <div class="sh-body">
+        <div class="field"><span class="flabel">Campaign name</span><input class="inp" value="Spring Skincare Launch" /></div>
+        <div class="field"><span class="flabel">Tone</span><div class="chiprow"><button class="selchip">Casual</button><button class="selchip on">Bold</button><button class="selchip">Playful</button></div></div>
+        <div class="field span"><span class="flabel">What's it about? (goal)</span><textarea class="inp" rows="2">Introduce the new botanical serum and drive launch-week sales with 15% off — make the captions punchier with a clearer discount CTA.</textarea></div>
+        <div class="field span"><span class="flabel">Post to</span><div class="chiprow"><button class="selchip on">Feed</button><button class="selchip on">Instagram</button><button class="selchip on">Facebook</button><button class="selchip">LinkedIn</button></div></div>
+      </div>
+      <div class="sh-foot">
+        <button class="cta"><svg class="ico" viewBox="0 0 24 24" fill="#fff"><path d="M12 2l2.4 6.9L21 11l-6.6 2.1L12 20l-2.4-6.9L3 11l6.6-2.1z"/></svg> Improve 4 posts</button>
+        <span class="foot-note">The agent rewrites every post's caption + media prompt in place.</span>
+      </div>
+    </div>
+
+    <!-- DELETE confirm -->
+    <div class="confirm" id="deleteConfirm">
+      <div class="scrim show" style="position:absolute" onclick="closeDelete()"></div>
+      <div class="box">
+        <h4><span class="rose-dot"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg></span> Delete this campaign?</h4>
+        <p><b style="color:var(--fg)">Spring Skincare Launch</b> and all 4 of its posts will be removed. Scheduled posts won't publish. This can't be undone.</p>
+        <div class="row">
+          <button class="btn" onclick="closeDelete()">Cancel</button>
+          <button class="del-final" onclick="closeDelete()"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg> Delete campaign</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note"><span>▲</span><span><b>Try it:</b> click <b>Active/Pause</b> to flip every post's state, <b>Improve</b> to reopen the pre-filled brief in edit mode, or <b>Delete</b> for the confirm. The description no longer sits above the posts — it lives only in the right-rail <b>Brief</b>.</span></div>
+</div>
+
+<button class="themeToggle" onclick="toggleTheme()" id="themeBtn">◐ Theme</button>
+
+<script>
+  function setLive(state) {
+    document.getElementById('segActive').setAttribute('aria-pressed', String(state === 'active'));
+    document.getElementById('segPaused').setAttribute('aria-pressed', String(state === 'paused'));
+    document.querySelectorAll('#toggle button').forEach(b => b.setAttribute('data-state', state));
+    document.querySelectorAll('.statusbadge').forEach(b => {
+      b.textContent = state === 'paused' ? 'Paused' : 'Scheduled';
+      b.classList.toggle('b-paused', state === 'paused');
+      b.classList.toggle('b-sched', state !== 'paused');
+    });
+    document.querySelector('#toggle .on-active').disabled = (state === 'active');
+    document.querySelector('#toggle .on-pause').disabled = (state !== 'active');
+  }
+  function openImprove() {
+    document.getElementById('improveScrim').classList.add('show');
+    document.getElementById('improveSheet').style.display = 'flex';
+  }
+  function closeImprove() {
+    document.getElementById('improveScrim').classList.remove('show');
+    document.getElementById('improveSheet').style.display = 'none';
+  }
+  function openDelete() { document.getElementById('deleteConfirm').classList.add('show'); }
+  function closeDelete() { document.getElementById('deleteConfirm').classList.remove('show'); }
+  function toggleTheme() {
+    const r = document.documentElement;
+    const cur = r.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    r.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+  }
+  setLive('active');
+</script>
