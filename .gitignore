@@ -29,6 +29,9 @@ Thumbs.db
 *.tmp
 *.temp
 
+# Local scratch dir (screenshots, one-off scripts, logs) — never commit
+tmp/
+
 # Local caches
 .cache/
 
