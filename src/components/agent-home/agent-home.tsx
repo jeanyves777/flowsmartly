@@ -1125,7 +1125,7 @@ export function AgentHome() {
                 ) : focused === "sell" ? (
                   <FocusedSell onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "web" ? (
-                  <FocusedWeb onAsk={sendAction} refreshKey={actionCount} working={sending} />
+                  <FocusedWeb onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "landing" ? (
                   <FocusedLanding onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "outreach" ? (
