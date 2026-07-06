@@ -173,7 +173,7 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
     case "publish":
       return `The user has the **Publish** workspace open (posts, scheduling, content calendar). Default their intent to creating, scheduling, or managing posts.`;
     case "web":
-      return `The user has the **Web** workspace open (their website and landing pages). Default their intent to building or editing their site.`;
+      return `The user has the **Web** workspace open — their website + the full **Website Studio** editor. OPERATE the site for them; don't tell them to open menus. To BUILD a new site use build_website. To EDIT the existing one, FIRST call get_website_content (see the current content + which sections are editable), then use edit_website: mode:'content' for text/data (company info, tagline, phone/email/address, the CTA button, services, team, FAQ, testimonials + layout, stats, nav/footer links, contact info + Google map, Google Reviews) — send a PARTIAL patch, but LISTS (services/faq/testimonials/links) are replaced wholesale so include the existing items too; or mode:'redesign' with a section + instructions for a layout/design change or a new section. Either way the site rebuilds and you're notified when it's live. For publish/unpublish/rename/SEO use update_website. Landing pages are generative — gather the goal/offer/audience, then generate.`;
     case "outreach":
       return `The user has the **Outreach** workspace open (contacts, lists, follow-ups, pitches). Default their intent to contact and outreach actions.`;
     case "analytics":
