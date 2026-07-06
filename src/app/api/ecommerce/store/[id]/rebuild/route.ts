@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { buildStoreV3, deployStoreV3, getStoreDir } from "@/lib/store-builder/store-site-builder";
+import { getStoreDir } from "@/lib/store-builder/store-site-builder";
+import { rebuildAndDeployStore } from "@/lib/store-builder/store-editor";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 
@@ -31,38 +32,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     console.log(`[StoreRebuild] Starting V3 rebuild for store ${id}`);
 
-    // Fire-and-forget with proper error handling — errors always update buildStatus
-    // (buildStoreV3 handles the atomic lock via acquireBuildLock; do NOT pre-set status here)
-    (async () => {
-      try {
-        const buildResult = await buildStoreV3(id);
-        if (!buildResult.success) {
-          console.error(`[StoreRebuild] Build failed: ${buildResult.error}`);
-          return;
-        }
-        const deployResult = await deployStoreV3(id, store.slug);
-        if (!deployResult.success) {
-          console.error(`[StoreRebuild] Deploy failed: ${deployResult.error}`);
-          await prisma.store.update({
-            where: { id },
-            data: { buildStatus: "error", lastBuildError: `Deploy failed: ${deployResult.error}`.substring(0, 5000) },
-          }).catch(() => {});
-          return;
-        }
-        // Clear cached site data so it gets re-parsed
-        await prisma.store.update({
-          where: { id },
-          data: { siteData: "{}" },
-        });
-        console.log(`[StoreRebuild] Store ${id} rebuilt and deployed`);
-      } catch (err: any) {
-        console.error(`[StoreRebuild] Fatal error:`, err);
-        await prisma.store.update({
-          where: { id },
-          data: { buildStatus: "error", lastBuildError: `Fatal: ${err.message}`.substring(0, 5000), buildStartedAt: null },
-        }).catch(() => {});
-      }
-    })();
+    // Fire-and-forget via the shared engine (same build/deploy path the editor
+    // and the flow-agent use). buildStoreV3 handles the atomic build lock.
+    rebuildAndDeployStore({ id, slug: store.slug })
+      .then((r) => { if (!r.success) console.error(`[StoreRebuild] Failed: ${r.error}`); })
+      .catch((err) => console.error(`[StoreRebuild] Fatal:`, err));
 
     return NextResponse.json({ success: true, message: "Rebuild started" });
   } catch (err) {
