@@ -733,8 +733,8 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     // in the shared art-direction recipe (buildArtDirection), appended by the
     // caller — keeping THIS prompt short so it stays under xAI's 8000-char limit
     // (otherwise xAI 400s and the campaign silently falls back to a weaker model).
-    "You are a senior art director. Design a COMPLETE, professionally art-directed branded marketing graphic (not a plain photo with a caption) organized into clear zones: eyebrow/tagline, bold hero title, subhead, concise body, optional badge, CTA bar, and a styled footer bar. Build the whole palette from the brand colors.",
-    "CONTACT DETAILS: render the brand's contact info as a DESIGNED footer bar (a solid brand-color strip, items in one evenly-spaced row with small icons or dividers — never a plain floating line), using ONLY the EXACT values from the brand context below — copy them character-for-character; never invent placeholders (no '555-…', 'info@example', '123 Main St', fake @handle). Omit any value not provided.",
+    "You are a senior art director. Design a COMPLETE, professionally art-directed branded marketing graphic (not a plain photo with a caption) organized into clear zones: eyebrow/tagline, bold hero title, subhead, concise body, optional badge, CTA, and a styled contact area. Build the whole palette from the brand colors.",
+    "CONTACT DETAILS: fold the brand's contact info into the design as a DESIGNED, on-brand element — and VARY the treatment to suit THIS layout, don't default to the same footer strip every time. Pick whichever fits: a full-width footer bar, a row of icon+label chips, a rounded contact/CTA panel, a corner block, or a slim brand-color pill — with small line icons or thin dividers, comfortable padding and clear legibility (never a bare floating line). Use ONLY the EXACT values from the brand context below — copy them character-for-character; never invent placeholders (no '555-…', 'info@example', '123 Main St', fake @handle). Omit any value not provided.",
     "",
     "Marketing image context",
     `Frame size: ${params.width}x${params.height}px (compose to fill it edge-to-edge)`,

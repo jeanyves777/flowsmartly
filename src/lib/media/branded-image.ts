@@ -140,7 +140,7 @@ export async function generateBrandedImage(
     ? `Show the brand name "${brandKit.name}" as a clear header at the top.`
     : null;
   const contactRule = contactLine
-    ? `Include these REAL contact details, copied exactly (never invent), laid out as ONE clean footer bar (a slim contrasting strip, items separated by thin dividers or small line icons, evenly spaced and legible): ${contactLine}.`
+    ? `Include these REAL contact details, copied exactly (never invent), as a DESIGNED, on-brand contact treatment that suits this design — vary it (a footer bar, an icon-chip row, a rounded contact panel, or a slim pill; small icons/dividers, legible), not a bare line: ${contactLine}.`
     : null;
   const antiInventionPolicy =
     "Render ONLY the messaging, names, dates, and visuals provided. Do not invent products, people, prices, dates, claims, or testimonials. Do NOT render any hashtags (#…) anywhere on the image.";
