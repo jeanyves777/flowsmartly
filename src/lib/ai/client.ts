@@ -243,6 +243,62 @@ class ClaudeAI {
   }
 
   /**
+   * Generate a reply for a multi-turn conversation (non-streaming). Same retry +
+   * backup-key failover as `generate`, but takes a full `messages` array so the
+   * model sees the real turn history (e.g. a WhatsApp thread). The first message
+   * must be `user` — the API rejects a leading assistant turn.
+   */
+  async generateConversation(
+    messages: { role: "user" | "assistant"; content: string }[],
+    options: AIGenerationOptions = {},
+  ): Promise<string> {
+    const {
+      maxTokens = 1024,
+      temperature = 0.7,
+      systemPrompt = "You are a helpful assistant. Be concise and useful.",
+      model: modelOverride,
+    } = options;
+
+    const model = resolveClaudeModel(modelOverride);
+    const strict = isStrictModel(model);
+
+    const maxRetries = 3;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const baseParams: Record<string, unknown> = {
+          model: model as Parameters<typeof this.client.messages.create>[0]["model"],
+          max_tokens: maxTokens,
+          system: systemPrompt,
+          messages,
+        };
+        if (!strict) baseParams.temperature = temperature;
+        const response = (await this.client.messages.create(
+          baseParams as unknown as Parameters<typeof this.client.messages.create>[0],
+        )) as Anthropic.Message;
+
+        const textBlock = response.content.find((block) => block.type === "text");
+        return textBlock?.type === "text" ? textBlock.text : "";
+      } catch (error: unknown) {
+        lastError = error;
+        const status = (error as { status?: number }).status;
+        const isRetryable = status === 429 || status === 529 || status === 500 || status === 503;
+        if ((status === 401 || status === 403) && this.switchToBackup()) continue;
+        if (isRetryable && attempt < maxRetries - 1) {
+          const delay = Math.min(1000 * 2 ** attempt, 8000);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+      }
+    }
+
+    if (lastError && this.shouldFailover(lastError) && this.switchToBackup()) {
+      return this.generateConversation(messages, options);
+    }
+    throw lastError;
+  }
+
+  /**
    * Stream content generation
    */
   async *stream(
