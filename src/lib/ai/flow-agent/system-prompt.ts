@@ -40,7 +40,7 @@ export interface BuildAgentSystemPromptInput {
   /** Background tasks spawned in this conversation + their CURRENT status. */
   recentTasks?: RecentTaskContext[];
   /** Plans proposed earlier in this conversation + their status. */
-  recentProposals?: Array<{ summary: string; status: string; totalCreditCost: number }>;
+  recentProposals?: Array<{ id?: string; summary: string; status: string; totalCreditCost: number }>;
   /** The user's incoming message this turn — used to detect status questions. */
   userMessage?: string;
 }
@@ -155,12 +155,14 @@ export async function buildAgentSystemPrompt(
     .map((p) => {
       const state =
         p.status === "confirmed"
-          ? "CONFIRMED by the user — already executed (do NOT re-propose or re-run it)"
-          : p.status === "rejected"
-            ? "CANCELED by the user — they did NOT want this as-is; ask what to change"
-            : p.status === "expired"
-              ? "expired (no response) — still offerable"
-              : "still PENDING the user's Confirm/Cancel";
+          ? `CONFIRMED by the user but NOT yet run — EXECUTE it NOW by calling the step's tool${p.id ? ` with planId="${p.id}"` : ""} (do NOT re-propose it — it is already approved)`
+          : p.status === "executed"
+            ? "CONFIRMED and already executed (do NOT re-run or re-propose it)"
+            : p.status === "rejected"
+              ? "CANCELED by the user — they did NOT want this as-is; ask what to change"
+              : p.status === "expired"
+                ? "expired (no response) — still offerable"
+                : "still PENDING the user's Confirm/Cancel";
       return `- "${p.summary}" (${p.totalCreditCost} cr) → ${state}`;
     });
 

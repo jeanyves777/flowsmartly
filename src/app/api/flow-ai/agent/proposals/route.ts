@@ -71,7 +71,8 @@ export async function GET(req: NextRequest) {
       summary: r.summary,
       steps: safeJsonArray(r.steps),
       totalCreditCost: r.totalCreditCost,
-      status: r.status,
+      // "executed" is internal (confirmed AND ran) — present as a resolved card.
+      status: r.status === "executed" ? "confirmed" : r.status,
       expiresAt: r.expiresAt.toISOString(),
       resolvedAt: r.resolvedAt?.toISOString() ?? null,
       createdAt: r.createdAt.toISOString(),

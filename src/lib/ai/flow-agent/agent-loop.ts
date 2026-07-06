@@ -355,9 +355,30 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
     // Mutating tools need a confirmed plan first (soft check — return an
     // error result, never refuse outright. The LLM reads it and calls
     // propose_plan, then retries).
+    // Which confirmed plan authorizes this mutating run? Resolve robustly so a
+    // confirmed action actually RUNS instead of being re-proposed (the source of
+    // duplicate plan cards + stalls):
+    //  1. the planId the model passed, if the user confirmed it this turn;
+    //  2. the plan the user just confirmed this turn, if the (cheap) model forgot
+    //     to echo the exact planId back into the tool call;
+    //  3. a plan confirmed in a PRIOR turn / after this request's blocking window
+    //     ended — it lives in the DB as status "confirmed" (not in this turn's set).
+    let resolvedPlanId: string | null = null;
     if (tool.mutating) {
       const planId = typeof rawInput.planId === "string" ? rawInput.planId : null;
-      if (!planId || !confirmedPlans.has(planId)) {
+      if (planId && confirmedPlans.has(planId)) {
+        resolvedPlanId = planId;
+      } else if (!planId && confirmedPlans.size > 0) {
+        resolvedPlanId = Array.from(confirmedPlans).pop() ?? null;
+      } else {
+        const row = await prisma.agentPlanProposal.findFirst({
+          where: { userId: input.userId, conversationId: input.conversationId, status: "confirmed", ...(planId ? { id: planId } : {}) },
+          orderBy: { seq: "desc" },
+          select: { id: true },
+        }).catch(() => null);
+        if (row) { resolvedPlanId = row.id; confirmedPlans.add(row.id); }
+      }
+      if (!resolvedPlanId) {
         const errResult: ToolResult = {
           ok: false,
           error_code: "validation_failed",
@@ -428,6 +449,16 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
 
     const durationMs = Date.now() - startMs;
     await logToolCall(tool, rawInput, result, toolUseId, durationMs, creditCost);
+
+    // A confirmed plan that actually RAN is marked "executed" so it is not
+    // re-surfaced to the model (and re-run / double-charged) on a later turn.
+    // Multi-step plans still work in-turn because the id stays in confirmedPlans.
+    if (tool.mutating && resolvedPlanId && result.ok) {
+      await prisma.agentPlanProposal.updateMany({
+        where: { id: resolvedPlanId, status: "confirmed" },
+        data: { status: "executed" },
+      }).catch(() => {});
+    }
 
     // Emit a tool_call_result event so the UI can update its card.
     input.emit({
