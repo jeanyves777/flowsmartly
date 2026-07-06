@@ -9,10 +9,14 @@ import {
   Link as LinkIcon,
   Check,
 } from "lucide-react";
+import { FlowLoader } from "@/components/shared/flow-loader";
 
 interface AudioPlayerProps {
   audioUrl: string;
+  /** Optional override. When omitted, the player downloads the audio itself. */
   onDownload?: () => void;
+  /** File name (without extension) for the downloaded MP3. */
+  downloadName?: string;
 }
 
 function formatTime(seconds: number): string {
@@ -24,7 +28,7 @@ function formatTime(seconds: number): string {
 
 const SPEED_OPTIONS = [0.5, 1, 1.5, 2];
 
-export function AudioPlayer({ audioUrl, onDownload }: AudioPlayerProps) {
+export function AudioPlayer({ audioUrl, onDownload, downloadName = "voiceover" }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
@@ -33,6 +37,7 @@ export function AudioPlayer({ audioUrl, onDownload }: AudioPlayerProps) {
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   // Attach event listeners
   useEffect(() => {
@@ -111,6 +116,32 @@ export function AudioPlayer({ audioUrl, onDownload }: AudioPlayerProps) {
     }
   }
 
+  // Self-contained download: fetch the audio as a blob so it saves as a file
+  // even when it's cross-origin (S3) — a plain <a download> won't force that.
+  // Falls back to opening the URL if the fetch is blocked.
+  const handleDownload = useCallback(async () => {
+    if (onDownload) { onDownload(); return; }
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(audioUrl);
+      if (!res.ok) throw new Error("fetch failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(downloadName || "voiceover").replace(/[^\w-]+/g, "-").slice(0, 60)}.mp3`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      window.open(audioUrl, "_blank", "noopener");
+    } finally {
+      setDownloading(false);
+    }
+  }, [audioUrl, onDownload, downloading, downloadName]);
+
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
@@ -180,11 +211,12 @@ export function AudioPlayer({ audioUrl, onDownload }: AudioPlayerProps) {
       {/* Actions row */}
       <div className="flex items-center gap-3 pt-2 border-t border-border">
         <button
-          onClick={onDownload}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted border border-border text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-all"
+          onClick={handleDownload}
+          disabled={downloading}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-muted border border-border text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-all disabled:opacity-70"
         >
-          <Download className="w-4 h-4" />
-          Download MP3
+          {downloading ? <FlowLoader size={16} /> : <Download className="w-4 h-4" />}
+          {downloading ? "Downloading…" : "Download MP3"}
         </button>
 
         <button

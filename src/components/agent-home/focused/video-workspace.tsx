@@ -327,14 +327,16 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
 
       {/* bottom sheet — the brief form */}
       {sheetOpen && (
-        <div className="absolute inset-x-0 bottom-0 z-20 mx-auto w-full max-w-3xl rounded-t-2xl border border-border bg-card shadow-2xl">
-          <div className="flex items-center gap-2 px-3.5 pb-1.5 pt-2">
+        <div className="absolute inset-0 z-40">
+          <button aria-label="Close" onClick={() => setSheetOpen(false)} className="absolute inset-0 bg-black/45" />
+          <div className="absolute inset-x-3 bottom-3 flex max-h-[86%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+          <div className="relative flex items-center gap-2 border-b border-border px-3.5 pb-1.5 pt-2">
             <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
             <span className="rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-brand-500">Brief</span>
             <span className="text-[11px] text-muted-foreground">node</span>
             <button onClick={() => setSheetOpen(false)} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
           </div>
-          <div className="max-h-[46vh] overflow-y-auto px-3.5 pb-3">
+          <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-3 pt-3">
             <label className="mb-1 block text-[11.5px] font-semibold">Campaign brief</label>
             <textarea
               value={brief} onChange={(e) => setBrief(e.target.value)} rows={2}
@@ -399,6 +401,7 @@ export function FocusedVideo({ refreshKey, onAsk }: { refreshKey?: number; onAsk
                 <Wand2 className="h-3.5 w-3.5" /> Build the video
               </button>
             </div>
+          </div>
           </div>
         </div>
       )}
