@@ -235,6 +235,10 @@ export function FocusedCompose({ refreshKey, onAsk, composeOpsRef, working, narr
     for (const a of accounts) {
       const isConnected = a.connected || (a.connectedCount ?? 0) > 0;
       if (!isConnected) continue;
+      // WhatsApp isn't a post destination — the Cloud API has no Status/Stories
+      // endpoint, so there's nothing to publish a "post" to. WhatsApp stays
+      // connectable for the conversational agent + messaging, just not here.
+      if (a.platform === "whatsapp") continue;
       const rows = a.accounts || [];
       if (rows.length > 0) {
         for (const row of rows) {

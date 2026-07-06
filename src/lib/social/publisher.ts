@@ -5,7 +5,6 @@ import {
   isSocialAccountDestination,
   socialAccountIdFromDestination,
 } from "@/lib/social/destinations";
-import { publishWhatsAppStatus } from "@/lib/whatsapp/status-publisher";
 import { renderImageToShort } from "@/lib/social/image-to-short";
 import { publishToGoogleBusiness } from "@/lib/social/google-business";
 
@@ -1324,11 +1323,10 @@ export async function publishToSocialPlatforms(
           );
           break;
         case "whatsapp":
-          results[destination] = await publishWhatsAppStatus(account, {
-            mediaUrl: postData.mediaUrls[0],
-            mediaType: postData.mediaType,
-            caption: postData.caption,
-          });
+          // WhatsApp's Cloud API has no Status/Stories endpoint — there is no way
+          // to publish a "post" to WhatsApp. Report honestly instead of silently
+          // failing. WhatsApp stays for the conversational agent + messaging.
+          results[destination] = { success: false, error: "WhatsApp doesn't support posting to Status via its API — use it for messaging and the agent instead." };
           break;
         default:
           results[destination] = { success: false, error: `Unsupported platform: ${platform}` };
