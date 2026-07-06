@@ -444,6 +444,13 @@ export function AgentHome() {
     toBottom();
     return () => { sc?.removeEventListener("scroll", onScroll); ro.disconnect(); };
   }, [messages.length === 0, conversationId, focused]);
+  // Follow STREAMING growth too: the agent streams tokens / plan cards INTO an
+  // existing message (message count unchanged), and the ResizeObserver above
+  // misses it because the scroll container's own box size is fixed (flex-1) — only
+  // its scrollHeight grows. Re-scroll on every message-content change while pinned.
+  useEffect(() => {
+    if (pinnedRef.current) bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [messages, sending]);
 
   // Deep-link: load ?conversationId= on first mount, and keep the URL in sync
   // as the active conversation changes — so any chat is shareable / revisitable.
