@@ -44,6 +44,8 @@ export async function createOAuthUser(profile: {
       lastLoginAt: new Date(),
       aiCredits: 100,
       freeCredits: 100,
+      // Free tier by default — no plan-selection step at signup.
+      onboardingComplete: true,
     },
   });
 

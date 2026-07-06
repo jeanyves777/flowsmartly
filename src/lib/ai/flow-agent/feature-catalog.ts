@@ -360,7 +360,7 @@ export const FEATURE_CATALOG: FeatureEntry[] = [
     id: "subscription",
     title: "Subscription plan",
     description: "Manage subscription tier (Starter / Pro / Business / Enterprise).",
-    route: "/settings/subscription",
+    route: "/home/plans",
     plans: null,
     tools: ["who_am_i"],
     keywords: ["plan", "subscription", "upgrade", "downgrade", "billing", "starter", "pro"],
