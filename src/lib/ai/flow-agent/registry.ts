@@ -163,6 +163,9 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { buildPortfolio } = await import("./tools/build-portfolio");
   const { getPortfolioContent } = await import("./tools/get-portfolio-content");
   const { editPortfolio } = await import("./tools/edit-portfolio");
+  const { findDomain } = await import("./tools/find-domain");
+  const { connectPortfolioDomain } = await import("./tools/connect-portfolio-domain");
+  const { buyPortfolioDomain } = await import("./tools/buy-portfolio-domain");
   const { addProduct } = await import("./tools/add-product");
   const { updateProduct } = await import("./tools/update-product");
   const { deleteProduct } = await import("./tools/delete-product");
@@ -264,6 +267,9 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(buildPortfolio);
   flowAgentTools.register(getPortfolioContent);
   flowAgentTools.register(editPortfolio);
+  flowAgentTools.register(findDomain);
+  flowAgentTools.register(connectPortfolioDomain);
+  flowAgentTools.register(buyPortfolioDomain);
   flowAgentTools.register(addProduct);
   flowAgentTools.register(updateProduct);
   flowAgentTools.register(deleteProduct);
