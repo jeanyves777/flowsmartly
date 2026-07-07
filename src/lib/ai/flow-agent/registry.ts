@@ -143,6 +143,10 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { listContentCampaigns } = await import("./tools/list-content-campaigns");
   const { listOrders, listProducts } = await import("./tools/list-store-items");
   const { listDesigns, listMedia } = await import("./tools/list-library");
+  const { listAvatarVideosTool, listAdCampaigns, listVoiceovers } = await import("./tools/list-studio-outputs");
+  const { getActivities, listSequences, listCompanies } = await import("./tools/list-crm-extra");
+  const { listCustomers, listReviews } = await import("./tools/list-customers-reviews");
+  const { getAnalytics } = await import("./tools/get-analytics");
   const { createOpportunity } = await import("./tools/create-opportunity");
   const { advanceOpportunity } = await import("./tools/advance-opportunity");
   const { runLeadAutopilot } = await import("./tools/run-lead-autopilot");
@@ -249,6 +253,15 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(listProducts);
   flowAgentTools.register(listDesigns);
   flowAgentTools.register(listMedia);
+  flowAgentTools.register(listAvatarVideosTool);
+  flowAgentTools.register(listAdCampaigns);
+  flowAgentTools.register(listVoiceovers);
+  flowAgentTools.register(getActivities);
+  flowAgentTools.register(listSequences);
+  flowAgentTools.register(listCompanies);
+  flowAgentTools.register(listCustomers);
+  flowAgentTools.register(listReviews);
+  flowAgentTools.register(getAnalytics);
   flowAgentTools.register(findLeads);
   flowAgentTools.register(findLocalLeads);
   flowAgentTools.register(enrichLead);
