@@ -140,6 +140,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { deepEnrichLead } = await import("./tools/deep-enrich-lead");
   const { listOpportunities } = await import("./tools/list-pipeline");
   const { listPitches } = await import("./tools/list-pitches");
+  const { getPitch } = await import("./tools/get-pitch");
   const { listContentCampaigns } = await import("./tools/list-content-campaigns");
   const { listOrders, listProducts } = await import("./tools/list-store-items");
   const { listDesigns, listMedia } = await import("./tools/list-library");
@@ -251,6 +252,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(listLeads);
   flowAgentTools.register(listOpportunities);
   flowAgentTools.register(listPitches);
+  flowAgentTools.register(getPitch);
   flowAgentTools.register(listContentCampaigns);
   flowAgentTools.register(listOrders);
   flowAgentTools.register(listProducts);
