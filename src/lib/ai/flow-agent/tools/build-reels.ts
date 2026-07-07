@@ -1,4 +1,5 @@
 import { buildReelsFromTranscript } from "@/lib/reel/reel-editor";
+import { renderCampaignClipsDetached } from "@/lib/reel/reel-pipeline";
 import type { Transcript } from "@/lib/reel/highlights";
 import type { FlowAgentTool } from "../registry";
 
@@ -90,6 +91,7 @@ export const buildReels: FlowAgentTool = {
         title,
         sourceType: input.sourceType === "upload" ? "upload" : "link",
         sourceUrl: typeof input.sourceUrl === "string" ? input.sourceUrl : null,
+        sourceFileUrl: typeof input.sourceFileUrl === "string" ? input.sourceFileUrl : null,
         durationSec: typeof input.durationSec === "number" ? input.durationSec : 0,
         transcript,
         settings: (input.settings && typeof input.settings === "object" ? input.settings : {}) as Record<string, unknown>,
@@ -105,6 +107,8 @@ export const buildReels: FlowAgentTool = {
 
       // Stream the fresh campaign onto the Reel Studio canvas (live render).
       ctx.emit({ type: "canvas_update", patch: { __reel: { campaignId: campaign.id } } });
+      // Kick the ffmpeg render worker (fire-and-forget; degrades if no ffmpeg / no source file).
+      if (typeof input.sourceFileUrl === "string" && input.sourceFileUrl) renderCampaignClipsDetached(campaign.id);
 
       const top = campaign.clips[0];
       return {

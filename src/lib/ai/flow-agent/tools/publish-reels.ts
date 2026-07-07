@@ -1,4 +1,4 @@
-import { createReelPost } from "@/lib/reel/reel-editor";
+import { publishReelClips } from "@/lib/reel/reel-publish";
 import { REEL_CHANNELS, isReelChannel, type ReelChannelId } from "@/lib/reel/highlights";
 import type { FlowAgentTool } from "../registry";
 
@@ -44,31 +44,20 @@ export const publishReels: FlowAgentTool = {
       const scheduledAt = typeof input.scheduleAt === "string" && input.scheduleAt ? new Date(input.scheduleAt) : null;
       const validSchedule = scheduledAt && !isNaN(scheduledAt.getTime()) ? scheduledAt : null;
 
-      const posts: Array<{ clipId: string; channel: string; status: string }> = [];
-      const failed: string[] = [];
-      for (const clipId of clipIds) {
-        for (const channel of channels) {
-          try {
-            const post = await createReelPost({ userId: ctx.userId, clipId, channel, scheduledAt: validSchedule });
-            posts.push({ clipId, channel, status: post.status });
-          } catch {
-            failed.push(`${clipId}→${channel}`);
-          }
-        }
-      }
-
-      if (posts.length === 0) {
+      const outcomes = await publishReelClips({ userId: ctx.userId, clipIds, channels, scheduledAt: validSchedule });
+      if (outcomes.length === 0) {
         return { ok: false, error_code: "not_found", message: "None of those clips were found. Call get_reel_content for valid clip ids." };
       }
+      const postedCount = outcomes.filter((o) => o.status === "posted").length;
       return {
         ok: true,
         data: {
-          published: posts.length,
+          published: outcomes.length,
+          posted: postedCount,
           mode: validSchedule ? "scheduled" : "posting",
           scheduledAt: validSchedule ? validSchedule.toISOString() : null,
-          posts,
-          failed,
-          hint: "Posts are queued on the publishing pipeline. They stay under the campaign's Activity — the user can repost or delete them there.",
+          posts: outcomes,
+          hint: "Rendered clips were posted to the connected channels for real; unrendered ones are queued and go out once they render. Everything stays under the campaign's Activity to repost or delete.",
         },
       };
     } catch (e) {
