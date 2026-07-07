@@ -57,6 +57,18 @@ async function main() {
     section("3. thumbnail (poster frame)");
     ff(["-ss", "1", "-i", out, "-frames:v", "1", "-y", thumb]);
     existsSync(thumb) && (await fsp.stat(thumb)).size > 0 ? ok("thumbnail generated") : bad("no thumbnail");
+
+    section("4. speaker-aware reframe helper + offset crop");
+    const py = process.env.PYTHON_BIN || (process.platform === "win32" ? "python" : "python3");
+    const reframe = spawnSync(py, [path.join(process.cwd(), "scripts", "reel-reframe.py"), input, "1", "5"], { encoding: "utf8" });
+    let cx = NaN;
+    try { cx = Number(JSON.parse((reframe.stdout || "").trim()).cx); } catch { /* invalid */ }
+    Number.isFinite(cx) && cx >= 0 && cx <= 1 ? ok(`reframe.py returned a valid cx (${cx})`) : bad(`reframe.py cx invalid: ${(reframe.stdout || reframe.stderr || "").slice(0, 120)}`);
+    const scaledW = Math.round((1920 * 1280) / 720);
+    const offX = Math.max(0, Math.min(scaledW - 1080, Math.round((Number.isFinite(cx) ? cx : 0.5) * scaledW - 540)));
+    const reframed = path.join(dir, "reframed.mp4");
+    ff(["-ss", "1", "-i", input, "-t", "2", "-vf", `scale=-2:1920,crop=1080:1920:${offX}:0,setsar=1`, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-an", "-y", reframed]);
+    probeV(reframed, "stream=width") === "1080" && probeV(reframed, "stream=height") === "1920" ? ok(`speaker-crop produced 1080x1920 (x=${offX})`) : bad("speaker-crop wrong dims");
   } finally {
     await fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
   }
