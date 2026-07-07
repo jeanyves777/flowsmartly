@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lead Studio — Opportunity ranking mock</title>
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#0f141b; --panel2:#141a23; --row:#10151d; --rowhover:#161d27;
+    --border:#212a35; --text:#e7edf4; --muted:#8a97a6; --muted2:#5f6c7b;
+    --brand:#3b82f6; --brand2:#38bdf8;
+    --hi:#22c55e; --hiBg:rgba(34,197,94,.14); --hiBd:rgba(34,197,94,.4);
+    --md:#f59e0b; --mdBg:rgba(245,158,11,.13); --mdBd:rgba(245,158,11,.38);
+    --lo:#94a3b8; --loBg:rgba(148,163,184,.12); --loBd:rgba(148,163,184,.32);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font:13.5px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;padding:22px 18px 60px}
+  .wrap{max-width:1200px;margin:0 auto}
+  h1{font-size:18px;margin-bottom:3px}
+  .sub{color:var(--muted);font-size:12.5px;margin-bottom:18px}
+  .hdr{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:14px}
+  .hdr .ic{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#1e293b,#0f172a);display:grid;place-items:center;color:var(--brand2);font-size:15px}
+  .hdr h2{font-size:15px}.hdr p{font-size:11px;color:var(--muted)}
+
+  .folderbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(90deg,rgba(59,130,246,.08),transparent);border:1px solid var(--border);border-radius:12px;padding:11px 14px;margin-bottom:12px}
+  .folderbar .l{display:flex;align-items:center;gap:9px;font-size:13px}
+  .folderbar b{font-weight:700}
+  .btn{border:1px solid var(--border);background:var(--panel2);color:var(--text);border-radius:9px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer}
+  .btn.primary{background:linear-gradient(135deg,var(--brand),#2563eb);border-color:transparent}
+  .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .sortpill{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border);border-radius:999px;padding:5px 11px;font-size:11.5px;color:var(--muted)}
+  .sortpill b{color:var(--text)}
+  .count{color:var(--muted);font-size:11.5px;margin-left:auto}
+
+  table{width:100%;border-collapse:separate;border-spacing:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  thead th{text-align:left;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);font-weight:700;padding:11px 14px;background:var(--panel2);border-bottom:1px solid var(--border)}
+  thead th.num{text-align:center;width:64px}
+  thead th.opp{width:190px}
+  tbody td{padding:12px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--rowhover)}
+  .rank{text-align:center;font-weight:800;font-size:14px;color:var(--muted)}
+  .rank .top{color:var(--brand2)}
+  .rank small{display:block;font-size:8.5px;font-weight:700;color:var(--muted2);letter-spacing:.04em}
+  .co{font-weight:700;font-size:13.5px}
+  .contact{font-size:12px}
+  .contact .mail{color:var(--brand2)}
+  .contact .ph{color:var(--muted)}
+  .locked{display:inline-block;width:120px;height:9px;border-radius:5px;background:linear-gradient(90deg,#2a323d,#1c232c);filter:blur(.4px)}
+  .muted{color:var(--muted2)}
+  .en{display:inline-flex;align-items:center;gap:5px;color:var(--hi);font-size:11.5px;font-weight:600}
+  .getbtn{border:1px solid var(--border);background:transparent;color:var(--brand2);border-radius:8px;padding:6px 12px;font-size:11.5px;font-weight:600;cursor:pointer}
+  .flag{display:inline-block;margin-left:6px;font-size:9.5px;color:var(--md);border:1px solid var(--mdBd);background:var(--mdBg);border-radius:5px;padding:0 5px;vertical-align:middle}
+
+  /* opportunity chip + bar */
+  .opp{position:relative}
+  .chip{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:3px 10px 3px 4px;font-weight:700;font-size:12px}
+  .chip .n{display:grid;place-items:center;width:26px;height:22px;border-radius:999px;font-size:12px;font-weight:800}
+  .chip.hi{background:var(--hiBg);border:1px solid var(--hiBd);color:var(--hi)} .chip.hi .n{background:var(--hi);color:#04140a}
+  .chip.md{background:var(--mdBg);border:1px solid var(--mdBd);color:var(--md)} .chip.md .n{background:var(--md);color:#1a1203}
+  .chip.lo{background:var(--loBg);border:1px solid var(--loBd);color:var(--lo)} .chip.lo .n{background:var(--lo);color:#0b1016}
+  .bar{margin-top:6px;height:4px;width:150px;border-radius:3px;background:#1b222c;overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:3px}
+  .bar.hi > i{background:var(--hi)} .bar.md > i{background:var(--md)} .bar.lo > i{background:var(--lo)}
+
+  /* hover breakdown */
+  .opp .pop{position:absolute;z-index:20;left:0;top:calc(100% + 6px);width:250px;background:#0c1219;border:1px solid var(--border);border-radius:10px;padding:10px 11px;box-shadow:0 12px 30px rgba(0,0,0,.5);opacity:0;pointer-events:none;transform:translateY(-4px);transition:.14s}
+  .opp:hover .pop{opacity:1;transform:translateY(0)}
+  .pop h5{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted2);margin-bottom:7px}
+  .pop .ln{display:flex;justify-content:space-between;font-size:11.5px;padding:2.5px 0;color:var(--muted)}
+  .pop .ln b{color:var(--text);font-weight:700}
+  .pop .grp{border-top:1px dashed var(--border);margin-top:6px;padding-top:6px}
+  .pop .tot{display:flex;justify-content:space-between;font-size:12px;font-weight:800;margin-top:7px;padding-top:7px;border-top:1px solid var(--border)}
+
+  /* legend / rubric */
+  .legend{margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:760px){.legend{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:13px 15px}
+  .card h4{font-size:12.5px;margin-bottom:9px;display:flex;align-items:center;gap:7px}
+  .card h4 .dot{width:8px;height:8px;border-radius:2px}
+  .card .row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:3px 0}
+  .card .row b{color:var(--text)}
+  .band{display:flex;gap:8px;margin-top:10px;font-size:11px}
+  .band span{flex:1;text-align:center;border-radius:7px;padding:4px 0;font-weight:700}
+  .band .h{background:var(--hiBg);color:var(--hi);border:1px solid var(--hiBd)}
+  .band .m{background:var(--mdBg);color:var(--md);border:1px solid var(--mdBd)}
+  .band .l{background:var(--loBg);color:var(--lo);border:1px solid var(--loBd)}
+  .note{margin-top:12px;font-size:11.5px;color:var(--muted);background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+  .note b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr">
+    <div class="ic">🔎</div>
+    <div><h2>Lead Studio</h2><p>Find → automate → close</p></div>
+  </div>
+
+  <h1>Opportunity ranking — richest & best-fit leads on top</h1>
+  <p class="sub">New <b>Rank</b> + <b>Opportunity</b> columns. Score = <b>brand-fit</b> (how well the business matches your Brand Kit + whether it's in your searched area) + <b>data readiness</b> (email / phone / website / address on file). Computed instantly from each row — it climbs live as you enrich. Hover any score for the breakdown.</p>
+
+  <div class="folderbar">
+    <div class="l">📁 Folder: <b>Pittsfield Home Care Service Owners</b> · 25 leads</div>
+    <button class="btn">👥 View all contacts</button>
+  </div>
+
+  <div class="toolbar">
+    <span class="sortpill">Sorted by <b>Opportunity ▾</b></span>
+    <span class="sortpill">Brand Kit: <b>Home-care staffing & marketing</b></span>
+    <button class="btn primary" style="margin-left:auto">✨ Get details · 24</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="num">Rank</th>
+        <th>Company</th>
+        <th>Title</th>
+        <th>Contact</th>
+        <th class="opp">Opportunity</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <div class="legend">
+    <div class="card">
+      <h4><span class="dot" style="background:var(--brand2)"></span> Brand fit — 50 pts</h4>
+      <div class="row"><span>Offer / industry match to your Brand Kit</span><b>0–30</b></div>
+      <div class="row"><span>In your searched area (Pittsfield / Berkshire)</span><b>0–15</b></div>
+      <div class="row"><span>Established signal (rating / reviews)</span><b>0–5</b></div>
+    </div>
+    <div class="card">
+      <h4><span class="dot" style="background:var(--hi)"></span> Data readiness — 50 pts</h4>
+      <div class="row"><span>Work email on file</span><b>0–20</b></div>
+      <div class="row"><span>Phone</span><b>0–12</b></div>
+      <div class="row"><span>Website</span><b>0–8</b></div>
+      <div class="row"><span>Street address</span><b>0–6</b></div>
+      <div class="row"><span>LinkedIn / socials</span><b>0–4</b></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <h4>Bands</h4>
+    <div class="band"><span class="h">High · 72–100</span><span class="m">Medium · 45–71</span><span class="l">Low · 0–44</span></div>
+  </div>
+
+  <div class="note">
+    <b>Why the top row is flagged:</b> "Independence Healthcare" has the richest data (fully enriched), so it ranks #1 — but its address is <b>Worcester, not Pittsfield</b>, so brand-fit docks the "in-area" points and shows a <span class="flag">out of area</span> flag. The score stays transparent: you see exactly why each lead sits where it does, and enriching a Pittsfield lead pushes it up as its data fills in.
+  </div>
+</div>
+
+<script>
+  // Illustrative leads (from the screenshot's list) with the rule-based breakdown.
+  // fit = {match, area, signal}; data = {email, phone, web, addr, social}
+  const leads = [
+    { co:"Independence Healthcare", title:"—", email:"elaine.sullivan@independencehealthcare.org", phone:"(508) 767-1776", enriched:true, outArea:true,
+      fit:{match:30, area:0, signal:5}, data:{email:20,phone:12,web:8,addr:6,social:0} },
+    { co:"Berkshire Senior Care", area:"Pittsfield, MA",
+      fit:{match:30, area:15, signal:4}, data:{email:0,phone:12,web:8,addr:6,social:0} },
+    { co:"Berkshire County Home Care Network", area:"Pittsfield, MA",
+      fit:{match:30, area:15, signal:2}, data:{email:0,phone:8,web:8,addr:6,social:0} },
+    { co:"Berkshire Home Care", area:"Pittsfield, MA",
+      fit:{match:28, area:15, signal:2}, data:{email:0,phone:8,web:8,addr:0,social:0} },
+    { co:"Compassionate Care Home Services", area:"Pittsfield, MA",
+      fit:{match:28, area:15, signal:0}, data:{email:0,phone:8,web:8,addr:0,social:0} },
+    { co:"Tender Care Home Services",
+      fit:{match:28, area:12, signal:0}, data:{email:0,phone:8,web:6,addr:0,social:0} },
+    { co:"Homestead Care Services",
+      fit:{match:26, area:12, signal:0}, data:{email:0,phone:0,web:8,addr:0,social:0} },
+    { co:"Senior Living Assistance Pittsfield",
+      fit:{match:22, area:15, signal:0}, data:{email:0,phone:0,web:6,addr:0,social:0} },
+    { co:"Elder Care Solutions Pittsfield",
+      fit:{match:22, area:12, signal:0}, data:{email:0,phone:0,web:0,addr:0,social:0} },
+    { co:"CareLinx Pittsfield",
+      fit:{match:18, area:10, signal:0}, data:{email:0,phone:0,web:0,addr:0,social:0} },
+  ];
+  const sum = o => Object.values(o).reduce((a,b)=>a+b,0);
+  leads.forEach(l => { l.fitT = sum(l.fit); l.dataT = sum(l.data); l.score = l.fitT + l.dataT; });
+  leads.sort((a,b)=> b.score - a.score || b.dataT - a.dataT);
+
+  const band = s => s>=72 ? "hi" : s>=45 ? "md" : "lo";
+  const bandLbl = s => s>=72 ? "High" : s>=45 ? "Med" : "Low";
+  const rows = document.getElementById("rows");
+  leads.forEach((l,i)=>{
+    const b = band(l.score);
+    const contact = l.enriched
+      ? `<div class="contact"><div class="mail">${l.email}</div><div class="ph">${l.phone}</div></div>`
+      : `<span class="locked"></span>`;
+    const action = l.enriched ? `<span class="en">✓ Enriched</span>` : `<button class="getbtn">Get details</button>`;
+    const flag = l.outArea ? `<span class="flag">⚠ out of area</span>` : "";
+    rows.insertAdjacentHTML("beforeend", `
+      <tr>
+        <td class="rank"><span class="${i===0?'top':''}">#${i+1}</span>${i===0?'<small>TOP</small>':''}</td>
+        <td><span class="co">${l.co}</span>${flag}<div class="muted" style="font-size:11px">Owner / decision-maker — not yet identified</div></td>
+        <td class="muted">${l.title||"—"}</td>
+        <td>${contact}</td>
+        <td class="opp">
+          <span class="chip ${b}"><span class="n">${l.score}</span>${bandLbl(l.score)}</span>
+          <div class="bar ${b}"><i style="width:${l.score}%"></i></div>
+          <div class="pop">
+            <h5>${l.co} · score breakdown</h5>
+            <div class="ln"><span>Offer / industry match</span><b>${l.fit.match}/30</b></div>
+            <div class="ln"><span>In searched area</span><b>${l.fit.area}/15</b></div>
+            <div class="ln"><span>Established signal</span><b>${l.fit.signal}/5</b></div>
+            <div class="ln grp"><span>Brand fit</span><b>${l.fitT}/50</b></div>
+            <div class="ln"><span>Email · phone · web · addr</span><b>${l.dataT}/50</b></div>
+            <div class="tot"><span>Opportunity</span><span class="chip ${b}" style="padding:1px 8px 1px 3px"><span class="n" style="width:22px;height:18px">${l.score}</span>${bandLbl(l.score)}</span></div>
+          </div>
+        </td>
+        <td style="text-align:right">${action}</td>
+      </tr>`);
+  });
+</script>
+</body>
+</html>

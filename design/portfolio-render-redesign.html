@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Portfolio render — redesign v3 (3-column: business profile · work · discovery)</title>
+<style>
+  :root{--brand:#0ea5e9;--brand2:#6d5cff;--paper:#0a0c12;--panel:#0f131d;--panel2:#131926;--line:#1b2230;--mut:#8b93a4;--tx:#eef2f8}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--tx);font:15px/1.55 -apple-system,'Segoe UI',Roboto,Arial,sans-serif}
+  img,video{display:block;max-width:100%}
+  a{color:inherit;text-decoration:none}
+  .nav0{position:sticky;top:0;z-index:90;display:flex;align-items:center;gap:12px;padding:8px 18px;background:#06080d;border-bottom:1px solid var(--line)}
+  .nav0 .tag{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-weight:700}
+  .seg{display:flex;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:2px}
+  .seg button{border:0;background:transparent;color:var(--mut);font:700 12px/1 inherit;padding:7px 13px;border-radius:7px;cursor:pointer}
+  .seg button.on{background:var(--brand);color:#00131f}
+  .nav0 .rt{margin-left:auto;font-size:11.5px;color:var(--mut)}
+  .pgone{display:none}
+
+  /* ===== system bar ===== */
+  .sysbar{position:sticky;top:41px;z-index:70;background:#0a0c12ee;backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .sysbar .in{max-width:1640px;margin:0 auto;display:flex;align-items:center;gap:16px;padding:11px 24px}
+  .fs{display:flex;align-items:center;gap:9px;font-weight:900}
+  .fs .fmark{height:26px;width:26px;border-radius:8px;background:linear-gradient(135deg,#6d5cff,#0ea5e9);display:grid;place-items:center;color:#fff;font-size:14px}
+  .fs .fname b{color:#fff}.fs .fname span{color:#6d5cff}
+  .fs .kk{margin-left:6px;font-size:11px;font-weight:800;color:var(--mut);border-left:1px solid var(--line);padding-left:12px}
+  .sysbar nav{margin-left:12px;display:flex;gap:16px;font-size:13px;color:var(--mut);font-weight:600}
+  .sysbar nav a.act{color:#fff}
+  .sysbar .search{margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--mut);font-size:12.5px;min-width:240px}
+  .sysbar .join{background:#fff;color:#0a0c12;font-weight:800;font-size:12.5px;padding:8px 14px;border-radius:10px}
+
+  /* ===== 3-column body — fills the full width ===== */
+  .pbody{max-width:1640px;margin:0 auto;display:grid;grid-template-columns:308px minmax(0,1fr) 328px;gap:22px;padding:22px 24px 30px;align-items:start}
+  .left,.rail{position:sticky;top:104px;align-self:start;display:flex;flex-direction:column;gap:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+
+  /* ---- LEFT: business profile (professional details) ---- */
+  .prof .cover{height:84px;background:linear-gradient(120deg,color-mix(in srgb,var(--brand) 90%,#000),var(--brand2));position:relative}
+  .prof .logo{position:absolute;left:18px;bottom:-26px;height:64px;width:64px;border-radius:18px;background:#0a0c12;border:3px solid var(--panel);display:grid;place-items:center}
+  .prof .logo b{height:52px;width:52px;border-radius:13px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:grid;place-items:center;color:#001018;font-weight:900;font-size:22px}
+  .prof .bd{padding:34px 18px 18px}
+  .prof .nm{display:flex;align-items:center;gap:7px;font-size:18px;font-weight:900;letter-spacing:-.01em}
+  .prof .nm .vf{color:var(--brand);font-size:15px}
+  .prof .tl{color:#cdd4df;font-size:13px;margin-top:2px}
+  .avail{display:inline-flex;align-items:center;gap:7px;margin-top:12px;font-size:12px;font-weight:800;color:#34d399;background:#0e2019;border:1px solid #1f5b46;border-radius:999px;padding:5px 11px}
+  .avail .d{height:7px;width:7px;border-radius:50%;background:#34d399;box-shadow:0 0 0 3px #34d39933}
+  .rows{margin-top:14px;display:flex;flex-direction:column;gap:9px;font-size:13px;color:#c3cad6}
+  .rows .r{display:flex;align-items:center;gap:9px}.rows .r .i{width:16px;color:var(--mut)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:13.5px;padding:11px 16px;border-radius:12px;cursor:pointer;border:0}
+  .btn.pri{background:var(--brand);color:#00131f;box-shadow:0 10px 26px color-mix(in srgb,var(--brand) 30%,transparent)}
+  .btn.ghost{background:#141b28;color:var(--tx);border:1px solid var(--line)}
+  .prof .actions{margin-top:15px;display:flex;flex-direction:column;gap:9px}
+  .miniact{display:flex;gap:8px}.miniact .btn{flex:1;padding:9px}
+  .socials{display:flex;gap:8px;margin-top:14px}
+  .socials a{height:34px;width:34px;border-radius:10px;background:#141b28;border:1px solid var(--line);display:grid;place-items:center;color:var(--mut);font-weight:800;font-size:12px}
+  .socials a:hover{color:var(--brand);border-color:color-mix(in srgb,var(--brand) 50%,transparent)}
+  .kpis{display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--line);margin-top:16px}
+  .kpi{padding:13px 6px;text-align:center;border-right:1px solid var(--line)}.kpi:last-child{border-right:0}
+  .kpi .n{font-size:18px;font-weight:900;color:var(--brand)}.kpi .l{font-size:10.5px;color:var(--mut)}
+  .minititle{font-size:11px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);padding:14px 16px 8px}
+  .svc{padding:0 12px 14px;display:flex;flex-direction:column;gap:2px}
+  .svc .s{display:flex;align-items:center;justify-content:space-between;padding:9px 10px;border-radius:10px;font-size:13px}
+  .svc .s:hover{background:var(--panel2)}
+  .svc .s span{color:var(--mut);font-size:12px}
+  .trust{padding:0 16px 16px;display:flex;flex-wrap:wrap;gap:8px}
+  .trust b{font-size:11.5px;font-weight:700;color:#aeb6c6;background:#141b28;border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+
+  /* ---- CENTER: cover + work fills full width ---- */
+  .cov2{position:relative;border-radius:20px;overflow:hidden;min-height:300px;display:flex;align-items:flex-end;border:1px solid var(--line)}
+  .cov2 .m{position:absolute;inset:0;height:100%;width:100%;object-fit:cover}
+  .cov2 .sc{position:absolute;inset:0;background:linear-gradient(180deg,#0a0c1220,#0a0c12c9),radial-gradient(90% 80% at 15% 10%,color-mix(in srgb,var(--brand) 28%,transparent),transparent 55%)}
+  .cov2 .w{position:relative;padding:26px 30px}
+  .cov2 .chip{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;color:var(--brand);background:color-mix(in srgb,var(--brand) 16%,transparent);border:1px solid color-mix(in srgb,var(--brand) 42%,transparent);border-radius:999px;padding:5px 11px}
+  .cov2 h1{margin:12px 0 0;font-size:clamp(28px,3.6vw,46px);line-height:1.02;font-weight:900;letter-spacing:-.03em;max-width:18ch}
+  .cov2 .sub{margin-top:10px;font-size:16px;color:#d7dce6;max-width:56ch}
+  .cov2 .cta{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap}
+  .reelchip{position:absolute;top:16px;right:16px;display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:#fff;background:#0a0c1266;border:1px solid #ffffff33;border-radius:999px;padding:6px 12px;backdrop-filter:blur(6px)}
+  .reelchip .dot{height:8px;width:8px;border-radius:50%;background:#ff4d4d;box-shadow:0 0 0 4px #ff4d4d33}
+  .cplay{position:absolute;top:42%;left:50%;transform:translate(-50%,-50%);height:70px;width:70px;border-radius:50%;background:#fffffff0;color:#0a0c12;display:grid;place-items:center;font-size:22px;cursor:pointer;box-shadow:0 16px 46px #000a}
+
+  .sec{margin-top:30px}
+  .sechd{display:flex;align-items:flex-end;gap:14px;margin-bottom:16px}
+  .kick{font-size:12px;font-weight:900;letter-spacing:.15em;text-transform:uppercase;color:var(--brand)}
+  .sec h2{font-size:clamp(20px,2.4vw,28px);font-weight:900;letter-spacing:-.02em;margin:4px 0 0}
+  .filter{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap}
+  .filter b{font-size:12px;font-weight:700;color:var(--mut);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
+  .filter b.on{color:#00131f;background:var(--brand);border-color:transparent}
+
+  .work{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}
+  .proj{position:relative;border-radius:16px;overflow:hidden;background:var(--panel);border:1px solid var(--line);cursor:pointer;min-height:220px}
+  .proj.big{grid-column:span 2;grid-row:span 2;min-height:455px}
+  .proj.wide{grid-column:span 2}
+  .proj .m{position:absolute;inset:0;height:100%;width:100%;object-fit:cover;transition:.5s}
+  .proj:hover .m{transform:scale(1.05)}
+  .proj .shade{position:absolute;inset:0;background:linear-gradient(180deg,transparent 45%,#05070c 100%)}
+  .proj .info{position:absolute;left:0;right:0;bottom:0;padding:16px 18px}
+  .proj .cat{font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--brand)}
+  .proj .ttl{font-size:17px;font-weight:800;margin-top:2px}
+  .vtag{position:absolute;top:12px;left:12px;display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:800;color:#fff;background:#05070caa;border:1px solid #ffffff2a;border-radius:999px;padding:4px 9px;backdrop-filter:blur(4px)}
+  .vplay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);height:52px;width:52px;border-radius:50%;background:#ffffffe6;color:#0a0c12;display:grid;place-items:center;font-size:16px;box-shadow:0 10px 30px #0009}
+  .addwork{display:grid;place-items:center;border:2px dashed var(--line);border-radius:16px;color:var(--mut);font-weight:800;font-size:13px;gap:6px;cursor:pointer;background:var(--panel);min-height:220px;text-align:center;padding:10px}
+  .addwork:hover{border-color:var(--brand);color:var(--brand)}
+  .addwork .u{height:40px;width:40px;border-radius:12px;background:#141b28;display:grid;place-items:center;color:var(--brand);font-size:18px}
+
+  .about{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:26px 28px}
+  .about p{font-size:clamp(16px,1.8vw,21px);line-height:1.5;font-weight:600;letter-spacing:-.01em;margin:10px 0 0;max-width:70ch}
+  .about p b{color:var(--brand)}
+  .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .tags span{font-size:12px;font-weight:700;color:#cdd4df;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:6px 12px}
+  .contact{border-radius:20px;padding:44px 30px;text-align:center;background:radial-gradient(120% 120% at 50% 0%,color-mix(in srgb,var(--brand) 22%,transparent),transparent 55%),var(--panel);border:1px solid var(--line)}
+  .contact h2{font-size:clamp(24px,3.4vw,40px);margin:0}.contact p{color:var(--mut);margin:10px auto 20px;max-width:40ch}
+
+  /* ---- RIGHT: discovery / ads ---- */
+  .railhd{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
+  .railhd .more{color:var(--brand);cursor:pointer;text-transform:none;letter-spacing:0;font-size:12px}
+  .plist{padding:5px 8px 10px;display:flex;flex-direction:column;gap:3px}
+  .pl{display:flex;align-items:center;gap:11px;padding:8px;border-radius:12px;cursor:pointer}
+  .pl:hover{background:var(--panel2)}
+  .pl .th{height:46px;width:46px;border-radius:11px;object-fit:cover;flex:0 0 auto;background:#141b28}
+  .pl .tx{min-width:0;flex:1}.pl .tx b{font-size:13.5px;display:block;line-height:1.2}.pl .tx span{font-size:11.5px;color:var(--mut)}
+  .pl .go{color:var(--mut);font-size:15px}
+  .spon{font-size:9px;font-weight:800;color:#f0b429;background:#f0b42918;border:1px solid #f0b42933;border-radius:6px;padding:1px 5px;margin-left:6px}
+  .adcard{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--line);min-height:190px;cursor:pointer}
+  .adcard img{position:absolute;inset:0;height:100%;width:100%;object-fit:cover}
+  .adcard .ov{position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,#05070ce6);display:flex;flex-direction:column;justify-content:flex-end;padding:14px}
+  .adcard .ov b{font-size:15px}.adcard .ov span{font-size:12px;color:#cdd4df}
+  .adcard .tagad{position:absolute;top:10px;left:10px;font-size:9.5px;font-weight:800;color:#fff;background:#05070caa;border:1px solid #ffffff2a;border-radius:6px;padding:3px 7px}
+  .railcta{background:linear-gradient(135deg,#6d5cff,#0ea5e9);border-radius:16px;padding:16px;text-align:center}
+  .railcta b{font-size:14px;display:block}.railcta span{font-size:12px;color:#e7ecff}
+  .railcta button{margin-top:10px;background:#fff;color:#0a0c12;border:0;font-weight:800;font-size:12.5px;padding:9px 14px;border-radius:10px;cursor:pointer;width:100%}
+
+  footer.ft{max-width:1640px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:24px;color:var(--mut);font-size:12.5px;border-top:1px solid var(--line)}
+  footer.ft .made{margin-left:auto}footer.ft .made b{color:var(--brand)}
+  @media(max-width:1180px){.pbody{grid-template-columns:1fr}.left,.rail{position:static;flex-direction:row;overflow-x:auto}.left .card,.rail>*{min-width:280px}.work{grid-template-columns:repeat(2,1fr)}.proj.big{grid-row:span 1;min-height:220px}}
+
+  /* ===================== DIGITAL RÉSUMÉ (clean, recruiter-facing, improved) ===================== */
+  .resume{max-width:988px;margin:26px auto 46px;background:#fff;color:#1b2330;border-radius:18px;overflow:hidden;box-shadow:0 34px 90px #000b}
+  .rhead{padding:30px 34px;display:flex;gap:24px;align-items:center;background:linear-gradient(120deg,color-mix(in srgb,var(--brand) 9%,#fff),#fff);border-bottom:1px solid #eef0f4;flex-wrap:wrap}
+  .rhead .av{height:108px;width:108px;border-radius:28px;object-fit:cover;box-shadow:0 0 0 4px color-mix(in srgb,var(--brand) 18%,transparent)}
+  .rhead .hx{flex:1;min-width:250px}
+  .rhead h1{margin:0;font-size:33px;font-weight:900;letter-spacing:-.02em;color:#0b1220}
+  .rhead .role{color:var(--brand);font-weight:800;font-size:16px;margin-top:2px}
+  .owt{display:inline-flex;align-items:center;gap:7px;margin-top:9px;font-size:11.5px;font-weight:800;color:#0a7c53;background:#e7f8f0;border:1px solid #b7ead2;border-radius:999px;padding:4px 11px}
+  .owt .d{height:7px;width:7px;border-radius:50%;background:#12b981;box-shadow:0 0 0 3px #12b98133}
+  .rhead .summ{margin-top:11px;font-size:13.5px;color:#4a5360;max-width:62ch;line-height:1.55}
+  .rchips{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+  .rchips a{font-size:12px;font-weight:700;color:#3a4453;background:#f2f4f8;border:1px solid #e6e9ef;border-radius:999px;padding:6px 11px}
+  .ract{display:flex;flex-direction:column;gap:9px;min-width:174px}
+  .ract a{display:flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:12.5px;padding:11px 14px;border-radius:12px}
+  .ract .b1{background:var(--brand);color:#fff}
+  .ract .b2{background:#f2f4f8;color:#1b2330;border:1px solid #e6e9ef}
+  .rgrid{display:grid;grid-template-columns:33% 1fr}
+  .rside{padding:26px 24px;background:#f7f8fb;border-right:1px solid #eef0f4}
+  .rmain{padding:26px 30px}
+  .rh{font-size:11.5px;font-weight:900;letter-spacing:.13em;text-transform:uppercase;color:var(--brand);margin:0 0 13px}
+  .blk2{margin-bottom:24px}.rside p{font-size:12.5px;color:#5a636f;line-height:1.6;margin:0}
+  .rb{margin-bottom:11px}.rbl{display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;margin-bottom:4px;color:#2a333f}
+  .rbar{height:7px;border-radius:999px;background:#e9ecf3;overflow:hidden}.rbar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--brand),var(--brand2))}
+  .chipset{display:flex;flex-wrap:wrap;gap:7px}.chipset span{font-size:11.5px;font-weight:700;color:#4b3fb8;background:#efedff;border-radius:8px;padding:5px 9px}
+  .lang{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;margin-bottom:9px;color:#2a333f}
+  .lang .dots{display:flex;gap:3px}.lang .dots i{height:7px;width:7px;border-radius:50%;background:#dfe3ea}.lang .dots i.on{background:var(--brand)}
+  .rblk{margin-bottom:26px}
+  .exp{position:relative;padding-left:18px;margin-bottom:18px}
+  .exp:before{content:"";position:absolute;left:0;top:5px;height:10px;width:10px;border-radius:50%;background:var(--brand)}
+  .exp:after{content:"";position:absolute;left:4.5px;top:16px;bottom:-14px;width:1.5px;background:#e6e9ef}.exp:last-child:after{display:none}
+  .exp b{font-size:14px}.exp .co{color:var(--brand);font-weight:700;font-size:13px}.exp .dt{color:#8b93a4;font-size:11.5px}
+  .exp ul{margin:6px 0 0;padding-left:16px;color:#5a636f;font-size:12.5px}.exp li{margin-bottom:2px}
+  .projm{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .pm{border:1px solid #eceef2;border-radius:12px;overflow:hidden;background:#fff}
+  .pm .ph{height:84px;background-size:cover;background-position:center}
+  .pm .pb{padding:9px 11px}.pm b{font-size:12.5px}.pm span{font-size:11px;color:#8b93a4;display:block;margin:1px 0 3px}.pm a{font-size:11px;color:var(--brand);font-weight:800}
+  .reco{background:#f7f8fb;border:1px solid #eef0f4;border-radius:12px;padding:14px 16px;font-size:13px;color:#3a4453;font-style:italic;line-height:1.55}
+  .reco .by{margin-top:8px;font-style:normal;font-weight:700;font-size:12px;color:#1b2330}
+  .rcta{padding:22px 30px;background:linear-gradient(120deg,color-mix(in srgb,var(--brand) 11%,#fff),#fff);border-top:1px solid #eef0f4;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .rcta b{font-size:16px;color:#0b1220}.rcta .sm{color:#5a636f;font-size:13px}
+  .rcta .g{margin-left:auto;display:flex;gap:9px}
+  .rcta .g a{background:var(--brand);color:#fff;font-weight:800;font-size:12.5px;padding:10px 15px;border-radius:11px}
+  .rcta .g a.o{background:#fff;color:#1b2330;border:1px solid #e6e9ef}
+  .rfoot{text-align:center;padding:14px;font-size:11.5px;color:#9aa2af;background:#fff;border-top:1px solid #f0f2f5}
+  @media(max-width:760px){.rgrid{grid-template-columns:1fr}.rside{border-right:0;border-bottom:1px solid #eef0f4}}
+</style></head>
+<body>
+
+<div class="nav0">
+  <span style="font-weight:900">◆ Portfolio render — <span style="color:var(--brand)">v3</span></span>
+  <span class="tag">3-column · business profile · full-width work · discovery</span>
+  <div class="seg" style="margin-left:8px"><button class="on" onclick="mode('biz')">Business portfolio</button><button onclick="mode('per')">Personal résumé</button></div>
+  <div class="seg"><button id="ac1" class="on" onclick="accent('#0ea5e9','#6d5cff')">Brand A</button><button id="ac2" onclick="accent('#f43f5e','#fb923c')">Brand B</button><button id="ac3" onclick="accent('#22c55e','#0ea5e9')">Brand C</button></div>
+  <span class="rt">brand logo + colors drive the owner's content →</span>
+</div>
+
+<!-- ============ BUSINESS PORTFOLIO ============ -->
+<div id="biz">
+  <div class="sysbar"><div class="in">
+    <a class="fs"><span class="fmark">◆</span><span class="fname"><b>Flow</b><span>Smartly</span></span><span class="kk">PORTFOLIOS</span></a>
+    <nav><a class="act">Discover</a><a>Creatives</a><a>Studios</a><a>Categories</a></nav>
+    <div class="search">🔎 Search portfolios…</div>
+    <a class="join">Create yours</a>
+  </div></div>
+
+  <div class="pbody">
+    <!-- LEFT: business professional details -->
+    <aside class="left">
+      <div class="card prof">
+        <div class="cover"><div class="logo"><b>N</b></div></div>
+        <div class="bd">
+          <div class="nm">Northwind Studio <span class="vf">✔</span></div>
+          <div class="tl">Brand &amp; product design studio</div>
+          <div class="avail"><span class="d"></span> Available for projects</div>
+          <div class="rows">
+            <div class="r"><span class="i">📍</span> Austin, TX · Remote worldwide</div>
+            <div class="r"><span class="i">🗓</span> Founded 2018 · 6 people</div>
+            <div class="r"><span class="i">⚡</span> Typically replies in ~2h</div>
+            <div class="r"><span class="i">🌐</span> northwind.studio</div>
+          </div>
+          <div class="actions">
+            <button class="btn pri">Start a project</button>
+            <div class="miniact"><button class="btn ghost">✉ Email</button><button class="btn ghost">📞 Book a call</button></div>
+          </div>
+          <div class="socials"><a>in</a><a>ig</a><a>Be</a><a>X</a><a>▶</a></div>
+        </div>
+        <div class="kpis"><div class="kpi"><div class="n">40+</div><div class="l">Projects</div></div><div class="kpi"><div class="n">4.9★</div><div class="l">72 reviews</div></div><div class="kpi"><div class="n">8yrs</div><div class="l">In business</div></div></div>
+      </div>
+
+      <div class="card">
+        <div class="minititle">Services</div>
+        <div class="svc">
+          <div class="s">Brand identity <span>from $6k</span></div>
+          <div class="s">Website design + build <span>from $9k</span></div>
+          <div class="s">Product / UX <span>from $12k</span></div>
+          <div class="s">Motion &amp; brand film <span>from $4k</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="minititle">Trusted by</div>
+        <div class="trust"><b>Lumen</b><b>Cadence</b><b>Terra</b><b>Aria</b><b>Kestrel</b><b>+ 36</b></div>
+      </div>
+    </aside>
+
+    <!-- CENTER: fills the full width -->
+    <main class="center">
+      <div class="cov2">
+        <img class="m" src="https://images.unsplash.com/photo-1626785774573-4b799315345d?w=1600&q=70"/>
+        <div class="sc"></div>
+        <span class="reelchip"><span class="dot"></span> Showreel · 1:20</span>
+        <button class="cplay">▶</button>
+        <div class="w">
+          <span class="chip">◆ Selected studio · Austin</span>
+          <h1>We design brands people remember.</h1>
+          <div class="sub">Identity, websites and product design for ambitious teams — shipped in weeks, not months.</div>
+          <div class="cta"><button class="btn pri">Start a project</button><button class="btn ghost">▶ Watch the reel</button></div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sechd"><div><div class="kick">Selected work</div><h2>The work speaks first.</h2></div><div class="filter"><b class="on">All</b><b>Branding</b><b>Web</b><b>Product</b><b>Motion</b></div></div>
+        <div class="work">
+          <div class="proj big"><img class="m" src="https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=1000&q=70"/><span class="vtag">▶ Video · 0:45</span><div class="vplay">▶</div><div class="shade"></div><div class="info"><div class="cat">Motion · Branding</div><div class="ttl">Lumen — brand film</div></div></div>
+          <div class="proj"><img class="m" src="https://images.unsplash.com/photo-1559028012-481c04fa702d?w=600&q=70"/><div class="shade"></div><div class="info"><div class="cat">Product</div><div class="ttl">Cadence</div></div></div>
+          <div class="proj"><img class="m" src="https://images.unsplash.com/photo-1618761714954-0b8cd0026356?w=600&q=70"/><div class="shade"></div><div class="info"><div class="cat">Web</div><div class="ttl">Terra</div></div></div>
+          <div class="proj wide"><img class="m" src="https://images.unsplash.com/photo-1522542550221-31fd19575a2d?w=1000&q=70"/><span class="vtag">▶ Reel · 0:30</span><div class="vplay">▶</div><div class="shade"></div><div class="info"><div class="cat">Branding</div><div class="ttl">Aria identity system</div></div></div>
+          <div class="proj"><img class="m" src="https://images.unsplash.com/photo-1551650975-87deedd944c3?w=600&q=70"/><div class="shade"></div><div class="info"><div class="cat">Product</div><div class="ttl">Checkout</div></div></div>
+          <div class="proj"><img class="m" src="https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=600&q=70"/><div class="shade"></div><div class="info"><div class="cat">Web</div><div class="ttl">Kestrel</div></div></div>
+          <div class="proj"><img class="m" src="https://images.unsplash.com/photo-1524749292158-7540c2494485?w=600&q=70"/><div class="shade"></div><div class="info"><div class="cat">Motion</div><div class="ttl">Pulse</div></div></div>
+          <div class="proj"><img class="m" src="https://images.unsplash.com/photo-1558655146-9f40138edfeb?w=600&q=70"/><div class="shade"></div><div class="info"><div class="cat">Branding</div><div class="ttl">Fable</div></div></div>
+          <div class="addwork"><span class="u">＋</span> Upload work — image or video</div>
+        </div>
+      </div>
+
+      <div class="sec about">
+        <div class="kick">Studio</div>
+        <p>A small senior team of designers and engineers. We've shipped <b>40+ products</b> for founders across fintech, health and climate — every one built to <b>convert</b>.</p>
+        <div class="tags"><span>Brand identity</span><span>Web design</span><span>Product / UX</span><span>Motion</span><span>Design systems</span><span>Webflow</span></div>
+      </div>
+
+      <div class="sec"><div class="contact"><h2>Let's build something.</h2><p>Tell us what you're making — we'll come back with a plan and a price.</p><button class="btn pri">hello@northwind.studio</button></div></div>
+    </main>
+
+    <!-- RIGHT: discovery / ads -->
+    <aside class="rail">
+      <div class="card"><div class="railhd"><span>Discover portfolios</span><span class="more">See all →</span></div>
+        <div class="plist">
+          <div class="pl"><img class="th" src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&q=50"/><div class="tx"><b>Maya Rios</b><span>Brand designer · NYC</span></div><span class="go">↗</span></div>
+          <div class="pl"><img class="th" src="https://images.unsplash.com/photo-1531891437562-4301cf35b7e4?w=100&q=50"/><div class="tx"><b>Atlas Collective <span class="spon">Ad</span></b><span>Motion studio</span></div><span class="go">↗</span></div>
+          <div class="pl"><img class="th" src="https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100&q=50"/><div class="tx"><b>Lena Park</b><span>Product designer</span></div><span class="go">↗</span></div>
+          <div class="pl"><img class="th" src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&q=50"/><div class="tx"><b>North &amp; Co.</b><span>Web studio</span></div><span class="go">↗</span></div>
+        </div>
+      </div>
+      <div class="adcard"><img src="https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=500&q=60"/><div class="ov"><span class="tagad">Featured</span><b>Studio Vega</b><span>Award-winning brand &amp; motion — see the reel ↗</span></div></div>
+      <div class="card"><div class="railhd"><span>Trending this week</span></div>
+        <div class="plist">
+          <div class="pl"><img class="th" src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=100&q=50"/><div class="tx"><b>Iris Bloom</b><span>Illustrator</span></div><span class="go">↗</span></div>
+          <div class="pl"><img class="th" src="https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=100&q=50"/><div class="tx"><b>Deft Labs</b><span>Product studio</span></div><span class="go">↗</span></div>
+        </div>
+      </div>
+      <div class="railcta"><b>Your work belongs here.</b><span>Build a portfolio like this in minutes.</span><button>Create your portfolio</button></div>
+    </aside>
+  </div>
+  <footer class="ft"><a class="fs"><span class="fmark">◆</span><span class="fname"><b>Flow</b><span>Smartly</span></span></a><span>Northwind Studio · a FlowSmartly portfolio</span><span class="made">Made with <b>FlowSmartly</b></span></footer>
+</div>
+
+<!-- ============ DIGITAL RÉSUMÉ (clean, improved) ============ -->
+<div id="per" class="pgone">
+  <div class="resume">
+    <div class="rhead">
+      <img class="av" src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=240&q=60"/>
+      <div class="hx">
+        <h1>Jordan Lee</h1>
+        <div class="role">Senior Product Designer</div>
+        <div class="owt"><span class="d"></span> Open to opportunities</div>
+        <div class="summ">8 years designing products people love — across fintech, health &amp; developer tools. I turn fuzzy problems into clean, shipping product, and I sweat the details.</div>
+        <div class="rchips"><a>✉ jordan@lee.design</a><a>📞 +1 512 555 0110</a><a>📍 Austin, TX</a><a>🔗 jordanlee.co</a><a>in /jordanlee</a></div>
+      </div>
+      <div class="ract"><a class="b1">⬇ Download PDF</a><a class="b2">🔳 Share · QR</a><a class="b2">✉ Contact me</a></div>
+    </div>
+
+    <div class="rgrid">
+      <div class="rside">
+        <div class="blk2"><div class="rh">About</div><p>Product designer who ships — comfortable from research → hi-fi → dev hand-off. Design-systems nerd who loves turning complexity into calm, usable interfaces.</p></div>
+        <div class="blk2"><div class="rh">Skills</div>
+          <div class="rb"><div class="rbl"><span>Product design</span><span>95%</span></div><div class="rbar"><i style="width:95%"></i></div></div>
+          <div class="rb"><div class="rbl"><span>Prototyping</span><span>90%</span></div><div class="rbar"><i style="width:90%"></i></div></div>
+          <div class="rb"><div class="rbl"><span>Design systems</span><span>88%</span></div><div class="rbar"><i style="width:88%"></i></div></div>
+          <div class="rb"><div class="rbl"><span>User research</span><span>80%</span></div><div class="rbar"><i style="width:80%"></i></div></div>
+        </div>
+        <div class="blk2"><div class="rh">Tools</div><div class="chipset"><span>Figma</span><span>Framer</span><span>Swift</span><span>Webflow</span><span>Rive</span><span>Notion</span></div></div>
+        <div class="blk2"><div class="rh">Languages</div>
+          <div class="lang"><span>English</span><span class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span></div>
+          <div class="lang"><span>Spanish</span><span class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></span></div>
+          <div class="lang"><span>French</span><span class="dots"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></span></div>
+        </div>
+      </div>
+
+      <div class="rmain">
+        <div class="rblk"><div class="rh">Experience</div>
+          <div class="exp"><b>Senior Product Designer</b> · <span class="co">Figma</span><div class="dt">2022 — Present · Remote</div>
+            <ul><li>Led the redesign of the collaboration surface used by 4M+ users; +18% activation.</li><li>Built and owns the multiplayer design system.</li></ul></div>
+          <div class="exp"><b>Product Designer</b> · <span class="co">Stripe</span><div class="dt">2019 — 2022</div>
+            <ul><li>Owned checkout &amp; billing UX across web and mobile SDKs.</li><li>Shipped one-click checkout; +22% conversion.</li></ul></div>
+          <div class="exp"><b>UX Designer</b> · <span class="co">Shopify</span><div class="dt">2017 — 2019</div>
+            <ul><li>Merchant onboarding flows; shipped the theme editor v2.</li></ul></div>
+        </div>
+
+        <div class="rblk"><div class="rh">Selected projects</div>
+          <div class="projm">
+            <div class="pm"><div class="ph" style="background-image:url('https://images.unsplash.com/photo-1467232004584-a241de8bcf5d?w=300&q=60')"></div><div class="pb"><b>Design system</b><span>120-component library</span><a>View case study ↗</a></div></div>
+            <div class="pm"><div class="ph" style="background-image:url('https://images.unsplash.com/photo-1551650975-87deedd944c3?w=300&q=60')"></div><div class="pb"><b>Mobile checkout</b><span>+22% conversion</span><a>Watch demo ↗</a></div></div>
+          </div>
+        </div>
+
+        <div class="rblk"><div class="rh">Education &amp; certifications</div>
+          <div class="exp"><b>BFA, Design</b> · <span class="co">RISD</span><div class="dt">2013 — 2017</div></div>
+          <div class="exp"><b>NN/g UX Certification</b><div class="dt">2021</div></div>
+        </div>
+
+        <div class="rblk"><div class="rh">Recommendation</div>
+          <div class="reco">"One of the sharpest product thinkers I've worked with — Jordan turns ambiguity into shipped, delightful product."<div class="by">— Dana Wu, VP Product at Figma</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rcta"><b>Let's work together.</b><span class="sm">Open to senior product-design roles &amp; select freelance.</span><div class="g"><a>✉ Get in touch</a><a class="o">⬇ Résumé PDF</a></div></div>
+    <div class="rfoot">Made with <b style="color:var(--brand)">FlowSmartly</b></div>
+  </div>
+</div>
+
+<script>
+  function mode(m){document.getElementById('biz').classList.toggle('pgone',m!=='biz');document.getElementById('per').classList.toggle('pgone',m!=='per');document.querySelectorAll('.nav0 .seg:first-of-type button').forEach((b,i)=>b.classList.toggle('on',(m==='biz')===(i===0)));window.scrollTo(0,0);}
+  function accent(c,c2){document.documentElement.style.setProperty('--brand',c);document.documentElement.style.setProperty('--brand2',c2);['#0ea5e9','#f43f5e','#22c55e'].forEach((x,i)=>document.getElementById('ac'+(i+1)).classList.toggle('on',x===c));}
+</script>
+</body></html>
