@@ -156,6 +156,8 @@ model User {
   emailTemplates        EmailTemplate[]
   websites              Website[]
   portfolios            Portfolio[]
+  reelCampaigns         ReelCampaign[]
+  reelPosts             ReelPost[]
   websiteBlogPosts      WebsiteBlogPost[]
   websiteDomains        WebsiteDomain[]
   feedbackReports       FeedbackReport[]
@@ -1314,6 +1316,7 @@ model BrandKit {
   emailTemplates EmailTemplate[]
   websites       Website[]
   portfolios     Portfolio[]
+  reelCampaigns  ReelCampaign[]
 
   @@index([userId])
   @@index([isDefault])
@@ -5535,6 +5538,103 @@ model PortfolioVisitor {
   @@unique([portfolioId, email])
   @@index([portfolioId])
   @@index([email])
+}
+
+// ============================================
+// REEL STUDIO
+// Long video / URL → a stack of scored 9:16 clips, on the AdBuilderCanvas
+// playground. A ReelCampaign is one build (a source video + its settings);
+// it has many ReelClips (each a scored moment); each clip has many ReelPosts
+// (a publish/schedule record per social channel). Mirrors the Portfolio/Store
+// studio + flow-agent tool pattern. JSON-as-String columns (sqlite).
+model ReelCampaign {
+  id         String  @id @default(cuid())
+  userId     String
+  brandKitId String?
+
+  // Source video
+  title         String // campaign name, e.g. "Ep. 47 — Solo Founder Playbook"
+  sourceType    String  @default("link") // "link" | "upload"
+  sourceUrl     String? // original video link (YouTube/Vimeo/…)
+  sourceFileUrl String? // uploaded / fetched media (S3 or /uploads)
+  durationSec   Int     @default(0) // source length in seconds
+
+  // Full transcript (JSON: { segments:[{start,end,text}], words? }) — can be large, nullable
+  transcript String?
+
+  // Build settings (JSON): { clipLength, aspect, count, captionStyle,
+  // speakerTracking, animatedCaptions, autoBroll }
+  settings String @default("{}")
+
+  status String  @default("DRAFT") // "DRAFT" | "PROCESSING" | "READY" | "FAILED"
+  error  String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandKit BrandKit?  @relation(fields: [brandKitId], references: [id], onDelete: SetNull)
+  clips    ReelClip[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model ReelClip {
+  id         String @id @default(cuid())
+  campaignId String
+
+  // Timing within the source (seconds)
+  startSec Float
+  endSec   Float
+  order    Int    @default(0) // display order (sorted by score by default)
+
+  // Content
+  title          String // clip title
+  hook           String? // why it scored / the opening hook line
+  score          Int     @default(0) // virality score 0-99
+  aspect         String  @default("9:16") // "9:16" | "1:1" | "16:9"
+  caption        String  @default("[]") // JSON: word-level caption segments [{ t, text }]
+  transcriptText String? // the clip's transcript slice
+  hashtags       String  @default("[]") // JSON array of suggested hashtags
+
+  // Render (produced by the ffmpeg + reframe worker — pending until rendered)
+  renderStatus String  @default("pending") // "pending" | "rendering" | "ready" | "failed"
+  renderUrl    String? // S3 URL of the rendered vertical mp4
+  thumbUrl     String? // poster frame
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  campaign ReelCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  posts    ReelPost[]
+
+  @@index([campaignId])
+}
+
+model ReelPost {
+  id     String @id @default(cuid())
+  clipId String
+  userId String
+
+  channel     String // "tiktok" | "instagram" | "youtube" | "facebook" | "linkedin" | "x"
+  status      String    @default("draft") // "draft" | "scheduled" | "posting" | "posted" | "failed"
+  scheduledAt DateTime?
+  postedAt    DateTime?
+  externalUrl String? // the live post URL once published
+  externalId  String? // provider post id
+  error       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clip ReelClip @relation(fields: [clipId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clipId])
+  @@index([userId])
+  @@index([status])
 }
 
 model WebsiteBlogPost {

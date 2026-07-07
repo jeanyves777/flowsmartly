@@ -9,5 +9,8 @@ export async function GET() {
     return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
   }
   const templates = await listTemplatesForUser();
-  return NextResponse.json({ success: true, data: { templates } });
+  return NextResponse.json(
+    { success: true, data: { templates } },
+    { headers: { "Cache-Control": "private, max-age=120" } },
+  );
 }

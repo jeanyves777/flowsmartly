@@ -63,11 +63,15 @@ const INDUSTRY_CHIPS = ["Dental", "Med spa", "Law", "SaaS", "Real estate"];
 const FLD = "w-full rounded-[9px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 const SEL = "rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12px] outline-none focus:border-brand-500/60";
 
-export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy, onPitchLead, onOpenPitch }: { refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean; onPitchLead?: (l: SavedLead) => void; onOpenPitch?: (pitchId: string) => void }) {
+export function FocusedLeads({ initialScreen, onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy, onPitchLead, onOpenPitch }: { initialScreen?: string; refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean; onPitchLead?: (l: SavedLead) => void; onOpenPitch?: (pitchId: string) => void }) {
   const { toast } = useToast();
   const { isMobile, seedComposer } = useMobileChat();
   const openLeadBrief = () => { if (isMobile) { seedComposer(LEADS_STARTER); return; } setBriefOpen(true); };
   const [screen, setScreen] = useState<Screen>("find");
+  useEffect(() => {
+    const screens: Screen[] = ["find", "contacts", "companies", "pipeline", "roi", "library", "pitches"];
+    if (initialScreen && screens.includes(initialScreen as Screen)) setScreen(initialScreen as Screen);
+  }, [initialScreen]);
   // The menu is controlled from the surface header toggle when `menuOpen` is
   // passed; otherwise it falls back to local state (standalone use).
   const [menuOpenLocal] = useState(true);
@@ -370,7 +374,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
 /* ── detail-card helpers ── */
 function DField({ k, children, full }: { k: string; children: ReactNode; full?: boolean }) {
   return (
-    <div className={full ? "sm:col-span-2" : "min-w-0"}>
+    <div className={cn("min-w-0", full && "sm:col-span-2")}>
       <dt className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60">{k}</dt>
       <dd className="mt-0.5 break-words text-[13px] leading-snug">{children}</dd>
     </div>
@@ -381,7 +385,7 @@ function DField({ k, children, full }: { k: string; children: ReactNode; full?: 
 // are the way to actually go hunt for these.
 function DMiss({ k, full }: { k: string; full?: boolean }) {
   return (
-    <div className={full ? "sm:col-span-2" : "min-w-0"}>
+    <div className={cn("min-w-0", full && "sm:col-span-2")}>
       <dt className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/45">{k}</dt>
       <dd className="mt-0.5 text-[13px] italic leading-snug text-muted-foreground/35">Not found yet</dd>
     </div>
@@ -391,7 +395,7 @@ function DSection({ icon: Icon, label, children }: { icon: ElementType; label: s
   return (
     <div>
       <p className="mb-2 flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground/60"><Icon className="h-3.5 w-3.5" /> {label}</p>
-      <dl className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">{children}</dl>
+      <dl className="grid grid-cols-1 gap-x-5 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{children}</dl>
     </div>
   );
 }
@@ -449,7 +453,7 @@ function LeadDetailSheet({ lead, enriching, onEnrich, onDeepDetail, onClose, onP
         </div>
 
         {/* body */}
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           {!anyDetail ? (
             <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No contact details yet — <b className="text-foreground">Get details</b> finds their email, phone, website and full address and saves them here.</p>
           ) : (
