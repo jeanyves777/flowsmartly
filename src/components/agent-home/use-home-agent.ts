@@ -129,6 +129,7 @@ export function useHomeAgent() {
       const blocks: MessageBlock[] = [];
       let assistantText = "";
       let turnHadTool = false;
+      let sawDone = false;
 
       const flushMessage = () => {
         setMessages((prev) =>
@@ -242,8 +243,19 @@ export function useHomeAgent() {
             assistantText = assistantText ? `${assistantText}\n\n⚠️ ${message}` : `⚠️ ${message}`;
             flushMessage();
           },
-          onDone: () => { if (turnHadTool) setActionCount((c) => c + 1); flushMessage(); },
+          onDone: () => { sawDone = true; if (turnHadTool) setActionCount((c) => c + 1); flushMessage(); },
         });
+
+        // The stream ended. If the turn produced NOTHING (a dropped/half-open
+        // connection or a worker killed mid-turn — see the idle timeout in
+        // consumeAgentStream), don't leave the user staring at the loader:
+        // convert the empty bubble into a recoverable, retryable message.
+        if (!assistantText.trim() && blocks.length === 0 && toolCallsById.size === 0 && tasksById.size === 0 && proposalsById.size === 0) {
+          assistantText = sawDone
+            ? "I didn't have anything to add there — want me to try again?"
+            : "That step got interrupted before I could finish — I'm back online. Want me to try again?";
+          flushMessage();
+        }
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : "Something went wrong";
         setMessages((prev) => prev.map((m) => (m.id === pendingMsg.id ? { ...m, content: `⚠️ ${errMsg}` } : m)));

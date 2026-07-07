@@ -11,7 +11,7 @@ import {
   FeedbackButtons,
 } from "@/components/flow-ai/agent-cards";
 import { RichText } from "@/components/flow-ai/rich-text";
-import { FlowLoader } from "@/components/shared/flow-loader";
+import { LogoGlowLoader, DotGrid } from "@/components/shared/logo-glow-loader";
 import { BrandMark } from "./brand-mark";
 import type { HomeMessage } from "./use-home-agent";
 
@@ -86,8 +86,9 @@ export function HomeMessageView({
               !message.toolCalls?.length &&
               !message.planProposals?.length &&
               !message.agentTasks?.length && (
-                <div className="inline-flex items-center rounded-2xl border border-border bg-card px-3 py-2">
-                  <FlowLoader size={24} withMark label="Working…" />
+                <div className="relative inline-grid h-[54px] w-[76px] place-items-center overflow-hidden rounded-2xl border border-border bg-card text-muted-foreground/20">
+                  <DotGrid />
+                  <LogoGlowLoader size={30} />
                 </div>
               )
             )}
