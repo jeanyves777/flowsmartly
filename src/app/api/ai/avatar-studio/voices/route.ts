@@ -9,5 +9,8 @@ export async function GET() {
     return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
   }
   const voices = await listVoicesForUser();
-  return NextResponse.json({ success: true, data: { voices } });
+  return NextResponse.json(
+    { success: true, data: { voices } },
+    { headers: { "Cache-Control": "private, max-age=120" } },
+  );
 }
