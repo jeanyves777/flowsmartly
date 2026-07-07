@@ -59,8 +59,8 @@ function toLocalInput(iso?: string | null): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }: {
-  target: CampaignTarget | null; onAsk: (p: string) => void; refreshKey?: number; onOpenView?: (key: string) => void;
+export function FocusedCampaignStudio({ initialView, target, onAsk, refreshKey, onOpenView }: {
+  initialView?: string; target: CampaignTarget | null; onAsk: (p: string) => void; refreshKey?: number; onOpenView?: (key: string) => void;
 }) {
   const { toast } = useToast();
   const { isMobile, seedComposer } = useMobileChat();
@@ -159,7 +159,7 @@ export function FocusedCampaignStudio({ target, onAsk, refreshKey, onOpenView }:
   // Open the brief modal automatically for a fresh studio (no campaign yet).
   // …but never auto-pop a data-fill modal on mobile (there the agent collects
   // inputs via chat — the empty state's CTA seeds the composer instead).
-  useEffect(() => { setBriefOpen(!target?.campaignId && !isMobileViewport()); }, [target]);
+  useEffect(() => { setBriefOpen(initialView !== "library" && !target?.campaignId && !isMobileViewport()); }, [initialView, target]);
 
   // While generating: adopt the freshly-created campaign, then keep polling so
   // posts stream in live. Clear ONLY when all planned posts have landed (or a
