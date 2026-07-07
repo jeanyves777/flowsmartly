@@ -19,7 +19,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   Sparkles, X, Film, Clapperboard, UserSquare2, Scissors, Images, Palette, Plus,
-  ChevronDown, Play, FolderOpen, Wand2, Upload, Mic, Captions as CaptionsIcon,
+  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Captions as CaptionsIcon,
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -49,8 +49,14 @@ const LENGTHS = [15, 30, 60, 90] as const;
 const NODE_W = 208;
 const isRendering = (s?: string) => s === "rendering" || s === "queued";
 const isPlayable = (u?: string | null): u is string => typeof u === "string" && /^https?:\/\/|^\/uploads\//i.test(u);
+const isImageUrl = (u?: string | null): u is string => !!u && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(u);
 const fmtT = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 8)}`;
+/** Played length of a scene on the timeline — an in/out trim if set, else its duration. */
+const playedLen = (s: FilmScene) =>
+  typeof s.clipStart === "number" && typeof s.clipEnd === "number" && s.clipEnd > s.clipStart
+    ? s.clipEnd - s.clipStart
+    : s.durationSec || 4;
 
 // Default config for a freshly-added scene of each engine.
 function newScene(engine: SceneEngine, order: number, x: number, y: number): FilmScene {
@@ -229,6 +235,47 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
     if (!selId) return;
     mutate((f) => ({ ...f, scenes: f.scenes.map((s) => s.id === selId ? { ...s, ...patch } : s) }));
   };
+  const patchSceneById = (id: string, patch: Partial<FilmScene>) => {
+    mutate((f) => ({ ...f, scenes: f.scenes.map((s) => s.id === id ? { ...s, ...patch } : s) }));
+  };
+  // Timeline reorder — the given id order becomes the film sequence.
+  const reorderScenes = (orderedIds: string[]) => {
+    mutate((f) => {
+      const byId = new Map(f.scenes.map((s) => [s.id, s]));
+      const seq = orderedIds.map((i) => byId.get(i)).filter((s): s is FilmScene => !!s);
+      const rest = f.scenes.filter((s) => !orderedIds.includes(s.id));
+      return { ...f, scenes: [...seq, ...rest].map((s, i) => ({ ...s, order: i })) };
+    });
+  };
+  // Split a scene at a local offset (seconds into its played length) into two clips.
+  const splitSceneAt = (id: string, atLocalSec: number) => {
+    mutate((f) => {
+      const idx = f.scenes.findIndex((s) => s.id === id);
+      if (idx < 0) return f;
+      const s = f.scenes[idx];
+      const len = playedLen(s);
+      if (atLocalSec <= 0.3 || atLocalSec >= len - 0.3) return f; // too close to an edge
+      let parts: FilmScene[];
+      if (isImageUrl(s.videoUrl)) {
+        // a still → two stills that sum to the original hold
+        parts = [
+          { ...s, id: uid("sc"), durationSec: Math.max(1, Math.round(atLocalSec)) },
+          { ...s, id: uid("sc"), durationSec: Math.max(1, Math.round(len - atLocalSec)) },
+        ];
+      } else {
+        const inStart = s.clipStart ?? 0;
+        const cut = inStart + atLocalSec;
+        const outEnd = s.clipEnd ?? inStart + len;
+        parts = [
+          { ...s, id: uid("sc"), clipStart: inStart, clipEnd: cut, durationSec: Math.round(atLocalSec) },
+          { ...s, id: uid("sc"), clipStart: cut, clipEnd: outEnd, durationSec: Math.round(len - atLocalSec) },
+        ];
+      }
+      const scenes = [...f.scenes];
+      scenes.splice(idx, 1, ...parts);
+      return { ...f, scenes: scenes.map((x, i) => ({ ...x, order: i })) };
+    });
+  };
 
   const generateScene = async (id: string) => {
     if (!film) return;
@@ -363,8 +410,15 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
         {film && <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-[10.5px] text-muted-foreground">Click a node to edit its engine · drag to reorder · ＋ inserts a beat</div>}
       </div>
 
-      {/* docked timeline */}
-      {film && <DockedTimeline scenes={scenes} film={film} collapsed={dockCollapsed} onToggle={() => setDockCollapsed((v) => !v)} />}
+      {/* docked timeline — live edit */}
+      {film && (
+        <DockedTimeline
+          scenes={scenes} film={film}
+          collapsed={dockCollapsed} onToggle={() => setDockCollapsed((v) => !v)}
+          selId={selId} onSelect={setSelId}
+          onPatch={patchSceneById} onReorder={reorderScenes} onSplit={splitSceneAt}
+        />
+      )}
 
       {/* right inspector */}
       {selScene && (
@@ -481,55 +535,200 @@ function SceneNode({ scene, selected, onDown, onSelect, onGenerate, onRemove, on
 }
 
 // ============================================================ docked timeline
-function DockedTimeline({ scenes, film, collapsed, onToggle }: { scenes: FilmScene[]; film: FilmProject; collapsed: boolean; onToggle: () => void }) {
-  const PX = 26; // px per second
+const THEAD_W = 92;
+function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, onPatch, onReorder, onSplit }: {
+  scenes: FilmScene[]; film: FilmProject; collapsed: boolean; onToggle: () => void;
+  selId: string | null; onSelect: (id: string) => void;
+  onPatch: (id: string, patch: Partial<FilmScene>) => void;
+  onReorder: (ids: string[]) => void;
+  onSplit: (id: string, atLocalSec: number) => void;
+}) {
+  const [px, setPx] = useState(30);          // px per second (zoom)
+  const [t, setT] = useState(0);             // playhead seconds
+  const [playing, setPlaying] = useState(false);
+  const [drag, setDrag] = useState<{ id: string; mode: "move" | "l" | "r"; dx: number } | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const rulerRef = useRef<HTMLDivElement | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const wallRef = useRef(0);
+  const startXRef = useRef(0);
+  const scrubbing = useRef(false);
+
+  // cumulative layout by played length
   let cursor = 0;
-  const laid = scenes.map((s) => { const start = cursor; const dur = s.durationSec || 4; cursor += dur; return { s, start, dur }; });
-  const total = Math.max(30, cursor);
+  const laid = scenes.map((s) => { const start = cursor; const len = playedLen(s); cursor += len; return { s, start, len }; });
+  const total = Math.max(15, cursor);
   const ticks = Array.from({ length: Math.floor(total / 5) + 1 }, (_, i) => i * 5);
-  const TRACKS: { key: string; label: string; color: string; Icon: ElementType }[] = [
-    { key: "video", label: "Video", color: "#a78bfa", Icon: Film },
-    { key: "avatar", label: "Avatar", color: "#22d3ee", Icon: UserSquare2 },
-    { key: "vo", label: "Voiceover", color: "#818cf8", Icon: Mic },
-    { key: "music", label: "Music", color: "#f472b6", Icon: Mic },
-    { key: "captions", label: "Captions", color: "#e2e8f0", Icon: CaptionsIcon },
-  ];
+  const active = laid.find((l) => t >= l.start && t < l.start + l.len) || laid[laid.length - 1];
+  const activeUrl = active?.s.videoUrl && isPlayable(active.s.videoUrl) ? active.s.videoUrl : null;
+  const activeImg = active && isImageUrl(active.s.videoUrl) ? active.s.videoUrl : null;
+
+  // seek the preview <video> to the playhead's local time (scrub)
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || !activeUrl || activeImg) return;
+    if (v.getAttribute("data-src") !== activeUrl) { v.src = activeUrl; v.setAttribute("data-src", activeUrl); }
+    const local = active ? (active.s.clipStart ?? 0) + (t - active.start) : 0;
+    try { if (Math.abs(v.currentTime - local) > 0.1) v.currentTime = Math.max(0, local); } catch { /* not ready yet */ }
+  }, [activeUrl, activeImg, t, active?.s.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // playhead advance (silent scrub-play; the stitched film is the true preview)
+  useEffect(() => {
+    if (!playing) { if (rafRef.current) cancelAnimationFrame(rafRef.current); return; }
+    wallRef.current = performance.now();
+    const step = () => {
+      const now = performance.now();
+      const dt = (now - wallRef.current) / 1000; wallRef.current = now;
+      setT((prev) => { const nt = prev + dt; return nt >= total ? 0 : nt; });
+      rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [playing, total]);
+
+  const scrubTo = (clientX: number) => {
+    const el = rulerRef.current; if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const sec = Math.max(0, Math.min(total, (clientX - rect.left - THEAD_W) / px));
+    setT(sec);
+  };
+
+  // drag / trim on a clip
+  const begin = (e: ReactPointerEvent, id: string, mode: "move" | "l" | "r") => {
+    e.stopPropagation();
+    startXRef.current = e.clientX;
+    setDrag({ id, mode, dx: 0 });
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+  const laneMove = (e: ReactPointerEvent) => {
+    if (scrubbing.current) { scrubTo(e.clientX); return; }
+    if (drag) setDrag((d) => (d ? { ...d, dx: e.clientX - startXRef.current } : d));
+  };
+  const laneUp = () => {
+    scrubbing.current = false;
+    if (!drag) return;
+    const d = drag; setDrag(null);
+    const sc = scenes.find((s) => s.id === d.id); if (!sc) return;
+    const deltaSec = d.dx / px;
+    if (d.mode === "move") {
+      if (Math.abs(d.dx) < 6) { onSelect(d.id); return; } // a click, not a drag
+      const centers = laid.map((l) => ({ id: l.s.id, c: l.start + l.len / 2 }));
+      const i = centers.findIndex((c) => c.id === d.id);
+      if (i >= 0) centers[i] = { id: d.id, c: centers[i].c + deltaSec };
+      centers.sort((a, b) => a.c - b.c);
+      onReorder(centers.map((c) => c.id));
+    } else if (d.mode === "r") {
+      const newLen = Math.max(1, playedLen(sc) + deltaSec);
+      if (isImageUrl(sc.videoUrl)) onPatch(d.id, { durationSec: Math.round(newLen) });
+      else { const cs = sc.clipStart ?? 0; onPatch(d.id, { clipStart: cs, clipEnd: cs + newLen, durationSec: Math.round(newLen) }); }
+    } else {
+      const len = playedLen(sc);
+      if (isImageUrl(sc.videoUrl)) onPatch(d.id, { durationSec: Math.max(1, Math.round(len - deltaSec)) });
+      else { const cs = sc.clipStart ?? 0; const ce = sc.clipEnd ?? cs + len; const ncs = Math.max(0, cs + deltaSec); if (ce - ncs >= 1) onPatch(d.id, { clipStart: ncs, clipEnd: ce, durationSec: Math.round(ce - ncs) }); }
+    }
+  };
+
+  const selLaid = laid.find((l) => l.s.id === selId);
+  const canSplit = !!selLaid && t > selLaid.start + 0.3 && t < selLaid.start + selLaid.len - 0.3;
+  const prevAspect = film.aspect === "16:9" ? { w: 232, h: 132 } : film.aspect === "1:1" ? { w: 132, h: 132 } : { w: 78, h: 138 };
+
+  const laneScrubStart = (e: ReactPointerEvent) => { scrubbing.current = true; scrubTo(e.clientX); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); };
+  const laneMin = { minWidth: total * px };
+
   return (
-    <div className={cn("absolute inset-x-0 bottom-0 z-20 flex flex-col border-t border-border bg-card/95 backdrop-blur transition-[height]", collapsed ? "h-[38px]" : "h-[228px]")}>
-      <button onClick={onToggle} className="flex items-center gap-2 border-b border-border px-3 py-2 text-left">
-        <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition", collapsed && "-rotate-90")} />
-        <span className="text-[12px] font-bold">Timeline</span>
-        <span className="text-[10.5px] text-muted-foreground">— live edit · trim · layer · transitions</span>
-        <span className="ml-auto font-mono text-[11px] text-muted-foreground">{fmtT(cursor)} / {fmtT(total)}</span>
-      </button>
-      {!collapsed && (
-        <div className="min-h-0 flex-1 overflow-auto">
-          <div className="sticky top-0 z-10 flex h-5 border-b border-border bg-card pl-[110px] font-mono text-[9px] text-muted-foreground">
-            {ticks.map((t) => <span key={t} style={{ width: 5 * PX }} className="shrink-0 border-l border-border pl-1 pt-0.5">{fmtT(t)}</span>)}
-          </div>
-          {TRACKS.map((tr) => (
-            <div key={tr.key} className="flex min-h-[38px] border-b border-border">
-              <div className="sticky left-0 z-[1] flex w-[110px] shrink-0 items-center gap-1.5 border-r border-border bg-card px-2.5 text-[10px] font-semibold text-muted-foreground">
-                <span className="h-2 w-2 rounded-sm" style={{ background: tr.color }} /> {tr.label}
-              </div>
-              <div className="relative flex-1 py-1.5" style={{ minWidth: total * PX }}>
-                {tr.key === "music" && film.music && <div className="absolute inset-y-1.5 rounded-md" style={{ left: 0, width: cursor * PX, background: `${tr.color}cc` }} />}
-                {laid.map(({ s, start, dur }) => {
-                  const onVideo = tr.key === "video" && s.engine !== "avatar";
-                  const onAvatar = tr.key === "avatar" && s.engine === "avatar";
-                  const onCap = tr.key === "captions" && s.captionsOn;
-                  if (!onVideo && !onAvatar && !onCap) return null;
-                  const E = ENGINES[s.engine];
-                  return (
-                    <div key={s.id + tr.key} className="absolute inset-y-1.5 flex items-center overflow-hidden rounded-md border border-white/20 px-2 text-[9.5px] font-bold text-black/80"
-                      style={{ left: start * PX, width: Math.max(24, dur * PX), background: onCap ? "#e2e8f0" : `${E.color}` }}>
-                      <span className="truncate">{onCap ? "caption" : s.title}</span>
-                    </div>
-                  );
-                })}
-              </div>
+    <div className={cn("absolute inset-x-0 bottom-0 z-20 flex flex-col border-t border-border bg-card/95 backdrop-blur transition-[height]", collapsed ? "h-[38px]" : "h-[280px]")}>
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+        <button onClick={onToggle} className="flex items-center gap-2"><ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition", collapsed && "-rotate-90")} /><span className="text-[12px] font-bold">Timeline</span></button>
+        <span className="hidden text-[10.5px] text-muted-foreground sm:inline">— drag to reorder · edges to trim · split at the playhead</span>
+        {!collapsed && (
+          <>
+            <div className="ms-auto flex items-center gap-1.5">
+              <button onClick={() => setT(0)} className="grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="To start">⏮</button>
+              <button onClick={() => setPlaying((p) => !p)} className="grid h-7 w-7 place-items-center rounded-lg bg-foreground text-background" title={playing ? "Pause" : "Play"}>{playing ? <Pause className="h-3.5 w-3.5 fill-current" /> : <Play className="h-3.5 w-3.5 translate-x-px fill-current" />}</button>
+              <span className="ml-1 font-mono text-[11px] text-muted-foreground">{fmtT(t)} / {fmtT(total)}</span>
+              <button onClick={() => selId && selLaid && onSplit(selId, t - selLaid.start)} disabled={!canSplit} className="ml-1 inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-brand-500 disabled:opacity-40" title="Split the selected clip at the playhead"><Scissors className="h-3 w-3" /> Split</button>
+              <span className="ml-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                <button onClick={() => setPx((z) => Math.max(14, z - 6))} className="grid h-6 w-6 place-items-center rounded border border-border">−</button>
+                <button onClick={() => setPx((z) => Math.min(60, z + 6))} className="grid h-6 w-6 place-items-center rounded border border-border">+</button>
+              </span>
             </div>
-          ))}
+          </>
+        )}
+      </div>
+
+      {!collapsed && (
+        <div className="flex min-h-0 flex-1">
+          {/* preview */}
+          <div className="flex shrink-0 flex-col items-center justify-center gap-1.5 border-r border-border bg-black/50 p-3">
+            <div className="relative overflow-hidden rounded-lg border border-border bg-black" style={{ width: prevAspect.w, height: prevAspect.h }}>
+              {activeImg ? (
+                <Image src={activeImg} alt="" fill sizes="240px" className="object-contain" unoptimized />
+              ) : activeUrl ? (
+                // eslint-disable-next-line jsx-a11y/media-has-caption
+                <video ref={videoRef} muted playsInline className="h-full w-full object-contain" />
+              ) : (
+                <div className="grid h-full w-full place-items-center text-[10px] text-muted-foreground/60">{active ? "not generated" : "empty"}</div>
+              )}
+            </div>
+            <span className="max-w-[240px] truncate text-[10px] text-muted-foreground">{active?.s.title || "—"}</span>
+          </div>
+
+          {/* timeline scroll */}
+          <div className="relative min-w-0 flex-1 overflow-auto" onPointerMove={laneMove} onPointerUp={laneUp}>
+            <div className="relative" style={{ minWidth: THEAD_W + total * px }}>
+              {/* ruler */}
+              <div ref={rulerRef} onPointerDown={(e) => { scrubbing.current = true; scrubTo(e.clientX); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }} className="sticky top-0 z-10 flex h-5 cursor-text border-b border-border bg-card" style={{ paddingLeft: THEAD_W }}>
+                {ticks.map((tk) => <span key={tk} style={{ width: 5 * px }} className="shrink-0 border-l border-border pl-1 pt-0.5 font-mono text-[9px] text-muted-foreground">{fmtT(tk)}</span>)}
+              </div>
+
+              {/* Scenes lane — editable */}
+              <div className="flex min-h-[40px] border-b border-border">
+                <div className="sticky left-0 z-[1] flex w-[92px] shrink-0 items-center gap-1.5 border-r border-border bg-card px-2.5 text-[10px] font-semibold text-muted-foreground"><span className="h-2 w-2 rounded-sm bg-[#a78bfa]" /> Scenes</div>
+                <div className="relative flex-1 py-1.5" style={laneMin} onPointerDown={laneScrubStart}>
+                  {laid.map(({ s, start, len }) => {
+                    const E = ENGINES[s.engine];
+                    const dd = drag?.id === s.id ? drag : null;
+                    let left = start * px, width = Math.max(24, len * px), tf = "";
+                    if (dd?.mode === "move") tf = `translateX(${dd.dx}px)`;
+                    else if (dd?.mode === "r") width = Math.max(24, width + dd.dx);
+                    else if (dd?.mode === "l") { left += dd.dx; width = Math.max(24, width - dd.dx); }
+                    return (
+                      <div key={s.id} onPointerDown={(e) => begin(e, s.id, "move")}
+                        className={cn("group absolute inset-y-1.5 flex cursor-grab items-center overflow-hidden rounded-md border text-[9.5px] font-bold text-black/80 active:cursor-grabbing", selId === s.id ? "border-white ring-1 ring-white" : "border-white/20")}
+                        style={{ left, width, transform: tf, background: E.color }}>
+                        <span className="absolute inset-y-0 left-0 z-10 w-2 cursor-ew-resize bg-black/25 opacity-0 group-hover:opacity-100" onPointerDown={(e) => begin(e, s.id, "l")} />
+                        <span className="truncate px-2.5">{s.title}</span>
+                        {s.status === "ready" && <span className="absolute right-2 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-700" />}
+                        {isRendering(s.status) && <span className="absolute right-2 top-0.5 text-[8px]">{Math.round(s.progress || 0)}%</span>}
+                        <span className="absolute inset-y-0 right-0 z-10 w-2 cursor-ew-resize bg-black/25 opacity-0 group-hover:opacity-100" onPointerDown={(e) => begin(e, s.id, "r")} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Music lane (film-level bed) */}
+              <div className="flex min-h-[40px] border-b border-border">
+                <div className="sticky left-0 z-[1] flex w-[92px] shrink-0 items-center gap-1.5 border-r border-border bg-card px-2.5 text-[10px] font-semibold text-muted-foreground"><span className="h-2 w-2 rounded-sm bg-[#f472b6]" /> Music</div>
+                <div className="relative flex-1 py-1.5" style={laneMin} onPointerDown={laneScrubStart}>
+                  {film.music && <div className="absolute inset-y-1.5 rounded-md bg-pink-500/80" style={{ left: 0, width: cursor * px }} />}
+                </div>
+              </div>
+
+              {/* Captions lane (derived) */}
+              <div className="flex min-h-[40px] border-b border-border">
+                <div className="sticky left-0 z-[1] flex w-[92px] shrink-0 items-center gap-1.5 border-r border-border bg-card px-2.5 text-[10px] font-semibold text-muted-foreground"><span className="h-2 w-2 rounded-sm bg-slate-200" /> Captions</div>
+                <div className="relative flex-1 py-1.5" style={laneMin} onPointerDown={laneScrubStart}>
+                  {laid.filter(({ s }) => s.captionsOn).map(({ s, start, len }) => (
+                    <div key={s.id} className="absolute inset-y-2 flex items-center overflow-hidden rounded bg-slate-200 px-1.5 font-mono text-[8.5px] text-slate-800" style={{ left: start * px, width: Math.max(16, len * px) }}>cc</div>
+                  ))}
+                </div>
+              </div>
+
+              {/* playhead */}
+              <div className="pointer-events-none absolute bottom-0 top-0 z-[5] w-0.5 bg-rose-500" style={{ left: THEAD_W + t * px }} />
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -182,7 +182,8 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
         } else {
           // Keep the avatar/AI voiceover; reel/media b-roll gets a uniform silent track.
           const preferSourceAudio = s.engine === "avatar" || s.engine === "ai";
-          const trim = s.engine === "reel" && typeof s.clipStart === "number" && typeof s.clipEnd === "number" && s.clipEnd > s.clipStart
+          // Honour a timeline in/out trim on any scene (reel clips + timeline edits).
+          const trim = typeof s.clipStart === "number" && typeof s.clipEnd === "number" && s.clipEnd > s.clipStart
             ? { start: s.clipStart, end: s.clipEnd } : undefined;
           clips.push(await normalizeClip(raw, w, h, { preferSourceAudio, trim }));
         }
