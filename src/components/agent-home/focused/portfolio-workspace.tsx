@@ -3,16 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Sparkles, ExternalLink, Rocket, Share2, ShieldCheck, Eye, Lock, Globe,
-  Copy, Check, Wand2, LayoutTemplate, UserRound, Building2, FileUp, Download, X,
+  Copy, Check, Wand2, LayoutTemplate, UserRound, Building2, FileUp, FileText, Download, X,
 } from "lucide-react";
+
+type Attach = { dataUrl?: string; url?: string; name: string };
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
 import { cn } from "@/lib/utils/cn";
-import { useMobileChat } from "../mobile-chat-context";
-import { isMobileViewport } from "@/hooks/use-is-mobile";
-
-// Mobile "collect via chat" starter (edit + send; the agent builds the portfolio).
-const PORTFOLIO_STARTER = "Build me a branded portfolio / résumé site — I'm a [your role] and here's my experience: [paste or describe].";
 
 const PF_FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 
@@ -52,11 +49,13 @@ interface Portfolio {
 export function FocusedPortfolio({
   refreshKey,
   onAsk,
+  onAskFiles,
   onOpenView,
   working,
 }: {
   refreshKey?: number;
   onAsk: (prompt: string) => void;
+  onAskFiles?: (prompt: string, attachments: Attach[]) => void;
   onOpenView?: (key: string) => void;
   working?: boolean;
 }) {
@@ -66,10 +65,9 @@ export function FocusedPortfolio({
   const [previewKey, setPreviewKey] = useState(0);
   const [tab, setTab] = useState<"preview" | "share">("preview");
   const [copied, setCopied] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(() => !isMobileViewport()); // auto-opens on desktop; mobile seeds the composer instead
+  const [sheetOpen, setSheetOpen] = useState(true);
   const [armed, setArmed] = useState(false);
-  const { isMobile, seedComposer } = useMobileChat();
-  const openPortfolioBuilder = () => { if (isMobile) { seedComposer(PORTFOLIO_STARTER); return; } setSheetOpen(true); };
+  const [brand, setBrand] = useState<{ name: string; about: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -89,6 +87,19 @@ export function FocusedPortfolio({
     })();
     return () => { alive = false; };
   }, [refreshKey, load]);
+
+  // Brand Kit already holds the business name + what it does — prefill the brief.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/brand").then((r) => r.json()).then((j) => {
+      const bk = j?.data?.brandKit;
+      if (alive && bk?.name) {
+        const about = String(bk.description || bk.tagline || [bk.industry, bk.niche].filter(Boolean).join(" — ") || "");
+        setBrand({ name: String(bk.name), about });
+      }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const patch = useCallback(async (body: Record<string, unknown>) => {
     if (!p) return;
@@ -117,14 +128,14 @@ export function FocusedPortfolio({
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div className="grid h-full place-items-center px-6 text-center">
           {armed ? (
-            <BuildingCard onReset={() => { setArmed(false); openPortfolioBuilder(); }} />
+            <BuildingCard onReset={() => { setArmed(false); setSheetOpen(true); }} />
           ) : (
             <div className="max-w-sm">
               <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 text-white"><LayoutTemplate className="h-6 w-6" /></div>
               <h3 className="text-[16px] font-bold">Build your portfolio or résumé</h3>
               <p className="mx-auto mt-1 text-[12.5px] text-muted-foreground">Fill the brief and the agent builds a complete, on-brand site you edit here.</p>
               {!sheetOpen && (
-                <button onClick={openPortfolioBuilder} className="mt-4 inline-flex items-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Start a brief</button>
+                <button onClick={() => setSheetOpen(true)} className="mt-4 inline-flex items-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Start a brief</button>
               )}
             </div>
           )}
@@ -132,8 +143,10 @@ export function FocusedPortfolio({
 
         {sheetOpen && !armed && (
           <PortfolioBriefSheet
+            brand={brand}
             onClose={() => setSheetOpen(false)}
             onBuild={(prompt) => { setSheetOpen(false); setArmed(true); onAsk(prompt); }}
+            onBuildFiles={onAskFiles ? (prompt, atts) => { setSheetOpen(false); setArmed(true); onAskFiles(prompt, atts); } : undefined}
           />
         )}
       </div>
@@ -279,32 +292,57 @@ function TabBtn({ active, onClick, icon: Icon, children }: { active: boolean; on
 /* ── Brief BOTTOM-SHEET (the system brief pattern — slides up from the bottom,
    full-width inset card over a dimmed backdrop; NEVER a centered modal). Mirrors
    pitch-studio / campaign-studio / video-workspace. [[reel-studio]] */
-function PortfolioBriefSheet({ onClose, onBuild }: { onClose: () => void; onBuild: (prompt: string) => void }) {
+function PortfolioBriefSheet({ brand, onClose, onBuild, onBuildFiles }: { brand: { name: string; about: string } | null; onClose: () => void; onBuild: (prompt: string) => void; onBuildFiles?: (prompt: string, atts: Attach[]) => void }) {
   const [kind, setKind] = useState<"business" | "personal">("business");
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
   const [style, setStyle] = useState("spotlight");
+  const [url, setUrl] = useState("");
+  const [source, setSource] = useState<"brand" | "website" | "deck">("brand");
+  const [file, setFile] = useState<{ name: string; dataUrl: string } | null>(null);
+  const [touched, setTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Prefill from the Brand Kit (business) — the name + what-it-does are already
+  // on file. Stops once the user edits; clears for personal (a person's name).
+  useEffect(() => {
+    if (touched) return;
+    if (kind === "business" && brand) { setName(brand.name); setGoal(brand.about); }
+    else if (kind === "personal") { setName(""); setGoal(""); }
+  }, [brand, kind, touched]);
+
+  const pickFile = (f: File | null) => {
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => setFile({ name: f.name, dataUrl: String(reader.result) });
+    reader.readAsDataURL(f);
+  };
 
   const build = () => {
     if (!name.trim()) { setError("Add a name."); return; }
     const styleName = TEMPLATES.find((t) => t.id === style)?.name || style;
-    const prompt = kind === "personal"
-      ? [
-          "Build me a PERSONAL RÉSUMÉ site now with build_portfolio (kind:'personal'). If I attached my CV, READ it and extract experience, skills and education; if I didn't, ask me in ONE short line to upload it. Otherwise don't ask questions — build it and save it as a draft.",
-          `- Name: ${name.trim()}`,
-          goal.trim() ? `- Role / headline: ${goal.trim()}` : "",
-          `- Style: ${styleName}`,
-          "Confirm in ONE short sentence when it's ready.",
-        ].filter(Boolean).join("\n")
-      : [
-          "Build me a BUSINESS PORTFOLIO site now with build_portfolio (kind:'business') using my Brand Kit. Don't ask questions — design and build it, write the copy, and save it as a draft.",
-          `- Business / name: ${name.trim()}`,
-          goal.trim() ? `- What we do / it's for: ${goal.trim()}` : "",
-          `- Style: ${styleName}`,
-          "Confirm in ONE short sentence when it's ready.",
-        ].filter(Boolean).join("\n");
-    onBuild(prompt);
+    const lines: string[] = [];
+    const atts: Attach[] = [];
+    if (kind === "personal") {
+      lines.push("Build me a PERSONAL RÉSUMÉ site now with build_portfolio (kind:'personal').");
+      if (file) { lines.push("I've attached my CV — READ it and extract experience, skills, education & projects."); atts.push({ dataUrl: file.dataUrl, name: file.name }); }
+      else if (url.trim()) lines.push(`Read my profile at ${url.trim()} (use analyze_url / web_fetch) and build from it.`);
+      else lines.push("I didn't attach a CV — ask me for the key details in ONE short message, then build.");
+      lines.push(`- Name: ${name.trim()}`);
+      if (goal.trim()) lines.push(`- Role / headline: ${goal.trim()}`);
+    } else {
+      lines.push("Build me a BUSINESS PORTFOLIO site now with build_portfolio (kind:'business').");
+      if (source === "deck" && file) { lines.push("I've attached a company deck / profile — READ it and build from it."); atts.push({ dataUrl: file.dataUrl, name: file.name }); }
+      else if (source === "website" && url.trim()) lines.push(`Import my website ${url.trim()} — read it (analyze_url) and pull the copy, services & images.`);
+      else lines.push("Use my Brand Kit (logo, colours, voice) for everything.");
+      lines.push(`- Business / name: ${name.trim()}`);
+      if (goal.trim()) lines.push(`- What we do / it's for: ${goal.trim()}`);
+    }
+    lines.push(`- Style: ${styleName}`);
+    lines.push("Don't ask more than one quick question if truly needed — otherwise build it and save it as a draft. Confirm in ONE short sentence when it's ready.");
+    const prompt = lines.join("\n");
+    if (atts.length && onBuildFiles) onBuildFiles(prompt, atts);
+    else onBuild(prompt);
   };
 
   return (
@@ -318,45 +356,82 @@ function PortfolioBriefSheet({ onClose, onBuild }: { onClose: () => void; onBuil
           <button onClick={onClose} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-4">
-          <div className="mx-auto w-full max-w-2xl">
-            {/* Type */}
-            <div className="mb-3 inline-flex rounded-[10px] border border-border bg-background p-0.5">
-              <button onClick={() => setKind("business")} className={cn("inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12.5px] font-semibold transition", kind === "business" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground")}><Building2 className="h-3.5 w-3.5" /> Business portfolio</button>
-              <button onClick={() => setKind("personal")} className={cn("inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12.5px] font-semibold transition", kind === "personal" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground")}><UserRound className="h-3.5 w-3.5" /> Personal résumé</button>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 sm:px-5">
+          {/* Type */}
+          <div className="mb-3.5 inline-flex rounded-[10px] border border-border bg-background p-0.5">
+            <button onClick={() => setKind("business")} className={cn("inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12.5px] font-semibold transition", kind === "business" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground")}><Building2 className="h-3.5 w-3.5" /> Business portfolio</button>
+            <button onClick={() => setKind("personal")} className={cn("inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[12.5px] font-semibold transition", kind === "personal" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground")}><UserRound className="h-3.5 w-3.5" /> Personal résumé</button>
+          </div>
+
+          {/* Start from — the onboarding inputs */}
+          <p className="mb-1.5 text-[11.5px] font-semibold">{kind === "personal" ? "Start from your résumé" : "Start from your business"} <span className="font-normal text-muted-foreground">{kind === "personal" ? "· the agent reads it and builds every section" : "· we reuse what you already have"}</span></p>
+          {kind === "personal" ? (
+            <div className="grid gap-2 sm:grid-cols-[1.4fr_1fr]">
+              <FileDrop file={file} onPick={pickFile} label="Drop your résumé / CV here" hint="PDF, DOCX or an image · the agent reads it" />
+              <div className="flex flex-col justify-center gap-2">
+                <Field label="…or paste a LinkedIn / profile URL"><input value={url} onChange={(e) => setUrl(e.target.value)} className={PF_FIELD} placeholder="https://linkedin.com/in/you" /></Field>
+                <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Sparkles className="h-3 w-3 shrink-0 text-brand-500" /> No file? Just hit Build — the agent asks you in chat.</p>
+              </div>
             </div>
-
-            <Field label={kind === "personal" ? "Your name *" : "Business / studio name *"}><input value={name} onChange={(e) => setName(e.target.value)} className={PF_FIELD} placeholder={kind === "personal" ? "Jordan Lee" : "Northwind Studio"} /></Field>
-            <div className="mt-3">
-              <Field label={kind === "personal" ? "Role / headline" : "What you do / what it's for"}><textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} className={cn(PF_FIELD, "resize-y")} placeholder={kind === "personal" ? "Senior Product Designer — 8 yrs in fintech & health" : "Brand & product design studio for startups — services, projects & contact"} /></Field>
+          ) : (
+            <div>
+              <div className="flex flex-wrap gap-1.5">
+                <SourceChip active={source === "brand"} onClick={() => setSource("brand")} icon={Wand2}>Use my Brand Kit</SourceChip>
+                <SourceChip active={source === "website"} onClick={() => setSource("website")} icon={Globe}>Import my website</SourceChip>
+                <SourceChip active={source === "deck"} onClick={() => setSource("deck")} icon={FileText}>Upload a deck / profile</SourceChip>
+              </div>
+              {source === "website" && <div className="mt-2"><Field label="Website URL"><input value={url} onChange={(e) => setUrl(e.target.value)} className={PF_FIELD} placeholder="https://yoursite.com" /></Field></div>}
+              {source === "deck" && <div className="mt-2"><FileDrop file={file} onPick={pickFile} label="Upload a deck / company profile" hint="PDF or an image · the agent reads it" /></div>}
             </div>
+          )}
 
-            {/* Style gallery — visual thumbnails so you SEE what you're picking */}
-            <p className="mb-2 mt-3.5 text-[11.5px] font-semibold">Style <span className="font-normal text-muted-foreground">· a portfolio look, not a website</span></p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {TEMPLATES.map((t) => (
-                <button key={t.id} type="button" onClick={() => setStyle(t.id)} className={cn("group overflow-hidden rounded-xl border-2 text-left transition", style === t.id ? "border-brand-500 ring-2 ring-brand-500/20" : "border-border hover:border-brand-500/40")}>
-                  <StyleThumb id={t.id} />
-                  <div className="flex items-center gap-1.5 px-2 py-1.5">
-                    <span className="text-[11.5px] font-semibold">{t.name}</span>
-                    {t.video && <span className="ms-auto inline-flex items-center gap-0.5 rounded-full bg-brand-500/10 px-1.5 py-0.5 text-[9px] font-bold text-brand-500">▶ video</span>}
-                    {style === t.id && !t.video && <Check className="ms-auto h-3.5 w-3.5 text-brand-500" />}
-                  </div>
-                </button>
-              ))}
-            </div>
+          <div className="mt-3.5 grid gap-4 sm:grid-cols-2">
+            <Field label={kind === "personal" ? "Your name *" : "Business / studio name *"}><input value={name} onChange={(e) => { setTouched(true); setName(e.target.value); }} className={PF_FIELD} placeholder={kind === "personal" ? "Jordan Lee" : "Northwind Studio"} /></Field>
+            <Field label={kind === "personal" ? "Role / headline" : "What you do / what it's for"}><input value={goal} onChange={(e) => { setTouched(true); setGoal(e.target.value); }} className={PF_FIELD} placeholder={kind === "personal" ? "Senior Product Designer — 8 yrs in fintech & health" : "Brand & product design studio for startups — services & projects"} /></Field>
+          </div>
 
-            {kind === "personal" && (
-              <p className="mt-3 flex items-center gap-1.5 text-[11.5px] text-muted-foreground"><FileUp className="h-3.5 w-3.5 shrink-0" /> Tip: attach your CV in the chat below — the agent reads it and fills every section.</p>
-            )}
-            {error && <p className="mt-2 text-[12px] text-rose-500">{error}</p>}
+          {/* Style gallery — visual thumbnails, full width (up to 6 across) */}
+          <p className="mb-2 mt-4 text-[11.5px] font-semibold">Style <span className="font-normal text-muted-foreground">· a portfolio look, not a website</span></p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            {TEMPLATES.map((t) => (
+              <button key={t.id} type="button" onClick={() => setStyle(t.id)} className={cn("group overflow-hidden rounded-xl border-2 text-left transition", style === t.id ? "border-brand-500 ring-2 ring-brand-500/20" : "border-border hover:border-brand-500/40")}>
+                <StyleThumb id={t.id} />
+                <div className="flex items-center gap-1.5 px-2 py-1.5">
+                  <span className="truncate text-[11.5px] font-semibold">{t.name}</span>
+                  {t.video && <span className="ms-auto inline-flex items-center gap-0.5 rounded-full bg-brand-500/10 px-1.5 py-0.5 text-[9px] font-bold text-brand-500">▶</span>}
+                  {style === t.id && !t.video && <Check className="ms-auto h-3.5 w-3.5 shrink-0 text-brand-500" />}
+                </div>
+              </button>
+            ))}
+          </div>
 
-            <button onClick={build} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Build it</button>
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">Free subdomain or a custom domain · the agent confirms before anything bills.</p>
+          {error && <p className="mt-2 text-[12px] text-rose-500">{error}</p>}
+
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border pt-4">
+            <button onClick={build} className="inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Build it</button>
+            <span className="text-[11px] text-muted-foreground">Free subdomain or a custom domain · the agent confirms before anything bills.</span>
           </div>
         </div>
       </div>
     </>
+  );
+}
+
+function FileDrop({ file, onPick, label, hint }: { file: { name: string } | null; onPick: (f: File | null) => void; label: string; hint: string }) {
+  return (
+    <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); onPick(e.dataTransfer.files?.[0] || null); }} className="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-border bg-background/40 px-4 py-5 text-center transition hover:border-brand-500/50">
+      <input type="file" accept=".pdf,.doc,.docx,.txt,image/*" className="hidden" onChange={(e) => onPick(e.target.files?.[0] || null)} />
+      <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-500/10 text-brand-500"><FileUp className="h-4 w-4" /></span>
+      {file ? <span className="text-[12.5px] font-semibold text-brand-500">✓ {file.name}</span> : <><span className="text-[12.5px] font-semibold">{label}</span><span className="text-[11px] text-muted-foreground">{hint}</span></>}
+    </label>
+  );
+}
+
+function SourceChip({ active, onClick, icon: Icon, children }: { active: boolean; onClick: () => void; icon: React.ElementType; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold transition", active ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>
+      <Icon className="h-3.5 w-3.5" /> {children}
+    </button>
   );
 }
 
