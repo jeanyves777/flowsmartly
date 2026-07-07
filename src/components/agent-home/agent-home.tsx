@@ -666,6 +666,8 @@ export function AgentHome() {
   const fMeta = focused ? FOCUS_META[focused] : undefined;
   const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fMeta ? fMeta.label : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
   const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fMeta ? fMeta.icon : fws?.icon ?? Sparkles;
+  const primaryWorkspaces = WORKSPACES.filter((w) => w.key !== "business");
+  const businessWorkspace = WORKSPACES.find((w) => w.key === "business");
 
   const openWorkspace = (key: string) => {
     // Home returns to the fresh, empty initial state (greeting + suggestions) —
@@ -694,7 +696,7 @@ export function AgentHome() {
   const openFocused = (key: string) => { const target = key === "business" ? "brand" : key === "grow" ? "analytics" : key; setPanelKey(null); setActiveWs(key); setFocused(target); setDrawerOpen(false); if (target === "create") savedDesignRef.current = design; };
   const openBrand = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("brand"); setDrawerOpen(false); };
   const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setSettingsInitialTab(undefined); setActiveWs("business"); setFocused("account"); };
-  const openConnections = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("publish"); setFocused("connections"); };
+  const openConnections = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("connections"); setFocused("connections"); setDrawerOpen(false); };
   const openBilling = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("billing"); setDrawerOpen(false); };
   // Open a sub-surface (domains, pitch, customers, …) from within its parent
   // workspace — keeps the current rail selection. New-design only, never legacy.
@@ -949,7 +951,7 @@ export function AgentHome() {
       <div className="flex min-h-0 flex-1">
         {/* desktop workspace rail */}
         <nav className="hidden w-[84px] shrink-0 flex-col items-center gap-1 overflow-y-auto overscroll-contain border-e border-border bg-card/50 py-3 md:flex [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {WORKSPACES.map((w, i) => {
+          {primaryWorkspaces.map((w, i) => {
             const Icon = w.icon;
             const active = activeWs === w.key;
             return (
@@ -963,6 +965,23 @@ export function AgentHome() {
               </div>
             );
           })}
+          <div className="mt-auto h-px w-11 bg-border" />
+          <button onClick={() => guardNav(openConnections)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", activeWs === "connections" ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+            {activeWs === "connections" && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
+            <Link2 className="h-[21px] w-[21px]" />
+            <span>Social</span>
+          </button>
+          {businessWorkspace && (() => {
+            const Icon = businessWorkspace.icon;
+            const active = activeWs === businessWorkspace.key;
+            return (
+              <button onClick={() => openWorkspace(businessWorkspace.key)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                {active && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
+                <Icon className="h-[21px] w-[21px]" />
+                <span>{s.ws[businessWorkspace.key] ?? businessWorkspace.label}</span>
+              </button>
+            );
+          })()}
         </nav>
 
         {/* main */}
@@ -1316,7 +1335,7 @@ export function AgentHome() {
               <button onClick={() => { setHistoryOpen(true); setDrawerOpen(false); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground hover:bg-muted"><History className="h-[18px] w-[18px]" /> History</button>
               <div className="my-1.5 h-px w-full bg-border" />
               {/* workspaces */}
-              {WORKSPACES.map((w) => {
+              {primaryWorkspaces.map((w) => {
                 const Icon = w.icon;
                 return (
                   <button key={w.key} onClick={() => openWorkspace(w.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === w.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
@@ -1324,6 +1343,18 @@ export function AgentHome() {
                   </button>
                 );
               })}
+              <div className="my-1.5 h-px w-full bg-border" />
+              <button onClick={() => guardNav(openConnections)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === "connections" ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
+                <Link2 className="h-[18px] w-[18px]" /> Social
+              </button>
+              {businessWorkspace && (() => {
+                const Icon = businessWorkspace.icon;
+                return (
+                  <button key={businessWorkspace.key} onClick={() => openWorkspace(businessWorkspace.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === businessWorkspace.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
+                    <Icon className="h-[18px] w-[18px]" /> {s.ws[businessWorkspace.key] ?? businessWorkspace.label}
+                  </button>
+                );
+              })()}
             </div>
             {/* language + theme */}
             <div className="flex items-center justify-between border-t border-border p-3">
