@@ -37,10 +37,11 @@ const nextConfig: NextConfig = {
         hostname: "**",
       },
     ],
-    // Optimized remote images (e.g. HeyGen avatar thumbnails) are resized once
-    // and kept in the server's image cache for a day even when the upstream CDN
-    // sends no cache headers — asset URLs here are unique per asset, so long
-    // retention is safe and every user after the first gets a local, tiny thumb.
+    // HeyGen avatar thumbnails carry an immutable asset-id URL but their CDN
+    // sends NO Cache-Control, so without this Next would re-validate every 60s
+    // and lose the resize cache. Keep each optimized variant on the server's
+    // disk cache for a day; safe because our own dynamic images (which can change
+    // at a stable URL) render `unoptimized` and bypass this entirely.
     minimumCacheTTL: 86400,
   },
 

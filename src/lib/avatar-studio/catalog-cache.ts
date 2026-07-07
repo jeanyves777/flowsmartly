@@ -40,19 +40,40 @@ interface Entry { items: unknown[]; fetchedAt: number }
 const mem = new Map<CatalogKind, Entry>();
 const inflight = new Map<CatalogKind, Promise<unknown[]>>();
 
+/**
+ * Monotonic counter bumped every time a clone is created (bustAvatarCatalog).
+ * A refresh captures it at the moment its HeyGen request goes out; if it changes
+ * before the request returns, that result predates the new clone and must not be
+ * cached as fresh — the refresh re-fetches instead. This closes the race where a
+ * bust lands on top of an already-in-flight (pre-clone) fetch. Avatars only.
+ */
+let avatarBustGen = 0;
+
 async function fetchLive(kind: CatalogKind): Promise<unknown[]> {
   if (kind === "avatars") return heygenClient.listAvatars();
   if (kind === "voices") return heygenClient.listVoices();
   return heygenClient.listTemplates();
 }
 
-/** Fetch from HeyGen and persist (memory + SystemSetting). Concurrent callers share one flight. */
-function refresh(kind: CatalogKind): Promise<unknown[]> {
-  const existing = inflight.get(kind);
-  if (existing) return existing;
+/**
+ * Fetch from HeyGen and persist (memory + SystemSetting). Concurrent callers
+ * share one flight via the `inflight` map. `force` skips the dedup — used by a
+ * bust so it can never join a stale pre-clone flight.
+ */
+function refresh(kind: CatalogKind, force = false): Promise<unknown[]> {
+  if (!force) {
+    const existing = inflight.get(kind);
+    if (existing) return existing;
+  }
+  const genAtStart = avatarBustGen;
   const p = (async () => {
     try {
       const items = await fetchLive(kind);
+      // A clone was busted while this fetch was in flight → the result may
+      // predate it. Don't stamp it fresh; fetch once more (un-deduped).
+      if (kind === "avatars" && avatarBustGen !== genAtStart) {
+        return await refresh("avatars", true);
+      }
       // An empty list is indistinguishable from a HeyGen hiccup — never let it
       // clobber a good cache (the lib-level fallbacks handle the truly-empty case).
       if (items.length > 0) {
@@ -76,10 +97,10 @@ function refresh(kind: CatalogKind): Promise<unknown[]> {
       }
       return items;
     } finally {
-      inflight.delete(kind);
+      if (!force) inflight.delete(kind);
     }
   })();
-  inflight.set(kind, p);
+  if (!force) inflight.set(kind, p);
   return p;
 }
 
@@ -90,6 +111,10 @@ async function hydrateFromDb(kind: CatalogKind): Promise<Entry | null> {
     const parsed = JSON.parse(row.value) as { fetchedAt?: number; items?: unknown[] };
     if (!Array.isArray(parsed.items) || parsed.items.length === 0) return null;
     const entry: Entry = { items: parsed.items, fetchedAt: Number(parsed.fetchedAt) || 0 };
+    // A concurrent refresh may have installed a fresher entry while we awaited the
+    // DB read — don't overwrite it with this older row; return whichever is newer.
+    const current = mem.get(kind);
+    if (current && current.fetchedAt >= entry.fetchedAt) return current;
     mem.set(kind, entry);
     return entry;
   } catch {
@@ -119,10 +144,13 @@ export const getCachedTemplates = () => getCatalog<HeyGenTemplate>("templates");
 /**
  * Mark the avatar list stale and refresh it now (fire-and-forget) — called
  * after a clone/talking-photo is created through our flows so it shows up for
- * everyone without waiting out the TTL.
+ * everyone without waiting out the TTL. `force` guarantees a fresh HeyGen fetch
+ * that can't be deduped onto a pre-clone flight; the bumped generation makes any
+ * such flight re-fetch when it lands. [[avatar-studio-heygen]]
  */
 export function bustAvatarCatalog(): void {
+  avatarBustGen++;
   const entry = mem.get("avatars");
   if (entry) entry.fetchedAt = 0;
-  void refresh("avatars").catch((e) => console.error("[avatar-catalog] post-clone refresh failed:", e));
+  void refresh("avatars", true).catch((e) => console.error("[avatar-catalog] post-clone refresh failed:", e));
 }

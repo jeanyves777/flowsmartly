@@ -9,10 +9,11 @@ export async function GET() {
     return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
   }
   const avatars = await listAvatarsForUser();
-  // Server-side the list is already cached (catalog-cache); let the browser skip
-  // the roundtrip entirely on quick re-opens too.
+  // No browser caching here: the server-side catalog cache already makes this
+  // near-instant, and a just-uploaded clone must show on the very next fetch —
+  // a stale browser copy would hide it (bustAvatarCatalog only fixes the server).
   return NextResponse.json(
     { success: true, data: { avatars } },
-    { headers: { "Cache-Control": "private, max-age=120" } },
+    { headers: { "Cache-Control": "no-store" } },
   );
 }
