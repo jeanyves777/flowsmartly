@@ -66,6 +66,7 @@ import { FocusedSell } from "./focused/sell-workspace";
 import { StoreCallToAction } from "./focused/store-cta";
 import { FocusedWeb, FocusedLanding } from "./focused/web-workspace";
 import { FocusedPortfolio } from "./focused/portfolio-workspace";
+import { FocusedReel } from "./focused/reel-workspace";
 import { FocusedOutreach } from "./focused/outreach-workspace";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
@@ -116,6 +117,7 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   media: "Ask the agent to find or generate media — e.g. “make me a product image”.",
   logo: "Ask the agent to generate a logo for your brand.",
   video: "Ask the agent to create a video — an ad, promo, or reel.",
+  reel: "Ask the agent to turn a video into reels — paste a link and it finds the best moments, reframes to 9:16 and captions them.",
   avatar: "Ask the agent to make an avatar video — e.g. “a 30s intro of my avatar for our launch”.",
   delivery: "Ask the agent about deliveries — e.g. “which orders are out for delivery?”.",
   adbuilder: "Ask the agent to build & launch an ad — e.g. “run an ad for my new product, $10/day, target Austin”.",
@@ -154,6 +156,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   media: { label: "Media library", subtitle: "Your images & videos", icon: Images },
   logo: { label: "Logo studio", subtitle: "Your generated logos", icon: Palette },
   video: { label: "Video studio", subtitle: "Brief → estimate → build, right on the canvas", icon: Clapperboard },
+  reel: { label: "Reel studio", subtitle: "Link → find moments → clips, right on the canvas", icon: Clapperboard },
   voice: { label: "Voice studio", subtitle: "Voiceovers, narration & voice cloning", icon: Mic },
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
@@ -178,6 +181,8 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
       return `The user has the **Publish** workspace open (posts, scheduling, content calendar). Default their intent to creating, scheduling, or managing posts.`;
     case "portfolio":
       return `The user has the **Portfolio Studio** open — their Portfolio / Digital Résumé site (a shareable public page, distinct from the Website Studio). OPERATE it for them; don't tell them to open menus. To BUILD one they don't have: build_portfolio — ask business vs personal; for a personal résumé, have them upload their CV and READ it to extract experience/skills/education; pull business content from the Brand Kit. To EDIT: call get_portfolio_content first (current header, sections, style, hero media, access), then edit_portfolio — send a PARTIAL patch; the \`sections\` array is replaced wholesale so include existing items you keep. Pick a STYLE that reads like a portfolio/digital-ad piece (spotlight/cinematic/showcase/editorial/neon/card); spotlight/cinematic/neon support a full-bleed VIDEO hero. To gate access, set access.view or access.download to 'email' (visitors verify a 6-digit code and are saved to Contacts). To go live set status:'PUBLISHED'; a custom domain can be attached from the Domains surface. Don't just describe steps — do the work.`;
+    case "reel":
+      return `The user has the **Reel Studio** OPEN — a playground that turns a long video into scored 9:16 clips. OPERATE it; don't narrate. To BUILD reels: build_reels — pass the source \`transcript\` (transcribe the video's audio, or use provided captions), a title, and optional settings (clipLength/aspect/count). Clips appear on the canvas sorted by virality score and render to 9:16 after. To EDIT a clip, call get_reel_content first (for clip ids) then edit_clip. To POST/SCHEDULE, use publish_reels with clip ids + channels (tiktok/instagram/youtube/facebook/linkedin/x); omit scheduleAt to post now. Everything stays under the campaign to repost or delete. Don't reply with a generic menu.`;
     case "web":
       return `The user has the **Web** workspace open — their website + the full **Website Studio** editor. OPERATE the site for them; don't tell them to open menus. To BUILD a new site use build_website. To EDIT the existing one, FIRST call get_website_content (see the current content + which sections are editable), then use edit_website: mode:'content' for text/data (company info, tagline, phone/email/address, the CTA button, services, team, FAQ, testimonials + layout, stats, nav/footer links, contact info + Google map, Google Reviews) — send a PARTIAL patch, but LISTS (services/faq/testimonials/links) are replaced wholesale so include the existing items too; or mode:'redesign' with a section + instructions for a layout/design change or a new section. Either way the site rebuilds and you're notified when it's live. For publish/unpublish/rename/SEO use update_website. Landing pages are generative — gather the goal/offer/audience, then generate.`;
     case "outreach":
@@ -260,7 +265,7 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
 // "grow" and "business" are category CONTAINERS (they open a nav panel, not a
 // real surface) — deliberately excluded so /home/grow and /home/business deep-
 // link cleanly to Home instead of a "coming soon" placeholder.
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
@@ -561,6 +566,9 @@ export function AgentHome() {
   // Video Studio (/home/video) bridge: getContext feeds the [STORYAD] canvas
   // context to the agent; loadCampaign lets the agent's draft appear on the canvas.
   const videoOpsRef = useRef<{ getContext: () => string; loadCampaign: (id: string) => void } | null>(null);
+  // Reel Studio (/home/reel) bridge — same shape: getContext feeds the canvas
+  // context; loadCampaign lets the agent's fresh reel campaign appear on the canvas.
+  const reelOpsRef = useRef<{ getContext: () => string; loadCampaign: (id: string) => void } | null>(null);
   const followupOpsRef = useRef<{ getContext: () => string; applyPatch: (patch: Record<string, unknown>) => void } | null>(null);
   // Which canvas is live, for routing agent patches to the right document.
   const focusedRef = useRef(focused);
@@ -597,6 +605,9 @@ export function AgentHome() {
       // Video Studio: the agent drafted a story-ad campaign — load it onto the canvas.
       const storyadCmd = (patch as { __storyad?: { campaignId?: string } }).__storyad;
       if (storyadCmd && typeof storyadCmd === "object" && storyadCmd.campaignId) { videoOpsRef.current?.loadCampaign(storyadCmd.campaignId); return; }
+      // Reel Studio: the agent built a reel campaign — load it onto the canvas.
+      const reelCmd = (patch as { __reel?: { campaignId?: string } }).__reel;
+      if (reelCmd && typeof reelCmd === "object" && reelCmd.campaignId) { reelOpsRef.current?.loadCampaign(reelCmd.campaignId); return; }
       // Route the edit to whichever canvas is open (Print has its own document).
       const apply = (d: DesignDoc) => applyDesignPatch(d, patch);
       if (focusedRef.current === "print") setPrintDesign(apply); else setDesign(apply);
@@ -761,7 +772,8 @@ export function AgentHome() {
         : focused === "adbuilder" ? (adOpsRef.current?.getContext() || undefined)
           : focused === "automations" ? (followupOpsRef.current?.getContext() || undefined)
             : focused === "video" ? (videoOpsRef.current?.getContext() || undefined)
-              : undefined;
+              : focused === "reel" ? (reelOpsRef.current?.getContext() || undefined)
+                : undefined;
   const sendAction = (p: string) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
   const sendActionFiles = (p: string, atts: { dataUrl?: string; url?: string; name: string }[]) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true, attachments: atts });
   // Mobile "collect via chat" bridge: on phones, studios seed the composer with
@@ -1179,6 +1191,8 @@ export function AgentHome() {
                   <FocusedWeb onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "portfolio" ? (
                   <FocusedPortfolio onAsk={sendAction} onAskFiles={sendActionFiles} onOpenView={openView} refreshKey={actionCount} working={sending} />
+                ) : focused === "reel" ? (
+                  <FocusedReel onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} canvasRef={reelOpsRef} />
                 ) : focused === "landing" ? (
                   <FocusedLanding onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "outreach" ? (
