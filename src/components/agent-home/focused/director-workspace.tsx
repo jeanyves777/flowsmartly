@@ -87,7 +87,26 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   const [addMenu, setAddMenu] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
+  const [avatars, setAvatars] = useState<{ id: string; name: string; previewUrl?: string }[]>([]);
+  const [voices, setVoices] = useState<{ id: string; name: string; language?: string }[]>([]);
   const [play, setPlay] = useState<{ url: string; title: string } | null>(null);
+
+  // avatars + voices for per-scene avatar picking (shared with the Avatar Studio catalog)
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [a, v] = await Promise.all([
+          fetch("/api/ai/avatar-studio/avatars").then((r) => r.json()).catch(() => null),
+          fetch("/api/ai/avatar-studio/voices").then((r) => r.json()).catch(() => null),
+        ]);
+        if (!alive) return;
+        if (a?.data?.avatars) setAvatars(a.data.avatars);
+        if (v?.data?.voices) setVoices(v.data.voices);
+      } catch { /* ignore */ }
+    })();
+    return () => { alive = false; };
+  }, []);
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
 
@@ -427,6 +446,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
       {selScene && (
         <SceneInspector
           scene={selScene}
+          avatars={avatars} voices={voices}
           onClose={() => setSelId(null)}
           onPatch={patchSel}
           onGenerate={() => generateScene(selScene.id)}
@@ -748,8 +768,9 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
 }
 
 // ============================================================ scene inspector
-function SceneInspector({ scene, onClose, onPatch, onGenerate, onSwapEngine }: {
-  scene: FilmScene; onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onSwapEngine: (e: SceneEngine) => void;
+function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, onSwapEngine }: {
+  scene: FilmScene; avatars: { id: string; name: string; previewUrl?: string }[]; voices: { id: string; name: string; language?: string }[];
+  onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onSwapEngine: (e: SceneEngine) => void;
 }) {
   const E = ENGINES[scene.engine];
   const [picker, setPicker] = useState<null | "video" | "image">(null);
@@ -776,6 +797,21 @@ function SceneInspector({ scene, onClose, onPatch, onGenerate, onSwapEngine }: {
         )}
         {scene.engine === "avatar" && (
           <>
+            <label className="mb-1 mt-3 flex items-center gap-2 text-[11px] font-semibold">Avatar {scene.avatarName && <span className="font-normal text-muted-foreground">· {scene.avatarName}</span>}</label>
+            {avatars.length > 0 ? (
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {avatars.slice(0, 30).map((a) => (
+                  <button key={a.id} onClick={() => onPatch({ avatarId: a.id, avatarName: a.name })} title={a.name} className={cn("h-14 w-11 shrink-0 overflow-hidden rounded-lg border-2", scene.avatarId === a.id ? "border-brand-500" : "border-transparent hover:border-brand-500/40")}>
+                    {a.previewUrl ? <Image src={a.previewUrl} alt="" width={44} height={56} className="h-full w-full object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center bg-muted text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
+                  </button>
+                ))}
+              </div>
+            ) : <p className="text-[11px] text-muted-foreground">Using your default clone.</p>}
+            <label className="mb-1 mt-3 block text-[11px] font-semibold">Voice</label>
+            <select value={scene.voiceId || ""} onChange={(e) => { const v = voices.find((x) => x.id === e.target.value); onPatch({ voiceId: e.target.value, voiceName: v?.name }); }} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12px] outline-none focus:border-brand-500/60">
+              <option value="">Default voice</option>
+              {voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
+            </select>
             <label className="mb-1 mt-3 block text-[11px] font-semibold">Delivery</label>
             <PillRow options={["", "Friendly", "Excited", "Serious"]} labels={["Auto", "Friendly", "Excited", "Serious"]} value={scene.voiceEmotion || ""} onSelect={(v) => onPatch({ voiceEmotion: v || null })} />
             <label className="mb-1 mt-3 block text-[11px] font-semibold">Avatar motion (AI)</label>
