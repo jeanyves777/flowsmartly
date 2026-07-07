@@ -138,6 +138,11 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { findLocalLeads } = await import("./tools/find-local-leads");
   const { enrichLead } = await import("./tools/enrich-lead");
   const { deepEnrichLead } = await import("./tools/deep-enrich-lead");
+  const { listOpportunities } = await import("./tools/list-pipeline");
+  const { listPitches } = await import("./tools/list-pitches");
+  const { listContentCampaigns } = await import("./tools/list-content-campaigns");
+  const { listOrders, listProducts } = await import("./tools/list-store-items");
+  const { listDesigns, listMedia } = await import("./tools/list-library");
   const { createOpportunity } = await import("./tools/create-opportunity");
   const { advanceOpportunity } = await import("./tools/advance-opportunity");
   const { runLeadAutopilot } = await import("./tools/run-lead-autopilot");
@@ -237,6 +242,13 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(createProposal);
   flowAgentTools.register(createPitch);
   flowAgentTools.register(listLeads);
+  flowAgentTools.register(listOpportunities);
+  flowAgentTools.register(listPitches);
+  flowAgentTools.register(listContentCampaigns);
+  flowAgentTools.register(listOrders);
+  flowAgentTools.register(listProducts);
+  flowAgentTools.register(listDesigns);
+  flowAgentTools.register(listMedia);
   flowAgentTools.register(findLeads);
   flowAgentTools.register(findLocalLeads);
   flowAgentTools.register(enrichLead);
