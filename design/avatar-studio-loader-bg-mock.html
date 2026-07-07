@@ -1,0 +1,431 @@
+<title>Avatar Studio — loader & background preview</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --ink: #0f1729;
+    --muted: #5b6577;
+    --line: #e4e7ec;
+    --brand: #6366f1;
+    --brand-2: #8b5cf6;
+    --amber: #f59e0b;
+    /* the studio canvas is a product surface — dark in both themes */
+    --canvas: #0b1220;
+    --canvas-dot: rgba(255,255,255,.05);
+    --card: #121a2b;
+    --card-line: rgba(255,255,255,.09);
+    --card-ink: #eef2f8;
+    --card-muted: #93a0b4;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0a0e17; --panel:#111827; --ink:#eef2f8; --muted:#93a0b4; --line:#1f2937; }
+  }
+  :root[data-theme="light"] { --bg:#f6f7f9; --panel:#fff; --ink:#0f1729; --muted:#5b6577; --line:#e4e7ec; }
+  :root[data-theme="dark"]  { --bg:#0a0e17; --panel:#111827; --ink:#eef2f8; --muted:#93a0b4; --line:#1f2937; }
+
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--font); line-height:1.5; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 24px 72px; }
+
+  header.top { display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom: 8px; }
+  .mark-badge { width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg, rgba(99,102,241,.16), rgba(139,92,246,.16)); display:grid; place-items:center; flex:0 0 auto; }
+  h1 { font-size: clamp(22px, 3vw, 30px); margin:0 0 4px; letter-spacing:-.02em; font-weight:800; }
+  .sub { color:var(--muted); font-size:14.5px; margin:0; max-width: 62ch; }
+  .eyebrow { text-transform:uppercase; letter-spacing:.14em; font-size:11px; font-weight:700; color:var(--brand-2); margin:0 0 6px; }
+
+  section { margin-top: 44px; }
+  .sec-head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:22px; margin-bottom:18px; }
+  .sec-head h2 { font-size:19px; margin:0; letter-spacing:-.01em; font-weight:750; }
+  .sec-head p { margin:0; color:var(--muted); font-size:13.5px; }
+
+  /* ---- the dark studio canvas the cards actually live on ---- */
+  .canvas {
+    background:
+      radial-gradient(circle at 1px 1px, var(--canvas-dot) 1px, transparent 0) 0 0 / 22px 22px,
+      var(--canvas);
+    border:1px solid rgba(255,255,255,.06);
+    border-radius:20px; padding: 30px; color:var(--card-ink);
+    display:flex; gap:26px; flex-wrap:wrap; align-items:flex-start;
+  }
+  .canvas .col-label { font-size:11.5px; font-weight:700; color:var(--card-muted); margin:0 0 10px; text-transform:uppercase; letter-spacing:.08em; display:flex; align-items:center; gap:8px; }
+  .tag { font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px; }
+  .tag.old { background:rgba(148,163,184,.16); color:#b6c1d2; }
+  .tag.new { background:linear-gradient(135deg, var(--brand), var(--brand-2)); color:#fff; }
+
+  /* ---- video card (matches the React RenderNode) ---- */
+  .vcard { width:212px; border-radius:16px; overflow:hidden; background:var(--card); border:1px solid var(--card-line); box-shadow:0 8px 30px -12px rgba(0,0,0,.5); }
+  .vcard .frame { position:relative; aspect-ratio:9/16; width:100%; background:#0c1322; overflow:hidden; }
+  .badge { position:absolute; left:8px; top:8px; display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:10.5px; font-weight:700; z-index:3; }
+  .badge.render { background:rgba(99,102,241,.2); color:#c5c9ff; }
+  .badge.ready  { background:rgba(16,185,129,.18); color:#7ff0c6; }
+  .scene-no { position:absolute; right:8px; top:8px; background:rgba(0,0,0,.55); color:#fff; font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px; z-index:3; }
+  .vcard .body { padding:11px 11px 12px; }
+  .vcard .title { font-size:12.5px; font-weight:700; margin:0 0 4px; color:var(--card-ink); }
+  .vcard .meta { font-size:11px; color:var(--card-muted); display:flex; gap:8px; margin:0 0 9px; }
+  .bar { height:6px; width:100%; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden; }
+  .bar > i { display:block; height:100%; width:10%; border-radius:999px; background:linear-gradient(90deg, var(--brand), var(--brand-2)); transition:width .5s cubic-bezier(.4,0,.2,1); }
+  .step { font-size:10.5px; color:var(--card-muted); margin:7px 0 0; min-height:14px; }
+  .pctline { display:flex; align-items:center; justify-content:space-between; margin-top:8px; }
+  .pctline .lbl { font-size:10.5px; color:var(--card-muted); }
+  .pctline .num { font-size:12px; font-weight:800; color:#c5c9ff; font-variant-numeric:tabular-nums; }
+  .btn-ghost { margin-top:10px; width:100%; display:inline-flex; align-items:center; justify-content:center; gap:6px; border:1px solid var(--card-line); background:transparent; color:var(--card-ink); font-size:11.5px; font-weight:700; padding:8px; border-radius:9px; cursor:pointer; }
+
+  /* current placeholder icon */
+  .ph-icon { position:absolute; inset:0; display:grid; place-items:center; color:rgba(255,255,255,.22); }
+  .ph-icon svg { width:34px; height:34px; }
+
+  /* ===== the NEW branded "growing faded" loader ===== */
+  .genloader { position:absolute; inset:0; display:grid; place-items:center; overflow:hidden; }
+  .genloader .halo { position:absolute; width:130px; height:130px; border-radius:50%;
+    background:radial-gradient(circle, rgba(124,90,246,.42), rgba(99,102,241,.14) 45%, transparent 70%);
+    animation:halo 2.6s ease-in-out infinite; }
+  .genloader .ring { position:absolute; width:78px; height:78px; border-radius:50%; border:1.5px solid rgba(139,92,246,.5); animation:ringpulse 2.6s ease-out infinite; }
+  .genloader .ring.b { animation-delay:1.3s; }
+  .genloader .mark { position:relative; width:52px; height:52px; animation:breathe 2.6s ease-in-out infinite; filter:drop-shadow(0 0 10px rgba(124,90,246,.5)); }
+  @keyframes breathe { 0%,100% { opacity:.32; transform:scale(.9); } 50% { opacity:.78; transform:scale(1.06); } }
+  @keyframes halo    { 0%,100% { opacity:.28; transform:scale(.82); } 50% { opacity:.55; transform:scale(1.16); } }
+  @keyframes ringpulse { 0% { opacity:.55; transform:scale(.7); } 100% { opacity:0; transform:scale(1.7); } }
+
+  /* ready state — poster + play */
+  .poster { position:absolute; inset:0; background:linear-gradient(160deg,#26324a,#151d30); }
+  .poster .prez { position:absolute; inset:0; }
+  .play { position:absolute; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.22); z-index:3; }
+  .play span { width:48px; height:48px; border-radius:50%; background:rgba(255,255,255,.92); display:grid; place-items:center; color:var(--brand); box-shadow:0 8px 24px -6px rgba(0,0,0,.6); }
+  .play span svg { width:20px; height:20px; margin-left:3px; }
+
+  .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:20px; }
+  .btn { border:0; cursor:pointer; font-family:inherit; font-weight:700; font-size:13px; padding:10px 16px; border-radius:10px; background:linear-gradient(135deg,var(--brand),var(--brand-2)); color:#fff; box-shadow:0 8px 20px -8px rgba(99,102,241,.6); }
+  .btn.sec { background:transparent; color:var(--card-ink); border:1px solid var(--card-line); box-shadow:none; }
+  .canvas .btn.sec { color:var(--card-ink); }
+
+  /* ===== background composite preview ===== */
+  .bgwrap { display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start; }
+  .drawer { width:320px; background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:16px; }
+  .drawer h3 { font-size:13px; margin:0 0 2px; font-weight:750; }
+  .drawer .hint { font-size:11.5px; color:var(--muted); margin:0 0 14px; }
+  .comp { position:relative; width:170px; aspect-ratio:9/16; border-radius:14px; overflow:hidden; border:1px solid var(--line); margin:0 auto 12px; background:#0c1322; }
+  .comp .bg { position:absolute; inset:0; transition:opacity .35s ease; }
+  /* the avatar is feathered into the backdrop so you can judge the fit */
+  .comp .avatar { position:absolute; left:50%; bottom:0; transform:translateX(-50%); width:96%; height:88%;
+    -webkit-mask-image:radial-gradient(ellipse 62% 74% at 50% 40%, #000 58%, transparent 82%);
+            mask-image:radial-gradient(ellipse 62% 74% at 50% 40%, #000 58%, transparent 82%); }
+  .comp .avatar svg { width:100%; height:100%; }
+  .comp .note { position:absolute; left:0; right:0; bottom:0; background:linear-gradient(to top, rgba(0,0,0,.72), transparent); color:#fff; font-size:9.5px; padding:14px 8px 6px; text-align:center; letter-spacing:.02em; }
+
+  .swatches { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  .swatch { width:44px; height:30px; border-radius:8px; cursor:pointer; border:2px solid transparent; }
+  .swatch.on { border-color:var(--brand); box-shadow:0 0 0 2px rgba(99,102,241,.25); }
+  .promptrow { display:flex; gap:8px; }
+  .promptrow input { flex:1; min-width:0; border:1px solid var(--line); background:var(--bg); color:var(--ink); border-radius:9px; padding:9px 11px; font-size:12px; font-family:inherit; }
+  .promptrow input:focus { outline:2px solid var(--brand); outline-offset:0; border-color:transparent; }
+  .ai-btn { border:0; cursor:pointer; display:inline-flex; align-items:center; gap:5px; background:linear-gradient(135deg,var(--brand),var(--brand-2)); color:#fff; font-weight:700; font-size:11.5px; padding:0 12px; border-radius:9px; }
+
+  .callout { background:linear-gradient(135deg, rgba(99,102,241,.08), rgba(139,92,246,.08)); border:1px solid var(--line); border-radius:14px; padding:16px 18px; font-size:13px; color:var(--ink); max-width:420px; }
+  .callout b { color:var(--brand-2); }
+  ul.notes { margin:10px 0 0; padding-left:18px; color:var(--muted); font-size:12.5px; }
+  ul.notes li { margin:5px 0; }
+  ul.notes b { color:var(--ink); }
+
+  /* delivery + motion pills */
+  .pill-label { text-transform:uppercase; letter-spacing:.08em; font-size:11px; font-weight:700; color:var(--muted); margin:0 0 8px; }
+  .pills { display:flex; flex-wrap:wrap; gap:6px; }
+  .pill { border:1px solid var(--line); background:transparent; color:var(--muted); font-family:inherit; font-size:11px; font-weight:700; padding:5px 11px; border-radius:999px; cursor:pointer; transition:all .15s; }
+  .pill:hover:not(:disabled) { border-color:color-mix(in srgb, var(--brand) 45%, transparent); }
+  .pill.on { border-color:var(--brand); background:color-mix(in srgb, var(--brand) 12%, transparent); color:var(--brand); }
+  .pill:disabled { opacity:.35; cursor:not-allowed; }
+  .mp-input { width:100%; border:1px solid var(--line); background:var(--bg); color:var(--ink); border-radius:9px; padding:9px 11px; font-size:12.5px; font-family:inherit; }
+  .mp-input:focus { outline:2px solid var(--brand); outline-offset:0; border-color:transparent; }
+  .callout code { background:color-mix(in srgb, var(--brand) 14%, transparent); color:var(--brand-2); padding:1px 5px; border-radius:5px; font-size:11.5px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .genloader .mark, .genloader .halo, .genloader .ring { animation:none; opacity:.6; }
+    .bar > i { transition:none; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="mark-badge" aria-hidden="true">
+      <svg width="24" height="24" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="mg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs><path d="M8 6 L24 16 L8 26 Z" fill="url(#mg)"/><path d="M14 12 L23 16 L14 20 Z" fill="#fff" opacity=".85"/></svg>
+    </div>
+    <div>
+      <p class="eyebrow">Avatar Studio · mock for review</p>
+      <h1>Rendering loader + background fit preview</h1>
+      <p class="sub">Two UI fixes to approve before I port them to React: the branded generating loader on the rendering card (with live, moving progress), and a preview that shows your avatar composited onto the generated backdrop so you can judge the fit.</p>
+    </div>
+  </header>
+
+  <!-- ===================== SECTION 1 ===================== -->
+  <section>
+    <div class="sec-head">
+      <h2>1 · The rendering card</h2>
+      <p>Left = what it does today. Right = the branded loader + real moving progress.</p>
+    </div>
+
+    <div class="canvas">
+      <!-- BEFORE -->
+      <div>
+        <p class="col-label"><span class="tag old">Today</span> static · frozen at 10%</p>
+        <div class="vcard">
+          <div class="frame">
+            <span class="badge render">◐ Rendering</span>
+            <div class="ph-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="10" r="3"/><path d="M6.5 19a5.5 5.5 0 0 1 11 0"/></svg>
+            </div>
+          </div>
+          <div class="body">
+            <p class="title">The Problem</p>
+            <p class="meta"><span>Avatar IV</span><span>9:16</span></p>
+            <div class="bar"><i style="width:10%"></i></div>
+            <p class="step">HeyGen is still rendering (160s elapsed)…</p>
+            <button class="btn-ghost">▤ Open details ›</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- AFTER -->
+      <div>
+        <p class="col-label"><span class="tag new">New</span> branded loader · live progress</p>
+        <div class="vcard" id="afterCard">
+          <div class="frame" id="afterFrame">
+            <span class="badge render" id="afterBadge">◐ Rendering</span>
+            <span class="scene-no">Scene 1</span>
+            <div class="genloader" id="genLoader">
+              <span class="halo"></span>
+              <span class="ring"></span>
+              <span class="ring b"></span>
+              <span class="mark" aria-hidden="true">
+                <svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="mg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#60a5fa"/><stop offset=".55" stop-color="#8b5cf6"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs><path d="M8 6 L24 16 L8 26 Z" fill="url(#mg2)"/><path d="M14 12 L23 16 L14 20 Z" fill="#fff" opacity=".9"/></svg>
+              </span>
+            </div>
+          </div>
+          <div class="body">
+            <p class="title">The Problem</p>
+            <p class="meta"><span>Avatar IV</span><span>9:16</span></p>
+            <div class="bar"><i id="afterBar" style="width:10%"></i></div>
+            <div class="pctline"><span class="lbl" id="afterStep">Rendering your avatar video…</span><span class="num" id="afterPct">10%</span></div>
+            <button class="btn-ghost">▤ Open details ›</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="align-self:center; min-width:220px;">
+        <div class="controls">
+          <button class="btn" id="simBtn">▶ Simulate render</button>
+          <button class="btn sec" id="resetBtn">Reset</button>
+        </div>
+        <ul class="notes">
+          <li>The mark <b>breathes</b> — grows &amp; fades on a soft glow (the same generating cue as chat), instead of a static person icon.</li>
+          <li>Progress <b>climbs smoothly</b> from a time estimate (HeyGen's API gives no %), then snaps to <b>Ready</b> on real completion — never frozen at 10%.</li>
+          <li>Copy is reassuring (“Rendering your avatar video…”), not an alarming “still rendering (160s)”.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 2 ===================== -->
+  <section>
+    <div class="sec-head">
+      <h2>2 · Background fit preview</h2>
+      <p>In “Edit scene”, see the avatar sitting on the generated backdrop — not a flat swatch.</p>
+    </div>
+
+    <div class="bgwrap">
+      <div class="drawer">
+        <h3>Background</h3>
+        <p class="hint">Generate a backdrop, then see how your avatar sits on it before you spend a render.</p>
+
+        <div class="comp">
+          <div class="bg" id="compBg"></div>
+          <div class="avatar" aria-hidden="true">
+            <!-- stand-in presenter (real port uses the avatar's own preview image) -->
+            <svg viewBox="0 0 120 170" preserveAspectRatio="xMidYMax meet">
+              <ellipse cx="60" cy="150" rx="52" ry="40" fill="#b9a48f"/>
+              <path d="M26 170 q0-42 34-48 q34 6 34 48 z" fill="#c7b6a3"/>
+              <rect x="52" y="78" width="16" height="26" rx="7" fill="#e7d3bf"/>
+              <circle cx="60" cy="60" r="26" fill="#ead9c6"/>
+              <path d="M33 58 q-2-30 27-32 q29 2 27 32 q-6-14-27-15 q-21 1-27 15z" fill="#4a3527"/>
+              <path d="M35 56 q4 26 25 27 q21-1 25-27 q-3 16-25 17 q-22-1-25-17z" fill="#5c4231"/>
+            </svg>
+          </div>
+          <p class="note">Preview · the final video cleanly mattes your avatar onto this backdrop</p>
+        </div>
+
+        <div class="swatches" id="swatches">
+          <div class="swatch on" data-bg="office"  style="background:linear-gradient(160deg,#3a4a63,#20293b)" title="Modern office"></div>
+          <div class="swatch" data-bg="studio"     style="background:linear-gradient(160deg,#7c3aed,#2563eb)" title="Studio gradient"></div>
+          <div class="swatch" data-bg="warm"       style="background:linear-gradient(160deg,#b45309,#78350f)" title="Warm bokeh"></div>
+          <div class="swatch" data-bg="green"      style="background:linear-gradient(160deg,#166534,#052e16)" title="Greenery"></div>
+          <div class="swatch" data-bg="original"   style="background:#1f2937" title="Original scene"></div>
+        </div>
+
+        <div class="promptrow">
+          <input id="bgPrompt" placeholder="Generate a background — e.g. modern office" value="modern office, soft daylight" />
+          <button class="ai-btn" id="bgGen">✦ AI</button>
+        </div>
+      </div>
+
+      <div class="callout">
+        <b>What changes</b>
+        <p style="margin:8px 0 0;">Today the preview stacks the avatar's opaque photo over the backdrop, so the background is <b>invisible</b>. The fix feathers the avatar into the generated scene — centre kept clear for the presenter — so “does this backdrop suit this avatar?” is answerable at a glance.</p>
+        <ul class="notes" style="margin-top:10px;">
+          <li>Backdrop prompt now asks for <b>depth &amp; soft bokeh</b> with an uncluttered centre, so the avatar pops.</li>
+          <li>Label is honest: the live render does the real clean matte on HeyGen.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== SECTION 3 ===================== -->
+  <section>
+    <div class="sec-head">
+      <h2>3 · Delivery &amp; motion — the “dormant” fix</h2>
+      <p>New controls in Edit scene that make the read feel alive.</p>
+    </div>
+
+    <div class="bgwrap">
+      <div class="drawer" style="width:340px;">
+        <p class="pill-label">Delivery — tone &amp; pace</p>
+        <div class="pills" id="emos">
+          <button class="pill on" data-v="">Auto</button>
+          <button class="pill" data-v="Friendly">Friendly</button>
+          <button class="pill" data-v="Excited">Excited</button>
+          <button class="pill" data-v="Serious">Serious</button>
+          <button class="pill" data-v="Soothing">Soothing</button>
+          <button class="pill" data-v="Broadcaster">Broadcaster</button>
+        </div>
+        <div class="pills" style="margin-top:8px; align-items:center;">
+          <span style="font-size:11px; color:var(--muted); margin-right:2px;">Pace</span>
+          <button class="pill" data-s="0.85">0.85×</button>
+          <button class="pill" data-s="0.95">0.95×</button>
+          <button class="pill on" data-s="1">1×</button>
+          <button class="pill" data-s="1.1">1.1×</button>
+          <button class="pill" data-s="1.2">1.2×</button>
+        </div>
+
+        <p class="pill-label" style="margin-top:18px;">Avatar motion — AI gestures &amp; energy <span style="font-weight:500; color:var(--muted); text-transform:none; letter-spacing:0;">· Avatar IV</span></p>
+        <input class="mp-input" id="mp" value="leans in, warm hand gestures, confident" />
+        <div class="pills" style="margin-top:8px;">
+          <button class="pill" data-mp="warm and conversational, natural hand gestures, subtle head movement">Conversational</button>
+          <button class="pill" data-mp="high energy, animated hand gestures, leans toward camera, expressive">Energetic</button>
+          <button class="pill" data-mp="calm and confident, minimal steady gestures, grounded posture">Calm</button>
+          <button class="pill" data-mp="expressive storytelling gestures, varied pacing, engaged eye contact">Storyteller</button>
+        </div>
+      </div>
+
+      <div class="callout">
+        <b>Why this fixes “dormant”</b>
+        <p style="margin:8px 0 0;">HeyGen's <b>Avatar IV</b> takes a natural-language <b>motion prompt</b> (<code>custom_motion_prompt</code>) that drives gestures &amp; expression — the biggest lever on a lifeless read. Emotion + pace shape the voice. Better scripts (hook-first) carry the rest.</p>
+        <ul class="notes" style="margin-top:10px;">
+          <li>Emotion is <b>voice-specific</b> — pills grey out on voices that can't emote (no failed renders).</li>
+          <li><b>Music &amp; transitions:</b> HeyGen's generate API can't add either — they're <b>Template-only</b>. I'd add them via our own post-render audio mix / stitching. Flagged for your call, not faked.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  // ---- Section 1: render simulation ----
+  var bar = document.getElementById('afterBar');
+  var pct = document.getElementById('afterPct');
+  var step = document.getElementById('afterStep');
+  var frame = document.getElementById('afterFrame');
+  var badge = document.getElementById('afterBadge');
+  var loader = document.getElementById('genLoader');
+  var timer = null;
+
+  function setPct(p, msg){
+    bar.style.width = p + '%';
+    pct.textContent = Math.round(p) + '%';
+    if (msg) step.textContent = msg;
+  }
+  function resetCard(){
+    if (timer) { clearInterval(timer); timer = null; }
+    frame.querySelector('.poster')?.remove();
+    frame.querySelector('.play')?.remove();
+    loader.style.display = '';
+    badge.className = 'badge render'; badge.textContent = '◐ Rendering';
+    setPct(10, 'Rendering your avatar video…');
+  }
+  function finishCard(){
+    loader.style.display = 'none';
+    setPct(100, 'Ready');
+    badge.className = 'badge ready'; badge.textContent = '✓ Ready';
+    var poster = document.createElement('div'); poster.className = 'poster';
+    poster.innerHTML = '<div class="prez"></div>';
+    var play = document.createElement('div'); play.className = 'play';
+    play.innerHTML = '<span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>';
+    frame.appendChild(poster); frame.appendChild(play);
+  }
+  document.getElementById('simBtn').addEventListener('click', function(){
+    resetCard();
+    var p = 10;
+    timer = setInterval(function(){
+      // ease toward ~95, mimicking the time-based estimate
+      p += (96 - p) * 0.09 + 0.6;
+      if (p >= 95){
+        setPct(95, 'Almost there — polishing the final frames…');
+        clearInterval(timer);
+        setTimeout(function(){ setPct(98, 'Finishing up — downloading your video…'); }, 700);
+        setTimeout(finishCard, 1500);
+      } else {
+        setPct(p, p > 60 ? 'Rendering your avatar video…' : 'Rendering your avatar video…');
+      }
+    }, 260);
+  });
+  document.getElementById('resetBtn').addEventListener('click', resetCard);
+
+  // ---- Section 2: background swap ----
+  var BGS = {
+    office:   'linear-gradient(160deg,#3a4a63,#20293b)',
+    studio:   'radial-gradient(120% 90% at 50% 10%, #7c3aed, #2563eb 60%, #111827)',
+    warm:     'radial-gradient(120% 90% at 60% 20%, #f59e0b33, #b45309 40%, #451a03)',
+    green:    'radial-gradient(120% 90% at 40% 15%, #22c55e33, #166534 45%, #052e16)',
+    original: '#1f2937'
+  };
+  var compBg = document.getElementById('compBg');
+  compBg.style.background = BGS.office;
+  document.getElementById('swatches').addEventListener('click', function(e){
+    var el = e.target.closest('.swatch'); if(!el) return;
+    document.querySelectorAll('.swatch').forEach(function(s){ s.classList.remove('on'); });
+    el.classList.add('on');
+    compBg.style.opacity = 0;
+    setTimeout(function(){ compBg.style.background = BGS[el.dataset.bg]; compBg.style.opacity = 1; }, 180);
+  });
+  document.getElementById('bgGen').addEventListener('click', function(){
+    var t = this; t.textContent = '…';
+    compBg.style.opacity = .3;
+    setTimeout(function(){
+      compBg.style.background = 'radial-gradient(120% 90% at ' + (30+Math.round(Math.random()*40)) + '% 12%, #93c5fd33, #3a4a63 45%, #141b2b)';
+      compBg.style.opacity = 1; t.textContent = '✦ AI';
+      document.querySelectorAll('.swatch').forEach(function(s){ s.classList.remove('on'); });
+    }, 900);
+  });
+
+  // ---- Section 3: single-select pill groups ----
+  function singleSelect(groupId, attr){
+    var g = document.getElementById(groupId);
+    g.addEventListener('click', function(e){
+      var b = e.target.closest('.pill'); if(!b || b.disabled) return;
+      g.querySelectorAll('.pill').forEach(function(p){ p.classList.remove('on'); });
+      b.classList.add('on');
+      if (attr === 'data-mp') document.getElementById('mp').value = b.getAttribute('data-mp');
+    });
+  }
+  singleSelect('emos','data-v');
+  // pace + speed groups (inline, no id) — wire generically
+  document.querySelectorAll('.pills').forEach(function(g){
+    if (g.id === 'emos') return;
+    g.addEventListener('click', function(e){
+      var b = e.target.closest('.pill'); if(!b) return;
+      // only single-select within a group that shares the same data attr
+      var attr = b.hasAttribute('data-s') ? 'data-s' : b.hasAttribute('data-mp') ? 'data-mp' : null;
+      if(!attr) return;
+      g.querySelectorAll('[' + attr + ']').forEach(function(p){ p.classList.remove('on'); });
+      b.classList.add('on');
+      if (attr === 'data-mp') document.getElementById('mp').value = b.getAttribute('data-mp');
+    });
+  });
+</script>

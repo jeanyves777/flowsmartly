@@ -72,6 +72,8 @@ export interface HeyGenVoice {
   language?: string;
   gender?: string;
   previewUrl?: string;
+  /** True when this voice accepts the `emotion` control (else sending it 400s). */
+  emotionSupport?: boolean;
 }
 
 export interface HeyGenVideoResult {
@@ -107,10 +109,25 @@ interface GenerateOptions {
   captions?: boolean;
   /** Avatar background — a hex colour ("#0ea5e9") OR an image URL; "original"/empty keeps the default. */
   background?: string | null;
+  /** Optional delivery/energy controls (best-effort — silently dropped by a voice that
+   *  doesn't support them, since we retry once without them if HeyGen rejects them). */
+  voiceSpeed?: number;    // 0.5–1.5, 1.0 = natural
+  voiceEmotion?: string;  // "Excited" | "Friendly" | "Serious" | "Soothing" | "Broadcaster"
+  voiceLocale?: string;   // e.g. "en-US"
+  /** Avatar IV motion driver — a natural-language description of the avatar's gestures/
+   *  energy (e.g. "leans in, warm hand gestures"). Only applies to the Avatar IV /
+   *  talking-photo engine; best-effort (stripped + retried if HeyGen rejects it). */
+  motionPrompt?: string;
   /** Persist the upstream video_id the moment the job is created, so a restart
    *  mid-poll can resume instead of losing a render the provider is billing. */
   onJobId?: (videoId: string) => void | Promise<void>;
   onStatus?: (message: string) => void;
+  /** Smooth progress heartbeat (0–100) while rendering — HeyGen's status API
+   *  exposes no percentage, so this is a time-based estimate that never claims
+   *  100% until the render truly completes. */
+  onProgress?: (pct: number, message: string) => void;
+  /** Expected output length (s) — drives the progress-estimate pace. */
+  estimatedSeconds?: number;
   timeoutMs?: number;
 }
 
@@ -128,9 +145,14 @@ interface PresentationOptions {
   aspect?: AvatarAspect;
   quality?: AvatarQuality;
   captions?: boolean;
+  voiceSpeed?: number;
+  voiceEmotion?: string;
+  voiceLocale?: string;
   scenes: PresentationSceneInput[];
   onJobId?: (videoId: string) => void | Promise<void>;
   onStatus?: (message: string) => void;
+  onProgress?: (pct: number, message: string) => void;
+  estimatedSeconds?: number;
   timeoutMs?: number;
 }
 /** Normalised avatar offset for the four overlay corners. */
@@ -165,6 +187,61 @@ class HeyGenClient {
     return { "Content-Type": "application/json", "X-Api-Key": this.apiKey };
   }
 
+  /** Build a text-to-speech voice input, attaching optional energy controls only when given. */
+  private buildVoice(
+    voiceId: string,
+    script: string,
+    opts?: { speed?: number; emotion?: string; locale?: string },
+  ): Record<string, unknown> {
+    const voice: Record<string, unknown> = { type: "text", input_text: script, voice_id: voiceId };
+    if (typeof opts?.speed === "number" && opts.speed >= 0.5 && opts.speed <= 1.5) voice.speed = opts.speed;
+    if (opts?.emotion) voice.emotion = opts.emotion;
+    if (opts?.locale) voice.locale = opts.locale;
+    return voice;
+  }
+
+  /** Strip optional (voice-specific / engine-specific) extras from every video-input —
+   *  the retry path when HeyGen rejects a delivery or motion setting some voice/avatar
+   *  doesn't support, so the core render still goes through. */
+  private stripOptionalExtras(body: Record<string, unknown>): Record<string, unknown> {
+    const inputs = (body.video_inputs as Array<Record<string, unknown>>) || [];
+    const cleaned = inputs.map((vi) => {
+      const voice = { ...(vi.voice as Record<string, unknown>) };
+      delete voice.speed;
+      delete voice.emotion;
+      delete voice.locale;
+      const character = { ...(vi.character as Record<string, unknown>) };
+      delete character.use_avatar_iv_model;
+      delete character.custom_motion_prompt;
+      delete character.enhance_custom_motion_prompt;
+      return { ...vi, voice, character };
+    });
+    return { ...body, video_inputs: cleaned };
+  }
+
+  /**
+   * POST a generate body and return the upstream video_id. If HeyGen rejects an
+   * optional delivery/motion control (emotion/speed/locale by voice, or the Avatar IV
+   * motion prompt by avatar), retry ONCE without those extras so a render never dies
+   * over a cosmetic setting.
+   */
+  private async postGenerate(body: Record<string, unknown>): Promise<string> {
+    let res = await fetch(GENERATE_URL, { method: "POST", headers: this.headers(), body: JSON.stringify(body) });
+    if (!res.ok) {
+      const errText = await res.text();
+      if (res.status === 400 && /emotion|speed|locale|voice|motion|avatar_iv|custom_motion|character/i.test(errText)) {
+        res = await fetch(GENERATE_URL, { method: "POST", headers: this.headers(), body: JSON.stringify(this.stripOptionalExtras(body)) });
+        if (!res.ok) throw new Error(`HeyGen generate error (${res.status}): ${await res.text()}`);
+      } else {
+        throw new Error(`HeyGen generate error (${res.status}): ${errText}`);
+      }
+    }
+    const data = await res.json();
+    const videoId = data?.data?.video_id || data?.video_id;
+    if (!videoId) throw new Error("HeyGen did not return a video_id");
+    return videoId;
+  }
+
   /**
    * Create an avatar video from a script + avatar + voice, poll until done,
    * and return the downloaded MP4 buffer. `quality: "avatar_iv"` selects the
@@ -173,18 +250,27 @@ class HeyGenClient {
   async generateAvatarVideo(options: GenerateOptions): Promise<HeyGenVideoResult> {
     if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
 
-    const { avatarId, voiceId, script, aspect = "9:16", quality = "standard", captions, background, onJobId, onStatus, timeoutMs } = options;
+    const { avatarId, voiceId, script, aspect = "9:16", quality = "standard", captions, background, voiceSpeed, voiceEmotion, voiceLocale, motionPrompt, onJobId, onStatus, onProgress, estimatedSeconds, timeoutMs } = options;
     const dimension = DIMENSIONS[aspect] ?? DIMENSIONS["9:16"];
 
     const character: Record<string, unknown> =
       quality === "avatar_iv"
         ? { type: "talking_photo", talking_photo_id: avatarId }
         : { type: "avatar", avatar_id: avatarId, avatar_style: "normal" };
+    // Avatar IV motion engine: a natural-language prompt drives gestures/expression so
+    // the delivery isn't static. Best-effort — postGenerate() strips these + retries if
+    // HeyGen rejects them, so a render never dies over the motion driver.
+    const motion = (motionPrompt || "").trim();
+    if (quality === "avatar_iv" && motion) {
+      character.use_avatar_iv_model = true;
+      character.custom_motion_prompt = motion.slice(0, 500);
+      character.enhance_custom_motion_prompt = true;
+    }
 
     // A hex background colour is applied per video-input; "original"/empty keeps the default.
     const videoInput: Record<string, unknown> = {
       character,
-      voice: { type: "text", input_text: script.slice(0, 25000), voice_id: voiceId },
+      voice: this.buildVoice(voiceId, script.slice(0, 25000), { speed: voiceSpeed, emotion: voiceEmotion, locale: voiceLocale }),
     };
     if (background && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(background)) {
       videoInput.background = { type: "color", value: background };
@@ -199,23 +285,12 @@ class HeyGenClient {
       caption: !!captions,
     };
 
-    const res = await fetch(GENERATE_URL, {
-      method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const errBody = await res.text();
-      throw new Error(`HeyGen generate error (${res.status}): ${errBody}`);
-    }
-    const data = await res.json();
-    const videoId = data?.data?.video_id || data?.video_id;
-    if (!videoId) throw new Error("HeyGen did not return a video_id");
+    const videoId = await this.postGenerate(body);
 
     try { await onJobId?.(videoId); } catch { /* persistence best-effort */ }
     onStatus?.("Avatar render started. Waiting for HeyGen to finish…");
 
-    const done = await this.pollUntilDone(videoId, timeoutMs, onStatus);
+    const done = await this.pollUntilDone(videoId, { timeoutMs, estimatedSeconds, onStatus, onProgress });
     onStatus?.("Avatar rendered. Downloading the MP4…");
     const videoBuffer = await this.downloadVideo(done.url);
     return { videoId, videoBuffer, thumbnailUrl: done.thumbnailUrl, duration: done.duration };
@@ -231,7 +306,7 @@ class HeyGenClient {
    */
   async generatePresentation(options: PresentationOptions): Promise<HeyGenVideoResult> {
     if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
-    const { avatarId, voiceId, aspect = "9:16", quality = "standard", captions, scenes, onJobId, onStatus, timeoutMs } = options;
+    const { avatarId, voiceId, aspect = "9:16", quality = "standard", captions, voiceSpeed, voiceEmotion, voiceLocale, scenes, onJobId, onStatus, onProgress, estimatedSeconds, timeoutMs } = options;
     const dimension = DIMENSIONS[aspect] ?? DIMENSIONS["9:16"];
     if (!scenes.length) throw new Error("A presentation needs at least one scene");
 
@@ -250,7 +325,7 @@ class HeyGenClient {
       }
       const input: Record<string, unknown> = {
         character,
-        voice: { type: "text", input_text: s.script.slice(0, 8000), voice_id: voiceId },
+        voice: this.buildVoice(voiceId, s.script.slice(0, 8000), { speed: voiceSpeed, emotion: voiceEmotion, locale: voiceLocale }),
       };
       const url = s.visualUrl || "";
       if (s.visualKind === "video" && /^https?:\/\//i.test(url)) {
@@ -261,19 +336,11 @@ class HeyGenClient {
       return input;
     });
 
-    const res = await fetch(GENERATE_URL, {
-      method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify({ video_inputs, dimension, caption: !!captions }),
-    });
-    if (!res.ok) throw new Error(`HeyGen presentation error (${res.status}): ${await res.text()}`);
-    const data = await res.json();
-    const videoId = data?.data?.video_id || data?.video_id;
-    if (!videoId) throw new Error("HeyGen did not return a video_id");
+    const videoId = await this.postGenerate({ video_inputs, dimension, caption: !!captions });
 
     try { await onJobId?.(videoId); } catch { /* best-effort */ }
     onStatus?.(`Presentation queued — rendering ${scenes.length} scenes…`);
-    const done = await this.pollUntilDone(videoId, timeoutMs, onStatus);
+    const done = await this.pollUntilDone(videoId, { timeoutMs, estimatedSeconds, onStatus, onProgress });
     onStatus?.("Presentation rendered. Downloading the MP4…");
     const videoBuffer = await this.downloadVideo(done.url);
     return { videoId, videoBuffer, thumbnailUrl: done.thumbnailUrl, duration: done.duration };
@@ -309,23 +376,37 @@ class HeyGenClient {
 
   private async pollUntilDone(
     videoId: string,
-    timeoutMs = 600000, // 10 min
-    onStatus?: (message: string) => void,
+    opts: {
+      timeoutMs?: number;
+      estimatedSeconds?: number;
+      onStatus?: (message: string) => void;
+      onProgress?: (pct: number, message: string) => void;
+    } = {},
   ): Promise<{ url: string; thumbnailUrl?: string; duration: number }> {
+    const { timeoutMs = 600000, estimatedSeconds = 30, onStatus, onProgress } = opts; // 10 min default
     const pollInterval = 4000;
     const startTime = Date.now();
+    // HeyGen's status API exposes no percentage, so we synthesise a believable one:
+    // it climbs from 10% toward ~95% over the expected render window (which scales
+    // with output length) and only reaches 100% when the render actually completes.
+    const expectedMs = Math.max(45_000, 40_000 + estimatedSeconds * 4_000);
     let attempts = 0;
     while (Date.now() - startTime < timeoutMs) {
       await new Promise((r) => setTimeout(r, pollInterval));
       attempts++;
       const result = await this.pollOnce(videoId);
       if (result.state === "done" && result.url) {
+        onProgress?.(98, "Finishing up — downloading your video…");
         return { url: result.url, thumbnailUrl: result.thumbnailUrl, duration: result.duration || 0 };
       }
       if (result.state === "failed") {
         throw new Error(`HeyGen render failed for ${videoId}: ${result.error || "unknown error"}`);
       }
-      if (attempts % 5 === 0) onStatus?.(`HeyGen is still rendering (${attempts * 4}s elapsed)…`);
+      const elapsed = Date.now() - startTime;
+      const pct = Math.min(95, 10 + Math.round(85 * (elapsed / expectedMs)));
+      const message = pct >= 95 ? "Almost there — polishing the final frames…" : "Rendering your avatar video…";
+      onProgress?.(pct, message);
+      if (attempts % 8 === 0) onStatus?.(message);
     }
     throw new Error(`HeyGen render timed out for ${videoId} after ${timeoutMs / 1000}s`);
   }
@@ -417,6 +498,7 @@ class HeyGenClient {
           language: (v.language as string) || undefined,
           gender: (v.gender as string) || undefined,
           previewUrl: (v.preview_audio as string) || undefined,
+          emotionSupport: !!v.emotion_support,
         }))
         .filter((v) => v.id);
     } catch (e) {
@@ -471,10 +553,12 @@ class HeyGenClient {
     title?: string;
     onJobId?: (id: string) => void | Promise<void>;
     onStatus?: (message: string) => void;
+    onProgress?: (pct: number, message: string) => void;
+    estimatedSeconds?: number;
     timeoutMs?: number;
   }): Promise<HeyGenVideoResult> {
     if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
-    const { videoUrl, targetLanguage, title, onJobId, onStatus, timeoutMs } = options;
+    const { videoUrl, targetLanguage, title, onJobId, onStatus, onProgress, estimatedSeconds, timeoutMs } = options;
 
     const res = await fetch(TRANSLATE_URL, {
       method: "POST",
@@ -489,7 +573,7 @@ class HeyGenClient {
     try { await onJobId?.(id); } catch { /* best-effort */ }
     onStatus?.(`Translating to ${targetLanguage}…`);
 
-    const done = await this.pollTranslate(id, timeoutMs, onStatus);
+    const done = await this.pollTranslate(id, { timeoutMs, estimatedSeconds, onStatus, onProgress });
     onStatus?.("Translation done. Downloading the MP4…");
     const videoBuffer = await this.downloadVideo(done.url);
     return { videoId: id, videoBuffer, duration: 0 };
@@ -514,16 +598,24 @@ class HeyGenClient {
     return { state: "pending" };
   }
 
-  private async pollTranslate(id: string, timeoutMs = 900000, onStatus?: (m: string) => void): Promise<{ url: string }> {
+  private async pollTranslate(
+    id: string,
+    opts: { timeoutMs?: number; estimatedSeconds?: number; onStatus?: (m: string) => void; onProgress?: (pct: number, message: string) => void } = {},
+  ): Promise<{ url: string }> {
+    const { timeoutMs = 900000, estimatedSeconds = 30, onStatus, onProgress } = opts;
+    const expectedMs = Math.max(60_000, 50_000 + estimatedSeconds * 5_000);
     const start = Date.now();
     let attempts = 0;
     while (Date.now() - start < timeoutMs) {
       await new Promise((r) => setTimeout(r, 5000));
       attempts++;
       const r = await this.pollTranslateOnce(id);
-      if (r.state === "done" && r.url) return { url: r.url };
+      if (r.state === "done" && r.url) { onProgress?.(98, "Finishing up — downloading your video…"); return { url: r.url }; }
       if (r.state === "failed") throw new Error(`HeyGen translation failed for ${id}: ${r.error || "unknown"}`);
-      if (attempts % 4 === 0) onStatus?.(`Still translating (${attempts * 5}s elapsed)…`);
+      const pct = Math.min(95, 10 + Math.round(85 * ((Date.now() - start) / expectedMs)));
+      const message = pct >= 95 ? "Almost there — finalising the dub…" : `Translating your video…`;
+      onProgress?.(pct, message);
+      if (attempts % 4 === 0) onStatus?.(message);
     }
     throw new Error(`HeyGen translation timed out for ${id}`);
   }

@@ -37,6 +37,12 @@ export interface AvatarVideoState {
   avatarName: string;
   voiceId: string;
   voiceName: string;
+  /** Optional delivery/energy controls (best-effort; a voice that rejects them
+   *  renders without them). Unset = HeyGen's natural default. */
+  voiceSpeed?: number | null;    // 0.5–1.5, 1.0 = natural
+  voiceEmotion?: string | null;  // "Excited" | "Friendly" | "Serious" | "Soothing" | "Broadcaster"
+  /** Avatar IV motion driver — natural-language gestures/energy (e.g. "leans in, warm gestures"). */
+  motionPrompt?: string | null;
   quality: AvatarQuality;
   aspect: AvatarAspect;
   lengthSeconds: number;

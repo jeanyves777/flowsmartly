@@ -18,8 +18,6 @@ import { BrandMark, BrandWordmark } from "./brand-mark";
 import { LanguageSwitcher } from "./language-switcher";
 import { useHomeAgent, type ConversationSummary } from "./use-home-agent";
 import { AgentNavContext } from "@/components/flow-ai/agent-nav-context";
-import { MobileChatProvider } from "./mobile-chat-context";
-import { useIsMobile } from "@/hooks/use-is-mobile";
 import { HomeMessageView } from "./home-message";
 import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
@@ -67,7 +65,9 @@ import { StoreCallToAction } from "./focused/store-cta";
 import { FocusedWeb, FocusedLanding } from "./focused/web-workspace";
 import { FocusedPortfolio } from "./focused/portfolio-workspace";
 import { FocusedReel } from "./focused/reel-workspace";
+import { FocusedDirector } from "./focused/director-workspace";
 import { FocusedOutreach } from "./focused/outreach-workspace";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
 interface AgentClient { id: string; name: string }
@@ -159,6 +159,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   reel: { label: "Reel studio", subtitle: "Link → find moments → clips, right on the canvas", icon: Clapperboard },
   voice: { label: "Voice studio", subtitle: "Voiceovers, narration & voice cloning", icon: Mic },
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
+  director: { label: "Video Studio", subtitle: "Direct AI, avatar & reel into one film", icon: Clapperboard },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
   plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
@@ -230,6 +231,8 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
       return `The user is on the **Logo studio** (their generated logos + brand logo). Generating a logo is a generative task — use the logo tool when they ask.`;
     case "video":
       return `The user is on the **Video studio** (their AI-generated videos). Help them create a video (generate_video / story-ad).`;
+    case "director":
+      return `The user is on the **Video Studio — Director**: one canvas that fuses AI cinematic shots, talking-avatar clones, and reel clips into a single film. A film is a pipeline of scene nodes, each rendered by its own engine, then stitched into one video. Help them brief the film, add/edit/reorder scenes, pick the right engine per beat, generate scenes, and stitch the final cut.`;
     case "voice":
       return `The user is on the **Voice Studio** (AI voiceovers, narration & voice cloning). Making a voiceover is a generative task — help them write a punchy script for their goal, then they set the voice (gender/accent/style/speed) and click Generate; the audio lands in the studio and their Media library. They can also clone a voice from a sample.`;
     case "avatar":
@@ -260,7 +263,7 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
       return `The user is in **Pitch Studio** — a branded proposal playground for ONE lead. ${open}Use create_proposal ONLY to draft a brand-NEW proposal for a lead that has none (pass the lead's savedLeadId, draw services + value from their Brand Kit) — NEVER to shorten or rewrite an existing one. Results open IN the studio, never as a chat dump.`;
     }
     case "campaign":
-      return `The user is in **Campaign Studio** — a content-campaign playground. To build a campaign, use create_content_campaign (name, brief/goal, platforms, days, postsPerWeek, tone, imageMode) — it generates a batch of concrete scheduled posts (captions + on-brand images) that open IN the studio for review, NEVER as a chat dump. To fix one post, use update_post (caption/schedule/platforms) or regenerate_post_image (a fresh on-brand image) — the change lands on that post's card. To IMPROVE a WHOLE existing campaign (the 'Improve' button, or 'improve/refresh/rewrite this campaign') use improve_content_campaign with the open campaignId (+ the improved brief/tone) — it rewrites the existing posts IN PLACE, never a new campaign. Approving in the UI schedules them to auto-publish; you don't publish them yourself.`;
+      return `The user is in **Campaign Studio** — a content-campaign playground. To build a campaign, use create_content_campaign (name, brief/goal, platforms, days, postsPerWeek, tone, imageMode) — it generates a batch of concrete scheduled posts (captions + on-brand images) that open IN the studio for review, NEVER as a chat dump. To fix one post, use update_post (caption/schedule/platforms) or regenerate_post_image (a fresh on-brand image) — the change lands on that post's card. Approving in the UI schedules them to auto-publish; you don't publish them yourself.`;
     default:
       return undefined;
   }
@@ -834,7 +837,6 @@ export function AgentHome() {
 
   return (
     <AgentNavContext.Provider value={navigateInApp}>
-    <MobileChatProvider value={{ isMobile, seedComposer }}>
     <div
       dir={dir}
       className="flex h-[100dvh] flex-col bg-background text-foreground"
@@ -1015,7 +1017,6 @@ export function AgentHome() {
               subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "billing" ? "Credits · plan · usage · transactions" : focused === "connections" ? "Connect your social accounts" : fMeta ? fMeta.subtitle : WS_DESC[focused]}
               icon={FIcon}
               agentBusy={sending}
-              revealChat={revealChat}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
               headerActions={focused === "leads" ? (
                 <button onClick={() => setLeadsMenuOpen((v) => !v)} title="Show / hide menu" className="grid h-8 w-8 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground">
@@ -1244,6 +1245,8 @@ export function AgentHome() {
                   <FocusedVoice onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "video" ? (
                   <AdBuilderCanvas embedded refreshKey={actionCount} canvasRef={videoOpsRef} />
+                ) : focused === "director" ? (
+                  <FocusedDirector onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "avatar" ? (
                   <FocusedAvatar onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (
@@ -1409,7 +1412,6 @@ export function AgentHome() {
         </div>
       )}
     </div>
-    </MobileChatProvider>
     </AgentNavContext.Provider>
   );
 }

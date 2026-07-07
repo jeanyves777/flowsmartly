@@ -6,6 +6,7 @@ import { veoClient } from "@/lib/ai/veo-client";
 import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
+import { resumeAvatarRender } from "@/lib/avatar-studio";
 
 /**
  * AgentTask recovery — the safety net for Flow-AI background jobs.
@@ -217,14 +218,48 @@ export interface RecoveryResult {
 }
 
 /**
- * Watchdog for the fire-and-forget CartoonVideo renders (story-ad movie / campaign,
- * avatar video). They run IN-PROCESS (setImmediate) and are ABANDONED when the
- * worker restarts — every deploy pm2-reloads — leaving the row orphaned in a
- * RENDERING status (e.g. progress 63) with no code left to finish or fail it, so
- * the UI shows an endless "…still rendering". A LIVE render bumps `updatedAt` every
- * few seconds (progress heartbeat), so a row untouched for STALE_MIN is definitively
- * dead: mark it FAILED and refund the credits. Only touches active RENDER states —
- * never the draft / awaiting-approval states of the review-first flow.
+ * RESUME watchdog for the fire-and-forget avatar (HeyGen) renders. They run
+ * IN-PROCESS and are abandoned when the worker restarts (every deploy pm2-reloads)
+ * — but HeyGen keeps rendering AND billing us, so the right move is NOT to fail:
+ * it's to RESUME via the persisted heygenVideoId and bring the finished MP4 home.
+ * A LIVE render bumps `updatedAt` every ~4s (progress heartbeat), so a row untouched
+ * for AVATAR_STALE_MIN is one whose worker died. `resumeAvatarRender` finalises a
+ * done render, fails+refunds a genuinely-failed one, and (on "pending") touches the
+ * row so it stays out of this stale window until HeyGen finishes.
+ */
+async function resumeStuckAvatarRenders(): Promise<{ scanned: number; recovered: number; failed: number; pending: number }> {
+  const AVATAR_STALE_MIN = 3; // no heartbeat for 3min while heartbeats land every ~4s = dead worker
+  const cutoff = new Date(Date.now() - AVATAR_STALE_MIN * 60_000);
+  const rows = await prisma.cartoonVideo.findMany({
+    where: {
+      animationType: "avatar_video",
+      status: { in: ["PENDING", "PROCESSING", "COMPOSITING"] },
+      updatedAt: { lt: cutoff },
+    },
+    select: { id: true },
+    take: 50,
+  }).catch(() => [] as { id: string }[]);
+
+  let recovered = 0, failed = 0, pending = 0;
+  for (const r of rows) {
+    const outcome = await resumeAvatarRender(r.id).catch(() => "pending" as const);
+    if (outcome === "recovered") recovered++;
+    else if (outcome === "failed") failed++;
+    else pending++; // "pending" (still rendering upstream) or "no_handle" (too fresh to give up)
+  }
+  if (recovered || failed) console.log(`[reconcile-tasks] avatar-resume: recovered=${recovered} failed=${failed} pending=${pending}`);
+  return { scanned: rows.length, recovered, failed, pending };
+}
+
+/**
+ * Watchdog for the fire-and-forget story-ad CartoonVideo renders (movie / campaign).
+ * They run IN-PROCESS (setImmediate) and are ABANDONED when the worker restarts —
+ * every deploy pm2-reloads — leaving the row orphaned in a RENDERING status with no
+ * code left to finish or fail it, so the UI shows an endless "…still rendering". A
+ * LIVE render bumps `updatedAt` every few seconds (progress heartbeat), so a row
+ * untouched for STALE_MIN is definitively dead: mark it FAILED and refund the
+ * credits. (Avatar/HeyGen renders are RESUMED instead — see resumeStuckAvatarRenders.)
+ * Only touches active RENDER states — never the draft / awaiting-approval states.
  */
 async function recoverStuckCartoonRenders(): Promise<{ scanned: number; failed: number }> {
   const STALE_MIN = 20;
@@ -241,7 +276,7 @@ async function recoverStuckCartoonRenders(): Promise<{ scanned: number; failed: 
         // Monolithic fire-and-forget renders (start immediately on create): any
         // non-terminal render state gone stale = the worker died. Their drafts sit
         // in "DRAFT", never PENDING, so PENDING here always means "queued/rendering".
-        { animationType: { in: ["story_ad_movie", "avatar_video"] }, status: { in: ["PENDING", "PROCESSING", "COMPOSITING"] } },
+        { animationType: "story_ad_movie", status: { in: ["PENDING", "PROCESSING", "COMPOSITING"] } },
       ],
     },
     select: { id: true, userId: true, creditsCost: true, animationType: true, status: true },
@@ -331,9 +366,17 @@ export async function runTaskRecovery(): Promise<RecoveryResult> {
       }
     }
 
-    // Safety net for the in-process CartoonVideo renders the AgentTask loop above
-    // doesn't cover (story-ad movie/campaign, avatar video) — fail+refund any left
-    // orphaned by a worker restart so the UI never sits at an endless % forever.
+    // Avatar/HeyGen renders orphaned by a worker restart: RESUME them (HeyGen kept
+    // rendering + billing us), pulling home any that finished and fail+refunding real
+    // failures — so a completed HeyGen video never shows "nothing" on our side.
+    const avatarResumes = await resumeStuckAvatarRenders();
+    result.scanned += avatarResumes.scanned;
+    result.recovered += avatarResumes.recovered;
+    result.failed += avatarResumes.failed;
+    result.stillPending += avatarResumes.pending;
+
+    // Safety net for the OTHER in-process CartoonVideo renders (story-ad movie/campaign)
+    // — fail+refund any orphaned by a worker restart so the UI never sits at an endless %.
     const stuckRenders = await recoverStuckCartoonRenders();
     result.scanned += stuckRenders.scanned;
     result.failed += stuckRenders.failed;

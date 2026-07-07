@@ -8,12 +8,8 @@ import {
   CheckCircle2, Clock, TriangleAlert, ChevronUp, Wand2, AlertTriangle,
   Trash2, ChevronRight, ChevronLeft, Search, Film, Loader2, FolderOpen, Languages, Images, Package, Upload, Plus, Sliders, Captions as CaptionsIcon, Clapperboard, GripVertical,
 } from "lucide-react";
-import { FlowLoader } from "@/components/shared/flow-loader";
+import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
-import { useMobileChat } from "../mobile-chat-context";
-
-// Mobile "collect via chat" starter (edit + send; the agent gathers the script/voice).
-const AVATAR_STARTER = "Make a 30-second talking-avatar video introducing my brand — [what it should say / the topic].";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -94,7 +90,7 @@ interface AvatarVideo {
   scenesCount?: number | null;
 }
 interface Avatar { id: string; name: string; previewUrl?: string; previewVideoUrl?: string; isCustom: boolean; group?: string; groupName?: string; premium?: boolean; defaultVoiceId?: string }
-interface Voice { id: string; name: string; language?: string; previewUrl?: string }
+interface Voice { id: string; name: string; language?: string; previewUrl?: string; emotionSupport?: boolean }
 interface Template { id: string; name: string; thumbnailUrl?: string }
 interface Estimate { total: number; qualityLabel: string; availableCredits: number; hasEnoughCredits: boolean; isAdmin: boolean }
 
@@ -114,7 +110,6 @@ function statusBadge(status: string): { label: string; cls: string; icon: Elemen
 }
 
 export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
-  const { isMobile, seedComposer } = useMobileChat();
   const [videos, setVideos] = useState<AvatarVideo[]>([]);
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
@@ -285,7 +280,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
   };
   const onPhotoFromLibrary = (url: string) => { setMediaPickerOpen(false); void submitPhoto({ imageUrl: url }, url); };
 
-  const openSheet = () => { if (isMobile) { seedComposer(AVATAR_STARTER); return; } setBuildErr(""); setSheetOpen(true); }; // estimate auto-pulls via the effect
+  const openSheet = () => { setBuildErr(""); setSheetOpen(true); }; // estimate auto-pulls via the effect
   const startNewProject = () => { setProjectId(newProjectId()); openSheet(); }; // top "New video" — fresh project
   const addToProject = () => { openSheet(); }; // canvas "+" — next video in the same project
 
@@ -905,6 +900,10 @@ function RenderNode({ v, onPlay, onOpen, onGenerate, onRemove, onEdit, generatin
       <div className="relative aspect-[9/16] w-full bg-background">
         {v.thumbnailUrl ? (
           <Image src={v.thumbnailUrl} alt="" fill sizes="210px" className="object-cover" unoptimized />
+        ) : isRendering(v.status) ? (
+          <div className="grid h-full w-full place-items-center bg-gradient-to-br from-brand-500/10 via-background to-violet-500/10">
+            <FlowGeneratingMark size={54} />
+          </div>
         ) : (
           <div className="grid h-full w-full place-items-center bg-gradient-to-br from-muted/40 to-muted/10 text-muted-foreground"><UserSquare2 className="h-7 w-7" /></div>
         )}
@@ -914,7 +913,7 @@ function RenderNode({ v, onPlay, onOpen, onGenerate, onRemove, onEdit, generatin
           </button>
         )}
         <span className={cn("absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold", b.cls)}>
-          <BadgeIcon className={cn("h-3 w-3", b.spin && "animate-spin")} /> {b.label}
+          {b.spin ? <FlowLoader size={12} /> : <BadgeIcon className="h-3 w-3" />} {b.label}
         </span>
       </div>
       <div className="p-2.5">
@@ -928,7 +927,10 @@ function RenderNode({ v, onPlay, onOpen, onGenerate, onRemove, onEdit, generatin
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500 transition-all" style={{ width: `${pct || 6}%` }} />
             </div>
-            <p className="mt-1 line-clamp-1 text-[10.5px] text-muted-foreground">{v.currentStep || "Rendering…"}</p>
+            <div className="mt-1 flex items-center justify-between gap-2">
+              <p className="line-clamp-1 text-[10.5px] text-muted-foreground">{v.currentStep || "Rendering…"}</p>
+              <span className="shrink-0 text-[11px] font-bold tabular-nums text-brand-500">{pct}%</span>
+            </div>
           </div>
         )}
         <button onClick={onOpen} className="mt-2 inline-flex w-full items-center justify-center gap-1 rounded-[9px] border border-border px-2 py-1.5 text-[11.5px] font-semibold text-foreground transition hover:border-brand-500/60 hover:text-brand-500">
@@ -1323,9 +1325,37 @@ function AvatarPicker({ avatars, value, onSelect, heightClass = "max-h-[240px]" 
 interface DrawerState {
   script: string; avatarId: string; voiceId: string; quality: Quality; aspect: Aspect; lengthSeconds: number;
   captionsOn: boolean; background: string; templateId: string | null;
+  voiceEmotion: string; voiceSpeed: number; motionPrompt: string;
 }
 const isHex = (s: string) => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s);
 const isUrl = (s: string) => /^https?:\/\/|^\/uploads\//i.test(s);
+// Feathers the avatar preview into a generated backdrop so the fit is visible in
+// the editor (the live HeyGen render does the real, clean matte).
+const AVATAR_FEATHER = "radial-gradient(ellipse 62% 74% at 50% 40%, #000 58%, transparent 82%)";
+// Voice delivery — energy of the read. "" = Auto (HeyGen's natural default). Best-effort:
+// a voice that rejects a setting still renders (server retries without it).
+const EMOTIONS: { v: string; label: string }[] = [
+  { v: "", label: "Auto" },
+  { v: "Friendly", label: "Friendly" },
+  { v: "Excited", label: "Excited" },
+  { v: "Serious", label: "Serious" },
+  { v: "Soothing", label: "Soothing" },
+  { v: "Broadcaster", label: "Broadcaster" },
+];
+const SPEEDS: { v: number; label: string }[] = [
+  { v: 0.85, label: "0.85×" },
+  { v: 0.95, label: "0.95×" },
+  { v: 1, label: "1×" },
+  { v: 1.1, label: "1.1×" },
+  { v: 1.2, label: "1.2×" },
+];
+// Avatar IV motion presets — natural-language gesture/energy drivers (HeyGen custom_motion_prompt).
+const MOTION_PRESETS: { label: string; prompt: string }[] = [
+  { label: "Conversational", prompt: "warm and conversational, natural hand gestures, subtle head movement" },
+  { label: "Energetic", prompt: "high energy, animated hand gestures, leans toward camera, expressive" },
+  { label: "Calm", prompt: "calm and confident, minimal steady gestures, grounded posture" },
+  { label: "Storyteller", prompt: "expressive storytelling gestures, varied pacing, engaged eye contact" },
+];
 
 function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGenerated, onLive }: {
   sceneId: string;
@@ -1370,6 +1400,9 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
             captionsOn: !!s.captionsOn,
             background: s.background || "original",
             templateId: s.templateId ?? null,
+            voiceEmotion: typeof s.voiceEmotion === "string" ? s.voiceEmotion : "",
+            voiceSpeed: typeof s.voiceSpeed === "number" ? s.voiceSpeed : 1,
+            motionPrompt: typeof s.motionPrompt === "string" ? s.motionPrompt : "",
           });
         }
       } catch { /* ignore */ }
@@ -1448,12 +1481,28 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
             <div className="grid place-items-center py-16"><FlowLoader size={30} withMark label="Loading scene…" /></div>
           ) : (
             <>
-              {/* preview: selected avatar (+ background) */}
-              <div className="relative mb-3 aspect-[9/16] w-full max-w-[150px] overflow-hidden rounded-xl border border-border bg-background">
-                {isUrl(st.background) && <Image src={st.background} alt="" fill sizes="150px" className="object-cover" unoptimized />}
-                {isHex(st.background) && <span className="absolute inset-0" style={{ background: st.background }} />}
-                {selAvatar?.previewUrl && <Image src={selAvatar.previewUrl} alt="" fill sizes="150px" className={cn("object-cover", (isUrl(st.background) || isHex(st.background)) && "mix-blend-normal")} unoptimized />}
-              </div>
+              {/* preview: the selected avatar composited onto its backdrop, so the
+                  fit is visible before spending a render. With a real background the
+                  avatar is feathered in (the HeyGen render mattes it cleanly). */}
+              {(() => {
+                const hasBg = isUrl(st.background) || isHex(st.background);
+                return (
+                  <div className="relative mx-auto mb-3 aspect-[9/16] w-full max-w-[150px] overflow-hidden rounded-xl border border-border bg-background">
+                    {isUrl(st.background) && <Image src={st.background} alt="" fill sizes="150px" className="object-cover" unoptimized />}
+                    {isHex(st.background) && <span className="absolute inset-0" style={{ background: st.background }} />}
+                    {selAvatar?.previewUrl && (hasBg ? (
+                      <div className="absolute bottom-0 left-1/2 h-[92%] w-[96%] -translate-x-1/2" style={{ WebkitMaskImage: AVATAR_FEATHER, maskImage: AVATAR_FEATHER }}>
+                        <Image src={selAvatar.previewUrl} alt="" fill sizes="150px" className="object-cover object-top" unoptimized />
+                      </div>
+                    ) : (
+                      <Image src={selAvatar.previewUrl} alt="" fill sizes="150px" className="object-cover" unoptimized />
+                    ))}
+                    {hasBg && selAvatar?.previewUrl && (
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-center text-[8.5px] leading-tight text-white/90">Preview · the video mattes your avatar onto this backdrop</span>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* script */}
               <label className="mb-1 block text-[11.5px] font-semibold">Script</label>
@@ -1474,10 +1523,28 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
               {/* voice + preview */}
               <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Voice</label>
               <div className="flex gap-1.5">
-                <select value={st.voiceId} onChange={(e) => set({ voiceId: e.target.value })} className="min-w-0 flex-1 rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
+                <select value={st.voiceId} onChange={(e) => { const nv = voices.find((v) => v.id === e.target.value); set({ voiceId: e.target.value, ...(nv && nv.emotionSupport === false ? { voiceEmotion: "" } : {}) }); }} className="min-w-0 flex-1 rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
                   {voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
                 </select>
                 <button onClick={playVoice} disabled={!selVoice?.previewUrl} title="Listen to this voice" className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-border text-brand-500 hover:border-brand-500/60 disabled:opacity-40"><Play className="h-4 w-4 fill-current" /></button>
+              </div>
+
+              {/* delivery — tone + pace of the read (best-effort; a voice that rejects a setting still renders) */}
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Delivery <span className="font-normal text-muted-foreground">— tone &amp; pace</span></label>
+              <div className="flex flex-wrap gap-1.5">
+                {EMOTIONS.map((e) => {
+                  const emotionOff = !!e.v && selVoice?.emotionSupport === false; // this voice can't emote
+                  return (
+                    <button key={e.v || "auto"} disabled={emotionOff} onClick={() => set({ voiceEmotion: e.v })} title={emotionOff ? "This voice doesn't support emotion" : undefined} className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-35", (st.voiceEmotion || "") === e.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{e.label}</button>
+                  );
+                })}
+              </div>
+              {selVoice?.emotionSupport === false && <p className="mt-1 text-[10.5px] text-muted-foreground">This voice uses a neutral tone — pick an emotion-capable voice for tone control.</p>}
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground">Pace</span>
+                {SPEEDS.map((s) => (
+                  <button key={s.v} onClick={() => set({ voiceSpeed: s.v })} className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold tabular-nums transition", (st.voiceSpeed ?? 1) === s.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{s.label}</button>
+                ))}
               </div>
 
               {/* motion engine */}
@@ -1490,6 +1557,19 @@ function SceneEditDrawer({ sceneId, avatars, voices, onClose, onChanged, onGener
                   </button>
                 ))}
               </div>
+
+              {/* Avatar IV motion — an AI prompt that drives the avatar's gestures/energy so it isn't static */}
+              {st.quality === "avatar_iv" && (
+                <>
+                  <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Avatar motion <span className="font-normal text-muted-foreground">— AI gestures &amp; energy</span></label>
+                  <input value={st.motionPrompt} onChange={(e) => set({ motionPrompt: e.target.value })} placeholder="e.g. leans in, warm hand gestures, confident" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {MOTION_PRESETS.map((m) => (
+                      <button key={m.label} onClick={() => set({ motionPrompt: m.prompt })} className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition", st.motionPrompt === m.prompt ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{m.label}</button>
+                    ))}
+                  </div>
+                </>
+              )}
 
               {/* background — our AI, Media Library, or a colour (HeyGen's gallery isn't in their API) */}
               <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Background</label>

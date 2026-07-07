@@ -264,14 +264,32 @@ export async function listCampaigns(userId: string, limit = 20) {
 
   return rows.map((row) => {
     const campaign = readCampaign(row.metadata);
+    // A short, real title from the brief's first clause (never blank).
+    const briefText = (row.storyPrompt || "").trim();
+    const title = ((briefText.split(/[.\n!?]/)[0] || briefText).trim().slice(0, 60)) || "Untitled ad";
+    // Poster fallback — finished poster, else the first generated frame we have.
+    const firstClipImg = campaign.clips?.find((c) => c.imageUrl)?.imageUrl ?? null;
+    const firstClipVid = campaign.clips?.find((c) => c.videoUrl)?.videoUrl ?? null;
+    const firstChar = campaign.characters?.find((c) => c.characterSheetUrl || c.referenceImageUrl);
+    const poster =
+      row.thumbnailUrl ||
+      campaign.finalVideoThumbnailUrl ||
+      firstClipImg ||
+      firstChar?.characterSheetUrl ||
+      firstChar?.referenceImageUrl ||
+      null;
     return {
       id: row.id,
-      title: row.storyPrompt.slice(0, 120),
+      title,
+      brief: briefText.slice(0, 160),
       status: row.status,
       progress: row.progress,
       currentStep: row.currentStep,
       videoUrl: row.videoUrl,
+      finalVideoUrl: campaign.finalVideoUrl ?? row.videoUrl ?? null,
       thumbnailUrl: row.thumbnailUrl,
+      poster,
+      previewVideoUrl: firstClipVid,
       createdAt: row.createdAt,
       completedAt: row.completedAt,
       phase: campaign.phase,
