@@ -1,0 +1,326 @@
+<title>Lead Studio — detail sheet: locked details + placeholders</title>
+<style>
+  :root {
+    --backdrop: rgba(4,4,6,.62);
+    --page: #0b0b0e;
+    --card: #141418;
+    --card-2: #17171c;
+    --border: rgba(255,255,255,.09);
+    --border-strong: rgba(255,255,255,.14);
+    --text: #f4f4f5;
+    --muted: #8b8b95;
+    --muted-2: rgba(255,255,255,.45);
+    --faint: rgba(255,255,255,.34);
+    --brand: #6366f1;
+    --violet: #8b5cf6;
+    --emerald: #10b981;
+    --emerald-soft: rgba(16,185,129,.10);
+    --emerald-border: rgba(16,185,129,.42);
+    --amber: #f59e0b;
+    --amber-border: rgba(245,158,11,.42);
+    --muted-panel: rgba(255,255,255,.05);
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  :root[data-theme="light"] {
+    --backdrop: rgba(24,24,27,.45);
+    --page: #ececed;
+    --card: #ffffff;
+    --card-2: #fafafb;
+    --border: rgba(0,0,0,.10);
+    --border-strong: rgba(0,0,0,.16);
+    --text: #18181b;
+    --muted: #6b7280;
+    --muted-2: rgba(0,0,0,.5);
+    --faint: rgba(0,0,0,.32);
+    --emerald: #059669;
+    --emerald-soft: rgba(5,150,105,.09);
+    --emerald-border: rgba(5,150,105,.38);
+    --amber: #d97706;
+    --amber-border: rgba(217,119,6,.42);
+    --muted-panel: rgba(0,0,0,.035);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --backdrop: rgba(24,24,27,.45);
+      --page: #ececed;
+      --card: #ffffff;
+      --card-2: #fafafb;
+      --border: rgba(0,0,0,.10);
+      --border-strong: rgba(0,0,0,.16);
+      --text: #18181b;
+      --muted: #6b7280;
+      --muted-2: rgba(0,0,0,.5);
+      --faint: rgba(0,0,0,.32);
+      --emerald: #059669;
+      --emerald-soft: rgba(5,150,105,.09);
+      --emerald-border: rgba(5,150,105,.38);
+      --amber: #d97706;
+      --amber-border: rgba(217,119,6,.42);
+      --muted-panel: rgba(0,0,0,.035);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    color: var(--text);
+    background:
+      radial-gradient(120% 80% at 80% -10%, rgba(99,102,241,.10), transparent 60%),
+      var(--page);
+    min-height: 100vh;
+    padding: 28px 16px 48px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+
+  .pagehead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 0 4px 6px; }
+  .pagehead h1 { font-size: 15px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+  .pagehead p { font-size: 12.5px; color: var(--muted); margin: 0; }
+  .themebtn {
+    margin-left: auto; font: inherit; font-size: 12px; font-weight: 600; color: var(--muted);
+    background: var(--card); border: 1px solid var(--border); border-radius: 9px; padding: 6px 11px; cursor: pointer;
+  }
+  .themebtn:hover { color: var(--text); border-color: var(--border-strong); }
+
+  /* the modal surface */
+  .stage {
+    position: relative; margin-top: 14px; border-radius: 20px; overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(99,102,241,.06), transparent 200px),
+      var(--backdrop);
+    border: 1px solid var(--border);
+    padding: 26px;
+    backdrop-filter: blur(2px);
+  }
+  .sheet {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 30px 70px -30px rgba(0,0,0,.7);
+    max-width: 860px; margin: 0 auto; overflow: hidden;
+  }
+
+  /* header */
+  .sheet-head { position: relative; border-bottom: 1px solid var(--border); padding: 16px 20px 14px; }
+  .grip { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); width: 40px; height: 4px; border-radius: 999px; background: var(--border-strong); }
+  .head-row { display: flex; align-items: flex-start; gap: 12px; }
+  .avatar {
+    width: 44px; height: 44px; flex: none; border-radius: 13px; display: grid; place-items: center;
+    font-size: 15px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, var(--brand), var(--violet));
+  }
+  .head-main { min-width: 0; flex: 1; }
+  .head-main h2 { font-size: 16px; font-weight: 700; margin: 0; line-height: 1.15; }
+  .head-main .role { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
+  .folder-chip {
+    display: inline-block; margin-top: 7px; font-size: 10px; font-weight: 600; color: var(--muted);
+    border: 1px solid var(--border); background: var(--muted-panel); border-radius: 999px; padding: 2px 8px;
+  }
+  .badge-enriched {
+    margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 700; color: var(--emerald);
+    background: var(--emerald-soft); border-radius: 999px; padding: 4px 10px;
+  }
+  .xbtn { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); background: transparent; }
+
+  /* body */
+  .sheet-body { padding: 20px; display: flex; flex-direction: column; gap: 20px; max-height: 60vh; overflow-y: auto; }
+  .section > .slabel {
+    display: flex; align-items: center; gap: 8px; margin: 0 0 8px;
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted-2);
+  }
+  .dl { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 26px; margin: 0; }
+  @media (max-width: 560px) { .dl { grid-template-columns: 1fr; } }
+  .field { min-width: 0; }
+  .field.full { grid-column: 1 / -1; }
+  .field dt, .field .k { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted-2); margin: 0; }
+  .field dd, .field .v { margin: 3px 0 0; font-size: 13px; line-height: 1.35; word-break: break-word; }
+  .field a { color: var(--brand); text-decoration: none; }
+  .field a:hover { text-decoration: underline; }
+
+  /* the placeholder — the new bit */
+  .miss dt, .miss .k { color: var(--faint); }
+  .miss dd, .miss .v { color: var(--faint); font-style: italic; }
+
+  .ico { width: 14px; height: 14px; flex: none; }
+  .star { color: var(--amber); }
+
+  /* find-more panel */
+  .findmore {
+    border: 1px solid var(--border); border-radius: 14px; padding: 14px;
+    background: linear-gradient(180deg, rgba(99,102,241,.07), transparent);
+  }
+  .findmore-head { display: flex; align-items: center; gap: 8px; }
+  .findmore-head h3 { font-size: 13px; font-weight: 700; margin: 0; }
+  .agent-pill { margin-left: auto; font-size: 10px; font-weight: 700; color: var(--brand); background: rgba(99,102,241,.12); border-radius: 999px; padding: 2px 8px; }
+  .findmore p { margin: 5px 0 0; font-size: 11.5px; line-height: 1.4; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; font: inherit;
+    font-size: 12px; font-weight: 600; border-radius: 10px; padding: 6px 10px; cursor: pointer;
+    border: 1px solid var(--border); color: var(--text); background: transparent;
+  }
+  /* requestable (gap) */
+  .chip.gap { border-color: var(--amber-border); }
+  .chip.gap:hover { background: rgba(245,158,11,.08); }
+  .chip.gap .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--amber); }
+  /* found → locked, not a button */
+  .chip.locked {
+    cursor: default; border-color: var(--emerald-border); background: var(--emerald-soft); color: var(--emerald);
+  }
+  .chip.locked .ico { color: var(--emerald); }
+
+  /* footer */
+  .sheet-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; border-top: 1px solid var(--border); padding: 14px 20px; }
+  .btn { font: inherit; font-size: 13px; font-weight: 600; border-radius: 10px; padding: 8px 15px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; border: 1px solid var(--border); color: var(--text); background: transparent; }
+  .btn.primary { border: 0; color: #fff; background: linear-gradient(90deg, var(--brand), var(--violet)); box-shadow: 0 10px 24px -12px rgba(99,102,241,.8); }
+  .btn.ghost-right { margin-left: auto; color: var(--muted); }
+
+  /* annotation callouts */
+  .notes { max-width: 860px; margin: 18px auto 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 560px) { .notes { grid-template-columns: 1fr; } }
+  .note { border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; background: var(--card); }
+  .note .tag { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border-radius: 999px; }
+  .note.a .tag { color: var(--emerald); background: var(--emerald-soft); }
+  .note.b .tag { color: var(--brand); background: rgba(99,102,241,.12); }
+  .note p { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+  .note b { color: var(--text); font-weight: 600; }
+  .swatch { width: 9px; height: 9px; border-radius: 999px; display: inline-block; }
+</style>
+
+<div class="wrap">
+  <div class="pagehead">
+    <h1>Lead Studio · lead detail</h1>
+    <p>Locked "already found" details + placeholders for the gaps</p>
+    <button class="themebtn" onclick="var r=document.documentElement;r.dataset.theme=(r.dataset.theme==='light'?'dark':'light')">Toggle theme</button>
+  </div>
+
+  <div class="stage">
+    <div class="sheet">
+      <!-- header -->
+      <div class="sheet-head">
+        <span class="grip"></span>
+        <div class="head-row">
+          <span class="avatar">JS</span>
+          <div class="head-main">
+            <h2>J. Smegal</h2>
+            <p class="role">Owner · J. Smegal Roofing</p>
+            <span class="folder-chip">Pittsfield Home Services Owners</span>
+          </div>
+          <span class="badge-enriched">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            Enriched · web
+          </span>
+          <button class="xbtn" aria-label="Close">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- body -->
+      <div class="sheet-body">
+        <!-- CONTACT -->
+        <div class="section">
+          <p class="slabel">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg>
+            Contact
+          </p>
+          <dl class="dl">
+            <div class="field"><dt>Work email</dt><dd><a href="#">contact@jsmegalroofing.com</a></dd></div>
+            <div class="field"><dt>Phone</dt><dd><a href="#">(413) 281-6948</a></dd></div>
+            <div class="field"><dt>Website</dt><dd><a href="#">jsmegalroofing.com</a></dd></div>
+            <div class="field miss"><dt>Social profiles</dt><dd>Not found yet</dd></div>
+          </dl>
+        </div>
+
+        <!-- LOCATION -->
+        <div class="section">
+          <p class="slabel">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            Location
+          </p>
+          <dl class="dl">
+            <div class="field full"><dt>Address</dt><dd>622 Hancock Rd, Pittsfield, MA 01201</dd></div>
+          </dl>
+        </div>
+
+        <!-- BUSINESS -->
+        <div class="section">
+          <p class="slabel">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/></svg>
+            Business
+          </p>
+          <dl class="dl">
+            <div class="field"><dt>Company</dt><dd>J. Smegal Roofing</dd></div>
+            <div class="field miss"><dt>Industry</dt><dd>Not found yet</dd></div>
+            <div class="field miss"><dt>Company size</dt><dd>Not found yet</dd></div>
+            <div class="field miss"><dt>Revenue</dt><dd>Not found yet</dd></div>
+            <div class="field miss"><dt>Founded</dt><dd>Not found yet</dd></div>
+            <div class="field miss"><dt>Rating</dt><dd>Not found yet</dd></div>
+            <div class="field miss"><dt>Hours</dt><dd>Not found yet</dd></div>
+          </dl>
+        </div>
+
+        <!-- NOTES -->
+        <div class="section">
+          <p class="slabel">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z"/><path d="M15 3v6h6"/></svg>
+            Notes
+          </p>
+          <dl class="dl">
+            <div class="field miss full"><dt>Reviews summary</dt><dd>Not found yet</dd></div>
+          </dl>
+        </div>
+
+        <!-- FIND MORE -->
+        <div class="findmore">
+          <div class="findmore-head">
+            <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg>
+            <h3>Find more details</h3>
+            <span class="agent-pill">agent searches</span>
+          </div>
+          <p>Tap a gap to hunt for it — the agent searches the web + their site and saves it into this record. Found details are locked so nothing is searched twice.</p>
+          <div class="chips">
+            <span class="chip locked" title="Already found — nothing to search">
+              <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              Full street address
+            </span>
+            <button class="chip gap"><span class="dot"></span> More decision-makers</button>
+            <button class="chip gap"><span class="dot"></span> Business hours</button>
+            <button class="chip gap"><span class="dot"></span> Company size &amp; revenue</button>
+            <button class="chip gap"><span class="dot"></span> Recent reviews</button>
+            <button class="chip gap"><span class="dot"></span> Social profiles</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- footer -->
+      <div class="sheet-foot">
+        <button class="btn primary">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+          Pitch this lead
+        </button>
+        <button class="btn">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="15" width="6" height="6" rx="1"/><path d="M9 6h6a2 2 0 0 1 2 2v7"/></svg>
+          Create automation
+        </button>
+        <button class="btn ghost-right">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3"/></svg>
+          Deep details
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- annotations -->
+  <div class="notes">
+    <div class="note a">
+      <span class="tag"><span class="swatch" style="background:var(--emerald)"></span> Locked · already found</span>
+      <p><b>Full street address</b> is present on this lead, so its chip is <b>locked and not clickable</b> — the agent can't be asked to re-search something already saved. No double-charging for done work.</p>
+    </div>
+    <div class="note b">
+      <span class="tag"><span class="swatch" style="background:var(--amber)"></span> Requestable · gaps</span>
+      <p>Only the <b>missing</b> details stay tappable (amber dot). Every empty field now shows a muted <b>"Not found yet"</b> placeholder, so a sparse profile fills its grid instead of leaving the right side blank.</p>
+    </div>
+  </div>
+</div>

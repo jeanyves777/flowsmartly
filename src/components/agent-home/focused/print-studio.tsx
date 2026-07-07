@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FileText, Mail, CreditCard, Tent, BookOpen, Newspaper, Shirt, HardHat, Coffee, ShoppingBag, Sparkles, Send, ArrowRight, ChevronLeft, ChevronRight, PanelRight, Upload, Wand2, Image as ImageIcon, Loader2, type LucideIcon } from "lucide-react";
+import { FileText, Mail, CreditCard, Tent, BookOpen, Newspaper, Shirt, HardHat, Coffee, ShoppingBag, Sparkles, Send, ChevronLeft, ChevronRight, PanelRight, Upload, Wand2, Image as ImageIcon, Loader2, Printer, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { FocusedDesignStudio, type DesignDoc, type BrandContact, type SizePreset, type PrintGuides, type ElementKey, type ImageLayer, type ShapeLayer } from "./design-studio";
 
@@ -324,7 +324,11 @@ export function FocusedPrintStudio({ onAsk, printOpsRef, productOpsRef, ...canva
   return <PrintHero onPick={selectFormat} onAsk={onAsk} />;
 }
 
-/* ── Format-chooser hero ──────────────────────────────────────────────── */
+/* ── Format chooser — empty content state + right-side format MENU ─────────
+   Follows the app's menu→detail pattern (same rows as the Create drawer): a
+   right rail lists the print formats grouped Paper/Product; the main area is an
+   empty state (agent prompt) until a format is picked, then it renders the
+   canvas / product mockup. [[full-width-left-menu-layout]] */
 function PrintHero({ onPick, onAsk }: { onPick: (key: string) => void; onAsk: (prompt: string) => void }) {
   const [q, setQ] = useState("");
   const paper = PRINT_FORMATS.filter((f) => f.group === "paper");
@@ -336,70 +340,81 @@ function PrintHero({ onPick, onAsk }: { onPick: (key: string) => void; onAsk: (p
     setQ("");
   };
   return (
-    <div
-      className="relative min-h-0 flex-1 overflow-y-auto"
-      style={{ background: "radial-gradient(520px 320px at 38% -5%, hsl(var(--primary)/.14), transparent 70%)" }}
-    >
-      <div className="mx-auto max-w-[1080px] px-5 py-7 sm:px-7">
-        <h1 className="text-[22px] font-extrabold leading-tight tracking-tight">What are we printing today?</h1>
-        <p className="mt-1 max-w-[640px] text-[13.5px] leading-relaxed text-muted-foreground">
-          Pick a format to open a full editable canvas — the same controls as the Design studio — or just tell the agent what you need and it builds the whole thing for you, print-ready.
-        </p>
+    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      {/* MAIN — empty content state */}
+      <div
+        className="relative grid min-h-0 flex-1 place-items-center overflow-y-auto px-5 py-10"
+        style={{ background: "radial-gradient(560px 340px at 42% -8%, hsl(var(--primary)/.13), transparent 70%)" }}
+      >
+        <div className="w-full max-w-[540px] text-center">
+          <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500">
+            <Printer className="h-8 w-8" />
+          </span>
+          <h1 className="mt-4 text-[22px] font-extrabold leading-tight tracking-tight">What are we printing today?</h1>
+          <p className="mx-auto mt-1.5 max-w-[440px] text-[13.5px] leading-relaxed text-muted-foreground">
+            Pick a format from the menu to open a full editable canvas — the same controls as the Design studio — or tell the agent what you need and it builds the whole thing for you, print-ready.
+          </p>
 
-        <div className="mt-5 flex items-center gap-2.5 rounded-2xl border border-border bg-card p-2.5 shadow-lg shadow-black/5">
-          <Sparkles className="ms-1 h-[18px] w-[18px] shrink-0 text-brand-500" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
-            placeholder="e.g. “Design a tri-fold brochure for my dental clinic” or “put my logo on a hi-vis vest”"
-            className="min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground"
-          />
-          <button onClick={ask} aria-label="Ask the agent" className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-brand-500 to-violet-500 text-white shadow-sm">
-            <Send className="h-[15px] w-[15px]" />
-          </button>
-        </div>
+          <div className="mx-auto mt-5 flex items-center gap-2.5 rounded-2xl border border-border bg-card p-2.5 text-left shadow-lg shadow-black/5">
+            <Sparkles className="ms-1 h-[18px] w-[18px] shrink-0 text-brand-500" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") ask(); }}
+              placeholder="e.g. “Design a tri-fold brochure for my dental clinic”"
+              className="min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground"
+            />
+            <button onClick={ask} aria-label="Ask the agent" className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-gradient-to-br from-brand-500 to-violet-500 text-white shadow-sm">
+              <Send className="h-[15px] w-[15px]" />
+            </button>
+          </div>
 
-        <GroupLabel>Paper &amp; signage</GroupLabel>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {paper.map((f) => <FormatTile key={f.key} f={f} onPick={onPick} />)}
-        </div>
-
-        <GroupLabel>Print on products</GroupLabel>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {product.map((f) => <FormatTile key={f.key} f={f} onPick={onPick} />)}
-        </div>
-
-        <div className="mt-5 rounded-xl border border-brand-500/25 bg-brand-500/[0.06] p-3.5 text-[11.5px] leading-relaxed text-muted-foreground">
-          <span className="font-semibold text-foreground">Same canvas, print-ready:</span> paper formats open the Design studio editor (drag, resize, edit text in place, photos, logo, multi-page) with print size presets + bleed/safe/fold guides. Product prints open a mockup with a print area you drop artwork into. The agent designs either one for you.
+          <p className="mt-4 inline-flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground">
+            <PanelRight className="h-3.5 w-3.5" /> Choose a format from the menu<span className="hidden lg:inline"> on the right</span>.
+          </p>
         </div>
       </div>
+
+      {/* RIGHT MENU — print formats (mirrors the Create-drawer row style) */}
+      <aside className="flex w-full shrink-0 flex-col border-t border-border bg-card/40 lg:w-[300px] lg:border-s lg:border-t-0">
+        <div className="flex items-center gap-2.5 border-b border-border px-4 py-3.5">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Printer className="h-[18px] w-[18px]" /></span>
+          <b className="text-[14px]">Print formats</b>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <GroupLabel first>Paper &amp; signage</GroupLabel>
+          <div className="space-y-2">
+            {paper.map((f) => <FormatRow key={f.key} f={f} onPick={onPick} />)}
+          </div>
+          <GroupLabel>Print on products</GroupLabel>
+          <div className="space-y-2">
+            {product.map((f) => <FormatRow key={f.key} f={f} onPick={onPick} />)}
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }
 
-function GroupLabel({ children }: { children: React.ReactNode }) {
-  return <p className="mb-2.5 mt-6 px-0.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{children}</p>;
+function GroupLabel({ children, first }: { children: React.ReactNode; first?: boolean }) {
+  return <p className={cn("mb-2 px-0.5 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground", first ? "mt-1" : "mt-5")}>{children}</p>;
 }
 
-function FormatTile({ f, onPick }: { f: PrintFormat; onPick: (key: string) => void }) {
+// A format row in the right menu — same shape as the Create-drawer items
+// (icon · name · desc · chevron) so Print follows the system pattern.
+function FormatRow({ f, onPick }: { f: PrintFormat; onPick: (key: string) => void }) {
   const { Icon } = f;
   return (
     <button
       onClick={() => onPick(f.key)}
-      className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 text-left transition hover:-translate-y-0.5 hover:border-brand-500/60 hover:shadow-xl hover:shadow-black/10"
+      className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 text-left transition hover:border-brand-500/50 hover:bg-muted/50"
     >
-      <span className="grid h-[42px] w-[42px] place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500">
-        <Icon className="h-[21px] w-[21px]" />
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><Icon className="h-[18px] w-[18px]" /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-semibold text-foreground">{f.name}</span>
+        <span className="mt-0.5 block truncate text-[11.5px] text-muted-foreground">{f.desc}</span>
       </span>
-      <h3 className="mt-2.5 flex items-center gap-1 text-[14px] font-bold">
-        {f.name}
-        <ArrowRight className="h-3.5 w-3.5 -translate-x-1 text-muted-foreground opacity-0 transition group-hover:translate-x-0 group-hover:opacity-100" />
-      </h3>
-      <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted-foreground">{f.desc}</p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {f.chips.map((c) => <span key={c} className="rounded-md border border-border px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">{c}</span>)}
-      </div>
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
     </button>
   );
 }
