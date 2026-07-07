@@ -1,4 +1,4 @@
-import { spawn } from "child_process";
+import { spawn, execFile } from "child_process";
 import { promises as fsp } from "fs";
 import os from "os";
 import path from "path";
@@ -65,10 +65,45 @@ export async function transcribeVideoUrl(videoUrl: string): Promise<{ transcript
   };
 }
 
+// ── Speaker-aware reframe helpers ──────────────────────────────────────────────
+function resolvePython(): string {
+  return process.env.PYTHON_BIN || (process.platform === "win32" ? "python" : "python3");
+}
+
+/** ffprobe the video's WxH (ffprobe sits next to ffmpeg). null on failure. */
+function probeVideoDimensions(ffmpegPath: string, file: string): Promise<{ w: number; h: number } | null> {
+  const ffprobe = path.join(path.dirname(ffmpegPath), process.platform === "win32" ? "ffprobe.exe" : "ffprobe");
+  return new Promise((resolve) => {
+    execFile(ffprobe, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", file], { timeout: 15000 }, (err, stdout) => {
+      const m = err ? null : String(stdout).trim().match(/(\d+)x(\d+)/);
+      resolve(m ? { w: Number(m[1]), h: Number(m[2]) } : null);
+    });
+  });
+}
+
+/**
+ * Face-detection reframe hint: horizontal centre (0..1) of the dominant speaker
+ * across a clip, via scripts/reel-reframe.py (OpenCV). Degrades to 0.5 (centre)
+ * on any error / no faces / missing python|opencv.
+ */
+function computeReframeCenterX(localPath: string, startSec: number, endSec: number): Promise<number> {
+  const script = path.join(process.cwd(), "scripts", "reel-reframe.py");
+  return new Promise((resolve) => {
+    execFile(resolvePython(), [script, localPath, String(startSec), String(endSec)], { timeout: 120000 }, (err, stdout) => {
+      if (err) { resolve(0.5); return; }
+      try {
+        const cx = Number(JSON.parse(String(stdout).trim()).cx);
+        resolve(Number.isFinite(cx) && cx >= 0 && cx <= 1 ? cx : 0.5);
+      } catch { resolve(0.5); }
+    });
+  });
+}
+
 // ── RENDER: one clip → vertical mp4 + thumb ────────────────────────────────────
 export async function renderReelClip(
   sourceUrl: string,
   clip: Pick<ReelClipContent, "id" | "startSec" | "endSec">,
+  opts?: { speakerTracking?: boolean },
 ): Promise<{ renderUrl: string; thumbUrl: string | null }> {
   const ffmpegPath = findFFmpegPath();
   if (!ffmpegPath) throw new Error("Video rendering is not available on this server (ffmpeg not found).");
@@ -76,10 +111,21 @@ export async function renderReelClip(
   const src = await downloadToTemp(sourceUrl, "mp4");
   const out = src.replace(/\.mp4$/, `-${clip.id}.mp4`);
   const dur = Math.max(1, clip.endSec - clip.startSec);
-  // Scale-to-cover + center-crop to 1080x1920 (9:16). Works for landscape or
-  // portrait sources and avoids commas inside filter expressions (which ffmpeg
-  // would misread as filter separators). Validated in scripts/test-reel-render.ts.
-  const vf = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1";
+
+  // Default: scale-to-cover + centre-crop to 1080x1920 (any aspect; validated).
+  let vf = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1";
+  // Speaker-aware reframe for LANDSCAPE sources: follow the dominant face x.
+  if (opts?.speakerTracking !== false) {
+    try {
+      const dims = await probeVideoDimensions(ffmpegPath, src);
+      if (dims && dims.w > dims.h * 1.2) {
+        const cx = await computeReframeCenterX(src, clip.startSec, clip.endSec);
+        const scaledW = Math.round((1920 * dims.w) / dims.h);
+        const off = Math.max(0, Math.min(scaledW - 1080, Math.round(cx * scaledW - 540)));
+        vf = `scale=-2:1920,crop=1080:1920:${off}:0,setsar=1`;
+      }
+    } catch { /* keep the centre-crop fallback */ }
+  }
   try {
     await runFFmpeg(ffmpegPath, [
       "-ss", String(clip.startSec), "-i", src, "-t", String(dur),
@@ -113,11 +159,13 @@ export async function renderCampaignClips(campaignId: string): Promise<void> {
   if (!campaign) return;
   const sourceUrl = campaign.sourceFileUrl || campaign.sourceUrl;
   if (!sourceUrl) return; // nothing to render from (e.g. a link with no fetched file)
+  let speakerTracking = true;
+  try { speakerTracking = (JSON.parse(campaign.settings || "{}") as { speakerTracking?: boolean }).speakerTracking !== false; } catch { /* default on */ }
 
   for (const clip of campaign.clips) {
     try {
       await prisma.reelClip.update({ where: { id: clip.id }, data: { renderStatus: "rendering" } });
-      const { renderUrl, thumbUrl } = await renderReelClip(sourceUrl, { id: clip.id, startSec: clip.startSec, endSec: clip.endSec });
+      const { renderUrl, thumbUrl } = await renderReelClip(sourceUrl, { id: clip.id, startSec: clip.startSec, endSec: clip.endSec }, { speakerTracking });
       await prisma.reelClip.update({ where: { id: clip.id }, data: { renderStatus: "ready", renderUrl, thumbUrl } });
     } catch (e) {
       await prisma.reelClip.update({ where: { id: clip.id }, data: { renderStatus: "failed" } }).catch(() => {});

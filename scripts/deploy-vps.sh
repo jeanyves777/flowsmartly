@@ -124,6 +124,15 @@ if ! command -v yt-dlp >/dev/null 2>&1 && [ ! -x /usr/local/bin/yt-dlp ]; then
     || log "yt-dlp install failed — URL ingest will degrade (uploads still work)"
 fi
 
+# --- 4c. OpenCV for Reel Studio speaker-aware reframe (face detection) --------
+# Non-fatal — if it fails, renders fall back to a centre-crop.
+if ! python3 -c "import cv2" >/dev/null 2>&1; then
+  log "Installing opencv-python-headless (Reel Studio reframe)"
+  python3 -m pip install --quiet --break-system-packages opencv-python-headless >/dev/null 2>&1 \
+    || python3 -m pip install --quiet opencv-python-headless >/dev/null 2>&1 \
+    || log "opencv install failed — reframe falls back to centre-crop"
+fi
+
 # --- 5. free RAM for the build, then build ------------------------------------
 log "Stopping voice services to free RAM for the build"
 # shellcheck disable=SC2086
