@@ -12,8 +12,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const film = await getFilm(id, session.userId);
   if (!film) return NextResponse.json({ success: false, error: { message: "Not found" } }, { status: 404 });
-  // Reconcile any scenes whose render lives in another table (avatar) before returning.
-  const synced = film.scenes.some((s) => s.status === "rendering" || s.status === "queued")
+  // Reconcile any scenes/overlays whose render lives in another table (avatar) before returning.
+  const rendering = (st?: string) => st === "rendering" || st === "queued";
+  const synced = film.scenes.some((s) => rendering(s.status) || rendering(s.overlay?.status))
     ? await syncFilmScenes(film, session.userId)
     : film;
   const data = await presignAllUrls({ film: synced });

@@ -24,7 +24,7 @@ import {
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
-import type { FilmProject, FilmScene, SceneEngine, FilmType, FilmAspect } from "@/lib/video-director/types";
+import type { FilmProject, FilmScene, FilmOverlay, SceneEngine, FilmType, FilmAspect } from "@/lib/video-director/types";
 
 // ------------------------------------------------------------------ engine meta
 const ENGINES: Record<SceneEngine, { label: string; color: string; Icon: ElementType; hint: string }> = {
@@ -171,7 +171,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   }, [refreshKey]);
 
   // -------- poll while anything is rendering --------
-  const anyRendering = scenes.some((s) => isRendering(s.status)) || film?.finalStatus === "rendering";
+  const anyRendering = scenes.some((s) => isRendering(s.status) || isRendering(s.overlay?.status)) || film?.finalStatus === "rendering";
   useEffect(() => {
     if (!anyRendering || !film) return;
     const t = setInterval(async () => {
@@ -306,6 +306,18 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
       else setFilm((f) => f ? { ...f, scenes: f.scenes.map((s) => s.id === id ? { ...s, status: "failed", error: j?.error?.message || "Generate failed" } : s) } : f);
     } catch {
       setFilm((f) => f ? { ...f, scenes: f.scenes.map((s) => s.id === id ? { ...s, status: "failed", error: "Generate failed" } : s) } : f);
+    }
+  };
+
+  const generateOverlay = async (id: string) => {
+    if (!film) return;
+    setFilm((f) => f ? { ...f, scenes: f.scenes.map((s) => s.id === id && s.overlay ? { ...s, overlay: { ...s.overlay, status: "queued", progress: 5 } } : s) } : f);
+    try {
+      const j = await fetch(`/api/ai/video-director/${film.id}/scenes/${id}/overlay`, { method: "POST" }).then((r) => r.json());
+      if (j?.success && j.data?.film) setFilm(j.data.film);
+      else setFilm((f) => f ? { ...f, scenes: f.scenes.map((s) => s.id === id && s.overlay ? { ...s, overlay: { ...s.overlay, status: "failed", error: j?.error?.message || "Overlay failed" } } : s) } : f);
+    } catch {
+      setFilm((f) => f ? { ...f, scenes: f.scenes.map((s) => s.id === id && s.overlay ? { ...s, overlay: { ...s.overlay, status: "failed" } } : s) } : f);
     }
   };
 
@@ -451,6 +463,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           onClose={() => setSelId(null)}
           onPatch={patchSel}
           onGenerate={() => generateScene(selScene.id)}
+          onGenerateOverlay={() => generateOverlay(selScene.id)}
           onSwapEngine={(engine) => patchSel({ engine })}
         />
       )}
@@ -554,6 +567,7 @@ function SceneNode({ scene, selected, onDown, onSelect, onGenerate, onRemove, on
           </button>
         )}
         <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[9px] text-white">{scene.durationSec ? `0:${String(scene.durationSec).padStart(2, "0")}` : ""}</span>
+        {scene.overlay && <span className="absolute right-1 top-1 rounded bg-cyan-500/90 px-1.5 py-0.5 text-[8px] font-bold text-white">⧉ PiP</span>}
         {rendering && <span className="absolute bottom-1 left-1 rounded-full bg-brand-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">{Math.round(scene.progress || 0)}%</span>}
         {scene.status === "ready" && <span className="absolute bottom-1 left-1 rounded-full bg-emerald-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">ready</span>}
         {scene.status === "failed" && <span className="absolute bottom-1 left-1 rounded-full bg-rose-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">failed</span>}
@@ -740,6 +754,17 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
                 </div>
               </div>
 
+              {/* Overlay lane (PiP presenters/insets, derived) */}
+              <div className="flex min-h-[40px] border-b border-border">
+                <div className="sticky left-0 z-[1] flex w-[92px] shrink-0 items-center gap-1.5 border-r border-border bg-card px-2.5 text-[10px] font-semibold text-muted-foreground"><span className="h-2 w-2 rounded-sm bg-[#22d3ee]" /> Overlay</div>
+                <div className="relative flex-1 py-1.5" style={laneMin} onPointerDown={laneScrubStart}>
+                  {laid.filter(({ s }) => s.overlay).map(({ s, start, len }) => {
+                    const OE = ENGINES[s.overlay!.engine];
+                    return <div key={s.id} className="absolute inset-y-2 flex items-center overflow-hidden rounded border border-white/20 px-1.5 text-[9px] font-bold text-black/80" style={{ left: start * px, width: Math.max(20, len * px), background: OE.color }}>⧉ {OE.label}</div>;
+                  })}
+                </div>
+              </div>
+
               {/* Music lane (film-level bed) */}
               <div className="flex min-h-[40px] border-b border-border">
                 <div className="sticky left-0 z-[1] flex w-[92px] shrink-0 items-center gap-1.5 border-r border-border bg-card px-2.5 text-[10px] font-semibold text-muted-foreground"><span className="h-2 w-2 rounded-sm bg-[#f472b6]" /> Music</div>
@@ -769,12 +794,16 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
 }
 
 // ============================================================ scene inspector
-function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, onSwapEngine }: {
+function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, onGenerateOverlay, onSwapEngine }: {
   scene: FilmScene; avatars: { id: string; name: string; previewUrl?: string }[]; voices: { id: string; name: string; language?: string }[];
-  onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onSwapEngine: (e: SceneEngine) => void;
+  onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onGenerateOverlay: () => void; onSwapEngine: (e: SceneEngine) => void;
 }) {
   const E = ENGINES[scene.engine];
-  const [picker, setPicker] = useState<null | "video" | "image" | "bg">(null);
+  const [picker, setPicker] = useState<null | "video" | "image" | "bg" | "ov">(null);
+  const ov = scene.overlay;
+  const patchOv = (p: Partial<FilmOverlay>) => onPatch({ overlay: ov ? { ...ov, ...p } : null });
+  const addOverlay = (engine: SceneEngine) => onPatch({ overlay: { engine, corner: "br", scale: 0.3, status: "draft" } });
+  const CORNERS: { v: FilmOverlay["corner"]; label: string }[] = [{ v: "tl", label: "◤" }, { v: "tr", label: "◥" }, { v: "bl", label: "◣" }, { v: "br", label: "◢" }];
   return (
     <div className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[340px] flex-col border-l border-border bg-card shadow-2xl">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
@@ -862,6 +891,52 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
             </button>
           ); })}
         </div>
+
+        {/* PiP overlay — a presenter or media inset composited on top of this scene */}
+        <label className="mb-1 mt-4 block text-[11px] font-semibold">Overlay <span className="font-normal text-muted-foreground">— a presenter / inset on top (PiP)</span></label>
+        {!ov ? (
+          <div className="flex flex-wrap gap-1.5">
+            <button onClick={() => addOverlay("avatar")} className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/40"><UserSquare2 className="h-3 w-3" /> Avatar presenter</button>
+            <button onClick={() => addOverlay("media")} className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/40"><Images className="h-3 w-3" /> Media inset</button>
+          </div>
+        ) : (
+          <div className="space-y-2 rounded-[10px] border border-border p-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold">{ENGINES[ov.engine].label} overlay {ov.status === "ready" ? <span className="text-emerald-500">· ready</span> : ov.status === "rendering" || ov.status === "queued" ? <span className="text-brand-500">· {Math.round(ov.progress || 0)}%</span> : ov.status === "failed" ? <span className="text-rose-500">· failed</span> : null}</span>
+              <button onClick={() => onPatch({ overlay: null })} className="text-[11px] font-semibold text-muted-foreground hover:text-rose-500">Remove</button>
+            </div>
+            {ov.engine === "avatar" ? (
+              <>
+                <textarea value={ov.script || ""} onChange={(e) => patchOv({ script: e.target.value })} rows={2} placeholder="What the presenter says…" className="w-full resize-none rounded-[9px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  {avatars.slice(0, 20).map((a) => (
+                    <button key={a.id} onClick={() => patchOv({ avatarId: a.id, avatarName: a.name })} title={a.name} className={cn("h-12 w-9 shrink-0 overflow-hidden rounded-md border-2", ov.avatarId === a.id ? "border-brand-500" : "border-transparent hover:border-brand-500/40")}>
+                      {a.previewUrl ? <Image src={a.previewUrl} alt="" width={36} height={48} className="h-full w-full object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center bg-muted"><UserSquare2 className="h-3.5 w-3.5" /></span>}
+                    </button>
+                  ))}
+                </div>
+                <select value={ov.voiceId || ""} onChange={(e) => { const v = voices.find((x) => x.id === e.target.value); patchOv({ voiceId: e.target.value, voiceName: v?.name }); }} className="w-full rounded-[9px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60">
+                  <option value="">Default voice</option>
+                  {voices.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                </select>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input value={ov.sourceUrl || ""} onChange={(e) => patchOv({ sourceUrl: e.target.value })} placeholder="Inset video URL" className="min-w-0 flex-1 rounded-[9px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+                <button onClick={() => setPicker("ov")} className="shrink-0 rounded-[9px] border border-border px-2 py-1.5 text-[11px] font-semibold hover:border-brand-500/60"><Images className="h-3 w-3" /></button>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <span className="text-[10.5px] text-muted-foreground">Corner</span>
+              {CORNERS.map((c) => <button key={c.v} onClick={() => patchOv({ corner: c.v })} className={cn("grid h-6 w-6 place-items-center rounded border text-[11px]", ov.corner === c.v ? "border-brand-500 text-brand-500" : "border-border text-muted-foreground")}>{c.label}</button>)}
+              <span className="ml-1 text-[10.5px] text-muted-foreground">Size</span>
+              {[{ v: 0.22, l: "S" }, { v: 0.32, l: "M" }, { v: 0.44, l: "L" }].map((z) => <button key={z.l} onClick={() => patchOv({ scale: z.v })} className={cn("grid h-6 w-6 place-items-center rounded border text-[11px] font-semibold", Math.abs((ov.scale ?? 0.3) - z.v) < 0.05 ? "border-brand-500 text-brand-500" : "border-border text-muted-foreground")}>{z.l}</button>)}
+            </div>
+            <button onClick={onGenerateOverlay} disabled={isRendering(ov.status)} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-60">
+              {isRendering(ov.status) ? <FlowLoader size={12} tone="white" /> : <Sparkles className="h-3 w-3" />} Generate overlay
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2 border-t border-border px-4 py-3">
@@ -874,9 +949,9 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
       <MediaLibraryPicker
         open={!!picker}
         onClose={() => setPicker(null)}
-        onSelect={(url) => { if (picker === "bg") onPatch({ background: url }); else if (picker === "image") onPatch({ sourceUrl: url, thumbnailUrl: url }); else onPatch({ sourceUrl: url }); setPicker(null); }}
+        onSelect={(url) => { if (picker === "bg") onPatch({ background: url }); else if (picker === "ov") patchOv({ sourceUrl: url }); else if (picker === "image") onPatch({ sourceUrl: url, thumbnailUrl: url }); else onPatch({ sourceUrl: url }); setPicker(null); }}
         filterTypes={picker === "image" || picker === "bg" ? ["image"] : ["video"]}
-        title={picker === "bg" ? "Choose a background for the avatar" : picker === "image" ? "Choose a still image" : "Choose a clip"}
+        title={picker === "bg" ? "Choose a background for the avatar" : picker === "ov" ? "Choose an inset clip" : picker === "image" ? "Choose a still image" : "Choose a clip"}
       />
     </div>
   );

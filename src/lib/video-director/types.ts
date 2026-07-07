@@ -59,6 +59,35 @@ export interface FilmScene {
   videoUrl?: string | null;
   thumbnailUrl?: string | null;
   error?: string | null;
+  // picture-in-picture overlay composited on top of this scene
+  overlay?: FilmOverlay | null;
+}
+
+export type OverlayCorner = "tl" | "tr" | "bl" | "br";
+
+/**
+ * A picture-in-picture overlay composited on TOP of a scene for its duration —
+ * e.g. an avatar presenter or a media inset over a b-roll base. It renders on its
+ * own engine (its own job handle) and is composited at stitch time.
+ */
+export interface FilmOverlay {
+  engine: SceneEngine;               // usually "avatar" (presenter) or "media"/"design"
+  title?: string;
+  script?: string;                   // avatar VO / ai prompt
+  avatarId?: string; avatarName?: string;
+  voiceId?: string; voiceName?: string;
+  voiceEmotion?: string | null; voiceSpeed?: number | null; motionPrompt?: string | null;
+  quality?: string;
+  sourceUrl?: string;                // media/reel/design source
+  corner: OverlayCorner;             // where the inset sits
+  scale: number;                     // inset width as a fraction of the frame (0.18–0.5)
+  // render handle + status
+  refKind?: string; refId?: string;
+  status: SceneStatus;
+  progress?: number;
+  videoUrl?: string | null;
+  thumbnailUrl?: string | null;
+  error?: string | null;
 }
 
 /** A canvas wire between two scene ids (visual pipeline direction). */
@@ -128,6 +157,29 @@ export function emptyFilm(partial?: Partial<FilmProject>): FilmProject {
 
 const VALID_ENGINES = new Set<SceneEngine>(SCENE_ENGINES);
 const VALID_STATUS = new Set<SceneStatus>(["draft", "queued", "rendering", "ready", "failed"]);
+const VALID_CORNERS = new Set<OverlayCorner>(["tl", "tr", "bl", "br"]);
+
+/** Coerce untrusted JSON into a safe FilmOverlay. */
+export function normalizeOverlay(raw: Partial<FilmOverlay>): FilmOverlay {
+  const engine = VALID_ENGINES.has(raw.engine as SceneEngine) ? (raw.engine as SceneEngine) : "avatar";
+  const status = VALID_STATUS.has(raw.status as SceneStatus) ? (raw.status as SceneStatus) : "draft";
+  return {
+    engine,
+    title: typeof raw.title === "string" ? raw.title.slice(0, 120) : undefined,
+    script: typeof raw.script === "string" ? raw.script.slice(0, 8000) : undefined,
+    avatarId: raw.avatarId, avatarName: raw.avatarName, voiceId: raw.voiceId, voiceName: raw.voiceName,
+    voiceEmotion: raw.voiceEmotion ?? null, voiceSpeed: raw.voiceSpeed ?? null, motionPrompt: raw.motionPrompt ?? null,
+    quality: raw.quality, sourceUrl: raw.sourceUrl,
+    corner: VALID_CORNERS.has(raw.corner as OverlayCorner) ? (raw.corner as OverlayCorner) : "br",
+    scale: typeof raw.scale === "number" ? Math.max(0.15, Math.min(0.5, raw.scale)) : 0.3,
+    refKind: raw.refKind, refId: raw.refId,
+    status,
+    progress: typeof raw.progress === "number" ? raw.progress : 0,
+    videoUrl: raw.videoUrl ?? null,
+    thumbnailUrl: raw.thumbnailUrl ?? null,
+    error: raw.error ?? null,
+  };
+}
 
 /** Coerce untrusted JSON (from canvasData or an API body) into a safe FilmScene. */
 export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene {
@@ -157,6 +209,7 @@ export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene 
     videoUrl: raw.videoUrl ?? null,
     thumbnailUrl: raw.thumbnailUrl ?? null,
     error: raw.error ?? null,
+    overlay: raw.overlay ? normalizeOverlay(raw.overlay) : null,
   };
 }
 

@@ -96,6 +96,43 @@ export async function crossfadePair(aBuf: Buffer, bBuf: Buffer, durA: number, d:
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
 
+/**
+ * Composite a PiP overlay clip onto a base clip (both any dimensions). The overlay
+ * is scaled to `scale` of the base width and placed in a corner with a margin. If
+ * the overlay has audio (an avatar VO), it's mixed over a ducked base; otherwise
+ * the base audio is kept. Base length wins.
+ */
+export async function compositeOverlay(
+  baseBuf: Buffer,
+  overlayBuf: Buffer,
+  corner: "tl" | "tr" | "bl" | "br",
+  scale: number,
+  margin = 28,
+): Promise<Buffer> {
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Video assembly is not available on this server.");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-dir-pip-"));
+  try {
+    const base = path.join(dir, "base.mp4"), ov = path.join(dir, "ov.mp4"), out = path.join(dir, "out.mp4");
+    await writeFile(base, baseBuf); await writeFile(ov, overlayBuf);
+    const s = Math.max(0.15, Math.min(0.5, scale));
+    const x = corner === "tr" || corner === "br" ? `main_w-overlay_w-${margin}` : `${margin}`;
+    const y = corner === "bl" || corner === "br" ? `main_h-overlay_h-${margin}` : `${margin}`;
+    const ovHasAudio = await hasAudio(ov);
+    const vfilter = `[1:v]scale=iw*${s}:-1:force_original_aspect_ratio=decrease,format=yuv420p[ov];[0:v][ov]overlay=${x}:${y}[v]`;
+    const args = ["-i", base, "-i", ov];
+    if (ovHasAudio) {
+      // presenter VO over a ducked base bed
+      args.push("-filter_complex", `${vfilter};[0:a]volume=0.4[a0];[1:a]volume=1.0[a1];[a0][a1]amix=inputs=2:duration=first:dropout_transition=0[a]`, "-map", "[v]", "-map", "[a]");
+    } else {
+      args.push("-filter_complex", vfilter, "-map", "[v]", "-map", "0:a?");
+    }
+    args.push("-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-y", out);
+    await run(ff, args, 600000);
+    return await readFile(out);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
 /** Mix a music bed under a finished film (looped, ducked); film length wins. */
 export async function mixMusicUnder(videoBuf: Buffer, musicBuf: Buffer, volume = 0.28): Promise<Buffer> {
   const ff = findFFmpegPath();

@@ -5,8 +5,8 @@
  * stitches the ready clips into one film with the shared concat primitive.
  */
 
-import { getFilm, saveFilm, patchScene } from "./store";
-import type { FilmProject, FilmScene, FilmAspect } from "./types";
+import { getFilm, saveFilm, patchScene, patchOverlay } from "./store";
+import type { FilmProject, FilmScene, FilmOverlay, FilmAspect } from "./types";
 import { startAvatarVideo, getAvatarVideo } from "@/lib/avatar-studio";
 import { emptyAvatarState } from "@/lib/avatar-studio/types";
 import { generateVideoForRole } from "@/lib/ai/video-router";
@@ -16,7 +16,7 @@ import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsAvailable } from "@/lib/credits/costs";
 import { prisma } from "@/lib/db/client";
 import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
-import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName } from "./clip-helpers";
+import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName, compositeOverlay } from "./clip-helpers";
 
 const isVideoUrl = (u?: string | null): u is string => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
 const isImageUrl = (u?: string | null): u is string => !!u && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(u);
@@ -112,6 +112,77 @@ export async function generateSceneRender(filmId: string, userId: string, sceneI
   return { ok: false, message: "Unknown engine." };
 }
 
+/**
+ * Render a scene's PiP OVERLAY on its own engine (avatar presenter / media / AI).
+ * Mirrors generateSceneRender but targets scene.overlay; the overlay is composited
+ * onto the base at stitch time. Returns the updated film.
+ */
+export async function generateSceneOverlay(filmId: string, userId: string, sceneId: string): Promise<GenerateResult> {
+  const film = await getFilm(filmId, userId);
+  if (!film) return { ok: false, message: "Film not found." };
+  const scene = film.scenes.find((s) => s.id === sceneId);
+  if (!scene?.overlay) return { ok: false, message: "This scene has no overlay." };
+  const ov = scene.overlay;
+
+  switch (ov.engine) {
+    case "media":
+    case "reel":
+    case "design": {
+      if (!ov.sourceUrl) return { ok: false, message: "Attach a source for the overlay first." };
+      const f = await patchOverlay(filmId, userId, sceneId, { status: "ready", progress: 100, videoUrl: ov.sourceUrl, thumbnailUrl: ov.thumbnailUrl || ov.sourceUrl });
+      return { ok: true, film: f ?? undefined };
+    }
+    case "avatar": {
+      if (!ov.script?.trim()) return { ok: false, message: "Write the overlay avatar's script first." };
+      if (!ov.avatarId || !ov.voiceId) return { ok: false, message: "Pick an avatar and voice for the overlay." };
+      const res = await startAvatarVideo({
+        userId,
+        state: {
+          ...emptyAvatarState(), mode: "talking", script: ov.script,
+          avatarId: ov.avatarId, avatarName: ov.avatarName || "", voiceId: ov.voiceId, voiceName: ov.voiceName || "",
+          quality: ov.quality === "avatar_iv" ? "avatar_iv" : "standard", aspect: film.aspect, lengthSeconds: scene.durationSec || 30,
+          captionsOn: false, voiceEmotion: ov.voiceEmotion ?? null, voiceSpeed: ov.voiceSpeed ?? null, motionPrompt: ov.motionPrompt ?? null,
+        },
+      });
+      if (!res.ok) return { ok: false, message: res.message };
+      const f = await patchOverlay(filmId, userId, sceneId, { status: "rendering", progress: 8, refKind: "avatar_video", refId: res.id });
+      return { ok: true, film: f ?? undefined };
+    }
+    case "ai": {
+      if (!ov.script?.trim()) return { ok: false, message: "Write the overlay shot prompt first." };
+      const cost = await getDynamicCreditCost(AI_SCENE_COST_KEY).catch(() => 0);
+      const block = await checkCreditsAvailable(userId, cost, false, false);
+      if (block) return { ok: false, message: block.message };
+      if (cost > 0) {
+        const charge = await creditService.deductCredits({ userId, type: TRANSACTION_TYPES.USAGE, amount: cost, referenceType: "director_scene", referenceId: `${sceneId}:overlay`, description: "Video Director — overlay AI", metadata: { feature: AI_SCENE_COST_KEY, filmId } });
+        if (!charge.success) return { ok: false, message: charge.error || "Could not charge credits." };
+      }
+      await patchOverlay(filmId, userId, sceneId, { status: "rendering", progress: 6, error: null });
+      void renderAiOverlay(filmId, userId, sceneId, ov, film.aspect, cost);
+      const f = await getFilm(filmId, userId);
+      return { ok: true, film: f ?? undefined };
+    }
+  }
+  return { ok: false, message: "Unknown overlay engine." };
+}
+
+/** Fire-and-forget AI overlay render → upload → mark the overlay ready. Refunds on failure. */
+async function renderAiOverlay(filmId: string, userId: string, sceneId: string, ov: FilmOverlay, aspect: FilmAspect, cost: number): Promise<void> {
+  try {
+    const result = await generateVideoForRole("video_standard", {
+      prompt: ov.script || ov.title || "overlay",
+      durationSeconds: 8,
+      aspectRatio: aspect,
+      onStatus: () => { void patchOverlay(filmId, userId, sceneId, { status: "rendering", progress: 55 }).catch(() => {}); },
+    });
+    const url = await uploadToS3(`director/${filmId}/${sceneId}-overlay.mp4`, result.videoBuffer, "video/mp4");
+    await patchOverlay(filmId, userId, sceneId, { status: "ready", progress: 100, videoUrl: url });
+  } catch (e) {
+    if (cost > 0) await creditService.addCredits({ userId, type: TRANSACTION_TYPES.REFUND, amount: cost, referenceType: "director_scene", referenceId: `${sceneId}:overlay`, description: "Refund: Director overlay failed" }).catch(() => {});
+    await patchOverlay(filmId, userId, sceneId, { status: "failed", error: e instanceof Error ? e.message : "Overlay render failed" }).catch(() => {});
+  }
+}
+
 /** Fire-and-forget AI shot render → upload → mark ready. Refunds on failure. Never throws. */
 async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number): Promise<void> {
   try {
@@ -142,20 +213,20 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
  */
 export async function syncFilmScenes(film: FilmProject, userId: string): Promise<FilmProject> {
   let changed = false;
+  const syncAvatarRef = async (t: { refKind?: string; refId?: string; status: string; progress?: number; videoUrl?: string | null; thumbnailUrl?: string | null; error?: string | null }, failMsg: string): Promise<boolean> => {
+    if (t.refKind !== "avatar_video" || !t.refId || (t.status !== "rendering" && t.status !== "queued")) return false;
+    const av = await getAvatarVideo(t.refId, userId).catch(() => null);
+    if (!av) return false;
+    const st = (av.row.status || "").toUpperCase();
+    if (st === "COMPLETED" && av.row.videoUrl) { t.status = "ready"; t.progress = 100; t.videoUrl = av.row.videoUrl; t.thumbnailUrl = av.row.thumbnailUrl || t.thumbnailUrl; return true; }
+    if (st === "FAILED") { t.status = "failed"; t.error = av.row.errorMessage || failMsg; return true; }
+    const p = Math.max(8, av.row.progress || 10);
+    if (p !== t.progress) { t.progress = p; t.status = "rendering"; return true; }
+    return false;
+  };
   for (const s of film.scenes) {
-    if (s.refKind === "avatar_video" && s.refId && (s.status === "rendering" || s.status === "queued")) {
-      const av = await getAvatarVideo(s.refId, userId).catch(() => null);
-      if (!av) continue;
-      const st = (av.row.status || "").toUpperCase();
-      if (st === "COMPLETED" && av.row.videoUrl) {
-        s.status = "ready"; s.progress = 100; s.videoUrl = av.row.videoUrl; s.thumbnailUrl = av.row.thumbnailUrl || s.thumbnailUrl; changed = true;
-      } else if (st === "FAILED") {
-        s.status = "failed"; s.error = av.row.errorMessage || "Avatar render failed"; changed = true;
-      } else {
-        const p = Math.max(8, av.row.progress || 10);
-        if (p !== s.progress) { s.progress = p; s.status = "rendering"; changed = true; }
-      }
-    }
+    if (await syncAvatarRef(s, "Avatar render failed")) changed = true;
+    if (s.overlay && (await syncAvatarRef(s.overlay, "Overlay render failed"))) changed = true;
   }
   if (changed) await saveFilm(film.id, userId, film);
   return film;
@@ -191,6 +262,15 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
           const trim = typeof s.clipStart === "number" && typeof s.clipEnd === "number" && s.clipEnd > s.clipStart
             ? { start: s.clipStart, end: s.clipEnd } : undefined;
           buf = await normalizeClip(raw, w, h, { preferSourceAudio, trim });
+        }
+        // PiP overlay — composite a ready presenter/media inset on top of the base.
+        if (s.overlay?.status === "ready" && s.overlay.videoUrl && /^https?:\/\//i.test(s.overlay.videoUrl)) {
+          try {
+            const ores = await fetch(s.overlay.videoUrl);
+            if (ores.ok) buf = await compositeOverlay(buf, Buffer.from(await ores.arrayBuffer()), s.overlay.corner, s.overlay.scale);
+          } catch (e) {
+            console.error(`[video-director] overlay composite skipped for scene ${s.id}:`, e instanceof Error ? e.message : e);
+          }
         }
         built.push({ buf, dur: playedLenOf(s), transition: s.transitionIn });
       } catch (e) {
