@@ -34,7 +34,7 @@ const PITCH_TYPES: { id: "deck" | "visual" | "email"; label: string; desc: strin
   { id: "email", label: "Cold pitch email", desc: "Short, high-energy outreach email with the PDF attached.", icon: Mail },
 ];
 
-export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView }: { target: PitchTarget | null; onAsk: (p: string) => void; refreshKey?: number; onOpenView?: (key: string) => void }) {
+export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOpenResource }: { target: PitchTarget | null; onAsk: (p: string) => void; refreshKey?: number; onOpenView?: (key: string) => void; onOpenResource?: (r: { kind: "pitch"; id: string; name?: string } | null) => void }) {
   const { isMobile, seedComposer } = useMobileChat();
   const openPitchBrief = () => { if (isMobile) { seedComposer(PITCH_STARTER); return; } setSheetOpen(true); };
   const { toast } = useToast();
@@ -58,6 +58,14 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView }: { 
   const baselineRef = useRef<string | null>(null);
   const dirtyRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Report the OPEN proposal up to the agent shell so a free-form composer
+  // message ("make the pitch shorter") operates on THIS pitch, not a guessed /
+  // most-recent one. Keyed on id/name so content autosaves don't churn it; the
+  // separate cleanup clears it when the studio unmounts (leaving the surface).
+  useEffect(() => {
+    onOpenResource?.(pitch ? { kind: "pitch", id: pitch.id, name: pitch.businessName } : null);
+  }, [pitch?.id, pitch?.businessName, onOpenResource]);
+  useEffect(() => () => onOpenResource?.(null), [onOpenResource]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadSlotRef = useRef<"cover" | "about" | "impact" | null>(null);
 

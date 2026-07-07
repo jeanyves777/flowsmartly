@@ -171,7 +171,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
 // replying with a generic menu. Sent as `surfaceContext` (separate from the
 // design-only `canvasContext`). `create` returns undefined — its design canvas
 // already feeds the agent via designCanvasContext.
-function focusedSurfaceContext(focused: string, brandName?: string | null): string | undefined {
+function focusedSurfaceContext(focused: string, brandName?: string | null, openResource?: { kind: string; id: string; name?: string } | null): string | undefined {
   switch (focused) {
     case "brand":
       return `The user has the **Brand identity** workspace open and is editing their Brand Kit (it powers ALL AI output across the app).${brandName ? ` Current brand name on file: "${brandName}".` : " The kit looks empty or barely started."} Treat ANYTHING they share here — a business description, value proposition, tagline, products, audience, or voice — as them SETTING UP or REFINING THEIR BRAND. Call get_brand_identity to see what exists, INFER every field you can from their message, propose_plan ("Set up your brand kit", free), then call update_brand_identity. Do NOT reply with a generic capabilities menu or ask "what would you like to do?" — they are clearly here to build their brand.`;
@@ -253,8 +253,12 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
     case "account":
     case "profile":
       return `The user is in their ${focused === "profile" ? "Profile" : "Account & settings"}. Help with account, profile, or settings changes.`;
-    case "pitchstudio":
-      return `The user is in **Pitch Studio** — a branded proposal playground for ONE lead. When they ask you to create or improve the proposal, use create_proposal (pass the lead's savedLeadId so it links to them, draw services + value from their Brand Kit) — the result opens IN the studio, NEVER as a chat dump. To rewrite a specific section, edit that section's content and save it; do not paste the proposal in chat.`;
+    case "pitchstudio": {
+      const open = openResource?.kind === "pitch"
+        ? `RIGHT NOW the user is VIEWING the proposal${openResource.name ? ` for "${openResource.name}"` : ""} (pitchId: ${openResource.id}) — THIS exact proposal is the one they mean. For ANY free-text change ("make it short and direct", "punch it up", "trim the text", "add pricing", "rewrite the intro"…) operate ONLY on pitchId="${openResource.id}": (1) call get_pitch(pitchId="${openResource.id}") FIRST to read its current fields, (2) rewrite the fields that need it and save EACH with edit_pitch_field (pitchId="${openResource.id}", field, new value) — for "shorter/tighter" that usually means trimming several fields (executiveSummary, aboutBrand, benefits, nextSteps, …), so loop over them; the studio re-renders in place. Then confirm in ONE short line. NEVER open, "pull up", or edit a DIFFERENT or "most-recent" proposal (even if another client name surfaces in your memory), never ask which one it is, and never paste the proposal in chat. `
+        : `There's no proposal open yet. `;
+      return `The user is in **Pitch Studio** — a branded proposal playground for ONE lead. ${open}Use create_proposal ONLY to draft a brand-NEW proposal for a lead that has none (pass the lead's savedLeadId, draw services + value from their Brand Kit) — NEVER to shorten or rewrite an existing one. Results open IN the studio, never as a chat dump.`;
+    }
     case "campaign":
       return `The user is in **Campaign Studio** — a content-campaign playground. To build a campaign, use create_content_campaign (name, brief/goal, platforms, days, postsPerWeek, tone, imageMode) — it generates a batch of concrete scheduled posts (captions + on-brand images) that open IN the studio for review, NEVER as a chat dump. To fix one post, use update_post (caption/schedule/platforms) or regenerate_post_image (a fresh on-brand image) — the change lands on that post's card. To IMPROVE a WHOLE existing campaign (the 'Improve' button, or 'improve/refresh/rewrite this campaign') use improve_content_campaign with the open campaignId (+ the improved brief/tone) — it rewrites the existing posts IN PLACE, never a new campaign. Approving in the UI schedules them to auto-publish; you don't publish them yourself.`;
     default:
@@ -316,6 +320,10 @@ export function AgentHome() {
   const [pitchTarget, setPitchTarget] = useState<{ leadId?: string; leadName?: string; pitchId?: string } | null>(null);
   // The content campaign whose Campaign Studio is open (empty object = new).
   const [campaignTarget, setCampaignTarget] = useState<{ campaignId?: string; brief?: string } | null>(null);
+  // The document/resource the user currently has OPEN in a studio (e.g. the pitch
+  // on screen), reported up by that studio. Threaded into surfaceContext so a
+  // free-form agent request acts on THIS doc, not a guessed/most-recent one.
+  const [openResource, setOpenResource] = useState<{ kind: string; id: string; name?: string } | null>(null);
   const [campaignInitialView, setCampaignInitialView] = useState("new");
   const [leaveAction, setLeaveAction] = useState<{ run: () => void } | null>(null);
   const [panelKey, setPanelKey] = useState<string | null>(null);
@@ -775,8 +783,8 @@ export function AgentHome() {
             : focused === "video" ? (videoOpsRef.current?.getContext() || undefined)
               : focused === "reel" ? (reelOpsRef.current?.getContext() || undefined)
                 : undefined;
-  const sendAction = (p: string) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
-  const sendActionFiles = (p: string, atts: { dataUrl?: string; url?: string; name: string }[]) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true, attachments: atts });
+  const sendAction = (p: string) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true });
+  const sendActionFiles = (p: string, atts: { dataUrl?: string; url?: string; name: string }[]) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true, attachments: atts });
   // Mobile "collect via chat" bridge: on phones, studios seed the composer with
   // an editable starter (user edits + sends) instead of opening a data-fill
   // modal. `seedComposer` fills the focused composer + reveals the chat overlay.
@@ -1027,7 +1035,7 @@ export function AgentHome() {
                     <div ref={bottomRef} />
                   </div>
                   <div className="border-t border-border p-3">
-                    <Composer onSend={(t, sm, atts) => send(t, sm, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { attachments: atts })} sending={sending} placeholder={s.placeholder} autoFocus seed={composerSeed} />
+                    <Composer onSend={(t, sm, atts) => send(t, sm, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { attachments: atts })} sending={sending} placeholder={s.placeholder} autoFocus seed={composerSeed} />
                   </div>
                 </>
               }
@@ -1213,7 +1221,7 @@ export function AgentHome() {
                 ) : focused === "leads" ? (
                   <FocusedLeads initialScreen={leadsInitialScreen} onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} onOpenPitch={(pitchId) => guardNav(() => openPitchStudio({ pitchId }))} />
                 ) : focused === "pitchstudio" ? (
-                  <FocusedPitchStudio target={pitchTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} />
+                  <FocusedPitchStudio target={pitchTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} onOpenResource={setOpenResource} />
                 ) : focused === "campaign" ? (
                   <FocusedCampaignStudio initialView={campaignInitialView} target={campaignTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} />
                 ) : focused === "compose" ? (
@@ -1310,7 +1318,7 @@ export function AgentHome() {
                 label={s.ws[panelKey] ?? panelKey}
                 hasStore={hasStore}
                 onClose={() => { setPanelKey(null); setActiveWs(panelReturnWs.current); }}
-                onAsk={(q) => { setPanelKey(null); setActiveWs(panelReturnWs.current); send(q, false, undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true }); }}
+                onAsk={(q) => { setPanelKey(null); setActiveWs(panelReturnWs.current); send(q, false, undefined, focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true }); }}
                 onOpenView={(k, hint) => guardNav(() => openView(k, hint))}
               />
             )}
