@@ -10,6 +10,9 @@ import {
   SlidersHorizontal,
   Printer,
   CalendarClock,
+  FolderOpen,
+  Users,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -22,6 +25,9 @@ export interface WorkspaceItem {
   viewHint?: string;
   /** Short, one-line description shown under the label in the panel cards. */
   desc?: string;
+  /** Per-item panel icon. Falls back to the view's icon, then the workspace icon,
+   *  so items that all open the SAME surface don't share one generic icon. */
+  icon?: LucideIcon;
 }
 
 export interface Workspace {
@@ -150,12 +156,13 @@ export const WORKSPACES: Workspace[] = [
     icon: Search,
     route: "/home/leads",
     items: [
-      { label: "Find leads", route: "/home/leads", viewKey: "leads", viewHint: "find", desc: "Search local businesses by type and place" },
-      { label: "My lead lists", route: "/home/leads", viewKey: "leads", viewHint: "library", desc: "Saved lead folders and imported lists" },
-      { label: "Contacts", route: "/home/leads", viewKey: "leads", viewHint: "contacts", desc: "All saved people and businesses with enrichment" },
-      { label: "Companies", route: "/home/leads", viewKey: "leads", viewHint: "companies", desc: "Company rollups from saved leads" },
-      { label: "Pipeline", route: "/home/leads", viewKey: "leads", viewHint: "pipeline", desc: "Build outreach automation from a lead list" },
-      { label: "Pitches", route: "/home/leads", viewKey: "leads", viewHint: "pitches", desc: "Pitch drafts and proposals tied to leads" },
+      // These open the SAME Lead Studio surface at a section; keep only the
+      // distinct entry workflows (find → organize → automate) with their own
+      // icons. Companies + Pitches live as tabs inside the surface / Pitch Studio.
+      { label: "Find leads", route: "/home/leads", viewKey: "leads", viewHint: "find", icon: Search, desc: "Search local businesses by type and place" },
+      { label: "My lead lists", route: "/home/leads", viewKey: "leads", viewHint: "library", icon: FolderOpen, desc: "Saved lead folders and imported lists" },
+      { label: "Contacts", route: "/home/leads", viewKey: "leads", viewHint: "contacts", icon: Users, desc: "All saved people and businesses with enrichment" },
+      { label: "Pipeline", route: "/home/leads", viewKey: "leads", viewHint: "pipeline", icon: Workflow, desc: "Build outreach automation from a lead list" },
     ],
   },
   {
