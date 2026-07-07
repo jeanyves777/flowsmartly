@@ -29,18 +29,6 @@ interface Campaign { id: string; title: string; sourceUrl: string | null; durati
 
 type XY = { x: number; y: number };
 
-// Bundled demo transcript so "Build reels" works before the ingest worker is wired.
-const DEMO_TRANSCRIPT = {
-  segments: [
-    { start: 0, end: 14, text: "So, um, yeah, thanks for having me on the show, it's great to be here, you know." },
-    { start: 14, end: 40, text: "Everybody thinks you need a big ad budget to grow. You don't. I built a forty-thousand-a-month business with zero ad spend, and nobody takes that channel seriously." },
-    { start: 40, end: 64, text: "Firing my best client was the best decision I made all year. He paid the most, but he cost me every good idea I had." },
-    { start: 64, end: 90, text: "This exact three-email sequence got a sixty-one percent reply rate. The first email is one sentence, the second is a question, the third is proof." },
-    { start: 108, end: 134, text: "Everyone says hire slow. They are wrong, and here is the proof: the best hire I ever made, I made in forty-eight hours." },
-    { start: 150, end: 176, text: "The biggest pricing mistake I made cost me two hundred thousand dollars over two years. I was afraid to charge what it was worth." },
-  ],
-};
-
 const HUES = [
   ["#6d5cff", "#8b5cf6"], ["#0ea5e9", "#22d3ee"], ["#f59e0b", "#f97316"],
   ["#ec4899", "#8b5cf6"], ["#10b981", "#34d399"], ["#64748b", "#334155"],
@@ -120,6 +108,20 @@ export function FocusedReel({
     };
   }, [canvasRef, campaign, load]);
 
+  // Poll while a URL ingest builds in the background (download → transcribe → clips → render).
+  useEffect(() => {
+    if (campaign?.status !== "PROCESSING") return;
+    const id = campaign.id;
+    const iv = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/reels/${id}`);
+        const j = await r.json();
+        if (j?.campaign) { setCampaign(j.campaign); setPosts(j.posts || []); }
+      } catch { /* keep polling */ }
+    }, 4000);
+    return () => clearInterval(iv);
+  }, [campaign?.status, campaign?.id]);
+
   // ── dragging ────────────────────────────────────────────────────────────────
   const onDown = (e: React.PointerEvent, id: string) => {
     if ((e.target as HTMLElement).closest("button,a,input,textarea")) return;
@@ -145,7 +147,7 @@ export function FocusedReel({
     try {
       const payload = sourceFileUrl
         ? { title: "My reels", sourceFileUrl, sourceType: "upload", settings: { clipLength: "short", count: 6 } }
-        : { title: "Ep. 47 — Solo Founder Playbook", sourceUrl: link, durationSec: 190, settings: { clipLength: "short", count: 6 }, transcript: DEMO_TRANSCRIPT };
+        : { title: "My reels", sourceUrl: link, settings: { clipLength: "short", count: 6 } };
       const r = await fetch("/api/reels", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
       const j = await r.json();
       if (j?.campaign) { setPos({}); setCampaign(j.campaign); setPosts([]); }
@@ -258,7 +260,16 @@ export function FocusedReel({
         )}
       </div>
 
-      {building && <BuildingOverlay />}
+      {(building || campaign?.status === "PROCESSING") && <BuildingOverlay />}
+      {campaign?.status === "FAILED" && (
+        <div className="absolute inset-0 z-20 grid place-items-center bg-background/85 p-6 text-center">
+          <div>
+            <p className="text-[15px] font-bold">Couldn’t build reels from that source</p>
+            <p className="mx-auto mt-1 max-w-xs text-[12px] text-muted-foreground">The link couldn’t be downloaded or had no usable speech. Try uploading the file, or a different link.</p>
+            <button onClick={() => setBriefOpen(true)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2 text-[13px] font-semibold text-white"><Plus className="h-4 w-4" /> New reels</button>
+          </div>
+        </div>
+      )}
       {briefOpen && <BriefSheet link={link} setLink={setLink} onClose={() => setBriefOpen(false)} onBuild={build} />}
       {editing && <ClipDrawer clip={editing} onClose={() => setEditing(null)} onSave={saveClip} />}
       {publishOpen && campaign && <PublishSheet campaign={campaign} posts={posts} onClose={() => setPublishOpen(false)} onPublished={setPosts} />}

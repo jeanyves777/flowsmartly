@@ -114,6 +114,16 @@ npx prisma db push --skip-generate
 log "Generating Prisma client"
 npx prisma generate
 
+# --- 4b. yt-dlp for Reel Studio URL ingest (download links -> clips) ----------
+# Standalone binary; non-fatal — if it fails, URL ingest degrades to FAILED and
+# file UPLOADS still work. ffmpeg (already on the box) handles the merge.
+if ! command -v yt-dlp >/dev/null 2>&1 && [ ! -x /usr/local/bin/yt-dlp ]; then
+  log "Installing yt-dlp (Reel Studio URL ingest)"
+  curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
+    && chmod a+rx /usr/local/bin/yt-dlp \
+    || log "yt-dlp install failed — URL ingest will degrade (uploads still work)"
+fi
+
 # --- 5. free RAM for the build, then build ------------------------------------
 log "Stopping voice services to free RAM for the build"
 # shellcheck disable=SC2086

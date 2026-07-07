@@ -7,6 +7,7 @@ import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { extractAudioFromVideo } from "@/lib/video-editor/audio-detach";
 import { uploadLocalFileToS3 } from "@/lib/utils/s3-client";
 import { prisma } from "@/lib/db/client";
+import { finalizeCampaignBuild, markReelCampaignStatus } from "./reel-editor";
 import type { Transcript } from "./highlights";
 import type { ReelClipContent } from "./highlights";
 
@@ -23,8 +24,9 @@ import type { ReelClipContent } from "./highlights";
  *
  * Everything DEGRADES: if ffmpeg is absent (findFFmpegPath()===null) or a step
  * throws, the clip is marked "failed" and the rest of the app is unaffected.
- * ffmpeg + OpenAI whisper are available on the VPS; only URL download of
- * arbitrary links (yt-dlp) is out of scope — ingest works on UPLOADED files.
+ * ffmpeg + OpenAI whisper + yt-dlp are available on the VPS. URL ingest uses
+ * yt-dlp (downloadSourceVideoFromUrl → transcribe → build → render); uploaded
+ * files skip the download step.
  */
 
 function runFFmpeg(ffmpegPath: string, args: string[], timeoutMs = 600000): Promise<void> {
@@ -74,8 +76,10 @@ export async function renderReelClip(
   const src = await downloadToTemp(sourceUrl, "mp4");
   const out = src.replace(/\.mp4$/, `-${clip.id}.mp4`);
   const dur = Math.max(1, clip.endSec - clip.startSec);
-  // 9:16 center-crop (works for landscape or portrait sources) then scale to 1080x1920.
-  const vf = "crop='min(iw,ih*9/16)':'min(ih,iw*16/9)':(iw-min(iw,ih*9/16))/2:(ih-min(ih,iw*16/9))/2,scale=1080:1920,setsar=1";
+  // Scale-to-cover + center-crop to 1080x1920 (9:16). Works for landscape or
+  // portrait sources and avoids commas inside filter expressions (which ffmpeg
+  // would misread as filter separators). Validated in scripts/test-reel-render.ts.
+  const vf = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1";
   try {
     await runFFmpeg(ffmpegPath, [
       "-ss", String(clip.startSec), "-i", src, "-t", String(dur),
@@ -125,4 +129,55 @@ export async function renderCampaignClips(campaignId: string): Promise<void> {
 /** Fire-and-forget render (used after a build). Never throws to the caller. */
 export function renderCampaignClipsDetached(campaignId: string): void {
   void renderCampaignClips(campaignId).catch((e) => console.error("[reel-render] campaign failed:", e));
+}
+
+// ── INGEST from a URL (yt-dlp) ────────────────────────────────────────────────
+function resolveYtDlpPath(): string {
+  return process.env.YT_DLP_PATH || "yt-dlp";
+}
+
+/**
+ * Download a video from a link (YouTube/Vimeo/…) with yt-dlp → S3. yt-dlp uses
+ * ffmpeg to merge best video+audio (both present on the VPS). Returns an S3 URL.
+ */
+export async function downloadSourceVideoFromUrl(url: string): Promise<string> {
+  const ytdlp = resolveYtDlpPath();
+  const out = path.join(os.tmpdir(), `reel-src-${Date.now()}-${Math.round(Math.random() * 1e6)}.mp4`);
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn(ytdlp, [
+      "-f", "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
+      "--merge-output-format", "mp4",
+      "--no-playlist", "--no-warnings", "--quiet",
+      "-o", out, url,
+    ], { windowsHide: true });
+    let err = "";
+    const timer = setTimeout(() => { proc.kill("SIGKILL"); reject(new Error("Source download timed out.")); }, 600000);
+    proc.stderr.on("data", (c) => { err += c.toString(); if (err.length > 8000) err = err.slice(-8000); });
+    proc.on("error", (e) => { clearTimeout(timer); reject(new Error(`yt-dlp not available: ${e instanceof Error ? e.message : e}`)); });
+    proc.on("close", (code) => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error(`yt-dlp failed (${code}): ${err.slice(-400)}`)); });
+  });
+  const key = `reels/sources/${Date.now()}-${Math.round(Math.random() * 1e6)}.mp4`;
+  const sourceFileUrl = await uploadLocalFileToS3(out, key);
+  await fsp.unlink(out).catch(() => {});
+  return sourceFileUrl;
+}
+
+/**
+ * Full URL ingest for a PROCESSING campaign: download → transcribe → build
+ * scored clips → render. Updates campaign status. Never throws (marks FAILED).
+ */
+export async function ingestUrlAndBuild(campaignId: string, url: string): Promise<void> {
+  try {
+    const sourceFileUrl = await downloadSourceVideoFromUrl(url);
+    const { transcript, durationSec } = await transcribeVideoUrl(sourceFileUrl);
+    await finalizeCampaignBuild(campaignId, { sourceFileUrl, durationSec, transcript });
+    await renderCampaignClips(campaignId);
+  } catch (e) {
+    await markReelCampaignStatus(campaignId, "FAILED", e instanceof Error ? e.message : "Ingest failed").catch(() => {});
+    console.error("[reel-ingest] failed:", e instanceof Error ? e.message : e);
+  }
+}
+
+export function ingestUrlAndBuildDetached(campaignId: string, url: string): void {
+  void ingestUrlAndBuild(campaignId, url).catch((e) => console.error("[reel-ingest]", e));
 }

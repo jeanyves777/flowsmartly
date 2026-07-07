@@ -160,6 +160,57 @@ export async function buildReelsFromTranscript(input: BuildReelsInput): Promise<
   return serializeReelCampaign(row);
 }
 
+// ── Async URL build: create a PROCESSING campaign, fill clips once ingested ────
+export async function createProcessingCampaign(input: {
+  userId: string; title: string; sourceUrl?: string | null; settings?: Partial<ReelSettings>;
+}): Promise<ReelCampaignContent> {
+  const settings = coerceSettings(input.settings || {});
+  const row = await prisma.reelCampaign.create({
+    data: {
+      userId: input.userId,
+      title: input.title.trim() || "Untitled reels",
+      sourceType: "link",
+      sourceUrl: input.sourceUrl ?? null,
+      settings: JSON.stringify(settings),
+      status: "PROCESSING",
+    },
+    include: { clips: true },
+  });
+  return serializeReelCampaign(row);
+}
+
+/** Fill a PROCESSING campaign with scored clips once its transcript is ready. */
+export async function finalizeCampaignBuild(
+  campaignId: string,
+  input: { sourceFileUrl?: string | null; durationSec?: number; transcript: Transcript },
+): Promise<void> {
+  const campaign = await prisma.reelCampaign.findFirst({ where: { id: campaignId, deletedAt: null } });
+  if (!campaign) return;
+  const settings = coerceSettings(parseJson<Record<string, unknown>>(campaign.settings, {}));
+  const clips = buildReelClips(input.transcript, settings);
+  await prisma.reelCampaign.update({
+    where: { id: campaignId },
+    data: {
+      sourceFileUrl: input.sourceFileUrl ?? campaign.sourceFileUrl,
+      durationSec: Math.round(input.durationSec || campaign.durationSec || 0),
+      transcript: JSON.stringify(input.transcript),
+      status: clips.length > 0 ? "READY" : "FAILED",
+      error: clips.length > 0 ? null : "No strong moments found in this video.",
+      clips: {
+        create: clips.map((c) => ({
+          startSec: c.startSec, endSec: c.endSec, order: c.order, title: c.title, hook: c.hook,
+          score: c.score, aspect: c.aspect, caption: JSON.stringify(c.caption), transcriptText: c.transcriptText,
+          hashtags: JSON.stringify(c.hashtags), renderStatus: "pending",
+        })),
+      },
+    },
+  });
+}
+
+export async function markReelCampaignStatus(campaignId: string, status: ReelStatus, error?: string): Promise<void> {
+  await prisma.reelCampaign.updateMany({ where: { id: campaignId }, data: { status, error: error ?? null } });
+}
+
 // ── Reads ─────────────────────────────────────────────────────────────────────
 export async function readReelCampaigns(userId: string): Promise<ReelCampaignContent[]> {
   const rows = await prisma.reelCampaign.findMany({
