@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/client";
+import { extractLocationSignal, mergeLocationSignals, sameRootDomain, validateAddressAgainstLocation, type LeadValidationIssue } from "@/lib/leads/discrepancy-validator";
 import type { FlowAgentTool } from "../registry";
 
 /**
@@ -11,7 +12,7 @@ import type { FlowAgentTool } from "../registry";
 export const enrichLead: FlowAgentTool = {
   name: "enrich_lead",
   description:
-    "Reveal & SAVE a lead's contact details you found via web search. Capture the REACHABLE info the user needs: work EMAIL, PHONE, business WEBSITE and ADDRESS/location, plus LinkedIn. FINDING THE EMAIL IS THE PRIORITY (it's what the outreach pitch sends to) and it's rarely in search results — it's on the business's OWN WEBSITE: once you know their site, use web_fetch on the homepage AND the /contact or /about page and read out the email (info@ / hello@ / bookings@ / reservations@ / the owner's), or search '\"@theirdomain.com\"'. Always include the business phone + address too (not just a LinkedIn). This is how enrichment results reach the user — they appear IN THE LEAD'S ROW in the Lead Studio UI. You MUST call this to deliver the result; NEVER just write the found details as a message or a table in the chat. Pass `planId` from a confirmed propose_plan, plus leadId (the UI provides it — e.g. 'leadId: xxx') and every field you verified. If you don't have the exact id, pass leadName (+ optional listId). Costs credits per lead. For a whole list, propose_plan ONCE with two AI_WEB_SEARCH per lead (search + save), then reuse that planId for every enrich_lead call.",
+    "Reveal & SAVE a lead's contact details you found via web search. Capture the REACHABLE info the user needs: work EMAIL, PHONE, business WEBSITE and ADDRESS/location, plus LinkedIn. FINDING THE EMAIL IS THE PRIORITY (it's what the outreach pitch sends to) and it's rarely in search results — it's on the business's OWN WEBSITE: once you know their site, use web_fetch on the homepage AND the /contact or /about page and read out the email (info@ / hello@ / bookings@ / reservations@ / the owner's), or search '\"@theirdomain.com\"'. Always include the business phone + address too (not just a LinkedIn). VALIDATE BEFORE SAVING: do not mix a LinkedIn person, website, or address from a different business/location into the lead. If the requested city/state or existing saved address says one place and your found address says another, omit that conflicting field and explain the discrepancy. This is how enrichment results reach the user — they appear IN THE LEAD'S ROW in the Lead Studio UI. You MUST call this to deliver the result; NEVER just write the found details as a message or a table in the chat. Pass `planId` from a confirmed propose_plan, plus leadId (the UI provides it — e.g. 'leadId: xxx') and every field you verified. If you don't have the exact id, pass leadName (+ optional listId). Costs credits per lead. For a whole list, propose_plan ONCE with two AI_WEB_SEARCH per lead (search + save), then reuse that planId for every enrich_lead call.",
   input_schema: {
     type: "object",
     properties: {
@@ -25,6 +26,8 @@ export const enrichLead: FlowAgentTool = {
       title: { type: "string", description: "Corrected/confirmed job title." },
       website: { type: "string", description: "The business website URL." },
       address: { type: "string", description: "The COMPLETE business address — street number + street, city, state, ZIP and country (from Google Business / their site). Save the FULL formatted address, not just the city/state." },
+      contactName: { type: "string", description: "Optional visible decision-maker name if you found a person profile. This is validation context only; SavedLead stores the company row, not a separate owner-name field." },
+      validationNotes: { type: "string", description: "Optional short note about evidence checked or any discrepancy you intentionally omitted." },
       socials: {
         type: "object",
         description: "Public profile links you found: { linkedin?, x?, facebook?, google? }.",
@@ -44,12 +47,15 @@ export const enrichLead: FlowAgentTool = {
 
     // Resolve the row: by id first, else by name (optionally within a list). The
     // name fallback guarantees enrichment ALWAYS lands in the UI — never in chat.
-    let lead = leadId ? await prisma.savedLead.findFirst({ where: { id: leadId, userId: ctx.userId }, select: { id: true } }) : null;
+    let lead = leadId ? await prisma.savedLead.findFirst({
+      where: { id: leadId, userId: ctx.userId },
+      select: { id: true, name: true, address: true, website: true, phone: true, socials: true, list: { select: { name: true, category: true } } },
+    }) : null;
     if (!lead && leadName) {
       lead = await prisma.savedLead.findFirst({
         where: { userId: ctx.userId, name: { contains: leadName }, ...(listId ? { listId } : {}) },
         orderBy: { createdAt: "desc" },
-        select: { id: true },
+        select: { id: true, name: true, address: true, website: true, phone: true, socials: true, list: { select: { name: true, category: true } } },
       });
     }
     if (!lead) return { ok: false, error_code: "not_found", message: `No saved lead matched ${leadId ? `id "${leadId}"` : `name "${leadName}"`}. Do NOT report the details in chat — ask the user to reopen the list, or pass the exact leadId from the row.` };
@@ -62,20 +68,42 @@ export const enrichLead: FlowAgentTool = {
       if (typeof v === "string" && v.trim()) acc[k] = v.trim();
       return acc;
     }, {});
+    const issues: LeadValidationIssue[] = [];
+    const existingLocation = extractLocationSignal(lead.address);
+    const listLocation = safeListLocation(lead.list?.name);
+    const expectedLocation = mergeLocationSignals(existingLocation, listLocation);
+    const candidateAddress = typeof input.address === "string" && input.address.trim() ? input.address.trim() : "";
+    if (candidateAddress) {
+      issues.push(...validateAddressAgainstLocation(candidateAddress, expectedLocation));
+    }
+
+    const candidateWebsite = typeof input.website === "string" && input.website.trim() ? input.website.trim() : "";
+    const websiteMatches = sameRootDomain(lead.website, candidateWebsite);
+    if (candidateWebsite && websiteMatches === false) {
+      issues.push({
+        field: "website",
+        severity: "warn",
+        message: `Website domain differs from saved lead website (${lead.website}). Keeping the existing website unless the user updates it manually.`,
+      });
+    }
+
+    const blocked = new Set(issues.filter((issue) => issue.severity === "block").map((issue) => issue.field));
+    const warned = new Set(issues.filter((issue) => issue.severity === "warn").map((issue) => issue.field));
+    const updateData = {
+      email: typeof input.email === "string" && input.email.trim() ? input.email.trim() : undefined,
+      phone: typeof input.phone === "string" && input.phone.trim() ? input.phone.trim() : undefined,
+      phones: phones.length ? JSON.stringify(phones) : undefined,
+      title: typeof input.title === "string" && input.title.trim() ? input.title.trim() : undefined,
+      website: candidateWebsite && !warned.has("website") ? candidateWebsite : undefined,
+      address: candidateAddress && !blocked.has("address") ? candidateAddress : undefined,
+      socials: Object.keys(cleanSocials).length ? JSON.stringify(cleanSocials) : undefined,
+      enrichedAt: new Date(),
+      enrichmentSource: "web",
+    };
 
     const updated = await prisma.savedLead.update({
       where: { id: resolvedId },
-      data: {
-        email: typeof input.email === "string" && input.email.trim() ? input.email.trim() : undefined,
-        phone: typeof input.phone === "string" && input.phone.trim() ? input.phone.trim() : undefined,
-        phones: phones.length ? JSON.stringify(phones) : undefined,
-        title: typeof input.title === "string" && input.title.trim() ? input.title.trim() : undefined,
-        website: typeof input.website === "string" && input.website.trim() ? input.website.trim() : undefined,
-        address: typeof input.address === "string" && input.address.trim() ? input.address.trim() : undefined,
-        socials: Object.keys(cleanSocials).length ? JSON.stringify(cleanSocials) : undefined,
-        enrichedAt: new Date(),
-        enrichmentSource: "web",
-      },
+      data: updateData,
       select: { id: true, name: true, title: true, email: true, phone: true },
     });
 
@@ -83,11 +111,23 @@ export const enrichLead: FlowAgentTool = {
     await prisma.activity.create({ data: { userId: ctx.userId, type: "note", subject: "Lead enriched", savedLeadId: resolvedId } }).catch(() => {});
     ctx.emit({ type: "canvas_update", patch: { __leads: { enrichedLeadId: resolvedId } } });
 
+    const warningText = issues.length
+      ? ` I withheld conflicting detail${issues.length === 1 ? "" : "s"}: ${issues.map((issue) => issue.message).join(" ")}`
+      : "";
+
     return {
       ok: true,
-      data: { lead: updated, userMessage: `Enriched ${updated.name}${updated.email ? ` — ${updated.email}` : ""} — the details are now saved in their row in the Lead Studio (do NOT repeat them in chat).` },
+      data: { lead: updated, validationIssues: issues, userMessage: `Enriched ${updated.name}${updated.email ? ` — ${updated.email}` : ""} — the verified details are now saved in their row in the Lead Studio.${warningText} (Do NOT repeat the details in chat.)` },
       resultRefType: "SavedLead",
       resultRefId: resolvedId,
     };
   },
 };
+
+function safeListLocation(value?: string | null) {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return {};
+  const signal = extractLocationSignal(raw);
+  if (signal.state || raw.includes(",") || /\s(?:in|near)\s/i.test(raw) || raw.includes("—")) return signal;
+  return {};
+}
