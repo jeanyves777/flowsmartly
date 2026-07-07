@@ -1822,7 +1822,7 @@ export function SettingsWorkspace({ embedded = false, section = "all", initialTa
                     </p>
                     <Button
                       size="lg"
-                      onClick={() => window.location.href = "/social-accounts"}
+                      onClick={() => window.location.href = "/home/connections"}
                       className="gap-2"
                     >
                       <Link2 className="w-4 h-4" />

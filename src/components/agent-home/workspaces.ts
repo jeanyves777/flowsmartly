@@ -76,7 +76,6 @@ export const WORKSPACES: Workspace[] = [
     icon: Megaphone,
     route: "/posts",
     items: [
-      { label: "Social accounts", route: "/social-accounts", viewKey: "connections", desc: "Connect Instagram, Facebook, X & more" },
       { label: "Posts", route: "/posts", viewKey: "publish", desc: "Draft, schedule & track your posts" },
       { label: "Content calendar", route: "/content", viewKey: "calendar", desc: "See what’s going out, and when" },
     ],
