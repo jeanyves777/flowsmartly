@@ -1,5 +1,5 @@
 import { spawn, execFile } from "child_process";
-import { promises as fsp } from "fs";
+import { promises as fsp, existsSync } from "fs";
 import os from "os";
 import path from "path";
 import OpenAI from "openai";
@@ -206,11 +206,17 @@ export async function downloadSourceVideoFromUrl(url: string): Promise<string> {
   const ytdlp = resolveYtDlpPath();
   const out = path.join(os.tmpdir(), `reel-src-${Date.now()}-${Math.round(Math.random() * 1e6)}.mp4`);
 
-  // Optional YouTube auth — the RELIABLE way past YouTube's server-IP bot check.
-  // Set YTDLP_COOKIES_FILE=/path/cookies.txt (Netscape format) or
-  // YTDLP_COOKIES_FROM_BROWSER=chrome on the server.
+  // Cookies let URL ingest pass YouTube's server-IP bot check. Priority:
+  //   1. YTDLP_COOKIES_FILE env
+  //   2. a cookies file on disk — /etc/reel-yt-cookies.txt (recommended, survives
+  //      deploys) or ./reel-yt-cookies.txt at the app root (the deploy also writes
+  //      this from the YTDLP_COOKIES_B64 secret when set)
+  //   3. YTDLP_COOKIES_FROM_BROWSER
+  // Optional — file UPLOADS work without any of this.
+  const defaultCookiePaths = ["/etc/reel-yt-cookies.txt", path.join(process.cwd(), "reel-yt-cookies.txt")];
+  const cookieFile = process.env.YTDLP_COOKIES_FILE || defaultCookiePaths.find((p) => existsSync(p));
   const cookieArgs: string[] = [];
-  if (process.env.YTDLP_COOKIES_FILE) cookieArgs.push("--cookies", process.env.YTDLP_COOKIES_FILE);
+  if (cookieFile) cookieArgs.push("--cookies", cookieFile);
   else if (process.env.YTDLP_COOKIES_FROM_BROWSER) cookieArgs.push("--cookies-from-browser", process.env.YTDLP_COOKIES_FROM_BROWSER);
 
   await new Promise<void>((resolve, reject) => {
