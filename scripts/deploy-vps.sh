@@ -114,6 +114,39 @@ npx prisma db push --skip-generate
 log "Generating Prisma client"
 npx prisma generate
 
+# --- 4b. yt-dlp for Reel Studio URL ingest (download links -> clips) ----------
+# Standalone binary; non-fatal — if it fails, URL ingest degrades to FAILED and
+# file UPLOADS still work. ffmpeg (already on the box) handles the merge.
+if ! command -v yt-dlp >/dev/null 2>&1 && [ ! -x /usr/local/bin/yt-dlp ]; then
+  log "Installing yt-dlp (Reel Studio URL ingest)"
+  curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
+    && chmod a+rx /usr/local/bin/yt-dlp \
+    || log "yt-dlp install failed — URL ingest will degrade (uploads still work)"
+fi
+
+# --- 4c. OpenCV for Reel Studio speaker-aware reframe (face detection) --------
+# Non-fatal — if it fails, renders fall back to a centre-crop.
+if ! python3 -c "import cv2" >/dev/null 2>&1; then
+  log "Installing opencv-python-headless (Reel Studio reframe)"
+  python3 -m pip install --quiet --break-system-packages opencv-python-headless >/dev/null 2>&1 \
+    || python3 -m pip install --quiet opencv-python-headless >/dev/null 2>&1 \
+    || log "opencv install failed — reframe falls back to centre-crop"
+fi
+
+# --- 4d. YouTube cookies for Reel Studio URL ingest (bypass the bot check) ----
+# Optional — set YTDLP_COOKIES_B64 (base64 of a Netscape cookies.txt from a
+# logged-in YouTube session) in the deploy env / a GitHub secret, and it's written
+# to /etc/reel-yt-cookies.txt, which the app auto-detects. Uploads work without it.
+if [ -n "${YTDLP_COOKIES_B64:-}" ]; then
+  if echo "$YTDLP_COOKIES_B64" | base64 -d > /etc/reel-yt-cookies.txt 2>/dev/null && [ -s /etc/reel-yt-cookies.txt ]; then
+    chmod 600 /etc/reel-yt-cookies.txt
+    log "Wrote YouTube cookies for Reel Studio URL ingest"
+  else
+    rm -f /etc/reel-yt-cookies.txt
+    log "YTDLP_COOKIES_B64 set but could not be decoded — skipping"
+  fi
+fi
+
 # --- 5. free RAM for the build, then build ------------------------------------
 log "Stopping voice services to free RAM for the build"
 # shellcheck disable=SC2086
@@ -168,6 +201,29 @@ if [ "$healthy" != true ]; then
   echo "Recent pm2 logs for ${PM2_APP}:"
   pm2 logs "${PM2_APP}" --lines 30 --nostream 2>/dev/null || true
   exit 1
+fi
+
+# --- 9. schedule the background-task recovery cron (idempotent) ---------------
+# A render whose in-process worker was SIGKILL'd by THIS very reload is recovered
+# (resumed from the provider handle) or failed+refunded by /api/cron/recover-tasks.
+# Without a schedule those cards hang on the new "generating" loader forever. Each
+# healthy deploy (re)installs a crontab line hitting it every 3 min with the
+# CRON_SECRET from .env. Idempotent (drops any prior tagged line first) and
+# best-effort (never aborts the deploy). Tag: flowsmartly-recover-tasks.
+if command -v crontab >/dev/null 2>&1 && [ -f "${APP_DIR}/.env" ]; then
+  CRON_SECRET_VAL="$(grep -E '^CRON_SECRET=' "${APP_DIR}/.env" 2>/dev/null | head -n1 | sed -E 's/^CRON_SECRET=//; s/^["'"'"']//; s/["'"'"']$//' || true)"
+  if [ -n "${CRON_SECRET_VAL}" ]; then
+    RECOVER_LINE="*/3 * * * * curl -fsS -m 30 -H 'x-cron-secret: ${CRON_SECRET_VAL}' 'http://127.0.0.1:3000/api/cron/recover-tasks' >/dev/null 2>&1 # flowsmartly-recover-tasks"
+    if ( crontab -l 2>/dev/null | grep -v 'flowsmartly-recover-tasks'; echo "${RECOVER_LINE}" ) | crontab - 2>/dev/null; then
+      log "Scheduled recover-tasks cron (*/3 min)"
+    else
+      echo "WARN: could not install recover-tasks crontab (continuing)"
+    fi
+  else
+    echo "WARN: CRON_SECRET not found in ${APP_DIR}/.env — skipping recover-tasks cron install"
+  fi
+else
+  echo "WARN: crontab unavailable — skipping recover-tasks cron install"
 fi
 
 # voice services restored by the EXIT trap; persist the process list

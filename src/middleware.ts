@@ -157,6 +157,21 @@ export async function middleware(request: NextRequest) {
       return response;
     }
 
+    if (type === "portfolio") {
+      // PORTFOLIO / DIGITAL RESUME: rewrite ALL paths to /pf/{slug}/...
+      const pfPrefix = `/pf/${slug}`;
+      const alreadyPrefixed = path.startsWith(pfPrefix);
+      const pfPath = alreadyPrefixed ? path : (path === "/" ? pfPrefix : `${pfPrefix}${path}`);
+      const rewriteUrl = new URL(pfPath, request.url);
+      rewriteUrl.search = request.nextUrl.search;
+
+      const response = NextResponse.rewrite(rewriteUrl);
+      response.headers.set("x-custom-domain", hostname);
+      response.headers.set("x-store-slug", slug);
+      response.headers.set("x-domain-type", "portfolio");
+      return response;
+    }
+
     // STORE: Check version — V3 independent, V2 static, or V1 SSR
     const storeVersion = data.storeVersion || "ssr";
 

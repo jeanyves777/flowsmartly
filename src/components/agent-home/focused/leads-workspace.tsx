@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
+import { rankLeads, type OpportunityScore, type OppBand } from "@/lib/leads/opportunity-score";
 import { useToast } from "@/hooks/use-toast";
 import { useMobileChat } from "../mobile-chat-context";
 
@@ -63,11 +64,15 @@ const INDUSTRY_CHIPS = ["Dental", "Med spa", "Law", "SaaS", "Real estate"];
 const FLD = "w-full rounded-[9px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 const SEL = "rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12px] outline-none focus:border-brand-500/60";
 
-export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy, onPitchLead, onOpenPitch }: { refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean; onPitchLead?: (l: SavedLead) => void; onOpenPitch?: (pitchId: string) => void }) {
+export function FocusedLeads({ initialScreen, onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy, onPitchLead, onOpenPitch }: { initialScreen?: string; refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean; onPitchLead?: (l: SavedLead) => void; onOpenPitch?: (pitchId: string) => void }) {
   const { toast } = useToast();
   const { isMobile, seedComposer } = useMobileChat();
   const openLeadBrief = () => { if (isMobile) { seedComposer(LEADS_STARTER); return; } setBriefOpen(true); };
   const [screen, setScreen] = useState<Screen>("find");
+  useEffect(() => {
+    const screens: Screen[] = ["find", "contacts", "companies", "pipeline", "roi", "library", "pitches"];
+    if (initialScreen && screens.includes(initialScreen as Screen)) setScreen(initialScreen as Screen);
+  }, [initialScreen]);
   // The menu is controlled from the surface header toggle when `menuOpen` is
   // passed; otherwise it falls back to local state (standalone use).
   const [menuOpenLocal] = useState(true);
@@ -370,7 +375,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
 /* ── detail-card helpers ── */
 function DField({ k, children, full }: { k: string; children: ReactNode; full?: boolean }) {
   return (
-    <div className={full ? "sm:col-span-2" : "min-w-0"}>
+    <div className={cn("min-w-0", full && "sm:col-span-2")}>
       <dt className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60">{k}</dt>
       <dd className="mt-0.5 break-words text-[13px] leading-snug">{children}</dd>
     </div>
@@ -381,7 +386,7 @@ function DField({ k, children, full }: { k: string; children: ReactNode; full?: 
 // are the way to actually go hunt for these.
 function DMiss({ k, full }: { k: string; full?: boolean }) {
   return (
-    <div className={full ? "sm:col-span-2" : "min-w-0"}>
+    <div className={cn("min-w-0", full && "sm:col-span-2")}>
       <dt className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/45">{k}</dt>
       <dd className="mt-0.5 text-[13px] italic leading-snug text-muted-foreground/35">Not found yet</dd>
     </div>
@@ -391,7 +396,7 @@ function DSection({ icon: Icon, label, children }: { icon: ElementType; label: s
   return (
     <div>
       <p className="mb-2 flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground/60"><Icon className="h-3.5 w-3.5" /> {label}</p>
-      <dl className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">{children}</dl>
+      <dl className="grid grid-cols-1 gap-x-5 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{children}</dl>
     </div>
   );
 }
@@ -449,7 +454,7 @@ function LeadDetailSheet({ lead, enriching, onEnrich, onDeepDetail, onClose, onP
         </div>
 
         {/* body */}
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           {!anyDetail ? (
             <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No contact details yet — <b className="text-foreground">Get details</b> finds their email, phone, website and full address and saves them here.</p>
           ) : (
@@ -572,6 +577,7 @@ function FindScreen({ state, results, resultList, onOpenBrief, onBuild, enrichin
 }) {
   const unenriched = results.filter((l) => !l.enrichedAt).length;
   const enrichBusy = results.some((l) => enrichingIds.has(l.id));
+  const ranked = useMemo(() => rankLeads(results, { searchLocation: resultList?.name }), [results, resultList]);
   if (state === "loading") {
     return (
       <div className="grid place-items-center py-24 text-center">
@@ -602,7 +608,7 @@ function FindScreen({ state, results, resultList, onOpenBrief, onBuild, enrichin
             </div>
           </div>
         )}
-        <LeadTable leads={results} enrichingIds={enrichingIds} onEnrich={onEnrich} onOpenLead={onOpenLead} />
+        <LeadTable leads={ranked} enrichingIds={enrichingIds} onEnrich={onEnrich} onOpenLead={onOpenLead} />
       </div>
     );
   }
@@ -618,21 +624,60 @@ function FindScreen({ state, results, resultList, onOpenBrief, onBuild, enrichin
   );
 }
 
-function LeadTable({ leads, enrichingIds, onEnrich, onOpenLead }: { leads: SavedLead[]; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onOpenLead: (l: SavedLead) => void }) {
+// A lead carrying its computed opportunity score (attached by rankLeads).
+type RankedLead = SavedLead & { opportunity?: OpportunityScore };
+
+const BAND_STYLE: Record<OppBand, { chip: string; num: string; bar: string; label: string }> = {
+  high: { chip: "border-emerald-500/40 bg-emerald-500/12 text-emerald-400", num: "bg-emerald-500 text-emerald-950", bar: "bg-emerald-500", label: "High" },
+  med: { chip: "border-amber-500/40 bg-amber-500/12 text-amber-400", num: "bg-amber-500 text-amber-950", bar: "bg-amber-500", label: "Med" },
+  low: { chip: "border-slate-500/30 bg-slate-500/12 text-slate-400", num: "bg-slate-500 text-slate-950", bar: "bg-slate-500", label: "Low" },
+};
+
+/** The Opportunity cell — score chip (0–100 + band) over a thin fill bar, with a
+ *  hover breakdown of how the score was reached. */
+function OpportunityCell({ opp }: { opp?: OpportunityScore }) {
+  if (!opp) return <span className="text-muted-foreground">—</span>;
+  const s = BAND_STYLE[opp.band];
+  return (
+    <div className="group/opp relative w-[132px]">
+      <span className={cn("inline-flex items-center gap-1.5 rounded-full border py-0.5 pe-2.5 ps-0.5 text-[11.5px] font-bold", s.chip)}>
+        <span className={cn("grid h-[19px] w-[23px] place-items-center rounded-full text-[11px] font-extrabold tabular-nums", s.num)}>{opp.score}</span>
+        {s.label}
+      </span>
+      <div className="mt-1 h-[3px] w-[120px] overflow-hidden rounded-full bg-muted"><i className={cn("block h-full rounded-full", s.bar)} style={{ width: `${opp.score}%` }} /></div>
+      <div className="pointer-events-none absolute start-0 top-[calc(100%+6px)] z-30 w-[230px] rounded-[10px] border border-border bg-popover p-2.5 opacity-0 shadow-xl transition-opacity group-hover/opp:opacity-100">
+        <div className="mb-1.5 text-[9.5px] font-bold uppercase tracking-wide text-muted-foreground">Score breakdown</div>
+        {[["Offer / industry match", opp.parts.match, 30], ["In searched area", opp.parts.area, 15], ["Established signal", opp.parts.signal, 5]].map(([k, v, m]) => (
+          <div key={k as string} className="flex justify-between py-[1.5px] text-[11px] text-muted-foreground"><span>{k}</span><b className="text-foreground tabular-nums">{v}/{m}</b></div>
+        ))}
+        <div className="mt-1 flex justify-between border-t border-dashed border-border pt-1 text-[11px]"><span className="text-muted-foreground">Brand fit</span><b className="tabular-nums">{opp.fit}/50</b></div>
+        <div className="flex justify-between py-[1.5px] text-[11px]"><span className="text-muted-foreground">Data readiness</span><b className="tabular-nums">{opp.readiness}/50</b></div>
+      </div>
+    </div>
+  );
+}
+
+function LeadTable({ leads, enrichingIds, onEnrich, onOpenLead, rankOffset = 0 }: { leads: RankedLead[]; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onOpenLead: (l: SavedLead) => void; rankOffset?: number }) {
   if (!leads.length) return <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-[12.5px] text-muted-foreground">No leads yet.</p>;
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card">
+    <div className="overflow-x-auto rounded-2xl border border-border bg-card">
       <table className="w-full text-[12.5px]">
-        <thead className="text-left text-[11px] text-muted-foreground"><tr>{["Name", "Title", "Company", "Contact", ""].map((h, i) => <th key={i} className="border-b border-border px-4 py-2.5 font-medium">{h}</th>)}</tr></thead>
+        <thead className="text-left text-[11px] text-muted-foreground"><tr>{["Rank", "Name", "Title", "Company", "Contact", "Opportunity", ""].map((h, i) => <th key={i} className={cn("border-b border-border px-4 py-2.5 font-medium", h === "Rank" && "w-14 text-center")}>{h}</th>)}</tr></thead>
         <tbody>
-          {leads.map((l) => {
+          {leads.map((l, i) => {
             const enriching = enrichingIds.has(l.id);
+            const rank = rankOffset + i + 1;
             return (
               <tr key={l.id} onClick={() => onOpenLead(l)} className="cursor-pointer border-t border-border hover:bg-muted/20">
-                <td className="px-4 py-2.5 font-semibold">{l.name}</td>
+                <td className="px-4 py-2.5 text-center">
+                  <span className={cn("text-[13px] font-extrabold tabular-nums", rank === 1 ? "text-brand-500" : "text-muted-foreground")}>#{rank}</span>
+                  {rank === 1 && <span className="block text-[8px] font-bold tracking-wide text-muted-foreground">TOP</span>}
+                </td>
+                <td className="px-4 py-2.5 font-semibold">{l.name}{l.opportunity?.outOfArea && <span className="ms-1.5 inline-flex items-center gap-0.5 rounded border border-amber-500/40 bg-amber-500/10 px-1 text-[8.5px] font-bold text-amber-500" title="Address is outside your searched area">⚠ out of area</span>}</td>
                 <td className="px-4 py-2.5 text-muted-foreground">{l.title || "—"}</td>
                 <td className="px-4 py-2.5">{l.category || "—"}</td>
                 <td className="px-4 py-2.5"><ContactCell l={l} enriching={enriching} /></td>
+                <td className="px-4 py-2.5"><OpportunityCell opp={l.opportunity} /></td>
                 <td className="px-4 py-2.5 text-end">
                   {enriching ? (
                     <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-brand-500"><FlowLoader size={13} /> Finding…</span>
@@ -701,9 +746,13 @@ function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll, on
 
   useEffect(() => { setPage(1); }, [query, status, listFilter, pageSize, scope]);
 
+  // Rank the whole filtered set (best-first) BEFORE paging, so #1 is the top
+  // opportunity across all pages, not just the current page.
+  const ranked = useMemo(() => rankLeads(filtered, { searchLocation: scope?.name ?? (listFilter !== "all" ? listFilter : undefined) }), [filtered, scope, listFilter]);
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageC = Math.min(page, totalPages);
-  const paged = filtered.slice((pageC - 1) * pageSize, pageC * pageSize);
+  const paged = ranked.slice((pageC - 1) * pageSize, pageC * pageSize);
   const start = filtered.length ? (pageC - 1) * pageSize + 1 : 0;
   const end = Math.min(pageC * pageSize, filtered.length);
   const activeFilter = query.trim() !== "" || status !== "all" || (!scope && listFilter !== "all");
@@ -750,7 +799,7 @@ function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll, on
       <p className="mb-3 text-[12px] text-muted-foreground">
         {filtered.length === 0 ? "No contacts match your filters." : <>Showing <b className="text-foreground">{start}–{end}</b> of {filtered.length}{activeFilter ? ` (filtered from ${scoped.length})` : scope ? ` in ${scope.name}` : " contacts"} — enrich to reveal email + phone.</>}
       </p>
-      <LeadTable leads={paged} enrichingIds={enrichingIds} onEnrich={onEnrich} onOpenLead={onOpenLead} />
+      <LeadTable leads={paged} enrichingIds={enrichingIds} onEnrich={onEnrich} onOpenLead={onOpenLead} rankOffset={(pageC - 1) * pageSize} />
       <Pagination page={pageC} totalPages={totalPages} pageSize={pageSize} onPage={setPage} onPageSize={setPageSize} />
     </>
   );

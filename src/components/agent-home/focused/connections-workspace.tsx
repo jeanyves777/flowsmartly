@@ -244,7 +244,7 @@ export function FocusedConnections({ refreshKey }: { refreshKey?: number }) {
           </div>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-3">
           {list.map((p) => {
             const accounts = p.accounts ?? [];
             const meta = PLATFORM_META[p.platform];
@@ -255,22 +255,26 @@ export function FocusedConnections({ refreshKey }: { refreshKey?: number }) {
             const showUnlock = atLimit; // only when no free slot remains
             const platformUnlocked = slots?.platformUnlocks?.[p.platform]?.unlockedSlots ?? 0;
             return (
-              <div key={p.platform} className="rounded-2xl border border-border bg-card p-4">
-                <div className="flex items-center gap-2.5">
+              <div key={p.platform} className="min-w-0 rounded-2xl border border-border bg-card p-4">
+                <div className="flex min-w-0 flex-wrap items-start gap-2.5">
                   <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", meta?.bgClass ?? "bg-muted")} style={{ color }}><PIcon className="h-[18px] w-[18px]" /></span>
-                  <h3 className="text-[14px] font-bold">{meta?.label || p.name || NAMES[p.platform] || p.platform}</h3>
-                  {platformUnlocked > 0 && (
-                    <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-600 dark:text-amber-400">
-                      <Sparkles className="h-2.5 w-2.5" /> {platformUnlocked} unlocked
-                    </span>
-                  )}
-                  {accounts.length > 0 && <span className="ms-auto text-[11.5px] font-medium text-emerald-500">{accounts.length} connected</span>}
+                  <div className="min-w-0 flex-1">
+                    <h3 className="break-words text-[14px] font-bold leading-tight">{meta?.label || p.name || NAMES[p.platform] || p.platform}</h3>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      {platformUnlocked > 0 && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10.5px] font-semibold leading-none text-amber-600 dark:text-amber-400">
+                          <Sparkles className="h-2.5 w-2.5" /> {platformUnlocked} unlocked
+                        </span>
+                      )}
+                      {accounts.length > 0 && <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10.5px] font-semibold leading-none text-emerald-500">{accounts.length} connected</span>}
+                    </div>
+                  </div>
                 </div>
 
                 {accounts.length > 0 && (
                   <div className="mt-3 space-y-2">
                     {accounts.map((a) => (
-                      <div key={a.id} className="flex items-center gap-2.5 rounded-xl border border-border bg-muted/30 px-3 py-2">
+                      <div key={a.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-border bg-muted/30 px-2.5 py-2">
                         {a.avatarUrl ? (
                           <Image src={a.avatarUrl} alt="" width={28} height={28} className="h-7 w-7 shrink-0 rounded-full object-cover" unoptimized />
                         ) : (
@@ -280,12 +284,17 @@ export function FocusedConnections({ refreshKey }: { refreshKey?: number }) {
                           <p className="truncate text-[12.5px] font-medium">{a.displayName || a.username || "Account"}</p>
                           {a.username && <p className="truncate text-[11px] text-muted-foreground">@{a.username}</p>}
                         </div>
-                        {a.needsReconnect && (
-                          <button onClick={() => connect(p.platform)} className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-amber-500 hover:text-amber-400"><RefreshCw className="h-3 w-3" /> Reconnect</button>
-                        )}
-                        <button onClick={() => disconnect(a.id)} disabled={busy === a.id} aria-label="Disconnect" className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50">
-                          {busy === a.id ? <FlowLoader size={12} /> : <X className="h-3.5 w-3.5" />}
-                        </button>
+                        <div className="ms-auto flex shrink-0 items-center gap-1">
+                          {a.needsReconnect && (
+                            <button onClick={() => connect(p.platform)} title="Reconnect account" className="inline-flex h-7 items-center gap-1 rounded-md px-1.5 text-[10.5px] font-semibold text-amber-500 hover:bg-amber-500/10 hover:text-amber-400">
+                              <RefreshCw className="h-3 w-3" />
+                              <span className="hidden 2xl:inline">Reconnect</span>
+                            </button>
+                          )}
+                          <button onClick={() => disconnect(a.id)} disabled={busy === a.id} aria-label="Disconnect" className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50">
+                            {busy === a.id ? <FlowLoader size={12} /> : <X className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -201,7 +201,7 @@ export function SocialPlatformSelector({
           </TooltipProvider>
           {showConnectLink && (
             <Link
-              href="/social-accounts"
+              href="/home/connections"
               className="text-[11px] text-brand-600 hover:underline ml-1"
             >
               Connect accounts
@@ -287,7 +287,7 @@ export function SocialPlatformSelector({
         )}
         {showConnectLink && (
           <Link
-            href="/social-accounts"
+            href="/home/connections"
             className="text-xs text-brand-600 hover:underline"
           >
             Connect accounts

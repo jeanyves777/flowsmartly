@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { getPortfolioBySlug, serializePortfolio } from "@/lib/portfolio/portfolio-editor";
+import { getPortfolioBySlug, serializePortfolio, listPublicPortfolios } from "@/lib/portfolio/portfolio-editor";
+import { getUserBrand } from "@/lib/brand/get-brand";
 import { accessCookieName, hasVerifiedAccess } from "@/lib/portfolio/verification";
 import { PortfolioPublic } from "@/components/portfolio/portfolio-public";
 import { PortfolioGate } from "@/components/portfolio/portfolio-gate";
@@ -55,5 +56,12 @@ export default async function PortfolioPage({ params }: { params: Promise<{ slug
   }
 
   const downloadGated = p.access.download === "email" && !hasAccess;
-  return <PortfolioPublic p={p} slug={slug} downloadGated={downloadGated} />;
+
+  // Brand (logo + colours drive the look) + the discovery rail (business only).
+  const [brand, discovery] = await Promise.all([
+    getUserBrand(row.userId).catch(() => null),
+    p.kind === "business" ? listPublicPortfolios(row.id, 6).catch(() => []) : Promise.resolve([]),
+  ]);
+
+  return <PortfolioPublic p={p} brand={brand} discovery={discovery} slug={slug} downloadGated={downloadGated} />;
 }

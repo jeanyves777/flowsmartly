@@ -288,6 +288,32 @@ export async function getPortfolioBySlug(slug: string): Promise<Portfolio | null
   return prisma.portfolio.findFirst({ where: { slug, deletedAt: null } });
 }
 
+/** A published portfolio for the "Discover portfolios" rail (network/cross-promo). */
+export interface DiscoveryItem {
+  slug: string;
+  name: string;
+  headline: string | null;
+  kind: PortfolioKind;
+  thumb: string | null;
+}
+
+/** Other published portfolios to show in the discovery rail (excludes the current one). */
+export async function listPublicPortfolios(excludeId: string, limit = 6): Promise<DiscoveryItem[]> {
+  const rows = await prisma.portfolio.findMany({
+    where: { status: "PUBLISHED", deletedAt: null, id: { not: excludeId } },
+    orderBy: { updatedAt: "desc" },
+    take: limit,
+    select: { slug: true, name: true, headline: true, kind: true, logoUrl: true, avatarUrl: true, heroMediaUrl: true },
+  });
+  return rows.map((r) => ({
+    slug: r.slug,
+    name: r.name,
+    headline: r.headline,
+    kind: (r.kind as PortfolioKind) || "business",
+    thumb: r.logoUrl || r.avatarUrl || r.heroMediaUrl || null,
+  }));
+}
+
 // ── Create ───────────────────────────────────────────────────────────────────
 export interface CreatePortfolioInput {
   userId: string;

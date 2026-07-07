@@ -1,6 +1,30 @@
 import { prisma } from "@/lib/db/client";
 import type { FlowAgentTool } from "../registry";
 
+/** lowercase, strip accents/punctuation → single-spaced tokens, for loose matching. */
+function norm(v: string): string {
+  return v.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+/**
+ * Generic roles/titles (normalized form) some searches hand back in place of a
+ * real person. Saving one as a lead's `name` fabricates a contact that doesn't
+ * exist ("Owner/Manager") — we demote such rows to org-level (no name) so the
+ * user sees the company honestly and can enrich a real named contact instead.
+ */
+const PLACEHOLDER_NAME =
+  /^(the |a )?(owner|owners|co owner|manager|management|owner manager|owner operator|proprietor|founder|co founder|ceo|cfo|cmo|coo|cto|president|vice president|vp|director|director of \w+|head of \w+|managing director|principal|partner|operator|business owner|store manager|general manager|practice manager|office manager|branch manager|decision maker|contact|contact person|admin|administrator|staff|team|receptionist|reception|to whom it may concern|na|n a|none|unknown|not found|not available|tbd)$/;
+
+/** True when `name` is a generic role, or merely echoes the title/company — i.e. not a real person. */
+function isPlaceholderPersonName(name: string, title: string | null, company: string): boolean {
+  const n = norm(name);
+  if (!n) return false;
+  if (PLACEHOLDER_NAME.test(n)) return true;
+  if (title && n === norm(title)) return true;
+  if (company && n === norm(company)) return true;
+  return false;
+}
+
 /**
  * find_leads — persist the decision-makers / companies the agent found (via its
  * own web search + reasoning) into the Lead studio. This is the "AI + web-search
@@ -11,7 +35,7 @@ import type { FlowAgentTool } from "../registry";
 export const findLeads: FlowAgentTool = {
   name: "find_leads",
   description:
-    "PERSIST the real leads you found (from web search) into the user's Lead studio as a working list — this is how you save research; NEVER hand the user a to-do list of things to look up themselves. Leads can be PEOPLE (name + title + company) OR ORGANIZATIONS / COMPANIES (just the org/company name — omit `name` and it's saved as an org-level lead the user can enrich into named contacts, or contact directly). So even when your research only surfaces companies, networks, or groups (not 50 named individuals), save THOSE — do not discard them. Use AFTER researching real matches (industry, size, seniority, titles, location, or the orgs/networks where the target audience clusters). Do NOT invent emails/phones here — leave them out; enrich_lead reveals them later (billed). Pass `leads` and either `listName` (new list) or `listId`. Set `mode:'companies'` if every row is an organization. Finding is free; enrichment is billed per lead.",
+    "PERSIST the real leads you found (from web search) into the user's Lead studio as a working list — this is how you save research; NEVER hand the user a to-do list of things to look up themselves. Leads can be PEOPLE (name + title + company) OR ORGANIZATIONS / COMPANIES (just the org/company name — omit `name` and it's saved as an org-level lead the user can enrich into named contacts, or contact directly). So even when your research only surfaces companies, networks, or groups (not 50 named individuals), save THOSE — do not discard them. Use AFTER researching real matches (industry, size, seniority, titles, location, or the orgs/networks where the target audience clusters). Do NOT invent emails/phones here — leave them out; enrich_lead reveals them later (billed). NEVER invent a company or person: save the business's REAL name exactly as the source shows it and NEVER append the search city/region to it (no 'Acme Plumbing Pittsfield' when the source says 'Acme Plumbing' — the city belongs in `location`, not the name); and if you don't have the real decision-maker's name, OMIT `name` (org-level) rather than passing a placeholder like 'Owner', 'Owner/Manager', or a bare job title. Pass `leads` and either `listName` (new list) or `listId`. Set `mode:'companies'` if every row is an organization. Finding is free; enrichment is billed per lead.",
   input_schema: {
     type: "object",
     properties: {
@@ -49,14 +73,18 @@ export const findLeads: FlowAgentTool = {
     const leads = raw
       .filter((l): l is Record<string, unknown> => !!l && typeof l === "object")
       .map((l) => {
-        const name = String(l.name || "").trim();
+        const rawName = String(l.name || "").trim();
+        const title = typeof l.title === "string" ? l.title.trim() : null;
         // An org-level lead can arrive with the org in `company` OR `name`; make
         // `company` the source of truth so nothing is discarded for lacking a person.
-        const company = String(l.company || "").trim() || name;
+        const company = String(l.company || "").trim() || rawName;
+        // Drop fabricated/placeholder people ("Owner/Manager", a bare title, or a
+        // name that just echoes the company) → saved org-level, never as a fake contact.
+        const name = rawName && !isPlaceholderPersonName(rawName, title, company) ? rawName : "";
         return {
           name,
           company,
-          title: typeof l.title === "string" ? l.title.trim() : null,
+          title,
           domain: typeof l.domain === "string" ? l.domain.trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "") : null,
           location: typeof l.location === "string" ? l.location.trim() : null,
           seniority: typeof l.seniority === "string" ? l.seniority.trim() : null,
