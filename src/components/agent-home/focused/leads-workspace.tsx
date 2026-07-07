@@ -376,6 +376,17 @@ function DField({ k, children, full }: { k: string; children: ReactNode; full?: 
     </div>
   );
 }
+// Muted placeholder for a field the agent hasn't found yet — fills the grid so a
+// sparse profile doesn't read as half-empty. The "Find more details" chips below
+// are the way to actually go hunt for these.
+function DMiss({ k, full }: { k: string; full?: boolean }) {
+  return (
+    <div className={full ? "sm:col-span-2" : "min-w-0"}>
+      <dt className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/45">{k}</dt>
+      <dd className="mt-0.5 text-[13px] italic leading-snug text-muted-foreground/35">Not found yet</dd>
+    </div>
+  );
+}
 function DSection({ icon: Icon, label, children }: { icon: ElementType; label: string; children: ReactNode }) {
   return (
     <div>
@@ -443,32 +454,32 @@ function LeadDetailSheet({ lead, enriching, onEnrich, onDeepDetail, onClose, onP
             <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No contact details yet — <b className="text-foreground">Get details</b> finds their email, phone, website and full address and saves them here.</p>
           ) : (
             <>
-              {hasContact && (
+              {(enriched || hasContact) && (
                 <DSection icon={Mail} label="Contact">
-                  {lead.email && <DField k="Work email"><a href={`mailto:${lead.email}`} className="text-brand-500 hover:underline">{lead.email}</a></DField>}
-                  {lead.phone && <DField k="Phone"><a href={`tel:${lead.phone}`} className="text-brand-500 hover:underline">{lead.phone}</a></DField>}
+                  {lead.email ? <DField k="Work email"><a href={`mailto:${lead.email}`} className="text-brand-500 hover:underline">{lead.email}</a></DField> : enriched && <DMiss k="Work email" />}
+                  {lead.phone ? <DField k="Phone"><a href={`tel:${lead.phone}`} className="text-brand-500 hover:underline">{lead.phone}</a></DField> : enriched && <DMiss k="Phone" />}
                   {phones.map((p, i) => <DField key={i} k="Other phone"><a href={`tel:${p}`} className="text-brand-500 hover:underline">{p}</a></DField>)}
-                  {lead.website && <DField k="Website"><a href={link(lead.website)} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">{hostOf(lead.website)}</a></DField>}
-                  {socialEntries.map(([k, v]) => <DField key={k} k={k[0].toUpperCase() + k.slice(1)}><a href={v} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">{hostOf(v) || v}</a></DField>)}
+                  {lead.website ? <DField k="Website"><a href={link(lead.website)} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">{hostOf(lead.website)}</a></DField> : enriched && <DMiss k="Website" />}
+                  {socialEntries.length ? socialEntries.map(([k, v]) => <DField key={k} k={k[0].toUpperCase() + k.slice(1)}><a href={v} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">{hostOf(v) || v}</a></DField>) : enriched && <DMiss k="Social profiles" />}
                 </DSection>
               )}
 
-              {(address || lead.googleMapsUrl) && (
+              {(enriched || address || lead.googleMapsUrl) && (
                 <DSection icon={MapPin} label="Location">
-                  {address && <DField k="Address" full>{address}</DField>}
+                  {address ? <DField k="Address" full>{address}</DField> : enriched && <DMiss k="Address" full />}
                   {lead.googleMapsUrl && <DField k="Map"><a href={lead.googleMapsUrl} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">Open in Google Maps ↗</a></DField>}
                 </DSection>
               )}
 
-              {hasBusiness && (
+              {(enriched || hasBusiness) && (
                 <DSection icon={Building2} label="Business">
-                  {lead.category && <DField k="Company">{lead.category}</DField>}
-                  {deep.industry && <DField k="Industry">{deep.industry}</DField>}
-                  {deep.employeeSize && <DField k="Company size">{deep.employeeSize}</DField>}
-                  {deep.revenueBand && <DField k="Revenue">{deep.revenueBand}</DField>}
-                  {deep.yearFounded && <DField k="Founded">{deep.yearFounded}</DField>}
-                  {typeof lead.rating === "number" && <DField k="Rating"><span className="inline-flex items-center gap-1"><Star className="h-3 w-3 text-amber-500" />{lead.rating}{lead.reviewCount ? ` · ${lead.reviewCount} reviews` : ""}</span></DField>}
-                  {deep.hours && <DField k="Hours"><span className="inline-flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{deep.hours}</span></DField>}
+                  {lead.category ? <DField k="Company">{lead.category}</DField> : enriched && <DMiss k="Company" />}
+                  {deep.industry ? <DField k="Industry">{deep.industry}</DField> : enriched && <DMiss k="Industry" />}
+                  {deep.employeeSize ? <DField k="Company size">{deep.employeeSize}</DField> : enriched && <DMiss k="Company size" />}
+                  {deep.revenueBand ? <DField k="Revenue">{deep.revenueBand}</DField> : enriched && <DMiss k="Revenue" />}
+                  {deep.yearFounded ? <DField k="Founded">{deep.yearFounded}</DField> : enriched && <DMiss k="Founded" />}
+                  {typeof lead.rating === "number" ? <DField k="Rating"><span className="inline-flex items-center gap-1"><Star className="h-3 w-3 text-amber-500" />{lead.rating}{lead.reviewCount ? ` · ${lead.reviewCount} reviews` : ""}</span></DField> : enriched && <DMiss k="Rating" />}
+                  {deep.hours ? <DField k="Hours"><span className="inline-flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{deep.hours}</span></DField> : enriched && <DMiss k="Hours" />}
                   {lead.businessStatus && <DField k="Status">{lead.businessStatus === "OPERATIONAL" ? "Operational" : lead.businessStatus}</DField>}
                   {deep.about && <DField k="About" full>{deep.about}</DField>}
                 </DSection>
@@ -485,9 +496,9 @@ function LeadDetailSheet({ lead, enriching, onEnrich, onDeepDetail, onClose, onP
                 </DSection>
               )}
 
-              {hasNotes && (
+              {(enriched || hasNotes) && (
                 <DSection icon={StickyNote} label="Notes">
-                  {deep.reviews && <DField k="Reviews summary" full>{deep.reviews}</DField>}
+                  {deep.reviews ? <DField k="Reviews summary" full>{deep.reviews}</DField> : enriched && <DMiss k="Reviews summary" full />}
                   {lead.notes && <DField k="Notes" full>{lead.notes}</DField>}
                 </DSection>
               )}
@@ -502,13 +513,22 @@ function LeadDetailSheet({ lead, enriching, onEnrich, onDeepDetail, onClose, onP
                 <h5 className="text-[13px] font-bold">Find more details</h5>
                 <span className="ms-auto rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-bold text-brand-500">agent searches</span>
               </div>
-              <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">Tap what to hunt for — the agent searches the web + their site and saves it into this record. Gaps are flagged.</p>
+              <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">Tap a gap to hunt for it — the agent searches the web + their site and saves it into this record. Found details are locked so nothing is searched twice.</p>
               <div className="mt-2.5 flex flex-wrap gap-2">
                 {DEEP_DETAIL_TYPES.map((d) => {
                   const gap = gaps.has(d.key === "firmographics" ? "firmographics" : d.key);
+                  // Already found → locked, non-clickable: never re-request work that's done.
+                  // Only gaps (still missing) stay requestable.
+                  if (!gap) {
+                    return (
+                      <span key={d.key} title="Already found — nothing to search" className="inline-flex cursor-default items-center gap-1.5 rounded-[10px] border border-emerald-500/40 bg-emerald-500/[0.08] px-2.5 py-1.5 text-[12px] font-semibold text-emerald-600 dark:text-emerald-400">
+                        <Check className="h-3.5 w-3.5" /> {d.label}
+                      </span>
+                    );
+                  }
                   return (
-                    <button key={d.key} disabled={enriching} onClick={() => onDeepDetail(d.key)} className={cn("inline-flex items-center gap-1.5 rounded-[10px] border px-2.5 py-1.5 text-[12px] font-semibold transition disabled:opacity-60", gap ? "border-amber-500/40 text-foreground hover:bg-amber-500/[0.06]" : "border-border text-muted-foreground hover:border-brand-500/50 hover:text-foreground")}>
-                      {gap ? <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> : <Check className="h-3.5 w-3.5 text-emerald-500" />} {d.label}
+                    <button key={d.key} disabled={enriching} onClick={() => onDeepDetail(d.key)} title={`Find ${d.label.toLowerCase()}`} className="inline-flex items-center gap-1.5 rounded-[10px] border border-amber-500/40 px-2.5 py-1.5 text-[12px] font-semibold text-foreground transition hover:bg-amber-500/[0.06] disabled:opacity-60">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> {d.label}
                     </button>
                   );
                 })}
