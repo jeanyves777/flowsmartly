@@ -136,7 +136,6 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { findLeads } = await import("./tools/find-leads");
   const { findLocalLeads } = await import("./tools/find-local-leads");
   const { enrichLead } = await import("./tools/enrich-lead");
-  const { deepEnrichLead } = await import("./tools/deep-enrich-lead");
   const { createOpportunity } = await import("./tools/create-opportunity");
   const { advanceOpportunity } = await import("./tools/advance-opportunity");
   const { runLeadAutopilot } = await import("./tools/run-lead-autopilot");
@@ -146,7 +145,6 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { regenerateProposalVisual } = await import("./tools/regenerate-proposal-visual");
   const { sendProposal } = await import("./tools/send-proposal");
   const { createContentCampaign } = await import("./tools/create-content-campaign");
-  const { improveContentCampaign } = await import("./tools/improve-content-campaign");
   const { addCampaignPost } = await import("./tools/add-campaign-post");
   const { regeneratePostImage } = await import("./tools/regenerate-post-image");
   const { regeneratePostVideo } = await import("./tools/regenerate-post-video");
@@ -160,9 +158,16 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { buildStore } = await import("./tools/build-store");
   const { getStoreContent } = await import("./tools/get-store-content");
   const { editStore } = await import("./tools/edit-store");
+  const { buildReels } = await import("./tools/build-reels");
+  const { getReelContent } = await import("./tools/get-reel-content");
+  const { editClip } = await import("./tools/edit-clip");
+  const { publishReels } = await import("./tools/publish-reels");
   const { buildPortfolio } = await import("./tools/build-portfolio");
   const { getPortfolioContent } = await import("./tools/get-portfolio-content");
   const { editPortfolio } = await import("./tools/edit-portfolio");
+  const { findDomain } = await import("./tools/find-domain");
+  const { connectPortfolioDomain } = await import("./tools/connect-portfolio-domain");
+  const { buyPortfolioDomain } = await import("./tools/buy-portfolio-domain");
   const { addProduct } = await import("./tools/add-product");
   const { updateProduct } = await import("./tools/update-product");
   const { deleteProduct } = await import("./tools/delete-product");
@@ -234,7 +239,6 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(findLeads);
   flowAgentTools.register(findLocalLeads);
   flowAgentTools.register(enrichLead);
-  flowAgentTools.register(deepEnrichLead);
   flowAgentTools.register(createOpportunity);
   flowAgentTools.register(advanceOpportunity);
   flowAgentTools.register(runLeadAutopilot);
@@ -244,7 +248,6 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(regenerateProposalVisual);
   flowAgentTools.register(sendProposal);
   flowAgentTools.register(createContentCampaign);
-  flowAgentTools.register(improveContentCampaign);
   flowAgentTools.register(addCampaignPost);
   flowAgentTools.register(regeneratePostImage);
   flowAgentTools.register(regeneratePostVideo);
@@ -261,9 +264,16 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(buildStore);
   flowAgentTools.register(getStoreContent);
   flowAgentTools.register(editStore);
+  flowAgentTools.register(buildReels);
+  flowAgentTools.register(getReelContent);
+  flowAgentTools.register(editClip);
+  flowAgentTools.register(publishReels);
   flowAgentTools.register(buildPortfolio);
   flowAgentTools.register(getPortfolioContent);
   flowAgentTools.register(editPortfolio);
+  flowAgentTools.register(findDomain);
+  flowAgentTools.register(connectPortfolioDomain);
+  flowAgentTools.register(buyPortfolioDomain);
   flowAgentTools.register(addProduct);
   flowAgentTools.register(updateProduct);
   flowAgentTools.register(deleteProduct);

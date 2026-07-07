@@ -59,6 +59,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (typeof body.avatarName === "string") patch.avatarName = body.avatarName.slice(0, 80);
   if (typeof body.voiceId === "string" && body.voiceId) patch.voiceId = body.voiceId;
   if (typeof body.voiceName === "string") patch.voiceName = body.voiceName.slice(0, 80);
+  if (typeof body.voiceEmotion === "string") patch.voiceEmotion = body.voiceEmotion ? body.voiceEmotion.slice(0, 24) : null;
+  if (typeof body.voiceSpeed === "number" && body.voiceSpeed >= 0.5 && body.voiceSpeed <= 1.5) patch.voiceSpeed = body.voiceSpeed;
+  if (typeof body.motionPrompt === "string") patch.motionPrompt = body.motionPrompt.trim() ? body.motionPrompt.trim().slice(0, 500) : null;
   if (AVATAR_QUALITIES.includes(body.quality as AvatarQuality)) patch.quality = body.quality as AvatarQuality;
   if (AVATAR_ASPECTS.includes(body.aspect as AvatarAspect)) patch.aspect = body.aspect as AvatarAspect;
   if (isAvatarLength(body.lengthSeconds)) patch.lengthSeconds = Number(body.lengthSeconds);

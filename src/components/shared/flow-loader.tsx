@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import Image from "next/image";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -76,6 +77,62 @@ export function FlowLoader({
     <span className={cn("inline-flex items-center gap-2 text-[12px] text-muted-foreground", className)}>
       {ring}
       <span>{label}</span>
+    </span>
+  );
+}
+
+/**
+ * FlowGeneratingMark — the branded "generating" cue: the FlowSmartly mark kept
+ * FADED and softly GROWING on a breathing glow (a living heartbeat, not a
+ * spinning ring). Use it as the centrepiece of a large in-progress surface — a
+ * rendering video card, a canvas node, an empty generating state — where a small
+ * inline <FlowLoader> would read as too busy. For inline/button busy states use
+ * <FlowLoader> instead.
+ */
+export function FlowGeneratingMark({
+  size = 56,
+  label,
+  className,
+}: {
+  size?: number;
+  label?: string;
+  className?: string;
+}) {
+  const reduce = useReducedMotion();
+  const breathe = reduce
+    ? { opacity: 0.7 }
+    : { opacity: [0.32, 0.82, 0.32], scale: [0.9, 1.06, 0.9] };
+  const glow = reduce
+    ? { opacity: 0.4 }
+    : { opacity: [0.25, 0.55, 0.25], scale: [0.82, 1.16, 0.82] };
+  const ease = "easeInOut" as const;
+
+  return (
+    <span className={cn("relative inline-grid place-items-center", label && "gap-2", className)} style={{ width: size, height: size }}>
+      {/* soft breathing halo */}
+      <motion.span
+        aria-hidden
+        className="pointer-events-none absolute rounded-full"
+        style={{
+          width: size * 2,
+          height: size * 2,
+          background: "radial-gradient(circle, rgba(124,90,246,0.42), rgba(59,130,246,0.12) 45%, transparent 70%)",
+        }}
+        animate={glow}
+        transition={{ duration: 2.6, repeat: Infinity, ease }}
+      />
+      {/* the faded, growing FlowSmartly mark */}
+      <motion.span
+        className="relative"
+        style={{ width: size, height: size, filter: "drop-shadow(0 0 10px rgba(124,90,246,0.45))" }}
+        animate={breathe}
+        transition={{ duration: 2.6, repeat: Infinity, ease }}
+      >
+        <Image src="/icon.png" alt="" width={size} height={size} className="h-full w-full object-contain" unoptimized priority />
+      </motion.span>
+      {label && (
+        <span className="absolute inset-x-0 -bottom-6 text-center text-[11px] font-medium text-muted-foreground">{label}</span>
+      )}
     </span>
   );
 }

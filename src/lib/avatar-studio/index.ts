@@ -191,6 +191,75 @@ export async function refundAvatarUsage(userId: string, amount: number, referenc
 // -------------------------------------------------------------------------
 
 /**
+ * Bring a finished HeyGen render home: upload the MP4 to S3, atomically flip the
+ * row to COMPLETED, then mirror into the Media Library. The atomic claim (only
+ * from a non-terminal status) makes this safe for BOTH the live worker and the
+ * recovery cron to call — whoever wins finalises, the other no-ops. Returns true
+ * if THIS call claimed + finalised the row.
+ */
+async function finalizeAvatarRender(
+  id: string,
+  userId: string,
+  storyPrompt: string | null,
+  state: AvatarVideoState,
+  result: { videoBuffer: Buffer; thumbnailUrl?: string; duration?: number },
+): Promise<boolean> {
+  const key = `heygen/avatar-videos/${id}.mp4`;
+  const url = await uploadToS3(key, result.videoBuffer, "video/mp4");
+
+  // Best-effort: store the HeyGen thumbnail in our bucket so the card poster is stable.
+  let thumbnailUrl: string | null = null;
+  if (result.thumbnailUrl) {
+    try {
+      const thumbRes = await fetch(result.thumbnailUrl);
+      if (thumbRes.ok) {
+        const buf = Buffer.from(await thumbRes.arrayBuffer());
+        thumbnailUrl = await uploadToS3(`heygen/avatar-videos/${id}-thumb.jpg`, buf, "image/jpeg");
+      }
+    } catch { /* thumbnail is optional */ }
+  }
+
+  // Atomic claim — only finalise a row that's still rendering, so the live worker
+  // and a concurrent recovery tick can never both complete (or double-charge) it.
+  const claimed = await prisma.cartoonVideo.updateMany({
+    where: { id, status: { in: ["PENDING", "PROCESSING", "COMPOSITING"] } },
+    data: {
+      status: "COMPLETED",
+      progress: 100,
+      currentStep: "Ready",
+      videoUrl: url,
+      thumbnailUrl,
+      completedAt: new Date(),
+    },
+  });
+  if (claimed.count === 0) return false; // another path already finalised it
+
+  await saveToMediaLibrary({
+    userId,
+    url,
+    type: "video",
+    mimeType: "video/mp4",
+    size: result.videoBuffer.length,
+    originalName: `${(storyPrompt || "avatar-video").slice(0, 60)}.mp4`,
+    tags: ["heygen", "avatar", "ai-generated"],
+    metadata: { source: "heygen", avatarVideoId: id, avatarName: state.avatarName },
+  }).catch(() => {});
+  return true;
+}
+
+/** Mark a render FAILED (idempotent) and refund the credits charged for it. */
+async function failAvatarRender(id: string, userId: string, creditsCost: number, message: string): Promise<void> {
+  await patchState(id, { error: message });
+  const flipped = await prisma.cartoonVideo.updateMany({
+    where: { id, status: { in: ["PENDING", "PROCESSING", "COMPOSITING"] } },
+    data: { status: "FAILED", currentStep: message.slice(0, 200), errorMessage: message.slice(0, 200) },
+  }).catch(() => ({ count: 0 }));
+  if (flipped.count > 0) {
+    await refundAvatarUsage(userId, creditsCost || 0, id, "Refund: avatar render failed").catch(() => {});
+  }
+}
+
+/**
  * Render a queued avatar video: call HeyGen, upload the MP4 to S3, mirror it
  * into the Library, and mark the record COMPLETED. On failure, mark FAILED and
  * refund the credits charged at create time. Never throws.
@@ -213,6 +282,14 @@ export async function renderAvatarVideo(id: string, userId: string): Promise<voi
     const onStatus = (message: string) => {
       void prisma.cartoonVideo.update({ where: { id }, data: { currentStep: message } }).catch(() => {});
     };
+    // Progress heartbeat — a moving % + friendly step on every poll tick. It also
+    // keeps updatedAt fresh, which is how the recovery watchdog tells a LIVE render
+    // apart from a worker that died mid-render.
+    const onProgress = (pct: number, message: string) => {
+      void prisma.cartoonVideo
+        .update({ where: { id }, data: { status: "PROCESSING", progress: Math.max(10, Math.min(99, Math.round(pct))), currentStep: message } })
+        .catch(() => {});
+    };
     const onJobId = (videoId: string) => { void patchState(id, { heygenVideoId: videoId }); };
 
     let result;
@@ -221,8 +298,10 @@ export async function renderAvatarVideo(id: string, userId: string): Promise<voi
         videoUrl: state.sourceVideoUrl || "",
         targetLanguage: state.targetLanguage || "Spanish",
         title: (state.brief || "Translated video").slice(0, 80),
+        estimatedSeconds: state.lengthSeconds,
         onJobId,
         onStatus,
+        onProgress,
       });
     } else if (state.mode === "presentation") {
       // Multi-scene stitched video. A scene with no visual falls back to a full
@@ -240,9 +319,13 @@ export async function renderAvatarVideo(id: string, userId: string): Promise<voi
         aspect: state.aspect,
         quality: state.quality,
         captions: state.captionsOn,
+        voiceSpeed: state.voiceSpeed ?? undefined,
+        voiceEmotion: state.voiceEmotion ?? undefined,
         scenes,
+        estimatedSeconds: state.lengthSeconds,
         onJobId,
         onStatus,
+        onProgress,
       });
     } else {
       result = await heygenClient.generateAvatarVideo({
@@ -254,57 +337,88 @@ export async function renderAvatarVideo(id: string, userId: string): Promise<voi
         quality: state.mode === "photo" ? "avatar_iv" : state.quality,
         captions: state.captionsOn,
         background: state.background,
+        voiceSpeed: state.voiceSpeed ?? undefined,
+        voiceEmotion: state.voiceEmotion ?? undefined,
+        motionPrompt: state.motionPrompt ?? undefined,
+        estimatedSeconds: state.lengthSeconds,
         onJobId,
         onStatus,
+        onProgress,
       });
     }
 
-    const key = `heygen/avatar-videos/${id}.mp4`;
-    const url = await uploadToS3(key, result.videoBuffer, "video/mp4");
-
-    // Best-effort: store the HeyGen thumbnail in our bucket so the card poster is stable.
-    let thumbnailUrl: string | null = null;
-    if (result.thumbnailUrl) {
-      try {
-        const thumbRes = await fetch(result.thumbnailUrl);
-        if (thumbRes.ok) {
-          const buf = Buffer.from(await thumbRes.arrayBuffer());
-          thumbnailUrl = await uploadToS3(`heygen/avatar-videos/${id}-thumb.jpg`, buf, "image/jpeg");
-        }
-      } catch { /* thumbnail is optional */ }
-    }
-
-    await saveToMediaLibrary({
-      userId,
-      url,
-      type: "video",
-      mimeType: "video/mp4",
-      size: result.videoBuffer.length,
-      originalName: `${(row.storyPrompt || "avatar-video").slice(0, 60)}.mp4`,
-      tags: ["heygen", "avatar", "ai-generated"],
-      metadata: { source: "heygen", avatarVideoId: id, avatarName: state.avatarName },
-    });
-
-    await prisma.cartoonVideo.update({
-      where: { id },
-      data: {
-        status: "COMPLETED",
-        progress: 100,
-        currentStep: "Ready",
-        videoUrl: url,
-        thumbnailUrl,
-        completedAt: new Date(),
-      },
-    });
+    await finalizeAvatarRender(id, userId, row.storyPrompt, state, result);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Avatar render failed";
     console.error(`[avatar-studio] render failed for ${id}:`, message);
-    await patchState(id, { error: message });
-    await prisma.cartoonVideo.update({
-      where: { id },
-      data: { status: "FAILED", currentStep: message.slice(0, 200) },
-    }).catch(() => {});
-    await refundAvatarUsage(userId, row.creditsCost || 0, id, "Refund: avatar render failed").catch(() => {});
+    await failAvatarRender(id, userId, row.creditsCost || 0, message);
+  }
+}
+
+/**
+ * Resume an interrupted avatar render from its persisted HeyGen job id — the
+ * recovery path for a worker killed mid-render (deploy `pm2 reload` / crash)
+ * while HeyGen kept rendering AND billing us. Polls HeyGen ONCE:
+ *   - done    → download + finalise (bring the paid render home)
+ *   - failed  → mark FAILED + refund
+ *   - pending → touch the row (keeps it out of the stale-fail path) and wait
+ * No upstream id yet & old → it never really submitted, so fail + refund.
+ * Never throws. Returns the outcome so the cron can tally it.
+ */
+export async function resumeAvatarRender(id: string): Promise<"recovered" | "pending" | "failed" | "no_handle"> {
+  const row = await prisma.cartoonVideo.findUnique({
+    where: { id },
+    select: { userId: true, metadata: true, creditsCost: true, storyPrompt: true, createdAt: true, status: true },
+  });
+  if (!row) return "no_handle";
+  if (!["PENDING", "PROCESSING", "COMPOSITING"].includes(row.status)) return "recovered"; // already terminal
+  const state = readAvatarState(row.metadata);
+  const heygenId = state.heygenVideoId;
+  const ageMin = (Date.now() - new Date(row.createdAt).getTime()) / 60_000;
+  const RESUME_MAX_MIN = 45; // provider still not done after this → give up
+  const NO_HANDLE_FAIL_MIN = 15; // stale with no upstream id → never submitted, unrecoverable
+
+  const touch = (msg: string) =>
+    prisma.cartoonVideo
+      .update({ where: { id }, data: { status: "PROCESSING", currentStep: msg } })
+      .catch(() => {});
+
+  if (!heygenId) {
+    if (ageMin > NO_HANDLE_FAIL_MIN) {
+      await failAvatarRender(id, row.userId, row.creditsCost || 0, "The render was interrupted before it started. Your credits were refunded — please try again.");
+      return "failed";
+    }
+    return "no_handle";
+  }
+
+  if (!heygenClient.isAvailable()) return "pending"; // can't poll now; try next tick
+
+  try {
+    if (state.mode === "translate") {
+      const t = await heygenClient.pollTranslateOnce(heygenId);
+      if (t.state === "failed") { await failAvatarRender(id, row.userId, row.creditsCost || 0, `Translation failed${t.error ? ` (${t.error})` : ""}. Your credits were refunded — please try again.`); return "failed"; }
+      if (t.state === "pending") {
+        if (ageMin > RESUME_MAX_MIN) { await failAvatarRender(id, row.userId, row.creditsCost || 0, "The translation didn't finish in time. Your credits were refunded — please try again."); return "failed"; }
+        await touch("Resuming translation…"); return "pending";
+      }
+      const buffer = await heygenClient.fetchVideoBuffer(t.url!);
+      await finalizeAvatarRender(id, row.userId, row.storyPrompt, state, { videoBuffer: buffer, duration: 0 });
+      return "recovered";
+    }
+
+    const poll = await heygenClient.pollOnce(heygenId);
+    if (poll.state === "failed") { await failAvatarRender(id, row.userId, row.creditsCost || 0, `The render failed${poll.error ? ` (${poll.error})` : ""}. Your credits were refunded — please try again.`); return "failed"; }
+    if (poll.state === "pending") {
+      if (ageMin > RESUME_MAX_MIN) { await failAvatarRender(id, row.userId, row.creditsCost || 0, "The render didn't finish in time. Your credits were refunded — please try again."); return "failed"; }
+      await touch("Resuming render…"); return "pending";
+    }
+    const buffer = await heygenClient.fetchVideoBuffer(poll.url!);
+    await finalizeAvatarRender(id, row.userId, row.storyPrompt, state, { videoBuffer: buffer, thumbnailUrl: poll.thumbnailUrl, duration: poll.duration || 0 });
+    return "recovered";
+  } catch (e) {
+    console.error(`[avatar-studio] resume error for ${id}:`, e instanceof Error ? e.message : e);
+    await touch("Resuming render…"); // transient poll/download error — retry next tick
+    return "pending";
   }
 }
 
@@ -428,11 +542,16 @@ export async function draftAvatarProject(input: {
   let drafted: { title?: string; script?: string }[] = [];
   try {
     const json = await ai.generateJSON<{ scenes: { title: string; script: string }[] }>(
-      `You are scripting a ${count}-scene talking-avatar video series. Brief: "${input.brief}". ` +
-      `Write ${count} DISTINCT scenes that together tell a cohesive story for this brief. Each scene is spoken to camera by one avatar. ` +
-      `Each script must be ~${words} words (about ${input.base.lengthSeconds || 30}s), punchy, on-brand, first-person, no stage directions, no emojis. ` +
-      `Return JSON: {"scenes":[{"title":"short label","script":"the spoken words"}, ...]} with exactly ${count} scenes.`,
-      { maxTokens: 2000, temperature: 0.6 },
+      `You are a senior short-form video scriptwriter. Write a ${count}-scene talking-avatar series for this brief: "${input.brief}".\n` +
+      `Craft rules for EVERY scene:\n` +
+      `- Open scene 1 with a scroll-stopping HOOK in the first 5 words — a bold claim, a sharp question, or a pattern-interrupt. NEVER open with "Hi, I'm…", "Welcome", or "In this video".\n` +
+      `- Speak in the first person, straight to ONE viewer ("you"). Warm, confident, genuinely excited — a founder who cares, not a corporate announcer.\n` +
+      `- Short, punchy sentences with rhythm and momentum. Vary sentence length. Choose concrete specifics over vague adjectives.\n` +
+      `- Each scene ~${words} words (about ${input.base.lengthSeconds || 30}s). End the FINAL scene with ONE clear call to action.\n` +
+      `- Spoken words ONLY: no stage directions, no camera notes, no emojis, no hashtags, no markdown.\n` +
+      `The ${count} scenes must build on each other into one cohesive arc (hook → tension → payoff → proof → CTA, adapted to the count).\n` +
+      `Return JSON: {"scenes":[{"title":"2-4 word label","script":"the spoken words"}, ...]} with exactly ${count} scenes.`,
+      { maxTokens: 2000, temperature: 0.7 },
     );
     drafted = Array.isArray(json?.scenes) ? json!.scenes.slice(0, count) : [];
   } catch { /* fall through to a stub */ }
@@ -551,14 +670,14 @@ export async function draftPresentation(input: {
   let drafted: { script?: string; layout?: string; showsVisual?: boolean }[] = [];
   try {
     const json = await ai.generateJSON<{ scenes: { script: string; layout: string; showsVisual: boolean }[] }>(
-      `You are planning a ${count}-scene talking-avatar PRESENTATION (one continuous video) for this brief: "${input.brief}". ` +
-      `Each scene is spoken to camera by one presenter avatar. For each scene write: ` +
-      `"script" (~25-45 words, punchy, first-person, no stage directions, no emojis), ` +
-      `"layout" one of "full" (avatar talking to camera), "overlay" (avatar in a corner while a product/visual fills the frame), or "cutaway" (a product/visual fills the frame with the avatar's voiceover), ` +
-      `and "showsVisual" (true if this scene should show a product/reference image or B-roll). ` +
-      `Open and close with "full" avatar scenes; use "overlay"/"cutaway" for the middle beats that showcase something. ` +
+      `You are a senior video scriptwriter planning a ${count}-scene talking-avatar PRESENTATION (one continuous video) for this brief: "${input.brief}".\n` +
+      `Each scene is spoken to camera by one presenter avatar. For each scene write:\n` +
+      `- "script": ~25-45 words. Open scene 1 with a scroll-stopping hook (bold claim / sharp question / pattern-interrupt — never "Hi, I'm…"). First person, straight to "you", warm and genuinely excited. Short punchy sentences, varied rhythm, concrete specifics. Close the final scene with ONE clear call to action. Spoken words only — no stage directions, emojis, hashtags, or markdown.\n` +
+      `- "layout": one of "full" (avatar talking to camera), "overlay" (avatar in a corner while a product/visual fills the frame), or "cutaway" (a product/visual fills the frame with the avatar's voiceover).\n` +
+      `- "showsVisual": true if this scene should show a product/reference image or B-roll.\n` +
+      `Open and close with "full" avatar scenes; use "overlay"/"cutaway" for the middle beats that showcase something. The scenes must build into one cohesive arc.\n` +
       `Return JSON: {"scenes":[{"script":"...","layout":"full","showsVisual":false}, ...]} with exactly ${count} scenes.`,
-      { maxTokens: 2200, temperature: 0.6 },
+      { maxTokens: 2200, temperature: 0.7 },
     );
     drafted = Array.isArray(json?.scenes) ? json!.scenes.slice(0, count) : [];
   } catch { /* stub below */ }
@@ -692,7 +811,9 @@ export async function generateSceneBackground(userId: string, prompt: string, as
   try {
     const result = await generateImageForRole(
       "design_generate",
-      `A clean, professional talking-head video BACKDROP scene — no people, no text, uncluttered, cinematic, well-lit. Scene: ${prompt}`,
+      `A professional talking-head video BACKDROP — the setting only, NO people, NO text, NO logos. ` +
+      `Cinematic and well-lit with shallow depth of field and soft background bokeh, so a presenter standing in front pops off it. ` +
+      `Keep the centre uncluttered (that's where the avatar stands); put visual interest toward the edges. Scene: ${prompt}`,
       w, h, { quality: "medium" },
     );
     if (!result.base64) return null;
