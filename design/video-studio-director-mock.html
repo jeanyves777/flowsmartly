@@ -1,0 +1,531 @@
+<title>Video Studio — Director (unified pipeline)</title>
+<style>
+  /* ============ Cinematic control-room theme — deliberately dark ============ */
+  :root{
+    --bg:#080b12;
+    --bg-2:#0b1019;
+    --panel:#0f1523;
+    --panel-2:#131b2c;
+    --line:#1e2942;
+    --line-2:#28344f;
+    --ink:#eef2fb;
+    --ink-2:#aeb9d0;
+    --ink-3:#6b7690;
+    --brand:#6366f1;
+    --brand-2:#8b5cf6;
+    --rec:#f43f5e;
+    --amber:#f59e0b;
+    /* provider color-coding */
+    --p-ai:#a78bfa;      /* AI cinematic  */
+    --p-avatar:#22d3ee;  /* Avatar clone  */
+    --p-reel:#f59e0b;    /* Reel clip     */
+    --p-media:#94a3b8;   /* Uploaded media*/
+    --p-design:#34d399;  /* Design still  */
+    --ok:#34d399; --warn:#f59e0b; --bad:#fb7185;
+    --mono:"SF Mono",ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --r:12px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#05070c;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.45;}
+  .page{max-width:1360px;margin:0 auto;padding:24px 16px 60px;}
+  .intro{margin:6px 4px 18px;}
+  .intro .kick{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--brand-2);margin:0 0 6px;}
+  .intro h1{font-size:clamp(22px,3vw,30px);margin:0 0 6px;letter-spacing:-.02em;font-weight:800;text-wrap:balance;}
+  .intro p{margin:0;color:var(--ink-2);font-size:14px;max-width:76ch;}
+
+  /* the app frame scrolls inside its own box so the page never scrolls sideways */
+  .frame-wrap{overflow-x:auto;border-radius:16px;border:1px solid var(--line);box-shadow:0 30px 80px -40px #000;}
+  .app{width:1330px;height:788px;background:var(--bg);display:grid;
+       grid-template-columns:auto 1fr auto;grid-template-rows:auto 1fr;}
+  /* top bar spans all cols */
+  .topbar{grid-column:1/4;display:flex;align-items:center;gap:14px;padding:10px 14px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#0d1220,#0a0e18);}
+  .brandmark{width:26px;height:26px;flex:0 0 auto;}
+  .title-b{display:flex;flex-direction:column;line-height:1.1;}
+  .title-b b{font-size:13.5px;letter-spacing:.01em;}
+  .title-b span{font-size:10.5px;color:var(--ink-3);}
+  .proj-chip{display:inline-flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12px;color:var(--ink-2);}
+  .proj-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);}
+  .seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px;}
+  .seg button{border:0;background:transparent;color:var(--ink-3);font-family:inherit;font-size:12px;font-weight:700;padding:6px 14px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .seg button.on{background:linear-gradient(180deg,#20294180,#182036);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-2);}
+  .spacer{flex:1;}
+  .credits{font-size:12px;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px;}
+  .credits b{color:var(--amber);}
+  .render-btn{border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:12.5px;color:#fff;padding:8px 16px;border-radius:9px;
+    background:linear-gradient(135deg,var(--rec),#b91c3c);box-shadow:0 8px 22px -8px var(--rec);display:inline-flex;align-items:center;gap:7px;}
+  .render-btn .rdot{width:8px;height:8px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px #ffffff30;}
+
+  /* left director rail */
+  .rail{grid-row:2;width:288px;border-right:1px solid var(--line);background:var(--bg-2);display:flex;flex-direction:column;min-height:0;}
+  .rail-h{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;}
+  .rail-h .av{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--brand),var(--brand-2));display:grid;place-items:center;font-size:13px;}
+  .rail-h b{font-size:13px;}
+  .rail-h span{font-size:10.5px;color:var(--ink-3);display:block;}
+  .chat{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;}
+  .msg{font-size:12.5px;line-height:1.5;}
+  .msg.u{align-self:flex-end;max-width:88%;background:var(--brand);color:#fff;padding:8px 11px;border-radius:12px 12px 4px 12px;}
+  .msg.a{align-self:flex-start;max-width:94%;color:var(--ink-2);}
+  .msg.a .who{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--brand-2);margin-bottom:3px;}
+  .msg.a .did{margin-top:7px;display:flex;flex-direction:column;gap:5px;}
+  .did .step{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-2);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 9px;}
+  .did .step .ic{width:15px;height:15px;flex:0 0 auto;}
+  .did .step .prov{margin-left:auto;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:5px;}
+  .composer{border-top:1px solid var(--line);padding:10px;display:flex;gap:8px;align-items:center;}
+  .composer input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:9px 11px;font-family:inherit;font-size:12px;}
+  .composer input:focus{outline:2px solid var(--brand);border-color:transparent;}
+  .composer .go{width:34px;height:34px;flex:0 0 auto;border:0;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;cursor:pointer;display:grid;place-items:center;}
+
+  /* center stage */
+  .stage{grid-row:2;min-width:0;position:relative;display:flex;flex-direction:column;overflow:hidden;background:
+    radial-gradient(circle at 1px 1px, rgba(150,160,190,.06) 1px, transparent 0) 0 0/22px 22px, var(--bg);}
+  .mode{display:none;flex-direction:column;min-height:0;height:100%;}
+  .mode.on{display:flex;}
+
+  /* --- PIPELINE (nodes) --- */
+  .pipe-scroll{flex:1;overflow:auto;padding:22px;}
+  .pipe{display:flex;align-items:center;gap:0;min-width:max-content;padding-bottom:8px;}
+  .node{width:184px;flex:0 0 auto;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;cursor:pointer;transition:border-color .15s, transform .15s;}
+  .node:hover{border-color:var(--line-2);transform:translateY(-2px);}
+  .node.sel{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand), 0 14px 30px -16px var(--brand);}
+  .node .thumb{position:relative;aspect-ratio:16/10;background:#0a0f1b;overflow:hidden;}
+  .node .thumb .grad{position:absolute;inset:0;}
+  .node .prov-badge{position:absolute;top:7px;left:7px;display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:999px;background:#0009;backdrop-filter:blur(4px);}
+  .node .len{position:absolute;bottom:7px;right:7px;font-family:var(--mono);font-size:10px;background:#000a;padding:1px 6px;border-radius:5px;color:#fff;}
+  .node .st{position:absolute;bottom:7px;left:7px;font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:999px;display:inline-flex;align-items:center;gap:4px;}
+  .st.ready{background:#064e3b;color:#6ee7b7;}
+  .st.gen{background:#3730a3;color:#c7d2fe;}
+  .st.draft{background:#334155;color:#cbd5e1;}
+  .node .meta{padding:9px 10px;}
+  .node .meta .nm{font-size:12px;font-weight:700;line-height:1.25;margin:0 0 3px;}
+  .node .meta .sub{font-size:10.5px;color:var(--ink-3);line-height:1.3;}
+  .node .tools{display:flex;gap:4px;padding:0 8px 9px;}
+  .node .tools button{flex:1;border:1px solid var(--line);background:transparent;color:var(--ink-3);border-radius:7px;padding:5px 0;font-size:10px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:3px;}
+  .node .tools button:hover{border-color:var(--brand);color:var(--brand-2);}
+  .wire{width:34px;height:2px;flex:0 0 auto;background:linear-gradient(90deg,var(--line-2),var(--line));position:relative;}
+  .wire::after{content:"";position:absolute;right:-1px;top:-3px;border:4px solid transparent;border-left-color:var(--line-2);}
+  .add-node{width:52px;height:52px;flex:0 0 auto;border-radius:50%;border:1.5px dashed var(--line-2);background:transparent;color:var(--ink-3);font-size:22px;cursor:pointer;margin-left:14px;}
+  .add-node:hover{border-color:var(--brand);color:var(--brand-2);}
+  .brief-node{width:210px;flex:0 0 auto;background:linear-gradient(180deg,#141b2e,#0f1523);border:1px solid var(--line-2);border-radius:14px;padding:12px;margin-right:0;}
+  .brief-node .bh{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:800;margin-bottom:8px;}
+  .brief-node .bh .tag{margin-left:auto;font-size:9px;font-weight:800;color:#0a0e18;background:var(--p-avatar);padding:1px 6px;border-radius:5px;}
+  .brief-node p{margin:0 0 10px;font-size:11px;color:var(--ink-2);line-height:1.4;}
+  .brief-node .up{display:flex;gap:5px;flex-wrap:wrap;}
+  .brief-node .up .f{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 6px;color:var(--ink-2);}
+  .out-node{width:200px;flex:0 0 auto;background:linear-gradient(180deg,#1a1327,#120e1e);border:1px solid #4c2f6e;border-radius:14px;overflow:hidden;cursor:pointer;}
+  .out-node .thumb{aspect-ratio:16/10;background:linear-gradient(135deg,#2a1b45,#120e1e);display:grid;place-items:center;color:#c4b5fd;}
+  .out-node .meta{padding:10px;}
+  .out-node .meta b{font-size:12.5px;}
+  .out-node .meta .sub{font-size:10.5px;color:var(--ink-3);margin-top:2px;}
+  .pipe-hint{position:absolute;left:18px;bottom:12px;font-size:10.5px;color:var(--ink-3);background:#0009;border:1px solid var(--line);border-radius:8px;padding:5px 9px;}
+
+  .legend{display:flex;gap:12px;flex-wrap:wrap;padding:10px 22px;border-top:1px solid var(--line);background:var(--bg-2);}
+  .legend .l{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-2);}
+  .legend .sw{width:9px;height:9px;border-radius:3px;}
+
+  /* --- STORYBOARD --- */
+  .sb{flex:1;overflow:auto;padding:22px;}
+  .sb-h{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .sb-h b{font-size:14px;}
+  .sb-h .muted{font-size:11.5px;color:var(--ink-3);}
+  .film{display:flex;gap:2px;align-items:stretch;background:#05070c;border:1px solid var(--line);border-radius:12px;padding:10px;overflow-x:auto;}
+  .cell{flex:0 0 auto;width:150px;}
+  .cell .fr{aspect-ratio:9/16;border-radius:8px;overflow:hidden;position:relative;background:#0a0f1b;}
+  .cell .fr .grad{position:absolute;inset:0;}
+  .cell .fr .pv{position:absolute;top:5px;left:5px;font-size:8.5px;font-weight:800;padding:1px 5px;border-radius:4px;background:#000a;}
+  .cell .fr .tc{position:absolute;bottom:5px;right:5px;font-family:var(--mono);font-size:9px;background:#000a;padding:1px 5px;border-radius:4px;}
+  .cell .cap{font-size:10.5px;color:var(--ink-2);margin-top:6px;line-height:1.3;}
+  .cell .cap b{color:var(--ink);display:block;font-size:11px;}
+  .sb-preview{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;align-items:center;gap:14px;}
+  .sb-preview .scrub{flex:1;height:8px;border-radius:999px;background:#05070c;overflow:hidden;position:relative;}
+  .sb-preview .scrub i{position:absolute;left:0;top:0;bottom:0;width:38%;background:linear-gradient(90deg,var(--brand),var(--brand-2));}
+  .playbtn{width:40px;height:40px;border-radius:50%;border:0;background:#fff;color:#111;cursor:pointer;display:grid;place-items:center;flex:0 0 auto;}
+
+  /* --- EDITOR (timeline) --- */
+  .editor{flex:1;display:flex;flex-direction:column;min-height:0;}
+  .preview{flex:1;min-height:0;display:grid;place-items:center;padding:16px;background:#05070c;}
+  .screen{aspect-ratio:16/9;height:100%;max-height:300px;background:linear-gradient(135deg,#101826,#080c14);border:1px solid var(--line);border-radius:10px;position:relative;overflow:hidden;display:grid;place-items:center;}
+  .screen .ph-cap{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-weight:800;font-size:16px;color:#fff;text-shadow:0 2px 8px #000;}
+  .screen .ovl-av{position:absolute;right:14px;bottom:14px;width:78px;height:104px;border-radius:8px;border:2px solid #ffffff30;background:linear-gradient(160deg,#26324a,#151d30);}
+  .transport{display:flex;align-items:center;gap:12px;padding:8px 14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--bg-2);}
+  .transport .tc{font-family:var(--mono);font-size:12px;color:var(--ink-2);}
+  .transport .mini{width:30px;height:30px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer;display:grid;place-items:center;}
+  .transport .mini.play{background:#fff;color:#111;border:0;}
+  .zoom{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:11px;color:var(--ink-3);}
+  .tl{height:232px;overflow:auto;background:var(--bg);}
+  .ruler{position:sticky;top:0;z-index:2;display:flex;height:24px;background:var(--bg-2);border-bottom:1px solid var(--line);padding-left:118px;font-family:var(--mono);font-size:9.5px;color:var(--ink-3);}
+  .ruler span{width:130px;flex:0 0 auto;border-left:1px solid var(--line);padding:5px 0 0 5px;}
+  .track{display:flex;align-items:stretch;border-bottom:1px solid var(--line);min-height:46px;}
+  .track .thead{width:118px;flex:0 0 auto;border-right:1px solid var(--line);background:var(--bg-2);display:flex;align-items:center;gap:6px;padding:0 10px;font-size:10.5px;font-weight:700;color:var(--ink-2);position:sticky;left:0;z-index:1;}
+  .track .thead .tdot{width:8px;height:8px;border-radius:3px;flex:0 0 auto;}
+  .track .lane{flex:1;position:relative;padding:6px 0;min-width:900px;}
+  .clip{position:absolute;top:6px;bottom:6px;border-radius:6px;border:1px solid #ffffff22;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:700;color:#08111f;overflow:hidden;cursor:grab;white-space:nowrap;}
+  .clip .grip{position:absolute;top:0;bottom:0;width:6px;background:#ffffff44;}
+  .clip .grip.l{left:0;border-radius:6px 0 0 6px;} .clip .grip.r{right:0;border-radius:0 6px 6px 0;}
+  .clip.cap{color:#0b1220;font-family:var(--mono);}
+  .playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--rec);z-index:3;left:118px;}
+  .playhead::before{content:"";position:absolute;top:-1px;left:-5px;border:6px solid transparent;border-top-color:var(--rec);}
+
+  /* right inspector */
+  .insp{grid-row:2;width:322px;border-left:1px solid var(--line);background:var(--bg-2);display:flex;flex-direction:column;min-height:0;}
+  .insp-h{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--line);}
+  .insp-h .pill{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:5px;}
+  .insp-h b{font-size:13px;}
+  .insp-h .x{margin-left:auto;color:var(--ink-3);cursor:pointer;background:0;border:0;font-size:16px;}
+  .insp-body{flex:1;overflow-y:auto;padding:14px;}
+  .lab{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:14px 0 7px;}
+  .lab:first-child{margin-top:0;}
+  .field{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:9px;color:var(--ink);padding:9px 10px;font-family:inherit;font-size:12px;}
+  textarea.field{resize:none;line-height:1.5;}
+  .field:focus{outline:2px solid var(--brand);border-color:transparent;}
+  .looks{display:flex;gap:6px;overflow-x:auto;padding-bottom:3px;}
+  .looks .lk{width:44px;height:58px;flex:0 0 auto;border-radius:7px;border:2px solid transparent;background:linear-gradient(160deg,#2b2135,#171526);cursor:pointer;}
+  .looks .lk.on{border-color:var(--brand);}
+  .pillrow{display:flex;flex-wrap:wrap;gap:6px;}
+  .pillrow button{border:1px solid var(--line);background:transparent;color:var(--ink-3);font-family:inherit;font-size:11px;font-weight:700;padding:5px 11px;border-radius:999px;cursor:pointer;}
+  .pillrow button.on{border-color:var(--brand);background:#6366f11f;color:#c4b5fd;}
+  .insp-foot{border-top:1px solid var(--line);padding:11px;display:flex;gap:8px;}
+  .insp-foot .sv{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--ink-2);border-radius:9px;padding:9px 12px;font-weight:700;font-size:12px;cursor:pointer;}
+  .insp-foot .gen{flex:1;border:0;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;font-weight:800;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;}
+  .swap-hint{font-size:10.5px;color:var(--ink-3);margin-top:6px;line-height:1.4;}
+
+  /* master brief overlay */
+  .overlay{position:absolute;inset:0;z-index:20;background:#04060bcc;backdrop-filter:blur(3px);display:none;align-items:flex-end;}
+  .overlay.on{display:flex;}
+  .sheet{margin:0 auto;width:min(720px,94%);background:var(--panel);border:1px solid var(--line-2);border-radius:16px 16px 0 0;padding:18px;box-shadow:0 -30px 80px -30px #000;}
+  .sheet .sh{display:flex;align-items:center;gap:9px;margin-bottom:14px;}
+  .sheet .sh b{font-size:15px;}
+  .sheet .sh .close{margin-left:auto;background:0;border:0;color:var(--ink-3);font-size:18px;cursor:pointer;}
+  .drop{border:1.5px dashed var(--line-2);border-radius:12px;padding:16px;text-align:center;color:var(--ink-3);font-size:12px;margin-bottom:12px;background:#05070c;}
+  .drop b{color:var(--ink-2);}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;justify-content:center;}
+  .chips .c{font-size:10.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:4px 8px;color:var(--ink-2);display:inline-flex;gap:5px;align-items:center;}
+  .types{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin:12px 0;}
+  .types button{border:1px solid var(--line);background:var(--bg-2);border-radius:10px;padding:10px 6px;cursor:pointer;color:var(--ink-2);text-align:center;}
+  .types button.on{border-color:var(--brand);background:#6366f118;color:#fff;}
+  .types button .ti{font-size:18px;display:block;margin-bottom:4px;}
+  .types button small{font-size:10px;font-weight:700;display:block;}
+  .sheet .row{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:6px;}
+  .sheet .direct{border:0;border-radius:11px;background:linear-gradient(135deg,var(--rec),#b4243f);color:#fff;font-weight:800;font-size:13px;padding:11px 20px;cursor:pointer;}
+  .legend-note{margin:14px 4px 0;font-size:12px;color:var(--ink-3);}
+
+  @media (prefers-reduced-motion:no-preference){
+    .pulse{animation:pl 1.8s ease-in-out infinite;}
+    @keyframes pl{0%,100%{opacity:.5}50%{opacity:1}}
+  }
+</style>
+
+<div class="page">
+  <div class="intro">
+    <p class="kick">Proposal · mock for approval</p>
+    <h1>Video Studio — Director: one canvas for AI, Avatar &amp; Reel</h1>
+    <p>Reel + Avatar + Video studios fuse into a single <b>pipeline playground</b>. One master brief (with media upload) → a director agent drafts a sequence of scene nodes, each rendered by whichever engine fits (AI cinematic, your talking-avatar clone, or scored reel clips) — then combined into one film. A docked <b>timeline</b> from the classic editor gives live multi-track editing. <b>Backends stay as-is</b>; the new piece is one unified canvas + a video-director agent skill. Use the tabs and click nodes to explore.</p>
+  </div>
+
+  <div class="frame-wrap">
+  <div class="app">
+    <!-- ============ TOP BAR ============ -->
+    <div class="topbar">
+      <svg class="brandmark" viewBox="0 0 32 40" fill="none"><path d="M6 4h20l-4 8H10l-2 4h12l-4 8H6z" fill="#6366f1"/><path d="M8 22h14l-4 8H4z" fill="#f59e0b"/></svg>
+      <div class="title-b"><b>Video Studio</b><span>Director · one pipeline, every engine</span></div>
+      <div class="proj-chip"><span class="dot"></span> GlowSerum — 30s product ad</div>
+      <div class="seg" id="seg">
+        <button data-m="pipe" class="on">⛓ Pipeline</button>
+        <button data-m="story">🎞 Storyboard</button>
+        <button data-m="edit">✂ Editor</button>
+      </div>
+      <div class="spacer"></div>
+      <button class="render-btn" onclick="openBrief()" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);box-shadow:none;"><span>＋</span> New film</button>
+      <span class="credits">⚡ <b>20,121</b></span>
+      <button class="render-btn"><span class="rdot"></span> Render film</button>
+    </div>
+
+    <!-- ============ LEFT DIRECTOR RAIL ============ -->
+    <aside class="rail">
+      <div class="rail-h"><span class="av">🎬</span><div><b>Director</b><span>your AI video director</span></div></div>
+      <div class="chat">
+        <div class="msg u">Make a 30s product ad for Glow Serum — cinematic hook, a testimonial from my avatar, cut to routine b-roll, end on the logo.</div>
+        <div class="msg a">
+          <div class="who">Director</div>
+          I've storyboarded a 5-scene film and mixed the right engine for each beat:
+          <div class="did">
+            <div class="step">🎬 Hook — macro serum shot <span class="prov" style="background:#a78bfa2e;color:#c4b5fd;">AI</span></div>
+            <div class="step">🧑 Testimonial — Judith, 10s <span class="prov" style="background:#22d3ee2e;color:#67e8f9;">Avatar</span></div>
+            <div class="step">✂ Routine b-roll — clip #3 <span class="prov" style="background:#f59e0b2e;color:#fcd34d;">Reel</span></div>
+            <div class="step">🖼 Product flat-lay <span class="prov" style="background:#94a3b82e;color:#cbd5e1;">Media</span></div>
+            <div class="step">🎨 CTA outro + logo <span class="prov" style="background:#34d3992e;color:#6ee7b7;">Design</span></div>
+          </div>
+        </div>
+        <div class="msg a"><div class="who">Director</div>Rendering the testimonial now (62%). Want a calmer voice, or shall I add an ambient music bed under the whole cut?</div>
+      </div>
+      <div class="composer">
+        <input placeholder="Direct it — e.g. 'swap scene 3 for a slow-mo'…" />
+        <button class="go">↑</button>
+      </div>
+    </aside>
+
+    <!-- ============ CENTER STAGE ============ -->
+    <main class="stage">
+      <!-- ---- PIPELINE MODE ---- -->
+      <section class="mode on" data-mode="pipe">
+        <div class="pipe-scroll">
+          <div class="pipe">
+            <!-- brief -->
+            <div class="brief-node" onclick="openBrief()">
+              <div class="bh">✎ Master brief <span class="tag">brief</span></div>
+              <p>“30s product ad — Glow Serum, calming night routine. Cinematic + a testimonial, end on brand.”</p>
+              <div class="up">
+                <span class="f">🖼 3 photos</span><span class="f">🎞 night-routine.mp4</span><span class="f">🧑 clone</span>
+              </div>
+            </div>
+            <div class="wire"></div>
+            <!-- scene 1 AI -->
+            <div class="node" data-node="ai" onclick="selNode(this,'ai')">
+              <div class="thumb"><div class="grad" style="background:radial-gradient(120% 90% at 40% 20%,#3730a3,#0a0f1b)"></div>
+                <span class="prov-badge" style="color:var(--p-ai)">🎬 AI</span><span class="st ready">● ready</span><span class="len">0:08</span></div>
+              <div class="meta"><p class="nm">Hook — macro serum</p><p class="sub">Veo · cinematic · droplet</p></div>
+              <div class="tools"><button>✎ Edit</button><button>⟳</button><button>＋</button></div>
+            </div>
+            <div class="wire"></div>
+            <!-- scene 2 Avatar -->
+            <div class="node sel" data-node="avatar" onclick="selNode(this,'avatar')">
+              <div class="thumb"><div class="grad" style="background:linear-gradient(160deg,#164e63,#0a0f1b)"></div>
+                <span class="prov-badge" style="color:var(--p-avatar)">🧑 Avatar</span><span class="st gen pulse">◐ 62%</span><span class="len">0:10</span></div>
+              <div class="meta"><p class="nm">Testimonial — Judith</p><p class="sub">HeyGen · Avatar IV · Allison</p></div>
+              <div class="tools"><button>✎ Edit</button><button>⟳</button><button>＋</button></div>
+            </div>
+            <div class="wire"></div>
+            <!-- scene 3 Reel -->
+            <div class="node" data-node="reel" onclick="selNode(this,'reel')">
+              <div class="thumb"><div class="grad" style="background:radial-gradient(120% 90% at 60% 30%,#92400e,#0a0f1b)"></div>
+                <span class="prov-badge" style="color:var(--p-reel)">✂ Reel</span><span class="st ready">● ready</span><span class="len">0:07</span></div>
+              <div class="meta"><p class="nm">Routine b-roll</p><p class="sub">clip #3 · score 88</p></div>
+              <div class="tools"><button>✎ Edit</button><button>⟳</button><button>＋</button></div>
+            </div>
+            <div class="wire"></div>
+            <!-- scene 4 media -->
+            <div class="node" data-node="media" onclick="selNode(this,'media')">
+              <div class="thumb"><div class="grad" style="background:linear-gradient(160deg,#334155,#0a0f1b)"></div>
+                <span class="prov-badge" style="color:var(--p-media)">🖼 Media</span><span class="st ready">● ready</span><span class="len">0:03</span></div>
+              <div class="meta"><p class="nm">Product flat-lay</p><p class="sub">uploaded · flatlay.mp4</p></div>
+              <div class="tools"><button>✎ Edit</button><button>⟳</button><button>＋</button></div>
+            </div>
+            <div class="wire"></div>
+            <!-- scene 5 design -->
+            <div class="node" data-node="design" onclick="selNode(this,'design')">
+              <div class="thumb"><div class="grad" style="background:radial-gradient(120% 90% at 50% 30%,#065f46,#0a0f1b)"></div>
+                <span class="prov-badge" style="color:var(--p-design)">🎨 Design</span><span class="st ready">● ready</span><span class="len">0:02</span></div>
+              <div class="meta"><p class="nm">CTA — Shop now</p><p class="sub">Design studio · + logo</p></div>
+              <div class="tools"><button>✎ Edit</button><button>⟳</button><button>＋</button></div>
+            </div>
+            <div class="wire"></div>
+            <!-- output -->
+            <div class="out-node">
+              <div class="thumb">▶</div>
+              <div class="meta"><b>Final film · 0:30</b><div class="sub">stitch · music · captions · outro</div></div>
+            </div>
+            <button class="add-node" onclick="openBrief()">＋</button>
+          </div>
+        </div>
+        <div class="pipe-hint">Click a scene to edit its engine · drag to reorder · ＋ to insert a beat</div>
+        <div class="legend">
+          <span class="l"><span class="sw" style="background:var(--p-ai)"></span> AI cinematic (Veo/Grok)</span>
+          <span class="l"><span class="sw" style="background:var(--p-avatar)"></span> Avatar clone (HeyGen)</span>
+          <span class="l"><span class="sw" style="background:var(--p-reel)"></span> Reel clip (scored)</span>
+          <span class="l"><span class="sw" style="background:var(--p-media)"></span> Uploaded media</span>
+          <span class="l"><span class="sw" style="background:var(--p-design)"></span> Design still</span>
+        </div>
+      </section>
+
+      <!-- ---- STORYBOARD MODE ---- -->
+      <section class="mode" data-mode="story">
+        <div class="sb">
+          <div class="sb-h"><b>Storyboard</b><span class="muted">— the whole film, scene by scene, before you spend the final composite.</span></div>
+          <div class="film">
+            <div class="cell"><div class="fr"><div class="grad" style="background:radial-gradient(120% 90% at 40% 20%,#3730a3,#0a0f1b)"></div><span class="pv" style="color:var(--p-ai)">🎬 AI</span><span class="tc">0:00–0:08</span></div><div class="cap"><b>Hook</b>Macro serum, droplet, moody light</div></div>
+            <div class="cell"><div class="fr"><div class="grad" style="background:linear-gradient(160deg,#164e63,#0a0f1b)"></div><span class="pv" style="color:var(--p-avatar)">🧑 Avatar</span><span class="tc">0:08–0:18</span></div><div class="cap"><b>Testimonial</b>“2 weeks in, my skin changed.”</div></div>
+            <div class="cell"><div class="fr"><div class="grad" style="background:radial-gradient(120% 90% at 60% 30%,#92400e,#0a0f1b)"></div><span class="pv" style="color:var(--p-reel)">✂ Reel</span><span class="tc">0:18–0:25</span></div><div class="cap"><b>Routine</b>Night skincare b-roll · score 88</div></div>
+            <div class="cell"><div class="fr"><div class="grad" style="background:linear-gradient(160deg,#334155,#0a0f1b)"></div><span class="pv" style="color:var(--p-media)">🖼 Media</span><span class="tc">0:25–0:28</span></div><div class="cap"><b>Product</b>Flat-lay hero shot</div></div>
+            <div class="cell"><div class="fr"><div class="grad" style="background:radial-gradient(120% 90% at 50% 30%,#065f46,#0a0f1b)"></div><span class="pv" style="color:var(--p-design)">🎨 Design</span><span class="tc">0:28–0:30</span></div><div class="cap"><b>CTA</b>Shop now + logo outro</div></div>
+          </div>
+          <div class="sb-preview">
+            <button class="playbtn" onclick="alert('Plays a rough draft stitch of the storyboard — hard cuts, before the real composite.')">▶</button>
+            <div>
+              <div style="font-size:12px;font-weight:700;">Preview stitch <span style="color:var(--ink-3);font-weight:500;">· draft, instant</span></div>
+              <div style="font-size:11px;color:var(--ink-3);">Rough hard-cut of every ready scene so you can feel the flow before the final render.</div>
+            </div>
+            <div class="scrub"><i></i></div>
+            <span class="tc" style="font-family:var(--mono);font-size:11px;color:var(--ink-2)">0:11 / 0:30</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---- EDITOR MODE ---- -->
+      <section class="mode" data-mode="edit">
+        <div class="editor">
+          <div class="preview">
+            <div class="screen">
+              <div class="ph-cap">“2 weeks in, my skin changed.”</div>
+              <div class="ovl-av"></div>
+            </div>
+          </div>
+          <div class="transport">
+            <button class="mini">⏮</button><button class="mini play" id="playBtn" onclick="togglePlay()">▶</button><button class="mini">⏭</button>
+            <span class="tc" id="tc">0:11 / 0:30</span>
+            <span style="font-size:11px;color:var(--ink-3);margin-left:6px;">Live edit — trim, split, layer, add transitions</span>
+            <span class="zoom">− <span style="width:70px;height:4px;background:var(--line-2);border-radius:2px;display:inline-block;position:relative;"><i style="position:absolute;left:40%;top:-3px;width:10px;height:10px;border-radius:50%;background:var(--brand)"></i></span> +</span>
+          </div>
+          <div class="tl">
+            <div class="ruler"><span>0:00</span><span>0:05</span><span>0:10</span><span>0:15</span><span>0:20</span><span>0:25</span><span>0:30</span></div>
+            <div class="track"><div class="thead"><span class="tdot" style="background:var(--p-ai)"></span>Video</div><div class="lane">
+              <div class="clip" style="left:0;width:210px;background:linear-gradient(180deg,#a78bfa,#7c5cf0)"><span class="grip l"></span>Hook · AI<span class="grip r"></span></div>
+              <div class="clip" style="left:475px;width:180px;background:linear-gradient(180deg,#f59e0b,#d97706)"><span class="grip l"></span>Reel #3<span class="grip r"></span></div>
+              <div class="clip" style="left:660px;width:80px;background:linear-gradient(180deg,#94a3b8,#64748b)">Flat-lay</div>
+              <div class="clip" style="left:745px;width:55px;background:linear-gradient(180deg,#34d399,#059669)">CTA</div>
+            </div></div>
+            <div class="track"><div class="thead"><span class="tdot" style="background:var(--p-avatar)"></span>Avatar</div><div class="lane">
+              <div class="clip" style="left:210px;width:262px;background:linear-gradient(180deg,#22d3ee,#0891b2)"><span class="grip l"></span>Judith — testimonial<span class="grip r"></span></div>
+            </div></div>
+            <div class="track"><div class="thead"><span class="tdot" style="background:#818cf8"></span>Voiceover</div><div class="lane">
+              <div class="clip" style="left:0;width:200px;background:linear-gradient(180deg,#818cf8,#6366f1)">VO — hook line</div>
+            </div></div>
+            <div class="track"><div class="thead"><span class="tdot" style="background:#f472b6"></span>Music</div><div class="lane">
+              <div class="clip" style="left:0;width:800px;background:linear-gradient(180deg,#f472b6,#db2777);opacity:.85">Ambient bed · calm</div>
+            </div></div>
+            <div class="track"><div class="thead"><span class="tdot" style="background:#e2e8f0"></span>Captions</div><div class="lane">
+              <div class="clip cap" style="left:214px;width:120px;background:#e2e8f0">2 weeks in…</div>
+              <div class="clip cap" style="left:340px;width:120px;background:#e2e8f0">…my skin changed</div>
+              <div class="clip cap" style="left:660px;width:130px;background:#e2e8f0">Shop now →</div>
+            </div></div>
+            <div class="playhead" id="ph" style="left:410px;"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ============ RIGHT INSPECTOR ============ -->
+    <aside class="insp" id="insp">
+      <!-- content injected by selNode() -->
+    </aside>
+  </div>
+
+  <!-- ============ MASTER BRIEF OVERLAY ============ -->
+  <div class="overlay" id="briefOverlay">
+    <div class="sheet">
+      <div class="sh">✎ <b>New film — brief the director</b><button class="close" onclick="closeBrief()">✕</button></div>
+      <textarea class="field" rows="2" placeholder="Describe the film — e.g. A 30s product ad for our glow serum: cinematic hook, a testimonial from my avatar, cut to the night routine, end on the logo.">A 30s product ad for Glow Serum — cinematic hook, a testimonial from my avatar, cut to the night routine, end on the logo.</textarea>
+      <div class="drop" style="margin-top:12px;">⬆ <b>Drop media to work from</b> — product photos, footage, a long video to clip, or a photo of yourself to clone
+        <div class="chips"><span class="c">🖼 hero.jpg</span><span class="c">🖼 bottle.png</span><span class="c">🎞 night-routine.mp4 <small style="color:var(--p-reel)">→ auto-clip</small></span><span class="c">🧑 selfie.jpg <small style="color:var(--p-avatar)">→ avatar</small></span></div>
+      </div>
+      <div class="types">
+        <button class="on"><span class="ti">🛍</span><small>Product ad</small></button>
+        <button><span class="ti">🎥</span><small>AI film</small></button>
+        <button><span class="ti">📱</span><small>Social reel</small></button>
+        <button><span class="ti">🗣</span><small>Testimonial</small></button>
+        <button><span class="ti">💡</span><small>Explainer</small></button>
+      </div>
+      <div class="row">
+        <div class="pillrow">
+          <button class="on">30s</button><button>60s</button><button>90s</button><button>Custom</button>
+          <span style="font-size:11px;color:var(--ink-3);margin-left:8px;align-self:center;">9:16 · 1:1 · 16:9</span>
+        </div>
+        <button class="direct" onclick="closeBrief();document.querySelector('.seg button').click();">🎬 Direct it →</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+  <p class="legend-note"><b style="color:var(--ink-2)">How the fusion works (backends untouched):</b> each scene node calls the engine it already uses today — AI cinematic → story-ad/Veo/Grok pipeline, Avatar → HeyGen, Reel → the reel scorer, Media → your library. The finished MP4s are combined with the existing <code style="color:var(--brand-2)">concatenateVideoBuffers</code> + FFmpeg export pipeline (already powers the classic editor). The only new code is this one canvas + a <b>video-director agent skill</b> that reads/writes the pipeline.</p>
+</div>
+
+<script>
+  // ---- view-mode tabs ----
+  var seg = document.getElementById('seg');
+  seg.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    seg.querySelectorAll('button').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on');
+    var m = b.getAttribute('data-m');
+    document.querySelectorAll('.mode').forEach(function(s){ s.classList.toggle('on', s.getAttribute('data-mode')===m); });
+  });
+
+  // ---- node → inspector ----
+  var INSP = {
+    ai: { color:'#a78bfa', tag:'AI cinematic', title:'Hook — macro serum', body:`
+      <div class="lab">Shot prompt</div>
+      <textarea class="field" rows="3">Extreme macro of a serum droplet hitting glass, moody rim light, shallow depth, slow push-in.</textarea>
+      <div class="lab">Visual style</div>
+      <div class="pillrow"><button class="on">Cinematic</button><button>3D</button><button>Narrated stills</button></div>
+      <div class="lab">Engine · length</div>
+      <div class="pillrow"><button class="on">Veo (quality)</button><button>Grok (fast)</button><button class="on">8s</button><button>15s</button></div>
+      <div class="lab">Camera motion</div>
+      <div class="pillrow"><button class="on">Slow push-in</button><button>Orbit</button><button>Static</button></div>` },
+    avatar: { color:'#22d3ee', tag:'Avatar clone', title:'Testimonial — Judith', body:`
+      <div class="lab">Script</div>
+      <textarea class="field" rows="3">I was skeptical. But two weeks in, my skin actually changed — calmer, brighter, softer.</textarea>
+      <div class="lab">Avatar &amp; look</div>
+      <div class="looks"><span class="lk on"></span><span class="lk"></span><span class="lk"></span><span class="lk"></span></div>
+      <div class="lab">Voice · delivery</div>
+      <div class="pillrow"><button class="on">Allison</button><button>Friendly</button><button class="on">Warm</button><button>1.0×</button></div>
+      <div class="lab">Avatar motion (AI)</div>
+      <input class="field" value="leans in, warm hand gestures, confident" />
+      <div class="lab">Background</div>
+      <div class="pillrow"><button class="on">Original</button><button>Generate</button><button>Library</button></div>` },
+    reel: { color:'#f59e0b', tag:'Reel clip', title:'Routine b-roll', body:`
+      <div class="lab">Source</div>
+      <div class="pillrow"><button class="on">night-routine.mp4</button></div>
+      <div class="lab">Best moments (scored)</div>
+      <div class="pillrow"><button>#1 · 74</button><button class="on">#3 · 88</button><button>#5 · 81</button></div>
+      <div class="lab">Trim</div>
+      <input class="field" value="0:42 → 0:49  (7.0s)" />
+      <div class="lab">Reframe · caption</div>
+      <div class="pillrow"><button class="on">9:16 auto</button><button>Center</button><button class="on">Captions on</button></div>` },
+    media: { color:'#94a3b8', tag:'Uploaded media', title:'Product flat-lay', body:`
+      <div class="lab">Clip</div>
+      <div class="pillrow"><button class="on">flatlay.mp4</button><button>＋ Library</button></div>
+      <div class="lab">Fit · duration</div>
+      <div class="pillrow"><button class="on">Cover</button><button>Contain</button><button class="on">3.0s</button></div>
+      <div class="lab">Adjust</div>
+      <div class="pillrow"><button>Speed</button><button>Crop</button><button>Ken Burns</button></div>` },
+    design: { color:'#34d399', tag:'Design still', title:'CTA — Shop now', body:`
+      <div class="lab">Design</div>
+      <div class="pillrow"><button class="on">Open in Design studio</button></div>
+      <div class="lab">Headline</div>
+      <input class="field" value="Shop now → glowserum.com" />
+      <div class="lab">Brand</div>
+      <div class="pillrow"><button class="on">Logo outro</button><button class="on">Brand colors</button><button>Music sting</button></div>` }
+  };
+  function selNode(el, kind){
+    document.querySelectorAll('.node').forEach(function(n){ n.classList.remove('sel'); });
+    if(el) el.classList.add('sel');
+    var d = INSP[kind]; var insp = document.getElementById('insp');
+    insp.innerHTML =
+      '<div class="insp-h"><span class="pill" style="background:'+d.color+'22;color:'+d.color+'">'+d.tag+'</span><b>'+d.title+'</b><button class="x" onclick="clearSel()">✕</button></div>'+
+      '<div class="insp-body">'+d.body+
+        '<div class="lab">Transition in / out · voiceover · music</div><div class="pillrow"><button class="on">Crossfade</button><button>Cut</button><button>+ VO</button><button>+ Music</button></div>'+
+        '<p class="swap-hint">Swap engine any time — the director keeps the same beat, re-renders on the chosen provider.</p>'+
+        '<div class="pillrow" style="margin-top:6px"><button>🎬 AI</button><button class="on">🧑 Avatar</button><button>✂ Reel</button><button>🖼 Media</button></div>'+
+      '</div>'+
+      '<div class="insp-foot"><button class="sv">Save</button><button class="gen">✦ Generate scene</button></div>';
+  }
+  function clearSel(){
+    document.querySelectorAll('.node').forEach(function(n){ n.classList.remove('sel'); });
+    document.getElementById('insp').innerHTML = '<div class="insp-body" style="display:grid;place-items:center;text-align:center;color:var(--ink-3);font-size:12px;height:100%;padding:24px;">Select a scene to edit its engine, script, look &amp; transitions.</div>';
+  }
+  selNode(document.querySelector('.node.sel'),'avatar'); // open with the avatar scene
+
+  // ---- brief overlay ----
+  function openBrief(){ document.getElementById('briefOverlay').classList.add('on'); }
+  function closeBrief(){ document.getElementById('briefOverlay').classList.remove('on'); }
+
+  // ---- toy transport for the editor ----
+  var playing=false, ph=null;
+  function togglePlay(){
+    var btn=document.getElementById('playBtn'); playing=!playing;
+    btn.textContent = playing?'⏸':'▶';
+    if(playing){ ph = setInterval(function(){
+      var el=document.getElementById('ph'); var x=parseInt(el.style.left)||118; x+=3; if(x>1000)x=118; el.style.left=x+'px';
+      var sec=Math.round((x-118)/29); document.getElementById('tc').textContent='0:'+String(Math.min(30,sec)).padStart(2,'0')+' / 0:30';
+    },60); } else clearInterval(ph);
+  }
+</script>
