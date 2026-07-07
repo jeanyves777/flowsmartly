@@ -1,0 +1,345 @@
+<title>Style thumbnails — brief modal previews</title>
+<style>
+  :root{
+    --bg:#0a0f1c; --bg2:#0b1324; --card:#0f1830; --card2:#101a33;
+    --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.14);
+    --ink:#e7edf8; --muted:#8b98b0; --muted2:#657292;
+    --brand:#4f7cff; --brand2:#8b5cf6; --brandtint:rgba(79,124,255,.14);
+    --good:#34d399; --warn:#fbbf24;
+    --shadow:0 24px 60px rgba(0,0,0,.5);
+    --r:16px;
+    color-scheme:dark;
+  }
+  @media (prefers-color-scheme:light){
+    :root{
+      --bg:#eef2f9; --bg2:#e7edf7; --card:#ffffff; --card2:#f7f9fd;
+      --line:rgba(12,20,40,.10); --line2:rgba(12,20,40,.16);
+      --ink:#0f1b34; --muted:#5a6a86; --muted2:#8390a8;
+      --brandtint:rgba(79,124,255,.12);
+      --shadow:0 20px 50px rgba(20,35,70,.16);
+      color-scheme:light;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0a0f1c; --bg2:#0b1324; --card:#0f1830; --card2:#101a33;
+    --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.14);
+    --ink:#e7edf8; --muted:#8b98b0; --muted2:#657292; --brandtint:rgba(79,124,255,.14);
+    --shadow:0 24px 60px rgba(0,0,0,.5); color-scheme:dark;
+  }
+  :root[data-theme="light"]{
+    --bg:#eef2f9; --bg2:#e7edf7; --card:#ffffff; --card2:#f7f9fd;
+    --line:rgba(12,20,40,.10); --line2:rgba(12,20,40,.16);
+    --ink:#0f1b34; --muted:#5a6a86; --muted2:#8390a8; --brandtint:rgba(79,124,255,.12);
+    --shadow:0 20px 50px rgba(20,35,70,.16); color-scheme:light;
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0}
+  .wrap{
+    font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial;
+    color:var(--ink);
+    background:
+      radial-gradient(1100px 520px at 82% -8%, rgba(139,92,246,.14), transparent 60%),
+      radial-gradient(900px 480px at 4% 4%, rgba(79,124,255,.12), transparent 55%),
+      var(--bg);
+    min-height:100vh; padding:34px 20px 80px;
+  }
+  .page{max-width:1120px;margin:0 auto}
+
+  /* header */
+  .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);background:var(--brandtint);border:1px solid var(--line);padding:5px 11px;border-radius:999px}
+  h1{font-size:clamp(26px,4.2vw,38px);line-height:1.08;letter-spacing:-.02em;margin:16px 0 8px;text-wrap:balance;font-weight:800}
+  .lede{color:var(--muted);max-width:64ch;font-size:15.5px;margin:0}
+  .lede b{color:var(--ink);font-weight:650}
+
+  .legend{display:flex;flex-wrap:wrap;gap:10px 18px;margin:20px 0 4px;font-size:12.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .dot{width:9px;height:9px;border-radius:3px}
+  .dot.sel{background:linear-gradient(135deg,var(--brand),var(--brand2))}
+  .dot.vid{background:var(--warn)}
+
+  /* the brief-modal frame */
+  .sheet{margin-top:26px;background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);overflow:hidden}
+  .sheet-top{position:relative;display:flex;align-items:center;gap:10px;padding:16px 20px 14px;border-bottom:1px solid var(--line)}
+  .grab{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:44px;height:5px;border-radius:99px;background:var(--line2)}
+  .badge{font-size:10.5px;font-weight:800;letter-spacing:.02em;padding:3px 9px;border-radius:999px;color:var(--brand);background:var(--brandtint);text-transform:capitalize}
+  .sheet-top h2{font-size:15px;margin:0;font-weight:750}
+  .sheet-top .x{margin-left:auto;width:28px;height:28px;border-radius:9px;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted)}
+  .sheet-body{padding:20px}
+
+  /* a selector block */
+  .sel-block{margin:22px 0}
+  .sel-block:first-child{margin-top:6px}
+  .sel-head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+  .sel-head h3{font-size:12.5px;font-weight:800;letter-spacing:.02em;margin:0;text-transform:uppercase;color:var(--muted)}
+  .sel-head .note{font-size:11.5px;color:var(--muted2)}
+  .sel-head .studio{margin-left:auto;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);border:1px solid var(--line);padding:3px 8px;border-radius:999px}
+
+  .grid{display:grid;gap:12px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g6{grid-template-columns:repeat(6,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:880px){.g6{grid-template-columns:repeat(3,1fr)}.g3{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:560px){.g6,.g3{grid-template-columns:repeat(2,1fr)}.g2{grid-template-columns:1fr}}
+
+  /* option card */
+  .opt{position:relative;border:1px solid var(--line);border-radius:14px;background:var(--card2);padding:8px;cursor:pointer;transition:border-color .15s,transform .15s,box-shadow .15s;text-align:left}
+  .opt:hover{border-color:var(--line2);transform:translateY(-2px)}
+  .opt.sel{border-color:transparent;box-shadow:0 0 0 2px var(--brand),0 12px 28px rgba(79,124,255,.22)}
+  .opt .tick{position:absolute;top:14px;right:14px;width:20px;height:20px;border-radius:999px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:none;place-items:center;color:#fff;font-size:12px;font-weight:900;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+  .opt.sel .tick{display:grid}
+  .meta{padding:9px 6px 5px}
+  .meta .lab{font-size:13px;font-weight:750;line-height:1.15}
+  .meta .hint{font-size:11px;color:var(--muted);margin-top:2px}
+  .vidflag{position:absolute;top:14px;left:14px;z-index:3;display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:#0a0f1c;background:var(--warn);padding:3px 7px;border-radius:999px}
+
+  /* ---- thumbnail base ---- */
+  .thumb{position:relative;width:100%;aspect-ratio:16/10;border-radius:10px;overflow:hidden;background:#0b1120}
+  .thumb *{pointer-events:none}
+
+  /* generic mini-ui bits reused inside thumbs */
+  .bar{position:absolute;height:5px;border-radius:99px}
+  .chip{position:absolute;border-radius:5px}
+
+  /* ===== VIDEO — Type ===== */
+  .t-cinematic{background:
+      radial-gradient(120% 80% at 50% 120%, rgba(255,196,120,.5), transparent 55%),
+      linear-gradient(180deg,#12233b,#0a1526 65%,#07101d)}
+  .t-cinematic::before{content:"";position:absolute;inset:0;background:
+      radial-gradient(60% 45% at 62% 40%, rgba(120,200,255,.28), transparent 60%);mix-blend-mode:screen}
+  .t-cinematic .lb{position:absolute;left:0;right:0;height:15%;background:#050a12}
+  .t-cinematic .top{top:0}.t-cinematic .bot{bottom:0}
+  .t-cinematic .play{position:absolute;inset:0;margin:auto;width:34px;height:34px;border-radius:99px;background:rgba(255,255,255,.16);backdrop-filter:blur(2px);border:1px solid rgba(255,255,255,.35)}
+  .t-cinematic .play::after{content:"";position:absolute;inset:0;margin:auto;width:0;height:0;border-left:11px solid #fff;border-top:7px solid transparent;border-bottom:7px solid transparent;transform:translateX(2px)}
+
+  .t-3d{background:linear-gradient(135deg,#1b1140,#0e1e46 60%,#0b2b4a)}
+  .t-3d .orb{position:absolute;border-radius:50%;filter:saturate(1.2)}
+  .t-3d .o1{width:46%;aspect-ratio:1;left:10%;top:16%;background:radial-gradient(circle at 32% 28%,#a78bfa,#6d28d9 62%,#3b1a8f);box-shadow:0 8px 22px rgba(124,58,237,.5)}
+  .t-3d .o2{width:30%;aspect-ratio:1;right:12%;top:34%;background:radial-gradient(circle at 34% 30%,#67e8f9,#0891b2 66%,#075985);box-shadow:0 8px 20px rgba(6,182,212,.45)}
+  .t-3d .o3{width:20%;aspect-ratio:1;right:34%;bottom:12%;background:radial-gradient(circle at 34% 30%,#fda4af,#e11d48 66%,#9f1239);box-shadow:0 6px 16px rgba(225,29,72,.45)}
+
+  .t-narrated{background:linear-gradient(180deg,#101a30,#0b1424)}
+  .t-narrated .ph{position:absolute;border-radius:6px;border:1px solid rgba(255,255,255,.12)}
+  .t-narrated .p1{left:9%;top:16%;width:40%;height:44%;background:linear-gradient(135deg,#2a3f66,#16233f)}
+  .t-narrated .p2{left:30%;top:26%;width:40%;height:44%;background:linear-gradient(135deg,#3a4d78,#1d2c4d)}
+  .t-narrated .p3{left:51%;top:16%;width:40%;height:44%;background:linear-gradient(135deg,#4a5f8f,#26375c)}
+  .t-narrated .wave{position:absolute;left:9%;right:9%;bottom:13%;height:16%;display:flex;align-items:flex-end;gap:3px}
+  .t-narrated .wave i{flex:1;background:linear-gradient(180deg,var(--brand),var(--brand2));border-radius:2px;opacity:.9}
+
+  /* ===== WEBSITE — Style ===== */
+  .w{position:absolute;inset:0}
+  .w-modern{background:linear-gradient(140deg,#0e1a34,#122a52)}
+  .w-modern .nav{position:absolute;top:9px;left:10px;right:10px;height:8px;border-radius:4px;background:rgba(255,255,255,.10)}
+  .w-modern .h{position:absolute;left:10px;top:30%;width:56%;height:9px;border-radius:4px;background:#dbe6ff}
+  .w-modern .h2{position:absolute;left:10px;top:46%;width:40%;height:6px;border-radius:4px;background:rgba(219,230,255,.55)}
+  .w-modern .btn{position:absolute;left:10px;bottom:16%;width:30%;height:11px;border-radius:6px;background:linear-gradient(90deg,var(--brand),var(--brand2))}
+  .w-modern .card{position:absolute;right:10px;top:26%;width:30%;height:52%;border-radius:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14)}
+
+  .w-bold{background:#0a0a0a}
+  .w-bold .h{position:absolute;left:9px;right:9px;top:20%;height:22%;border-radius:4px;background:#f5e12a}
+  .w-bold .h2{position:absolute;left:9px;top:50%;width:70%;height:14%;border-radius:3px;background:#f5e12a;opacity:.7}
+  .w-bold .btn{position:absolute;left:9px;bottom:14%;width:34%;height:13%;border-radius:3px;background:#fff}
+
+  .w-minimal{background:#f6f7f9}
+  .w-minimal .line{position:absolute;left:14%;right:14%;background:#0f1b34}
+  .w-minimal .l1{top:34%;height:5px;opacity:.9}
+  .w-minimal .l2{top:50%;height:3px;width:44%;left:14%;opacity:.5}
+  .w-minimal .dotm{position:absolute;left:50%;top:16%;width:8px;height:8px;border-radius:50%;transform:translateX(-50%);background:#0f1b34}
+
+  .w-elegant{background:linear-gradient(180deg,#141c2e,#101828)}
+  .w-elegant .serif{position:absolute;left:12%;right:12%;top:26%;height:12%;border-radius:3px;background:#e9dcc4}
+  .w-elegant .rule{position:absolute;left:34%;right:34%;top:48%;height:1px;background:rgba(233,220,196,.6)}
+  .w-elegant .sub{position:absolute;left:24%;right:24%;top:56%;height:5px;border-radius:3px;background:rgba(233,220,196,.45)}
+
+  .w-playful{background:linear-gradient(135deg,#ff8fb1,#ffd36e 55%,#7bd8ff)}
+  .w-playful .blob{position:absolute;border-radius:50%}
+  .w-playful .b1{left:8%;top:14%;width:26%;aspect-ratio:1;background:#ffffff;opacity:.55}
+  .w-playful .b2{right:12%;bottom:14%;width:34%;aspect-ratio:1;background:#7c3aed;opacity:.8}
+  .w-playful .pill{position:absolute;left:12%;bottom:20%;width:40%;height:12%;border-radius:99px;background:#0f1b34}
+
+  .w-corporate{background:#0f1f3d}
+  .w-corporate .top{position:absolute;top:0;left:0;right:0;height:20%;background:linear-gradient(90deg,#1e40af,#2563eb)}
+  .w-corporate .col{position:absolute;top:34%;width:26%;height:44%;border-radius:5px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14)}
+  .w-corporate .c1{left:8%}.w-corporate .c2{left:37%}.w-corporate .c3{left:66%}
+
+  /* ===== PORTFOLIO — Template ===== */
+  .p-spotlight{background:radial-gradient(60% 60% at 50% 42%, #2b3b66, #0c1426 70%)}
+  .p-spotlight .beam{position:absolute;inset:0;background:radial-gradient(38% 46% at 50% 40%,rgba(255,255,255,.35),transparent 60%)}
+  .p-spotlight .figure{position:absolute;left:50%;top:32%;transform:translateX(-50%);width:22%;aspect-ratio:1;border-radius:50%;background:linear-gradient(180deg,#cbd7f2,#8ea4d6)}
+  .p-spotlight .name{position:absolute;left:26%;right:26%;bottom:20%;height:6px;border-radius:4px;background:#eef3ff}
+
+  .p-cinematic{background:linear-gradient(180deg,#141d33,#0a1120)}
+  .p-cinematic .lb{position:absolute;left:0;right:0;height:16%;background:#05090f}
+  .p-cinematic .top{top:0}.p-cinematic .bot{bottom:0}
+  .p-cinematic .name{position:absolute;left:12%;bottom:26%;width:52%;height:8px;border-radius:4px;background:#e7eefc}
+  .p-cinematic .sub{position:absolute;left:12%;bottom:20%;width:34%;height:5px;border-radius:3px;background:rgba(231,238,252,.5)}
+
+  .p-showcase{background:#0c1426;padding:9px;display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:1fr;gap:5px}
+  .p-showcase .tile{border-radius:5px}
+  .p-showcase .tile:nth-child(1){background:linear-gradient(135deg,#3b5bdb,#1e3a8a)}
+  .p-showcase .tile:nth-child(2){background:linear-gradient(135deg,#7c3aed,#4c1d95)}
+  .p-showcase .tile:nth-child(3){background:linear-gradient(135deg,#0ea5e9,#075985)}
+  .p-showcase .tile:nth-child(4){background:linear-gradient(135deg,#f59e0b,#b45309)}
+  .p-showcase .tile:nth-child(5){background:linear-gradient(135deg,#ec4899,#9d174d)}
+  .p-showcase .tile:nth-child(6){background:linear-gradient(135deg,#10b981,#065f46)}
+
+  .p-editorial{background:#f4f1ea}
+  .p-editorial .kick{position:absolute;left:10%;top:16%;width:22%;height:4px;background:#b4472e}
+  .p-editorial .head{position:absolute;left:10%;right:10%;top:28%;height:11%;background:#1a1712}
+  .p-editorial .colwrap{position:absolute;left:10%;right:10%;top:52%;bottom:14%;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .p-editorial .colwrap div{background:repeating-linear-gradient(180deg,#3a352c 0 2px,transparent 2px 6px)}
+
+  .p-neon{background:#070810}
+  .p-neon::before{content:"";position:absolute;inset:0;background:radial-gradient(50% 60% at 30% 30%,rgba(34,211,238,.22),transparent 60%),radial-gradient(50% 60% at 78% 74%,rgba(236,72,153,.24),transparent 60%)}
+  .p-neon .name{position:absolute;left:12%;top:34%;width:60%;height:9px;border-radius:4px;background:#22d3ee;box-shadow:0 0 12px #22d3ee}
+  .p-neon .sub{position:absolute;left:12%;top:52%;width:40%;height:6px;border-radius:4px;background:#ec4899;box-shadow:0 0 12px #ec4899}
+  .p-neon .ring{position:absolute;right:12%;top:22%;width:26%;aspect-ratio:1;border-radius:50%;border:2px solid #a78bfa;box-shadow:0 0 14px rgba(167,139,250,.7)}
+
+  .p-card{background:linear-gradient(180deg,#111c34,#0c1426);display:grid;place-items:center}
+  .p-card .cv{width:74%;height:78%;border-radius:8px;background:var(--card);border:1px solid rgba(255,255,255,.14);position:relative;box-shadow:0 8px 20px rgba(0,0,0,.35)}
+  .p-card .cv .av{position:absolute;left:10%;top:14%;width:22%;aspect-ratio:1;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--brand2))}
+  .p-card .cv .ln{position:absolute;left:40%;height:5px;border-radius:3px;background:rgba(255,255,255,.5)}
+  .p-card .cv .n1{top:22%;width:44%}.p-card .cv .n2{top:36%;width:30%;opacity:.6}
+  .p-card .cv .rows{position:absolute;left:10%;right:10%;top:56%;bottom:12%;display:flex;flex-direction:column;gap:5px}
+  .p-card .cv .rows i{height:4px;border-radius:2px;background:rgba(255,255,255,.22)}
+  .p-card .cv .rows i:nth-child(2){width:80%}.p-card .cv .rows i:nth-child(3){width:60%}
+
+  /* ===== AVATAR — Quality ===== */
+  .a{position:absolute;inset:0;display:grid;place-items:center}
+  .a-standard{background:linear-gradient(160deg,#13233f,#0c1730)}
+  .a-standard .bust{width:46%;aspect-ratio:3/4;border-radius:14px 14px 0 0;background:linear-gradient(180deg,#7f8db0,#4a5878);position:relative;margin-top:14%}
+  .a-standard .bust::before{content:"";position:absolute;left:50%;top:-42%;transform:translateX(-50%);width:56%;aspect-ratio:1;border-radius:50%;background:#9aa8c8}
+
+  .a-iv{background:radial-gradient(70% 70% at 50% 20%,#20406e,#0a1428 70%)}
+  .a-iv .bust{width:48%;aspect-ratio:3/4;border-radius:16px 16px 0 0;background:linear-gradient(180deg,#d9c3ad,#a07d5e);position:relative;margin-top:12%;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .a-iv .bust::before{content:"";position:absolute;left:50%;top:-44%;transform:translateX(-50%);width:58%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 40% 35%,#f0dcc6,#c69f7c)}
+  .a-iv .hd{position:absolute;top:9px;right:9px;font-size:9px;font-weight:900;letter-spacing:.04em;color:#0a0f1c;background:linear-gradient(90deg,#67e8f9,#a78bfa);padding:2px 6px;border-radius:99px}
+
+  /* length pills (video) */
+  .lenrow{display:flex;gap:10px;flex-wrap:wrap}
+  .len{flex:1;min-width:120px;border:1px solid var(--line);border-radius:12px;background:var(--card2);padding:10px 12px}
+  .len.sel{border-color:transparent;box-shadow:0 0 0 2px var(--brand)}
+  .len .film{display:flex;gap:3px;margin-bottom:8px}
+  .len .film i{height:20px;flex:1;border-radius:2px;background:linear-gradient(180deg,#2a3f66,#16233f);border:1px solid rgba(255,255,255,.08)}
+  .len .lab{font-size:13px;font-weight:800}
+  .len .hint{font-size:11px;color:var(--muted)}
+
+  /* footer note */
+  .callout{margin-top:26px;display:flex;gap:14px;align-items:flex-start;border:1px solid var(--line);background:linear-gradient(180deg,var(--brandtint),transparent);border-radius:16px;padding:16px 18px}
+  .callout .k{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--warn);color:#0a0f1c;font-weight:900;flex:none}
+  .callout h4{margin:0 0 4px;font-size:14px;font-weight:750}
+  .callout p{margin:0;color:var(--muted);font-size:13px;max-width:70ch}
+  .plan{margin-top:22px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media(max-width:720px){.plan{grid-template-columns:1fr}}
+  .step{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:14px 15px}
+  .step .n{font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--brand);text-transform:uppercase}
+  .step h5{margin:7px 0 5px;font-size:13.5px;font-weight:750}
+  .step p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.5}
+  .foot{margin-top:30px;color:var(--muted2);font-size:12px;text-align:center}
+</style>
+
+<div class="wrap">
+  <div class="page">
+    <span class="eyebrow">Brief modals · visual reference</span>
+    <h1>Style options with real visual thumbnails</h1>
+    <p class="lede">When a user picks a <b>style, type, or template</b> in a create brief, the option shows a real visual example of the look — so they choose by seeing, not by reading a label. Purely a UI reference: <b>the value sent to the backend is unchanged</b>. Below are proposed thumbnails for each selector; the previews here are rendered in CSS (no assets), which is exactly how they'd ship for the static looks.</p>
+
+    <div class="legend">
+      <span><i class="dot sel"></i> Selected state</span>
+      <span><i class="dot vid"></i> Needs a real generated sample clip (video)</span>
+    </div>
+
+    <!-- brief modal frame -->
+    <div class="sheet">
+      <div class="sheet-top">
+        <span class="grab"></span>
+        <span class="badge">brief</span>
+        <h2>Create brief — style previews</h2>
+        <span class="x">✕</span>
+      </div>
+      <div class="sheet-body">
+
+        <!-- VIDEO: Type -->
+        <div class="sel-block">
+          <div class="sel-head"><h3>Type — the visual style</h3><span class="note">choose the look</span><span class="studio">Video · Ad builder</span></div>
+          <div class="grid g3">
+            <button class="opt sel"><span class="tick">✓</span>
+              <div class="thumb t-cinematic"><span class="lb top"></span><span class="lb bot"></span><span class="play"></span></div>
+              <div class="meta"><div class="lab">Cinematic</div><div class="hint">live-action</div></div>
+            </button>
+            <button class="opt"><span class="tick">✓</span><span class="vidflag">▶ sample</span>
+              <div class="thumb t-3d"><span class="orb o1"></span><span class="orb o2"></span><span class="orb o3"></span></div>
+              <div class="meta"><div class="lab">3D</div><div class="hint">animated</div></div>
+            </button>
+            <button class="opt"><span class="tick">✓</span>
+              <div class="thumb t-narrated"><span class="ph p1"></span><span class="ph p2"></span><span class="ph p3"></span><span class="wave"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i><i style="height:90%"></i><i style="height:45%"></i><i style="height:75%"></i><i style="height:60%"></i><i style="height:85%"></i><i style="height:50%"></i></span></div>
+              <div class="meta"><div class="lab">Narrated</div><div class="hint">stills + VO</div></div>
+            </button>
+          </div>
+        </div>
+
+        <!-- VIDEO: length -->
+        <div class="sel-block">
+          <div class="sel-head"><h3>Length</h3><span class="note">more scenes = longer render</span><span class="studio">Video</span></div>
+          <div class="lenrow">
+            <div class="len sel"><div class="film"><i></i><i></i><i></i><i></i></div><div class="lab">30s</div><div class="hint">≈ 4 scenes</div></div>
+            <div class="len"><div class="film"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="lab">60s</div><div class="hint">≈ 8 scenes</div></div>
+            <div class="len"><div class="film"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="lab">90s</div><div class="hint">≈ 11 scenes</div></div>
+          </div>
+        </div>
+
+        <!-- WEBSITE: Style -->
+        <div class="sel-block">
+          <div class="sel-head"><h3>Style / vibe</h3><span class="note">the site's look</span><span class="studio">Website · Store</span></div>
+          <div class="grid g6">
+            <button class="opt sel"><span class="tick">✓</span><div class="thumb"><span class="w w-modern"><span class="nav"></span><span class="h"></span><span class="h2"></span><span class="btn"></span><span class="card"></span></span></div><div class="meta"><div class="lab">Modern</div></div></button>
+            <button class="opt"><div class="thumb"><span class="w w-bold"><span class="h"></span><span class="h2"></span><span class="btn"></span></span></div><div class="meta"><div class="lab">Bold</div></div></button>
+            <button class="opt"><div class="thumb"><span class="w w-minimal"><span class="dotm"></span><span class="line l1"></span><span class="line l2"></span></span></div><div class="meta"><div class="lab">Minimal</div></div></button>
+            <button class="opt"><div class="thumb"><span class="w w-elegant"><span class="serif"></span><span class="rule"></span><span class="sub"></span></span></div><div class="meta"><div class="lab">Elegant</div></div></button>
+            <button class="opt"><div class="thumb"><span class="w w-playful"><span class="blob b1"></span><span class="blob b2"></span><span class="pill"></span></span></div><div class="meta"><div class="lab">Playful</div></div></button>
+            <button class="opt"><div class="thumb"><span class="w w-corporate"><span class="top"></span><span class="col c1"></span><span class="col c2"></span><span class="col c3"></span></span></div><div class="meta"><div class="lab">Corporate</div></div></button>
+          </div>
+        </div>
+
+        <!-- PORTFOLIO: Template -->
+        <div class="sel-block">
+          <div class="sel-head"><h3>Template</h3><span class="note">start from a look</span><span class="studio">Portfolio</span></div>
+          <div class="grid g6">
+            <button class="opt sel"><span class="tick">✓</span><span class="vidflag">▶ sample</span><div class="thumb p-spotlight"><span class="beam"></span><span class="figure"></span><span class="name"></span></div><div class="meta"><div class="lab">Spotlight</div></div></button>
+            <button class="opt"><span class="vidflag">▶ sample</span><div class="thumb p-cinematic"><span class="lb top"></span><span class="lb bot"></span><span class="name"></span><span class="sub"></span></div><div class="meta"><div class="lab">Cinematic</div></div></button>
+            <button class="opt"><div class="thumb p-showcase"><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span><span class="tile"></span></div><div class="meta"><div class="lab">Showcase</div></div></button>
+            <button class="opt"><div class="thumb p-editorial"><span class="kick"></span><span class="head"></span><span class="colwrap"><div></div><div></div></span></div><div class="meta"><div class="lab">Editorial</div></div></button>
+            <button class="opt"><span class="vidflag">▶ sample</span><div class="thumb p-neon"><span class="name"></span><span class="sub"></span><span class="ring"></span></div><div class="meta"><div class="lab">Neon</div></div></button>
+            <button class="opt"><div class="thumb p-card"><span class="cv"><span class="av"></span><span class="ln n1"></span><span class="ln n2"></span><span class="rows"><i></i><i></i><i></i></span></span></div><div class="meta"><div class="lab">Résumé Card</div></div></button>
+          </div>
+        </div>
+
+        <!-- AVATAR: Quality -->
+        <div class="sel-block">
+          <div class="sel-head"><h3>Quality</h3><span class="note">engine & fidelity</span><span class="studio">Avatar</span></div>
+          <div class="grid g2">
+            <button class="opt sel"><span class="tick">✓</span><div class="thumb"><span class="a a-standard"><span class="bust"></span></span></div><div class="meta"><div class="lab">Standard</div><div class="hint">fast · social &amp; outreach</div></div></button>
+            <button class="opt"><span class="vidflag">▶ sample</span><div class="thumb"><span class="a a-iv"><span class="hd">HD</span><span class="bust"></span></span></div><div class="meta"><div class="lab">Avatar IV</div><div class="hint">photoreal · hero &amp; ads</div></div></button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- video note -->
+    <div class="callout">
+      <div class="k">▶</div>
+      <div><h4>Video-type & animated looks get a real generated sample</h4>
+      <p>Cards flagged <b>▶ sample</b> represent motion. For these we generate a few-second real clip per style once (via our video providers), host it, and play it muted on hover — so a user sees actual footage of the look, not a still. Static looks (website, editorial, résumé) ship as the rendered previews above with no generation cost.</p></div>
+    </div>
+
+    <!-- plan -->
+    <div class="plan">
+      <div class="step"><div class="n">Step 1 · now</div><h5>Shared StyleThumb component</h5><p>One `&lt;StyleThumb kind style /&gt;` with a small registry of CSS previews per option — drops into every brief's option cards. No backend change; the selected value is untouched.</p></div>
+      <div class="step"><div class="n">Step 2</div><h5>Wire every selector</h5><p>Video type, website/store styles, portfolio templates, avatar quality, design styles (already carry a `bg`), voice presets. One row each, consistent across studios.</p></div>
+      <div class="step"><div class="n">Step 3</div><h5>Real video samples</h5><p>Generate + host a few-second clip per motion style; swap the still preview for a muted hover-play. Cached once, reused for everyone.</p></div>
+    </div>
+
+    <p class="foot">FlowSmartly · style-selector thumbnails — design reference for review. Toggle your OS/theme; the mockup follows it. Previews are CSS-only (no images).</p>
+  </div>
+</div>
