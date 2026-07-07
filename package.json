@@ -21,7 +21,8 @@
     "test:store-build:validate": "npx tsx scripts/test-store-build.ts --validate-only",
     "test:store-build:keep": "npx tsx scripts/test-store-build.ts --keep",
     "test:reel-build": "npx tsx scripts/test-reel-build.ts",
-    "test:reel-build:verbose": "npx tsx scripts/test-reel-build.ts --verbose"
+    "test:reel-build:verbose": "npx tsx scripts/test-reel-build.ts --verbose",
+    "test:reel-render": "npx tsx scripts/test-reel-render.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.123",

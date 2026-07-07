@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { readReelCampaigns, readLatestReelCampaign, buildReelsFromTranscript } from "@/lib/reel/reel-editor";
+import { readReelCampaigns, readLatestReelCampaign, buildReelsFromTranscript, createProcessingCampaign } from "@/lib/reel/reel-editor";
 import type { Transcript } from "@/lib/reel/highlights";
-import { transcribeVideoUrl, renderCampaignClipsDetached } from "@/lib/reel/reel-pipeline";
+import { transcribeVideoUrl, renderCampaignClipsDetached, ingestUrlAndBuildDetached } from "@/lib/reel/reel-pipeline";
 
 // GET /api/reels — the user's reel campaigns (+ ?latest=1 for just the newest).
 export async function GET(req: NextRequest) {
@@ -33,6 +33,15 @@ export async function POST(req: NextRequest) {
 
     const t = body.transcript as { segments?: unknown } | undefined;
     const segs = Array.isArray(t?.segments) ? t!.segments : [];
+    const sourceUrl = typeof body.sourceUrl === "string" ? body.sourceUrl : null;
+    const settings = (body.settings && typeof body.settings === "object" ? body.settings : {}) as Record<string, unknown>;
+
+    // Link only → async ingest: a PROCESSING campaign; yt-dlp download + transcribe + build + render run in the background.
+    if (segs.length === 0 && !sourceFileUrl && sourceUrl) {
+      const campaign = await createProcessingCampaign({ userId: session.userId, title, sourceUrl, settings });
+      ingestUrlAndBuildDetached(campaign.id, sourceUrl);
+      return NextResponse.json({ campaign }, { status: 202 });
+    }
 
     let transcript: Transcript;
     let durationSec = typeof body.durationSec === "number" ? body.durationSec : 0;
@@ -48,18 +57,18 @@ export async function POST(req: NextRequest) {
       transcript = res.transcript;
       if (!durationSec) durationSec = res.durationSec;
     } else {
-      return NextResponse.json({ error: "Provide a transcript { segments } or a sourceFileUrl to transcribe" }, { status: 400 });
+      return NextResponse.json({ error: "Provide a transcript, a sourceFileUrl, or a sourceUrl to build reels" }, { status: 400 });
     }
 
     const campaign = await buildReelsFromTranscript({
       userId: session.userId,
       title,
       sourceType: sourceFileUrl ? "upload" : "link",
-      sourceUrl: typeof body.sourceUrl === "string" ? body.sourceUrl : null,
+      sourceUrl,
       sourceFileUrl,
       durationSec,
       transcript,
-      settings: (body.settings && typeof body.settings === "object" ? body.settings : {}) as Record<string, unknown>,
+      settings,
     });
     // Kick the ffmpeg render worker for the clips (fire-and-forget; degrades if no ffmpeg).
     if (sourceFileUrl) renderCampaignClipsDetached(campaign.id);
