@@ -37,6 +37,11 @@ const nextConfig: NextConfig = {
         hostname: "**",
       },
     ],
+    // Optimized remote images (e.g. HeyGen avatar thumbnails) are resized once
+    // and kept in the server's image cache for a day even when the upstream CDN
+    // sends no cache headers — asset URLs here are unique per asset, so long
+    // retention is safe and every user after the first gets a local, tiny thumb.
+    minimumCacheTTL: 86400,
   },
 
   experimental: {

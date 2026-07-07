@@ -685,7 +685,7 @@ export function FocusedAvatar({ refreshKey, onAsk }: { refreshKey?: number; onAs
               <>
                 <label className="mb-1 mt-2.5 block text-[11.5px] font-semibold">Avatar &amp; look <span className="font-normal text-muted-foreground">{mode === "presentation" ? "· presents every scene" : ""}</span></label>
                 {avatars.length === 0 ? (
-                  <span className="text-[11.5px] text-muted-foreground">Loading avatars…</span>
+                  <AvatarPickerSkeleton />
                 ) : (
                   <AvatarPicker avatars={avatars} value={avatarId} onSelect={(a) => setAvatarId(a.id)} heightClass="max-h-[220px]" />
                 )}
@@ -1225,6 +1225,20 @@ function lookLabel(name: string, group: string): string {
   return s || name;
 }
 
+/** Compact pulsing placeholders while the avatar catalog loads. */
+function AvatarPickerSkeleton() {
+  return (
+    <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(96px,1fr))]">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <div key={i} className="animate-pulse overflow-hidden rounded-[10px] border border-border">
+          <div className="aspect-[3/4] w-full bg-muted" />
+          <div className="mx-1 my-1 h-2 w-2/3 rounded bg-muted" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AvatarPicker({ avatars, value, onSelect, heightClass = "max-h-[240px]" }: {
   avatars: Avatar[]; value: string; onSelect: (a: Avatar) => void; heightClass?: string;
 }) {
@@ -1255,11 +1269,11 @@ function AvatarPicker({ avatars, value, onSelect, heightClass = "max-h-[240px]" 
           <span className="truncate text-[12px] font-semibold">{open.name}</span>
           <span className="shrink-0 text-[10.5px] text-muted-foreground">· {open.looks.length} looks</span>
         </div>
-        <div className={cn("grid grid-cols-3 gap-2 overflow-y-auto pb-1", heightClass)}>
+        <div className={cn("grid gap-2 overflow-y-auto pb-1 [grid-template-columns:repeat(auto-fill,minmax(96px,1fr))]", heightClass)}>
           {open.looks.map((a) => (
             <button key={a.id} onClick={() => onSelect(a)} title={a.name} className={cn("relative overflow-hidden rounded-[10px] border text-left transition", a.id === value ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
               <div className="relative aspect-[3/4] w-full bg-muted">
-                {a.previewUrl ? <Image src={a.previewUrl} alt="" fill sizes="96px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
+                {a.previewUrl ? <Image src={a.previewUrl} alt="" fill sizes="120px" className="object-cover" /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
                 {a.premium && <span className="absolute right-1 top-1 rounded bg-amber-500/90 px-1 text-[8px] font-bold text-white">PRO</span>}
               </div>
               <span className="block truncate px-1 py-0.5 text-[9px] text-muted-foreground">{lookLabel(a.name, open.name)}</span>
@@ -1281,14 +1295,14 @@ function AvatarPicker({ avatars, value, onSelect, heightClass = "max-h-[240px]" 
         <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search avatars…" className="w-full rounded-lg border border-input bg-background py-1.5 pl-7 pr-2 text-[12px] outline-none focus:border-brand-500/60" />
       </div>
-      <div className={cn("grid grid-cols-3 gap-2 overflow-y-auto pb-1", heightClass)}>
+      <div className={cn("grid gap-2 overflow-y-auto pb-1 [grid-template-columns:repeat(auto-fill,minmax(96px,1fr))]", heightClass)}>
         {filtered.map((g) => {
           const rep = repLook(g.looks, value);
           const active = g.looks.some((l) => l.id === value);
           return (
             <button key={g.key} onClick={() => (g.looks.length > 1 ? setOpenKey(g.key) : onSelect(g.looks[0]))} title={g.name} className={cn("relative overflow-hidden rounded-[10px] border text-left transition", active ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}>
               <div className="relative aspect-[3/4] w-full bg-muted">
-                {rep.previewUrl ? <Image src={rep.previewUrl} alt="" fill sizes="96px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
+                {rep.previewUrl ? <Image src={rep.previewUrl} alt="" fill sizes="120px" className="object-cover" /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
                 {g.looks[0]?.isCustom && <span className="absolute left-1 top-1 rounded-full bg-black/60 px-1.5 py-0.5 text-[8px] font-bold text-white">Clone</span>}
                 {g.looks.length > 1 && <span className="absolute bottom-1 right-1 rounded bg-black/65 px-1 text-[8px] font-bold text-white">{g.looks.length} looks</span>}
               </div>
@@ -1296,7 +1310,7 @@ function AvatarPicker({ avatars, value, onSelect, heightClass = "max-h-[240px]" 
             </button>
           );
         })}
-        {filtered.length === 0 && <span className="col-span-3 py-4 text-center text-[11px] text-muted-foreground">No avatars match “{q}”.</span>}
+        {filtered.length === 0 && <span className="col-span-full py-4 text-center text-[11px] text-muted-foreground">No avatars match “{q}”.</span>}
       </div>
     </div>
   );
