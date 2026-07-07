@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { presignAllUrls } from "@/lib/utils/s3-client";
 import { getFilm, saveFilm, deleteFilm } from "@/lib/video-director/store";
+import { syncFilmScenes } from "@/lib/video-director/engines";
 import { normalizeFilm, type FilmProject } from "@/lib/video-director/types";
 
 /** GET — one film's full state (canvas nodes, edges, timeline) for the studio. */
@@ -11,7 +12,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const film = await getFilm(id, session.userId);
   if (!film) return NextResponse.json({ success: false, error: { message: "Not found" } }, { status: 404 });
-  const data = await presignAllUrls({ film });
+  // Reconcile any scenes whose render lives in another table (avatar) before returning.
+  const synced = film.scenes.some((s) => s.status === "rendering" || s.status === "queued")
+    ? await syncFilmScenes(film, session.userId)
+    : film;
+  const data = await presignAllUrls({ film: synced });
   return NextResponse.json({ success: true, data });
 }
 
