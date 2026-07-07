@@ -19,7 +19,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   Sparkles, X, Film, Clapperboard, UserSquare2, Scissors, Images, Palette, Plus,
-  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Captions as CaptionsIcon,
+  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon,
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -86,6 +86,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   const [dockCollapsed, setDockCollapsed] = useState(false);
   const [addMenu, setAddMenu] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [musicPickerOpen, setMusicPickerOpen] = useState(false);
   const [play, setPlay] = useState<{ url: string; title: string } | null>(null);
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
@@ -381,7 +382,9 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
                 </button>
                 <div className="p-2.5">
                   <p className="text-[12.5px] font-bold">Final film · {fmtT(scenes.reduce((n, s) => n + (s.durationSec || 0), 0))}</p>
-                  <p className="mb-2 text-[10.5px] text-muted-foreground">stitch · music · captions · outro</p>
+                  <button onClick={() => (film.music ? mutate((f) => ({ ...f, music: null })) : setMusicPickerOpen(true))} className="mb-2 inline-flex w-full items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[10.5px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-brand-500">
+                    <Music className="h-3 w-3" /> <span className="truncate">{film.music ? "Music added — remove" : "Add music bed"}</span>
+                  </button>
                   <button onClick={composeFinal} disabled={stats.ready === 0 || film.finalStatus === "rendering"} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-50">
                     {film.finalStatus === "rendering" ? <FlowLoader size={13} tone="white" /> : <Film className="h-3.5 w-3.5" />} {film.finalVideoUrl ? "Re-stitch film" : "Stitch film"}
                   </button>
@@ -455,6 +458,15 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           </div>
         </div>
       )}
+
+      {/* music bed picker */}
+      <MediaLibraryPicker
+        open={musicPickerOpen}
+        onClose={() => setMusicPickerOpen(false)}
+        onSelect={(url) => { mutate((f) => ({ ...f, music: url })); setMusicPickerOpen(false); }}
+        filterTypes={["audio"]}
+        title="Choose a music bed"
+      />
 
       {/* video player */}
       {play && (

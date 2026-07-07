@@ -14,11 +14,14 @@ import { concatenateVideoBuffers } from "@/lib/video/concat-videos";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsAvailable } from "@/lib/credits/costs";
-import { filmDims, imageToClip, normalizeClip } from "./clip-helpers";
+import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName } from "./clip-helpers";
 
 const isVideoUrl = (u?: string | null): u is string => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
 const isImageUrl = (u?: string | null): u is string => !!u && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(u);
 const AI_SCENE_COST_KEY = "AI_VIDEO_LITE";
+const XFADE_DUR = 0.5; // seconds of overlap for a scene transition
+const playedLenOf = (s: FilmScene) =>
+  typeof s.clipStart === "number" && typeof s.clipEnd === "number" && s.clipEnd > s.clipStart ? s.clipEnd - s.clipStart : s.durationSec || 4;
 
 export interface GenerateResult { ok: boolean; film?: FilmProject; message?: string }
 
@@ -171,29 +174,41 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
     const ordered = [...film.scenes].sort((a, b) => a.order - b.order).filter((s) => s.status === "ready" && (isVideoUrl(s.videoUrl) || isImageUrl(s.videoUrl)));
     if (ordered.length === 0) throw new Error("Generate at least one scene before stitching.");
 
-    const clips: Buffer[] = [];
+    const built: { buf: Buffer; dur: number; transition?: string }[] = [];
     for (const s of ordered) {
       const res = await fetch(s.videoUrl as string).catch(() => null);
       if (!res?.ok) continue;
       const raw = Buffer.from(await res.arrayBuffer());
       try {
+        let buf: Buffer;
         if (isImageUrl(s.videoUrl)) {
-          clips.push(await imageToClip(raw, s.durationSec || 3, w, h));
+          buf = await imageToClip(raw, s.durationSec || 3, w, h);
         } else {
           // Keep the avatar/AI voiceover; reel/media b-roll gets a uniform silent track.
           const preferSourceAudio = s.engine === "avatar" || s.engine === "ai";
-          // Honour a timeline in/out trim on any scene (reel clips + timeline edits).
           const trim = typeof s.clipStart === "number" && typeof s.clipEnd === "number" && s.clipEnd > s.clipStart
             ? { start: s.clipStart, end: s.clipEnd } : undefined;
-          clips.push(await normalizeClip(raw, w, h, { preferSourceAudio, trim }));
+          buf = await normalizeClip(raw, w, h, { preferSourceAudio, trim });
         }
+        built.push({ buf, dur: playedLenOf(s), transition: s.transitionIn });
       } catch (e) {
         console.error(`[video-director] clip build failed for scene ${s.id}:`, e instanceof Error ? e.message : e);
       }
     }
-    if (clips.length === 0) throw new Error("Could not assemble any scene clips.");
+    if (built.length === 0) throw new Error("Could not assemble any scene clips.");
 
-    const finalBuffer = clips.length === 1 ? clips[0] : await concatenateVideoBuffers(clips);
+    let finalBuffer = built.length === 1 ? built[0].buf : await assembleClips(built);
+
+    // Music bed — mix the film-level track under everything (best-effort).
+    if (film.music && /^https?:\/\//i.test(film.music)) {
+      try {
+        const mres = await fetch(film.music);
+        if (mres.ok) finalBuffer = await mixMusicUnder(finalBuffer, Buffer.from(await mres.arrayBuffer()));
+      } catch (e) {
+        console.error(`[video-director] music mix skipped for ${filmId}:`, e instanceof Error ? e.message : e);
+      }
+    }
+
     const url = await uploadToS3(`director/${filmId}/final.mp4`, finalBuffer, "video/mp4");
 
     const fresh = await getFilm(filmId, userId);
@@ -204,5 +219,32 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
     console.error(`[video-director] compose failed for ${filmId}:`, e instanceof Error ? e.message : e);
     const fresh = await getFilm(filmId, userId);
     if (fresh) { fresh.finalStatus = "failed"; await saveFilm(filmId, userId, fresh); }
+  }
+}
+
+/**
+ * Join clips in order, cross-fading where a scene requests a transition and hard-
+ * cutting otherwise. Built pairwise (accumulate + xfade/concat each next clip) so
+ * one bad step can't corrupt a giant filter graph. Falls back to a plain concat if
+ * a transition step fails, so the film always renders.
+ */
+async function assembleClips(built: { buf: Buffer; dur: number; transition?: string }[]): Promise<Buffer> {
+  try {
+    let acc = built[0].buf;
+    let accDur = built[0].dur;
+    for (let i = 1; i < built.length; i++) {
+      const c = built[i];
+      if (c.transition && c.transition !== "cut") {
+        acc = await crossfadePair(acc, c.buf, accDur, XFADE_DUR, xfadeName(c.transition));
+        accDur = accDur + c.dur - XFADE_DUR;
+      } else {
+        acc = await concatenateVideoBuffers([acc, c.buf]);
+        accDur = accDur + c.dur;
+      }
+    }
+    return acc;
+  } catch (e) {
+    console.error("[video-director] transition assembly failed — falling back to hard cuts:", e instanceof Error ? e.message : e);
+    return concatenateVideoBuffers(built.map((b) => b.buf));
   }
 }

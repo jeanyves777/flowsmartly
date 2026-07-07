@@ -66,6 +66,51 @@ export async function imageToClip(imgBuffer: Buffer, durationSec: number, w: num
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
 
+/** Map a Director transition name to an ffmpeg xfade transition. */
+export function xfadeName(t?: string): string {
+  switch (t) {
+    case "dissolve": return "dissolve";
+    case "slide": return "slideleft";
+    case "crossfade": return "fade";
+    default: return "fade";
+  }
+}
+
+/**
+ * Cross-fade clip B onto clip A (both already normalised to WxH + audio).
+ * `durA` is A's running duration; the transition overlaps by `d` seconds. Used
+ * to build a film with transitions pairwise (robust vs one giant xfade graph).
+ */
+export async function crossfadePair(aBuf: Buffer, bBuf: Buffer, durA: number, d: number, transition: string): Promise<Buffer> {
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Video assembly is not available on this server.");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-dir-xf-"));
+  try {
+    const a = path.join(dir, "a.mp4"), b = path.join(dir, "b.mp4"), out = path.join(dir, "out.mp4");
+    await writeFile(a, aBuf); await writeFile(b, bBuf);
+    const off = Math.max(0.1, durA - d);
+    const fc = `[0:v][1:v]xfade=transition=${transition}:duration=${d}:offset=${off}[v];[0:a][1:a]acrossfade=d=${d}[a]`;
+    await run(ff, ["-i", a, "-i", b, "-filter_complex", fc, "-map", "[v]", "-map", "[a]",
+      "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-y", out], 600000);
+    return await readFile(out);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
+/** Mix a music bed under a finished film (looped, ducked); film length wins. */
+export async function mixMusicUnder(videoBuf: Buffer, musicBuf: Buffer, volume = 0.28): Promise<Buffer> {
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Video assembly is not available on this server.");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-dir-mus-"));
+  try {
+    const v = path.join(dir, "v.mp4"), m = path.join(dir, "m"), out = path.join(dir, "out.mp4");
+    await writeFile(v, videoBuf); await writeFile(m, musicBuf);
+    const fc = `[1:a]volume=${volume},aloop=loop=-1:size=2000000000[bg];[0:a][bg]amix=inputs=2:duration=first:dropout_transition=0[a]`;
+    await run(ff, ["-i", v, "-i", m, "-filter_complex", fc, "-map", "0:v", "-map", "[a]",
+      "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", "-y", out], 600000);
+    return await readFile(out);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
 /**
  * Normalise a source video to film dims + a guaranteed stereo AAC track.
  * `preferSourceAudio` keeps the clip's own audio (AI/avatar VO) when present,
