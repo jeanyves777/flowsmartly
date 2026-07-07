@@ -22,6 +22,7 @@ import {
   ChevronDown, Play, FolderOpen, Wand2, Upload, Mic, Captions as CaptionsIcon,
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
 import type { FilmProject, FilmScene, SceneEngine, FilmType, FilmAspect } from "@/lib/video-director/types";
 
@@ -70,7 +71,7 @@ function newScene(engine: SceneEngine, order: number, x: number, y: number): Fil
   };
 }
 
-export function FocusedDirector({ onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
   const [film, setFilm] = useState<FilmProject | null>(null);
   const [loading, setLoading] = useState(true);
   const [briefOpen, setBriefOpen] = useState(false);
@@ -79,6 +80,7 @@ export function FocusedDirector({ onAsk }: { refreshKey?: number; onAsk?: (promp
   const [dockCollapsed, setDockCollapsed] = useState(false);
   const [addMenu, setAddMenu] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [play, setPlay] = useState<{ url: string; title: string } | null>(null);
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
 
@@ -121,6 +123,26 @@ export function FocusedDirector({ onAsk }: { refreshKey?: number; onAsk?: (promp
 
   const scenes = useMemo(() => (film ? [...film.scenes].sort((a, b) => a.order - b.order) : []), [film]);
   const selScene = scenes.find((s) => s.id === selId) || null;
+
+  // Agent live-bridge: when the director agent acts (direct_film), surface the
+  // newest film in the open studio — same "results land in the UI" pattern.
+  const filmIdRef = useRef<string | null>(null);
+  useEffect(() => { filmIdRef.current = film?.id ?? null; }, [film?.id]);
+  useEffect(() => {
+    if (!refreshKey) return;
+    let alive = true;
+    (async () => {
+      try {
+        const j = await fetch("/api/ai/video-director").then((r) => r.json());
+        const top = j?.data?.films?.[0];
+        if (alive && top?.id && top.id !== filmIdRef.current) {
+          const fj = await fetch(`/api/ai/video-director/${top.id}`).then((r) => r.json());
+          if (alive && fj?.success) { setFilm(fj.data.film); setSelId(null); setBriefOpen(false); }
+        }
+      } catch { /* ignore */ }
+    })();
+    return () => { alive = false; };
+  }, [refreshKey]);
 
   // -------- poll while anything is rendering --------
   const anyRendering = scenes.some((s) => isRendering(s.status)) || film?.finalStatus === "rendering";
@@ -301,14 +323,15 @@ export function FocusedDirector({ onAsk }: { refreshKey?: number; onAsk?: (promp
                   onSelect={() => setSelId(s.id)}
                   onGenerate={() => generateScene(s.id)}
                   onRemove={() => removeScene(s.id)}
+                  onPlay={() => s.videoUrl && setPlay({ url: s.videoUrl, title: s.title })}
                 />
               ))}
 
               {/* output node */}
               <div data-node="__out" className="absolute w-[210px] overflow-hidden rounded-2xl border border-violet-500/40 bg-gradient-to-b from-violet-500/10 to-card shadow-sm" style={{ left: layout.outPos.x, top: layout.outPos.y }}>
-                <div className="relative grid aspect-video place-items-center bg-gradient-to-br from-violet-500/20 to-background text-violet-400">
-                  {film.finalVideoUrl && isPlayable(film.finalVideoUrl) ? <Play className="h-7 w-7 fill-current" /> : film.finalStatus === "rendering" ? <FlowGeneratingMark size={40} /> : <Clapperboard className="h-6 w-6" />}
-                </div>
+                <button onClick={() => film.finalVideoUrl && isPlayable(film.finalVideoUrl) && setPlay({ url: film.finalVideoUrl, title: film.title })} className="relative grid aspect-video w-full place-items-center bg-gradient-to-br from-violet-500/20 to-background text-violet-400">
+                  {film.finalVideoUrl && isPlayable(film.finalVideoUrl) ? <span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-violet-600 shadow-lg"><Play className="h-5 w-5 translate-x-0.5 fill-current" /></span> : film.finalStatus === "rendering" ? <FlowGeneratingMark size={40} /> : <Clapperboard className="h-6 w-6" />}
+                </button>
                 <div className="p-2.5">
                   <p className="text-[12.5px] font-bold">Final film · {fmtT(scenes.reduce((n, s) => n + (s.durationSec || 0), 0))}</p>
                   <p className="mb-2 text-[10.5px] text-muted-foreground">stitch · music · captions · outro</p>
@@ -379,6 +402,21 @@ export function FocusedDirector({ onAsk }: { refreshKey?: number; onAsk?: (promp
         </div>
       )}
 
+      {/* video player */}
+      {play && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 p-6" onClick={() => setPlay(null)}>
+          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center gap-2">
+              <p className="truncate text-[13px] font-semibold text-white">{play.title}</p>
+              <a href={play.url} download className="ms-auto rounded-lg border border-white/25 px-2.5 py-1 text-[11.5px] font-semibold text-white hover:bg-white/10">Download</a>
+              <button onClick={() => setPlay(null)} className="grid h-7 w-7 place-items-center rounded-lg border border-white/25 text-white hover:bg-white/10"><X className="h-4 w-4" /></button>
+            </div>
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video src={play.url} controls autoPlay className="max-h-[70vh] w-full rounded-xl bg-black" />
+          </div>
+        </div>
+      )}
+
       {/* directing (drafting the pipeline) */}
       {drafting && (
         <div className="absolute inset-0 z-[45] grid place-items-center bg-background/70 backdrop-blur-sm">
@@ -394,9 +432,9 @@ export function FocusedDirector({ onAsk }: { refreshKey?: number; onAsk?: (promp
 }
 
 // ============================================================ scene node card
-function SceneNode({ scene, selected, onDown, onSelect, onGenerate, onRemove }: {
+function SceneNode({ scene, selected, onDown, onSelect, onGenerate, onRemove, onPlay }: {
   scene: FilmScene; selected: boolean;
-  onDown: (e: ReactPointerEvent) => void; onSelect: () => void; onGenerate: () => void; onRemove: () => void;
+  onDown: (e: ReactPointerEvent) => void; onSelect: () => void; onGenerate: () => void; onRemove: () => void; onPlay: () => void;
 }) {
   const E = ENGINES[scene.engine];
   const rendering = isRendering(scene.status);
@@ -416,12 +454,17 @@ function SceneNode({ scene, selected, onDown, onSelect, onGenerate, onRemove }: 
         <button onClick={onRemove} title="Remove scene" className="grid h-4 w-4 place-items-center rounded text-muted-foreground hover:text-rose-500"><X className="h-3 w-3" /></button>
       </div>
       <div className="relative m-2 aspect-video overflow-hidden rounded-lg bg-muted">
-        {ready && scene.thumbnailUrl ? (
+        {scene.thumbnailUrl ? (
           <Image src={scene.thumbnailUrl} alt="" fill sizes="208px" className="object-cover" unoptimized />
         ) : rendering ? (
           <div className="grid h-full w-full place-items-center bg-gradient-to-br from-brand-500/10 to-violet-500/10"><FlowGeneratingMark size={38} /></div>
         ) : (
           <div className="grid h-full w-full place-items-center text-muted-foreground/40"><E.Icon className="h-6 w-6" /></div>
+        )}
+        {ready && (
+          <button onClick={(e) => { e.stopPropagation(); onPlay(); }} className="absolute inset-0 grid place-items-center bg-black/25 transition hover:bg-black/40">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-white/90 text-brand-600 shadow"><Play className="h-4 w-4 translate-x-0.5 fill-current" /></span>
+          </button>
         )}
         <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[9px] text-white">{scene.durationSec ? `0:${String(scene.durationSec).padStart(2, "0")}` : ""}</span>
         {rendering && <span className="absolute bottom-1 left-1 rounded-full bg-brand-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">{Math.round(scene.progress || 0)}%</span>}
@@ -498,6 +541,7 @@ function SceneInspector({ scene, onClose, onPatch, onGenerate, onSwapEngine }: {
   scene: FilmScene; onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onSwapEngine: (e: SceneEngine) => void;
 }) {
   const E = ENGINES[scene.engine];
+  const [picker, setPicker] = useState<null | "video" | "image">(null);
   return (
     <div className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[340px] flex-col border-l border-border bg-card shadow-2xl">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
@@ -529,7 +573,7 @@ function SceneInspector({ scene, onClose, onPatch, onGenerate, onSwapEngine }: {
         )}
         {(scene.engine === "reel" || scene.engine === "media") && (
           <>
-            <label className="mb-1 mt-3 block text-[11px] font-semibold">{scene.engine === "reel" ? "Source video · trim" : "Media clip URL"}</label>
+            <label className="mb-1 mt-3 flex items-center gap-2 text-[11px] font-semibold">{scene.engine === "reel" ? "Source video · trim" : "Media clip"} <button onClick={() => setPicker("video")} className="ms-auto inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-brand-500"><Images className="h-3 w-3" /> Library</button></label>
             <input value={scene.sourceUrl || ""} onChange={(e) => onPatch({ sourceUrl: e.target.value })} placeholder={scene.engine === "reel" ? "Paste a long-video URL to clip" : "Paste a video URL or pick from Media"} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12px] outline-none focus:border-brand-500/60" />
             {scene.engine === "reel" && (
               <div className="mt-1.5 flex items-center gap-2">
@@ -542,8 +586,8 @@ function SceneInspector({ scene, onClose, onPatch, onGenerate, onSwapEngine }: {
         )}
         {scene.engine === "design" && (
           <>
-            <label className="mb-1 mt-3 block text-[11px] font-semibold">Still image URL</label>
-            <input value={scene.sourceUrl || ""} onChange={(e) => onPatch({ sourceUrl: e.target.value })} placeholder="Paste an image URL (or generate a still)" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12px] outline-none focus:border-brand-500/60" />
+            <label className="mb-1 mt-3 flex items-center gap-2 text-[11px] font-semibold">Still image <button onClick={() => setPicker("image")} className="ms-auto inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-brand-500"><Images className="h-3 w-3" /> Library</button></label>
+            <input value={scene.sourceUrl || ""} onChange={(e) => onPatch({ sourceUrl: e.target.value })} placeholder="Paste an image URL (or pick from Media)" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12px] outline-none focus:border-brand-500/60" />
           </>
         )}
 
@@ -573,6 +617,14 @@ function SceneInspector({ scene, onClose, onPatch, onGenerate, onSwapEngine }: {
           {isRendering(scene.status) ? <FlowLoader size={14} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate scene
         </button>
       </div>
+
+      <MediaLibraryPicker
+        open={!!picker}
+        onClose={() => setPicker(null)}
+        onSelect={(url) => { onPatch(picker === "image" ? { sourceUrl: url, thumbnailUrl: url } : { sourceUrl: url }); setPicker(null); }}
+        filterTypes={picker === "image" ? ["image"] : ["video"]}
+        title={picker === "image" ? "Choose a still image" : "Choose a clip"}
+      />
     </div>
   );
 }
