@@ -401,9 +401,10 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
                 </button>
                 <div className="p-2.5">
                   <p className="text-[12.5px] font-bold">Final film · {fmtT(scenes.reduce((n, s) => n + (s.durationSec || 0), 0))}</p>
-                  <button onClick={() => (film.music ? mutate((f) => ({ ...f, music: null })) : setMusicPickerOpen(true))} className="mb-2 inline-flex w-full items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[10.5px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-brand-500">
-                    <Music className="h-3 w-3" /> <span className="truncate">{film.music ? "Music added — remove" : "Add music bed"}</span>
-                  </button>
+                  <div className="mb-2 flex gap-1.5">
+                    <button onClick={() => (film.music ? mutate((f) => ({ ...f, music: null })) : setMusicPickerOpen(true))} className="inline-flex flex-1 items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-brand-500"><Music className="h-3 w-3" /> <span className="truncate">{film.music ? "Music ✓" : "Music"}</span></button>
+                    <button onClick={() => mutate((f) => ({ ...f, brandLogo: f.brandLogo === false }))} className={cn("inline-flex flex-1 items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold", film.brandLogo === false ? "border-border text-muted-foreground" : "border-brand-500/50 text-brand-500")}><Sparkles className="h-3 w-3" /> Logo {film.brandLogo === false ? "off" : "on"}</button>
+                  </div>
                   <button onClick={composeFinal} disabled={stats.ready === 0 || film.finalStatus === "rendering"} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-50">
                     {film.finalStatus === "rendering" ? <FlowLoader size={13} tone="white" /> : <Film className="h-3.5 w-3.5" />} {film.finalVideoUrl ? "Re-stitch film" : "Stitch film"}
                   </button>
@@ -773,7 +774,7 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
   onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onSwapEngine: (e: SceneEngine) => void;
 }) {
   const E = ENGINES[scene.engine];
-  const [picker, setPicker] = useState<null | "video" | "image">(null);
+  const [picker, setPicker] = useState<null | "video" | "image" | "bg">(null);
   return (
     <div className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[340px] flex-col border-l border-border bg-card shadow-2xl">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
@@ -816,6 +817,11 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
             <PillRow options={["", "Friendly", "Excited", "Serious"]} labels={["Auto", "Friendly", "Excited", "Serious"]} value={scene.voiceEmotion || ""} onSelect={(v) => onPatch({ voiceEmotion: v || null })} />
             <label className="mb-1 mt-3 block text-[11px] font-semibold">Avatar motion (AI)</label>
             <input value={scene.motionPrompt || ""} onChange={(e) => onPatch({ motionPrompt: e.target.value })} placeholder="e.g. leans in, warm gestures" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12px] outline-none focus:border-brand-500/60" />
+            <label className="mb-1 mt-3 block text-[11px] font-semibold">Background <span className="font-normal text-muted-foreground">— place the avatar on a scene</span></label>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setPicker("bg")} className="inline-flex items-center gap-1 rounded-[9px] border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500/60"><Images className="h-3 w-3" /> {scene.background && scene.background !== "original" ? "Change" : "Add background"}</button>
+              {scene.background && scene.background !== "original" && <button onClick={() => onPatch({ background: null })} className="text-[11px] font-semibold text-muted-foreground hover:text-rose-500">Reset</button>}
+            </div>
           </>
         )}
         {(scene.engine === "reel" || scene.engine === "media") && (
@@ -868,9 +874,9 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
       <MediaLibraryPicker
         open={!!picker}
         onClose={() => setPicker(null)}
-        onSelect={(url) => { onPatch(picker === "image" ? { sourceUrl: url, thumbnailUrl: url } : { sourceUrl: url }); setPicker(null); }}
-        filterTypes={picker === "image" ? ["image"] : ["video"]}
-        title={picker === "image" ? "Choose a still image" : "Choose a clip"}
+        onSelect={(url) => { if (picker === "bg") onPatch({ background: url }); else if (picker === "image") onPatch({ sourceUrl: url, thumbnailUrl: url }); else onPatch({ sourceUrl: url }); setPicker(null); }}
+        filterTypes={picker === "image" || picker === "bg" ? ["image"] : ["video"]}
+        title={picker === "bg" ? "Choose a background for the avatar" : picker === "image" ? "Choose a still image" : "Choose a clip"}
       />
     </div>
   );

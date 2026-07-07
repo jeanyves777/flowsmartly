@@ -85,6 +85,8 @@ export interface FilmProject {
   edges: FilmEdge[];
   assets?: FilmAsset[];
   music?: string | null;
+  /** Burn the brand logo onto the final cut (overlay). Default on. */
+  brandLogo?: boolean;
   captionsOn?: boolean;
   finalVideoUrl?: string | null;
   finalThumbnailUrl?: string | null;
@@ -116,6 +118,7 @@ export function emptyFilm(partial?: Partial<FilmProject>): FilmProject {
     edges: [],
     assets: [],
     music: null,
+    brandLogo: true,
     captionsOn: true,
     finalVideoUrl: null,
     finalStatus: "draft",

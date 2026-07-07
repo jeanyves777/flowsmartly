@@ -14,6 +14,8 @@ import { concatenateVideoBuffers } from "@/lib/video/concat-videos";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsAvailable } from "@/lib/credits/costs";
+import { prisma } from "@/lib/db/client";
+import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName } from "./clip-helpers";
 
 const isVideoUrl = (u?: string | null): u is string => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
@@ -206,6 +208,17 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
         if (mres.ok) finalBuffer = await mixMusicUnder(finalBuffer, Buffer.from(await mres.arrayBuffer()));
       } catch (e) {
         console.error(`[video-director] music mix skipped for ${filmId}:`, e instanceof Error ? e.message : e);
+      }
+    }
+
+    // Brand logo — overlay the brand mark on the final cut (best-effort).
+    if (film.brandLogo !== false) {
+      try {
+        const bk = await prisma.brandKit.findFirst({ where: { userId }, orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], select: { logo: true, iconLogo: true } });
+        const logo = bk?.iconLogo || bk?.logo || null;
+        if (logo) finalBuffer = await overlayBrandLogoOnVideo(finalBuffer, logo);
+      } catch (e) {
+        console.error(`[video-director] brand-logo overlay skipped for ${filmId}:`, e instanceof Error ? e.message : e);
       }
     }
 
