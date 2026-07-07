@@ -170,6 +170,29 @@ if [ "$healthy" != true ]; then
   exit 1
 fi
 
+# --- 9. schedule the background-task recovery cron (idempotent) ---------------
+# A render whose in-process worker was SIGKILL'd by THIS very reload is recovered
+# (resumed from the provider handle) or failed+refunded by /api/cron/recover-tasks.
+# Without a schedule those cards hang on the new "generating" loader forever. Each
+# healthy deploy (re)installs a crontab line hitting it every 3 min with the
+# CRON_SECRET from .env. Idempotent (drops any prior tagged line first) and
+# best-effort (never aborts the deploy). Tag: flowsmartly-recover-tasks.
+if command -v crontab >/dev/null 2>&1 && [ -f "${APP_DIR}/.env" ]; then
+  CRON_SECRET_VAL="$(grep -E '^CRON_SECRET=' "${APP_DIR}/.env" 2>/dev/null | head -n1 | sed -E 's/^CRON_SECRET=//; s/^["'"'"']//; s/["'"'"']$//' || true)"
+  if [ -n "${CRON_SECRET_VAL}" ]; then
+    RECOVER_LINE="*/3 * * * * curl -fsS -m 30 -H 'x-cron-secret: ${CRON_SECRET_VAL}' 'http://127.0.0.1:3000/api/cron/recover-tasks' >/dev/null 2>&1 # flowsmartly-recover-tasks"
+    if ( crontab -l 2>/dev/null | grep -v 'flowsmartly-recover-tasks'; echo "${RECOVER_LINE}" ) | crontab - 2>/dev/null; then
+      log "Scheduled recover-tasks cron (*/3 min)"
+    else
+      echo "WARN: could not install recover-tasks crontab (continuing)"
+    fi
+  else
+    echo "WARN: CRON_SECRET not found in ${APP_DIR}/.env — skipping recover-tasks cron install"
+  fi
+else
+  echo "WARN: crontab unavailable — skipping recover-tasks cron install"
+fi
+
 # voice services restored by the EXIT trap; persist the process list
 pm2 save >/dev/null 2>&1 || true
 
