@@ -22,7 +22,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const campaign = await prisma.contentCampaign.findFirst({
     where: { id, userId: session.userId },
-    select: { id: true, name: true },
+    select: { id: true, name: true, status: true },
   });
   if (!campaign) return NextResponse.json({ success: false, error: { message: "Campaign not found" } }, { status: 404 });
 
@@ -43,10 +43,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       prisma.post.updateMany({ where: { ...postScope, status: "SCHEDULED" }, data: { status: "PAUSED" } }),
       prisma.contentCampaign.update({ where: { id }, data: { status: "PAUSED" } }),
     ]);
-    return NextResponse.json({ success: true, data: { action, affected: res.count, status: "PAUSED", message: `Paused — ${res.count} post${res.count === 1 ? "" : "s"} pulled from the publish queue.` } });
+    const message = res.count > 0
+      ? `Paused — ${res.count} post${res.count === 1 ? "" : "s"} pulled from the publish queue.`
+      : "Campaign paused.";
+    return NextResponse.json({ success: true, data: { action, affected: res.count, status: "PAUSED", message } });
   }
 
   if (action === "delete") {
+    if (campaign.status !== "PAUSED") {
+      return NextResponse.json(
+        { success: false, error: { message: "Pause this campaign before deleting it." } },
+        { status: 409 },
+      );
+    }
     // Soft-delete every post so the publisher + studio ignore them, then remove
     // the campaign entirely (cascade drops the container automation).
     await prisma.post.updateMany({ where: postScope, data: { deletedAt: new Date(), status: "CANCELED" } });

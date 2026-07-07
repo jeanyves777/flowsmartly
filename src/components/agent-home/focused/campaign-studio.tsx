@@ -277,6 +277,12 @@ export function FocusedCampaignStudio({ initialView, target, onAsk, refreshKey, 
   // ── control bar: act on EVERY post at once (Active / Pause / Delete) ──
   const bulk = async (action: "activate" | "pause" | "delete") => {
     if (!campaign || bulkBusy) return;
+    if (action === "activate" && !canActivate) return;
+    if (action === "pause" && !canPause) return;
+    if (action === "delete" && !canDelete) {
+      toast({ title: "Pause first", description: "Pause this live campaign before deleting it." });
+      return;
+    }
     setBulkBusy(action);
     try {
       const j = await fetch(`/api/content/campaigns/${campaign.id}/bulk`, {
@@ -313,6 +319,10 @@ export function FocusedCampaignStudio({ initialView, target, onAsk, refreshKey, 
   // "Improve" → reopen the brief modal PRE-FILLED with this campaign in edit mode.
   const openImprove = () => {
     if (!campaign) return;
+    if (!canImprove) {
+      toast({ title: "Pause first", description: "Pause this live campaign before improving it." });
+      return;
+    }
     if (isMobile) { seedComposer(`Improve my "${campaign.name}" content campaign — [what to change, e.g. punchier captions, a bolder tone, a stronger CTA].`); return; }
     setEditId(campaign.id);
     setName(campaign.name);
@@ -377,10 +387,22 @@ export function FocusedCampaignStudio({ initialView, target, onAsk, refreshKey, 
 
   const draftCount = posts.filter((p) => p.status === "DRAFT").length;
   const scheduledCount = posts.filter((p) => p.status === "SCHEDULED").length;
+  const publishedCount = posts.filter((p) => p.status === "PUBLISHED").length;
   const pausedCount = posts.filter((p) => p.status?.toUpperCase() === "PAUSED").length;
-  // Live state drives the Active/Pause toggle: any scheduled post = active; else
-  // any paused post = paused; else it's still a draft awaiting activation.
-  const liveState: "active" | "paused" | "draft" = scheduledCount > 0 ? "active" : pausedCount > 0 ? "paused" : "draft";
+  const hasQueueablePosts = draftCount + pausedCount > 0;
+  const mutablePostCount = draftCount + pausedCount;
+  const hasLivePosts = scheduledCount > 0 || publishedCount > 0;
+  const campaignActive = campaign?.status?.toUpperCase() === "ACTIVE";
+  const campaignPaused = campaign?.status?.toUpperCase() === "PAUSED";
+  // Live state drives the control bar. Published posts are live history too, so
+  // an already-live campaign must be paused before destructive/improve actions.
+  // Legacy campaigns may be ACTIVE even when their visible posts are already
+  // PUBLISHED, so the campaign row itself also counts as live.
+  const liveState: "live" | "paused" | "draft" = campaignPaused ? "paused" : (campaignActive || hasLivePosts) ? "live" : pausedCount > 0 ? "paused" : "draft";
+  const canActivate = !bulkBusy && liveState !== "live" && hasQueueablePosts;
+  const canPause = !bulkBusy && liveState === "live";
+  const canImprove = !bulkBusy && liveState !== "live" && mutablePostCount > 0;
+  const canDelete = !bulkBusy && liveState !== "live";
   const isNew = !target?.campaignId && !campaign;
 
   return (
@@ -427,25 +449,25 @@ export function FocusedCampaignStudio({ initialView, target, onAsk, refreshKey, 
                   <div className="inline-flex overflow-hidden rounded-[10px] border border-border">
                     <button
                       onClick={() => bulk("activate")}
-                      disabled={!!bulkBusy || liveState === "active"}
-                      title="Schedule every post to auto-publish"
-                      className={cn("inline-flex items-center gap-1 px-2.5 py-1.5 text-[12px] font-semibold transition disabled:cursor-default", liveState === "active" ? "bg-brand-500/15 text-brand-500" : "text-muted-foreground hover:bg-muted hover:text-foreground")}
+                      disabled={!canActivate}
+                      title={liveState === "live" ? "This campaign is already live. Pause it before changing state." : hasQueueablePosts ? "Schedule every draft/paused post to auto-publish" : "No draft or paused posts to activate"}
+                      className={cn("inline-flex items-center gap-1 px-2.5 py-1.5 text-[12px] font-semibold transition disabled:cursor-default disabled:opacity-50", liveState === "live" ? "bg-brand-500/15 text-brand-500" : "text-muted-foreground hover:bg-muted hover:text-foreground")}
                     >
                       {bulkBusy === "activate" ? <FlowLoader size={13} /> : <Play className="h-3.5 w-3.5" />} Active
                     </button>
                     <button
                       onClick={() => bulk("pause")}
-                      disabled={!!bulkBusy || liveState !== "active"}
-                      title="Pull every post out of the publish queue"
-                      className={cn("inline-flex items-center gap-1 border-s border-border px-2.5 py-1.5 text-[12px] font-semibold transition disabled:cursor-default disabled:opacity-50", liveState === "paused" ? "bg-amber-500/15 text-amber-500" : "text-muted-foreground hover:bg-muted hover:text-foreground")}
+                      disabled={!canPause}
+                      title={liveState === "live" ? "Pause this live campaign before improving or deleting" : "Only live campaigns can be paused"}
+                      className={cn("inline-flex items-center gap-1 border-s border-border px-2.5 py-1.5 text-[12px] font-semibold transition disabled:cursor-default disabled:opacity-50", liveState === "paused" ? "bg-amber-500/15 text-amber-500" : liveState === "live" ? "text-amber-500 hover:bg-amber-500/10" : "text-muted-foreground hover:bg-muted hover:text-foreground")}
                     >
                       {bulkBusy === "pause" ? <FlowLoader size={13} /> : <Pause className="h-3.5 w-3.5" />} Pause
                     </button>
                   </div>
-                  <button onClick={openImprove} title="Reopen the brief to improve every post" className="inline-flex items-center gap-1.5 rounded-[10px] border border-brand-500/40 px-2.5 py-1.5 text-[12px] font-semibold text-brand-500 transition hover:bg-brand-500/10">
+                  <button onClick={openImprove} disabled={!canImprove} title={liveState === "live" ? "Pause this live campaign before improving it" : mutablePostCount === 0 ? "No draft or paused posts to improve" : "Reopen the brief to improve every post"} className="inline-flex items-center gap-1.5 rounded-[10px] border border-brand-500/40 px-2.5 py-1.5 text-[12px] font-semibold text-brand-500 transition hover:bg-brand-500/10 disabled:cursor-not-allowed disabled:opacity-50">
                     <Sparkles className="h-3.5 w-3.5" /> Improve
                   </button>
-                  <button onClick={() => setConfirmDelete(true)} disabled={!!bulkBusy} title="Delete the whole campaign" className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1.5 text-[12px] font-semibold text-rose-500 transition hover:border-rose-500/50 hover:bg-rose-500/5">
+                  <button onClick={() => setConfirmDelete(true)} disabled={!canDelete} title={canDelete ? "Delete the whole campaign" : "Pause this live campaign before deleting it"} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1.5 text-[12px] font-semibold text-rose-500 transition hover:border-rose-500/50 hover:bg-rose-500/5 disabled:cursor-not-allowed disabled:opacity-50">
                     <Trash2 className="h-3.5 w-3.5" /> Delete
                   </button>
                 </div>
