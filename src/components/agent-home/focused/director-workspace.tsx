@@ -527,10 +527,23 @@ function SceneInspector({ scene, onClose, onPatch, onGenerate, onSwapEngine }: {
             <input value={scene.motionPrompt || ""} onChange={(e) => onPatch({ motionPrompt: e.target.value })} placeholder="e.g. leans in, warm gestures" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12px] outline-none focus:border-brand-500/60" />
           </>
         )}
-        {scene.engine === "reel" && (
+        {(scene.engine === "reel" || scene.engine === "media") && (
           <>
-            <label className="mb-1 mt-3 block text-[11px] font-semibold">Source · trim</label>
-            <input value={scene.sourceUrl || ""} onChange={(e) => onPatch({ sourceUrl: e.target.value })} placeholder="Paste a video URL or pick from Media" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12px] outline-none focus:border-brand-500/60" />
+            <label className="mb-1 mt-3 block text-[11px] font-semibold">{scene.engine === "reel" ? "Source video · trim" : "Media clip URL"}</label>
+            <input value={scene.sourceUrl || ""} onChange={(e) => onPatch({ sourceUrl: e.target.value })} placeholder={scene.engine === "reel" ? "Paste a long-video URL to clip" : "Paste a video URL or pick from Media"} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12px] outline-none focus:border-brand-500/60" />
+            {scene.engine === "reel" && (
+              <div className="mt-1.5 flex items-center gap-2">
+                <input type="number" value={scene.clipStart ?? ""} onChange={(e) => onPatch({ clipStart: e.target.value === "" ? undefined : Number(e.target.value) })} placeholder="start s" className="w-24 rounded-[9px] border border-input bg-background px-2 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+                <span className="text-muted-foreground">→</span>
+                <input type="number" value={scene.clipEnd ?? ""} onChange={(e) => onPatch({ clipEnd: e.target.value === "" ? undefined : Number(e.target.value) })} placeholder="end s" className="w-24 rounded-[9px] border border-input bg-background px-2 py-1.5 text-[12px] outline-none focus:border-brand-500/60" />
+              </div>
+            )}
+          </>
+        )}
+        {scene.engine === "design" && (
+          <>
+            <label className="mb-1 mt-3 block text-[11px] font-semibold">Still image URL</label>
+            <input value={scene.sourceUrl || ""} onChange={(e) => onPatch({ sourceUrl: e.target.value })} placeholder="Paste an image URL (or generate a still)" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12px] outline-none focus:border-brand-500/60" />
           </>
         )}
 
