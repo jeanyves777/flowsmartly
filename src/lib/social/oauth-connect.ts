@@ -120,13 +120,13 @@ export function decodeConnectState(raw: string | null | undefined): ConnectState
 
 /**
  * Redirect the OAuth callback result to the right place: the app deep link for
- * a mobile-initiated connect, otherwise the web `/social-accounts` page. The
+ * a mobile-initiated connect, otherwise the new Home connections surface. The
  * same `success`/`error` query params are appended in both cases.
  */
 export function connectResultRedirect(
   mobileRedirect: string | undefined,
   params: Record<string, string>,
-  webPath: string = "/social-accounts",
+  webPath: string = "/home/connections",
 ): NextResponse {
   const base =
     mobileRedirect && isAllowedMobileRedirect(mobileRedirect)

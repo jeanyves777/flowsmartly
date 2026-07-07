@@ -66,6 +66,7 @@ import { FocusedSell } from "./focused/sell-workspace";
 import { StoreCallToAction } from "./focused/store-cta";
 import { FocusedWeb, FocusedLanding } from "./focused/web-workspace";
 import { FocusedPortfolio } from "./focused/portfolio-workspace";
+import { FocusedReel } from "./focused/reel-workspace";
 import { FocusedOutreach } from "./focused/outreach-workspace";
 
 interface SessionUser { name: string; aiCredits: number; avatarUrl: string | null; username: string | null; email: string | null }
@@ -116,6 +117,7 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   media: "Ask the agent to find or generate media — e.g. “make me a product image”.",
   logo: "Ask the agent to generate a logo for your brand.",
   video: "Ask the agent to create a video — an ad, promo, or reel.",
+  reel: "Ask the agent to turn a video into reels — paste a link and it finds the best moments, reframes to 9:16 and captions them.",
   avatar: "Ask the agent to make an avatar video — e.g. “a 30s intro of my avatar for our launch”.",
   delivery: "Ask the agent about deliveries — e.g. “which orders are out for delivery?”.",
   adbuilder: "Ask the agent to build & launch an ad — e.g. “run an ad for my new product, $10/day, target Austin”.",
@@ -154,6 +156,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   media: { label: "Media library", subtitle: "Your images & videos", icon: Images },
   logo: { label: "Logo studio", subtitle: "Your generated logos", icon: Palette },
   video: { label: "Video studio", subtitle: "Brief → estimate → build, right on the canvas", icon: Clapperboard },
+  reel: { label: "Reel studio", subtitle: "Link → find moments → clips, right on the canvas", icon: Clapperboard },
   voice: { label: "Voice studio", subtitle: "Voiceovers, narration & voice cloning", icon: Mic },
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
@@ -178,6 +181,8 @@ function focusedSurfaceContext(focused: string, brandName?: string | null): stri
       return `The user has the **Publish** workspace open (posts, scheduling, content calendar). Default their intent to creating, scheduling, or managing posts.`;
     case "portfolio":
       return `The user has the **Portfolio Studio** open — their Portfolio / Digital Résumé site (a shareable public page, distinct from the Website Studio). OPERATE it for them; don't tell them to open menus. To BUILD one they don't have: build_portfolio — ask business vs personal; for a personal résumé, have them upload their CV and READ it to extract experience/skills/education; pull business content from the Brand Kit. To EDIT: call get_portfolio_content first (current header, sections, style, hero media, access), then edit_portfolio — send a PARTIAL patch; the \`sections\` array is replaced wholesale so include existing items you keep. Pick a STYLE that reads like a portfolio/digital-ad piece (spotlight/cinematic/showcase/editorial/neon/card); spotlight/cinematic/neon support a full-bleed VIDEO hero. To gate access, set access.view or access.download to 'email' (visitors verify a 6-digit code and are saved to Contacts). To go live set status:'PUBLISHED'; a custom domain can be attached from the Domains surface. Don't just describe steps — do the work.`;
+    case "reel":
+      return `The user has the **Reel Studio** OPEN — a playground that turns a long video into scored 9:16 clips. OPERATE it; don't narrate. To BUILD reels: build_reels — pass the source \`transcript\` (transcribe the video's audio, or use provided captions), a title, and optional settings (clipLength/aspect/count). Clips appear on the canvas sorted by virality score and render to 9:16 after. To EDIT a clip, call get_reel_content first (for clip ids) then edit_clip. To POST/SCHEDULE, use publish_reels with clip ids + channels (tiktok/instagram/youtube/facebook/linkedin/x); omit scheduleAt to post now. Everything stays under the campaign to repost or delete. Don't reply with a generic menu.`;
     case "web":
       return `The user has the **Web** workspace open — their website + the full **Website Studio** editor. OPERATE the site for them; don't tell them to open menus. To BUILD a new site use build_website. To EDIT the existing one, FIRST call get_website_content (see the current content + which sections are editable), then use edit_website: mode:'content' for text/data (company info, tagline, phone/email/address, the CTA button, services, team, FAQ, testimonials + layout, stats, nav/footer links, contact info + Google map, Google Reviews) — send a PARTIAL patch, but LISTS (services/faq/testimonials/links) are replaced wholesale so include the existing items too; or mode:'redesign' with a section + instructions for a layout/design change or a new section. Either way the site rebuilds and you're notified when it's live. For publish/unpublish/rename/SEO use update_website. Landing pages are generative — gather the goal/offer/audience, then generate.`;
     case "outreach":
@@ -261,7 +266,7 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
 // "grow" and "business" are category CONTAINERS (they open a nav panel, not a
 // real surface) — deliberately excluded so /home/grow and /home/business deep-
 // link cleanly to Home instead of a "coming soon" placeholder.
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
@@ -311,6 +316,7 @@ export function AgentHome() {
   const [pitchTarget, setPitchTarget] = useState<{ leadId?: string; leadName?: string; pitchId?: string } | null>(null);
   // The content campaign whose Campaign Studio is open (empty object = new).
   const [campaignTarget, setCampaignTarget] = useState<{ campaignId?: string; brief?: string } | null>(null);
+  const [campaignInitialView, setCampaignInitialView] = useState("new");
   const [leaveAction, setLeaveAction] = useState<{ run: () => void } | null>(null);
   const [panelKey, setPanelKey] = useState<string | null>(null);
   // Rail category to restore when a browse panel is closed WITHOUT navigating —
@@ -320,11 +326,13 @@ export function AgentHome() {
   const [toast, setToast] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(true); // Lead Studio section menu (toggled from the surface header)
+  const [leadsInitialScreen, setLeadsInitialScreen] = useState("find");
   const [design, setDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
   // The Print Studio canvas is a SEPARATE document from the Create design — they
   // must not share state or a draft key, or opening a print format would pollute
   // Create (and vice-versa). Its own state + storage keeps them fully isolated.
   const [printDesign, setPrintDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
+  const [printInitialFormat, setPrintInitialFormat] = useState<string | null>(null);
   const [brandColors, setBrandColors] = useState<string[]>([]);
   const [brandContact, setBrandContact] = useState<BrandContact | null>(null);
   const [brandLogo, setBrandLogo] = useState<string | null>(null);
@@ -559,6 +567,9 @@ export function AgentHome() {
   // Video Studio (/home/video) bridge: getContext feeds the [STORYAD] canvas
   // context to the agent; loadCampaign lets the agent's draft appear on the canvas.
   const videoOpsRef = useRef<{ getContext: () => string; loadCampaign: (id: string) => void } | null>(null);
+  // Reel Studio (/home/reel) bridge — same shape: getContext feeds the canvas
+  // context; loadCampaign lets the agent's fresh reel campaign appear on the canvas.
+  const reelOpsRef = useRef<{ getContext: () => string; loadCampaign: (id: string) => void } | null>(null);
   const followupOpsRef = useRef<{ getContext: () => string; applyPatch: (patch: Record<string, unknown>) => void } | null>(null);
   // Which canvas is live, for routing agent patches to the right document.
   const focusedRef = useRef(focused);
@@ -595,6 +606,9 @@ export function AgentHome() {
       // Video Studio: the agent drafted a story-ad campaign — load it onto the canvas.
       const storyadCmd = (patch as { __storyad?: { campaignId?: string } }).__storyad;
       if (storyadCmd && typeof storyadCmd === "object" && storyadCmd.campaignId) { videoOpsRef.current?.loadCampaign(storyadCmd.campaignId); return; }
+      // Reel Studio: the agent built a reel campaign — load it onto the canvas.
+      const reelCmd = (patch as { __reel?: { campaignId?: string } }).__reel;
+      if (reelCmd && typeof reelCmd === "object" && reelCmd.campaignId) { reelOpsRef.current?.loadCampaign(reelCmd.campaignId); return; }
       // Route the edit to whichever canvas is open (Print has its own document).
       const apply = (d: DesignDoc) => applyDesignPatch(d, patch);
       if (focusedRef.current === "print") setPrintDesign(apply); else setDesign(apply);
@@ -664,6 +678,8 @@ export function AgentHome() {
   const fMeta = focused ? FOCUS_META[focused] : undefined;
   const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fMeta ? fMeta.label : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
   const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fMeta ? fMeta.icon : fws?.icon ?? Sparkles;
+  const primaryWorkspaces = WORKSPACES.filter((w) => w.key !== "business");
+  const businessWorkspace = WORKSPACES.find((w) => w.key === "business");
 
   const openWorkspace = (key: string) => {
     // Home returns to the fresh, empty initial state (greeting + suggestions) —
@@ -680,15 +696,9 @@ export function AgentHome() {
       });
       return;
     }
-    // Leads opens its full surface directly (search + saved lists), not a panel.
-    if (key === "leads") { guardNav(() => openFocused("leads")); return; }
-    // Print opens the studio directly (its hero IS the format chooser), not a panel.
-    if (key === "print") { guardNav(() => openFocused("print")); return; }
-    // Campaign opens the studio directly on a fresh brief (its hero IS the brief form).
-    if (key === "campaign") { guardNav(() => { setCampaignTarget({}); openFocused("campaign"); }); return; }
     // Browsing a category just opens its menu panel on the RIGHT — it does NOT
     // leave the current focused view (the view stays mounted behind the panel).
-    // Only picking an item (onOpenView) or Home/Leads actually navigates away, so
+    // Only picking an item (onOpenView) or Home actually navigates away, so
     // there's no guard here. Remember where to return if the panel is closed.
     if (!panelKey) panelReturnWs.current = focused ? activeWs : "home";
     setActiveWs(key);
@@ -698,16 +708,24 @@ export function AgentHome() {
   const openFocused = (key: string) => { const target = key === "business" ? "brand" : key === "grow" ? "analytics" : key; setPanelKey(null); setActiveWs(key); setFocused(target); setDrawerOpen(false); if (target === "create") savedDesignRef.current = design; };
   const openBrand = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("brand"); setDrawerOpen(false); };
   const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setSettingsInitialTab(undefined); setActiveWs("business"); setFocused("account"); };
-  const openConnections = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("publish"); setFocused("connections"); };
+  const openConnections = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("connections"); setFocused("connections"); setDrawerOpen(false); };
   const openBilling = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("billing"); setDrawerOpen(false); };
   // Open a sub-surface (domains, pitch, customers, …) from within its parent
   // workspace — keeps the current rail selection. New-design only, never legacy.
-  const openView = (key: string) => { setHistoryOpen(false); setPanelKey(null); setFocused(key); setDrawerOpen(false); };
+  const openView = (key: string, hint?: string) => {
+    if (key === "campaign") { setCampaignTarget({}); setCampaignInitialView(hint === "library" ? "library" : "new"); }
+    if (key === "leads" && hint) setLeadsInitialScreen(hint);
+    if (key === "print") setPrintInitialFormat(hint ?? null);
+    setHistoryOpen(false);
+    setPanelKey(null);
+    setFocused(key);
+    setDrawerOpen(false);
+  };
   // Open Pitch Studio for a lead — set the target BEFORE switching surfaces so the
   // child mounts with it. Keeps the current rail (Leads).
   const openPitchStudio = (t: { leadId?: string; leadName?: string; pitchId?: string }) => { setPitchTarget(t); setHistoryOpen(false); setPanelKey(null); setFocused("pitchstudio"); setDrawerOpen(false); };
   // Open Campaign Studio (empty target = start a new campaign).
-  const openCampaignStudio = (t?: { campaignId?: string; brief?: string }) => { setCampaignTarget(t ?? {}); setHistoryOpen(false); setPanelKey(null); setFocused("campaign"); setDrawerOpen(false); };
+  const openCampaignStudio = (t?: { campaignId?: string; brief?: string }) => { setCampaignTarget(t ?? {}); setCampaignInitialView(t?.campaignId ? "library" : "new"); setHistoryOpen(false); setPanelKey(null); setFocused("campaign"); setDrawerOpen(false); };
   // Load a produced design into the Create canvas (shared by ?design= deep-link
   // and the task-card "Open in studio" client-side nav).
   const openDesignById = (designId: string) => {
@@ -755,7 +773,8 @@ export function AgentHome() {
         : focused === "adbuilder" ? (adOpsRef.current?.getContext() || undefined)
           : focused === "automations" ? (followupOpsRef.current?.getContext() || undefined)
             : focused === "video" ? (videoOpsRef.current?.getContext() || undefined)
-              : undefined;
+              : focused === "reel" ? (reelOpsRef.current?.getContext() || undefined)
+                : undefined;
   const sendAction = (p: string) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true });
   const sendActionFiles = (p: string, atts: { dataUrl?: string; url?: string; name: string }[]) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true, attachments: atts });
   // Mobile "collect via chat" bridge: on phones, studios seed the composer with
@@ -945,7 +964,7 @@ export function AgentHome() {
       <div className="flex min-h-0 flex-1">
         {/* desktop workspace rail */}
         <nav className="hidden w-[84px] shrink-0 flex-col items-center gap-1 overflow-y-auto overscroll-contain border-e border-border bg-card/50 py-3 md:flex [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {WORKSPACES.map((w, i) => {
+          {primaryWorkspaces.map((w, i) => {
             const Icon = w.icon;
             const active = activeWs === w.key;
             return (
@@ -959,6 +978,23 @@ export function AgentHome() {
               </div>
             );
           })}
+          <div className="mt-auto h-px w-11 bg-border" />
+          <button onClick={() => guardNav(openConnections)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", activeWs === "connections" ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+            {activeWs === "connections" && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
+            <Link2 className="h-[21px] w-[21px]" />
+            <span>Social</span>
+          </button>
+          {businessWorkspace && (() => {
+            const Icon = businessWorkspace.icon;
+            const active = activeWs === businessWorkspace.key;
+            return (
+              <button onClick={() => openWorkspace(businessWorkspace.key)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                {active && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
+                <Icon className="h-[21px] w-[21px]" />
+                <span>{s.ws[businessWorkspace.key] ?? businessWorkspace.label}</span>
+              </button>
+            );
+          })()}
         </nav>
 
         {/* main */}
@@ -1079,6 +1115,7 @@ export function AgentHome() {
                     value={printDesign}
                     onChange={setPrintDesign}
                     draftKey="print"
+                    initialFormat={printInitialFormat}
                     pageOpsRef={pageOpsRef}
                     printOpsRef={printOpsRef}
                     productOpsRef={productOpsRef}
@@ -1155,6 +1192,8 @@ export function AgentHome() {
                   <FocusedWeb onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "portfolio" ? (
                   <FocusedPortfolio onAsk={sendAction} onAskFiles={sendActionFiles} onOpenView={openView} refreshKey={actionCount} working={sending} />
+                ) : focused === "reel" ? (
+                  <FocusedReel onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} canvasRef={reelOpsRef} />
                 ) : focused === "landing" ? (
                   <FocusedLanding onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "outreach" ? (
@@ -1172,11 +1211,11 @@ export function AgentHome() {
                 ) : focused === "reviews" ? (
                   <FocusedReviews onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "leads" ? (
-                  <FocusedLeads onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} onOpenPitch={(pitchId) => guardNav(() => openPitchStudio({ pitchId }))} />
+                  <FocusedLeads initialScreen={leadsInitialScreen} onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} onOpenPitch={(pitchId) => guardNav(() => openPitchStudio({ pitchId }))} />
                 ) : focused === "pitchstudio" ? (
                   <FocusedPitchStudio target={pitchTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} />
                 ) : focused === "campaign" ? (
-                  <FocusedCampaignStudio target={campaignTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} />
+                  <FocusedCampaignStudio initialView={campaignInitialView} target={campaignTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} />
                 ) : focused === "compose" ? (
                   <FocusedCompose onAsk={sendAction} refreshKey={actionCount} composeOpsRef={composeOpsRef} working={sending} narrate={publishNarrate} />
                 ) : focused === "email" ? (
@@ -1272,7 +1311,7 @@ export function AgentHome() {
                 hasStore={hasStore}
                 onClose={() => { setPanelKey(null); setActiveWs(panelReturnWs.current); }}
                 onAsk={(q) => { setPanelKey(null); setActiveWs(panelReturnWs.current); send(q, false, undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true }); }}
-                onOpenView={(k) => guardNav(() => openView(k))}
+                onOpenView={(k, hint) => guardNav(() => openView(k, hint))}
               />
             )}
           </aside>
@@ -1311,7 +1350,7 @@ export function AgentHome() {
               <button onClick={() => { setHistoryOpen(true); setDrawerOpen(false); }} className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-foreground hover:bg-muted"><History className="h-[18px] w-[18px]" /> History</button>
               <div className="my-1.5 h-px w-full bg-border" />
               {/* workspaces */}
-              {WORKSPACES.map((w) => {
+              {primaryWorkspaces.map((w) => {
                 const Icon = w.icon;
                 return (
                   <button key={w.key} onClick={() => openWorkspace(w.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === w.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
@@ -1319,6 +1358,18 @@ export function AgentHome() {
                   </button>
                 );
               })}
+              <div className="my-1.5 h-px w-full bg-border" />
+              <button onClick={() => guardNav(openConnections)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === "connections" ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
+                <Link2 className="h-[18px] w-[18px]" /> Social
+              </button>
+              {businessWorkspace && (() => {
+                const Icon = businessWorkspace.icon;
+                return (
+                  <button key={businessWorkspace.key} onClick={() => openWorkspace(businessWorkspace.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === businessWorkspace.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
+                    <Icon className="h-[18px] w-[18px]" /> {s.ws[businessWorkspace.key] ?? businessWorkspace.label}
+                  </button>
+                );
+              })()}
             </div>
             {/* language + theme */}
             <div className="flex items-center justify-between border-t border-border p-3">
@@ -1395,7 +1446,7 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
   hasStore: boolean | null;
   onClose: () => void;
   onAsk: (q: string) => void;
-  onOpenView: (key: string) => void;
+  onOpenView: (key: string, hint?: string) => void;
 }) {
   const ws = WORKSPACES.find((w) => w.key === panelKey);
   if (!ws) return null;
@@ -1424,7 +1475,7 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
             return (
               <button
                 key={(it.viewKey ?? "") + it.label}
-                onClick={() => (it.viewKey ? onOpenView(it.viewKey) : onAsk(`Open ${it.label} and help me get started.`))}
+                onClick={() => (it.viewKey ? onOpenView(it.viewKey, it.viewHint) : onAsk(`Open ${it.label} and help me get started.`))}
                 className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-3 py-3 text-left transition hover:border-brand-500/50 hover:bg-muted/50"
               >
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><ItemIcon className="h-[18px] w-[18px]" /></span>

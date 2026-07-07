@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/client";
+import { extractLocationSignal, validateAddressAgainstLocation } from "@/lib/leads/discrepancy-validator";
 import { searchGooglePlaces, googlePlacesKey } from "@/lib/leads/google-places";
 import type { FlowAgentTool } from "../registry";
 
@@ -45,10 +46,18 @@ export const findLocalLeads: FlowAgentTool = {
     } catch (e) {
       return { ok: false, error_code: "upstream_failed", message: `Google Places search failed: ${e instanceof Error ? e.message : "unknown error"}. You can fall back to web_search + find_leads.` };
     }
-    const businesses = results.slice(0, limit);
+    const requestedLocation = extractLocationSignal(location);
+    const filtered = location
+      ? results.filter((business) => validateAddressAgainstLocation(business.address, requestedLocation).length === 0)
+      : results;
+    const skippedForLocation = results.length - filtered.length;
+    const businesses = filtered.slice(0, limit);
     const capped = limit >= 60 && businesses.length >= 60;
     if (businesses.length === 0) {
-      return { ok: true, data: { count: 0, userMessage: `No local businesses found for "${query}"${location ? ` in ${location}` : ""}. Try a broader term or a different location.` } };
+      const reason = skippedForLocation > 0
+        ? ` Google returned ${skippedForLocation} result${skippedForLocation === 1 ? "" : "s"}, but their addresses conflicted with ${location}, so I did not save them.`
+        : "";
+      return { ok: true, data: { count: 0, userMessage: `No local businesses found for "${query}"${location ? ` in ${location}` : ""}.${reason} Try a broader term or a different location.` } };
     }
 
     // Persist — wrapped so a DB/schema error degrades to a clear fallback instead
@@ -100,7 +109,7 @@ export const findLocalLeads: FlowAgentTool = {
       data: {
         listId, count: created.length, source: "google_places",
         leads: created.slice(0, 10),
-        userMessage: `Found + saved ${created.length} local ${query}${location ? ` in ${location}` : ""} from Google (with phone + website + ratings).${capped ? " That's Google's 60-per-search cap — if the user wanted more, run web_search + find_leads to top up the same list." : ""} Tell the user they can build an outreach automation on this list or enrich decision-maker contacts.`,
+        userMessage: `Found + saved ${created.length} local ${query}${location ? ` in ${location}` : ""} from Google (with phone + website + ratings).${skippedForLocation > 0 ? ` I skipped ${skippedForLocation} Google result${skippedForLocation === 1 ? "" : "s"} because the address did not match the requested location.` : ""}${capped ? " That's Google's 60-per-search cap — if the user wanted more, run web_search + find_leads to top up the same list." : ""} Tell the user they can build an outreach automation on this list or enrich decision-maker contacts.`,
       },
       resultRefType: "SavedLeadList",
       resultRefId: listId,

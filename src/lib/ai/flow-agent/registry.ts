@@ -161,6 +161,10 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { buildStore } = await import("./tools/build-store");
   const { getStoreContent } = await import("./tools/get-store-content");
   const { editStore } = await import("./tools/edit-store");
+  const { buildReels } = await import("./tools/build-reels");
+  const { getReelContent } = await import("./tools/get-reel-content");
+  const { editClip } = await import("./tools/edit-clip");
+  const { publishReels } = await import("./tools/publish-reels");
   const { buildPortfolio } = await import("./tools/build-portfolio");
   const { getPortfolioContent } = await import("./tools/get-portfolio-content");
   const { editPortfolio } = await import("./tools/edit-portfolio");
@@ -263,6 +267,10 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(buildStore);
   flowAgentTools.register(getStoreContent);
   flowAgentTools.register(editStore);
+  flowAgentTools.register(buildReels);
+  flowAgentTools.register(getReelContent);
+  flowAgentTools.register(editClip);
+  flowAgentTools.register(publishReels);
   flowAgentTools.register(buildPortfolio);
   flowAgentTools.register(getPortfolioContent);
   flowAgentTools.register(editPortfolio);
