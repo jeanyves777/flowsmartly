@@ -146,6 +146,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { sendProposal } = await import("./tools/send-proposal");
   const { createContentCampaign } = await import("./tools/create-content-campaign");
   const { addCampaignPost } = await import("./tools/add-campaign-post");
+  const { directFilm } = await import("./tools/direct-film");
   const { regeneratePostImage } = await import("./tools/regenerate-post-image");
   const { regeneratePostVideo } = await import("./tools/regenerate-post-video");
   const { listVoicesTool } = await import("./tools/list-voices");
@@ -249,6 +250,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(sendProposal);
   flowAgentTools.register(createContentCampaign);
   flowAgentTools.register(addCampaignPost);
+  flowAgentTools.register(directFilm);
   flowAgentTools.register(regeneratePostImage);
   flowAgentTools.register(regeneratePostVideo);
   flowAgentTools.register(createAvatarVideo);

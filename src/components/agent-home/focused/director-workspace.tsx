@@ -78,6 +78,7 @@ export function FocusedDirector({ onAsk }: { refreshKey?: number; onAsk?: (promp
   const [selId, setSelId] = useState<string | null>(null);
   const [dockCollapsed, setDockCollapsed] = useState(false);
   const [addMenu, setAddMenu] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   const boardRef = useRef<HTMLDivElement | null>(null);
 
@@ -232,12 +233,21 @@ export function FocusedDirector({ onAsk }: { refreshKey?: number; onAsk?: (promp
   const submitBrief = async (draft: { brief: string; filmType: FilmType; aspect: FilmAspect; targetSeconds: number; title: string }) => {
     setBriefOpen(false);
     if (film) { mutate((f) => ({ ...f, ...draft })); return; }
+    setDrafting(true);
     try {
       const j = await fetch("/api/ai/video-director", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft),
       }).then((r) => r.json());
-      if (j?.success) setFilm(j.data.film);
+      if (j?.success) {
+        setFilm(j.data.film);
+        // the director drafts the scene pipeline from the brief
+        if (draft.brief.trim()) {
+          const dj = await fetch(`/api/ai/video-director/${j.data.film.id}/draft`, { method: "POST" }).then((r) => r.json()).catch(() => null);
+          if (dj?.success) setFilm(dj.data.film);
+        }
+      }
     } catch { /* ignore */ }
+    finally { setDrafting(false); }
   };
 
   const startNew = () => { setFilm(null); setSelId(null); setBriefOpen(true); };
@@ -365,6 +375,17 @@ export function FocusedDirector({ onAsk }: { refreshKey?: number; onAsk?: (promp
             <h3 className="text-[16px] font-bold">Direct your first film</h3>
             <p className="mt-1 text-[13px] text-muted-foreground">One brief → a pipeline of scenes across AI, your avatar &amp; reel clips → one finished video.</p>
             <button onClick={() => setBriefOpen(true)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm"><Sparkles className="h-4 w-4" /> New film</button>
+          </div>
+        </div>
+      )}
+
+      {/* directing (drafting the pipeline) */}
+      {drafting && (
+        <div className="absolute inset-0 z-[45] grid place-items-center bg-background/70 backdrop-blur-sm">
+          <div className="text-center">
+            <FlowGeneratingMark size={54} />
+            <p className="mt-3 text-[13px] font-semibold">Directing your film…</p>
+            <p className="text-[11.5px] text-muted-foreground">Storyboarding scenes across AI, avatar &amp; reel</p>
           </div>
         </div>
       )}
