@@ -133,6 +133,20 @@ if ! python3 -c "import cv2" >/dev/null 2>&1; then
     || log "opencv install failed — reframe falls back to centre-crop"
 fi
 
+# --- 4d. YouTube cookies for Reel Studio URL ingest (bypass the bot check) ----
+# Optional — set YTDLP_COOKIES_B64 (base64 of a Netscape cookies.txt from a
+# logged-in YouTube session) in the deploy env / a GitHub secret, and it's written
+# to /etc/reel-yt-cookies.txt, which the app auto-detects. Uploads work without it.
+if [ -n "${YTDLP_COOKIES_B64:-}" ]; then
+  if echo "$YTDLP_COOKIES_B64" | base64 -d > /etc/reel-yt-cookies.txt 2>/dev/null && [ -s /etc/reel-yt-cookies.txt ]; then
+    chmod 600 /etc/reel-yt-cookies.txt
+    log "Wrote YouTube cookies for Reel Studio URL ingest"
+  else
+    rm -f /etc/reel-yt-cookies.txt
+    log "YTDLP_COOKIES_B64 set but could not be decoded — skipping"
+  fi
+fi
+
 # --- 5. free RAM for the build, then build ------------------------------------
 log "Stopping voice services to free RAM for the build"
 # shellcheck disable=SC2086
