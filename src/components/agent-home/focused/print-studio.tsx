@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FileText, Mail, CreditCard, Tent, BookOpen, Newspaper, Shirt, HardHat, Coffee, ShoppingBag, Sparkles, Send, ChevronLeft, ChevronRight, PanelRight, Upload, Wand2, Image as ImageIcon, Loader2, Printer, type LucideIcon } from "lucide-react";
+import { FileText, Mail, CreditCard, Tent, BookOpen, Newspaper, Shirt, HardHat, Coffee, ShoppingBag, Sparkles, Send, ChevronLeft, ChevronRight, PanelRight, Upload, Wand2, Image as ImageIcon, Loader2, Printer, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { FocusedDesignStudio, type DesignDoc, type BrandContact, type SizePreset, type PrintGuides, type ElementKey, type ImageLayer, type ShapeLayer } from "./design-studio";
 
@@ -324,13 +324,16 @@ export function FocusedPrintStudio({ onAsk, printOpsRef, productOpsRef, ...canva
   return <PrintHero onPick={selectFormat} onAsk={onAsk} />;
 }
 
-/* ── Format chooser — empty content state + right-side format MENU ─────────
-   Follows the app's menu→detail pattern (same rows as the Create drawer): a
-   right rail lists the print formats grouped Paper/Product; the main area is an
-   empty state (agent prompt) until a format is picked, then it renders the
-   canvas / product mockup. [[full-width-left-menu-layout]] */
+/* ── Format chooser — empty content state; formats open in an OVERLAY DRAWER ──
+   Matches the Create drawer: the format menu is NOT part of the layout — it
+   slides in over the view ON CLICK, and the view stays as the empty state until
+   a format row is clicked (which then renders the canvas / product mockup).
+   [[surface-buttons-are-ui-actions]] */
 function PrintHero({ onPick, onAsk }: { onPick: (key: string) => void; onAsk: (prompt: string) => void }) {
   const [q, setQ] = useState("");
+  // Auto-open the formats drawer on entry (like clicking a nav category opens
+  // its panel) — the main view stays the empty state until a format is clicked.
+  const [menuOpen, setMenuOpen] = useState(true);
   const paper = PRINT_FORMATS.filter((f) => f.group === "paper");
   const product = PRINT_FORMATS.filter((f) => f.group === "product");
   const ask = () => {
@@ -339,12 +342,15 @@ function PrintHero({ onPick, onAsk }: { onPick: (key: string) => void; onAsk: (p
     onAsk(`I'm in the Print Studio. ${t}. Pick the best print format, open it with start_print_project, then design the whole thing for me on the canvas — don't ask me unnecessary questions.`);
     setQ("");
   };
+  // Picking a format renders it (this component unmounts), so no close needed.
+  const pick = (key: string) => onPick(key);
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-      {/* MAIN — empty content state */}
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* MAIN — empty content state (full width; unchanged until a format is picked) */}
       <div
-        className="relative grid min-h-0 flex-1 place-items-center overflow-y-auto px-5 py-10"
-        style={{ background: "radial-gradient(560px 340px at 42% -8%, hsl(var(--primary)/.13), transparent 70%)" }}
+        className="grid min-h-0 flex-1 place-items-center overflow-y-auto px-5 py-10"
+        style={{ background: "radial-gradient(560px 340px at 50% -8%, hsl(var(--primary)/.13), transparent 70%)" }}
       >
         <div className="w-full max-w-[540px] text-center">
           <span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500">
@@ -352,7 +358,7 @@ function PrintHero({ onPick, onAsk }: { onPick: (key: string) => void; onAsk: (p
           </span>
           <h1 className="mt-4 text-[22px] font-extrabold leading-tight tracking-tight">What are we printing today?</h1>
           <p className="mx-auto mt-1.5 max-w-[440px] text-[13.5px] leading-relaxed text-muted-foreground">
-            Pick a format from the menu to open a full editable canvas — the same controls as the Design studio — or tell the agent what you need and it builds the whole thing for you, print-ready.
+            Choose a print format to open a full editable canvas — the same controls as the Design studio — or tell the agent what you need and it builds the whole thing for you, print-ready.
           </p>
 
           <div className="mx-auto mt-5 flex items-center gap-2.5 rounded-2xl border border-border bg-card p-2.5 text-left shadow-lg shadow-black/5">
@@ -369,29 +375,45 @@ function PrintHero({ onPick, onAsk }: { onPick: (key: string) => void; onAsk: (p
             </button>
           </div>
 
-          <p className="mt-4 inline-flex items-center gap-1.5 text-[11.5px] font-medium text-muted-foreground">
-            <PanelRight className="h-3.5 w-3.5" /> Choose a format from the menu<span className="hidden lg:inline"> on the right</span>.
-          </p>
+          {!menuOpen && (
+            <button
+              onClick={() => setMenuOpen(true)}
+              className="mx-auto mt-4 inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
+            >
+              <PanelRight className="h-4 w-4" /> Browse print formats
+            </button>
+          )}
         </div>
       </div>
 
-      {/* RIGHT MENU — print formats (mirrors the Create-drawer row style) */}
-      <aside className="flex w-full shrink-0 flex-col border-t border-border bg-card/40 lg:w-[300px] lg:border-s lg:border-t-0">
-        <div className="flex items-center gap-2.5 border-b border-border px-4 py-3.5">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Printer className="h-[18px] w-[18px]" /></span>
-          <b className="text-[14px]">Print formats</b>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          <GroupLabel first>Paper &amp; signage</GroupLabel>
-          <div className="space-y-2">
-            {paper.map((f) => <FormatRow key={f.key} f={f} onPick={onPick} />)}
+      {/* FORMATS DRAWER — slides in over the view (never part of the layout),
+          exactly like the shell's Create/Publish panels. The view behind stays
+          the empty state; only clicking a format row changes it. */}
+      {menuOpen && (
+        <aside className="fixed inset-0 z-50 flex flex-col bg-card animate-in slide-in-from-right duration-200 md:absolute md:inset-y-0 md:left-auto md:end-0 md:w-[380px] md:border-s md:border-border md:shadow-2xl">
+          <div className="flex items-center gap-2.5 border-b border-border px-4 py-3.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Printer className="h-[18px] w-[18px]" /></span>
+            <b className="text-[15px]">Print formats</b>
+            <button onClick={() => setMenuOpen(false)} className="ms-auto text-muted-foreground hover:text-foreground" aria-label="Close"><X className="h-[18px] w-[18px]" /></button>
           </div>
-          <GroupLabel>Print on products</GroupLabel>
-          <div className="space-y-2">
-            {product.map((f) => <FormatRow key={f.key} f={f} onPick={onPick} />)}
+          <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">
+            <p className="px-1 pb-2.5 text-[12.5px] leading-relaxed text-muted-foreground">Pick a format to open a full editable canvas — or ask the agent to design it for you.</p>
+            <GroupLabel first>Paper &amp; signage</GroupLabel>
+            <div className="space-y-2">
+              {paper.map((f) => <FormatRow key={f.key} f={f} onPick={pick} />)}
+            </div>
+            <GroupLabel>Print on products</GroupLabel>
+            <div className="space-y-2">
+              {product.map((f) => <FormatRow key={f.key} f={f} onPick={pick} />)}
+            </div>
+            <div className="mt-auto pt-3">
+              <button onClick={() => { setMenuOpen(false); onAsk("Help me design something to print — pick the best format and build it for me on the canvas."); }} className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+                <Sparkles className="h-4 w-4" /> Ask the agent
+              </button>
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
+      )}
     </div>
   );
 }
