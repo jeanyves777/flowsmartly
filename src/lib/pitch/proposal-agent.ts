@@ -321,6 +321,8 @@ How to think:
 
 You decide the structure. There is no preset template. There is no fixed list of sections. Use what is appropriate for THIS user, selling THIS offer, to THIS prospect. The JSON shape below is the maximum surface — leave fields empty or short when not relevant. Use customSections when the offer needs sections that don't fit the standard ones.
 
+LENGTH & PUNCH (HARD RULE): This is a PITCH to WIN a client in seconds — not a document to read, not a report, not a brochure. Be SHORT, direct, and benefit-led. Lead with the winning point. Every sentence must earn its place; cut filler, hedging, throat-clearing, and generic marketing fluff ("in today's fast-paced world", "we are committed to excellence"). Concretely: executiveSummary ≤ 3 punchy sentences; clientNeed and aboutBrand ≤ 2 sentences each; every bullet (commitments/benefits/nextSteps/terms) ≤ ~14 words, a crisp outcome, MAX 3–4 bullets per list (pick the strongest — do not pad to fill); customSection bodies 1–2 sentences. Prefer specific, quantified wins over adjectives. If in doubt, make it shorter. A prospect should grasp the value at a glance.
+
 ${layoutHint}
 
 Return ONLY valid JSON with this shape:
@@ -332,7 +334,7 @@ Return ONLY valid JSON with this shape:
   "preparedFor": "Target client/entity",
   "preparedBy": "Sender brand",
   "serviceTitle": "Service package name",
-  "executiveSummary": "Tight 3-5 sentence summary tailored to this prospect.",
+  "executiveSummary": "≤3 punchy sentences — the winning hook for THIS prospect, benefit-first.",
   "aboutBrand": "About the sender brand and why they're suited to this engagement.",
   "clientNeed": "Why this target client needs this — grounded in real facts when available.",
   "commitments": ["Concrete commitments the sender makes"],

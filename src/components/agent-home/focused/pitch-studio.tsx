@@ -26,7 +26,7 @@ import { BriefSuggest } from "./brief-suggest";
  */
 
 interface PitchTarget { leadId?: string; leadName?: string; pitchId?: string }
-interface PitchRecord { id: string; businessName: string; businessUrl?: string | null; documentType: string; content: ServiceProposalContent }
+interface PitchRecord { id: string; businessName: string; businessUrl?: string | null; documentType: string; content: ServiceProposalContent; recipientEmail?: string | null; recipientName?: string | null }
 
 const PITCH_TYPES: { id: "deck" | "visual" | "email"; label: string; desc: string; icon: typeof FileText }[] = [
   { id: "deck", label: "Proposal deck", desc: "Clean, text-forward branded proposal.", icon: FileText },
@@ -34,7 +34,7 @@ const PITCH_TYPES: { id: "deck" | "visual" | "email"; label: string; desc: strin
   { id: "email", label: "Cold pitch email", desc: "Short, high-energy outreach email with the PDF attached.", icon: Mail },
 ];
 
-export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOpenResource }: { target: PitchTarget | null; onAsk: (p: string) => void; refreshKey?: number; onOpenView?: (key: string) => void; onOpenResource?: (r: { kind: "pitch"; id: string; name?: string } | null) => void }) {
+export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOpenResource, onUseInAutomation }: { target: PitchTarget | null; onAsk: (p: string) => void; refreshKey?: number; onOpenView?: (key: string) => void; onOpenResource?: (r: { kind: "pitch"; id: string; name?: string } | null) => void; onUseInAutomation?: (t: { leadId?: string; leadName?: string; pitchId: string }) => void }) {
   const { isMobile, seedComposer } = useMobileChat();
   const openPitchBrief = () => { if (isMobile) { seedComposer(PITCH_STARTER); return; } setSheetOpen(true); };
   const { toast } = useToast();
@@ -50,6 +50,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOp
   const [aiInstruction, setAiInstruction] = useState("");
   const [newBrief, setNewBrief] = useState("");
   const [sheetOpen, setSheetOpen] = useState(false); // brief bottom-sheet (system pattern)
+  const [sendOpen, setSendOpen] = useState(false); // email-send modal
   const [imgBusy, setImgBusy] = useState<Record<string, boolean>>({});
   // The shared FocusedView header exposes a slot we portal our toolbar into, so
   // there's ONE header row instead of a duplicated title bar.
@@ -73,7 +74,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOp
     const d = await fetch(`/api/pitch/${id}`).then((r) => r.json()).catch(() => null);
     const p = d?.data?.pitch;
     if (p && p.pitchContent && isServiceProposalContent(p.pitchContent)) {
-      setPitch({ id: p.id, businessName: p.businessName, businessUrl: p.businessUrl, documentType: p.documentType, content: p.pitchContent as ServiceProposalContent });
+      setPitch({ id: p.id, businessName: p.businessName, businessUrl: p.businessUrl, documentType: p.documentType, content: p.pitchContent as ServiceProposalContent, recipientEmail: p.recipientEmail, recipientName: p.recipientName });
       dirtyRef.current = false;
       return true;
     }
@@ -228,10 +229,11 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOp
     } catch { /* ignore */ } finally { setDownloading(false); }
   };
 
+  // Open the automation (Lead Studio → Pipeline) for this lead — a real UI
+  // action, not a chat prompt. [[surface-buttons-are-ui-actions]]
   const useInAutomation = () => {
-    if (!pitch || !target) return;
-    onAsk(`Attach the proposal (pitchId: ${pitch.id}) for "${target.leadName || pitch.businessName}" to the initial-pitch email step of this lead's outreach automation — call build_sequence_step with that pitchId so it's attached as the PDF. If there's no automation for the list yet, tell me to open the list's Pipeline first.`);
-    toast({ title: "Attaching to automation", description: "The agent is adding this proposal to the pitch step." });
+    if (!pitch) return;
+    onUseInAutomation?.({ leadId: target?.leadId, leadName: target?.leadName || pitch.businessName, pitchId: pitch.id });
   };
 
   if (!target) return <div className="grid min-h-0 flex-1 place-items-center p-8 text-center text-[13px] text-muted-foreground">Open Pitch Studio from a lead to draft a tailored proposal.</div>;
@@ -323,9 +325,14 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOp
           })()}
           {canGenerate && <button onClick={generate} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><RotateCcw className="h-3.5 w-3.5" /> Regenerate</button>}
           <button onClick={downloadPdf} disabled={downloading} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 disabled:opacity-50">{downloading ? <FlowLoader size={13} /> : <Download className="h-3.5 w-3.5" />} PDF</button>
+          <button onClick={() => setSendOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60"><Mail className="h-3.5 w-3.5" /> Send</button>
           <button onClick={useInAutomation} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white"><Plus className="h-3.5 w-3.5" /> Use in automation</button>
         </>,
         headerSlot,
+      )}
+
+      {sendOpen && pitch && (
+        <SendProposalModal pitch={pitch} onClose={() => setSendOpen(false)} onOpenConnections={() => onOpenView?.("connections")} toast={toast} />
       )}
 
       {/* document + right rail */}
@@ -497,6 +504,70 @@ function EmailPreview({ content, theme, businessName, brandName, logoUrl, onChan
             <span className="grid h-8 w-8 place-items-center rounded-lg text-white" style={{ background: primaryInk }}>📎</span>
             <div className="text-[12.5px]"><b>{businessName.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-proposal.pdf</b><div className="text-[11.5px] text-[#6a7280]">The full branded proposal — edit it on the Proposal-deck tab.</div></div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Email the branded proposal PDF straight from the Studio (same deliverProposal
+// path as the send_proposal agent skill + the Pitch board). A real UI action.
+function SendProposalModal({ pitch, onClose, onOpenConnections, toast }: {
+  pitch: PitchRecord;
+  onClose: () => void;
+  onOpenConnections: () => void;
+  toast: (t: { title: string; description?: string }) => void;
+}) {
+  const [email, setEmail] = useState(pitch.recipientEmail || "");
+  const [name, setName] = useState(pitch.recipientName || "");
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [needsConnect, setNeedsConnect] = useState(false);
+  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+  const send = async () => {
+    if (!valid || sending) return;
+    setSending(true); setErr(null); setNeedsConnect(false);
+    try {
+      const res = await fetch(`/api/pitch/${pitch.id}/send`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipientEmail: email.trim(), recipientName: name.trim() || undefined, message: message.trim() || undefined }),
+      });
+      const j = await res.json().catch(() => null);
+      if (res.ok && j?.success) {
+        toast({ title: "Proposal sent", description: `Sent to ${j.data?.sentTo || email.trim()} — marked Sent.` });
+        onClose();
+      } else {
+        const m = j?.error?.message || "Could not send the proposal.";
+        if (/connect|verif|not connected|email .*isn'?t/i.test(m)) setNeedsConnect(true);
+        setErr(m);
+      }
+    } catch { setErr("Could not send — check your connection and try again."); }
+    finally { setSending(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-[15px] font-bold"><Mail className="h-4 w-4 text-brand-500" /> Send proposal</h3>
+          <button onClick={onClose} className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+        <p className="mb-3 text-[12px] text-muted-foreground">Emails the branded PDF for <b className="text-foreground">{pitch.businessName}</b> from your connected email and marks it Sent.</p>
+        <label className="mb-1 block text-[11.5px] font-semibold">To <span className="text-red-400">*</span></label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="client@company.com" className="mb-2.5 w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
+        <label className="mb-1 block text-[11.5px] font-semibold">Recipient name <span className="font-normal text-muted-foreground">· optional</span></label>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Doe" className="mb-2.5 w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
+        <label className="mb-1 block text-[11.5px] font-semibold">Personal note <span className="font-normal text-muted-foreground">· optional</span></label>
+        <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={2} placeholder="A short line shown at the top of the email…" className="mb-1 w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
+        {err && (
+          <p className="mb-1 text-[11.5px] text-red-400">{err}{needsConnect && <> — <button onClick={onOpenConnections} className="font-semibold text-brand-400 underline">connect your email</button>.</>}</p>
+        )}
+        <div className="mt-3 flex justify-end gap-2">
+          <button onClick={onClose} className="rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold hover:border-brand-500/60">Cancel</button>
+          <button onClick={send} disabled={!valid || sending} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white disabled:opacity-50">{sending ? <FlowLoader size={13} tone="white" /> : <Mail className="h-3.5 w-3.5" />} {sending ? "Sending…" : "Send proposal"}</button>
         </div>
       </div>
     </div>
