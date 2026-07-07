@@ -4,7 +4,6 @@ import os from "os";
 import path from "path";
 import OpenAI from "openai";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
-import { extractAudioFromVideo } from "@/lib/video-editor/audio-detach";
 import { uploadLocalFileToS3 } from "@/lib/utils/s3-client";
 import { prisma } from "@/lib/db/client";
 import { finalizeCampaignBuild, markReelCampaignStatus } from "./reel-editor";
@@ -51,18 +50,33 @@ async function downloadToTemp(url: string, ext: string): Promise<string> {
 
 // ── INGEST: video file → transcript ───────────────────────────────────────────
 export async function transcribeVideoUrl(videoUrl: string): Promise<{ transcript: Transcript; durationSec: number }> {
-  const { audioUrl, audioDuration } = await extractAudioFromVideo(videoUrl);
-  const res = await fetch(audioUrl);
-  if (!res.ok) throw new Error(`Extracted audio unreachable (${res.status})`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  const file = new File([new Uint8Array(buf)], "audio.mp3", { type: "audio/mpeg" });
-  const openai = new OpenAI();
-  const tr = await openai.audio.transcriptions.create({ model: "whisper-1", file, response_format: "verbose_json" });
-  const segs = (tr as unknown as { segments?: Array<{ start: number; end: number; text: string }> }).segments || [];
-  return {
-    transcript: { segments: segs.map((s) => ({ start: s.start, end: s.end, text: (s.text || "").trim() })).filter((s) => s.end > s.start && s.text) },
-    durationSec: Math.round(audioDuration || 0),
-  };
+  const ffmpegPath = findFFmpegPath();
+  if (!ffmpegPath) throw new Error("Transcription requires ffmpeg (not found on this server).");
+  const src = await downloadToTemp(videoUrl, "mp4");
+  const audio = src.replace(/\.mp4$/, ".mp3");
+  try {
+    // Whisper-optimised audio: 16 kHz MONO at a low bitrate — speech-ideal AND small
+    // enough to stay under OpenAI's 25 MB upload limit for long videos (~65 min).
+    // (The generic high-quality extractor blew past 25 MB on a 38-min video.)
+    await runFFmpeg(ffmpegPath, ["-i", src, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "48k", "-y", audio], 300000);
+    const size = (await fsp.stat(audio)).size;
+    if (size > 24 * 1024 * 1024) {
+      throw new Error(`This video is too long to transcribe in one pass (${Math.round(size / 1024 / 1024)} MB audio > 25 MB whisper limit). Try a shorter clip.`);
+    }
+    const buf = await fsp.readFile(audio);
+    const file = new File([new Uint8Array(buf)], "audio.mp3", { type: "audio/mpeg" });
+    const openai = new OpenAI();
+    const tr = await openai.audio.transcriptions.create({ model: "whisper-1", file, response_format: "verbose_json" });
+    const data = tr as unknown as { segments?: Array<{ start: number; end: number; text: string }>; duration?: number };
+    const segs = data.segments || [];
+    return {
+      transcript: { segments: segs.map((s) => ({ start: s.start, end: s.end, text: (s.text || "").trim() })).filter((s) => s.end > s.start && s.text) },
+      durationSec: Math.round(Number(data.duration) || 0),
+    };
+  } finally {
+    await fsp.unlink(src).catch(() => {});
+    await fsp.unlink(audio).catch(() => {});
+  }
 }
 
 // ── Speaker-aware reframe helpers ──────────────────────────────────────────────
@@ -196,6 +210,11 @@ export async function downloadSourceVideoFromUrl(url: string): Promise<string> {
       "-f", "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
       "--merge-output-format", "mp4",
       "--no-playlist", "--no-warnings", "--quiet",
+      // Server IPs get bot-checked by YouTube; the android client + UA + retries
+      // are the standard mitigations (best-effort — some videos still require auth).
+      "--extractor-args", "youtube:player_client=android,web",
+      "--retries", "3", "--fragment-retries", "3",
+      "--user-agent", "com.google.android.youtube/19.09.37 (Linux; U; Android 13) gzip",
       "-o", out, url,
     ], { windowsHide: true });
     let err = "";

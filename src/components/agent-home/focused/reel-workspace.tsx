@@ -25,7 +25,7 @@ interface Clip {
   hashtags: string[]; renderStatus: string; renderUrl: string | null; thumbUrl: string | null;
 }
 interface Post { id: string; clipId: string; channel: string; status: string; scheduledAt: string | null; postedAt: string | null; externalUrl: string | null; }
-interface Campaign { id: string; title: string; sourceUrl: string | null; durationSec: number; status: string; clips: Clip[]; }
+interface Campaign { id: string; title: string; sourceUrl: string | null; durationSec: number; status: string; error?: string | null; clips: Clip[]; }
 
 type XY = { x: number; y: number };
 
@@ -265,7 +265,7 @@ export function FocusedReel({
         <div className="absolute inset-0 z-20 grid place-items-center bg-background/85 p-6 text-center">
           <div>
             <p className="text-[15px] font-bold">Couldn’t build reels from that source</p>
-            <p className="mx-auto mt-1 max-w-xs text-[12px] text-muted-foreground">The link couldn’t be downloaded or had no usable speech. Try uploading the file, or a different link.</p>
+            <p className="mx-auto mt-1 max-w-sm text-[12px] text-muted-foreground">{campaign.error || "The link couldn’t be downloaded or had no usable speech. Try uploading the file, or a different link."}</p>
             <button onClick={() => setBriefOpen(true)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 px-4 py-2 text-[13px] font-semibold text-white"><Plus className="h-4 w-4" /> New reels</button>
           </div>
         </div>
