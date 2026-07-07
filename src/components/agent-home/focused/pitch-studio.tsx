@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
-import { FileText, Download, Sparkles, Plus, RotateCcw, X, GripVertical, ChevronDown, ChevronRight, PanelRight, Check, Images, Mail } from "lucide-react";
+import { FileText, Download, Sparkles, Plus, RotateCcw, X, GripVertical, ChevronDown, ChevronRight, PanelRight, Check, Images, Mail, ArrowLeft } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -34,7 +34,7 @@ const PITCH_TYPES: { id: "deck" | "visual" | "email"; label: string; desc: strin
   { id: "email", label: "Cold pitch email", desc: "Short, high-energy outreach email with the PDF attached.", icon: Mail },
 ];
 
-export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: PitchTarget | null; onAsk: (p: string) => void; refreshKey?: number }) {
+export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView }: { target: PitchTarget | null; onAsk: (p: string) => void; refreshKey?: number; onOpenView?: (key: string) => void }) {
   const { isMobile, seedComposer } = useMobileChat();
   const openPitchBrief = () => { if (isMobile) { seedComposer(PITCH_STARTER); return; } setSheetOpen(true); };
   const { toast } = useToast();
@@ -124,6 +124,10 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
   // reload the pitch so the change shows. Skip if we have a local unsaved edit.
   useEffect(() => {
     if (!pitch || dirtyRef.current || generating) return;
+    // Never reload out from under an ACTIVE inline edit — swapping the pitch DOM
+    // while a contentEditable is focused/mid-mutation crashes React's reconciler
+    // (the same removeChild hazard the Editable guards against).
+    if (typeof document !== "undefined" && document.querySelector('[contenteditable="true"]')) return;
     loadById(pitch.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
@@ -275,6 +279,11 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: Pitc
       {/* toolbar — portaled into the shared FocusedView header (one header row, no duplicate title) */}
       {headerSlot && pitch && createPortal(
         <>
+          {onOpenView && (
+            <button onClick={() => onOpenView("leads")} title="Back to Lead Finder" className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground">
+              <ArrowLeft className="h-3.5 w-3.5" /> Lead Finder
+            </button>
+          )}
           {(() => {
             const cur = PITCH_TYPES.find((t) => t.id === docType) || PITCH_TYPES[0];
             const CurIcon = cur.icon;

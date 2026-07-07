@@ -24,7 +24,7 @@ export const enrichLead: FlowAgentTool = {
       phones: { type: "array", items: { type: "string" }, description: "Additional phone numbers." },
       title: { type: "string", description: "Corrected/confirmed job title." },
       website: { type: "string", description: "The business website URL." },
-      address: { type: "string", description: "The business street address / location (from Google Business)." },
+      address: { type: "string", description: "The COMPLETE business address — street number + street, city, state, ZIP and country (from Google Business / their site). Save the FULL formatted address, not just the city/state." },
       socials: {
         type: "object",
         description: "Public profile links you found: { linkedin?, x?, facebook?, google? }.",

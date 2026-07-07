@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, ty
 import {
   Search, Users, Building2, BarChart3, Folder, FolderPlus, Sparkles, Upload, X,
   CheckCircle2, Workflow, ArrowRight, ChevronLeft, ChevronRight, FileText,
+  Mail, MapPin, Clock, Star, Users2, StickyNote, Check,
 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -29,11 +30,29 @@ type Screen = "find" | "contacts" | "companies" | "pipeline" | "roi" | "library"
 interface LeadList { id: string; name: string; category?: string | null; leadCount?: number; updatedAt?: string }
 interface SavedLead {
   id: string; name: string; title?: string | null; category?: string | null;
+  seniority?: string | null; department?: string | null;
   email?: string | null; phone?: string | null; phones?: string | null;
   website?: string | null; address?: string | null; socials?: string | null;
   rating?: number | null; reviewCount?: number | null; googleMapsUrl?: string | null;
-  businessStatus?: string | null; enrichedAt?: string | null; status?: string; listName?: string;
+  businessStatus?: string | null; notes?: string | null; status?: string; listName?: string;
+  enrichedAt?: string | null; enrichmentSource?: string | null;
+  enrichment?: string | null; deepEnrichedAt?: string | null; pitchCount?: number;
 }
+// The SavedLead.enrichment JSON blob (the "Deep details" pass).
+interface DeepEnrichment {
+  fullAddress?: string; hours?: string; employeeSize?: string; revenueBand?: string;
+  yearFounded?: string; industry?: string; about?: string; reviews?: string;
+  contacts?: { name: string; title?: string; email?: string; phone?: string }[];
+}
+// The deep-detail types the "Find more details" menu can hunt for.
+const DEEP_DETAIL_TYPES: { key: string; label: string; find: string }[] = [
+  { key: "fullAddress", label: "Full street address", find: "the COMPLETE street address — street number, street, city, state, ZIP and country (pass it as fullAddress)" },
+  { key: "contacts", label: "More decision-makers", find: "additional named decision-makers / owners at the company (each with name, title, and email/phone if findable) — pass them as contacts[]" },
+  { key: "hours", label: "Business hours", find: "their business hours (pass as hours)" },
+  { key: "firmographics", label: "Company size & revenue", find: "the company size / headcount band (employeeSize), an estimated revenue band (revenueBand), and the year founded (yearFounded)" },
+  { key: "reviews", label: "Recent reviews", find: "a short summary of their recent customer reviews / reputation (pass as reviews)" },
+  { key: "socials", label: "Social profiles", find: "their public social profiles — LinkedIn, Facebook, Instagram, X (pass as socials)" },
+];
 const PAGE_SIZES = [25, 50, 100];
 
 const SENIORITY = ["Owner", "C-level", "VP", "Director", "Manager"];
@@ -84,6 +103,20 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
     setEnrichingIds((prev) => new Set(prev).add(l.id));
     onAsk(
       `Enrich the saved lead "${l.name}" (leadId: ${l.id})${l.category ? ` at ${l.category}` : ""}. Call propose_plan (2 × AI_WEB_SEARCH — the web search + the enrich save) so I can approve, then find the full reachable contact — WORK EMAIL (the priority), PHONE, business WEBSITE and ADDRESS/location, plus LinkedIn. The EMAIL is rarely in search results — web_fetch their WEBSITE + its /contact or /about page and read out the email (info@ / bookings@ / the owner's). Then call enrich_lead with the confirmed planId, leadId="${l.id}", and every field you found (email, phone, website, address, title, linkedin) to save it INTO their row. Do NOT print the contact details in the chat.`,
+    );
+  }, [onAsk]);
+
+  // "Deep details" — a deeper pass than the basic enrich: full address,
+  // firmographics, hours, reviews, extra contacts. `type` targets one detail
+  // type (a chip); omit it for the broad "find everything deeper" primary action.
+  const deepEnrich = useCallback((l: SavedLead, type?: string) => {
+    setEnrichingIds((prev) => new Set(prev).add(l.id));
+    const dt = type ? DEEP_DETAIL_TYPES.find((d) => d.key === type) : null;
+    const findText = dt
+      ? dt.find
+      : "everything still missing, PLUS the full street address, additional decision-makers, business hours, company size + revenue band + year founded, the industry, and a short summary of their recent reviews";
+    onAsk(
+      `Get DEEP details for the saved lead "${l.name}" (leadId: ${l.id})${l.category ? ` at ${l.category}` : ""}. Call propose_plan (2 × AI_WEB_SEARCH — the web search + the deep-enrich save) so I can approve, then find ${findText} via web_search + web_fetch on their website / Google Business / LinkedIn. Then call deep_enrich_lead with the confirmed planId, leadId="${l.id}", and EVERY field you verified so it saves INTO their row. Do NOT print the details in the chat.`,
     );
   }, [onAsk]);
 
@@ -324,6 +357,7 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
           lead={fresh}
           enriching={enrichingIds.has(fresh.id)}
           onEnrich={() => enrichLead(fresh)}
+          onDeepDetail={(type) => deepEnrich(fresh, type)}
           onClose={() => setDetailLead(null)}
           onPitch={onPitchLead ? () => { setDetailLead(null); onPitchLead(fresh); } : undefined}
           onCreateAutomation={() => { const list = lists.find((x) => x.name === fresh.listName); if (list) setActiveList(list); setScreen("pipeline"); setDetailLead(null); }}
@@ -333,56 +367,161 @@ export function FocusedLeads({ onAsk, refreshKey, menuOpen: menuOpenProp, agentB
   );
 }
 
+/* ── detail-card helpers ── */
+function DField({ k, children, full }: { k: string; children: ReactNode; full?: boolean }) {
+  return (
+    <div className={full ? "sm:col-span-2" : "min-w-0"}>
+      <dt className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60">{k}</dt>
+      <dd className="mt-0.5 break-words text-[13px] leading-snug">{children}</dd>
+    </div>
+  );
+}
+function DSection({ icon: Icon, label, children }: { icon: ElementType; label: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="mb-2 flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground/60"><Icon className="h-3.5 w-3.5" /> {label}</p>
+      <dl className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">{children}</dl>
+    </div>
+  );
+}
+const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase() || "?";
+
 /* ── Lead detail — full contact record in a bottom sheet ── */
-function LeadDetailSheet({ lead, enriching, onEnrich, onClose, onPitch, onCreateAutomation }: { lead: SavedLead; enriching: boolean; onEnrich: () => void; onClose: () => void; onPitch?: () => void; onCreateAutomation?: () => void }) {
+function LeadDetailSheet({ lead, enriching, onEnrich, onDeepDetail, onClose, onPitch, onCreateAutomation }: { lead: SavedLead; enriching: boolean; onEnrich: () => void; onDeepDetail: (type?: string) => void; onClose: () => void; onPitch?: () => void; onCreateAutomation?: () => void }) {
   const socials = parseSocials(lead.socials);
-  const phones = (() => { try { const p = JSON.parse(lead.phones || "[]"); return Array.isArray(p) ? (p as string[]) : []; } catch { return []; } })();
-  const rows: { label: string; value: ReactNode }[] = [];
-  if (lead.title) rows.push({ label: "Title", value: lead.title });
-  if (lead.category) rows.push({ label: "Company", value: lead.category });
-  if (lead.email) rows.push({ label: "Email", value: <a href={`mailto:${lead.email}`} className="text-brand-500 hover:underline">{lead.email}</a> });
-  if (lead.phone) rows.push({ label: "Phone", value: <a href={`tel:${lead.phone}`} className="text-brand-500 hover:underline">{lead.phone}</a> });
-  phones.filter((p) => p !== lead.phone).forEach((p) => rows.push({ label: "Phone", value: <a href={`tel:${p}`} className="text-brand-500 hover:underline">{p}</a> }));
-  if (lead.website) rows.push({ label: "Website", value: <a href={lead.website.startsWith("http") ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">{hostOf(lead.website)}</a> });
-  if (lead.address) rows.push({ label: "Address", value: lead.address });
-  if (typeof lead.rating === "number") rows.push({ label: "Rating", value: `★ ${lead.rating}${lead.reviewCount ? ` · ${lead.reviewCount} reviews` : ""}` });
-  Object.entries(socials).forEach(([k, v]) => rows.push({ label: k[0].toUpperCase() + k.slice(1), value: <a href={v} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">{hostOf(v) || v}</a> }));
-  if (lead.googleMapsUrl) rows.push({ label: "Map", value: <a href={lead.googleMapsUrl} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">Google Maps ↗</a> });
+  const socialEntries = Object.entries(socials);
+  const phones = (() => { try { const p = JSON.parse(lead.phones || "[]"); return Array.isArray(p) ? (p as string[]).filter((x) => x && x !== lead.phone) : []; } catch { return []; } })();
+  const deep: DeepEnrichment = (() => { try { const o = JSON.parse(lead.enrichment || "{}"); return o && typeof o === "object" ? (o as DeepEnrichment) : {}; } catch { return {}; } })();
+  const enriched = !!lead.enrichedAt;
+  const address = deep.fullAddress || lead.address || "";
+  const link = (u: string) => (u.startsWith("http") ? u : `https://${u}`);
+
+  const role = [lead.title, lead.seniority, lead.department].filter(Boolean).join(" · ");
+  const hasContact = !!(lead.email || lead.phone || phones.length || lead.website || socialEntries.length);
+  const hasBusiness = !!(lead.category || deep.industry || deep.employeeSize || deep.revenueBand || deep.yearFounded || typeof lead.rating === "number" || deep.hours || lead.businessStatus || deep.about);
+  const hasNotes = !!(lead.notes || deep.reviews);
+  const anyDetail = hasContact || !!address || hasBusiness || hasNotes;
+
+  // Gaps drive the amber "missing" flags on the Find-more chips.
+  const gaps = new Set<string>();
+  if (!address || !/\d/.test(address)) gaps.add("fullAddress"); // no street number ≈ partial
+  if (!deep.contacts?.length) gaps.add("contacts");
+  if (!deep.hours) gaps.add("hours");
+  if (!deep.employeeSize && !deep.revenueBand && !deep.yearFounded) gaps.add("firmographics");
+  if (!deep.reviews) gaps.add("reviews");
+  if (!socialEntries.length) gaps.add("socials");
 
   return (
     <div className="absolute inset-0 z-40">
       <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/45" />
-      <div className="absolute inset-x-3 bottom-3 flex max-h-[82%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
-        <div className="relative border-b border-border px-5 pb-3 pt-4">
+      <div className="absolute inset-x-3 bottom-3 flex max-h-[86%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+        {/* header */}
+        <div className="relative border-b border-border px-5 pb-3.5 pt-4">
           <span className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full bg-border" />
-          <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Users className="h-5 w-5" /></span>
-            <div className="min-w-0">
-              <h4 className="truncate text-[15px] font-bold">{lead.name}</h4>
-              <p className="truncate text-[11.5px] text-muted-foreground">{[lead.title, lead.category].filter(Boolean).join(" · ") || "Lead"}{lead.listName ? ` · ${lead.listName}` : ""}</p>
+          <div className="flex items-start gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px] bg-gradient-to-br from-brand-500 to-violet-500 text-[15px] font-bold text-white">{initialsOf(lead.name)}</span>
+            <div className="min-w-0 flex-1">
+              <h4 className="truncate text-[16px] font-bold leading-tight">{lead.name}</h4>
+              {role && <p className="truncate text-[12px] text-muted-foreground">{role}{lead.category && lead.category !== lead.name ? ` · ${lead.category}` : ""}</p>}
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {lead.listName && <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{lead.listName}</span>}
+                {!!lead.pitchCount && lead.pitchCount > 0 && <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{lead.pitchCount} pitch{lead.pitchCount === 1 ? "" : "es"}</span>}
+              </div>
             </div>
-            {lead.enrichedAt ? <span className="ms-auto rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-500">Enriched</span> : <span className="ms-auto rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-bold text-amber-500">Not enriched</span>}
+            {enriched ? (
+              <span className="ms-auto inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-500"><Check className="h-3 w-3" /> {lead.deepEnrichedAt ? "Deep" : "Enriched"}{lead.enrichmentSource ? ` · ${lead.enrichmentSource}` : ""}</span>
+            ) : (
+              <span className="ms-auto shrink-0 rounded-full bg-amber-500/15 px-2.5 py-1 text-[11px] font-bold text-amber-500">Not enriched</span>
+            )}
           </div>
           <button onClick={onClose} className="absolute end-4 top-4 grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {rows.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No contact details yet — enrich this lead to find their email, phone, website and address.</p>
+
+        {/* body */}
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+          {!anyDetail ? (
+            <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-[12.5px] text-muted-foreground">No contact details yet — <b className="text-foreground">Get details</b> finds their email, phone, website and full address and saves them here.</p>
           ) : (
-            <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-              {rows.map((r, idx) => (
-                <div key={idx}>
-                  <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/70">{r.label}</dt>
-                  <dd className="mt-0.5 break-words text-[13px]">{r.value}</dd>
-                </div>
-              ))}
-            </dl>
+            <>
+              {hasContact && (
+                <DSection icon={Mail} label="Contact">
+                  {lead.email && <DField k="Work email"><a href={`mailto:${lead.email}`} className="text-brand-500 hover:underline">{lead.email}</a></DField>}
+                  {lead.phone && <DField k="Phone"><a href={`tel:${lead.phone}`} className="text-brand-500 hover:underline">{lead.phone}</a></DField>}
+                  {phones.map((p, i) => <DField key={i} k="Other phone"><a href={`tel:${p}`} className="text-brand-500 hover:underline">{p}</a></DField>)}
+                  {lead.website && <DField k="Website"><a href={link(lead.website)} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">{hostOf(lead.website)}</a></DField>}
+                  {socialEntries.map(([k, v]) => <DField key={k} k={k[0].toUpperCase() + k.slice(1)}><a href={v} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">{hostOf(v) || v}</a></DField>)}
+                </DSection>
+              )}
+
+              {(address || lead.googleMapsUrl) && (
+                <DSection icon={MapPin} label="Location">
+                  {address && <DField k="Address" full>{address}</DField>}
+                  {lead.googleMapsUrl && <DField k="Map"><a href={lead.googleMapsUrl} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline">Open in Google Maps ↗</a></DField>}
+                </DSection>
+              )}
+
+              {hasBusiness && (
+                <DSection icon={Building2} label="Business">
+                  {lead.category && <DField k="Company">{lead.category}</DField>}
+                  {deep.industry && <DField k="Industry">{deep.industry}</DField>}
+                  {deep.employeeSize && <DField k="Company size">{deep.employeeSize}</DField>}
+                  {deep.revenueBand && <DField k="Revenue">{deep.revenueBand}</DField>}
+                  {deep.yearFounded && <DField k="Founded">{deep.yearFounded}</DField>}
+                  {typeof lead.rating === "number" && <DField k="Rating"><span className="inline-flex items-center gap-1"><Star className="h-3 w-3 text-amber-500" />{lead.rating}{lead.reviewCount ? ` · ${lead.reviewCount} reviews` : ""}</span></DField>}
+                  {deep.hours && <DField k="Hours"><span className="inline-flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{deep.hours}</span></DField>}
+                  {lead.businessStatus && <DField k="Status">{lead.businessStatus === "OPERATIONAL" ? "Operational" : lead.businessStatus}</DField>}
+                  {deep.about && <DField k="About" full>{deep.about}</DField>}
+                </DSection>
+              )}
+
+              {!!deep.contacts?.length && (
+                <DSection icon={Users2} label="More decision-makers">
+                  {deep.contacts.map((c, i) => (
+                    <DField key={i} k={c.title || "Contact"} full>
+                      <span className="font-semibold">{c.name}</span>
+                      {(c.email || c.phone) && <span className="text-muted-foreground"> — {[c.email, c.phone].filter(Boolean).join(" · ")}</span>}
+                    </DField>
+                  ))}
+                </DSection>
+              )}
+
+              {hasNotes && (
+                <DSection icon={StickyNote} label="Notes">
+                  {deep.reviews && <DField k="Reviews summary" full>{deep.reviews}</DField>}
+                  {lead.notes && <DField k="Notes" full>{lead.notes}</DField>}
+                </DSection>
+              )}
+            </>
+          )}
+
+          {/* FIND MORE — deep-detail menu, only once the lead has been enriched */}
+          {enriched && (
+            <div className="rounded-[14px] border border-border bg-gradient-to-b from-brand-500/[0.07] to-transparent p-3.5">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-brand-500" />
+                <h5 className="text-[13px] font-bold">Find more details</h5>
+                <span className="ms-auto rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-bold text-brand-500">agent searches</span>
+              </div>
+              <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">Tap what to hunt for — the agent searches the web + their site and saves it into this record. Gaps are flagged.</p>
+              <div className="mt-2.5 flex flex-wrap gap-2">
+                {DEEP_DETAIL_TYPES.map((d) => {
+                  const gap = gaps.has(d.key === "firmographics" ? "firmographics" : d.key);
+                  return (
+                    <button key={d.key} disabled={enriching} onClick={() => onDeepDetail(d.key)} className={cn("inline-flex items-center gap-1.5 rounded-[10px] border px-2.5 py-1.5 text-[12px] font-semibold transition disabled:opacity-60", gap ? "border-amber-500/40 text-foreground hover:bg-amber-500/[0.06]" : "border-border text-muted-foreground hover:border-brand-500/50 hover:text-foreground")}>
+                      {gap ? <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> : <Check className="h-3.5 w-3.5 text-emerald-500" />} {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
+
+        {/* footer */}
         <div className="flex flex-wrap items-center gap-2.5 border-t border-border px-5 py-3.5">
           {onPitch && <button onClick={onPitch} className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><FileText className="h-4 w-4" /> Pitch this lead</button>}
           {onCreateAutomation && <button onClick={onCreateAutomation} className="inline-flex items-center gap-2 rounded-[10px] border border-border px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60"><Workflow className="h-4 w-4" /> Create automation</button>}
-          <button onClick={onEnrich} disabled={enriching} className="inline-flex items-center gap-2 rounded-[10px] border border-border px-3.5 py-2 text-[13px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60">{enriching ? <FlowLoader size={14} /> : <Sparkles className="h-4 w-4" />} {lead.enrichedAt ? "Re-enrich" : enriching ? "Enriching…" : "Enrich"}</button>
+          <button onClick={() => (enriched ? onDeepDetail() : onEnrich())} disabled={enriching} className="ms-auto inline-flex items-center gap-2 rounded-[10px] border border-border px-3.5 py-2 text-[13px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground disabled:opacity-60">{enriching ? <FlowLoader size={14} /> : <Sparkles className="h-4 w-4" />} {enriching ? "Working…" : enriched ? "Deep details" : "Get details"}</button>
         </div>
       </div>
     </div>
@@ -436,7 +575,7 @@ function FindScreen({ state, results, resultList, onOpenBrief, onBuild, enrichin
             <div className="ms-auto flex items-center gap-2">
               {unenriched > 0 && (
                 <button onClick={onEnrichAll} disabled={enrichBusy} title="Find email + phone for every lead so you can reach them" className="inline-flex items-center gap-1.5 rounded-[9px] border border-emerald-500/50 px-3 py-1.5 text-[11.5px] font-semibold text-emerald-200 hover:bg-emerald-500/10 disabled:opacity-60">
-                  {enrichBusy ? <FlowLoader size={13} /> : <Sparkles className="h-3.5 w-3.5" />} {enrichBusy ? "Enriching…" : `Enrich all (${unenriched})`}
+                  {enrichBusy ? <FlowLoader size={13} /> : <Sparkles className="h-3.5 w-3.5" />} {enrichBusy ? "Finding…" : `Get details · ${unenriched}`}
                 </button>
               )}
               <button onClick={onBuild} className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[11.5px] font-semibold text-white">Build automation <ArrowRight className="h-3.5 w-3.5" /></button>
@@ -476,11 +615,11 @@ function LeadTable({ leads, enrichingIds, onEnrich, onOpenLead }: { leads: Saved
                 <td className="px-4 py-2.5"><ContactCell l={l} enriching={enriching} /></td>
                 <td className="px-4 py-2.5 text-end">
                   {enriching ? (
-                    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-brand-500"><FlowLoader size={13} /> Enriching…</span>
+                    <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-brand-500"><FlowLoader size={13} /> Finding…</span>
                   ) : l.enrichedAt ? (
-                    <span className="text-[11.5px] text-emerald-500">Enriched</span>
+                    <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-emerald-500"><Check className="h-3 w-3" /> Enriched</span>
                   ) : (
-                    <button onClick={(e) => { e.stopPropagation(); onEnrich(l); }} className="rounded-lg border border-border px-3 py-1 text-[11.5px] font-semibold text-brand-500 hover:border-brand-500/60">Enrich</button>
+                    <button onClick={(e) => { e.stopPropagation(); onEnrich(l); }} className="rounded-lg border border-border px-3 py-1 text-[11.5px] font-semibold text-brand-500 hover:border-brand-500/60">Get details</button>
                   )}
                 </td>
               </tr>
@@ -584,7 +723,7 @@ function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll, on
             title="Find email + phone for every un-enriched contact shown"
             className="inline-flex items-center gap-1.5 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-semibold text-white shadow-sm shadow-brand-500/25 disabled:opacity-60"
           >
-            {enrichBusy ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} {enrichBusy ? "Enriching…" : `Enrich all (${unenriched})`}
+            {enrichBusy ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} {enrichBusy ? "Finding…" : `Get details · ${unenriched}`}
           </button>
         )}
       </div>
