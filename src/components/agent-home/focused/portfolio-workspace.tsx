@@ -55,7 +55,6 @@ export function FocusedPortfolio({
   refreshKey,
   onAsk,
   onAskFiles,
-  onOpenView,
   working,
 }: {
   refreshKey?: number;
@@ -220,9 +219,9 @@ export function FocusedPortfolio({
             <p className="mt-1.5 px-1 text-[10.5px] text-muted-foreground">Verified visitors are saved to your Contacts as leads.</p>
           </div>
 
-          {/* Domain */}
-          <button onClick={() => onOpenView?.("domains")} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-border bg-card px-3.5 py-2.5 text-[13px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground">
-            <Globe className="h-4 w-4" /> Attach a custom domain
+          {/* Domain — fully agent-driven: find → buy → auto-attach (or connect one you own) */}
+          <button onClick={() => onAsk("Give my portfolio a custom domain. Use find_domain to search options + prices based on my name/brand, show me a few, and once I pick one buy it and attach it automatically with buy_portfolio_domain — or connect one I already own with connect_portfolio_domain.")} disabled={working} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-border bg-card px-3.5 py-2.5 text-[13px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground disabled:opacity-60">
+            <Globe className="h-4 w-4" /> Get a custom domain
           </button>
         </aside>
 
