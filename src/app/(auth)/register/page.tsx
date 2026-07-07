@@ -104,7 +104,7 @@ function RegisterPageContent() {
         description: "Welcome to FlowSmartly. Let's get started.",
       });
 
-      router.push(data.data?.redirectTo || "/home");
+      router.push(data.data?.redirectTo || "/select-plan");
     } catch {
       toast({
         title: "Error",
@@ -196,7 +196,7 @@ function RegisterPageContent() {
         description: "Welcome to FlowSmartly. Let's get started.",
       });
 
-      router.push(redirectTo || "/home");
+      router.push(redirectTo || "/select-plan");
     } catch {
       toast({
         title: "Error",

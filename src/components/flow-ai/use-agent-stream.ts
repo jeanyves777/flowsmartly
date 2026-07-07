@@ -53,28 +53,10 @@ export async function consumeAgentStream(
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  // If the connection goes silent for this long — a dead/half-open socket or a
-  // worker that was SIGKILL'd mid-turn (deploy reload / crash) — stop waiting and
-  // let the caller recover, so the user never stares at a frozen loader. The
-  // server sends a heartbeat comment every ~15s, so any real live turn resets this.
-  const IDLE_TIMEOUT_MS = 60_000;
   try {
     while (true) {
       if (abortSignal?.aborted) break;
-      let idleTimer: ReturnType<typeof setTimeout> | undefined;
-      const idle = new Promise<never>((_, reject) => {
-        idleTimer = setTimeout(() => {
-          reader.cancel().catch(() => {});
-          reject(new Error("The connection went quiet — it may have dropped."));
-        }, IDLE_TIMEOUT_MS);
-      });
-      let chunk: ReadableStreamReadResult<Uint8Array>;
-      try {
-        chunk = await Promise.race([reader.read(), idle]);
-      } finally {
-        if (idleTimer) clearTimeout(idleTimer);
-      }
-      const { done, value } = chunk;
+      const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const events = buffer.split("\n\n");

@@ -217,6 +217,8 @@ export async function createDomainPaymentIntent(params: {
    * the Stripe SDK or a hosted Checkout redirect.
    */
   paymentMethodId?: string;
+  /** When set, the domain is attached to this Portfolio after registration. */
+  portfolioId?: string;
 }): Promise<{ clientSecret: string; paymentIntentId: string; status: string; requiresAction: boolean }> {
   if (!stripe) {
     throw new Error("Stripe is not configured.");
@@ -237,6 +239,7 @@ export async function createDomainPaymentIntent(params: {
       storeId: params.storeId,
       tld: params.tld,
       sld,
+      portfolioId: params.portfolioId || "",
     },
   } as const;
 

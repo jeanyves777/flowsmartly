@@ -4,8 +4,7 @@ import { useState, useRef, useEffect, type ReactNode } from "react";
 import Image from "next/image";
 import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square, ThumbsUp, ThumbsDown, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { AISpinner } from "@/components/shared/ai-generation-loader";
-import { LogoGlowLoader, DotGrid } from "@/components/shared/logo-glow-loader";
+import { AISpinner, AIGenerationLoader } from "@/components/shared/ai-generation-loader";
 import { createSpeechPlayer, type SpeechPlayer } from "./use-tts";
 import { RichText } from "./rich-text";
 import { useAgentNav } from "./agent-nav-context";
@@ -644,9 +643,12 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
         </span>
       </div>
       {isRunning && (
-        <div className="relative grid place-items-center overflow-hidden py-11 text-muted-foreground/20">
-          <DotGrid />
-          <LogoGlowLoader size={72} />
+        <div className="px-3 py-3">
+          <AIGenerationLoader
+            compact
+            currentStep={task.progressMessage ?? task.summary ?? "Working…"}
+            progress={typeof task.progress === "number" ? task.progress : undefined}
+          />
         </div>
       )}
       {isDone && isCanvasObject && objectUrl && (

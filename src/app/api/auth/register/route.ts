@@ -131,8 +131,6 @@ export async function POST(request: NextRequest) {
         region,
         aiCredits: 100,
         freeCredits: 100,
-        // Free tier by default — no plan-selection step at signup.
-        onboardingComplete: true,
       },
       select: {
         id: true,
@@ -242,7 +240,7 @@ export async function POST(request: NextRequest) {
             username: user.username,
             plan: user.plan,
           },
-          redirectTo: "/home",
+          redirectTo: "/select-plan",
         },
       },
       { status: 201 }

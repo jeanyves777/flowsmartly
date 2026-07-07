@@ -10,11 +10,6 @@ type Attach = { dataUrl?: string; url?: string; name: string };
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { QRCodeDisplay } from "@/components/data-forms/qr-code-display";
 import { cn } from "@/lib/utils/cn";
-import { useMobileChat } from "../mobile-chat-context";
-import { isMobileViewport } from "@/hooks/use-is-mobile";
-
-// Mobile "collect via chat" starter (edit + send; the agent builds the portfolio).
-const PORTFOLIO_STARTER = "Build me a branded portfolio / résumé site — I'm a [your role] and here's my experience: [paste or describe].";
 
 const PF_FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 
@@ -55,7 +50,6 @@ export function FocusedPortfolio({
   refreshKey,
   onAsk,
   onAskFiles,
-  onOpenView,
   working,
 }: {
   refreshKey?: number;
@@ -70,11 +64,9 @@ export function FocusedPortfolio({
   const [previewKey, setPreviewKey] = useState(0);
   const [tab, setTab] = useState<"preview" | "share">("preview");
   const [copied, setCopied] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(() => !isMobileViewport()); // auto-opens on desktop; mobile seeds the composer instead
+  const [sheetOpen, setSheetOpen] = useState(true);
   const [armed, setArmed] = useState(false);
   const [brand, setBrand] = useState<{ name: string; about: string } | null>(null);
-  const { isMobile, seedComposer } = useMobileChat();
-  const openPortfolioBuilder = () => { if (isMobile) { seedComposer(PORTFOLIO_STARTER); return; } setSheetOpen(true); };
 
   const load = useCallback(async () => {
     try {
@@ -135,14 +127,14 @@ export function FocusedPortfolio({
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div className="grid h-full place-items-center px-6 text-center">
           {armed ? (
-            <BuildingCard onReset={() => { setArmed(false); openPortfolioBuilder(); }} />
+            <BuildingCard onReset={() => { setArmed(false); setSheetOpen(true); }} />
           ) : (
             <div className="max-w-sm">
               <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 text-white"><LayoutTemplate className="h-6 w-6" /></div>
               <h3 className="text-[16px] font-bold">Build your portfolio or résumé</h3>
               <p className="mx-auto mt-1 text-[12.5px] text-muted-foreground">Fill the brief and the agent builds a complete, on-brand site you edit here.</p>
               {!sheetOpen && (
-                <button onClick={openPortfolioBuilder} className="mt-4 inline-flex items-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Start a brief</button>
+                <button onClick={() => setSheetOpen(true)} className="mt-4 inline-flex items-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Start a brief</button>
               )}
             </div>
           )}
@@ -220,9 +212,9 @@ export function FocusedPortfolio({
             <p className="mt-1.5 px-1 text-[10.5px] text-muted-foreground">Verified visitors are saved to your Contacts as leads.</p>
           </div>
 
-          {/* Domain */}
-          <button onClick={() => onOpenView?.("domains")} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-border bg-card px-3.5 py-2.5 text-[13px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground">
-            <Globe className="h-4 w-4" /> Attach a custom domain
+          {/* Domain — fully agent-driven: find → buy → auto-attach (or connect one you own) */}
+          <button onClick={() => onAsk("Give my portfolio a custom domain. Use find_domain to search options + prices based on my name/brand, show me a few, and once I pick one buy it and attach it automatically with buy_portfolio_domain — or connect one I already own with connect_portfolio_domain.")} disabled={working} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-border bg-card px-3.5 py-2.5 text-[13px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground disabled:opacity-60">
+            <Globe className="h-4 w-4" /> Get a custom domain
           </button>
         </aside>
 

@@ -64,6 +64,21 @@ export async function handleEcommercePaymentSucceeded(paymentIntent: Stripe.Paym
       });
       console.log(`Domain ${result.domainName} registered after payment ${paymentIntent.id}`);
 
+      // Attach to a Portfolio (Portfolio / Digital Resume Studio) — set the
+      // custom domain and publish so the domain serves the page immediately.
+      if (meta.portfolioId) {
+        try {
+          const pf = await prisma.portfolio.findUnique({ where: { id: meta.portfolioId }, select: { publishedAt: true } });
+          await prisma.portfolio.update({
+            where: { id: meta.portfolioId },
+            data: { customDomain: result.domainName, status: "PUBLISHED", ...(pf && !pf.publishedAt ? { publishedAt: new Date() } : {}) },
+          });
+          console.log(`[Webhook:DomainPurchase] Attached ${result.domainName} to portfolio ${meta.portfolioId}`);
+        } catch (e) {
+          console.error("[Webhook:DomainPurchase] Portfolio attach failed:", e);
+        }
+      }
+
       const { createInvoice } = await import("@/lib/invoices");
       const domainUser = await prisma.user.findUnique({
         where: { id: userId },

@@ -10,11 +10,6 @@ import { FlowLoader } from "@/components/shared/flow-loader";
 import { AgentWorkingCard } from "./agent-working-card";
 import { WebsiteStudio } from "./website-studio";
 import { cn } from "@/lib/utils/cn";
-import { useMobileChat } from "../mobile-chat-context";
-
-// Mobile "collect via chat" starters (edit + send; the agent builds the site).
-const WEBSITE_STARTER = "Build me a branded multi-page website — Home, About, Services, Contact — for my business.";
-const LANDING_STARTER = "Build me a high-converting branded landing page for [offer / campaign].";
 
 /**
  * Web — split into focused, single-purpose surfaces so each type gets its OWN
@@ -41,8 +36,6 @@ const isBuildingStatus = (s?: string) => s === "building" || s === "deploying";
 
 /* ── Websites ─────────────────────────────────────────────────────────── */
 export function FocusedWeb({ refreshKey, onAsk, onOpenView, working }: { refreshKey?: number; onAsk: (prompt: string) => void; onOpenView?: (key: string) => void; working?: boolean }) {
-  const { isMobile, seedComposer } = useMobileChat();
-  const openWebsiteBuilder = () => { if (isMobile) { seedComposer(WEBSITE_STARTER); return; } setBuilding(true); };
   const [sites, setSites] = useState<Website[]>([]);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -117,7 +110,7 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView, working }: { refresh
           {/* New website is GENERATIVE — but gather the brief in the UI FIRST, then
               spin the agent with the full details (no back-and-forth in chat). */}
           <button
-            onClick={openWebsiteBuilder}
+            onClick={() => setBuilding(true)}
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
           >
             <Sparkles className="h-4 w-4" /> New website
@@ -162,7 +155,7 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView, working }: { refresh
             <div className="mb-3 flex items-center gap-2">
               <Globe className="h-4 w-4 text-brand-500" />
               <h3 className="text-[13px] font-bold">Your websites</h3>
-              {sites.length > 0 && <NewBtn className="ms-auto" label="New website" onClick={openWebsiteBuilder} />}
+              {sites.length > 0 && <NewBtn className="ms-auto" label="New website" onClick={() => setBuilding(true)} />}
             </div>
             {sites.length ? (
               <div className="space-y-2.5">
@@ -180,7 +173,7 @@ export function FocusedWeb({ refreshKey, onAsk, onOpenView, working }: { refresh
                 ))}
               </div>
             ) : (
-              <Empty title="No website yet" sub="Tell us a few details and the agent builds a branded multi-page site." cta="Create a website" onCta={openWebsiteBuilder} />
+              <Empty title="No website yet" sub="Tell us a few details and the agent builds a branded multi-page site." cta="Create a website" onCta={() => setBuilding(true)} />
             )}
           </section>
           </>
@@ -547,8 +540,6 @@ function EditCore({ site, onCancel, onSaved, onBuildStarted }: {
 
 /* ── Landing pages ────────────────────────────────────────────────────── */
 export function FocusedLanding({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk: (prompt: string) => void; working?: boolean }) {
-  const { isMobile, seedComposer } = useMobileChat();
-  const openLandingBuilder = () => { if (isMobile) { seedComposer(LANDING_STARTER); return; } setBuilding(true); };
   const [pages, setPages] = useState<Landing[]>([]);
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
@@ -587,7 +578,7 @@ export function FocusedLanding({ refreshKey, onAsk, working }: { refreshKey?: nu
           {/* New page is GENERATIVE — but gather the brief in the UI FIRST, then
               spin the agent with the full details (no back-and-forth in chat). */}
           <button
-            onClick={openLandingBuilder}
+            onClick={() => setBuilding(true)}
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"
           >
             <Sparkles className="h-4 w-4" /> New page
@@ -625,7 +616,7 @@ export function FocusedLanding({ refreshKey, onAsk, working }: { refreshKey?: nu
             <div className="mb-3 flex items-center gap-2">
               <LayoutTemplate className="h-4 w-4 text-brand-500" />
               <h3 className="text-[13px] font-bold">Your landing pages</h3>
-              {pages.length > 0 && <NewBtn className="ms-auto" label="New page" onClick={openLandingBuilder} />}
+              {pages.length > 0 && <NewBtn className="ms-auto" label="New page" onClick={() => setBuilding(true)} />}
             </div>
             {pages.length ? (
               <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
@@ -649,7 +640,7 @@ export function FocusedLanding({ refreshKey, onAsk, working }: { refreshKey?: nu
                 ))}
               </div>
             ) : (
-              <Empty title="No landing pages yet" sub="Spin up a high-converting page for a campaign or offer." cta="Create a landing page" onCta={openLandingBuilder} />
+              <Empty title="No landing pages yet" sub="Spin up a high-converting page for a campaign or offer." cta="Create a landing page" onCta={() => setBuilding(true)} />
             )}
           </section>
           </>

@@ -2,14 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
-import { FileText, Download, Sparkles, Plus, RotateCcw, X, GripVertical, ChevronDown, ChevronRight, PanelRight, Check, Images, Mail, ArrowLeft } from "lucide-react";
+import { FileText, Download, Sparkles, Plus, RotateCcw, X, GripVertical, ChevronDown, ChevronRight, PanelRight, Check, Images, Mail } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
-import { useMobileChat } from "../mobile-chat-context";
-
-// Mobile "collect via chat" starter (edit + send; the agent researches + drafts it).
-const PITCH_STARTER = "Draft a branded service proposal for [company / prospect] — [what I'm offering] — using my Brand Kit.";
 import { getProposalTheme, isServiceProposalContent, visibleOnWhite } from "@/lib/pitch/proposal-detail-helpers";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
 import { PitchDocument, Editable } from "./pitch-document";
@@ -34,9 +30,7 @@ const PITCH_TYPES: { id: "deck" | "visual" | "email"; label: string; desc: strin
   { id: "email", label: "Cold pitch email", desc: "Short, high-energy outreach email with the PDF attached.", icon: Mail },
 ];
 
-export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView }: { target: PitchTarget | null; onAsk: (p: string) => void; refreshKey?: number; onOpenView?: (key: string) => void }) {
-  const { isMobile, seedComposer } = useMobileChat();
-  const openPitchBrief = () => { if (isMobile) { seedComposer(PITCH_STARTER); return; } setSheetOpen(true); };
+export function FocusedPitchStudio({ target, onAsk, refreshKey }: { target: PitchTarget | null; onAsk: (p: string) => void; refreshKey?: number }) {
   const { toast } = useToast();
   const [pitch, setPitch] = useState<PitchRecord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,10 +118,6 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView }: { 
   // reload the pitch so the change shows. Skip if we have a local unsaved edit.
   useEffect(() => {
     if (!pitch || dirtyRef.current || generating) return;
-    // Never reload out from under an ACTIVE inline edit — swapping the pitch DOM
-    // while a contentEditable is focused/mid-mutation crashes React's reconciler
-    // (the same removeChild hazard the Editable guards against).
-    if (typeof document !== "undefined" && document.querySelector('[contenteditable="true"]')) return;
     loadById(pitch.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
@@ -248,7 +238,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView }: { 
           {isNew ? (<>
             <h3 className="mt-4 text-[15px] font-bold">Draft a new proposal</h3>
             <p className="mx-auto mt-1.5 max-w-sm text-[12.5px] text-muted-foreground">Tell the agent who this is for and what you're offering — it researches them and builds a branded, PDF-ready proposal from your Brand Kit, right here.</p>
-            <button onClick={openPitchBrief} className="mt-4 inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
+            <button onClick={() => setSheetOpen(true)} className="mt-4 inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Open the brief</button>
           </>) : canGenerate ? (<>
             <h3 className="mt-4 text-[15px] font-bold">Draft a proposal for {displayName}</h3>
             <p className="mt-1.5 text-[12.5px] text-muted-foreground">The agent researches this prospect and builds a branded, PDF-ready proposal from your Brand Kit. Edit every block here and attach it to your outreach.</p>
@@ -279,11 +269,6 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView }: { 
       {/* toolbar — portaled into the shared FocusedView header (one header row, no duplicate title) */}
       {headerSlot && pitch && createPortal(
         <>
-          {onOpenView && (
-            <button onClick={() => onOpenView("leads")} title="Back to Lead Finder" className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground">
-              <ArrowLeft className="h-3.5 w-3.5" /> Lead Finder
-            </button>
-          )}
           {(() => {
             const cur = PITCH_TYPES.find((t) => t.id === docType) || PITCH_TYPES[0];
             const CurIcon = cur.icon;

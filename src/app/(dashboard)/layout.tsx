@@ -78,8 +78,11 @@ export default function DashboardLayout({
           const u = userData.data.user;
           setUser(u);
 
-          // Everyone starts on the free tier — no forced plan-selection step.
-          // Users can subscribe or buy credits later from /home/credits.
+          // Redirect to onboarding if not completed (skip for admins and agent impersonation)
+          if (!u.onboardingComplete && !userData.data.isImpersonating && u.plan !== "ADMIN") {
+            router.push("/select-plan");
+            return;
+          }
 
           if (userData.data.isImpersonating && userData.data.agentInfo) {
             setIsAgentImpersonating(true);

@@ -133,6 +133,9 @@ export const DEFAULT_CREDIT_COSTS = {
   AGENT_UPDATE_WEBSITE: 0,         // Free — publish/rename/SEO is site management, not a rebuild
   AGENT_BUILD_PORTFOLIO: 0,        // Free — persists agent-authored portfolio/resume content (images bill separately)
   AGENT_UPDATE_PORTFOLIO: 0,       // Free — editing sections / access / publish is site management
+  AGENT_BUILD_REEL: 6,             // Reel Studio: transcript → scored 9:16 clips
+  AGENT_EDIT_CLIP: 2,              // Reel Studio: edit one clip (trim/caption/reframe)
+  AGENT_PUBLISH_REEL: 3,           // Reel Studio: post/schedule clips to channels
   AGENT_SETUP_LOCAL_PRESENCE: 500, // ListSmartly unlock — first-time setup charges the unlock credits
   AGENT_UPDATE_LISTING: 0,         // Free — flipping a listing status / fixing NAP is presence management
   AGENT_RESPOND_TO_REVIEW: 0,      // Free key — an AI draft charges AI_REVIEW_RESPONSE inside the tool
@@ -298,6 +301,9 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AGENT_UPDATE_WEBSITE: "Flow-AI agent: update website",
   AGENT_BUILD_PORTFOLIO: "Flow-AI agent: build portfolio / resume",
   AGENT_UPDATE_PORTFOLIO: "Flow-AI agent: update portfolio / resume",
+  AGENT_BUILD_REEL: "Flow-AI agent: build reels from a video",
+  AGENT_EDIT_CLIP: "Flow-AI agent: edit a reel clip",
+  AGENT_PUBLISH_REEL: "Flow-AI agent: publish/schedule reels",
   AGENT_SETUP_LOCAL_PRESENCE: "Flow-AI agent: set up local presence",
   AGENT_UPDATE_LISTING: "Flow-AI agent: update directory listing",
   AGENT_RESPOND_TO_REVIEW: "Flow-AI agent: respond to review",

@@ -29,7 +29,7 @@ const SECTION_TYPES = ["about", "experience", "projects", "skills", "education",
 export const buildPortfolio: FlowAgentTool = {
   name: "build_portfolio",
   description:
-    "Create the user's Portfolio / Digital Resume site — a shareable public page you (the agent) build from their content. Use kind:'personal' for a résumé site (they usually upload a CV — READ it and extract experience/skills/education) or kind:'business' for a company/freelancer portfolio (about/projects/services/testimonials; pull from the Brand Kit). Pass the header (name, headline/role, bio) plus a `sections` array — each { type, title, data } where data matches the type (experience→{items:[{role,company,dates,summary}]}, skills→{items:[{label,level0-100}]}, education→{items:[{degree,school,dates}]}, projects→{items:[{title,description,imageUrl,url}]}, services→{items:[{title,description}]}, about/custom→{body}). Theme accent defaults to their Brand Kit colours. One portfolio per account — if one exists, use edit_portfolio instead. After building, tell them it's a DRAFT they can edit in Portfolio Studio and publish (with a custom domain + branded QR).",
+    "Create the user's Portfolio / Digital Resume site — a shareable page you (the agent) build from their content. kind:'business' = a media-forward PORTFOLIO that leads with WORK (a company/freelancer showing what they made); kind:'personal' = a clean résumé (usually from an uploaded CV — READ it for experience/skills/education). BUSINESS: make `projects` the centrepiece — the biggest section — each item real WORK with a `mediaType`:'image'|'video', `mediaUrl`, `posterUrl` (for video), `category`, `title`, `description`, `url`; also set `heroMedia` (a hero image/video) and add a `stats` section for KPIs. The brand LOGO + COLOURS are applied automatically from the Brand Kit — the portfolio should look like THEM. Pass header (name, headline/role, bio) + a `sections` array — { type, title, data }: experience→{items:[{role,company,dates,summary,bullets:[]}]}, skills→{items:[{label,level0-100}]}, education→{items:[{degree,school,dates}]}, projects→{items:[{title,description,category,mediaType,mediaUrl,posterUrl,url}]}, services→{items:[{title,description,price}]}, stats→{items:[{value,label}]}, testimonials→{items:[{quote,author,role}]}, about/custom→{body}. One portfolio per account — if one exists, use edit_portfolio. After building, tell them it's a DRAFT to edit in Portfolio Studio and publish (custom domain + branded QR).",
   input_schema: {
     type: "object",
     properties: {
@@ -109,14 +109,20 @@ export const buildPortfolio: FlowAgentTool = {
         };
       }
 
-      // Seed theme accent from the Brand Kit unless the agent overrode it.
+      // Seed the look from the Brand Kit — the portfolio should look like THEM
+      // (logo + colors), not a generic template. Agent inputs win when provided.
       const brand = await getUserBrand(ctx.userId).catch(() => null);
       const accent =
         (typeof input.accent === "string" && /^#/.test(input.accent) ? input.accent : null) ||
-        brand?.colors?.accent ||
         brand?.colors?.primary ||
+        brand?.colors?.accent ||
         undefined;
+      const accent2 = brand?.colors?.secondary || brand?.colors?.accent || undefined;
       const font = brand?.fonts?.heading || undefined;
+      // Business portfolios lead with the brand's REAL logo (not a monogram).
+      const logoUrl =
+        (typeof input.logoUrl === "string" ? input.logoUrl : null) ||
+        (kind === "business" ? brand?.iconLogo || brand?.logo || null : null);
       const template =
         typeof input.template === "string" && isValidTemplate(input.template) ? input.template : undefined;
       const heroMedia =
@@ -125,6 +131,16 @@ export const buildPortfolio: FlowAgentTool = {
           : undefined;
 
       const contact = (input.contact && typeof input.contact === "object" ? input.contact : {}) as Partial<ContactInfo>;
+      // Fill contact from the Brand Kit where the agent didn't provide it.
+      if (!contact.email && brand?.email) contact.email = brand.email;
+      if (!contact.phone && brand?.phone) contact.phone = brand.phone;
+      if (!contact.website && brand?.website) contact.website = brand.website;
+      if (!contact.location && brand?.address) contact.location = brand.address;
+      if ((!contact.links || contact.links.length === 0) && brand?.handles) {
+        contact.links = Object.entries(brand.handles)
+          .filter(([, v]) => typeof v === "string" && v)
+          .map(([k, v]) => ({ label: k, url: String(v) }));
+      }
 
       const created = await createPortfolio({
         userId: ctx.userId,
@@ -134,9 +150,9 @@ export const buildPortfolio: FlowAgentTool = {
         subheadline: typeof input.subheadline === "string" ? input.subheadline : null,
         bio: typeof input.bio === "string" ? input.bio : null,
         avatarUrl: typeof input.avatarUrl === "string" ? input.avatarUrl : null,
-        logoUrl: typeof input.logoUrl === "string" ? input.logoUrl : null,
+        logoUrl,
         heroMedia,
-        theme: { ...(accent ? { accent } : {}), ...(font ? { font } : {}), ...(template ? { template } : {}) },
+        theme: { ...(accent ? { accent } : {}), ...(accent2 ? { accent2 } : {}), ...(font ? { font } : {}), ...(template ? { template } : {}) },
         sections: coerceSections(input.sections),
         contact,
       });

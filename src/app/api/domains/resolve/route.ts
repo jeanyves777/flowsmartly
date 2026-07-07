@@ -124,5 +124,14 @@ export async function GET(request: NextRequest) {
     // WebsiteDomain model may not exist — ignore
   }
 
+  // 5. Portfolio.customDomain (Portfolio / Digital Resume Studio)
+  const portfolioByDomain = await prisma.portfolio.findFirst({
+    where: { customDomain: domainLower, status: "PUBLISHED", deletedAt: null },
+    select: { slug: true },
+  });
+  if (portfolioByDomain) {
+    return NextResponse.json({ slug: portfolioByDomain.slug, type: "portfolio" });
+  }
+
   return NextResponse.json({ error: "Domain not found" }, { status: 404 });
 }
