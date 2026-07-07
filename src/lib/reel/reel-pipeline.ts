@@ -205,23 +205,39 @@ function resolveYtDlpPath(): string {
 export async function downloadSourceVideoFromUrl(url: string): Promise<string> {
   const ytdlp = resolveYtDlpPath();
   const out = path.join(os.tmpdir(), `reel-src-${Date.now()}-${Math.round(Math.random() * 1e6)}.mp4`);
+
+  // Optional YouTube auth — the RELIABLE way past YouTube's server-IP bot check.
+  // Set YTDLP_COOKIES_FILE=/path/cookies.txt (Netscape format) or
+  // YTDLP_COOKIES_FROM_BROWSER=chrome on the server.
+  const cookieArgs: string[] = [];
+  if (process.env.YTDLP_COOKIES_FILE) cookieArgs.push("--cookies", process.env.YTDLP_COOKIES_FILE);
+  else if (process.env.YTDLP_COOKIES_FROM_BROWSER) cookieArgs.push("--cookies-from-browser", process.env.YTDLP_COOKIES_FROM_BROWSER);
+
   await new Promise<void>((resolve, reject) => {
     const proc = spawn(ytdlp, [
       "-f", "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
       "--merge-output-format", "mp4",
       "--no-playlist", "--no-warnings", "--quiet",
-      // Server IPs get bot-checked by YouTube; the android client + UA + retries
-      // are the standard mitigations (best-effort — some videos still require auth).
-      "--extractor-args", "youtube:player_client=android,web",
-      "--retries", "3", "--fragment-retries", "3",
-      "--user-agent", "com.google.android.youtube/19.09.37 (Linux; U; Android 13) gzip",
+      // Try several player clients; some slip past the datacenter-IP bot check.
+      "--extractor-args", "youtube:player_client=default,tv,android,web_safari,mweb",
+      "--retries", "3", "--fragment-retries", "3", "--geo-bypass",
+      ...cookieArgs,
       "-o", out, url,
     ], { windowsHide: true });
     let err = "";
     const timer = setTimeout(() => { proc.kill("SIGKILL"); reject(new Error("Source download timed out.")); }, 600000);
     proc.stderr.on("data", (c) => { err += c.toString(); if (err.length > 8000) err = err.slice(-8000); });
     proc.on("error", (e) => { clearTimeout(timer); reject(new Error(`yt-dlp not available: ${e instanceof Error ? e.message : e}`)); });
-    proc.on("close", (code) => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error(`yt-dlp failed (${code}): ${err.slice(-400)}`)); });
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) { resolve(); return; }
+      // Turn YouTube's bot wall into an actionable message (steers to upload).
+      if (/sign in to confirm|not a bot|cookies|age.?restricted|private video|members-only/i.test(err)) {
+        reject(new Error("YouTube blocked this server-side download (sign-in/bot check). Upload the video file instead — it works every time. (Admins can set YTDLP_COOKIES_FILE on the server to enable link downloads.)"));
+      } else {
+        reject(new Error(`Couldn't download that link (${code}): ${err.slice(-280)}`));
+      }
+    });
   });
   const key = `reels/sources/${Date.now()}-${Math.round(Math.random() * 1e6)}.mp4`;
   const sourceFileUrl = await uploadLocalFileToS3(out, key);
