@@ -312,10 +312,17 @@ export async function POST(req: NextRequest) {
           /* already closed */
         }
       };
+      // SSE keep-alive — a comment ping every 15s so the client can tell a LIVE
+      // (but quiet) turn from a dead/half-open socket or a worker killed mid-turn.
+      // Paired with the client's 60s idle timeout in consumeAgentStream. Comments
+      // (": …") carry no `data:` event, so the client just resets its idle timer.
+      let heartbeat: ReturnType<typeof setInterval> | undefined;
+      const ping = () => { if (closed) return; try { controller.enqueue(encoder.encode(`: ping\n\n`)); } catch { /* already closed */ } };
 
       // Open the stream with a start event so the client can hide
       // its "connecting…" spinner immediately.
       send({ type: "start", conversationId, messageId: assistantMsg.id });
+      heartbeat = setInterval(ping, 15_000);
 
       // Track text + metadata we'll persist to the assistant message row.
       let assembledText = "";
@@ -482,6 +489,7 @@ export async function POST(req: NextRequest) {
         send({ type: "error", message: msg, recoverable: false });
         send({ type: "done", tokensUsed: 0, creditsUsed: 0, iterations: 0 });
       } finally {
+        if (heartbeat) clearInterval(heartbeat);
         close();
       }
     },
