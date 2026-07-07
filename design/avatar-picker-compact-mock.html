@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Avatar picker — compact grid mock</title>
+<style>
+  :root {
+    --bg: #0a0e13; --panel: #10151c; --panel2: #151b24; --border: #232b36;
+    --text: #e7edf4; --muted: #8b97a5; --brand: #38bdf8; --amber: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 28px 18px 60px; }
+  .wrap { max-width: 1360px; margin: 0 auto; }
+  h1 { font-size: 19px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 22px; }
+  h2 { font-size: 13px; margin: 26px 0 8px; color: var(--brand); text-transform: uppercase; letter-spacing: .06em; }
+  .note { color: var(--muted); font-size: 12px; margin: 6px 0 10px; }
+  .sheet { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
+  .lbl { font-size: 11.5px; font-weight: 600; margin: 2px 0 6px; }
+  .lbl small { font-weight: 400; color: var(--muted); }
+  .search { display:flex; align-items:center; gap:6px; border:1px solid var(--border); background:var(--bg); border-radius:10px; padding:6px 10px; color:var(--muted); font-size:12px; margin-bottom:8px; }
+
+  /* ============ BEFORE: grid-cols-3 at modal width ============ */
+  .before-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; max-height:220px; overflow:hidden; }
+  .before-grid .card .ph { aspect-ratio:3/4; }
+
+  /* ============ AFTER: auto-fill minmax(96px,1fr) ============ */
+  .after-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px; max-height:220px; overflow-y:auto; padding-bottom:4px; }
+
+  .card { position:relative; border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--panel2); cursor:pointer; text-align:left; }
+  .card:hover { border-color: rgba(56,189,248,.5); }
+  .card.sel { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+  .card .ph { aspect-ratio:3/4; width:100%; display:grid; place-items:center; font-size:34px; position:relative; overflow:hidden; }
+  .before-grid .card .ph { font-size: 120px; align-items: end; padding-top: 40px; } /* mimics the cropped-forehead look */
+  .card .nm { display:block; padding:2px 5px 3px; font-size:9.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .card .nm.mut { color: var(--muted); font-weight:400; }
+  .chip { position:absolute; font-size:8px; font-weight:700; border-radius:5px; padding:1px 4px; color:#fff; }
+  .chip.clone { left:4px; top:4px; background:rgba(0,0,0,.6); border-radius:99px; padding:2px 6px; }
+  .chip.looks { right:4px; bottom:4px; background:rgba(0,0,0,.65); }
+  .chip.pro { right:4px; top:4px; background:rgba(245,158,11,.9); }
+  /* gradient placeholder "faces" */
+  .f1{background:linear-gradient(160deg,#31445c,#1b2735)} .f2{background:linear-gradient(160deg,#54331e,#2b1c12)}
+  .f3{background:linear-gradient(160deg,#3d2f52,#241c33)} .f4{background:linear-gradient(160deg,#1e4a41,#122b26)}
+  .f5{background:linear-gradient(160deg,#4a1e2e,#2b1219)} .f6{background:linear-gradient(160deg,#1e3a4a,#12232b)}
+  .f7{background:linear-gradient(160deg,#44421e,#282712)} .f8{background:linear-gradient(160deg,#2e1e4a,#1a122b)}
+
+  /* skeleton */
+  .skel { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px; }
+  .skel .s { border:1px solid var(--border); border-radius:10px; overflow:hidden; animation:pulse 1.4s ease-in-out infinite; }
+  .skel .s .a { aspect-ratio:3/4; background:var(--panel2); }
+  .skel .s .b { height:8px; width:66%; background:var(--panel2); border-radius:4px; margin:4px; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+
+  .split { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width: 900px){ .split{grid-template-columns:1fr} }
+  .tag { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:99px; margin-bottom:8px; }
+  .tag.bad { background:rgba(239,68,68,.15); color:#f87171; }
+  .tag.good { background:rgba(34,197,94,.15); color:#4ade80; }
+  .backrow { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12px; font-weight:600; }
+  .backbtn { border:1px solid var(--border); border-radius:8px; padding:3px 8px; font-size:11px; color:var(--text); background:none; cursor:pointer; }
+  .cnt { color:var(--muted); font-size:10.5px; font-weight:400; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Avatar Studio — compact avatar picker</h1>
+  <p class="sub">The brief sheet is full-width, but the picker forced <code>grid-cols-3</code> → three ~440px-wide cards, clipped to a 220px-tall scroll area (you only saw foreheads). The fix: auto-fill columns at ~96–130px, so the same 220px area now shows a full row-and-a-half of complete faces — ~12 per row on desktop, 3 on mobile (unchanged there).</p>
+
+  <div class="split">
+    <div class="sheet">
+      <span class="tag bad">BEFORE — 3 columns at any width</span>
+      <div class="lbl">Avatar &amp; look</div>
+      <div class="search">🔍 Search avatars…</div>
+      <div class="before-grid">
+        <div class="card sel"><div class="ph f1">🧑🏻</div></div>
+        <div class="card"><div class="ph f2">👩🏽</div></div>
+        <div class="card"><div class="ph f3">👨🏽</div></div>
+      </div>
+      <p class="note">Cards are so tall that the 220px viewport crops them — no names, no badges visible.</p>
+    </div>
+
+    <div class="sheet">
+      <span class="tag good">AFTER — auto-fill, ~96–130px cards</span>
+      <div class="lbl">Avatar &amp; look</div>
+      <div class="search">🔍 Search avatars…</div>
+      <div class="after-grid">
+        <div class="card sel"><div class="ph f1">🧑🏻</div><span class="chip clone">Clone</span><span class="nm">My avatar</span></div>
+        <div class="card"><div class="ph f2">👩🏽</div><span class="chip looks">6 looks</span><span class="nm">Abigail</span></div>
+        <div class="card"><div class="ph f3">👨🏽</div><span class="chip looks">4 looks</span><span class="nm">Aditya</span></div>
+        <div class="card"><div class="ph f4">👩🏻</div><span class="chip looks">9 looks</span><span class="nm">Amelia</span></div>
+        <div class="card"><div class="ph f5">👨🏿</div><span class="nm">Andre</span></div>
+        <div class="card"><div class="ph f6">👩🏼</div><span class="chip looks">12 looks</span><span class="nm">Annie</span></div>
+        <div class="card"><div class="ph f7">👨🏻</div><span class="chip pro">PRO</span><span class="nm">Antoni</span></div>
+        <div class="card"><div class="ph f8">👩🏾</div><span class="chip looks">3 looks</span><span class="nm">Bianca</span></div>
+        <div class="card"><div class="ph f3">🧔🏽</div><span class="nm">Bruno</span></div>
+        <div class="card"><div class="ph f6">👱🏻‍♀️</div><span class="chip looks">7 looks</span><span class="nm">Caroline</span></div>
+        <div class="card"><div class="ph f2">👨🏼</div><span class="nm">Damien</span></div>
+        <div class="card"><div class="ph f4">👩🏻‍🦰</div><span class="chip looks">5 looks</span><span class="nm">Daisy</span></div>
+        <div class="card"><div class="ph f1">👨🏾</div><span class="chip pro">PRO</span><span class="nm">Elias</span></div>
+        <div class="card"><div class="ph f5">👩🏽‍🦱</div><span class="nm">Farah</span></div>
+        <div class="card"><div class="ph f7">🧑🏼</div><span class="chip looks">8 looks</span><span class="nm">Gabe</span></div>
+        <div class="card"><div class="ph f8">👩🏿</div><span class="nm">Imani</span></div>
+      </div>
+      <p class="note">Full faces + names + Clone/looks/PRO badges visible; same 220px height now scrolls ~200 identities comfortably.</p>
+    </div>
+  </div>
+
+  <h2>Drill-in (looks of one identity) — same compact grid</h2>
+  <div class="sheet" style="max-width:680px">
+    <div class="backrow"><button class="backbtn">‹ All avatars</button> Annie <span class="cnt">· 12 looks</span></div>
+    <div class="after-grid" style="max-height:160px">
+      <div class="card sel"><div class="ph f6">👩🏼</div><span class="nm mut">Grey Jacket</span></div>
+      <div class="card"><div class="ph f1">👩🏼</div><span class="nm mut">Sitting Sofa</span></div>
+      <div class="card"><div class="ph f4">👩🏼</div><span class="nm mut">Office Front</span></div>
+      <div class="card"><div class="ph f8">👩🏼</div><span class="nm mut">Casual Desk</span></div>
+      <div class="card"><div class="ph f2">👩🏼</div><span class="nm mut">Studio</span></div>
+      <div class="card"><div class="ph f5">👩🏼</div><span class="nm mut">Outdoor</span></div>
+    </div>
+  </div>
+
+  <h2>Loading state — skeleton instead of bare text</h2>
+  <div class="sheet" style="max-width:680px">
+    <div class="lbl">Avatar &amp; look</div>
+    <div class="skel">
+      <div class="s"><div class="a"></div><div class="b"></div></div>
+      <div class="s"><div class="a"></div><div class="b"></div></div>
+      <div class="s"><div class="a"></div><div class="b"></div></div>
+      <div class="s"><div class="a"></div><div class="b"></div></div>
+      <div class="s"><div class="a"></div><div class="b"></div></div>
+      <div class="s"><div class="a"></div><div class="b"></div></div>
+    </div>
+    <p class="note">With the new server-side catalog cache this flashes for ~100ms instead of sitting on "Loading avatars…" for seconds.</p>
+  </div>
+</div>
+</body>
+</html>

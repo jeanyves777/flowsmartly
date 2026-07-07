@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { createReelPost, listPostsForCampaign, type ReelPostContent } from "@/lib/reel/reel-editor";
+import { listPostsForCampaign } from "@/lib/reel/reel-editor";
+import { publishReelClips } from "@/lib/reel/reel-publish";
 import { isReelChannel, type ReelChannelId } from "@/lib/reel/highlights";
 
 // POST /api/reels/[id]/publish — post/schedule clips to reel-capable channels.
@@ -20,18 +21,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const scheduledAt = typeof body.scheduleAt === "string" && body.scheduleAt ? new Date(body.scheduleAt) : null;
     const valid = scheduledAt && !isNaN(scheduledAt.getTime()) ? scheduledAt : null;
 
-    const created: ReelPostContent[] = [];
-    for (const clipId of clipIds) {
-      for (const channel of channels) {
-        try {
-          created.push(await createReelPost({ userId: session.userId, clipId, channel, scheduledAt: valid }));
-        } catch {
-          /* skip clips the user doesn't own */
-        }
-      }
-    }
+    const outcomes = await publishReelClips({ userId: session.userId, clipIds, channels, scheduledAt: valid });
     const posts = await listPostsForCampaign(id, session.userId);
-    return NextResponse.json({ created: created.length, mode: valid ? "scheduled" : "posting", posts });
+    return NextResponse.json({ created: outcomes.length, mode: valid ? "scheduled" : "posting", posts });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Publish failed" }, { status: 400 });
   }

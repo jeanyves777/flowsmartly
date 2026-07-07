@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { heygenClient } from "@/lib/ai/heygen-client";
+import { bustAvatarCatalog } from "@/lib/avatar-studio/catalog-cache";
 
 /**
  * POST — upload a user photo to HeyGen and return a reusable talking_photo id
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const { id, previewUrl } = await heygenClient.uploadTalkingPhoto(buffer, mimeType);
+    bustAvatarCatalog(); // the new talking photo should show in everyone's picker without waiting out the TTL
     return NextResponse.json({ success: true, data: { avatarId: id, previewUrl } });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Photo upload failed.";

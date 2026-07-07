@@ -12,6 +12,7 @@
 
 import { prisma } from "@/lib/db/client";
 import { heygenClient, type HeyGenAvatar, type HeyGenVoice } from "@/lib/ai/heygen-client";
+import { getCachedAvatars, getCachedVoices, getCachedTemplates } from "./catalog-cache";
 import { ai } from "@/lib/ai/client";
 import { generateImageForRole } from "@/lib/ai/image-router";
 import type { AvatarAspect } from "./types";
@@ -666,19 +667,20 @@ const FALLBACK_VOICES: HeyGenVoice[] = [
 
 export async function listAvatarsForUser(): Promise<HeyGenAvatar[]> {
   if (!heygenClient.isAvailable()) return FALLBACK_AVATARS;
-  const list = await heygenClient.listAvatars();
+  const list = await getCachedAvatars();
   return list.length ? list : FALLBACK_AVATARS;
 }
 
 export async function listVoicesForUser(): Promise<HeyGenVoice[]> {
   if (!heygenClient.isAvailable()) return FALLBACK_VOICES;
-  const list = await heygenClient.listVoices();
+  const list = await getCachedVoices();
   return list.length ? list.slice(0, 60) : FALLBACK_VOICES;
 }
 
 /** Real HeyGen templates (each carries its own background/music/captions/branding). */
 export async function listTemplatesForUser() {
-  return heygenClient.listTemplates();
+  if (!heygenClient.isAvailable()) return [];
+  return getCachedTemplates();
 }
 
 /**

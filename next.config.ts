@@ -37,6 +37,12 @@ const nextConfig: NextConfig = {
         hostname: "**",
       },
     ],
+    // HeyGen avatar thumbnails carry an immutable asset-id URL but their CDN
+    // sends NO Cache-Control, so without this Next would re-validate every 60s
+    // and lose the resize cache. Keep each optimized variant on the server's
+    // disk cache for a day; safe because our own dynamic images (which can change
+    // at a stable URL) render `unoptimized` and bypass this entirely.
+    minimumCacheTTL: 86400,
   },
 
   experimental: {
