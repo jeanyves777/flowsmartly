@@ -18,6 +18,8 @@ export interface WorkspaceItem {
   route: string;
   /** The new-design focused view this item opens (/home/<viewKey>). */
   viewKey?: string;
+  /** Optional in-surface target, like a print format or Lead Studio section. */
+  viewHint?: string;
   /** Short, one-line description shown under the label in the panel cards. */
   desc?: string;
 }
@@ -60,7 +62,12 @@ export const WORKSPACES: Workspace[] = [
     icon: Printer,
     route: "/home/print",
     items: [
-      { label: "Print studio", route: "/home/print", viewKey: "print", desc: "Flyers, posters, cards, brochures & product prints" },
+      { label: "Browse print formats", route: "/home/print", viewKey: "print", desc: "Choose flyers, cards, brochures, product prints & more" },
+      { label: "Flyer & poster", route: "/home/print", viewKey: "print", viewHint: "flyer", desc: "Promos, event posters, menus and hand-outs" },
+      { label: "Business card", route: "/home/print", viewKey: "print", viewHint: "card", desc: "Front/back cards with bleed and safe-zone guides" },
+      { label: "Brochure", route: "/home/print", viewKey: "print", viewHint: "trifold", desc: "Bi-fold or tri-fold layouts with fold guides" },
+      { label: "Postcard", route: "/home/print", viewKey: "print", viewHint: "postcard", desc: "Mailers, invites and EDDM-friendly sizes" },
+      { label: "Product prints", route: "/home/print", viewKey: "print", viewHint: "apparel", desc: "Apparel, workwear, drinkware and gifts" },
     ],
   },
   {
@@ -80,7 +87,10 @@ export const WORKSPACES: Workspace[] = [
     icon: CalendarClock,
     route: "/home/campaign",
     items: [
-      { label: "Campaign studio", route: "/home/campaign", viewKey: "campaign", desc: "Plan, generate & schedule a content campaign" },
+      { label: "New content campaign", route: "/home/campaign", viewKey: "campaign", viewHint: "new", desc: "Plan and generate a batch of scheduled posts" },
+      { label: "Campaign library", route: "/home/campaign", viewKey: "campaign", viewHint: "library", desc: "Review drafts, improve campaigns and approve posts" },
+      { label: "Content calendar", route: "/home/calendar", viewKey: "calendar", desc: "See what is scheduled, published and pending" },
+      { label: "Posts", route: "/home/publish", viewKey: "publish", desc: "Draft, schedule and track individual posts" },
     ],
   },
   {
@@ -140,8 +150,12 @@ export const WORKSPACES: Workspace[] = [
     icon: Search,
     route: "/home/leads",
     items: [
-      { label: "Find leads", route: "/home/leads", viewKey: "leads", desc: "Search local businesses by type & place" },
-      { label: "My lead lists", route: "/home/leads", viewKey: "leads", desc: "Saved leads by list & category" },
+      { label: "Find leads", route: "/home/leads", viewKey: "leads", viewHint: "find", desc: "Search local businesses by type and place" },
+      { label: "My lead lists", route: "/home/leads", viewKey: "leads", viewHint: "library", desc: "Saved lead folders and imported lists" },
+      { label: "Contacts", route: "/home/leads", viewKey: "leads", viewHint: "contacts", desc: "All saved people and businesses with enrichment" },
+      { label: "Companies", route: "/home/leads", viewKey: "leads", viewHint: "companies", desc: "Company rollups from saved leads" },
+      { label: "Pipeline", route: "/home/leads", viewKey: "leads", viewHint: "pipeline", desc: "Build outreach automation from a lead list" },
+      { label: "Pitches", route: "/home/leads", viewKey: "leads", viewHint: "pitches", desc: "Pitch drafts and proposals tied to leads" },
     ],
   },
   {

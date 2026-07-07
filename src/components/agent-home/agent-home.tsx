@@ -310,6 +310,7 @@ export function AgentHome() {
   const [pitchTarget, setPitchTarget] = useState<{ leadId?: string; leadName?: string; pitchId?: string } | null>(null);
   // The content campaign whose Campaign Studio is open (empty object = new).
   const [campaignTarget, setCampaignTarget] = useState<{ campaignId?: string; brief?: string } | null>(null);
+  const [campaignInitialView, setCampaignInitialView] = useState("new");
   const [leaveAction, setLeaveAction] = useState<{ run: () => void } | null>(null);
   const [panelKey, setPanelKey] = useState<string | null>(null);
   // Rail category to restore when a browse panel is closed WITHOUT navigating —
@@ -319,11 +320,13 @@ export function AgentHome() {
   const [toast, setToast] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(true); // Lead Studio section menu (toggled from the surface header)
+  const [leadsInitialScreen, setLeadsInitialScreen] = useState("find");
   const [design, setDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
   // The Print Studio canvas is a SEPARATE document from the Create design — they
   // must not share state or a draft key, or opening a print format would pollute
   // Create (and vice-versa). Its own state + storage keeps them fully isolated.
   const [printDesign, setPrintDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
+  const [printInitialFormat, setPrintInitialFormat] = useState<string | null>(null);
   const [brandColors, setBrandColors] = useState<string[]>([]);
   const [brandContact, setBrandContact] = useState<BrandContact | null>(null);
   const [brandLogo, setBrandLogo] = useState<string | null>(null);
@@ -679,15 +682,9 @@ export function AgentHome() {
       });
       return;
     }
-    // Leads opens its full surface directly (search + saved lists), not a panel.
-    if (key === "leads") { guardNav(() => openFocused("leads")); return; }
-    // Print opens the studio directly (its hero IS the format chooser), not a panel.
-    if (key === "print") { guardNav(() => openFocused("print")); return; }
-    // Campaign opens the studio directly on a fresh brief (its hero IS the brief form).
-    if (key === "campaign") { guardNav(() => { setCampaignTarget({}); openFocused("campaign"); }); return; }
     // Browsing a category just opens its menu panel on the RIGHT — it does NOT
     // leave the current focused view (the view stays mounted behind the panel).
-    // Only picking an item (onOpenView) or Home/Leads actually navigates away, so
+    // Only picking an item (onOpenView) or Home actually navigates away, so
     // there's no guard here. Remember where to return if the panel is closed.
     if (!panelKey) panelReturnWs.current = focused ? activeWs : "home";
     setActiveWs(key);
@@ -701,12 +698,20 @@ export function AgentHome() {
   const openBilling = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("billing"); setDrawerOpen(false); };
   // Open a sub-surface (domains, pitch, customers, …) from within its parent
   // workspace — keeps the current rail selection. New-design only, never legacy.
-  const openView = (key: string) => { setHistoryOpen(false); setPanelKey(null); setFocused(key); setDrawerOpen(false); };
+  const openView = (key: string, hint?: string) => {
+    if (key === "campaign") { setCampaignTarget({}); setCampaignInitialView(hint === "library" ? "library" : "new"); }
+    if (key === "leads" && hint) setLeadsInitialScreen(hint);
+    if (key === "print") setPrintInitialFormat(hint ?? null);
+    setHistoryOpen(false);
+    setPanelKey(null);
+    setFocused(key);
+    setDrawerOpen(false);
+  };
   // Open Pitch Studio for a lead — set the target BEFORE switching surfaces so the
   // child mounts with it. Keeps the current rail (Leads).
   const openPitchStudio = (t: { leadId?: string; leadName?: string; pitchId?: string }) => { setPitchTarget(t); setHistoryOpen(false); setPanelKey(null); setFocused("pitchstudio"); setDrawerOpen(false); };
   // Open Campaign Studio (empty target = start a new campaign).
-  const openCampaignStudio = (t?: { campaignId?: string; brief?: string }) => { setCampaignTarget(t ?? {}); setHistoryOpen(false); setPanelKey(null); setFocused("campaign"); setDrawerOpen(false); };
+  const openCampaignStudio = (t?: { campaignId?: string; brief?: string }) => { setCampaignTarget(t ?? {}); setCampaignInitialView(t?.campaignId ? "library" : "new"); setHistoryOpen(false); setPanelKey(null); setFocused("campaign"); setDrawerOpen(false); };
   // Load a produced design into the Create canvas (shared by ?design= deep-link
   // and the task-card "Open in studio" client-side nav).
   const openDesignById = (designId: string) => {
@@ -1078,6 +1083,7 @@ export function AgentHome() {
                     value={printDesign}
                     onChange={setPrintDesign}
                     draftKey="print"
+                    initialFormat={printInitialFormat}
                     pageOpsRef={pageOpsRef}
                     printOpsRef={printOpsRef}
                     productOpsRef={productOpsRef}
@@ -1171,11 +1177,11 @@ export function AgentHome() {
                 ) : focused === "reviews" ? (
                   <FocusedReviews onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "leads" ? (
-                  <FocusedLeads onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} onOpenPitch={(pitchId) => guardNav(() => openPitchStudio({ pitchId }))} />
+                  <FocusedLeads initialScreen={leadsInitialScreen} onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} onOpenPitch={(pitchId) => guardNav(() => openPitchStudio({ pitchId }))} />
                 ) : focused === "pitchstudio" ? (
                   <FocusedPitchStudio target={pitchTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} />
                 ) : focused === "campaign" ? (
-                  <FocusedCampaignStudio target={campaignTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} />
+                  <FocusedCampaignStudio initialView={campaignInitialView} target={campaignTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} />
                 ) : focused === "compose" ? (
                   <FocusedCompose onAsk={sendAction} refreshKey={actionCount} composeOpsRef={composeOpsRef} working={sending} narrate={publishNarrate} />
                 ) : focused === "email" ? (
@@ -1271,7 +1277,7 @@ export function AgentHome() {
                 hasStore={hasStore}
                 onClose={() => { setPanelKey(null); setActiveWs(panelReturnWs.current); }}
                 onAsk={(q) => { setPanelKey(null); setActiveWs(panelReturnWs.current); send(q, false, undefined, focused ? focusedSurfaceContext(focused, brandName) : undefined, { hidden: true }); }}
-                onOpenView={(k) => guardNav(() => openView(k))}
+                onOpenView={(k, hint) => guardNav(() => openView(k, hint))}
               />
             )}
           </aside>
@@ -1394,7 +1400,7 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
   hasStore: boolean | null;
   onClose: () => void;
   onAsk: (q: string) => void;
-  onOpenView: (key: string) => void;
+  onOpenView: (key: string, hint?: string) => void;
 }) {
   const ws = WORKSPACES.find((w) => w.key === panelKey);
   if (!ws) return null;
@@ -1423,7 +1429,7 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
             return (
               <button
                 key={(it.viewKey ?? "") + it.label}
-                onClick={() => (it.viewKey ? onOpenView(it.viewKey) : onAsk(`Open ${it.label} and help me get started.`))}
+                onClick={() => (it.viewKey ? onOpenView(it.viewKey, it.viewHint) : onAsk(`Open ${it.label} and help me get started.`))}
                 className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-3 py-3 text-left transition hover:border-brand-500/50 hover:bg-muted/50"
               >
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500"><ItemIcon className="h-[18px] w-[18px]" /></span>

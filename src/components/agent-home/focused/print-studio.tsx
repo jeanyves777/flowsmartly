@@ -264,14 +264,17 @@ interface CanvasProps {
 
 export interface ProductOps { setProduct: (patch: Record<string, unknown>) => void }
 
-export function FocusedPrintStudio({ onAsk, printOpsRef, productOpsRef, ...canvas }: CanvasProps & {
+export function FocusedPrintStudio({ onAsk, initialFormat, printOpsRef, productOpsRef, ...canvas }: CanvasProps & {
   onAsk: (prompt: string) => void;
+  /** Optional format to open immediately when a menu row targets a format. */
+  initialFormat?: string | null;
   /** The agent's start_print_project routes here (via the canvas_update __print marker). */
   printOpsRef?: { current: { selectFormat: (key: string) => void } | null };
   /** The agent's place_design_on_product routes here (via the __product marker). */
   productOpsRef?: { current: ProductOps | null };
 }) {
   const [fmtKey, setFmtKey] = useState<string | null>(null);
+  const openedInitialRef = useRef<string | null>(null);
   const fmt = PRINT_FORMATS.find((f) => f.key === fmtKey) ?? null;
 
   // Open a format: paper loads a format-appropriate STARTER design (right size,
@@ -306,6 +309,14 @@ export function FocusedPrintStudio({ onAsk, printOpsRef, productOpsRef, ...canva
   useEffect(() => {
     if (printOpsRef) printOpsRef.current = { selectFormat };
   });
+
+  useEffect(() => {
+    if (!initialFormat) { openedInitialRef.current = null; return; }
+    if (openedInitialRef.current === initialFormat) return;
+    openedInitialRef.current = initialFormat;
+    selectFormat(initialFormat);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFormat]);
 
   if (fmt && fmt.group === "product") {
     return <ProductMode initialKind={fmt.productKind ?? "tee"} brandLogo={canvas.brandLogo} onAsk={onAsk} onBack={() => setFmtKey(null)} productOpsRef={productOpsRef} />;
