@@ -4801,8 +4801,13 @@ model SavedLead {
   phones           String  @default("[]") // JSON: string[] (extra phones)
   socials          String  @default("{}") // JSON: { linkedin?, x?, facebook?, google? }
   companyId        String? // link to the enriched Company
-  enrichedAt       DateTime? // when contact info was revealed
-  enrichmentSource String? // "web" | "manual"
+  enrichedAt       DateTime? // when contact info was revealed (basic "Get details")
+  enrichmentSource String? // "web" | "manual" | "autopilot"
+  // Deep-enrichment blob (the "Deep details" pass): firmographics + extras with no
+  // dedicated column — JSON of { hours?, employeeSize?, revenueBand?, yearFounded?,
+  // industry?, about?, reviews?, contacts?: [{name,title,email,phone}], ... }.
+  enrichment       String? // JSON object; null until a deep pass runs
+  deepEnrichedAt   DateTime? // when a "Deep details" pass last ran
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

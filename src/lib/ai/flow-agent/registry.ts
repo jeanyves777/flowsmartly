@@ -136,6 +136,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { findLeads } = await import("./tools/find-leads");
   const { findLocalLeads } = await import("./tools/find-local-leads");
   const { enrichLead } = await import("./tools/enrich-lead");
+  const { deepEnrichLead } = await import("./tools/deep-enrich-lead");
   const { createOpportunity } = await import("./tools/create-opportunity");
   const { advanceOpportunity } = await import("./tools/advance-opportunity");
   const { runLeadAutopilot } = await import("./tools/run-lead-autopilot");
@@ -233,6 +234,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(findLeads);
   flowAgentTools.register(findLocalLeads);
   flowAgentTools.register(enrichLead);
+  flowAgentTools.register(deepEnrichLead);
   flowAgentTools.register(createOpportunity);
   flowAgentTools.register(advanceOpportunity);
   flowAgentTools.register(runLeadAutopilot);

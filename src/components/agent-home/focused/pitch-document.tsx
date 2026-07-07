@@ -311,12 +311,21 @@ export function Editable({ as: Tag = "p", value, onCommit, onAI, className, styl
   const commit = () => {
     setEditing(false);
     const next = (ref.current?.innerText ?? value).replace(/\n+$/, "");
+    // Single-line fields (headers, titles, labels, CTAs) must NEVER become empty:
+    // an empty value both reads as broken and forces a text→placeholder-<span>
+    // child swap under contentEditable that crashes React's reconciler. If the
+    // user cleared one, revert to the prior text instead of committing "".
+    if (!multiline && !next.trim()) { if (ref.current) ref.current.innerText = value; return; }
     if (next !== value) onCommit(next);
   };
   const cancel = () => { if (ref.current) ref.current.innerText = value; setEditing(false); };
 
   return (
     <Comp
+      // Remount on the edit⇄view transition so React never diffs the DOM the
+      // BROWSER mutated while contentEditable — it rebuilds children from `value`
+      // instead, which is what makes clearing a header safe (no removeChild crash).
+      key={editing ? "edit" : "view"}
       ref={ref}
       contentEditable={editing}
       suppressContentEditableWarning
