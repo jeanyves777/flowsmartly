@@ -75,6 +75,9 @@ export interface ViewSpec {
   icon?: string;
   tone?: Tone;
   badge?: { text: string; tone?: Tone };
+  /** How much horizontal room the card takes in the chat. Tables/dashboards want
+   *  more; small forms less. Renders responsive (fills, capped by this). Default "lg". */
+  width?: "sm" | "md" | "lg" | "full";
   body: ViewBlock[];
   footer?: ViewBlock[];
   /** How this view was produced (for the "from library" / "✨ generated" tag). */
@@ -125,6 +128,7 @@ export function normalizeViewSpec(raw: unknown): ViewSpec | null {
     icon: typeof r.icon === "string" ? r.icon.slice(0, 40) : undefined,
     tone: r.tone,
     badge: r.badge && typeof r.badge.text === "string" ? { text: r.badge.text.slice(0, 40), tone: r.badge.tone } : undefined,
+    width: r.width === "sm" || r.width === "md" || r.width === "full" ? r.width : "lg",
     body,
     footer: clean(r.footer),
     source: r.source === "generated" ? "generated" : "library",

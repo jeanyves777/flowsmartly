@@ -1248,8 +1248,10 @@ export function MessageBlocks({
       }
       i += 1;
     } else if (b.type === "view") {
+      const w = b.spec.width;
+      const wrapCls = w === "sm" ? "max-w-[460px]" : w === "md" ? "max-w-[620px]" : w === "full" ? "max-w-full" : "max-w-[860px]";
       rows.push(
-        <div key={`view-${i}`} className="w-full max-w-[420px]">
+        <div key={`view-${i}`} className={cn("w-full", wrapCls)}>
           <AgentView spec={b.spec} onEvent={onViewEvent} />
         </div>,
       );
