@@ -220,7 +220,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOp
     if (!pitch) return;
     setDownloading(true);
     try {
-      const res = await fetch(`/api/pitch/${pitch.id}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pdfOnly: true }) });
+      const res = await fetch(`/api/pitch/${pitch.id}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pdfOnly: true, variant: docType === "visual" ? "visual" : "deck" }) });
       if (res.ok) {
         const blob = await res.blob(); const url = URL.createObjectURL(blob);
         const a = document.createElement("a"); a.href = url; a.download = `${pitch.businessName.replace(/[^a-z0-9]/gi, "-").toLowerCase()}-proposal.pdf`;
@@ -332,7 +332,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOp
       )}
 
       {sendOpen && pitch && (
-        <SendProposalModal pitch={pitch} onClose={() => setSendOpen(false)} onOpenConnections={() => onOpenView?.("connections")} toast={toast} />
+        <SendProposalModal pitch={pitch} variant={docType === "visual" ? "visual" : "deck"} onClose={() => setSendOpen(false)} onOpenConnections={() => onOpenView?.("connections")} toast={toast} />
       )}
 
       {/* document + right rail */}
@@ -512,8 +512,9 @@ function EmailPreview({ content, theme, businessName, brandName, logoUrl, onChan
 
 // Email the branded proposal PDF straight from the Studio (same deliverProposal
 // path as the send_proposal agent skill + the Pitch board). A real UI action.
-function SendProposalModal({ pitch, onClose, onOpenConnections, toast }: {
+function SendProposalModal({ pitch, variant, onClose, onOpenConnections, toast }: {
   pitch: PitchRecord;
+  variant: "deck" | "visual";
   onClose: () => void;
   onOpenConnections: () => void;
   toast: (t: { title: string; description?: string }) => void;
@@ -532,7 +533,7 @@ function SendProposalModal({ pitch, onClose, onOpenConnections, toast }: {
     try {
       const res = await fetch(`/api/pitch/${pitch.id}/send`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recipientEmail: email.trim(), recipientName: name.trim() || undefined, message: message.trim() || undefined }),
+        body: JSON.stringify({ recipientEmail: email.trim(), recipientName: name.trim() || undefined, message: message.trim() || undefined, variant }),
       });
       const j = await res.json().catch(() => null);
       if (res.ok && j?.success) {
