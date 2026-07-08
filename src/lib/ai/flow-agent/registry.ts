@@ -105,6 +105,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { cancelScheduledPost } = await import("./tools/cancel-scheduled-post");
   const { generateImage } = await import("./tools/generate-image");
   const { askChoice } = await import("./tools/ask-choice");
+  const { renderView } = await import("./tools/render-view");
   const { createBrandedDesign } = await import("./tools/create-branded-design");
   const { addCanvasObject } = await import("./tools/add-canvas-object");
   const { editImage } = await import("./tools/edit-image");
@@ -222,6 +223,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   // generates from the brief + brand kit on the fixed xAI@2K recipe, so neither
   // present_design_templates nor list_agent_design_templates is registered.
   flowAgentTools.register(askChoice);
+  flowAgentTools.register(renderView);
   flowAgentTools.register(createBrandedDesign);
   flowAgentTools.register(addCanvasObject);
   flowAgentTools.register(editImage);

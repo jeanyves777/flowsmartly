@@ -1,4 +1,5 @@
 import type { CreditCostKey } from "@/lib/credits/costs";
+import type { ViewSpec } from "@/lib/agent-views/spec";
 
 /**
  * Per-request context handed to every tool handler.
@@ -45,6 +46,7 @@ export type AgentEvent =
   | { type: "template_options"; requestId: string; templates: TemplateOptionData[] }
   | { type: "question_options"; requestId: string; question: string; options: QuestionOptionData[]; allowOther?: boolean }
   | { type: "canvas_update"; patch: Record<string, unknown> }
+  | { type: "agent_view"; requestId: string; spec: ViewSpec }
   | { type: "credits_charged"; amount: number; costKey: CreditCostKey; balanceAfter: number | null }
   | { type: "error"; message: string; recoverable: boolean }
   | { type: "done"; tokensUsed: number; creditsUsed: number; iterations: number };

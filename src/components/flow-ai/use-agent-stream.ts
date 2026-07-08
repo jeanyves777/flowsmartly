@@ -10,6 +10,8 @@ import type {
   TemplateOption,
   QuestionOption,
 } from "./agent-cards";
+import type { ViewSpec } from "@/lib/agent-views/spec";
+import { normalizeViewSpec } from "@/lib/agent-views/spec";
 
 /**
  * Shared Flow-AI agent SSE consumers.
@@ -40,6 +42,7 @@ export interface AgentStreamHandlers {
   onTaskFailed?: (taskId: string, error: string | undefined) => void;
   onTemplateOptions?: (requestId: string, templates: TemplateOption[]) => void;
   onQuestionOptions?: (requestId: string, question: string, options: QuestionOption[], allowOther: boolean) => void;
+  onAgentView?: (requestId: string, spec: ViewSpec) => void;
   onCanvasUpdate?: (patch: Record<string, unknown>) => void;
   onError?: (message: string, recoverable: boolean) => void;
   onDone?: () => void;
@@ -166,6 +169,9 @@ export async function consumeAgentStream(
             })).filter((o) => o.label),
             payload.allowOther !== false,
           );
+        } else if (type === "agent_view" && payload.spec && typeof payload.spec === "object") {
+          const spec = normalizeViewSpec(payload.spec);
+          if (spec) handlers.onAgentView?.(String(payload.requestId ?? ""), spec);
         } else if (type === "canvas_update" && payload.patch && typeof payload.patch === "object") {
           handlers.onCanvasUpdate?.(payload.patch as Record<string, unknown>);
         } else if (type === "error" && typeof payload.message === "string") {
@@ -348,6 +354,11 @@ export function parseMessageBlocks(metadata: string | null | undefined): Message
             options,
             allowOther: (b as { allowOther?: unknown }).allowOther !== false,
           });
+        }
+      } else if (t === "view" && (b as { spec?: unknown }).spec) {
+        const spec = normalizeViewSpec((b as { spec: unknown }).spec);
+        if (spec) {
+          blocks.push({ type: "view", requestId: String((b as { requestId?: unknown }).requestId ?? ""), spec });
         }
       }
     }

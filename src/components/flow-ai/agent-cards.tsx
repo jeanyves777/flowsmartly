@@ -9,6 +9,8 @@ import { LogoGlowLoader, DotGrid } from "@/components/shared/logo-glow-loader";
 import { createSpeechPlayer, type SpeechPlayer } from "./use-tts";
 import { RichText } from "./rich-text";
 import { useAgentNav } from "./agent-nav-context";
+import { AgentView } from "@/components/agent-views/agent-view";
+import type { ViewSpec, ViewEvent } from "@/lib/agent-views/spec";
 
 /**
  * Small "Copy" button shown under an assistant text reply so the user can
@@ -348,7 +350,8 @@ export type MessageBlock =
   | { type: "proposal"; id: string }
   | { type: "task"; id: string }
   | { type: "templates"; requestId: string; templates: TemplateOption[] }
-  | { type: "question"; requestId: string; question: string; options: QuestionOption[]; allowOther?: boolean };
+  | { type: "question"; requestId: string; question: string; options: QuestionOption[]; allowOther?: boolean }
+  | { type: "view"; requestId: string; spec: ViewSpec };
 
 // ─── Tool-call chip ────────────────────────────────────────────────────
 
@@ -968,6 +971,7 @@ export function MessageBlocks({
   onPlanResponse,
   onPickTemplate,
   onPickOption,
+  onViewEvent,
   bubbleClassName,
 }: {
   blocks: MessageBlock[];
@@ -979,6 +983,8 @@ export function MessageBlocks({
   onPickTemplate?: (choice: { id: string; name: string } | null) => void;
   /** Called when the user taps a question-card option (sends the option text). */
   onPickOption?: (text: string) => void;
+  /** Called when the user interacts with an agent-authored view (tap/input/rate). */
+  onViewEvent?: (e: ViewEvent) => void;
   /** Tailwind classes for the assistant text bubble (themed per surface). */
   bubbleClassName?: string;
 }) {
@@ -1078,6 +1084,13 @@ export function MessageBlocks({
           </div>,
         );
       }
+      i += 1;
+    } else if (b.type === "view") {
+      rows.push(
+        <div key={`view-${i}`} className="w-full max-w-[420px]">
+          <AgentView spec={b.spec} onEvent={onViewEvent} />
+        </div>,
+      );
       i += 1;
     } else {
       i += 1;

@@ -239,6 +239,12 @@ export function useHomeAgent() {
             if (!blocks.some((b) => b.type === "question" && b.requestId === requestId)) blocks.push({ type: "question", requestId, question, options, allowOther });
             flushMessage();
           },
+          onAgentView: (requestId, spec) => {
+            const existing = blocks.findIndex((b) => b.type === "view" && b.requestId === requestId);
+            if (existing >= 0) blocks[existing] = { type: "view", requestId, spec };
+            else blocks.push({ type: "view", requestId, spec });
+            flushMessage();
+          },
           onError: (message) => {
             assistantText = assistantText ? `${assistantText}\n\n⚠️ ${message}` : `⚠️ ${message}`;
             flushMessage();

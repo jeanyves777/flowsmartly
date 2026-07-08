@@ -19,6 +19,7 @@ import { LanguageSwitcher } from "./language-switcher";
 import { useHomeAgent, type ConversationSummary } from "./use-home-agent";
 import { AgentNavContext } from "@/components/flow-ai/agent-nav-context";
 import { HomeMessageView } from "./home-message";
+import type { ViewEvent } from "@/lib/agent-views/spec";
 import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
@@ -788,6 +789,25 @@ export function AgentHome() {
                 : undefined;
   const sendAction = (p: string) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true });
   const sendActionFiles = (p: string, atts: { dataUrl?: string; url?: string; name: string }[]) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true, attachments: atts });
+  // A user interaction with an agent-authored view rendered inline in the chat.
+  // A pure deep-link (open a studio/surface) navigates in place; every other
+  // interaction (tap/input/rate/pick) is relayed to the agent as a hidden
+  // instruction so it continues the flow without the user leaving the chat.
+  const handleViewEvent = (e: ViewEvent) => {
+    const href = e.action.href;
+    if (href && navigateInApp(href)) return;
+    const parts: string[] = [`The user interacted with the "${e.action.event}" control in a view you rendered.`];
+    if (e.name) parts.push(`Field: ${e.name}.`);
+    if (e.value !== undefined && e.value !== null && e.value !== "") {
+      const v = typeof e.value === "string" ? e.value : JSON.stringify(e.value);
+      parts.push(`Value: ${v.slice(0, 600)}.`);
+    }
+    if (e.action.payload && Object.keys(e.action.payload).length) parts.push(`Context: ${JSON.stringify(e.action.payload).slice(0, 600)}.`);
+    if (e.action.tool) parts.push(`The intended tool is ${e.action.tool}.`);
+    if (href) parts.push(`Related link: ${href}.`);
+    parts.push("Act on it and confirm — do not re-ask what the view already captured.");
+    sendAction(parts.join(" "));
+  };
   // Mobile "collect via chat" bridge: on phones, studios seed the composer with
   // an editable starter (user edits + sends) instead of opening a data-fill
   // modal. `seedComposer` fills the focused composer + reveals the chat overlay.
@@ -1030,7 +1050,7 @@ export function AgentHome() {
                       <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{(focused && FOCUS_CHAT_HINT[focused]) || DEFAULT_CHAT_HINT}</p>
                     ) : (
                       messages.map((m) => (
-                        <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} />
+                        <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} onViewEvent={handleViewEvent} />
                       ))
                     )}
                     <div ref={bottomRef} />
@@ -1293,7 +1313,7 @@ export function AgentHome() {
             ) : (
               <div>
                 {messages.map((m) => (
-                  <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} />
+                  <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} onViewEvent={handleViewEvent} />
                 ))}
                 <div ref={bottomRef} />
               </div>

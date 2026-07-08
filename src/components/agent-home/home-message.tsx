@@ -14,6 +14,7 @@ import { RichText } from "@/components/flow-ai/rich-text";
 import { LogoGlowLoader, DotGrid } from "@/components/shared/logo-glow-loader";
 import { BrandMark } from "./brand-mark";
 import type { HomeMessage } from "./use-home-agent";
+import type { ViewEvent } from "@/lib/agent-views/spec";
 
 /**
  * One conversation turn in the agent home. Renders the same Flow-AI cards as
@@ -27,6 +28,7 @@ export function HomeMessageView({
   onPlanResponse,
   onPickTemplate,
   onPickOption,
+  onViewEvent,
 }: {
   message: HomeMessage;
   initials: string;
@@ -34,6 +36,7 @@ export function HomeMessageView({
   onPlanResponse: (planId: string, confirmed: boolean) => void;
   onPickTemplate: (choice: { id: string; name: string } | null) => void;
   onPickOption: (text: string) => void;
+  onViewEvent?: (e: ViewEvent) => void;
 }) {
   const isUser = message.role === "user";
   return (
@@ -58,6 +61,7 @@ export function HomeMessageView({
             onPlanResponse={onPlanResponse}
             onPickTemplate={onPickTemplate}
             onPickOption={onPickOption}
+            onViewEvent={onViewEvent}
             bubbleClassName="bg-card border-border text-foreground"
           />
         ) : isUser ? (

@@ -343,7 +343,8 @@ export async function POST(req: NextRequest) {
         | { type: "text"; text: string }
         | { type: "tool" | "proposal" | "task"; id: string }
         | { type: "templates"; requestId: string; templates: unknown[] }
-        | { type: "question"; requestId: string; question: string; options: unknown[]; allowOther?: boolean };
+        | { type: "question"; requestId: string; question: string; options: unknown[]; allowOther?: boolean }
+        | { type: "view"; requestId: string; spec: unknown };
       const blocks: Block[] = [];
       const pushCardBlock = (type: "tool" | "proposal" | "task", id: string) => {
         if (!blocks.some((b) => b.type === type && (b as { id?: string }).id === id)) blocks.push({ type, id });
@@ -386,6 +387,11 @@ export async function POST(req: NextRequest) {
         } else if (event.type === "question_options") {
           if (!blocks.some((b) => b.type === "question" && (b as { requestId?: string }).requestId === event.requestId)) {
             blocks.push({ type: "question", requestId: event.requestId, question: event.question, options: event.options, allowOther: event.allowOther });
+          }
+        } else if (event.type === "agent_view") {
+          // Self-contained so a reloaded chat re-renders the interactive view from metadata.
+          if (!blocks.some((b) => b.type === "view" && (b as { requestId?: string }).requestId === event.requestId)) {
+            blocks.push({ type: "view", requestId: event.requestId, spec: event.spec });
           }
         }
         send(event);
