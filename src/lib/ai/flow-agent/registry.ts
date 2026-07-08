@@ -105,6 +105,8 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { cancelScheduledPost } = await import("./tools/cancel-scheduled-post");
   const { generateImage } = await import("./tools/generate-image");
   const { askChoice } = await import("./tools/ask-choice");
+  const { renderView } = await import("./tools/render-view");
+  const { listSavedViews, useSavedView } = await import("./tools/saved-views");
   const { createBrandedDesign } = await import("./tools/create-branded-design");
   const { addCanvasObject } = await import("./tools/add-canvas-object");
   const { editImage } = await import("./tools/edit-image");
@@ -113,6 +115,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { generateVideo } = await import("./tools/generate-video");
   const { startStoryAdCampaign } = await import("./tools/start-story-ad-campaign");
   const { draftStoryAdCampaign } = await import("./tools/draft-story-ad-campaign");
+  const { draftStoryAdScriptTool } = await import("./tools/draft-story-ad-script");
   const { createAvatarVideo } = await import("./tools/create-avatar-video");
   const { createPresentation } = await import("./tools/create-presentation");
   const { cloneAvatar } = await import("./tools/clone-avatar");
@@ -143,6 +146,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { getPitch } = await import("./tools/get-pitch");
   const { updatePitch } = await import("./tools/update-pitch");
   const { listContentCampaigns } = await import("./tools/list-content-campaigns");
+  const { showContentCampaign } = await import("./tools/show-content-campaign");
   const { listOrders, listProducts } = await import("./tools/list-store-items");
   const { listDesigns, listMedia } = await import("./tools/list-library");
   const { listAvatarVideosTool, listAdCampaigns, listVoiceovers } = await import("./tools/list-studio-outputs");
@@ -222,6 +226,9 @@ export async function ensureToolsRegistered(): Promise<void> {
   // generates from the brief + brand kit on the fixed xAI@2K recipe, so neither
   // present_design_templates nor list_agent_design_templates is registered.
   flowAgentTools.register(askChoice);
+  flowAgentTools.register(renderView);
+  flowAgentTools.register(listSavedViews);
+  flowAgentTools.register(useSavedView);
   flowAgentTools.register(createBrandedDesign);
   flowAgentTools.register(addCanvasObject);
   flowAgentTools.register(editImage);
@@ -230,6 +237,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(generateVideo);
   flowAgentTools.register(startStoryAdCampaign);
   flowAgentTools.register(draftStoryAdCampaign);
+  flowAgentTools.register(draftStoryAdScriptTool);
   flowAgentTools.register(listContacts);
   flowAgentTools.register(addContact);
   flowAgentTools.register(updateContact);
@@ -257,6 +265,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(getPitch);
   flowAgentTools.register(updatePitch);
   flowAgentTools.register(listContentCampaigns);
+  flowAgentTools.register(showContentCampaign);
   flowAgentTools.register(listOrders);
   flowAgentTools.register(listProducts);
   flowAgentTools.register(listDesigns);

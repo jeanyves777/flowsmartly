@@ -10,6 +10,8 @@ import type {
   TemplateOption,
   QuestionOption,
 } from "./agent-cards";
+import type { ViewSpec } from "@/lib/agent-views/spec";
+import { normalizeViewSpec } from "@/lib/agent-views/spec";
 
 /**
  * Shared Flow-AI agent SSE consumers.
@@ -35,11 +37,12 @@ export interface AgentStreamHandlers {
   onToolCallResult?: (call: AgentToolCardData) => void;
   onPlanProposal?: (proposal: PlanProposalCardData) => void;
   onTaskStarted?: (task: AgentTaskCardData) => void;
-  onTaskProgress?: (taskId: string, progress: number | undefined, message: string | undefined) => void;
+  onTaskProgress?: (taskId: string, progress: number | undefined, message: string | undefined, extra?: { script?: unknown; scenes?: unknown }) => void;
   onTaskCompleted?: (task: AgentTaskCardData) => void;
   onTaskFailed?: (taskId: string, error: string | undefined) => void;
   onTemplateOptions?: (requestId: string, templates: TemplateOption[]) => void;
   onQuestionOptions?: (requestId: string, question: string, options: QuestionOption[], allowOther: boolean) => void;
+  onAgentView?: (requestId: string, spec: ViewSpec) => void;
   onCanvasUpdate?: (patch: Record<string, unknown>) => void;
   onError?: (message: string, recoverable: boolean) => void;
   onDone?: () => void;
@@ -131,6 +134,7 @@ export async function consumeAgentStream(
             payload.taskId,
             typeof payload.progress === "number" ? payload.progress : undefined,
             typeof payload.message === "string" ? payload.message : undefined,
+            { script: payload.script, scenes: payload.scenes },
           );
         } else if (type === "task_completed" && typeof payload.taskId === "string") {
           handlers.onTaskCompleted?.({
@@ -166,6 +170,9 @@ export async function consumeAgentStream(
             })).filter((o) => o.label),
             payload.allowOther !== false,
           );
+        } else if (type === "agent_view" && payload.spec && typeof payload.spec === "object") {
+          const spec = normalizeViewSpec(payload.spec);
+          if (spec) handlers.onAgentView?.(String(payload.requestId ?? ""), spec);
         } else if (type === "canvas_update" && payload.patch && typeof payload.patch === "object") {
           handlers.onCanvasUpdate?.(payload.patch as Record<string, unknown>);
         } else if (type === "error" && typeof payload.message === "string") {
@@ -188,7 +195,7 @@ export async function consumeAgentStream(
 
 export type TaskStreamEvent =
   | { type: "snapshot"; status: AgentTaskCardData["status"]; output: { url?: string } | null; error: string | null; resultRefType: string | null; resultRefId: string | null }
-  | { type: "progress"; progress?: number; message?: string }
+  | { type: "progress"; progress?: number; message?: string; script?: unknown; scenes?: unknown }
   | { type: "completed"; output?: { url?: string }; resultRefType?: string; resultRefId?: string; assistantMessage?: string; assistantMessageId?: string; assistantMediaUrl?: string; assistantMediaType?: string }
   | { type: "failed"; error?: string; assistantMessage?: string; assistantMessageId?: string }
   | { type: "done" };
@@ -348,6 +355,11 @@ export function parseMessageBlocks(metadata: string | null | undefined): Message
             options,
             allowOther: (b as { allowOther?: unknown }).allowOther !== false,
           });
+        }
+      } else if (t === "view" && (b as { spec?: unknown }).spec) {
+        const spec = normalizeViewSpec((b as { spec: unknown }).spec);
+        if (spec) {
+          blocks.push({ type: "view", requestId: String((b as { requestId?: unknown }).requestId ?? ""), spec });
         }
       }
     }

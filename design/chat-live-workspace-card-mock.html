@@ -1,0 +1,243 @@
+<title>Chat — live workspace card (agent building)</title>
+<style>
+  :root{
+    --bg:#0a0e17; --card:#0f1523; --card2:#131b2c; --panel:#0b1019;
+    --line:#1f2937; --line2:#2a3547; --ink:#eef2f8; --muted:#8b93a7; --muted2:#5b6577;
+    --brand:#6366f1; --brand2:#8b5cf6; --emerald:#10b981; --amber:#f59e0b; --rose:#f43f5e; --cyan:#22d3ee;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#05070c;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.5;}
+  .page{max-width:1060px;margin:0 auto;padding:26px 16px 64px;}
+  .intro{margin:0 4px 18px;}
+  .intro .k{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand2);margin:0 0 6px;}
+  .intro h1{font-size:clamp(21px,2.7vw,28px);margin:0 0 6px;font-weight:800;letter-spacing:-.02em;text-wrap:balance;}
+  .intro p{margin:0;color:var(--muted);font-size:14px;max-width:82ch;}
+
+  .grid{display:grid;grid-template-columns:1.55fr .9fr;gap:20px;align-items:start;}
+  @media (max-width:900px){.grid{grid-template-columns:1fr;}}
+
+  /* chat surface */
+  .chat{border:1px solid var(--line);border-radius:18px;background:
+    radial-gradient(120% 80% at 50% -10%, rgba(99,102,241,.06), transparent 60%), var(--bg);overflow:hidden;}
+  .chat-top{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);}
+  .brandmark{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:grid;place-items:center;font-size:12px;color:#fff;}
+  .chat-top b{font-size:13px;} .chat-top .home{margin-left:auto;font-size:11px;color:var(--muted);}
+  .msgs{padding:16px 14px;display:flex;flex-direction:column;gap:14px;min-height:440px;}
+  .u{align-self:flex-end;max-width:80%;background:linear-gradient(135deg,var(--brand),#5457d6);color:#fff;border-radius:14px 14px 4px 14px;padding:9px 12px;font-size:13px;}
+  .a{align-self:flex-start;max-width:92%;color:var(--ink);font-size:13.5px;}
+  .a .who{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--brand2);margin-bottom:4px;}
+
+  /* ===== the LIVE WORKSPACE CARD ===== */
+  .live{align-self:flex-start;width:100%;border:1px solid var(--line2);border-radius:16px;overflow:hidden;background:linear-gradient(180deg,var(--card2),var(--card));box-shadow:0 20px 50px -30px #000;}
+  .live-h{display:flex;align-items:center;gap:10px;padding:12px 13px;border-bottom:1px solid var(--line);}
+  .live-h .ic{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,rgba(99,102,241,.25),rgba(139,92,246,.25));display:grid;place-items:center;color:#c4c9ff;}
+  .live-h .t b{font-size:13px;display:block;}
+  .live-h .t span{font-size:11px;color:var(--muted);}
+  .status{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;padding:3px 9px;border-radius:999px;}
+  .status.run{background:rgba(99,102,241,.16);color:#a9b0ff;}
+  .status.done{background:rgba(16,185,129,.16);color:#6ee7b7;}
+  .status .dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+  @media (prefers-reduced-motion:no-preference){.status.run .dot{animation:pulse 1.3s ease-in-out infinite;}@keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}}
+
+  /* progress bar */
+  .bar{height:4px;background:#0a0f1b;}
+  .bar > i{display:block;height:100%;width:8%;background:linear-gradient(90deg,var(--brand),var(--brand2));transition:width .5s cubic-bezier(.4,0,.2,1);}
+
+  /* step checklist */
+  .steps{padding:11px 13px;display:flex;flex-direction:column;gap:7px;border-bottom:1px solid var(--line);}
+  .step{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted);}
+  .step .mk{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;font-size:10px;flex:0 0 auto;}
+  .step.done{color:var(--ink);} .step.done .mk{border-color:var(--emerald);background:rgba(16,185,129,.15);color:#6ee7b7;}
+  .step.active{color:var(--ink);} .step.active .mk{border-color:var(--brand);color:#a9b0ff;}
+  @media (prefers-reduced-motion:no-preference){.step.active .mk{animation:spin 1s linear infinite;}@keyframes spin{to{transform:rotate(360deg)}}}
+  .step .sub{margin-left:auto;font-size:10.5px;color:var(--muted2);font-family:var(--mono);}
+
+  /* mini filmstrip — scenes fill in as they render */
+  .strip-wrap{padding:11px 13px;border-bottom:1px solid var(--line);}
+  .strip-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em;}
+  .strip{display:flex;gap:6px;}
+  .cell{flex:1;aspect-ratio:9/16;border-radius:8px;position:relative;overflow:hidden;background:#0a0f1b;border:1px solid var(--line);}
+  .cell.pending{border-style:dashed;}
+  .cell.active{border-color:var(--brand);}
+  .cell .grad{position:absolute;inset:0;opacity:0;transition:opacity .5s;}
+  .cell.ready .grad{opacity:1;}
+  .cell .no{position:absolute;top:3px;left:4px;font-size:8px;font-weight:800;color:#fff;text-shadow:0 1px 2px #000;z-index:2;}
+  .cell .play{position:absolute;inset:0;display:grid;place-items:center;opacity:0;transition:opacity .2s;z-index:2;}
+  .cell.ready:hover .play{opacity:1;background:rgba(0,0,0,.28);}
+  .cell .play span{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;color:var(--brand);font-size:10px;}
+  .cell .shim{position:absolute;inset:0;background:linear-gradient(100deg,transparent 20%,rgba(124,90,246,.25) 50%,transparent 80%);background-size:200% 100%;opacity:0;}
+  .cell.active .shim{opacity:1;animation:shim 1.2s linear infinite;}@keyframes shim{to{background-position:-200% 0}}
+
+  /* actions */
+  .acts{padding:11px 13px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .abtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:transparent;color:var(--ink);font-family:inherit;font-size:12px;font-weight:700;padding:8px 12px;border-radius:10px;cursor:pointer;}
+  .abtn:hover{border-color:color-mix(in srgb,var(--brand) 50%,transparent);}
+  .abtn.primary{border:0;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;}
+  .abtn:disabled{opacity:.45;cursor:not-allowed;}
+  .abtn.ghost{border-color:transparent;color:var(--muted);}
+  .tweak{display:flex;align-items:center;gap:6px;flex:1;min-width:180px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:2px 2px 2px 10px;}
+  .tweak input{flex:1;min-width:0;background:transparent;border:0;color:var(--ink);font-family:inherit;font-size:12px;outline:none;padding:7px 0;}
+  .tweak button{border:0;background:var(--brand);color:#fff;width:30px;height:30px;border-radius:8px;cursor:pointer;}
+
+  .composer{display:flex;align-items:center;gap:8px;margin:6px 12px 12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px 6px 6px 12px;}
+  .composer .plus{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;}
+  .composer input{flex:1;background:transparent;border:0;color:var(--ink);font-family:inherit;font-size:13px;outline:none;padding:8px 0;}
+  .composer .mic{color:var(--muted);}
+
+  /* right — controls + explainer + generalization */
+  .side{display:flex;flex-direction:column;gap:14px;position:sticky;top:20px;}
+  .ctrl{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:14px;}
+  .ctrl h3{margin:0 0 4px;font-size:13px;} .ctrl p{margin:0 0 10px;font-size:12px;color:var(--muted);}
+  .ctrl .row{display:flex;gap:8px;}
+  .bigbtn{flex:1;border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:13px;border-radius:11px;padding:11px;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;}
+  .bigbtn.sec{background:transparent;border:1px solid var(--line);color:var(--muted);}
+  .why{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:14px;}
+  .why h3{margin:0 0 8px;font-size:13px;}
+  .why li{font-size:12.5px;color:var(--muted);margin:6px 0;} .why b{color:var(--ink);}
+  .gen{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:12px;}
+  .gen h3{margin:0 0 9px;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:800;}
+  .gcard{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:7px;background:var(--panel);}
+  .gcard .gi{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:13px;}
+  .gcard b{font-size:12px;display:block;} .gcard span{font-size:10.5px;color:var(--muted);}
+  .gcard .gs{margin-left:auto;font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:999px;background:rgba(99,102,241,.15);color:#a9b0ff;}
+</style>
+
+<div class="page">
+  <div class="intro">
+    <p class="k">Mock for approval · concept</p>
+    <h1>A live workspace card, right in the chat</h1>
+    <p>When you're on Home chat and haven't opened a studio, a build shows up as a <b>live, interactive mini-view inline</b> — the workflow updates in place (steps tick off, scenes fill in), and you can <b>preview, tweak, or open the full studio</b> without leaving the chat. Hit <b>Simulate build</b> on the right to watch it run.</p>
+  </div>
+
+  <div class="grid">
+    <!-- CHAT with the live card -->
+    <div class="chat">
+      <div class="chat-top"><span class="brandmark">◆</span><b>FlowSmartly</b><span class="home">Home · chat</span></div>
+      <div class="msgs">
+        <div class="u">Create a 40-second cinematic story-ad for FlowSmartly — “One Platform. All Your Presence.”</div>
+        <div class="a"><div class="who">FlowSmartly</div>On it — generating your cinematic story-ad. It'll build right here so you can watch, preview and tweak as it goes:</div>
+
+        <!-- the live workspace card -->
+        <div class="live">
+          <div class="live-h">
+            <span class="ic">🎬</span>
+            <div class="t"><b>Story-Ad Movie</b><span>“One Platform. All Your Presence.” · 40s · 5 scenes</span></div>
+            <span class="status run" id="status"><span class="dot"></span> <span id="statusTxt">Rendering 8%</span></span>
+          </div>
+          <div class="bar"><i id="bar"></i></div>
+
+          <div class="steps" id="steps">
+            <div class="step active" data-s="0"><span class="mk">◜</span> Writing the screenplay</div>
+            <div class="step" data-s="1"><span class="mk"></span> Storyboarding the scenes <span class="sub">5 scenes</span></div>
+            <div class="step" data-s="2"><span class="mk"></span> Generating cinematic scenes <span class="sub" id="sceneCount">0/5</span></div>
+            <div class="step" data-s="3"><span class="mk"></span> Recording narration</div>
+            <div class="step" data-s="4"><span class="mk"></span> Stitching the final cut</div>
+          </div>
+
+          <div class="strip-wrap">
+            <div class="strip-h"><span>Scenes</span><span id="stripHint">building…</span></div>
+            <div class="strip" id="strip">
+              <div class="cell pending" data-c="0"><span class="no">1</span><span class="grad" style="background:radial-gradient(120% 90% at 40% 20%,#3730a3,#0a0f1b)"></span><span class="shim"></span><span class="play"><span>▶</span></span></div>
+              <div class="cell pending" data-c="1"><span class="no">2</span><span class="grad" style="background:linear-gradient(160deg,#164e63,#0a0f1b)"></span><span class="shim"></span><span class="play"><span>▶</span></span></div>
+              <div class="cell pending" data-c="2"><span class="no">3</span><span class="grad" style="background:radial-gradient(120% 90% at 60% 30%,#92400e,#0a0f1b)"></span><span class="shim"></span><span class="play"><span>▶</span></span></div>
+              <div class="cell pending" data-c="3"><span class="no">4</span><span class="grad" style="background:linear-gradient(160deg,#334155,#0a0f1b)"></span><span class="shim"></span><span class="play"><span>▶</span></span></div>
+              <div class="cell pending" data-c="4"><span class="no">5</span><span class="grad" style="background:radial-gradient(120% 90% at 50% 30%,#065f46,#0a0f1b)"></span><span class="shim"></span><span class="play"><span>▶</span></span></div>
+            </div>
+          </div>
+
+          <div class="acts" id="acts">
+            <button class="abtn primary" id="preview" disabled>▶ Preview draft</button>
+            <button class="abtn" id="open">Open in Video Studio →</button>
+            <div class="tweak"><input id="tweakIn" placeholder="Tell me a tweak — e.g. “make scene 3 slower”" /><button id="tweakGo">↑</button></div>
+          </div>
+        </div>
+
+        <div class="a" id="doneMsg" style="display:none"><div class="who">FlowSmartly</div>Done! Your 40-second story-ad is ready. Preview it above, open it in the Video Studio to edit, or publish straight to your channels.</div>
+      </div>
+
+      <div class="composer">
+        <button class="plus">＋</button>
+        <input placeholder="Ask FlowSmartly to do something…" />
+        <span class="mic">🎤</span>
+      </div>
+    </div>
+
+    <!-- RIGHT: controls + explainer + generalization -->
+    <div class="side">
+      <div class="ctrl">
+        <h3>Try it</h3>
+        <p>Watch the card update live as the agent builds, then reach the “ready” state with a preview + actions.</p>
+        <div class="row"><button class="bigbtn" id="sim">▶ Simulate build</button><button class="bigbtn sec" id="reset">Reset</button></div>
+      </div>
+      <div class="why">
+        <h3>Why this</h3>
+        <ul style="margin:0;padding-left:16px;">
+          <li><b>Stay in flow.</b> No need to navigate away — the build happens where you're already looking.</li>
+          <li><b>Live, not a spinner.</b> Steps tick off and scenes appear as they render.</li>
+          <li><b>Minimal but real interaction.</b> Preview a scene, tweak in one line, or open the full studio when you want more control.</li>
+          <li><b>Notifies + resumes.</b> Leave and come back — the card reflects the latest state.</li>
+        </ul>
+      </div>
+      <div class="gen">
+        <h3>Same card, any build</h3>
+        <div class="gcard"><span class="gi" style="background:rgba(167,139,250,.16);color:#c4b5fd;">🎬</span><div><b>Video / film</b><span>scenes fill in → preview → open studio</span></div><span class="gs">shown</span></div>
+        <div class="gcard"><span class="gi" style="background:rgba(52,211,153,.16);color:#6ee7b7;">🎨</span><div><b>Design / ad</b><span>variations render → pick → open canvas</span></div><span class="gs">pattern</span></div>
+        <div class="gcard"><span class="gi" style="background:rgba(245,158,11,.16);color:#fcd34d;">📣</span><div><b>Campaign</b><span>posts draft → approve → schedule</span></div><span class="gs">pattern</span></div>
+        <div class="gcard"><span class="gi" style="background:rgba(34,211,238,.16);color:#67e8f9;">🔎</span><div><b>Leads</b><span>rows stream in → save → enrich</span></div><span class="gs">pattern</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var bar=document.getElementById('bar'), statusTxt=document.getElementById('statusTxt'), status=document.getElementById('status');
+  var steps=[...document.querySelectorAll('.step')], cells=[...document.querySelectorAll('.cell')];
+  var sceneCount=document.getElementById('sceneCount'), stripHint=document.getElementById('stripHint');
+  var preview=document.getElementById('preview'), doneMsg=document.getElementById('doneMsg');
+  var timer=null;
+
+  function setStep(i, state){ steps.forEach((s,idx)=>{ s.classList.remove('active'); if(idx<i) s.classList.add('done'); }); if(steps[i]){ steps[i].classList.add(state==='done'?'done':'active'); steps[i].querySelector('.mk').textContent = state==='done'?'✓':'◜'; } steps.forEach((s,idx)=>{ if(idx<i) s.querySelector('.mk').textContent='✓'; }); }
+  function reset(){
+    if(timer) clearInterval(timer);
+    bar.style.width='8%'; statusTxt.textContent='Rendering 8%'; status.className='status run';
+    steps.forEach((s,i)=>{ s.classList.remove('done','active'); s.querySelector('.mk').textContent=''; }); steps[0].classList.add('active'); steps[0].querySelector('.mk').textContent='◜';
+    cells.forEach(c=>{ c.className='cell pending'; });
+    sceneCount.textContent='0/5'; stripHint.textContent='building…';
+    preview.disabled=true; doneMsg.style.display='none';
+  }
+  function simulate(){
+    reset();
+    var p=8, ready=0;
+    timer=setInterval(()=>{
+      p+=Math.max(1.5, (100-p)*0.06);
+      if(p>=100){ p=100; finish(); }
+      bar.style.width=p+'%'; statusTxt.textContent='Rendering '+Math.round(p)+'%';
+      // steps by threshold
+      if(p>14){ setStep(1,'active'); }
+      if(p>26){ setStep(2,'active'); }
+      // scenes fill in during the "generating scenes" phase (26%–82%)
+      var target=Math.min(5, Math.floor((p-26)/((82-26)/5)));
+      while(ready<target){ var c=cells[ready]; c.className='cell active'; setTimeout(((cc)=>()=>{cc.className='cell ready';})(c), 500); ready++; if(ready>=1) preview.disabled=false; }
+      cells.forEach((c,i)=>{ if(i<ready) { /* becoming ready */ } });
+      sceneCount.textContent=ready+'/5';
+      if(cells[Math.min(ready,4)] && ready<5) cells[ready].className='cell active';
+      if(p>82){ setStep(3,'active'); cells.forEach(c=>c.classList.remove('active')), cells.forEach(c=>c.classList.add('ready')); ready=5; sceneCount.textContent='5/5'; stripHint.textContent='5 scenes ready'; }
+      if(p>92){ setStep(4,'active'); }
+    }, 220);
+  }
+  function finish(){
+    clearInterval(timer);
+    steps.forEach((s,i)=>{ s.classList.remove('active'); s.classList.add('done'); s.querySelector('.mk').textContent='✓'; });
+    cells.forEach(c=>c.className='cell ready');
+    status.className='status done'; statusTxt.textContent='Ready';
+    bar.style.width='100%'; preview.disabled=false; stripHint.textContent='5 scenes ready';
+    doneMsg.style.display='block';
+  }
+  document.getElementById('sim').addEventListener('click', simulate);
+  document.getElementById('reset').addEventListener('click', reset);
+  document.getElementById('tweakGo').addEventListener('click', ()=>{ var v=document.getElementById('tweakIn'); if(v.value.trim()){ stripHint.textContent='applying: “'+v.value.trim().slice(0,28)+'”'; v.value=''; } });
+  document.getElementById('open').addEventListener('click', ()=> alert('Opens the full Video Studio with this film loaded on the canvas.'));
+  preview.addEventListener('click', ()=> alert('Plays a rough draft of the scenes rendered so far.'));
+</script>

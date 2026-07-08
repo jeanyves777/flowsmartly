@@ -1,5 +1,7 @@
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db/client";
 import type { FlowAgentTool } from "../registry";
+import { ordersTableView, productsTableView } from "@/lib/agent-views/templates";
 
 /** Resolve the user's single store (userId is @unique on Store). */
 async function getStore(userId: string) {
@@ -21,6 +23,7 @@ export const listOrders: FlowAgentTool = {
     properties: {
       status: { type: "string", description: "Optional order status filter." },
       limit: { type: "number", description: "Max orders (1-100, default 30)." },
+      asView: { type: "boolean", description: "Show a pickable orders table in the chat (default true). Pass false if you're only resolving an order id internally before fulfill_order." },
     },
   },
   plans: null,
@@ -42,18 +45,22 @@ export const listOrders: FlowAgentTool = {
         prisma.order.aggregate({ where: { storeId: store.id, status: { not: "CANCELLED" } }, _sum: { totalCents: true } }),
       ]);
       const itemCount = (v: string) => { try { const a = JSON.parse(v || "[]"); return Array.isArray(a) ? a.reduce((n, i) => n + (Number(i?.quantity) || 1), 0) : 0; } catch { return 0; } };
+      const orders = rows.map((o) => ({
+        id: o.id, number: o.orderNumber, customer: o.customerName || o.customerEmail || "—",
+        total: money(o.totalCents, o.currency), status: o.status, payment: o.paymentStatus,
+        items: itemCount(o.items), createdAt: o.createdAt.toISOString(),
+      }));
+      const totals = { pending, revenue: money(revenue._sum.totalCents ?? 0, store.currency) };
+      const shown = input.asView !== false && orders.length > 0;
+      if (shown) ctx.emit({ type: "agent_view", requestId: randomUUID(), spec: ordersTableView(orders, store.name, totals) });
       return {
         ok: true,
         data: {
           store: { id: store.id, name: store.name },
-          totals: { pending, revenue: money(revenue._sum.totalCents ?? 0, store.currency) },
+          totals,
           returned: rows.length,
-          orders: rows.map((o) => ({
-            id: o.id, number: o.orderNumber, customer: o.customerName || o.customerEmail,
-            total: money(o.totalCents, o.currency), status: o.status, payment: o.paymentStatus,
-            items: itemCount(o.items), createdAt: o.createdAt.toISOString(),
-          })),
-          userMessage: rows.length === 0 ? "No orders yet." : `${pending} pending order${pending === 1 ? "" : "s"} to fulfill.`,
+          orders,
+          userMessage: rows.length === 0 ? "No orders yet." : `${pending} pending order${pending === 1 ? "" : "s"} to fulfill.${shown ? " A pickable orders table is ALREADY shown in the chat — don't re-list them as text." : ""}`,
         },
       };
     } catch (e) {
@@ -77,6 +84,7 @@ export const listProducts: FlowAgentTool = {
       status: { type: "string", description: "Optional status filter (DRAFT | ACTIVE | ARCHIVED)." },
       lowStock: { type: "boolean", description: "If true, only products tracking inventory that are at/below their low-stock threshold." },
       limit: { type: "number", description: "Max products (1-100, default 50)." },
+      asView: { type: "boolean", description: "Show a pickable products table in the chat (default true). Pass false if you're only resolving a product id internally before update_product / delete_product." },
     },
   },
   plans: null,
@@ -93,21 +101,24 @@ export const listProducts: FlowAgentTool = {
         where, orderBy: { createdAt: "desc" }, take: limit,
         select: { id: true, name: true, priceCents: true, currency: true, quantity: true, trackInventory: true, lowStockThreshold: true, status: true, category: true, orderCount: true, revenueCents: true },
       });
-      let products = rows;
-      if (input.lowStock === true) products = rows.filter((p) => p.trackInventory && p.quantity <= p.lowStockThreshold);
+      let productRows = rows;
+      if (input.lowStock === true) productRows = rows.filter((p) => p.trackInventory && p.quantity <= p.lowStockThreshold);
+      const products = productRows.map((p) => ({
+        id: p.id, name: p.name, price: money(p.priceCents, p.currency),
+        stock: (p.trackInventory ? p.quantity : "untracked") as number | string,
+        lowStock: p.trackInventory && p.quantity <= p.lowStockThreshold,
+        status: p.status, category: p.category ?? null,
+        sold: p.orderCount, revenue: money(p.revenueCents, p.currency),
+      }));
+      const shown = input.asView !== false && products.length > 0;
+      if (shown) ctx.emit({ type: "agent_view", requestId: randomUUID(), spec: productsTableView(products, store.name) });
       return {
         ok: true,
         data: {
           store: { id: store.id, name: store.name },
           count: products.length,
-          products: products.map((p) => ({
-            id: p.id, name: p.name, price: money(p.priceCents, p.currency),
-            stock: p.trackInventory ? p.quantity : "untracked",
-            lowStock: p.trackInventory && p.quantity <= p.lowStockThreshold,
-            status: p.status, category: p.category ?? null,
-            sold: p.orderCount, revenue: money(p.revenueCents, p.currency),
-          })),
-          userMessage: products.length === 0 ? (input.lowStock ? "No low-stock products." : "No products yet.") : `${products.length} product${products.length === 1 ? "" : "s"}${input.lowStock ? " low on stock" : ""}.`,
+          products,
+          userMessage: (products.length === 0 ? (input.lowStock ? "No low-stock products." : "No products yet.") : `${products.length} product${products.length === 1 ? "" : "s"}${input.lowStock ? " low on stock" : ""}.`) + (shown ? " A pickable products table is ALREADY shown in the chat — don't re-list them as text." : ""),
         },
       };
     } catch (e) {

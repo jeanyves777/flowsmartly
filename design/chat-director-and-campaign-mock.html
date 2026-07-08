@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>In-chat director + campaign — comprehensive mock</title>
+<style>
+  :root{
+    --bg:#0a0a12;--card:#12121c;--card2:#181824;--line:#262633;--fg:#e9e9f2;--muted:#9a9ab0;
+    --brand:#6d5cff;--brand2:#a855f7;--emerald:#10b981;--amber:#f59e0b;--rose:#f43f5e;--cyan:#38bdf8;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:radial-gradient(1100px 560px at 50% -10%,#16162a,var(--bg));color:var(--fg);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:26px 14px 70px;}
+  .wrap{max-width:520px;margin:0 auto;}
+  h1{font-size:15px;color:var(--muted);font-weight:600;text-align:center;margin:0 0 4px;}
+  .sub{text-align:center;color:var(--muted);font-size:12px;margin:0 0 22px;}
+  .tabs{display:flex;gap:6px;justify-content:center;margin-bottom:20px;}
+  .tab{border:1px solid var(--line);background:var(--card);color:var(--muted);font-size:12px;font-weight:600;
+    padding:6px 12px;border-radius:999px;cursor:pointer;}
+  .tab.on{background:linear-gradient(90deg,var(--brand),var(--brand2));border:none;color:#fff;}
+
+  .turn{display:flex;gap:9px;margin-bottom:14px;align-items:flex-start;}
+  .ava{width:28px;height:28px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;font-size:15px;background:#fff;}
+  .ava.u{background:linear-gradient(135deg,#ec4899,#a855f7);color:#fff;font-size:11px;font-weight:700;}
+  .bubble{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:8px 12px;font-size:13.5px;}
+  .bubble.u{background:rgba(109,92,255,.10);border-color:rgba(109,92,255,.28);}
+  .who{font-size:11px;color:var(--brand);font-weight:700;margin-bottom:2px;}
+
+  /* card */
+  .card{border:1px solid var(--line);background:var(--card);border-radius:17px;overflow:hidden;
+    box-shadow:0 12px 36px -14px rgba(109,92,255,.4);}
+  .hd{display:flex;align-items:center;gap:10px;padding:11px 13px;border-bottom:1px solid var(--line);}
+  .ico{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;font-size:15px;
+    background:linear-gradient(135deg,rgba(109,92,255,.25),rgba(168,85,247,.22));}
+  .ttl{font-weight:700;font-size:13px;}
+  .stl{font-size:11px;color:var(--muted);}
+  .pill{margin-left:auto;font-size:10px;font-weight:700;padding:3px 9px;border-radius:999px;display:inline-flex;gap:5px;align-items:center;}
+  .pill.brand{background:rgba(109,92,255,.16);color:#b6acff;}
+  .pill.ok{background:rgba(16,185,129,.16);color:#4ade80;}
+  .pill.warn{background:rgba(245,158,11,.16);color:#fbbf24;}
+  .bd{padding:12px 13px;display:flex;flex-direction:column;gap:12px;}
+
+  /* mode toggle */
+  .modes{display:flex;gap:5px;background:#0c0c16;border:1px solid var(--line);border-radius:11px;padding:3px;}
+  .modes button{flex:1;border:none;background:transparent;color:var(--muted);font-size:11.5px;font-weight:700;
+    padding:6px 8px;border-radius:8px;cursor:pointer;}
+  .modes button.on{background:linear-gradient(90deg,var(--brand),var(--brand2));color:#fff;}
+
+  /* stage rail */
+  .rail{display:flex;gap:6px;}
+  .rail .s{flex:1;text-align:center;}
+  .rail .s .dot{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line);margin:0 auto 4px;display:grid;place-items:center;font-size:8px;color:var(--muted);}
+  .rail .s.done .dot{border-color:var(--emerald);background:rgba(16,185,129,.15);color:var(--emerald);}
+  .rail .s.active .dot{border-color:var(--brand);color:var(--brand);animation:pulse 1.2s infinite;}
+  .rail .s small{font-size:8.5px;color:var(--muted);display:block;line-height:1.2;}
+  .rail .s.active small,.rail .s.done small{color:var(--fg);}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(109,92,255,.4);}50%{box-shadow:0 0 0 4px rgba(109,92,255,0);}}
+
+  /* script block */
+  .script{border:1px solid var(--line);background:#0c0c16;border-radius:11px;padding:10px 11px;font-family:ui-monospace,monospace;font-size:11.5px;max-height:190px;overflow:auto;}
+  .script .meta{color:var(--muted);font-size:10px;margin-bottom:8px;display:flex;justify-content:space-between;}
+  .sc{margin-bottom:9px;}
+  .sc .slug{color:var(--brand);font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;}
+  .sc .act{color:var(--muted);font-style:italic;font-size:10.5px;padding-left:8px;}
+  .sc .nar{padding-left:8px;font-size:11.5px;}
+  .caret{display:inline-block;width:6px;height:13px;background:var(--brand);vertical-align:-2px;animation:blink .9s step-end infinite;}
+  @keyframes blink{50%{opacity:0;}}
+
+  /* scene strip */
+  .strip{display:flex;gap:6px;}
+  .cell{flex:1;aspect-ratio:9/16;border-radius:8px;border:1px solid var(--line);position:relative;overflow:hidden;background:#0c0c16;cursor:pointer;}
+  .cell .g{position:absolute;inset:0;opacity:.9;}
+  .cell .n{position:absolute;top:3px;left:4px;font-size:9px;font-weight:800;color:#fff;text-shadow:0 1px 2px #000;z-index:2;}
+  .cell .st{position:absolute;bottom:3px;left:3px;right:3px;font-size:8px;font-weight:700;text-align:center;padding:1px;border-radius:4px;z-index:2;}
+  .cell.ready{border-color:var(--emerald);} .cell.ready .st{background:rgba(16,185,129,.85);color:#04120c;}
+  .cell.busy{border-color:var(--brand);} .cell.busy .st{background:rgba(109,92,255,.85);color:#fff;}
+  .cell.fail{border-color:var(--rose);} .cell.fail .st{background:rgba(244,63,94,.85);color:#fff;}
+  .cell.pend .st{background:rgba(255,255,255,.08);color:var(--muted);}
+  .cell.sel{outline:2px solid var(--brand);outline-offset:1px;}
+  .cell .spin{position:absolute;inset:0;display:grid;place-items:center;z-index:2;}
+  .cell .spin i{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;animation:spin .8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* review panel */
+  .review{border:1px solid var(--brand);background:rgba(109,92,255,.06);border-radius:11px;padding:10px 11px;}
+  .review h4{margin:0 0 6px;font-size:12px;}
+  .review .prm{font-size:11px;color:var(--muted);background:#0c0c16;border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin-bottom:8px;}
+  .row{display:flex;gap:6px;flex-wrap:wrap;}
+  .btn{border:1px solid var(--line);background:transparent;color:var(--fg);font-weight:600;font-size:11.5px;padding:6px 11px;border-radius:9px;cursor:pointer;}
+  .btn.primary{background:linear-gradient(90deg,var(--brand),var(--brand2));border:none;color:#fff;}
+  .btn.ok{border-color:var(--emerald);color:#4ade80;}
+  .btn.warn{border-color:var(--amber);color:#fbbf24;}
+  .btn.ghost{border:none;color:var(--muted);}
+  .instr{display:flex;gap:6px;margin-top:8px;}
+  .instr input{flex:1;min-width:0;background:#0c0c16;border:1px solid var(--line);border-radius:9px;padding:7px 10px;color:var(--fg);font-size:11.5px;}
+  .instr .go{width:32px;flex:0 0 auto;border:none;border-radius:9px;background:linear-gradient(90deg,var(--brand),var(--brand2));color:#fff;cursor:pointer;}
+  .note{font-size:10.5px;color:var(--muted);background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:9px;padding:7px 9px;}
+  .bar{height:5px;border-radius:999px;background:#232331;overflow:hidden;}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--brand2));transition:width .4s;}
+  .retry{font-size:10.5px;color:#fbbf24;display:flex;align-items:center;gap:6px;}
+  .ft{display:flex;gap:7px;flex-wrap:wrap;padding:11px 13px;border-top:1px solid var(--line);}
+  .video{aspect-ratio:9/16;width:150px;margin:0 auto;border-radius:11px;background:linear-gradient(160deg,#2a1b4d,#3b1d63 40%,#6d5cff22);display:grid;place-items:center;}
+  .video .p{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:17px;}
+
+  /* campaign posts */
+  .post{border:1px solid var(--line);border-radius:12px;padding:10px 11px;}
+  .post .top{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11px;}
+  .post .when{color:var(--muted);}
+  .post .chan{margin-left:auto;display:flex;gap:3px;}
+  .post .chan span{width:16px;height:16px;border-radius:50%;font-size:8px;display:grid;place-items:center;color:#fff;font-weight:700;}
+  .post .cap{font-size:12px;margin-bottom:8px;}
+  .post .tags{color:var(--cyan);font-size:10.5px;}
+  . v{color:var(--muted);}
+  .hide{display:none!important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Interactive views in the chat — director + campaign</h1>
+  <p class="sub">Comprehensive script + per-scene approval, an autopilot mode, and per-item action cards</p>
+
+  <div class="tabs">
+    <button class="tab on" data-t="film">🎬 Story-ad (review + autopilot)</button>
+    <button class="tab" data-t="camp">🗓️ Campaign card</button>
+  </div>
+
+  <!-- ============ FILM ============ -->
+  <div id="film">
+    <div class="turn"><span class="ava u">JY</span><div class="bubble u">Make a 40s cinematic story-ad for FlowSmartly.</div></div>
+    <div class="turn">
+      <span class="ava">✨</span>
+      <div style="flex:1;min-width:0;">
+        <div class="who">FlowSmartly</div>
+        <div class="bubble" style="margin-bottom:10px;">On it — I'll build it right here so you can watch, approve each step, or let it run on autopilot.</div>
+
+        <div class="card">
+          <div class="hd">
+            <div class="ico">🎬</div>
+            <div><div class="ttl">Story-Ad Movie</div><div class="stl" id="fstl">“One platform. All your presence.” · 40s · 5 scenes</div></div>
+            <span class="pill brand" id="fpill">Script ready</span>
+          </div>
+          <div class="bd">
+            <div class="modes">
+              <button id="mReview" class="on" onclick="setMode('review')">👁 Review each step</button>
+              <button id="mAuto" onclick="setMode('auto')">⚡ Autopilot</button>
+            </div>
+
+            <div class="rail" id="rail"></div>
+
+            <!-- SCRIPT -->
+            <div>
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                <b style="font-size:12px;">Screenplay</b>
+                <span class="pill brand" id="scriptState" style="margin-left:auto;">writing…</span>
+              </div>
+              <div class="script" id="script"></div>
+            </div>
+
+            <!-- SCRIPT approval (review mode) -->
+            <div class="review hide" id="scriptApprove">
+              <h4>Approve the screenplay?</h4>
+              <div class="row">
+                <button class="btn ok" onclick="approveScript()">✓ Approve — start scenes</button>
+                <button class="btn warn" onclick="tweakScript()">✎ Tweak</button>
+              </div>
+              <div class="instr"><input id="scriptInstr" placeholder="e.g. punchier hook, add a price mention in scene 4…" /><button class="go" onclick="tweakScript()">↑</button></div>
+            </div>
+
+            <!-- SCENES -->
+            <div class="hide" id="scenesWrap">
+              <div style="display:flex;align-items:center;margin-bottom:6px;"><b style="font-size:12px;">Scenes</b><span class="stl" id="sceneCount" style="margin-left:auto;">0/5 ready</span></div>
+              <div class="strip" id="strip"></div>
+              <div class="bar" style="margin-top:8px;"><i id="sceneBar" style="width:0%"></i></div>
+            </div>
+
+            <!-- per-scene review (review mode) -->
+            <div class="review hide" id="sceneReview">
+              <h4 id="srTitle">Scene 2 ready — review</h4>
+              <div class="prm" id="srPrompt">Prompt: “Wide dolly across a founder's desk at dawn, warm light, product UI glowing on the laptop.”</div>
+              <div class="row">
+                <button class="btn ok" onclick="approveScene()">✓ Approve — next scene</button>
+                <button class="btn warn" onclick="regenScene()">↻ Regenerate</button>
+                <button class="btn ghost" onclick="approveScene()">Skip</button>
+              </div>
+              <div class="instr"><input id="sceneInstr" placeholder="tweak this scene — e.g. slower pan, night mood, closer on the phone…" /><button class="go" onclick="regenScene()">↑</button></div>
+            </div>
+
+            <!-- autopilot status -->
+            <div class="hide" id="autoStatus">
+              <div class="retry hide" id="retryLine">⚠ Scene 3 render failed — retrying (2/3)…</div>
+              <div class="note" id="autoNote">⚡ Autopilot: generating every scene, retrying failures automatically, then delivering the final cut.</div>
+            </div>
+
+            <div class="note hide" id="doneNote">✅ Done. Your 40s story-ad is ready — preview it, open it in the Video Studio to fine-tune, or tell me a tweak.</div>
+            <div class="hide" id="finalVideo" style="padding-top:2px;"><div class="video"><div class="p">▶</div></div></div>
+          </div>
+          <div class="ft" id="ftRun">
+            <button class="btn ghost" onclick="reset()">↺ Restart demo</button>
+            <span class="v" style="font-size:10.5px;align-self:center;">(demo — buttons drive the flow)</span>
+          </div>
+          <div class="ft hide" id="ftDone">
+            <button class="btn primary">▶ Preview draft</button>
+            <button class="btn">Open in Video Studio →</button>
+            <div class="instr" style="flex:1;margin-top:0;"><input placeholder='Tell me a tweak — e.g. "make scene 3 slower"' /><button class="go">↑</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CAMPAIGN ============ -->
+  <div id="camp" class="hide">
+    <div class="turn"><span class="ava u">JY</span><div class="bubble u">Build a World Cup 2026 content campaign — 4 posts.</div></div>
+    <div class="turn">
+      <span class="ava">✨</span>
+      <div style="flex:1;min-width:0;">
+        <div class="who">FlowSmartly</div>
+        <div class="bubble" style="margin-bottom:10px;">Drafted 4 posts across your channels — review, tweak any of them, then approve to schedule. All here in the chat:</div>
+        <div class="card">
+          <div class="hd">
+            <div class="ico">🗓️</div>
+            <div><div class="ttl">The World Cup 2026</div><div class="stl">Content campaign · 4 posts · draft</div></div>
+            <span class="pill warn">Needs approval</span>
+          </div>
+          <div class="bd">
+            <div class="post">
+              <div class="top"><span>🗓</span><span class="when">Thu, Jun 11 · 11:30 PM</span>
+                <span class="chan"><span style="background:#e1306c">IG</span><span style="background:#1877f2">f</span><span style="background:#000">X</span><span style="background:#0a66c2">in</span></span></div>
+              <div class="cap">Football fever is here — but your content doesn't have to be chaotic. ⚽ Manage every listing, email, and post from one dashboard while AI handles the rest.</div>
+              <div class="tags">#FlowSmartly #WorldCup2026 #AIMarketing</div>
+              <div class="row" style="margin-top:8px;">
+                <button class="btn">✨ Rewrite caption</button><button class="btn">🖼 Add image</button><button class="btn">🕓 Reschedule</button><button class="btn ghost">🗑 Remove</button>
+              </div>
+              <div class="instr"><input placeholder="instruction for this post — e.g. add an emoji hook, mention the free trial…" /><button class="go">↑</button></div>
+            </div>
+            <div class="post">
+              <div class="top"><span>🗓</span><span class="when">Thu, Jun 18 · 9:00 AM</span>
+                <span class="chan"><span style="background:#e1306c">IG</span><span style="background:#1877f2">f</span><span style="background:#ff0050">TT</span><span style="background:#ff0000">YT</span></span></div>
+              <div class="cap">Your digital presence shouldn't need a championship team to manage. FlowSmartly keeps profiles, reviews & messaging synced across every channel. 🌍</div>
+              <div class="tags">#FlowSmartly #ContentManagement #LocalBusiness</div>
+              <div class="row" style="margin-top:8px;">
+                <button class="btn">✨ Rewrite caption</button><button class="btn">🖼 Add image</button><button class="btn">🕓 Reschedule</button><button class="btn ghost">🗑 Remove</button>
+              </div>
+            </div>
+          </div>
+          <div class="ft">
+            <button class="btn primary">✓ Approve all — schedule</button>
+            <button class="btn">✨ Improve campaign</button>
+            <button class="btn ghost">Regenerate images</button>
+          </div>
+        </div>
+        <div class="turn" style="margin-top:12px;"><span class="ava u">JY</span><div class="bubble u">On post 1, make the hook punchier and add the free-trial CTA.</div></div>
+        <div class="turn"><span class="ava">✨</span><div class="bubble">Updated post 1 ✓ — new hook + "Start free" CTA. The card above refreshed in place.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // tabs
+  document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
+    document.getElementById('film').classList.toggle('hide',t.dataset.t!=='film');
+    document.getElementById('camp').classList.toggle('hide',t.dataset.t!=='camp');
+  });
+
+  const SCENES=[
+    {t:"Cold open · night", p:"Neon city at night, a stressed small-business owner buried in tabs and notifications.", g:"radial-gradient(circle at 40% 30%,#3730a3,#111 70%)"},
+    {t:"The shift · dawn", p:"Wide dolly across a founder's desk at dawn, warm light, product UI glowing on the laptop.", g:"radial-gradient(circle at 50% 40%,#155e63,#08131a 70%)"},
+    {t:"The magic · macro", p:"Macro shots of posts, emails and reviews auto-flowing into one clean dashboard.", g:"radial-gradient(circle at 45% 45%,#7c2d12,#160a06 70%)"},
+    {t:"Momentum · montage", p:"Fast montage: channels lighting up, graphs rising, the owner finally relaxed.", g:"radial-gradient(circle at 50% 40%,#1e293b,#0a0f1a 70%)"},
+    {t:"CTA · logo", p:"Hero logo lockup on gradient, tagline 'All your presence. One platform.' + CTA.", g:"radial-gradient(circle at 50% 40%,#065f46,#04140e 70%)"},
+  ];
+  const SCRIPT=[
+    {slug:"Scene 1 — EXT. CITY / NIGHT", act:"[stressed owner, buried in notifications]", nar:"Running a business today means running everywhere at once."},
+    {slug:"Scene 2 — INT. DESK / DAWN", act:"[warm light, laptop glowing]", nar:"What if all of it lived in one place?"},
+    {slug:"Scene 3 — MACRO / UI", act:"[posts, emails, reviews flow in]", nar:"FlowSmartly brings your posts, reviews and messages together."},
+    {slug:"Scene 4 — MONTAGE", act:"[channels light up, graphs rise]", nar:"So you grow — while the busywork runs itself."},
+    {slug:"Scene 5 — LOGO / CTA", act:"[hero lockup, gradient]", nar:"All your presence. One platform. Start free today."},
+  ];
+  const STAGES=["Screenplay","Storyboard","Scenes","Narration","Final cut"];
+
+  let mode='review', stageIdx=0, curScene=0, typed=0, timer=null;
+
+  const $=id=>document.getElementById(id);
+  function rail(){
+    $('rail').innerHTML=STAGES.map((s,i)=>{
+      const st=i<stageIdx?'done':i===stageIdx?'active':'pending';
+      return `<div class="s ${st}"><div class="dot">${st==='done'?'✓':''}</div><small>${s}</small></div>`;
+    }).join('');
+  }
+  function strip(){
+    $('strip').innerHTML=SCENES.map((s,i)=>{
+      let cls='pend',st='queued',spin='';
+      if(i<curScene){cls='ready';st='ready';}
+      else if(i===curScene && stageIdx===2){cls='busy';st='rendering';spin='<div class="spin"><i></i></div>';}
+      return `<div class="cell ${cls} ${i===curScene&&stageIdx===2?'sel':''}"><div class="g" style="background:${s.g}"></div><div class="n">${i+1}</div>${spin}<div class="st">${st}</div></div>`;
+    }).join('');
+    $('sceneCount').textContent=`${curScene}/5 ready`;
+    $('sceneBar').style.width=(curScene/5*100)+'%';
+  }
+  function typeScript(done){
+    clearInterval(timer);
+    $('script').innerHTML='<div class="meta"><span>5 scenes · ~40s</span><span>narrator VO</span></div>';
+    let idx=0,ch=0,html='';
+    timer=setInterval(()=>{
+      if(idx>=SCRIPT.length){clearInterval(timer);$('scriptState').textContent='ready';$('scriptState').className='pill ok';if(done)done();return;}
+      const s=SCRIPT[idx];
+      const shown=`<div class="sc"><div class="slug">${s.slug}</div><div class="act">${s.act}</div><div class="nar">${s.nar.slice(0,ch)}<span class="caret"></span></div></div>`;
+      $('script').innerHTML='<div class="meta"><span>5 scenes · ~40s</span><span>narrator VO</span></div>'+html+shown;
+      $('script').scrollTop=$('script').scrollHeight;
+      ch+=2; if(ch>s.nar.length){html+=`<div class="sc"><div class="slug">${s.slug}</div><div class="act">${s.act}</div><div class="nar">${s.nar}</div></div>`;idx++;ch=0;}
+    },28);
+  }
+
+  function setMode(m){mode=m;$('mReview').classList.toggle('on',m==='review');$('mAuto').classList.toggle('on',m==='auto');reset();}
+
+  function reset(){
+    clearInterval(timer);stageIdx=0;curScene=0;
+    ['scriptApprove','scenesWrap','sceneReview','autoStatus','doneNote','finalVideo','ftDone'].forEach(id=>$(id).classList.add('hide'));
+    $('retryLine').classList.add('hide');
+    $('ftRun').classList.remove('hide');
+    $('fpill').textContent='Writing script…';$('fpill').className='pill brand';
+    $('scriptState').textContent='writing…';$('scriptState').className='pill brand';
+    rail();strip();
+    typeScript(()=>{ // script done
+      stageIdx=1;rail();
+      $('fpill').textContent='Script ready';
+      if(mode==='review'){$('scriptApprove').classList.remove('hide');}
+      else{approveScript();}
+    });
+  }
+  function tweakScript(){$('scriptState').textContent='revising…';$('scriptState').className='pill warn';$('scriptApprove').classList.add('hide');setTimeout(()=>{typeScript(()=>{stageIdx=1;rail();$('scriptApprove').classList.remove('hide');});},400);}
+  function approveScript(){
+    $('scriptApprove').classList.add('hide');
+    stageIdx=2;rail();$('scenesWrap').classList.remove('hide');$('fpill').textContent='Generating scenes';
+    curScene=0;strip();
+    if(mode==='review'){genSceneReview();}else{autopilot();}
+  }
+  // REVIEW: render one scene, then show its review gate
+  function genSceneReview(){
+    strip();
+    setTimeout(()=>{
+      // scene finished rendering → open review
+      $('srTitle').textContent=`Scene ${curScene+1} ready — review`;
+      $('srPrompt').textContent='Prompt: “'+SCENES[curScene].p+'”';
+      $('sceneReview').classList.remove('hide');
+    },1100);
+  }
+  function regenScene(){$('sceneReview').classList.add('hide');genSceneReview();}
+  function approveScene(){
+    $('sceneReview').classList.add('hide');curScene++;strip();
+    if(curScene>=SCENES.length){finishFilm();}
+    else{genSceneReview();}
+  }
+  // AUTOPILOT: run through all scenes with a simulated retry
+  function autopilot(){
+    $('autoStatus').classList.remove('hide');
+    const step=()=>{
+      if(curScene>=SCENES.length){finishFilm();return;}
+      strip();
+      const isFail=curScene===2; // demo a retry on scene 3
+      if(isFail){$('retryLine').classList.remove('hide');setTimeout(()=>{$('retryLine').classList.add('hide');curScene++;strip();setTimeout(step,700);},1400);}
+      else{setTimeout(()=>{curScene++;strip();setTimeout(step,500);},900);}
+    };
+    step();
+  }
+  function finishFilm(){
+    stageIdx=4;rail();curScene=5;strip();
+    $('autoStatus').classList.add('hide');
+    $('fpill').textContent='Ready';$('fpill').className='pill ok';
+    $('doneNote').classList.remove('hide');$('finalVideo').classList.remove('hide');
+    $('ftRun').classList.add('hide');$('ftDone').classList.remove('hide');
+  }
+
+  reset();
+</script>
+</body>
+</html>
