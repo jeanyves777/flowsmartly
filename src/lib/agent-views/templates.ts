@@ -46,12 +46,12 @@ export function leadsTableView(leads: { id?: string; name: string; location?: st
 
 /** Leads just found + saved → a pickable table (reveal one, or open the studio). */
 export function foundLeadsView(
-  created: { id: string; name: string; company?: string | null; isOrg?: boolean }[],
+  created: { id: string; name: string; company?: string | null; location?: string | null; industry?: string | null; isOrg?: boolean }[],
   listId?: string | null,
 ): ViewSpec {
   const orgCount = created.filter((c) => c.isOrg).length;
   return {
-    name: "found-leads", source: "library", skill: "find_leads",
+    name: "found-leads", source: "library", skill: "find_leads", width: "full",
     title: "Leads found", subtitle: `${created.length} saved${orgCount ? ` · ${orgCount} org-level` : ""}`, icon: "🔎",
     badge: { text: `${created.length}`, tone: "success" },
     body: [
@@ -59,14 +59,16 @@ export function foundLeadsView(
         type: "table",
         columns: [
           { key: "business", label: "Business" },
-          { key: "company", label: "Company" },
+          { key: "location", label: "Area" },
+          { key: "industry", label: "Industry" },
           { key: "type", label: "Type", kind: "badge" },
+          { key: "contact", label: "Contact", kind: "badge" },
         ],
-        rows: created.slice(0, 30).map((c) => ({ business: c.name, company: c.company || "—", type: c.isOrg ? "Org" : "Person", id: c.id, name: c.name })),
+        rows: created.slice(0, 40).map((c) => ({ business: c.name, location: c.location || "—", industry: c.industry || "—", type: c.isOrg ? "Org" : "Person", contact: "🔒 hidden", id: c.id, name: c.name })),
         rowAction: { event: "enrich_lead", tool: "enrich_lead", payload: listId ? { listId } : undefined },
         rowActionLabel: "Reveal ✨",
       },
-      { type: "note", tone: "muted", icon: "💡", text: "Tap Reveal to unlock a lead's contact details (billed per lead), or open the studio to start outreach." },
+      { type: "note", tone: "muted", icon: "💡", text: "Tap Reveal to unlock a lead's contact details (billed per lead) — then Pitch it right here, or open the studio for outreach." },
     ],
     footer: [{ type: "button", label: "Open Lead Studio →", action: { event: "open_studio", href: "/home/leads" } }],
   };
@@ -117,7 +119,7 @@ export function analyticsDashboardView(d: {
     ] });
   }
   return {
-    name: "analytics-dashboard", source: "library", skill: "get_analytics",
+    name: "analytics-dashboard", source: "library", skill: "get_analytics", width: "lg",
     title: "Your numbers", subtitle: "Lifetime snapshot", icon: "📊",
     body,
     footer: [{ type: "button", label: "Open Analytics →", action: { event: "open_studio", href: "/home/analytics" } }],
@@ -131,7 +133,7 @@ export function ordersTableView(
   totals?: { pending: number; revenue: string },
 ): ViewSpec {
   return {
-    name: "orders-table", source: "library", skill: "list_orders",
+    name: "orders-table", source: "library", skill: "list_orders", width: "full",
     title: storeName ? `${storeName} · Orders` : "Orders",
     subtitle: totals ? `${totals.pending} pending · ${totals.revenue}` : `${orders.length} order${orders.length === 1 ? "" : "s"}`,
     icon: "🧾", badge: totals && totals.pending > 0 ? { text: `${totals.pending} to ship`, tone: "warn" } : undefined,
@@ -157,7 +159,7 @@ export function productsTableView(
 ): ViewSpec {
   const low = products.filter((p) => p.lowStock).length;
   return {
-    name: "products-table", source: "library", skill: "list_products",
+    name: "products-table", source: "library", skill: "list_products", width: "full",
     title: storeName ? `${storeName} · Products` : "Products",
     subtitle: `${products.length} product${products.length === 1 ? "" : "s"}${low ? ` · ${low} low stock` : ""}`,
     icon: "📦", badge: low ? { text: `${low} low`, tone: "warn" } : undefined,
@@ -183,7 +185,7 @@ export function leadsListView(
   listName?: string | null,
 ): ViewSpec {
   return {
-    name: "leads-list", source: "library", skill: "list_leads",
+    name: "leads-list", source: "library", skill: "list_leads", width: "full",
     title: listName ? `${listName}` : "Leads",
     subtitle: counts ? `${counts.total} · ${counts.unenriched} to enrich` : `${leads.length} lead${leads.length === 1 ? "" : "s"}`,
     icon: "👥", badge: counts && counts.unenriched > 0 ? { text: `${counts.unenriched} un-enriched`, tone: "brand" } : { text: "enriched", tone: "success" },
@@ -199,6 +201,78 @@ export function leadsListView(
         rowAction: { event: "enrich_lead", tool: "enrich_lead" }, rowActionLabel: "Reveal ✨" },
     ],
     footer: [{ type: "button", label: "Open Lead Studio →", action: { event: "open_studio", href: "/home/leads" } }],
+  };
+}
+
+/** A lead whose contact details were just revealed → shown + a Pitch action. */
+export function enrichedLeadView(lead: {
+  id: string;
+  name: string;
+  title?: string | null;
+  company?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  address?: string | null;
+  socials?: Record<string, string>;
+}): ViewSpec {
+  const body: ViewBlock[] = [];
+  const line = (label: string, value: string | null | undefined, icon: string) => {
+    if (value) body.push({ type: "row", align: "between", children: [{ type: "text", text: `${icon} ${label}`, size: "xs", tone: "muted" }, { type: "text", text: value, size: "sm", strong: true }] });
+  };
+  line("Email", lead.email, "✉");
+  line("Phone", lead.phone, "📞");
+  line("Website", lead.website, "🌐");
+  line("Address", lead.address, "📍");
+  const socialLinks = lead.socials ? Object.entries(lead.socials).filter(([, v]) => v) : [];
+  if (socialLinks.length) body.push({ type: "text", text: socialLinks.map(([k]) => k).join(" · "), size: "xs", tone: "info" });
+  if (body.length === 0) body.push({ type: "note", tone: "muted", text: "No public contact details surfaced for this lead yet." });
+  return {
+    name: "enriched-lead", source: "library", skill: "enrich_lead", width: "md",
+    title: lead.name, subtitle: [lead.title, lead.company].filter(Boolean).join(" · ") || "Contact revealed",
+    icon: "🔓", badge: { text: "Enriched ✓", tone: "success" },
+    body,
+    footer: [
+      { type: "button", label: "✉ Pitch this lead", variant: "primary", action: { event: "pitch_lead", tool: "create_pitch", payload: { leadId: lead.id, leadName: lead.name } } },
+      { type: "button", label: "Open in Lead Studio →", action: { event: "open_studio", href: "/home/leads" } },
+    ],
+  };
+}
+
+/** A proposal/pitch → an editable card the user reworks inline then sends. */
+export function pitchView(pitch: {
+  id: string;
+  business?: string | null;
+  title?: string;
+  subject?: string;
+  summary?: string;
+  sections?: { label: string; text: string }[];
+}): ViewSpec {
+  const body: ViewBlock[] = [];
+  if (pitch.subject) body.push({ type: "card", children: [{ type: "text", text: "Subject", size: "xs", tone: "muted", strong: true }, { type: "text", text: pitch.subject, size: "sm" }] });
+  if (pitch.summary) body.push({ type: "card", children: [{ type: "text", text: "Summary", size: "xs", tone: "muted", strong: true }, { type: "text", text: pitch.summary, size: "sm" }] });
+  for (const s of (pitch.sections || []).slice(0, 4)) {
+    body.push({ type: "card", children: [{ type: "text", text: s.label, size: "xs", tone: "brand", strong: true }, { type: "text", text: s.text.length > 300 ? s.text.slice(0, 300) + "…" : s.text, size: "sm" }] });
+  }
+  body.push({
+    type: "card",
+    children: [
+      { type: "buttonRow", buttons: [
+        { label: "✨ Rewrite", action: { event: "rewrite_pitch", payload: { pitchId: pitch.id } } },
+        { label: "✂ Shorten", action: { event: "shorten_pitch", payload: { pitchId: pitch.id } } },
+        { label: "🎩 More formal", action: { event: "formal_pitch", payload: { pitchId: pitch.id } } },
+      ] },
+      { type: "input", name: "instruction", placeholder: "Tell me how to change it — add pricing, warmer tone, mention their city…", submitLabel: "Apply", action: { event: "edit_pitch", payload: { pitchId: pitch.id } } },
+    ],
+  });
+  return {
+    name: "pitch-editor", source: "library", skill: "show_pitch", width: "lg",
+    title: pitch.title || `Pitch${pitch.business ? ` — ${pitch.business}` : ""}`, subtitle: "Edit inline, then send", icon: "📝", badge: { text: "Draft", tone: "warn" },
+    body,
+    footer: [
+      { type: "button", label: "✉ Send pitch", variant: "primary", action: { event: "send_pitch", tool: "send_proposal", payload: { pitchId: pitch.id } } },
+      { type: "button", label: "Open Pitch Studio →", action: { event: "open_studio", href: `/home/pitchstudio?pitch=${pitch.id}` } },
+    ],
   };
 }
 
@@ -218,7 +292,7 @@ export function scriptApprovalView(input: {
     body.push({ type: "card", children });
   }
   return {
-    name: "script-approval", source: "library", skill: "draft_story_ad_script",
+    name: "script-approval", source: "library", skill: "draft_story_ad_script", width: "md",
     title: input.title ? `“${input.title}”` : "Screenplay — review",
     subtitle: `${input.duration}s · ${input.scenes.length} scene${input.scenes.length === 1 ? "" : "s"} · approve before rendering`,
     icon: "🎬", badge: { text: "Needs approval", tone: "warn" },
@@ -261,7 +335,7 @@ export function campaignView(input: {
     });
   }
   return {
-    name: "content-campaign", source: "library", skill: "show_content_campaign",
+    name: "content-campaign", source: "library", skill: "show_content_campaign", width: "lg",
     title: input.name, subtitle: `${input.posts.length} post${input.posts.length === 1 ? "" : "s"} · ${input.status.toLowerCase()}`,
     icon: "🗓️", badge: needsApproval ? { text: "Needs approval", tone: "warn" } : { text: input.status, tone: "success" },
     body,

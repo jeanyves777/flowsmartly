@@ -104,7 +104,7 @@ export const findLeads: FlowAgentTool = {
     // Persist — wrapped so a DB/schema error degrades to a clear message instead
     // of crashing the tool (handler contract: never throw).
     let listId = typeof input.listId === "string" ? input.listId : null;
-    const created: { id: string; name: string; title: string | null; company: string; isOrg: boolean }[] = [];
+    const created: { id: string; name: string; title: string | null; company: string; location: string | null; industry: string | null; isOrg: boolean }[] = [];
     try {
       if (listId) {
         const owned = await prisma.savedLeadList.findFirst({ where: { id: listId, userId: ctx.userId }, select: { id: true } });
@@ -145,7 +145,7 @@ export const findLeads: FlowAgentTool = {
           },
           select: { id: true, name: true, title: true, category: true },
         });
-        created.push({ id: lead.id, name: lead.name, title: lead.title, company: lead.category ?? l.company, isOrg });
+        created.push({ id: lead.id, name: lead.name, title: lead.title, company: lead.category ?? l.company, location: l.location, industry: l.industry, isOrg });
       }
 
       await prisma.savedLeadList.update({

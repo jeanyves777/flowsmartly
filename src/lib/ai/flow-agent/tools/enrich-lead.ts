@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/client";
 import { extractLocationSignal, mergeLocationSignals, sameRootDomain, validateAddressAgainstLocation, type LeadValidationIssue } from "@/lib/leads/discrepancy-validator";
 import type { FlowAgentTool } from "../registry";
+import { enrichedLeadView } from "@/lib/agent-views/templates";
 
 /**
  * enrich_lead — reveal a lead's contact info (email / phone / socials), found by
@@ -111,13 +112,31 @@ export const enrichLead: FlowAgentTool = {
     await prisma.activity.create({ data: { userId: ctx.userId, type: "note", subject: "Lead enriched", savedLeadId: resolvedId } }).catch(() => {});
     ctx.emit({ type: "canvas_update", patch: { __leads: { enrichedLeadId: resolvedId } } });
 
+    // Show the revealed contact inline as a card (marked Enriched) with a Pitch
+    // action so the user can pitch this lead right in the chat. [[agent-authored-views]]
+    ctx.emit({
+      type: "agent_view",
+      requestId: `enriched-${resolvedId}`,
+      spec: enrichedLeadView({
+        id: resolvedId,
+        name: updated.name,
+        title: updated.title,
+        company: lead.list?.name ?? null,
+        email: updated.email,
+        phone: updated.phone,
+        website: candidateWebsite && !warned.has("website") ? candidateWebsite : lead.website,
+        address: candidateAddress && !blocked.has("address") ? candidateAddress : lead.address,
+        socials: cleanSocials,
+      }),
+    });
+
     const warningText = issues.length
       ? ` I withheld conflicting detail${issues.length === 1 ? "" : "s"}: ${issues.map((issue) => issue.message).join(" ")}`
       : "";
 
     return {
       ok: true,
-      data: { lead: updated, validationIssues: issues, userMessage: `Enriched ${updated.name}${updated.email ? ` — ${updated.email}` : ""} — the verified details are now saved in their row in the Lead Studio.${warningText} (Do NOT repeat the details in chat.)` },
+      data: { lead: updated, validationIssues: issues, userMessage: `Enriched ${updated.name}${updated.email ? ` — ${updated.email}` : ""}. A card showing the revealed contact (marked Enriched ✓) with a "Pitch this lead" button is ALREADY rendered in the chat.${warningText} Just add a one-line confirmation — do NOT repeat the details as text. If the user taps Pitch (or asks), create_pitch for this lead then call show_pitch to let them edit it inline.` },
       resultRefType: "SavedLead",
       resultRefId: resolvedId,
     };
