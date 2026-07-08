@@ -146,6 +146,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { getPitch } = await import("./tools/get-pitch");
   const { updatePitch } = await import("./tools/update-pitch");
   const { listContentCampaigns } = await import("./tools/list-content-campaigns");
+  const { showContentCampaign } = await import("./tools/show-content-campaign");
   const { listOrders, listProducts } = await import("./tools/list-store-items");
   const { listDesigns, listMedia } = await import("./tools/list-library");
   const { listAvatarVideosTool, listAdCampaigns, listVoiceovers } = await import("./tools/list-studio-outputs");
@@ -264,6 +265,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(getPitch);
   flowAgentTools.register(updatePitch);
   flowAgentTools.register(listContentCampaigns);
+  flowAgentTools.register(showContentCampaign);
   flowAgentTools.register(listOrders);
   flowAgentTools.register(listProducts);
   flowAgentTools.register(listDesigns);

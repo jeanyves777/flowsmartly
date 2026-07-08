@@ -230,6 +230,49 @@ export function scriptApprovalView(input: {
   };
 }
 
+/** A content campaign → interactive card: each post with per-post actions + a
+ *  tweak input, so the user reviews/edits/approves without leaving the chat. */
+export function campaignView(input: {
+  campaignId: string;
+  name: string;
+  status: string;
+  posts: { id: string; when: string; platforms: string; caption: string; status: string; hasMedia: boolean }[];
+}): ViewSpec {
+  const needsApproval = input.posts.some((p) => p.status === "DRAFT");
+  const body: ViewBlock[] = [];
+  for (const p of input.posts.slice(0, 12)) {
+    body.push({
+      type: "card",
+      children: [
+        { type: "row", align: "between", children: [
+          { type: "text", text: `🗓 ${p.when}`, size: "xs", tone: "muted" },
+          { type: "badge", text: p.status, tone: p.status === "PUBLISHED" ? "success" : p.status === "SCHEDULED" ? "info" : "muted" },
+        ] },
+        { type: "text", text: p.platforms, size: "xs", tone: "brand" },
+        { type: "text", text: p.caption.length > 220 ? p.caption.slice(0, 220) + "…" : p.caption, size: "sm" },
+        { type: "buttonRow", buttons: [
+          { label: "✨ Rewrite", variant: "default", action: { event: "rewrite_caption", payload: { postId: p.id, campaignId: input.campaignId } } },
+          { label: p.hasMedia ? "🖼 Redo image" : "🖼 Add image", action: { event: "post_image", tool: "regenerate_post_image", payload: { postId: p.id } } },
+          { label: "🕓 Reschedule", action: { event: "reschedule_post", payload: { postId: p.id } } },
+          { label: "🗑 Remove", variant: "danger", action: { event: "remove_post", payload: { postId: p.id } } },
+        ] },
+        { type: "input", name: "instruction", placeholder: "Tweak this post — e.g. punchier hook, add the free-trial CTA…", submitLabel: "Apply", action: { event: "post_instruction", payload: { postId: p.id, campaignId: input.campaignId } } },
+      ],
+    });
+  }
+  return {
+    name: "content-campaign", source: "library", skill: "show_content_campaign",
+    title: input.name, subtitle: `${input.posts.length} post${input.posts.length === 1 ? "" : "s"} · ${input.status.toLowerCase()}`,
+    icon: "🗓️", badge: needsApproval ? { text: "Needs approval", tone: "warn" } : { text: input.status, tone: "success" },
+    body,
+    footer: [
+      { type: "button", label: "✓ Approve all — schedule", variant: "primary", action: { event: "approve_campaign", payload: { campaignId: input.campaignId } } },
+      { type: "button", label: "✨ Improve", action: { event: "improve_campaign", tool: "improve_content_campaign", payload: { campaignId: input.campaignId } } },
+      { type: "button", label: "Open Campaign Studio →", action: { event: "open_studio", href: "/home/campaign" } },
+    ],
+  };
+}
+
 /** A generic build-in-progress view for any long task (design, campaign, etc.). */
 export function buildProgressView(input: { title: string; icon?: string; steps: { text: string; state: "done" | "active" | "pending"; sub?: string }[]; progress: number; note?: string }): ViewSpec {
   const body: ViewBlock[] = [
