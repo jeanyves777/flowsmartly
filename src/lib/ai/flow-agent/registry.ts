@@ -115,6 +115,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { generateVideo } = await import("./tools/generate-video");
   const { startStoryAdCampaign } = await import("./tools/start-story-ad-campaign");
   const { draftStoryAdCampaign } = await import("./tools/draft-story-ad-campaign");
+  const { draftStoryAdScriptTool } = await import("./tools/draft-story-ad-script");
   const { createAvatarVideo } = await import("./tools/create-avatar-video");
   const { createPresentation } = await import("./tools/create-presentation");
   const { cloneAvatar } = await import("./tools/clone-avatar");
@@ -235,6 +236,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(generateVideo);
   flowAgentTools.register(startStoryAdCampaign);
   flowAgentTools.register(draftStoryAdCampaign);
+  flowAgentTools.register(draftStoryAdScriptTool);
   flowAgentTools.register(listContacts);
   flowAgentTools.register(addContact);
   flowAgentTools.register(updateContact);

@@ -202,6 +202,34 @@ export function leadsListView(
   };
 }
 
+/** A drafted screenplay awaiting the user's approval before the paid render. */
+export function scriptApprovalView(input: {
+  draftId: string;
+  title?: string;
+  duration: number;
+  scenes: { n: number; narration?: string; caption?: string; visual?: string }[];
+}): ViewSpec {
+  const body: ViewBlock[] = [];
+  for (const s of input.scenes) {
+    const children: ViewBlock[] = [{ type: "text", text: `Scene ${s.n}`, strong: true, size: "xs", tone: "brand" }];
+    if (s.visual) children.push({ type: "text", text: `[${s.visual}]`, tone: "muted", size: "xs" });
+    if (s.narration) children.push({ type: "text", text: s.narration, size: "sm" });
+    if (s.caption) children.push({ type: "text", text: `— ${s.caption}`, tone: "info", size: "xs" });
+    body.push({ type: "card", children });
+  }
+  return {
+    name: "script-approval", source: "library", skill: "draft_story_ad_script",
+    title: input.title ? `“${input.title}”` : "Screenplay — review",
+    subtitle: `${input.duration}s · ${input.scenes.length} scene${input.scenes.length === 1 ? "" : "s"} · approve before rendering`,
+    icon: "🎬", badge: { text: "Needs approval", tone: "warn" },
+    body,
+    footer: [
+      { type: "button", label: "✓ Approve — render the film", variant: "primary", action: { event: "approve_script", tool: "start_story_ad_campaign", payload: { draftId: input.draftId } } },
+      { type: "input", name: "revision", placeholder: "Tweak it — punchier hook, add a price in scene 4, warmer tone…", submitLabel: "Revise", action: { event: "revise_script", payload: { draftId: input.draftId } } },
+    ],
+  };
+}
+
 /** A generic build-in-progress view for any long task (design, campaign, etc.). */
 export function buildProgressView(input: { title: string; icon?: string; steps: { text: string; state: "done" | "active" | "pending"; sub?: string }[]; progress: number; note?: string }): ViewSpec {
   const body: ViewBlock[] = [

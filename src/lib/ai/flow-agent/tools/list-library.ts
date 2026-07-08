@@ -27,6 +27,9 @@ export const listDesigns: FlowAgentTool = {
       const limit = typeof input.limit === "number" ? Math.min(60, Math.max(1, Math.floor(input.limit))) : 30;
       const where: Record<string, unknown> = { userId: ctx.userId };
       if (input.type === "image" || input.type === "video_project") where.type = input.type;
+      // Never surface internal, non-design rows (director films, agent-authored
+      // views, transient story-ad script drafts) in the design library.
+      else where.type = { notIn: ["director_film", "agent_view", "story_ad_script_draft"] };
       if (typeof input.category === "string" && input.category.trim()) where.category = input.category.trim();
       const rows = await prisma.design.findMany({
         where, orderBy: { updatedAt: "desc" }, take: limit,

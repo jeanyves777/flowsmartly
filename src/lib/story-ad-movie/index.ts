@@ -29,6 +29,9 @@ export interface StoryAdMovieInput {
   referenceMediaUrls?: string[];
   referenceMedia?: StoryAdMovieReferenceMedia[];
   characterBrief?: string | null;
+  /** A pre-approved screenplay (from the in-chat script-approval step). When
+   *  set, the pipeline renders THIS script instead of writing a fresh one. */
+  providedScript?: StoryAdMovieScript;
 }
 
 export interface StoryAdMovieReferenceMedia {
@@ -647,6 +650,20 @@ async function concatenateXaiChapters(chapters: Buffer[]): Promise<Buffer> {
   }
 }
 
+/**
+ * Draft ONLY the screenplay (no render, no charge) so the in-chat approval step
+ * can show it and collect approve / tweak before the paid render runs. Uses the
+ * same brand-grounded writer the pipeline uses, so an approved draft renders
+ * verbatim via `providedScript`.
+ */
+export async function draftStoryAdScript(input: StoryAdMovieInput): Promise<StoryAdMovieScript> {
+  const [brand, language] = await Promise.all([
+    getBrandSnapshot(input.userId),
+    getUserPreferredLanguage(input.userId),
+  ]);
+  return generateStoryAdScript(input, brand, language);
+}
+
 export async function processStoryAdMovie(input: StoryAdMovieInput): Promise<void> {
   try {
     await updateJobStatus(input.jobId, "PROCESSING", 8, "Reading your brand and offer...");
@@ -655,8 +672,10 @@ export async function processStoryAdMovie(input: StoryAdMovieInput): Promise<voi
       getUserPreferredLanguage(input.userId),
     ]);
 
-    await updateJobStatus(input.jobId, "PROCESSING", 18, "Writing the ad story...");
-    const script = await generateStoryAdScript(input, brand, language);
+    await updateJobStatus(input.jobId, "PROCESSING", 18, input.providedScript ? "Using your approved screenplay..." : "Writing the ad story...");
+    // Render the user-approved screenplay verbatim when one was provided by the
+    // in-chat approval step; otherwise write a fresh one. [[agent-authored-views]]
+    const script = input.providedScript ?? await generateStoryAdScript(input, brand, language);
     const compatibleScript = toCartoonCompatibleScript(script);
 
     const existingMeta = await prisma.cartoonVideo.findUnique({

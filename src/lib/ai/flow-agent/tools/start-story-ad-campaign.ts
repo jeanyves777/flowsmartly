@@ -4,6 +4,7 @@ import {
   calculateStoryAdMovieCredits,
   processStoryAdMovie,
   type StoryAdMovieInput,
+  type StoryAdMovieScript,
 } from "@/lib/story-ad-movie";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import {
@@ -63,9 +64,10 @@ export const startStoryAdCampaign: FlowAgentTool = {
     type: "object",
     properties: {
       planId: { type: "string", description: "REQUIRED — planId from a confirmed propose_plan." },
+      draftId: { type: "string", description: "Optional — a draftId from draft_story_ad_script the user APPROVED. When set, the pipeline renders that approved screenplay verbatim (brief/duration/style are taken from the draft; you still need a confirmed planId for the render cost)." },
       brief: {
         type: "string",
-        description: "Plain-English description of the ad — product, message, audience, mood. The pipeline uses this to write the screenplay. Min 12 chars.",
+        description: "Plain-English description of the ad — product, message, audience, mood. The pipeline uses this to write the screenplay. Min 12 chars. (Optional when draftId is supplied.)",
       },
       duration: {
         type: "number",
@@ -97,13 +99,40 @@ export const startStoryAdCampaign: FlowAgentTool = {
         description: "Optional — describe the protagonist (look, role, vibe). The pipeline generates them if omitted.",
       },
     },
-    required: ["planId", "brief", "duration"],
+    required: ["planId"],
   },
   plans: ["PRO", "BUSINESS", "ENTERPRISE"],
   // Tier-priced via calculateStoryAdMovieCredits. Base = 0.
   costKey: "AGENT_PROPOSE_PLAN",
   mutating: true,
   handler: async (input, ctx) => {
+    // Review-mode path: render an APPROVED screenplay from draft_story_ad_script.
+    // Load its script (→ providedScript, rendered verbatim) + fill the brief/
+    // params from the draft so the rest of the handler runs unchanged.
+    let providedScript: StoryAdMovieScript | undefined;
+    let draftRowId: string | undefined;
+    const draftId = typeof input.draftId === "string" ? input.draftId.trim() : "";
+    if (draftId) {
+      const row = await prisma.design.findFirst({ where: { id: draftId, userId: ctx.userId, type: "story_ad_script_draft" }, select: { id: true, canvasData: true } });
+      if (!row) {
+        return { ok: false, error_code: "not_found", message: `No approved script draft "${draftId}" — ask the user to review the script again, or render from a brief.` };
+      }
+      draftRowId = row.id;
+      try {
+        const parsed = JSON.parse(row.canvasData || "{}") as { script?: StoryAdMovieScript; params?: Record<string, unknown> };
+        if (parsed.script) providedScript = parsed.script;
+        const pp = parsed.params || {};
+        if (typeof pp.rawBrief === "string" && !input.brief) input.brief = pp.rawBrief;
+        if (typeof pp.duration === "number" && !input.duration) input.duration = pp.duration;
+        if (typeof pp.aspectRatio === "string" && !input.aspectRatio) input.aspectRatio = pp.aspectRatio;
+        if (typeof pp.style === "string" && !input.style) input.style = pp.style;
+        if (typeof pp.goal === "string" && !input.goal) input.goal = pp.goal;
+        if (typeof pp.destinationUrl === "string" && !input.destinationUrl) input.destinationUrl = pp.destinationUrl;
+        if (Array.isArray(pp.platforms) && !input.platforms) input.platforms = pp.platforms as string[];
+        if (typeof pp.characterBrief === "string" && !input.characterBrief) input.characterBrief = pp.characterBrief;
+      } catch { /* fall through — validation below catches a missing brief */ }
+    }
+
     const brief = typeof input.brief === "string" ? input.brief.trim() : "";
     if (brief.length < 12) {
       return {
@@ -188,6 +217,8 @@ export const startStoryAdCampaign: FlowAgentTool = {
           : undefined,
       platforms,
       characterBrief: localizedCharacterBrief,
+      // When the user approved a drafted screenplay, render it verbatim.
+      providedScript,
     };
 
     const taskId = await spawnBackgroundTask({
@@ -363,6 +394,11 @@ export const startStoryAdCampaign: FlowAgentTool = {
         throw new Error("Story Ad Movie pipeline timed out after 25 minutes");
       },
     });
+
+    // The approved screenplay is now rendering — the draft cache is spent.
+    if (draftRowId) {
+      await prisma.design.deleteMany({ where: { id: draftRowId, userId: ctx.userId, type: "story_ad_script_draft" } }).catch(() => {});
+    }
 
     ctx.emit({
       type: "task_started",
