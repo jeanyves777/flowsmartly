@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { decodeConnectState, connectResultRedirect } from "@/lib/social/oauth-connect";
 
-const WEB_PATH = "/whatsapp";
+// Land back on the new-design WhatsApp workspace (/home/whatsapp), NOT the
+// retired legacy /whatsapp agent page. [[new-design-no-legacy]]
+const WEB_PATH = "/home/whatsapp";
 
 /**
  * WhatsApp Business OAuth - Step 2: Handle callback
@@ -166,7 +168,7 @@ export async function GET(request: NextRequest) {
       return connectResultRedirect(mobileRedirect, { error: "no_phone_numbers" }, WEB_PATH);
     }
 
-    // Redirect to WhatsApp dashboard (or the app) with success
+    // Redirect to the new WhatsApp workspace (or the app) with success
     return connectResultRedirect(
       mobileRedirect,
       { success: "whatsapp_connected", accounts: String(whatsappAccountsFound) },
