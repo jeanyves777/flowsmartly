@@ -31,6 +31,47 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
     return film;
   }
 
+  // Avatar film — N talking-avatar scenes (mirrors the Avatar Studio talking flow).
+  if (film.filmType === "testimonial") {
+    const b = film.brief.trim() || "A short talking-avatar video.";
+    const count = Math.max(1, Math.min(8, film.sceneCount || 3));
+    const words = Math.max(20, Math.round((film.targetSeconds || 30) * 2));
+    let drafted: { title?: string; script?: string }[] = [];
+    try {
+      const json = await ai.generateJSON<{ scenes: { title: string; script: string }[] }>(
+        `You are scripting a ${count}-scene talking-avatar video for this brief: "${b}". ` +
+        `Write ${count} DISTINCT scenes spoken to camera by one avatar, together telling a cohesive story. ` +
+        `Each script ~${words} words, punchy, first person, no stage directions or emojis. ` +
+        `Return JSON: {"scenes":[{"title":"short label","script":"the spoken words"}, ...]} with exactly ${count} scenes.`,
+        { maxTokens: 1600, temperature: 0.7 },
+      );
+      drafted = Array.isArray(json?.scenes) ? json.scenes.slice(0, count) : [];
+    } catch { drafted = []; }
+    if (drafted.length === 0) drafted = Array.from({ length: count }, (_, i) => ({ title: `Scene ${i + 1}`, script: b }));
+
+    let dAvatar = film.avatarId ? { id: film.avatarId, name: film.avatarName || "Avatar" } : null;
+    let dVoice = film.voiceId ? { id: film.voiceId, name: film.voiceName || "Voice" } : null;
+    if (!dAvatar || !dVoice) {
+      try {
+        const [av, vo] = await Promise.all([listAvatarsForUser(), listVoicesForUser()]);
+        if (!dAvatar && av[0]) dAvatar = { id: av[0].id, name: av[0].name };
+        if (!dVoice && vo[0]) dVoice = { id: vo[0].id, name: vo[0].name };
+      } catch { /* leave unset — user picks in the inspector */ }
+    }
+    const q = film.quality === "avatar_iv" ? "avatar_iv" : "standard";
+    const secEach = Math.max(4, Math.round((film.targetSeconds || 30) / count));
+    film.scenes = drafted.map((s, i) => normalizeScene({
+      id: `sc_${i}_${Math.random().toString(36).slice(2, 7)}`,
+      engine: "avatar", title: (s.title || `Scene ${i + 1}`).slice(0, 60), script: (s.script || b).slice(0, 4000),
+      durationSec: Math.min(secEach, 60), order: i, x: 340 + i * 250, y: 80 + (i % 2) * 210,
+      status: "draft", captionsOn: true, quality: q,
+      ...(dAvatar ? { avatarId: dAvatar.id, avatarName: dAvatar.name } : {}),
+      ...(dVoice ? { voiceId: dVoice.id, voiceName: dVoice.name } : {}),
+    }, i));
+    await saveFilm(filmId, userId, film);
+    return film;
+  }
+
   const brief = film.brief.trim();
   if (!brief) return film;
 
