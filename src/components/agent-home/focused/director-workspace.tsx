@@ -46,6 +46,14 @@ const FILM_TYPE_META: { v: FilmType; label: string; icon: string }[] = [
 const ASPECTS: FilmAspect[] = ["9:16", "1:1", "16:9"];
 const LENGTHS = [15, 30, 60, 90] as const;
 
+/** Everything the brief collects — folded from the three studios' briefs, deduped. */
+interface BriefDraft {
+  brief: string; filmType: FilmType; aspect: FilmAspect; targetSeconds: number; title: string;
+  sceneCount?: number | null; style?: string; quality?: string;
+  avatarId?: string; avatarName?: string; voiceId?: string; voiceName?: string;
+  sourceVideoUrl?: string | null;
+}
+
 const NODE_W = 208;
 const isRendering = (s?: string) => s === "rendering" || s === "queued";
 const isPlayable = (u?: string | null): u is string => typeof u === "string" && /^https?:\/\/|^\/uploads\//i.test(u);
@@ -237,6 +245,34 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
     });
   };
 
+  // -------- grab-to-pan the canvas (drag empty space or wheel to move around) --------
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const pan = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
+  const onCanvasDown = (e: ReactPointerEvent) => {
+    const el = e.target as HTMLElement;
+    if (el.closest("[data-node]") || el.closest("button") || el.closest("input") || el.closest("textarea")) return; // let nodes/controls handle it
+    const sc = scrollRef.current; if (!sc) return;
+    pan.current = { x: e.clientX, y: e.clientY, sl: sc.scrollLeft, st: sc.scrollTop };
+    sc.setPointerCapture?.(e.pointerId);
+    sc.style.cursor = "grabbing";
+  };
+  const onCanvasMove = (e: ReactPointerEvent) => {
+    if (!pan.current) return;
+    const sc = scrollRef.current; if (!sc) return;
+    sc.scrollLeft = pan.current.sl - (e.clientX - pan.current.x);
+    sc.scrollTop = pan.current.st - (e.clientY - pan.current.y);
+  };
+  const onCanvasUp = () => { pan.current = null; if (scrollRef.current) scrollRef.current.style.cursor = ""; };
+  // Vertical wheel pans the WIDE canvas horizontally (non-passive so we can preventDefault).
+  useEffect(() => {
+    const sc = scrollRef.current; if (!sc) return;
+    const handler = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { sc.scrollLeft += e.deltaY; e.preventDefault(); }
+    };
+    sc.addEventListener("wheel", handler, { passive: false });
+    return () => sc.removeEventListener("wheel", handler);
+  }, []);
+
   // -------- scene ops --------
   const addScene = (engine: SceneEngine) => {
     setAddMenu(false);
@@ -331,7 +367,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   };
 
   // -------- brief create/update --------
-  const submitBrief = async (draft: { brief: string; filmType: FilmType; aspect: FilmAspect; targetSeconds: number; title: string }) => {
+  const submitBrief = async (draft: BriefDraft) => {
     setBriefOpen(false);
     if (film) { mutate((f) => ({ ...f, ...draft })); return; }
     setDrafting(true);
@@ -360,7 +396,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   }, [scenes]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden" onPointerMove={onNodeMove} onPointerUp={onNodeUp}>
+    <div className="relative h-full w-full overflow-hidden" onPointerMove={(e) => { onNodeMove(e); onCanvasMove(e); }} onPointerUp={() => { onNodeUp(); onCanvasUp(); }}>
       {/* portal header controls */}
       {headerSlot && createPortal(
         <div className="flex items-center gap-2">
@@ -371,9 +407,11 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           <button onClick={startNew} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Sparkles className="h-3.5 w-3.5" /> New film</button>
         </div>, headerSlot)}
 
-      {/* dotted canvas */}
+      {/* dotted canvas — grab empty space to pan, wheel to move across */}
       <div
-        className="absolute inset-0 overflow-auto"
+        ref={scrollRef}
+        onPointerDown={onCanvasDown}
+        className="absolute inset-0 cursor-grab overflow-auto"
         style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
       >
         <div ref={boardRef} className="relative" style={{ width: 2200, height: 1000 }}>
@@ -442,7 +480,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           )}
         </div>
 
-        {film && <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-[10.5px] text-muted-foreground">Click a node to edit its engine · drag to reorder · ＋ inserts a beat</div>}
+        {film && <div className="pointer-events-none absolute bottom-3 left-3 z-[5] rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-[10.5px] text-muted-foreground">Drag empty space to pan · scroll to move · drag a node to reorder</div>}
       </div>
 
       {/* docked timeline — live edit */}
@@ -472,6 +510,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
       {briefOpen && (
         <BriefSheet
           film={film}
+          avatars={avatars} voices={voices}
           onClose={() => { setBriefOpen(false); if (!film) { /* keep empty state */ } }}
           onSubmit={submitBrief}
           onAsk={onAsk}
@@ -570,9 +609,11 @@ function SceneNode({ scene, selected, onDown, onSelect, onGenerate, onRemove, on
         {scene.overlay && <span className="absolute right-1 top-1 rounded bg-cyan-500/90 px-1.5 py-0.5 text-[8px] font-bold text-white">⧉ PiP</span>}
         {rendering && <span className="absolute bottom-1 left-1 rounded-full bg-brand-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">{Math.round(scene.progress || 0)}%</span>}
         {scene.status === "ready" && <span className="absolute bottom-1 left-1 rounded-full bg-emerald-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">ready</span>}
-        {scene.status === "failed" && <span className="absolute bottom-1 left-1 rounded-full bg-rose-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">failed</span>}
+        {scene.status === "failed" && <span title={scene.error || undefined} className="absolute bottom-1 left-1 rounded-full bg-rose-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">failed</span>}
       </div>
-      <p className="line-clamp-1 px-2.5 text-[10px] text-muted-foreground">{scene.script || E.hint}</p>
+      {scene.status === "failed" && scene.error
+        ? <p className="line-clamp-2 px-2.5 text-[9.5px] text-rose-500">{scene.error}</p>
+        : <p className="line-clamp-1 px-2.5 text-[10px] text-muted-foreground">{scene.script || E.hint}</p>}
       <div className="flex gap-1.5 p-2.5">
         <button onClick={onSelect} className="flex-1 rounded-[9px] border border-border py-1.5 text-[10.5px] font-semibold text-foreground hover:border-brand-500/60 hover:text-brand-500">✎ Edit</button>
         <button onClick={onGenerate} disabled={rendering} className="flex-1 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 py-1.5 text-[10.5px] font-semibold text-white disabled:opacity-60">{rendering ? "…" : ready ? "Regenerate" : "Generate"}</button>
@@ -939,6 +980,9 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
         )}
       </div>
 
+      {scene.status === "failed" && scene.error && (
+        <div className="border-t border-rose-500/30 bg-rose-500/5 px-4 py-2 text-[11px] leading-snug text-rose-500">⚠ {scene.error}</div>
+      )}
       <div className="flex items-center gap-2 border-t border-border px-4 py-3">
         <button onClick={onClose} className="rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:text-foreground">Close</button>
         <button onClick={onGenerate} disabled={isRendering(scene.status)} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-60">
@@ -968,58 +1012,162 @@ function PillRow({ options, labels, value, onSelect }: { options: string[]; labe
 }
 
 // ============================================================ master brief sheet
-function BriefSheet({ film, onClose, onSubmit, onAsk }: {
+function BriefSheet({ film, avatars, voices, onClose, onSubmit, onAsk }: {
   film: FilmProject | null;
+  avatars: { id: string; name: string; previewUrl?: string }[];
+  voices: { id: string; name: string; language?: string }[];
   onClose: () => void;
-  onSubmit: (d: { brief: string; filmType: FilmType; aspect: FilmAspect; targetSeconds: number; title: string }) => void;
+  onSubmit: (d: BriefDraft) => void;
   onAsk?: (prompt: string) => void;
 }) {
   const [brief, setBrief] = useState(film?.brief || "");
   const [filmType, setFilmType] = useState<FilmType>(film?.filmType || "product_ad");
   const [aspect, setAspect] = useState<FilmAspect>(film?.aspect || "9:16");
   const [targetSeconds, setTargetSeconds] = useState<number>(film?.targetSeconds || 30);
+  const [sceneCount, setSceneCount] = useState<number | null>(film?.sceneCount ?? null);
+  const [style, setStyle] = useState<string>(film?.style || "cinematic");
+  const [quality, setQuality] = useState<string>(film?.quality || "avatar_iv");
+  const [avatarId, setAvatarId] = useState<string>(film?.avatarId || "");
+  const [avatarName, setAvatarName] = useState<string>(film?.avatarName || "");
+  const [voiceId, setVoiceId] = useState<string>(film?.voiceId || "");
+  const [voiceName, setVoiceName] = useState<string>(film?.voiceName || "");
+  const [sourceVideoUrl, setSourceVideoUrl] = useState<string>(film?.sourceVideoUrl || "");
+
+  const scenesEst = Math.max(2, Math.round(targetSeconds / 8));
+  const fmtMeta: { v: FilmAspect; label: string; hint: string }[] = [
+    { v: "9:16", label: "9:16", hint: "Reel / TikTok" },
+    { v: "1:1", label: "1:1", hint: "Feed" },
+    { v: "16:9", label: "16:9", hint: "YouTube" },
+  ];
+  const lenMeta = [
+    { v: 15, label: "15s", hint: "~2 scenes" },
+    { v: 30, label: "30s", hint: "~4 scenes" },
+    { v: 60, label: "60s", hint: "~7 scenes" },
+    { v: 90, label: "90s", hint: "~10 scenes" },
+  ];
 
   return (
-    <div className="absolute inset-0 z-40 flex items-end bg-black/45" onClick={onClose}>
-      <div className="mx-auto mb-0 flex max-h-[86%] w-full flex-col rounded-t-2xl border border-border bg-card shadow-2xl sm:mb-4 sm:max-w-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mx-auto mt-2 h-1 w-9 rounded-full bg-border" />
-        <div className="flex items-center gap-2 px-5 pb-2 pt-3">
-          <Wand2 className="h-4 w-4 text-brand-500" />
-          <p className="text-[14px] font-bold">{film ? "Edit brief" : "New film — brief the director"}</p>
-          <button onClick={onClose} className="ms-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+    <div className="absolute inset-0 z-40">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/45" />
+      <div className="absolute inset-x-3 bottom-3 flex max-h-[88%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+        <div className="relative flex items-center gap-2 border-b border-border px-4 pb-2 pt-2.5">
+          <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
+          <span className="rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-brand-500">Brief</span>
+          <span className="text-[11px] text-muted-foreground">node</span>
+          <span className="ml-1 text-[12.5px] font-bold">{film ? "Edit the film brief" : "Direct a new film"}</span>
+          <button onClick={onClose} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
-          <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={2} placeholder="Describe the film — e.g. A 30s product ad: cinematic hook, a testimonial from my avatar, cut to the routine, end on the logo." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] leading-relaxed outline-none focus:border-brand-500/60" />
-          <div className="mt-3 rounded-[12px] border border-dashed border-border bg-background/60 p-4 text-center text-[12px] text-muted-foreground">
-            <Upload className="mx-auto mb-1 h-4 w-4" /> <b className="text-foreground">Drop media to work from</b> — product photos, footage, a long video to clip, or a selfie to clone
-          </div>
-          <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Type</label>
-          <div className="grid grid-cols-5 gap-1.5">
-            {FILM_TYPE_META.map((t) => (
-              <button key={t.v} onClick={() => setFilmType(t.v)} className={cn("rounded-[10px] border px-1 py-2 text-center transition", filmType === t.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>
-                <span className="block text-[16px]">{t.icon}</span><span className="text-[10px] font-semibold">{t.label}</span>
-              </button>
-            ))}
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-3">
+          <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+            {/* left — the story */}
             <div>
-              <label className="mb-1 block text-[11.5px] font-semibold">Length</label>
-              <PillRow options={LENGTHS.map(String)} labels={LENGTHS.map((l) => `${l}s`)} value={String(targetSeconds)} onSelect={(v) => setTargetSeconds(Number(v))} />
+              <label className="mb-1 flex items-center gap-1.5 text-[11.5px] font-semibold"><Wand2 className="h-3.5 w-3.5 text-brand-500" /> Describe the film</label>
+              <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={4} placeholder="e.g. A 30-second ad for our glow serum. Open on a cinematic macro of a droplet, cut to me (my avatar) giving a quick testimonial, then night-routine b-roll, and end on a bold 'Shop now' card with the logo." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] leading-relaxed outline-none focus:border-brand-500/60" />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <span className="text-[10.5px] text-muted-foreground">Try:</span>
+                {BRIEF_STARTERS.map((s, i) => (
+                  <button key={i} onClick={() => setBrief(s.full)} className="rounded-full border border-border px-2.5 py-0.5 text-[10.5px] font-medium text-muted-foreground hover:border-brand-500/50 hover:text-brand-500">{s.label}</button>
+                ))}
+              </div>
+
+              <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Long video to clip <span className="font-normal text-muted-foreground">— optional (reel beats)</span></label>
+              <input value={sourceVideoUrl} onChange={(e) => setSourceVideoUrl(e.target.value)} placeholder="Paste a YouTube / Vimeo / TikTok / Drive link — the director scores &amp; cuts clips from it" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
+
+              <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Work from your media <span className="font-normal text-muted-foreground">— optional</span></label>
+              <div className="rounded-[12px] border border-dashed border-border bg-background/60 p-3 text-center text-[11.5px] text-muted-foreground">
+                <Upload className="mx-auto mb-1 h-4 w-4" /> Drop <b className="text-foreground">product photos</b>, <b className="text-foreground">footage</b>, or a <b className="text-foreground">selfie</b> to clone — the director routes each into the right scene.
+              </div>
             </div>
+
+            {/* right — the plan */}
             <div>
-              <label className="mb-1 block text-[11.5px] font-semibold">Format</label>
-              <PillRow options={ASPECTS} value={aspect} onSelect={(v) => setAspect(v as FilmAspect)} />
+              <label className="mb-1.5 block text-[11.5px] font-semibold">Type</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {FILM_TYPE_META.map((t) => (
+                  <button key={t.v} onClick={() => setFilmType(t.v)} className={cn("rounded-[10px] border px-1 py-2 text-center transition", filmType === t.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>
+                    <span className="block text-[16px]">{t.icon}</span><span className="text-[10px] font-semibold">{t.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Length</label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {lenMeta.map((l) => (
+                  <button key={l.v} onClick={() => setTargetSeconds(l.v)} className={cn("rounded-[10px] border px-1 py-1.5 text-center transition", targetSeconds === l.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>
+                    <span className="block text-[12px] font-bold leading-tight">{l.label}</span><span className="text-[9px]">{l.hint}</span>
+                  </button>
+                ))}
+              </div>
+
+              <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Format</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {fmtMeta.map((f) => (
+                  <button key={f.v} onClick={() => setAspect(f.v)} className={cn("rounded-[10px] border px-1 py-1.5 text-center transition", aspect === f.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>
+                    <span className="block text-[12px] font-bold leading-tight">{f.label}</span><span className="text-[9px]">{f.hint}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* scenes — ported from Avatar Studio */}
+              <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Scenes <span className="font-normal text-muted-foreground">— the director drafts this many</span></label>
+              <div className="flex flex-wrap gap-1.5">
+                {[{ v: null, l: "Auto" }, { v: 3, l: "3" }, { v: 5, l: "5" }, { v: 7, l: "7" }].map((c) => (
+                  <button key={c.l} onClick={() => setSceneCount(c.v)} className={cn("rounded-full border px-3 py-1 text-[11px] font-semibold transition", sceneCount === c.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{c.l}</button>
+                ))}
+              </div>
+
+              {/* visual style — ported from Video Studio (applies to AI shots) */}
+              <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Visual style <span className="font-normal text-muted-foreground">— AI shots</span></label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[{ v: "cinematic", l: "Cinematic", h: "live-action" }, { v: "3d", l: "3D", h: "animated" }, { v: "narrated", l: "Narrated", h: "stills + VO" }].map((st) => (
+                  <button key={st.v} onClick={() => setStyle(st.v)} className={cn("rounded-[10px] border px-1 py-1.5 text-center transition", style === st.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>
+                    <span className="block text-[12px] font-bold leading-tight">{st.l}</span><span className="text-[9px]">{st.h}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* presenter — ported from Avatar Studio (avatar + voice + quality) */}
+              <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Presenter <span className="font-normal text-muted-foreground">— avatar scenes</span></label>
+              {avatars.length > 0 ? (
+                <div className="flex gap-1.5 overflow-x-auto pb-1">
+                  {avatars.slice(0, 24).map((a) => (
+                    <button key={a.id} onClick={() => { setAvatarId(a.id); setAvatarName(a.name); }} title={a.name} className={cn("h-12 w-9 shrink-0 overflow-hidden rounded-md border-2", avatarId === a.id ? "border-brand-500" : "border-transparent hover:border-brand-500/40")}>
+                      {a.previewUrl ? <Image src={a.previewUrl} alt="" width={36} height={48} className="h-full w-full object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center bg-muted text-muted-foreground"><UserSquare2 className="h-3.5 w-3.5" /></span>}
+                    </button>
+                  ))}
+                </div>
+              ) : <p className="text-[11px] text-muted-foreground">Your default clone will present.</p>}
+              <div className="mt-1.5 flex gap-1.5">
+                <select value={voiceId} onChange={(e) => { const v = voices.find((x) => x.id === e.target.value); setVoiceId(e.target.value); setVoiceName(v?.name || ""); }} className="min-w-0 flex-1 rounded-[9px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60">
+                  <option value="">Default voice</option>
+                  {voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
+                </select>
+                {[{ v: "standard", l: "Standard" }, { v: "avatar_iv", l: "Avatar IV" }].map((q) => (
+                  <button key={q.v} onClick={() => setQuality(q.v)} className={cn("shrink-0 rounded-[9px] border px-2.5 py-1.5 text-[11px] font-semibold", quality === q.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{q.l}</button>
+                ))}
+              </div>
+
+              <div className="mt-3 rounded-[10px] border border-border bg-muted/30 p-2.5 text-[11px] text-muted-foreground">
+                <Clapperboard className="mb-0.5 inline h-3.5 w-3.5 text-brand-500" /> The director storyboards <b className="text-foreground">{sceneCount ?? `~${scenesEst}`} scenes</b> across AI, your avatar &amp; reel clips. Drafting is free — you generate (and pay for) each scene.
+              </div>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 border-t border-border px-5 py-3">
+
+        <div className="flex items-center gap-2 border-t border-border px-4 py-3">
           {onAsk && <button onClick={() => { onClose(); onAsk(`Direct a ${targetSeconds}s ${filmType.replace("_", " ")}: ${brief}`); }} className="rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:text-foreground">Ask the director</button>}
-          <button onClick={() => onSubmit({ brief, filmType, aspect, targetSeconds, title: brief.slice(0, 60) || "Untitled film" })} className="ms-auto inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-bold text-white shadow-sm"><Clapperboard className="h-4 w-4" /> {film ? "Save brief" : "Direct it"}</button>
+          <button onClick={() => onSubmit({ brief, filmType, aspect, targetSeconds, title: brief.slice(0, 60) || "Untitled film", sceneCount, style, quality, avatarId: avatarId || undefined, avatarName: avatarName || undefined, voiceId: voiceId || undefined, voiceName: voiceName || undefined, sourceVideoUrl: sourceVideoUrl.trim() || null })} disabled={!brief.trim()} className="ms-auto inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-bold text-white shadow-sm disabled:opacity-50"><Clapperboard className="h-4 w-4" /> {film ? "Save brief" : "Direct it"}</button>
         </div>
       </div>
     </div>
   );
 }
+const BRIEF_STARTERS: { label: string; full: string }[] = [
+  { label: "Product ad", full: "A 30-second product ad. Open on a cinematic hook of the product, a quick testimonial from my avatar, fast b-roll of it in use, and end on a bold 'Shop now' card with the logo." },
+  { label: "Founder story", full: "A 60-second founder story. Me (my avatar) on camera explaining the problem I solved, intercut with cinematic b-roll of the product, ending with a clear call to action." },
+  { label: "Social reel", full: "A 15-second social reel: a punchy scroll-stopping hook, three fast benefit cuts, and a bold CTA card." },
+];
 
 // ============================================================ films library
 function FilmsLibrary({ onClose, onOpen, onNew }: { onClose: () => void; onOpen: (id: string) => void; onNew: () => void }) {

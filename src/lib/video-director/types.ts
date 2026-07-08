@@ -110,6 +110,14 @@ export interface FilmProject {
   filmType: FilmType;
   aspect: FilmAspect;
   targetSeconds: number;
+  // brief-level defaults the director storyboards from (ported from the 3 studios,
+  // deduped into one brief): scene count, AI look, presenter, and a source video to clip.
+  sceneCount?: number | null;        // explicit scene count; null = auto from length
+  style?: string | null;             // default AI visual style: "cinematic" | "3d" | "narrated"
+  quality?: string | null;           // avatar quality: "standard" | "avatar_iv"
+  avatarId?: string | null; avatarName?: string | null;
+  voiceId?: string | null; voiceName?: string | null;
+  sourceVideoUrl?: string | null;    // a long video to auto-clip into reel scenes
   scenes: FilmScene[];
   edges: FilmEdge[];
   assets?: FilmAsset[];
@@ -143,6 +151,10 @@ export function emptyFilm(partial?: Partial<FilmProject>): FilmProject {
     filmType: "product_ad",
     aspect: "9:16",
     targetSeconds: 30,
+    sceneCount: null,
+    style: "cinematic",
+    quality: "avatar_iv",
+    sourceVideoUrl: null,
     scenes: [],
     edges: [],
     assets: [],
