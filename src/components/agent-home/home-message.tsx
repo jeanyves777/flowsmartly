@@ -37,7 +37,7 @@ export function HomeMessageView({
 }) {
   const isUser = message.role === "user";
   return (
-    <div className={cn("mx-auto mb-5 flex w-full max-w-[840px] gap-2.5 sm:gap-3", isUser && "flex-row-reverse")}>
+    <div className={cn("mx-auto mb-5 flex w-full max-w-[1040px] gap-2.5 sm:gap-3", isUser && "flex-row-reverse")}>
       {isUser ? (
         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-pink-500 to-violet-500 text-[11px] font-bold text-white sm:h-[30px] sm:w-[30px]">
           {initials}

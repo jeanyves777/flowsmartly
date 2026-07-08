@@ -1264,9 +1264,9 @@ export function AgentHome() {
             />
           ) : (
             <>
-          <div className="flex-1 overflow-y-auto px-4 pb-44 pt-6 sm:px-[clamp(16px,6vw,110px)] md:pb-40">
+          <div className="flex-1 overflow-y-auto px-4 pb-44 pt-6 sm:px-[clamp(16px,4vw,64px)] md:pb-40">
             {empty ? (
-              <section className="mx-auto mt-[6vh] max-w-[780px]">
+              <section className="mx-auto mt-[6vh] max-w-[1040px]">
                 <h1 className="text-[26px] font-extrabold leading-[1.12] tracking-tight sm:text-[31px]">
                   {greeting} <span className="bg-gradient-to-r from-brand-500 to-violet-500 bg-clip-text text-transparent">{s.accent}</span>
                 </h1>
@@ -1301,11 +1301,11 @@ export function AgentHome() {
           </div>
 
           {/* composer */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/90 to-transparent px-3 pb-4 pt-3 sm:px-[clamp(16px,6vw,110px)] sm:pb-5">
-            <div className="pointer-events-auto mx-auto max-w-[840px]">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/90 to-transparent px-3 pb-4 pt-3 sm:px-[clamp(16px,4vw,64px)] sm:pb-5">
+            <div className="pointer-events-auto mx-auto max-w-[1040px]">
               <Composer onSend={(t, sm, atts) => send(t, sm, undefined, undefined, { attachments: atts })} sending={sending} placeholder={s.placeholder} />
             </div>
-            <p className="mx-auto mt-2 hidden max-w-[840px] text-center text-[11px] text-muted-foreground sm:block">{s.hint}</p>
+            <p className="mx-auto mt-2 hidden max-w-[1040px] text-center text-[11px] text-muted-foreground sm:block">{s.hint}</p>
           </div>
 
             </>
