@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/db/client";
 import { generatePitchPDF, generateServiceProposalPDF } from "@/lib/pitch/pdf-generator";
-import { renderProposalHtml } from "@/lib/pitch/proposal-html";
+import { renderProposalHtml, renderProposalEmailHtml } from "@/lib/pitch/proposal-html";
 import { renderHtmlToPdf } from "@/lib/utils/html-renderer";
-import { sendPitchEmail } from "@/lib/email";
+import { sendEmail } from "@/lib/email/core";
 import { createTransporter, sendViaMailgunApi } from "@/lib/email/marketing-sender";
 import { getPresignedUrl } from "@/lib/utils/s3-client";
 import type { PitchContent } from "@/lib/pitch/generator";
@@ -222,43 +222,51 @@ export async function deliverProposal(userId: string, pitchId: string, opts: Del
   const fromEmail = marketingConfig?.defaultFromEmail || user?.email || "info@flowsmartly.com";
   const replyToAddr = marketingConfig?.defaultReplyTo || user?.email;
 
-  const sendWithFallbackSmtp = async () => {
-    await sendPitchEmail({
-      to: toEmail,
+  // Build the email body ONCE, and use it for every send path so the sent email
+  // matches what the user sees. A service proposal uses the NEW Studio email
+  // design (renderProposalEmailHtml); a legacy pitch keeps the old audit email.
+  const emailSubject = emailPitchContent.subject || proposalContent?.title || "Your proposal";
+  const ctaUrl = brandKit?.website || process.env.NEXT_PUBLIC_APP_URL || "https://flowsmartly.com";
+  let emailHtml: string;
+  if (proposalContent) {
+    emailHtml = renderProposalEmailHtml(proposalContent, {
+      logoDataUri: brand.logo,
+      brandName: brand.name,
+      recipientName: toName || undefined,
+      businessName: pitch.businessName,
+      customMessage: opts.message || undefined,
+      ctaUrl,
+      hasPdf: !!pdfBuffer,
+      pdfFilename: filename,
+    });
+  } else {
+    const { buildPitchEmailHtml } = await import("@/lib/email");
+    emailHtml = buildPitchEmailHtml({
       recipientName: toName || undefined,
       businessName: pitch.businessName,
       pitch: emailPitchContent,
       research,
       pdfBuffer,
       senderName: fromName,
-      replyTo: replyToAddr,
       customMessage: opts.message || undefined,
       brandPrimaryColor: brand.primaryColor,
       brandWebsite: brandKit?.website || undefined,
     });
+  }
+  const attachments = pdfBuffer ? [{ filename, content: pdfBuffer, contentType: "application/pdf" as const }] : [];
+
+  const sendWithFallbackSmtp = async () => {
+    await sendEmail({ to: toEmail, subject: emailSubject, html: emailHtml, replyTo: replyToAddr, attachments: attachments.length ? attachments : undefined });
   };
 
   let via: "user" | "fallback" = "fallback";
   if (canUseUserEmail) {
     try {
-      const { buildPitchEmailHtml } = await import("@/lib/email");
-      const html = buildPitchEmailHtml({
-        recipientName: toName || undefined,
-        businessName: pitch.businessName,
-        pitch: emailPitchContent,
-        research,
-        pdfBuffer,
-        senderName: fromName,
-        customMessage: opts.message || undefined,
-        brandPrimaryColor: brand.primaryColor,
-        brandWebsite: brandKit?.website || undefined,
-      });
-      const attachments = pdfBuffer ? [{ filename, content: pdfBuffer }] : [];
       if (marketingConfig!.emailProvider === "MAILGUN") {
-        await sendViaMailgunApi(emailCfg!, `${fromName} <${fromEmail}>`, toEmail, emailPitchContent.subject, html, undefined, attachments);
+        await sendViaMailgunApi(emailCfg!, `${fromName} <${fromEmail}>`, toEmail, emailSubject, emailHtml, undefined, attachments);
       } else {
         const transporter = createTransporter(marketingConfig!.emailProvider, emailCfg!);
-        await transporter.sendMail({ from: `${fromName} <${fromEmail}>`, to: toEmail, subject: emailPitchContent.subject, html, replyTo: replyToAddr, attachments });
+        await transporter.sendMail({ from: `${fromName} <${fromEmail}>`, to: toEmail, subject: emailSubject, html: emailHtml, replyTo: replyToAddr, attachments });
       }
       via = "user";
     } catch (providerError) {
