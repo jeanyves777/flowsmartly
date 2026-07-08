@@ -51,6 +51,8 @@ export interface FilmScene {
   clipStart?: number; clipEnd?: number; score?: number; aspectAuto?: boolean;
   // design still
   designId?: string; headline?: string;
+  // a product/reference image that anchors this scene (AI shots use it as a reference frame)
+  referenceImageUrl?: string | null;
   // link to the real render job on the underlying backend
   refKind?: string;           // "avatar_video" | "story_ad" | "reel_clip" | "media" | "design"
   refId?: string;
@@ -215,6 +217,7 @@ export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene 
     sourceMediaId: raw.sourceMediaId, sourceUrl: raw.sourceUrl,
     clipStart: raw.clipStart, clipEnd: raw.clipEnd, score: raw.score, aspectAuto: raw.aspectAuto,
     designId: raw.designId, headline: raw.headline,
+    referenceImageUrl: raw.referenceImageUrl ?? null,
     refKind: raw.refKind, refId: raw.refId,
     status,
     progress: typeof raw.progress === "number" ? raw.progress : 0,

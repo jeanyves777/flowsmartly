@@ -191,6 +191,8 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
       prompt: scene.script || scene.title,
       durationSeconds: Math.min(15, scene.durationSec || 8),
       aspectRatio: aspect,
+      // A product/reference image anchors the shot so it shows the user's actual product.
+      referenceImageUrl: scene.referenceImageUrl || undefined,
       onStatus: () => { p = Math.min(90, p + 14); void patchScene(filmId, userId, sceneId, { status: "rendering", progress: p }).catch(() => {}); },
     });
     const url = await uploadToS3(`director/${filmId}/${sceneId}.mp4`, result.videoBuffer, "video/mp4");
