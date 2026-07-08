@@ -25,13 +25,16 @@ export function createTransporter(
 ): nodemailer.Transporter {
   switch (provider) {
     case "SMTP": {
-      const port = emailConfig.port as number;
-      // Port 465 = implicit SSL, all others (587, 25, 2525) = STARTTLS
+      // Port arrives as a STRING from the form — coerce so the secure/STARTTLS
+      // inference works (otherwise `"465" === 465` is false and SSL never turns on).
+      const port = Number(emailConfig.port) || 587;
+      // Port 465 = implicit SSL; all others (587, 25, 2525) = STARTTLS.
       const secure = port === 465;
       return nodemailer.createTransport({
         host: emailConfig.host as string,
         port,
         secure,
+        requireTLS: !secure,
         auth: {
           user: emailConfig.user as string,
           pass: emailConfig.password as string,
@@ -136,10 +139,15 @@ export function validateEmailConfig(
   emailConfig: Record<string, unknown>
 ): string | null {
   switch (provider) {
-    case "SMTP":
+    case "SMTP": {
       if (!emailConfig.host || !emailConfig.port) return "SMTP host and port are required";
       if (!emailConfig.user || !emailConfig.password) return "SMTP username and password are required";
+      const smtpPort = Number(emailConfig.port);
+      if (smtpPort === 993 || smtpPort === 143) return `Port ${smtpPort} is an IMAP port (for READING mail). To SEND, use an SMTP port — 587 (STARTTLS) or 465 (SSL).`;
+      if (smtpPort === 995 || smtpPort === 110) return `Port ${smtpPort} is a POP3 port (for READING mail). To SEND, use an SMTP port — 587 (STARTTLS) or 465 (SSL).`;
+      if (!Number.isFinite(smtpPort) || smtpPort <= 0 || smtpPort > 65535) return "Enter a valid SMTP port — usually 587 (STARTTLS) or 465 (SSL).";
       break;
+    }
     case "SENDGRID":
     case "RESEND":
       if (!emailConfig.apiKey || emailConfig.apiKey === "********") return "API key is required. Please re-enter and save settings.";
@@ -328,8 +336,11 @@ export async function sendMarketingEmail(params: MarketingEmailParams): Promise<
 // Get user-friendly error message from send errors
 export function getEmailErrorMessage(errorMessage: string): string {
   const normalized = errorMessage.toLowerCase();
+  if (errorMessage.includes("ECONNRESET")) {
+    return "The mail server reset the connection — this almost always means the wrong port. For SENDING (SMTP) use 587 (STARTTLS) or 465 (SSL); ports 993/143 are for READING mail (IMAP).";
+  }
   if (errorMessage.includes("ECONNREFUSED") || errorMessage.includes("ENOTFOUND")) {
-    return "Could not connect to the email server. Please check your host/port settings.";
+    return "Could not connect to the mail server — check the host and port. SMTP is usually 587 (STARTTLS) or 465 (SSL).";
   }
   if (
     errorMessage.includes("EAUTH") ||

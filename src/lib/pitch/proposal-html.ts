@@ -273,3 +273,86 @@ export function renderProposalHtml(content: ServiceProposalContent, opts: Render
 
   return `<!doctype html><html><head><meta charset="utf-8"/><style>${css}</style></head><body><div class="doc">${sections.join("")}</div></body></html>`;
 }
+
+interface EmailRenderOpts {
+  logoDataUri?: string | null;
+  brandName?: string | null;
+  recipientName?: string | null;
+  businessName?: string | null;
+  customMessage?: string | null;
+  ctaUrl?: string | null;
+  hasPdf?: boolean;
+  pdfFilename?: string | null;
+}
+
+/**
+ * renderProposalEmailHtml — the NEW branded pitch email, mirroring the Pitch
+ * Studio "Cold pitch email" (EmailPreview): a gradient header band with the
+ * brand + "Quick note for {name}", the subject, a short "Hey {name} 👋" note
+ * built from the executive summary, up to 3 ✓ benefit bullets, a CTA, sign-off,
+ * and the attached-PDF chip. Email-client-safe (tables + inline styles, gradient
+ * with a solid fallback). Replaces the legacy audit-score email for service
+ * proposals so the SENT email matches what the user sees in the Studio.
+ */
+export function renderProposalEmailHtml(content: ServiceProposalContent, opts: EmailRenderOpts = {}): string {
+  const c = content;
+  const theme = getProposalTheme(c);
+  const primary = visibleOnWhite(theme.primary);
+  const secondary = visibleOnWhite(theme.secondary);
+  const ink = theme.ink || "#0f172a";
+  const brandName = opts.brandName || c.preparedBy || (typeof c.brandSnapshot?.name === "string" ? c.brandSnapshot.name : "") || "Your brand";
+  const to = esc(opts.recipientName || c.preparedFor || opts.businessName || "there");
+  const subject = esc(c.subject || c.title || "A quick proposal for you");
+  const summary = nl2br(c.executiveSummary || c.clientNeed || "");
+  const bullets = arr<string>(c.commitments).length ? arr<string>(c.commitments).slice(0, 3) : arr<string>(c.benefits).slice(0, 3);
+  const ctaUrl = esc(opts.ctaUrl || "https://flowsmartly.com");
+  const grad = `linear-gradient(135deg, ${primary}, ${secondary})`;
+
+  const logo = opts.logoDataUri
+    ? `<img src="${esc(opts.logoDataUri)}" alt="${esc(brandName)}" height="24" style="height:24px;width:auto;display:block;border:0;"/>`
+    : `<span style="font-size:15px;font-weight:800;letter-spacing:.3px;color:#ffffff;font-family:Arial,sans-serif;">${esc(brandName)}</span>`;
+
+  const bulletsHtml = bullets.length
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:14px 0 0;">${bullets.map((b) => `
+        <tr><td valign="top" width="26" style="padding:3px 0;"><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${primary};color:#ffffff;font-size:11px;font-weight:700;text-align:center;line-height:18px;">✓</span></td>
+        <td style="padding:3px 0;font-size:14px;line-height:1.5;color:#1f2937;font-family:Arial,sans-serif;">${esc(b)}</td></tr>`).join("")}</table>`
+    : "";
+
+  const customBlock = opts.customMessage
+    ? `<div style="background:#f0fdf4;border-left:4px solid #22c55e;border-radius:6px;padding:12px 14px;margin:12px 0 0;font-size:13px;color:#166534;font-family:Arial,sans-serif;">${nl2br(opts.customMessage)}</div>`
+    : "";
+
+  const pdfChip = opts.hasPdf
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0 0;background:${primary}0d;border:1px solid ${primary}55;border-radius:12px;">
+        <tr><td style="padding:10px 0 10px 12px;"><span style="display:inline-block;width:30px;height:30px;border-radius:8px;background:${primary};color:#fff;text-align:center;line-height:30px;font-size:15px;">📎</span></td>
+        <td style="padding:10px 14px 10px 10px;font-family:Arial,sans-serif;"><div style="font-size:12.5px;font-weight:700;color:#111827;">${esc(opts.pdfFilename || "proposal.pdf")}</div><div style="font-size:11.5px;color:#6a7280;">The full branded proposal is attached.</div></td></tr>
+      </table>`
+    : "";
+
+  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body style="margin:0;padding:0;background:#eef1f5;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef1f5;padding:24px 12px;">
+    <tr><td align="center">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="640" style="max-width:640px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.12);">
+        <tr><td style="background:${primary};background:${grad};padding:16px 26px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr>
+            <td align="left" valign="middle">${logo}</td>
+            <td align="right" valign="middle"><span style="display:inline-block;background:rgba(255,255,255,0.16);color:#ffffff;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:5px 10px;border-radius:999px;font-family:Arial,sans-serif;">Quick note for ${to}</span></td>
+          </tr></table>
+        </td></tr>
+        <tr><td style="padding:26px 28px;color:${esc(ink)};">
+          <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#8a94a2;font-family:Arial,sans-serif;">Subject</div>
+          <div style="font-size:18px;font-weight:800;line-height:1.25;color:#0f172a;margin:2px 0 0;font-family:Arial,sans-serif;">${subject}</div>
+          <p style="font-size:15px;font-weight:700;margin:18px 0 0;color:#0f172a;font-family:Arial,sans-serif;">Hey ${to} 👋</p>
+          ${customBlock}
+          <p style="font-size:14.5px;line-height:1.6;color:#26313f;margin:8px 0 0;font-family:Arial,sans-serif;">${summary}</p>
+          ${bulletsHtml}
+          <div style="margin:22px 0 0;"><a href="${ctaUrl}" style="display:inline-block;background:${primary};background:${grad};color:#ffffff;font-size:14px;font-weight:800;text-decoration:none;padding:12px 26px;border-radius:999px;font-family:Arial,sans-serif;">Grab a 15-min call →</a></div>
+          <p style="font-size:13.5px;color:#6a7280;margin:20px 0 0;font-family:Arial,sans-serif;">Talk soon,<br/><b style="color:${esc(ink)};">${esc(brandName)}</b></p>
+          ${pdfChip}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
