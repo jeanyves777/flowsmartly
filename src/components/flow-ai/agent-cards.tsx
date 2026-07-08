@@ -605,10 +605,61 @@ function OpenLink({ href, className, children }: { href: string; className?: str
   );
 }
 
+// Real pipeline stages of the story-ad / film build, keyed to the progress %
+// the worker reports. Lets the running card show honest stage-by-stage progress
+// (the pipeline streams a % + a step message, NOT per-scene thumbnails).
+const FILM_STAGES: { label: string; at: number }[] = [
+  { label: "Screenplay", at: 5 },
+  { label: "Characters & turnaround", at: 22 },
+  { label: "Rendering scenes", at: 40 },
+  { label: "Voiceover & music", at: 78 },
+  { label: "Final cut", at: 92 },
+];
+
+function FilmProgress({ progress, message }: { progress?: number; message?: string }) {
+  const p = Math.max(3, Math.min(99, typeof progress === "number" ? progress : 5));
+  let activeIdx = 0;
+  for (let i = 0; i < FILM_STAGES.length; i++) if (p >= FILM_STAGES[i].at) activeIdx = i;
+  const step = message?.trim() || "Directing your film…";
+  return (
+    <div className="flex flex-col gap-3 px-3.5 py-3">
+      <div className="flex items-center gap-2 text-[12.5px] font-semibold">
+        <AISpinner size={14} />
+        <span className="truncate">{step}</span>
+        <span className="ms-auto font-mono text-[11px] text-muted-foreground">{Math.round(p)}%</span>
+      </div>
+      <div className="flex flex-col gap-2">
+        {FILM_STAGES.map((s, i) => {
+          const state = i < activeIdx ? "done" : i === activeIdx ? "active" : "pending";
+          return (
+            <div key={s.label} className={cn("flex items-center gap-2 text-[12px]", state === "pending" ? "text-muted-foreground" : "text-foreground")}>
+              <span className={cn(
+                "grid h-4 w-4 shrink-0 place-items-center rounded-full border text-[9px]",
+                state === "done" ? "border-emerald-500 bg-emerald-500/15 text-emerald-500"
+                  : state === "active" ? "border-brand-500 text-brand-500 animate-pulse"
+                  : "border-border text-muted-foreground",
+              )}>
+                {state === "done" ? "✓" : state === "active" ? "◜" : ""}
+              </span>
+              <span>{s.label}</span>
+              {state === "done" && <span className="ms-auto font-mono text-[10px] text-muted-foreground">done</span>}
+            </div>
+          );
+        })}
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500 transition-all" style={{ width: `${p}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export function TaskCard({ task }: { task: AgentTaskCardData }) {
   const [lightbox, setLightbox] = useState<string | null>(null);
   const kindLabel = humanizeTaskKind(task.kind);
   const isRunning = task.status === "running" || task.status === "pending";
+  // Film builds get a rich stage-by-stage running card instead of the plain loader.
+  const isFilm = task.kind === "start_story_ad_campaign" || task.kind === "direct_film";
   const isDone = task.status === "completed";
   const isFailed = task.status === "failed" || task.status === "canceled";
   // Accept absolute OR app-relative media (dev S3 falls back to /uploads/…, so a
@@ -664,12 +715,14 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
           {task.status}
         </span>
       </div>
-      {isRunning && (
+      {isRunning && (isFilm ? (
+        <FilmProgress progress={task.progress} message={task.progressMessage} />
+      ) : (
         <div className="relative grid place-items-center overflow-hidden py-11 text-muted-foreground/20">
           <DotGrid />
           <LogoGlowLoader size={72} />
         </div>
-      )}
+      ))}
       {isDone && isCanvasObject && objectUrl && (
         <div className="bg-muted/30">
           <div className="grid place-items-center bg-[repeating-conic-gradient(#80808022_0%_25%,transparent_0%_50%)] bg-[length:16px_16px] p-3">
@@ -769,6 +822,7 @@ function humanizeTaskKind(kind: string): string {
     import_contacts_csv: "Contact import",
     create_email_campaign: "Email campaign",
     start_story_ad_campaign: "Story ad movie",
+    direct_film: "Film",
     create_automation: "Marketing automation",
     create_proposal: "Service proposal",
     create_pitch: "Outreach pitch",

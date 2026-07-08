@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rich story-ad film card — mock</title>
+<style>
+  :root {
+    --bg: #0b0b12; --card: #14141d; --card2: #1b1b27; --border: #262633;
+    --fg: #e9e9f2; --muted: #9a9ab0; --brand: #6d5cff; --violet: #a855f7;
+    --emerald: #10b981; --amber: #f59e0b; --rose: #f43f5e;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: radial-gradient(1200px 600px at 50% -10%, #17172a, var(--bg)); color: var(--fg);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 32px 16px; }
+  .wrap { max-width: 460px; margin: 0 auto; }
+  h1 { font-size: 15px; color: var(--muted); font-weight: 600; text-align: center; margin: 0 0 6px; }
+  .sub { text-align:center; color: var(--muted); font-size: 12px; margin: 0 0 22px; }
+
+  /* chat context */
+  .turn { display:flex; gap:10px; margin-bottom: 18px; align-items:flex-start; }
+  .ava { width:30px;height:30px;border-radius:50%;background:#fff;display:grid;place-items:center;flex:0 0 auto;font-size:16px; }
+  .bubble { background: var(--card); border:1px solid var(--border); border-radius: 16px; padding: 9px 13px; font-size: 13.5px; }
+
+  /* the film card (AgentView look) */
+  .card { border:1px solid var(--border); background: var(--card); border-radius: 18px; overflow:hidden;
+    box-shadow: 0 10px 34px -12px rgba(109,92,255,.35); }
+  .card.run { border-color: rgba(109,92,255,.4); }
+  .hd { display:flex; align-items:center; gap:10px; padding:11px 14px; border-bottom:1px solid var(--border); }
+  .ico { width:28px;height:28px;border-radius:9px;display:grid;place-items:center;font-size:15px;
+    background:linear-gradient(135deg, rgba(109,92,255,.25), rgba(168,85,247,.22)); }
+  .ttl { font-weight:700; font-size:13px; }
+  .stl { font-size:11px; color:var(--muted); }
+  .badge { margin-left:auto; font-size:10px; font-weight:700; padding:3px 8px; border-radius:999px; }
+  .badge.brand { background:rgba(109,92,255,.16); color:#b6acff; }
+  .badge.ok { background:rgba(16,185,129,.16); color:#4ade80; }
+  .bd { padding: 13px 14px; display:flex; flex-direction:column; gap:12px; }
+
+  .statusrow { display:flex; align-items:center; gap:9px; font-size:12.5px; font-weight:600; }
+  .spinner { width:15px;height:15px;border-radius:50%;border:2px solid rgba(109,92,255,.3); border-top-color:var(--brand);
+    animation: spin .8s linear infinite; flex:0 0 auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .statusrow .pct { margin-left:auto; font-family: ui-monospace, monospace; font-size:11px; color:var(--muted); }
+
+  /* pipeline stage checklist */
+  .stages { display:flex; flex-direction:column; gap:9px; }
+  .stage { display:flex; align-items:center; gap:9px; font-size:12.5px; }
+  .dot { width:18px;height:18px;border-radius:50%;border:1.5px solid var(--border); display:grid;place-items:center;
+    font-size:10px; flex:0 0 auto; color:var(--muted); }
+  .stage.done .dot { border-color: var(--emerald); background:rgba(16,185,129,.15); color:var(--emerald); }
+  .stage.active .dot { border-color: var(--brand); color:var(--brand); animation: pulse 1.2s ease-in-out infinite; }
+  .stage.pending { color: var(--muted); }
+  @keyframes pulse { 0%,100%{ box-shadow:0 0 0 0 rgba(109,92,255,.4);} 50%{ box-shadow:0 0 0 4px rgba(109,92,255,0);} }
+  .stage .sub { margin-left:auto; font-family: ui-monospace, monospace; font-size:10px; color:var(--muted); }
+
+  .bar { height:6px; border-radius:999px; background: #232331; overflow:hidden; }
+  .fill { height:100%; border-radius:999px; background:linear-gradient(90deg, var(--brand), var(--violet)); transition:width .35s; }
+
+  /* done state */
+  .video { aspect-ratio: 9/16; max-height: 300px; margin: 0 auto; background: #000; border-radius:12px; overflow:hidden;
+    display:grid;place-items:center; position:relative; width: 170px; }
+  .video .play { width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.16);backdrop-filter:blur(4px);
+    display:grid;place-items:center;font-size:18px;color:#fff; }
+  .video .frame { position:absolute; inset:0; background:
+    linear-gradient(160deg,#2a1b4d,#3b1d63 40%, #6d5cff22); }
+  .ft { display:flex; gap:8px; flex-wrap:wrap; padding:11px 14px; border-top:1px solid var(--border); }
+  .btn { border:1px solid var(--border); background:transparent; color:var(--fg); font-weight:600; font-size:12px;
+    padding:7px 12px; border-radius:10px; cursor:pointer; }
+  .btn.primary { background:linear-gradient(90deg,var(--brand),var(--violet)); border:none; color:#fff; }
+  .note { font-size:11px; color:var(--muted); background:rgba(255,255,255,.03); border:1px solid var(--border);
+    border-radius:10px; padding:8px 10px; }
+
+  /* controls */
+  .ctl { max-width:460px; margin: 26px auto 0; background:var(--card2); border:1px solid var(--border); border-radius:14px; padding:14px 16px; }
+  .ctl label { font-size:12px; color:var(--muted); display:block; margin-bottom:8px; }
+  .ctl input[type=range]{ width:100%; accent-color: var(--brand); }
+  .ctl .val { font-family: ui-monospace, monospace; color:var(--brand); font-weight:700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Story-ad film — rich in-chat card</h1>
+  <p class="sub">Honest pipeline-stage progress (no fabricated thumbnails) → final preview + open</p>
+
+  <div class="turn">
+    <div class="ava">✨</div>
+    <div class="bubble">On it — directing your story ad movie now. I'll update this card as it renders.</div>
+  </div>
+
+  <div id="card" class="card run">
+    <div class="hd">
+      <div class="ico">🎬</div>
+      <div>
+        <div class="ttl">Story ad movie</div>
+        <div class="stl" id="dur">~20s · 9:16 · cinematic</div>
+      </div>
+      <div class="badge brand" id="badge">18%</div>
+    </div>
+    <div class="bd" id="body"><!-- filled by JS --></div>
+    <div class="ft" id="footer" style="display:none">
+      <button class="btn primary">▶ Play film</button>
+      <button class="btn">Open in Video Studio →</button>
+      <button class="btn">Download</button>
+    </div>
+  </div>
+</div>
+
+<div class="ctl">
+  <label>Simulate render progress: <span class="val" id="lbl">18%</span></label>
+  <input id="rng" type="range" min="0" max="100" value="18" />
+</div>
+
+<script>
+  const STAGES = [
+    { key:"script", label:"Screenplay", at:5,  msg:"Writing the screenplay…" },
+    { key:"cast",   label:"Characters & turnaround", at:22, msg:"Designing the cast…" },
+    { key:"scenes", label:"Rendering scenes", at:40, msg:"Rendering scene {n}…" },
+    { key:"voice",  label:"Voiceover & music", at:78, msg:"Recording the voiceover…" },
+    { key:"cut",    label:"Final cut", at:92, msg:"Stitching the final cut…" },
+  ];
+
+  const body = document.getElementById('body');
+  const badge = document.getElementById('badge');
+  const footer = document.getElementById('footer');
+  const card = document.getElementById('card');
+  const rng = document.getElementById('rng');
+  const lbl = document.getElementById('lbl');
+
+  function render(p) {
+    lbl.textContent = p + '%';
+    const done = p >= 100;
+
+    if (done) {
+      card.classList.remove('run');
+      badge.className = 'badge ok'; badge.textContent = 'Ready';
+      body.innerHTML = `
+        <div class="statusrow"><span class="dot" style="border-color:var(--emerald);background:rgba(16,185,129,.15);color:var(--emerald)">✓</span><span>Your story ad movie is ready</span></div>
+        <div class="video"><div class="frame"></div><div class="play">▶</div></div>
+        <div class="note">💡 Open it in the Video Studio to tweak scenes, swap the music, or re-cut — then publish.</div>`;
+      footer.style.display = 'flex';
+      return;
+    }
+
+    footer.style.display = 'none';
+    card.classList.add('run');
+    badge.className = 'badge brand'; badge.textContent = p + '%';
+
+    // active stage = last stage whose threshold is passed
+    let activeIdx = 0;
+    for (let i = 0; i < STAGES.length; i++) if (p >= STAGES[i].at) activeIdx = i;
+    const sceneNum = Math.min(6, Math.max(1, Math.round(((p - 40) / (78 - 40)) * 6) || 1));
+    const activeMsg = STAGES[activeIdx].msg.replace('{n}', sceneNum);
+
+    const stagesHtml = STAGES.map((s, i) => {
+      const state = i < activeIdx ? 'done' : i === activeIdx ? 'active' : 'pending';
+      const mark = state === 'done' ? '✓' : state === 'active' ? '◜' : '';
+      return `<div class="stage ${state}"><span class="dot">${mark}</span><span>${s.label}</span>${state==='done'?'<span class="sub">done</span>':''}</div>`;
+    }).join('');
+
+    body.innerHTML = `
+      <div class="statusrow"><span class="spinner"></span><span>${activeMsg}</span><span class="pct">${p}%</span></div>
+      <div class="stages">${stagesHtml}</div>
+      <div class="bar"><div class="fill" style="width:${p}%"></div></div>`;
+  }
+
+  rng.addEventListener('input', () => render(+rng.value));
+  render(18);
+</script>
+</body>
+</html>
