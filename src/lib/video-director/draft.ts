@@ -15,6 +15,22 @@ const ENGINE_SET = new Set<SceneEngine>(["ai", "avatar", "reel", "media", "desig
 export async function draftFilmPipeline(filmId: string, userId: string): Promise<FilmProject | null> {
   const film = await getFilm(filmId, userId);
   if (!film) return null;
+
+  // Reel film — lay N reel scenes from the source video directly (no LLM plan needed).
+  if (film.filmType === "reel" && film.sourceVideoUrl) {
+    const src = film.sourceVideoUrl;
+    const n = Math.max(2, Math.min(10, film.sceneCount || 6));
+    const per = Math.max(4, Math.min(15, film.targetSeconds || 30)); // clip length
+    film.scenes = Array.from({ length: n }, (_, i) => normalizeScene({
+      id: `sc_${i}_${Math.random().toString(36).slice(2, 7)}`,
+      engine: "reel", title: `Clip ${i + 1}`, script: "Best moment from the source video",
+      durationSec: Math.min(per, 15), order: i, x: 340 + i * 250, y: 80 + (i % 2) * 210,
+      status: "draft", captionsOn: true, sourceUrl: src,
+    }, i));
+    await saveFilm(filmId, userId, film);
+    return film;
+  }
+
   const brief = film.brief.trim();
   if (!brief) return film;
 
