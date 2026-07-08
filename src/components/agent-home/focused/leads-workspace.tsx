@@ -64,6 +64,34 @@ const INDUSTRY_CHIPS = ["Dental", "Med spa", "Law", "SaaS", "Real estate"];
 const FLD = "w-full rounded-[9px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 const SEL = "rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12px] outline-none focus:border-brand-500/60";
 
+// Words too generic to reward a lead-match on — they'd fire on almost any business.
+const BRAND_STOP = new Set([
+  "the", "and", "for", "with", "your", "our", "you", "who", "that", "this", "from", "based",
+  "services", "service", "solutions", "solution", "company", "companies", "business", "businesses",
+  "group", "agency", "studio", "inc", "llc", "co", "corp", "professional", "quality", "best",
+  "local", "premium", "affordable", "trusted", "expert", "experts", "leading", "products", "product",
+]);
+
+/** Turn the user's Brand Kit (what they actually sell) into tight ICP focus terms
+ *  for opportunity scoring. We tokenize industry/niche/keywords/products into
+ *  distinct meaningful words (drops generic filler) and cap the set — the score's
+ *  match-ratio dilutes if the term list is large, so fewer/sharper terms score better. */
+function deriveFocusTerms(bk: Record<string, unknown> | null | undefined): string[] {
+  if (!bk) return [];
+  const out = new Set<string>();
+  const add = (v: unknown) => {
+    if (typeof v !== "string") return;
+    for (const w of v.toLowerCase().split(/[^a-z0-9]+/)) {
+      if (w.length >= 3 && !BRAND_STOP.has(w)) out.add(w);
+    }
+  };
+  add(bk.industry);
+  add(bk.niche);
+  if (Array.isArray(bk.keywords)) bk.keywords.forEach(add);
+  if (Array.isArray(bk.products)) bk.products.forEach(add);
+  return Array.from(out).slice(0, 12);
+}
+
 export function FocusedLeads({ initialScreen, onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy, onPitchLead, onOpenPitch }: { initialScreen?: string; refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean; onPitchLead?: (l: SavedLead) => void; onOpenPitch?: (pitchId: string) => void }) {
   const { toast } = useToast();
   const { isMobile, seedComposer } = useMobileChat();
@@ -140,6 +168,19 @@ export function FocusedLeads({ initialScreen, onAsk, refreshKey, menuOpen: menuO
   const [pasteRows, setPasteRows] = useState("");
   const [newFolderName, setNewFolderName] = useState("");
   const [importing, setImporting] = useState(false);
+
+  // Brand-fit terms: the user's OWN Brand Kit (industry / niche / keywords /
+  // products) → what they actually SELL. Fed to the opportunity score so the
+  // "brand fit" half rewards leads that match the offering, not just the search.
+  const [focusTerms, setFocusTerms] = useState<string[]>([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const j = await fetch("/api/brand").then((r) => r.json());
+        if (j?.success && j.data?.brandKit) setFocusTerms(deriveFocusTerms(j.data.brandKit));
+      } catch { /* no brand kit yet → score falls back to search context */ }
+    })();
+  }, []);
 
   const loadLists = useCallback(async () => {
     try { const j = await fetch("/api/leads/lists").then((r) => r.json()); if (j?.success) setLists(j.data.lists || []); } catch { /* ignore */ }
@@ -280,11 +321,11 @@ export function FocusedLeads({ initialScreen, onAsk, refreshKey, menuOpen: menuO
       {/* CONTENT */}
       <div className="min-w-0 flex-1 overflow-y-auto px-4 pb-6 pt-3.5 sm:px-5">
         {screen === "find" ? (
-          <FindScreen state={findState} results={results} resultList={resultList}
+          <FindScreen state={findState} results={results} resultList={resultList} focusTerms={focusTerms}
             onOpenBrief={openLeadBrief} onBuild={() => { if (resultList) buildAutomation(resultList); }}
             enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={() => { if (resultList) enrichAll(results, `in the "${resultList.name}" list`); }} onOpenLead={setDetailLead} />
         ) : screen === "contacts" ? (
-          <ContactsScreen leads={allLeads} loaded={loadedLeads} enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={(ls, label) => enrichAll(ls, label)} onOpenLead={setDetailLead} scope={contactScope} onClearScope={() => setContactScope(null)} />
+          <ContactsScreen leads={allLeads} loaded={loadedLeads} focusTerms={focusTerms} enrichingIds={enrichingIds} onEnrich={enrichLead} onEnrichAll={(ls, label) => enrichAll(ls, label)} onOpenLead={setDetailLead} scope={contactScope} onClearScope={() => setContactScope(null)} />
         ) : screen === "companies" ? (
           <CompaniesScreen companies={companies} loaded={loadedLeads} />
         ) : screen === "pitches" ? (
@@ -570,14 +611,14 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 }
 
 /* ── Find ── */
-function FindScreen({ state, results, resultList, onOpenBrief, onBuild, enrichingIds, onEnrich, onEnrichAll, onOpenLead }: {
+function FindScreen({ state, results, resultList, focusTerms, onOpenBrief, onBuild, enrichingIds, onEnrich, onEnrichAll, onOpenLead }: {
   state: "empty" | "loading" | "results";
-  results: SavedLead[]; resultList: LeadList | null; onOpenBrief: () => void; onBuild: () => void;
+  results: SavedLead[]; resultList: LeadList | null; focusTerms: string[]; onOpenBrief: () => void; onBuild: () => void;
   enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onEnrichAll: () => void; onOpenLead: (l: SavedLead) => void;
 }) {
   const unenriched = results.filter((l) => !l.enrichedAt).length;
   const enrichBusy = results.some((l) => enrichingIds.has(l.id));
-  const ranked = useMemo(() => rankLeads(results, { searchLocation: resultList?.name }), [results, resultList]);
+  const ranked = useMemo(() => rankLeads(results, { searchLocation: resultList?.name, focusTerms }), [results, resultList, focusTerms]);
   if (state === "loading") {
     return (
       <div className="grid place-items-center py-24 text-center">
@@ -723,7 +764,7 @@ function ContactCell({ l, enriching }: { l: SavedLead; enriching: boolean }) {
 }
 
 /* ── Contacts ── */
-function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll, onOpenLead, scope, onClearScope }: { leads: SavedLead[]; loaded: boolean; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onEnrichAll: (leads: SavedLead[], label: string) => void; onOpenLead: (l: SavedLead) => void; scope?: LeadList | null; onClearScope?: () => void }) {
+function ContactsScreen({ leads, loaded, focusTerms, enrichingIds, onEnrich, onEnrichAll, onOpenLead, scope, onClearScope }: { leads: SavedLead[]; loaded: boolean; focusTerms: string[]; enrichingIds: Set<string>; onEnrich: (l: SavedLead) => void; onEnrichAll: (leads: SavedLead[], label: string) => void; onOpenLead: (l: SavedLead) => void; scope?: LeadList | null; onClearScope?: () => void }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | "enriched" | "new">("all");
   const [listFilter, setListFilter] = useState("all");
@@ -748,7 +789,7 @@ function ContactsScreen({ leads, loaded, enrichingIds, onEnrich, onEnrichAll, on
 
   // Rank the whole filtered set (best-first) BEFORE paging, so #1 is the top
   // opportunity across all pages, not just the current page.
-  const ranked = useMemo(() => rankLeads(filtered, { searchLocation: scope?.name ?? (listFilter !== "all" ? listFilter : undefined) }), [filtered, scope, listFilter]);
+  const ranked = useMemo(() => rankLeads(filtered, { searchLocation: scope?.name ?? (listFilter !== "all" ? listFilter : undefined), focusTerms }), [filtered, scope, listFilter, focusTerms]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageC = Math.min(page, totalPages);
