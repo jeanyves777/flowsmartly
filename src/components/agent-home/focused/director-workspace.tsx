@@ -18,13 +18,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, ty
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
-  Sparkles, X, Film, Clapperboard, UserSquare2, Scissors, Images, Palette, Plus,
+  Sparkles, X, Film, Clapperboard, UserSquare2, Scissors, Images, Palette, Plus, Paperclip,
   ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon,
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
-import type { FilmProject, FilmScene, FilmOverlay, SceneEngine, FilmType, FilmAspect } from "@/lib/video-director/types";
+import type { FilmProject, FilmScene, FilmOverlay, FilmAsset, SceneEngine, FilmType, FilmAspect } from "@/lib/video-director/types";
 
 // ------------------------------------------------------------------ engine meta
 const ENGINES: Record<SceneEngine, { label: string; color: string; Icon: ElementType; hint: string }> = {
@@ -51,7 +51,7 @@ interface BriefDraft {
   brief: string; filmType: FilmType; aspect: FilmAspect; targetSeconds: number; title: string;
   sceneCount?: number | null; style?: string; quality?: string;
   avatarId?: string; avatarName?: string; voiceId?: string; voiceName?: string;
-  sourceVideoUrl?: string | null;
+  sourceVideoUrl?: string | null; assets?: FilmAsset[];
 }
 
 const NODE_W = 208;
@@ -1046,6 +1046,22 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
   const [aQuality, setAQuality] = useState<string>(film?.quality || "standard");
   const [aAspect, setAAspect] = useState<FilmAspect>(film?.aspect || "9:16");
   const [aLen, setALen] = useState<number>(film?.targetSeconds || 30);
+  // Attached media (all tabs) — product/reference image or the user's photo.
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [assets, setAssets] = useState<FilmAsset[]>(film?.assets || []);
+  const [uploading, setUploading] = useState(false);
+  const [mediaPicker, setMediaPicker] = useState(false);
+  const addAsset = (url: string, name: string) => setAssets((a) => [...a, { id: `as_${Math.random().toString(36).slice(2, 7)}`, url, kind: "image", name, role: "product" }]);
+  const onFiles = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setUploading(true);
+    for (const f of Array.from(files)) {
+      try { const fd = new FormData(); fd.append("file", f); const j = await fetch("/api/upload", { method: "POST", body: fd }).then((r) => r.json()); if (j?.success && j.data?.url) addAsset(j.data.url, f.name); } catch { /* ignore */ }
+    }
+    setUploading(false);
+  };
+  const toggleRole = (id: string) => setAssets((a) => a.map((x) => x.id === id ? { ...x, role: x.role === "clone_photo" ? "product" : "clone_photo" } : x));
+  const removeAsset = (id: string) => setAssets((a) => a.filter((x) => x.id !== id));
 
   const AV_TEMPLATES: { id: string; name: string; brief: string }[] = [
     { id: "launch", name: "Launch Reel", brief: "Big news — we just launched something we're really proud of. Here's what it does and why it matters for you…" },
@@ -1057,11 +1073,11 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
 
   const build = () => {
     if (tab === "video") {
-      onSubmit({ brief: vBrief, filmType: "ai_film", aspect: "9:16", targetSeconds: vLen, title: vBrief.slice(0, 60) || "AI video", style: vStyle, sceneCount: null });
+      onSubmit({ assets, brief: vBrief, filmType: "ai_film", aspect: "9:16", targetSeconds: vLen, title: vBrief.slice(0, 60) || "AI video", style: vStyle, sceneCount: null });
     } else if (tab === "reel") {
-      onSubmit({ brief: "Scored reel clips cut from the source video.", filmType: "reel", aspect: rAspect, targetSeconds: rClip, title: "Reel clips", sourceVideoUrl: rSource.trim() || null, sceneCount: rCount });
+      onSubmit({ assets, brief: "Scored reel clips cut from the source video.", filmType: "reel", aspect: rAspect, targetSeconds: rClip, title: "Reel clips", sourceVideoUrl: rSource.trim() || null, sceneCount: rCount });
     } else {
-      onSubmit({ brief: aBrief, filmType: "testimonial", aspect: aAspect, targetSeconds: aLen, title: aBrief.slice(0, 60) || "Avatar video", sceneCount: aScenes, quality: aQuality, avatarId: aAvatarId || undefined, avatarName: aAvatarName || undefined, voiceId: aVoiceId || undefined, voiceName: aVoiceName || undefined });
+      onSubmit({ assets, brief: aBrief, filmType: "testimonial", aspect: aAspect, targetSeconds: aLen, title: aBrief.slice(0, 60) || "Avatar video", sceneCount: aScenes, quality: aQuality, avatarId: aAvatarId || undefined, avatarName: aAvatarName || undefined, voiceId: aVoiceId || undefined, voiceName: aVoiceName || undefined });
     }
   };
   const canBuild = tab === "video" ? !!vBrief.trim() : tab === "reel" ? !!rSource.trim() : !!aBrief.trim();
@@ -1088,6 +1104,25 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-3">
+          {/* shared media attachment — works on every tab; the director routes it smartly */}
+          <div className="mb-4 rounded-[12px] border border-border bg-gradient-to-b from-brand-500/[0.06] to-transparent p-3">
+            <div className="mb-2 flex items-center gap-1.5 text-[11.5px] font-semibold"><Paperclip className="h-3.5 w-3.5 text-brand-500" /> Attach media <span className="font-normal text-muted-foreground">— product photo, reference, or your photo · optional</span></div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-[9px] border border-border bg-background px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60"><Upload className="h-3.5 w-3.5" /> Upload</button>
+              <button onClick={() => setMediaPicker(true)} className="inline-flex items-center gap-1.5 rounded-[9px] border border-border bg-background px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500/60"><Images className="h-3.5 w-3.5" /> Media Library</button>
+              <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => onFiles(e.target.files)} />
+              {uploading && <FlowLoader size={14} />}
+              {assets.map((a) => (
+                <span key={a.id} className="inline-flex items-center gap-1.5 rounded-[8px] border border-border bg-background py-1 pl-1 pr-1.5 text-[10.5px]">
+                  <span className="grid h-6 w-6 place-items-center overflow-hidden rounded bg-muted">{a.url ? <Image src={a.url} alt="" width={24} height={24} className="h-full w-full object-cover" unoptimized /> : "🖼"}</span>
+                  <button onClick={() => toggleRole(a.id)} title="Toggle role" className={cn("rounded px-1.5 py-0.5 text-[9.5px] font-bold", a.role === "clone_photo" ? "bg-cyan-500/15 text-cyan-500" : "bg-brand-500/15 text-brand-500")}>{a.role === "clone_photo" ? "My photo" : "Product"}</button>
+                  <button onClick={() => removeAsset(a.id)} className="text-muted-foreground hover:text-rose-500">✕</button>
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-[10.5px] leading-snug text-muted-foreground">Describe what you want in the brief — the director reads your media and plans the best film across AI, your avatar &amp; reel, with music. A product image anchors the AI shots; mark your selfie as <b className="text-foreground">My photo</b> to make it your talking avatar.</p>
+          </div>
+
           {/* ---------------- VIDEO (AdBuilder) ---------------- */}
           {tab === "video" && (
             <>
@@ -1192,6 +1227,14 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
           </button>
         </div>
       </div>
+
+      <MediaLibraryPicker
+        open={mediaPicker}
+        onClose={() => setMediaPicker(false)}
+        onSelect={(url) => { addAsset(url, "library image"); setMediaPicker(false); }}
+        filterTypes={["image"]}
+        title="Choose an image to work from"
+      />
     </div>
   );
 }
