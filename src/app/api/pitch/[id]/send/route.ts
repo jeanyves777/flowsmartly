@@ -15,11 +15,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    const { recipientEmail, recipientName, message, pdfOnly } = body as {
-      recipientEmail?: string; recipientName?: string; message?: string; pdfOnly?: boolean;
+    const { recipientEmail, recipientName, message, pdfOnly, variant } = body as {
+      recipientEmail?: string; recipientName?: string; message?: string; pdfOnly?: boolean; variant?: "deck" | "visual";
     };
 
-    const result = await deliverProposal(session.userId, id, { recipientEmail, recipientName, message, pdfOnly });
+    const result = await deliverProposal(session.userId, id, { recipientEmail, recipientName, message, pdfOnly, variant });
 
     if (!result.ok) {
       const status =

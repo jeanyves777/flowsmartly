@@ -97,6 +97,9 @@ export interface DeliverProposalOpts {
   message?: string;
   /** Generate + return the PDF only, don't send an email. */
   pdfOnly?: boolean;
+  /** Which proposal layout to render — matches the Studio's selected doc type
+   *  (Proposal deck = text-forward, Visual deck = image-rich). Defaults to deck. */
+  variant?: "deck" | "visual";
 }
 
 export type DeliverProposalCode = "not_found" | "not_ready" | "no_recipient" | "pdf_failed" | "error";
@@ -189,7 +192,7 @@ export async function deliverProposal(userId: string, pitchId: string, opts: Del
   try {
     if (proposalContent) {
       try {
-        const html = renderProposalHtml(proposalContent, { logoDataUri: brand.logo, brandName: brand.name });
+        const html = renderProposalHtml(proposalContent, { logoDataUri: brand.logo, brandName: brand.name, variant: opts.variant });
         pdfBuffer = await renderHtmlToPdf(html, { format: "A4" });
       } catch (htmlErr) {
         console.warn("[deliverProposal] HTML→PDF failed, falling back to jsPDF:", htmlErr);
