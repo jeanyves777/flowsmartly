@@ -50,13 +50,13 @@ export const enrichLead: FlowAgentTool = {
     // name fallback guarantees enrichment ALWAYS lands in the UI — never in chat.
     let lead = leadId ? await prisma.savedLead.findFirst({
       where: { id: leadId, userId: ctx.userId },
-      select: { id: true, name: true, address: true, website: true, phone: true, socials: true, list: { select: { name: true, category: true } } },
+      select: { id: true, name: true, listId: true, address: true, website: true, phone: true, socials: true, list: { select: { name: true, category: true } } },
     }) : null;
     if (!lead && leadName) {
       lead = await prisma.savedLead.findFirst({
         where: { userId: ctx.userId, name: { contains: leadName }, ...(listId ? { listId } : {}) },
         orderBy: { createdAt: "desc" },
-        select: { id: true, name: true, address: true, website: true, phone: true, socials: true, list: { select: { name: true, category: true } } },
+        select: { id: true, name: true, listId: true, address: true, website: true, phone: true, socials: true, list: { select: { name: true, category: true } } },
       });
     }
     if (!lead) return { ok: false, error_code: "not_found", message: `No saved lead matched ${leadId ? `id "${leadId}"` : `name "${leadName}"`}. Do NOT report the details in chat — ask the user to reopen the list, or pass the exact leadId from the row.` };
@@ -102,6 +102,19 @@ export const enrichLead: FlowAgentTool = {
       enrichmentSource: "web",
     };
 
+    // Guard: don't "enrich" with nothing. If the agent called this without any
+    // contact detail, it skipped the web search — send it back to search first so
+    // the user never gets an empty "enriched" card. [[agent-authored-views]]
+    const foundAnything = !!(updateData.email || updateData.phone || updateData.phones || updateData.website || updateData.address || Object.keys(cleanSocials).length);
+    if (!foundAnything) {
+      return {
+        ok: false,
+        error_code: "missing_input",
+        recoverable: true,
+        message: `Don't call enrich_lead with empty fields. FIRST web_search for ${lead.name}'s public contact info — their email, phone, website and address (check LinkedIn, the company website, and local business directories) — then call enrich_lead again passing what you found (email/phone/website/address). If after searching there is genuinely nothing public, tell the user you couldn't find contact details rather than marking it enriched.`,
+      };
+    }
+
     const updated = await prisma.savedLead.update({
       where: { id: resolvedId },
       data: updateData,
@@ -127,6 +140,7 @@ export const enrichLead: FlowAgentTool = {
         website: candidateWebsite && !warned.has("website") ? candidateWebsite : lead.website,
         address: candidateAddress && !blocked.has("address") ? candidateAddress : lead.address,
         socials: cleanSocials,
+        listId: lead.listId,
       }),
     });
 
