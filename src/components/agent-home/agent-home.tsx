@@ -1314,7 +1314,7 @@ export function AgentHome() {
           {/* workspace panel — slides over the CURRENT view (home or any focused
               surface). Browsing it never resets the open view; closing returns to
               it. Only picking an item navigates (guarded for unsaved changes). */}
-          <aside className={cn("fixed inset-0 z-50 flex flex-col bg-card transition-transform duration-300 md:absolute md:inset-y-0 md:left-auto md:right-0 md:w-[440px] md:border-s md:border-border md:shadow-2xl", panelKey ? "translate-x-0" : "translate-x-full")}>
+          <aside className={cn("fixed inset-0 z-50 flex flex-col bg-card transition-transform duration-300 md:absolute md:inset-y-0 md:left-0 md:right-auto md:w-[440px] md:border-e md:border-border md:shadow-2xl", panelKey ? "translate-x-0" : "translate-x-full md:-translate-x-full")}>
             {panelKey && (
               <WorkspacePanel
                 panelKey={panelKey}
