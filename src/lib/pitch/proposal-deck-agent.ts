@@ -14,6 +14,7 @@ import type { ProposalLibraryAsset } from "./proposal-asset-library";
 import { listProposalVisualAssets } from "./proposal-asset-library";
 import { DEFAULT_PROPOSAL_BUILDER_TYPE, type ServiceProposalContent, type ServiceProposalInput } from "./proposal-agent";
 import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { getUserPreferredLanguage, languageDirective, withLanguagePrefix } from "@/lib/ai/user-language";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { toTransparentPngCutout } from "./proposal-visuals";
 
@@ -381,7 +382,8 @@ function buildTools(input: ProposalDeckAgentInput, assets: ProposalLibraryAsset[
         if (!prompt) return { error: "prompt is required" };
         const safetyGuard =
           "Render as an isolated transparent PNG object cluster on a pure white/off-white background so the background can be removed. No text, no words, no letters, no numbers, no logos, no brand marks, no fake UI labels, no placeholder boxes, no dashed frames, no borders.";
-        const fullPrompt = `${prompt}. ${safetyGuard}`;
+        const language = await getUserPreferredLanguage(input.request.userId);
+        const fullPrompt = withLanguagePrefix(`${prompt}. ${safetyGuard}`, language);
 
         try {
           const generation = await generateImageXaiFirst(fullPrompt, dims.width, dims.height, { quality: "high" });
@@ -460,6 +462,7 @@ export async function runServiceProposalDeckAgent(input: ProposalDeckAgentInput)
   usage: { inputTokens: number; outputTokens: number };
   toolsUsed: string[];
 }> {
+  const language = await getUserPreferredLanguage(input.request.userId);
   const libraryAssets = filterAssetsForBrand(input, await listProposalVisualAssets({ presign: false }));
   const generated: ProposalLibraryAsset[] = [];
   const generationBudget = { remaining: 2 };
@@ -471,7 +474,9 @@ export async function runServiceProposalDeckAgent(input: ProposalDeckAgentInput)
       maxTokens: 7000,
       maxIterations: 8,
       thinkingBudget: false,
-      systemPrompt: `You are FlowSmartly's PDF deck designer.
+      systemPrompt: `${languageDirective(language)}
+
+You are FlowSmartly's PDF deck designer.
 
 Required tool flow:
 1. Call get_raw_proposal_context.

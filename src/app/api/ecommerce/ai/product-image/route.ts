@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/session";
 import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { checkCreditsForFeature, getDynamicCreditCost } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
@@ -63,7 +64,11 @@ export async function POST(request: NextRequest) {
     // Build prompt
     const styleInstructions = STYLE_INSTRUCTIONS[style];
     const descPart = description ? ` ${description}.` : "";
-    const prompt = `Professional e-commerce product photo of ${productName}.${descPart} ${styleInstructions}. High quality, clean composition, studio lighting, photorealistic.`;
+    const language = await getUserPreferredLanguage(session.userId);
+    const prompt = withLanguagePrefix(
+      `Professional e-commerce product photo of ${productName}.${descPart} ${styleInstructions}. High quality, clean composition, studio lighting, photorealistic.`,
+      language
+    );
 
     // Generate image
     const generated = await generateImageXaiFirst(prompt, 1024, 1024, { quality: "high" });

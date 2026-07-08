@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { HAIKU_MODEL, ai } from "@/lib/ai/client";
+import { getUserPreferredLanguage, languageDirective } from "@/lib/ai/user-language";
 
 type SuggestField =
   | "serviceTitle"
@@ -144,10 +145,11 @@ export async function POST(request: NextRequest) {
         }
       : {};
 
+    const language = await getUserPreferredLanguage(session.userId);
     const text = await ai.generate(fieldPrompt(field, ctx, brand), {
       model: HAIKU_MODEL,
       maxTokens: 600,
-      systemPrompt: "You are a concise B2B copy assistant. Return plain text only. No quotes, no preamble, no JSON.",
+      systemPrompt: `${languageDirective(language)}\n\nYou are a concise B2B copy assistant. Return plain text only. No quotes, no preamble, no JSON.`,
     });
 
     const value = clean(text.replace(/^["'`]+|["'`]+$/g, ""), 1800);

@@ -27,7 +27,6 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
  */
 async function withSiteLanguage(systemPrompt: string, userId: string): Promise<string> {
   const lang = await getUserPreferredLanguage(userId).catch(() => DEFAULT_LANGUAGE);
-  if (lang === DEFAULT_LANGUAGE) return systemPrompt;
   const label = getLanguageLabel(lang);
   return `${systemPrompt}\n\nLANGUAGE (CRITICAL): Write ALL visitor-facing copy in ${label} (${lang}) — hero, headings, body, nav, buttons, footer, form labels, SEO meta titles/descriptions. Code identifiers, file names, and import paths stay in English.`;
 }
