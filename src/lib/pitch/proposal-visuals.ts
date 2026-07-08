@@ -38,6 +38,29 @@ function cleanHex(value: unknown, fallback: string): string {
   return /^#[0-9a-f]{6}$/i.test(raw) ? raw : fallback;
 }
 
+/**
+ * Describe a hex colour in NATURAL LANGUAGE (e.g. "sky blue", "deep violet").
+ * Raw hex codes must never go into an image prompt — the model renders them as
+ * literal text ("#0ea5e9") in the picture. We feed it colour names instead.
+ */
+function hexToColorName(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return "brand-neutral";
+  const num = parseInt(m[1], 16);
+  const r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const l = (max + min) / 510; // 0..1 lightness
+  if (d < 24) return l > 0.85 ? "off-white" : l < 0.16 ? "near-black charcoal" : l < 0.4 ? "dark grey" : "grey";
+  let h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = Math.round(h * 60); if (h < 0) h += 360;
+  const base =
+    h < 15 ? "red" : h < 32 ? "orange" : h < 50 ? "amber" : h < 66 ? "yellow" :
+    h < 150 ? "green" : h < 175 ? "teal" : h < 195 ? "cyan" : h < 225 ? "sky blue" :
+    h < 250 ? "blue" : h < 272 ? "indigo" : h < 292 ? "violet" : h < 330 ? "purple" : "pink";
+  const tone = l > 0.72 ? "light " : l < 0.34 ? "deep " : "";
+  return tone + base;
+}
+
 function cleanPrompt(value: string | undefined, fallback: string): string {
   const text = String(value || fallback).replace(/\s+/g, " ").trim();
   return text.slice(0, 1400);
@@ -160,7 +183,8 @@ function visualStyleGuard(input: GenerateProposalVisualAssetsInput) {
     input.brandKit?.tagline ? `Tagline mood: ${input.brandKit.tagline}.` : "",
     input.brandKit?.uniqueValue ? `Unique value: ${input.brandKit.uniqueValue}.` : "",
     `Audience: ${audience}. Voice: ${voice}. Industry: ${industry}.`,
-    `Use a premium visual language with brand colors ${primary}, ${secondary}, and ${accent}.`,
+    // Colour NAMES, never hex — raw codes get rendered as text in the image.
+    `Use a premium visual language in the brand's ${hexToColorName(primary)}, ${hexToColorName(secondary)} and ${hexToColorName(accent)} colour palette.`,
     fonts.heading ? `Match a ${fonts.heading} headline feel.` : "",
     `The final image will be placed inside a PDF proposal for ${input.targetName} about ${input.serviceTitle}.`,
     "Create one isolated premium 3D PNG-style illustration cutout on a pure white/off-white background so the background can be removed after generation.",
