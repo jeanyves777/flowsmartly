@@ -1,5 +1,7 @@
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db/client";
 import type { FlowAgentTool } from "../registry";
+import { leadsListView } from "@/lib/agent-views/templates";
 
 /**
  * list_leads — READ the user's saved leads (the Lead Studio Contacts/lists), so
@@ -20,6 +22,7 @@ export const listLeads: FlowAgentTool = {
       listId: { type: "string", description: "Exact SavedLeadList id, if you already have it (takes precedence over listName)." },
       status: { type: "string", enum: ["all", "unenriched", "enriched", "deep"], description: "Filter the returned leads. Default 'all'. Use 'unenriched' to get exactly the leads that still need enrich_lead." },
       limit: { type: "number", description: "Max lead rows to return (1-200, default 60). Counts are always exact regardless of this." },
+      asView: { type: "boolean", description: "Set TRUE to show a pickable leads table in the chat when the user actually asked to SEE/browse their leads. Default (omitted/false) stays text-only — the common path here is internal (counting / resolving ids before enrich_lead), which should NOT pop a table." },
     },
   },
   plans: null,
@@ -83,6 +86,7 @@ export const listLeads: FlowAgentTool = {
         }),
       ]);
       const unenriched = total - enriched;
+      const counts = { total, enriched, unenriched, deep };
 
       const hasExtraPhone = (v: string | null) => { try { const a = JSON.parse(v || "[]"); return Array.isArray(a) && a.length > 0; } catch { return false; } };
       const leads = rows.map((l) => {
@@ -103,19 +107,24 @@ export const listLeads: FlowAgentTool = {
         };
       });
 
+      // Show a pickable leads table ONLY when the agent wants to present them
+      // (asView true) — the common internal path (counting before enrich) passes
+      // asView:false and stays text-only.
+      const shown = input.asView === true && leads.length > 0;
+      if (shown) ctx.emit({ type: "agent_view", requestId: randomUUID(), spec: leadsListView(leads, counts, resolved?.name) });
       return {
         ok: true,
         data: {
           resolvedList: resolved ? { id: resolved.id, name: resolved.name } : null,
           scope: resolved ? "list" : "all_leads",
-          counts: { total, enriched, unenriched, deep },
+          counts,
           returned: leads.length,
           leads,
           lists: lists.map((l) => ({ id: l.id, name: l.name, leadCount: l._count.leads })),
           userMessage:
             total === 0
               ? (resolved ? `The "${resolved.name}" list has no saved leads yet.` : "No saved leads yet — use find_leads / find_local_leads first.")
-              : `${resolved ? `"${resolved.name}": ` : ""}${total} lead${total === 1 ? "" : "s"}, ${unenriched} still un-enriched. To enrich them, propose_plan (2× AI_WEB_SEARCH per lead), then call enrich_lead for each un-enriched lead id.`,
+              : `${resolved ? `"${resolved.name}": ` : ""}${total} lead${total === 1 ? "" : "s"}, ${unenriched} still un-enriched.${shown ? " A pickable leads table is ALREADY shown in the chat — don't re-list them as text." : ""} To enrich them, propose_plan (2× AI_WEB_SEARCH per lead), then call enrich_lead for each un-enriched lead id.`,
         },
       };
     } catch (e) {
