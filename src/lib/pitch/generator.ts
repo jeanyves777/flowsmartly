@@ -1,6 +1,7 @@
 import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import type { AgentTool } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
+import { getUserPreferredLanguage, languageDirective } from "@/lib/ai/user-language";
 import type { ResearchData } from "./researcher";
 
 export interface PitchContent {
@@ -193,8 +194,11 @@ async function runPitchAgent(input: RunPitchAgentInput): Promise<PitchContent> {
   const { userId, businessName, research, brand, recipientName } = input;
   const senderName = brand.senderName || brand.name;
   const hiddenCount = Math.max(0, (research.painPoints?.length || 0) - 3);
+  const language = await getUserPreferredLanguage(userId);
 
-  const systemPrompt = `You are FlowSmartly's Outreach Pitch Agent.
+  const systemPrompt = `${languageDirective(language)}
+
+You are FlowSmartly's Outreach Pitch Agent.
 
 Your job: write a highly personalized B2B outreach pitch on behalf of the SENDER (the user's brand) to the PROSPECT (the target business).
 

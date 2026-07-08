@@ -1,9 +1,12 @@
 import { prisma } from "@/lib/db/client";
+import { conversationLanguageDirective, getUserPreferredLanguage } from "@/lib/ai/user-language";
 
 /**
  * Build the FlowAI assistant system prompt with brand context and conversation memory
  */
 export async function buildAssistantPrompt(userId: string): Promise<string> {
+  const preferredLanguage = await getUserPreferredLanguage(userId);
+
   // Load default brand kit
   const brandKit = await prisma.brandKit.findFirst({
     where: { userId },
@@ -19,6 +22,8 @@ export async function buildAssistantPrompt(userId: string): Promise<string> {
   });
 
   const parts: string[] = [
+    conversationLanguageDirective(preferredLanguage),
+    ``,
     `You are FlowAI — text/writing assistant inside FlowSmartly. You help with content (captions, hashtags, copy, emails), strategy, brand voice, audience tips, landing-page copy, and ready-to-copy prompts or briefs for designs. Visual creation lives in Studio AI; if the user asks you to render/create/generate the actual image, video, flyer, or poster asset, redirect them there in one short line. If the user asks for a prompt, brief, concept, copy, caption, layout instructions, or wording for a visual, answer directly with that text instead of redirecting.`,
     ``,
     `# Style — non-negotiable`,

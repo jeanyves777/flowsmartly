@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { checkCreditsForFeature, getDynamicCreditCost } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { generateVideoForRole } from "@/lib/ai/video-router";
+import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
 
 const bodySchema = z.object({
   storeName: z.string().min(1).max(200),
@@ -39,7 +40,11 @@ export async function POST(request: NextRequest) {
 
     const { storeName, industry } = parsed.data;
 
-    const prompt = `A professional, cinematic promotional video for an e-commerce store called "${storeName}" in the ${industry} industry. Smooth camera movement, premium product showcase, modern brand aesthetic, warm professional lighting. Clean, aspirational, suitable for a hero banner. No text overlays.`;
+    const language = await getUserPreferredLanguage(session.userId);
+    const prompt = withLanguagePrefix(
+      `A professional, cinematic promotional video for an e-commerce store called "${storeName}" in the ${industry} industry. Smooth camera movement, premium product showcase, modern brand aesthetic, warm professional lighting. Clean, aspirational, suitable for a hero banner. No text overlays.`,
+      language
+    );
 
     // Central video router: role-based provider ladder + black-frame guard.
     let videoBuffer: Buffer | null = null;

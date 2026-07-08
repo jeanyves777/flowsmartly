@@ -1,6 +1,7 @@
 import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
 import { currentDateContext } from "@/lib/ai/date-context";
+import { getUserPreferredLanguage, languageDirective } from "@/lib/ai/user-language";
 import type { AgentTool } from "@/lib/ai/client";
 import type { ProposalDeckPlan } from "./proposal-deck-types";
 import type { ProposalClientProfile } from "./client-profile";
@@ -302,12 +303,14 @@ function buildTools(ctx: { userId: string }): AgentTool[] {
   ];
 }
 
-function systemPrompt(input: ServiceProposalInput): string {
+function systemPrompt(input: ServiceProposalInput, language: string): string {
   const layoutHint = input.builderType
     ? `Layout preference (PDF renderer only): ${input.builderType}. This affects how the PDF is laid out, not what the proposal says.`
     : "Layout preference: none specified.";
 
-  return `You are FlowSmartly's Service Proposal Agent.
+  return `${languageDirective(language)}
+
+You are FlowSmartly's Service Proposal Agent.
 
 ${currentDateContext()}
 
@@ -392,11 +395,12 @@ export async function runServiceProposalAgent(input: ServiceProposalInput): Prom
   toolsUsed: string[];
 }> {
   const builderType = input.builderType;
+  const language = await getUserPreferredLanguage(input.userId);
   const run = await ai.runWithTools<ServiceProposalContent | { error: string }>(
     `Generate the service proposal for ${input.targetName}. Use the tools to gather facts before writing. Return only the requested JSON object.`,
     buildTools({ userId: input.userId }),
     {
-      systemPrompt: systemPrompt(input),
+      systemPrompt: systemPrompt(input, language),
       model: HAIKU_MODEL,
       maxTokens: 10000,
       maxIterations: 8,
