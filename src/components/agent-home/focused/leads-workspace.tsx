@@ -64,7 +64,7 @@ const INDUSTRY_CHIPS = ["Dental", "Med spa", "Law", "SaaS", "Real estate"];
 const FLD = "w-full rounded-[9px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 const SEL = "rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12px] outline-none focus:border-brand-500/60";
 
-export function FocusedLeads({ initialScreen, onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy, onPitchLead, onOpenPitch }: { initialScreen?: string; refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean; onPitchLead?: (l: SavedLead) => void; onOpenPitch?: (pitchId: string) => void }) {
+export function FocusedLeads({ initialScreen, initialListId, onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy, onPitchLead, onOpenPitch }: { initialScreen?: string; initialListId?: string | null; refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean; onPitchLead?: (l: SavedLead) => void; onOpenPitch?: (pitchId: string) => void }) {
   const { toast } = useToast();
   const { isMobile, seedComposer } = useMobileChat();
   const openLeadBrief = () => { if (isMobile) { seedComposer(LEADS_STARTER); return; } setBriefOpen(true); };
@@ -101,6 +101,15 @@ export function FocusedLeads({ initialScreen, onAsk, refreshKey, menuOpen: menuO
   const [detailLead, setDetailLead] = useState<SavedLead | null>(null);
   // The open folder that scopes the Contacts view (null = all contacts).
   const [contactScope, setContactScope] = useState<LeadList | null>(null);
+
+  // Deep-link: when opened from an in-chat card with a specific list id, resolve
+  // it against the loaded lists and open that list's contacts (once).
+  const appliedListRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialListId || appliedListRef.current === initialListId || !lists.length) return;
+    const l = lists.find((x) => x.id === initialListId);
+    if (l) { appliedListRef.current = initialListId; setActiveList(l); setContactScope(l); setScreen("contacts"); }
+  }, [initialListId, lists]);
 
   const enrichLead = useCallback((l: SavedLead) => {
     // No early-return on already-enriched: the detail sheet's "Re-enrich" runs it

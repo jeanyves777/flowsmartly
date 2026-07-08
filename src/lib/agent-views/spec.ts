@@ -52,7 +52,7 @@ export type ViewBlock =
   | { type: "image"; url: string; alt?: string; aspect?: string; rounded?: boolean; action?: ViewAction }
   | { type: "video"; url: string; poster?: string | null }
   | { type: "mediaStrip"; items: { url?: string | null; label?: string; status?: "ready" | "busy" | "pending" }[]; aspect?: string; action?: ViewAction }
-  | { type: "table"; columns: ViewColumn[]; rows: Record<string, unknown>[]; rowAction?: ViewAction; rowActionLabel?: string }
+  | { type: "table"; columns: ViewColumn[]; rows: Record<string, unknown>[]; rowAction?: ViewAction; rowActionLabel?: string; rowActions?: { label: string; variant?: "primary" | "default" | "ghost" | "danger"; action: ViewAction }[] }
   | { type: "code"; code: string; lang?: string }
   | { type: "note"; text: string; tone?: Tone; icon?: string }
   // interactive

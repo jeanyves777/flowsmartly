@@ -339,6 +339,8 @@ export function AgentHome() {
   const [focused, setFocused] = useState<string | null>(null);
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(true); // Lead Studio section menu (toggled from the surface header)
   const [leadsInitialScreen, setLeadsInitialScreen] = useState("find");
+  // Deep-link a specific saved list open in the Lead Studio (from an in-chat card).
+  const [leadsInitialListId, setLeadsInitialListId] = useState<string | null>(null);
   const [design, setDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
   // The Print Studio canvas is a SEPARATE document from the Create design — they
   // must not share state or a draft key, or opening a print format would pollute
@@ -765,6 +767,8 @@ export function AgentHome() {
       if (campaignId) { guardNav(() => openCampaignStudio({ campaignId })); return true; }
       const designId = url.searchParams.get("design");
       if (designId) { guardNav(() => openDesignById(designId)); return true; }
+      const leadListId = url.searchParams.get("leadList");
+      if (leadListId) { guardNav(() => { setLeadsInitialListId(leadListId); openView("leads", "contacts"); }); return true; }
       const seg = url.pathname.replace(/^\/home\/?/, "").split("/")[0];
       if (seg && FOCUS_VIEWS.has(seg)) { guardNav(() => openView(seg)); return true; }
       if (!seg) { guardNav(() => setFocused(null)); return true; }
@@ -1240,7 +1244,7 @@ export function AgentHome() {
                 ) : focused === "reviews" ? (
                   <FocusedReviews onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "leads" ? (
-                  <FocusedLeads initialScreen={leadsInitialScreen} onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} onOpenPitch={(pitchId) => guardNav(() => openPitchStudio({ pitchId }))} />
+                  <FocusedLeads initialScreen={leadsInitialScreen} initialListId={leadsInitialListId} onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} onOpenPitch={(pitchId) => guardNav(() => openPitchStudio({ pitchId }))} />
                 ) : focused === "pitchstudio" ? (
                   <FocusedPitchStudio target={pitchTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} onOpenResource={setOpenResource} onUseInAutomation={() => guardNav(() => openView("leads", "pipeline"))} />
                 ) : focused === "campaign" ? (

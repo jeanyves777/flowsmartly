@@ -100,6 +100,8 @@ export const listLeads: FlowAgentTool = {
           name: l.name,
           company: l.category ?? null,
           title: l.title ?? null,
+          email: l.email ?? null,
+          phone: l.phone ?? null,
           list: l.list?.name ?? null,
           enriched: !!l.enrichedAt,
           deep: !!l.deepEnrichedAt,
@@ -111,7 +113,7 @@ export const listLeads: FlowAgentTool = {
       // (asView true) — the common internal path (counting before enrich) passes
       // asView:false and stays text-only.
       const shown = input.asView === true && leads.length > 0;
-      if (shown) ctx.emit({ type: "agent_view", requestId: randomUUID(), spec: leadsListView(leads, counts, resolved?.name) });
+      if (shown) ctx.emit({ type: "agent_view", requestId: randomUUID(), spec: leadsListView(leads, counts, resolved?.name, resolved?.id) });
       return {
         ok: true,
         data: {

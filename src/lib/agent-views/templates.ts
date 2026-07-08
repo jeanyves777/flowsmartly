@@ -65,10 +65,12 @@ export function foundLeadsView(
           { key: "contact", label: "Contact", kind: "badge" },
         ],
         rows: created.slice(0, 40).map((c) => ({ business: c.name, location: c.location || "—", industry: c.industry || "—", type: c.isOrg ? "Org" : "Person", contact: "🔒 hidden", id: c.id, name: c.name })),
-        rowAction: { event: "enrich_lead", tool: "enrich_lead", payload: listId ? { listId } : undefined },
-        rowActionLabel: "Reveal ✨",
+        rowActions: [
+          { label: "Get details", action: { event: "get_lead_details", payload: listId ? { listId } : undefined } },
+          { label: "Pitch", action: { event: "pitch_lead", tool: "create_pitch" } },
+        ],
       },
-      { type: "note", tone: "muted", icon: "💡", text: "Tap Reveal to unlock a lead's contact details (billed per lead) — then Pitch it right here, or open the studio for outreach." },
+      { type: "note", tone: "muted", icon: "💡", text: "Get details finds a lead's contact info (billed per lead) — then Pitch it right here, or open the studio for outreach." },
     ],
     footer: [{ type: "button", label: "Open Lead Studio →", action: { event: "open_studio", href: "/home/leads" } }],
   };
@@ -178,29 +180,41 @@ export function productsTableView(
   };
 }
 
-/** Saved leads (existing) → a table showing what's missing; reveal or open studio. */
+/** Saved leads (existing) → a table with contact + state; get details / pitch. */
 export function leadsListView(
-  leads: { id: string; name: string; company?: string | null; enriched?: boolean; missing?: string[] }[],
+  leads: { id: string; name: string; company?: string | null; email?: string | null; phone?: string | null; enriched?: boolean; missing?: string[] }[],
   counts?: { total: number; enriched: number; unenriched: number },
   listName?: string | null,
+  listId?: string | null,
 ): ViewSpec {
   return {
     name: "leads-list", source: "library", skill: "list_leads", width: "full",
     title: listName ? `${listName}` : "Leads",
-    subtitle: counts ? `${counts.total} · ${counts.unenriched} to enrich` : `${leads.length} lead${leads.length === 1 ? "" : "s"}`,
-    icon: "👥", badge: counts && counts.unenriched > 0 ? { text: `${counts.unenriched} un-enriched`, tone: "brand" } : { text: "enriched", tone: "success" },
+    subtitle: counts ? `${counts.total} lead${counts.total === 1 ? "" : "s"} · ${counts.enriched} enriched · ${counts.unenriched} to go` : `${leads.length} lead${leads.length === 1 ? "" : "s"}`,
+    icon: "👥", badge: counts && counts.unenriched > 0 ? { text: `${counts.unenriched} un-enriched`, tone: "brand" } : { text: "all enriched", tone: "success" },
     body: [
       { type: "table",
         columns: [
           { key: "name", label: "Lead" },
           { key: "company", label: "Company" },
-          { key: "missing", label: "Missing" },
+          { key: "contact", label: "Contact" },
           { key: "state", label: "State", kind: "badge" },
         ],
-        rows: leads.slice(0, 30).map((l) => ({ name: l.name, company: l.company || "—", missing: (l.missing && l.missing.length) ? l.missing.join(", ") : "—", state: l.enriched ? "Enriched" : "New", id: l.id, leadName: l.name })),
-        rowAction: { event: "enrich_lead", tool: "enrich_lead" }, rowActionLabel: "Reveal ✨" },
+        rows: leads.slice(0, 40).map((l) => ({
+          name: l.name,
+          company: l.company || "—",
+          contact: l.email || l.phone || (l.enriched ? "—" : "🔒 hidden"),
+          state: l.enriched ? "Enriched ✓" : "New",
+          id: l.id,
+          leadName: l.name,
+        })),
+        rowActions: [
+          { label: "Get details", action: { event: "get_lead_details", payload: listId ? { listId } : undefined } },
+          { label: "Pitch", action: { event: "pitch_lead", tool: "create_pitch" } },
+        ],
+      },
     ],
-    footer: [{ type: "button", label: "Open Lead Studio →", action: { event: "open_studio", href: "/home/leads" } }],
+    footer: [{ type: "button", label: "Open Lead Studio →", action: { event: "open_studio", href: listId ? `/home/leads?leadList=${listId}` : "/home/leads" } }],
   };
 }
 
@@ -215,6 +229,7 @@ export function enrichedLeadView(lead: {
   website?: string | null;
   address?: string | null;
   socials?: Record<string, string>;
+  listId?: string | null;
 }): ViewSpec {
   const body: ViewBlock[] = [];
   const line = (label: string, value: string | null | undefined, icon: string) => {
@@ -234,7 +249,8 @@ export function enrichedLeadView(lead: {
     body,
     footer: [
       { type: "button", label: "✉ Pitch this lead", variant: "primary", action: { event: "pitch_lead", tool: "create_pitch", payload: { leadId: lead.id, leadName: lead.name } } },
-      { type: "button", label: "Open in Lead Studio →", action: { event: "open_studio", href: "/home/leads" } },
+      ...(lead.listId ? [{ type: "button" as const, label: "📋 Show updated list", action: { event: "show_leads_list", tool: "list_leads", payload: { listId: lead.listId } } }] : []),
+      { type: "button", label: "Open in Lead Studio →", action: { event: "open_studio", href: lead.listId ? `/home/leads?leadList=${lead.listId}` : "/home/leads" } },
     ],
   };
 }
