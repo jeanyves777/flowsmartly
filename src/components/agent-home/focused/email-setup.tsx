@@ -40,7 +40,13 @@ export function EmailSetupCard({ onDone }: { onDone: () => void }) {
 
   const def = PROVIDERS.find((p) => p.v === provider)!;
   const credsComplete = def.fields.every((f) => (creds[f.key] || "").trim());
-  const canSave = credsComplete && !!fromEmail.trim() && !saving;
+  // Catch the classic footgun: using an IMAP/POP (mail-reading) port for SMTP (sending).
+  const smtpPort = provider === "SMTP" ? Number(creds.port) : NaN;
+  const portWarn =
+    provider !== "SMTP" || !creds.port ? "" :
+    smtpPort === 993 || smtpPort === 143 ? `Port ${smtpPort} is for READING mail (IMAP). To SEND, use 587 (STARTTLS) or 465 (SSL).` :
+    smtpPort === 995 || smtpPort === 110 ? `Port ${smtpPort} is for READING mail (POP3). To SEND, use 587 (STARTTLS) or 465 (SSL).` : "";
+  const canSave = credsComplete && !!fromEmail.trim() && !portWarn && !saving;
   const testTo = testEmail.trim() || fromEmail.trim();
 
   const pickProvider = (p: Provider) => { setProvider(p); setCreds({}); setSaved(false); setError(""); };
@@ -118,6 +124,8 @@ export function EmailSetupCard({ onDone }: { onDone: () => void }) {
               </div>
             ))}
           </div>
+          {portWarn && <p className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-600"><AlertTriangle className="h-3.5 w-3.5 shrink-0" /> {portWarn}</p>}
+          {provider === "SMTP" && !portWarn && <p className="mt-2 text-[11px] text-muted-foreground">Tip: the SMTP port is usually <b>587</b> (STARTTLS) or <b>465</b> (SSL) — not 993/143 (those read mail).</p>}
 
           <p className="mb-2.5 mt-4 border-t border-border/70 pt-4 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">3 · Sender</p>
           <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-2">
