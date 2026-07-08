@@ -1,0 +1,245 @@
+<title>Video Director — brief tabs (faithful port)</title>
+<style>
+  :root{
+    --bg:#0a0e17; --card:#0f1523; --panel:#0b1019; --input:#0c1220;
+    --line:#1f2937; --line2:#2a3547; --ink:#eef2f8; --muted:#8b93a7; --muted2:#5b6577;
+    --brand:#6366f1; --brand2:#8b5cf6; --emerald:#10b981; --amber:#f59e0b; --teal:#2f6d64;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#05070c;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1120px;margin:0 auto;padding:26px 16px 60px;}
+  .intro{margin:0 4px 16px;}
+  .intro .k{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand2);margin:0 0 6px;}
+  .intro h1{font-size:clamp(20px,2.6vw,26px);margin:0 0 6px;font-weight:800;letter-spacing:-.02em;}
+  .intro p{margin:0;color:var(--muted);font-size:13.5px;max-width:80ch;}
+
+  /* dotted playground backdrop so the sheet reads in context */
+  .stage{position:relative;border-radius:16px;border:1px solid var(--line);overflow:hidden;height:720px;
+    background:radial-gradient(circle at 1px 1px, rgba(150,160,190,.07) 1px, transparent 0) 0 0/22px 22px, var(--bg);}
+
+  /* bottom sheet (canonical: inset-x, bottom, rounded, dark card) */
+  .sheet{position:absolute;left:14px;right:14px;bottom:14px;max-height:92%;display:flex;flex-direction:column;
+    border-radius:16px;border:1px solid var(--line2);background:var(--card);box-shadow:0 30px 80px -20px #000;}
+  .grip{width:36px;height:4px;border-radius:999px;background:var(--line2);margin:8px auto 0;}
+  .head{display:flex;align-items:center;gap:8px;padding:6px 14px 8px;border-bottom:1px solid var(--line);}
+  .tag{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px;background:rgba(99,102,241,.14);color:#a9b0ff;}
+  .head .sub{font-size:11px;color:var(--muted);}
+  .head b{font-size:13px;margin-left:2px;}
+  .head .x{margin-left:auto;width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;}
+
+  /* TAB BAR */
+  .tabs{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--line);}
+  .tabs button{border:0;background:transparent;color:var(--muted);font-family:inherit;font-size:13px;font-weight:700;
+    padding:10px 16px;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
+  .tabs button.on{color:var(--ink);border-bottom-color:var(--brand);}
+  .tabs button .em{font-size:14px;}
+
+  .body{padding:14px 16px;overflow-y:auto;}
+  .panel{display:none;} .panel.on{display:block;}
+  .lbl{font-size:11.5px;font-weight:700;margin:0 0 6px;display:block;}
+  .lbl .n{font-weight:400;color:var(--muted);}
+  .lbl.sm{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+  textarea,input,select{width:100%;background:var(--input);border:1px solid var(--line);border-radius:10px;color:var(--ink);
+    padding:9px 11px;font-family:inherit;font-size:12.5px;outline:none;}
+  textarea{resize:none;line-height:1.5;} textarea:focus,input:focus,select:focus{border-color:var(--brand);}
+  .row{display:flex;gap:8px;flex-wrap:wrap;}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+  .grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;}
+  .opt{border:1px solid var(--line);background:transparent;color:var(--muted);font-family:inherit;border-radius:10px;
+    padding:9px 8px;text-align:center;cursor:pointer;font-size:12px;}
+  .opt b{display:block;font-size:12px;color:inherit;font-weight:800;line-height:1.2;}
+  .opt small{font-size:10px;color:var(--muted);}
+  .opt.on{border-color:var(--brand);background:rgba(99,102,241,.1);color:#c4c9ff;}
+  .opt.on small{color:#a9b0ff;}
+  .chip{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;}
+  .chip.on{border-color:var(--brand);background:rgba(99,102,241,.1);color:#c4c9ff;}
+  .mt{margin-top:13px;}
+  .sub-tabs{display:flex;gap:6px;flex-wrap:wrap;}
+  .stab{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:6px 12px;font-size:11.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .stab.on{border-color:var(--brand);background:rgba(99,102,241,.1);color:#c4c9ff;}
+  .drop{border:1px dashed var(--line2);border-radius:12px;background:var(--panel);padding:16px;text-align:center;color:var(--muted);font-size:12px;}
+  .drop b{color:var(--ink);}
+  .divider{display:flex;align-items:center;gap:10px;color:var(--muted2);font-size:11px;margin:12px 0;}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line);}
+  .avatars{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;}
+  .av{width:74px;flex:0 0 auto;}
+  .av .th{aspect-ratio:3/4;border-radius:10px;border:2px solid transparent;background:linear-gradient(160deg,#2b2f45,#171a2b);}
+  .av.on .th{border-color:var(--brand);}
+  .av .cap{font-size:9px;color:var(--muted);text-align:center;margin-top:3px;}
+  .estimate{border:1px solid var(--line);background:rgba(255,255,255,.02);border-radius:10px;padding:10px;margin-top:13px;}
+  .estimate .top{display:flex;align-items:center;gap:8px;}
+  .estimate b{font-size:13px;} .estimate .q{font-size:10px;font-weight:700;color:#a9b0ff;background:rgba(99,102,241,.12);border-radius:999px;padding:2px 7px;}
+  .estimate .note{font-size:10.5px;color:var(--muted);margin:6px 0 0;}
+  .qcards{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .qc{border:1px solid var(--line);border-radius:10px;padding:9px 11px;text-align:left;cursor:pointer;background:transparent;color:inherit;}
+  .qc b{display:block;font-size:12px;font-weight:800;} .qc small{font-size:10px;color:var(--muted);}
+  .qc.on{border-color:var(--brand);background:rgba(99,102,241,.1);}
+
+  .foot{display:flex;align-items:center;gap:10px;padding:11px 16px;border-top:1px solid var(--line);}
+  .foot .hint{font-size:11px;color:var(--muted);}
+  .foot .sp{flex:1;}
+  .btn{border:0;cursor:pointer;font-family:inherit;font-weight:700;font-size:12.5px;border-radius:10px;padding:9px 14px;display:inline-flex;align-items:center;gap:7px;}
+  .btn.sec{background:transparent;border:1px solid var(--line);color:var(--muted);}
+  .btn.go{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;}
+  .btn.reel{background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;}
+  .note-list{margin:14px 4px 0;color:var(--muted);font-size:12.5px;} .note-list li{margin:5px 0;} .note-list b{color:var(--ink);}
+</style>
+
+<div class="wrap">
+  <div class="intro">
+    <p class="k">Mock for approval · faithful port</p>
+    <h1>Director brief — one sheet, a tab per studio</h1>
+    <p>A tab bar on top (<b>Video · Reel · Avatar</b>) and each tab renders that studio's <b>real brief, unchanged</b> — the Video brief, the Reel brief, and the Avatar brief exactly as they are today. Nothing rearranged or merged. Click the tabs (and the sub-controls) to explore. Approve this and I'll port it 1:1 to React.</p>
+  </div>
+
+  <div class="stage">
+    <div class="sheet">
+      <div class="grip"></div>
+      <div class="head">
+        <span class="tag">Brief</span><span class="sub">node</span><b>Direct a new film</b>
+        <button class="x">✕</button>
+      </div>
+
+      <!-- TAB BAR -->
+      <div class="tabs" id="tabs">
+        <button data-t="video" class="on"><span class="em">🎬</span> Video</button>
+        <button data-t="reel"><span class="em">✂️</span> Reel</button>
+        <button data-t="avatar"><span class="em">🧑</span> Avatar</button>
+      </div>
+
+      <div class="body">
+        <!-- ============ VIDEO (AdBuilder / story-ad) — exact ============ -->
+        <div class="panel on" data-p="video">
+          <label class="lbl">Campaign brief</label>
+          <textarea rows="4" placeholder="e.g. A 30-second reel for our glow serum — a woman's calming night skincare routine, cinematic."></textarea>
+          <label class="lbl mt">Type — choose the visual style</label>
+          <div class="grid3" data-single>
+            <button class="opt on"><b>Cinematic</b><small>live-action</small></button>
+            <button class="opt"><b>3D</b><small>animated</small></button>
+            <button class="opt"><b>Narrated</b><small>stills + VO</small></button>
+          </div>
+          <label class="lbl mt">Video length</label>
+          <div class="grid3" data-single>
+            <button class="opt on"><b>30s</b><small>≈4 scenes</small></button>
+            <button class="opt"><b>60s</b><small>≈8 scenes</small></button>
+            <button class="opt"><b>90s</b><small>≈12 scenes</small></button>
+          </div>
+        </div>
+
+        <!-- ============ REEL — exact ============ -->
+        <div class="panel" data-p="reel">
+          <label class="lbl">Long video <span class="n">— paste a link or upload</span></label>
+          <input placeholder="https://youtube.com/watch?v=solo-founder-ep47" value="" />
+          <div class="row" style="margin-top:8px" data-single>
+            <button class="chip on">YouTube</button><button class="chip">Vimeo</button><button class="chip">TikTok</button>
+            <button class="chip">Loom</button><button class="chip">Drive</button><button class="chip">Direct link</button>
+          </div>
+          <div class="divider">or upload a file</div>
+          <div class="drop">⬆ <b>Drop a video, or browse</b><br><small>MP4, MOV, WebM · we transcribe + cut it into reels</small></div>
+          <div class="grid3" style="margin-top:13px;gap:14px;">
+            <div><label class="lbl sm">Clip length</label><div class="grid3" data-single style="grid-template-columns:1fr 1fr 1fr;">
+              <button class="opt on"><b>&lt;30s</b></button><button class="opt"><b>30–60s</b></button><button class="opt"><b>60–90s</b></button></div></div>
+            <div><label class="lbl sm">Aspect</label><div class="grid3" data-single>
+              <button class="opt on"><b>9:16</b></button><button class="opt"><b>1:1</b></button><button class="opt"><b>16:9</b></button></div></div>
+            <div><label class="lbl sm">How many</label><div class="grid3" data-single>
+              <button class="opt on"><b>6</b></button><button class="opt"><b>10</b></button><button class="opt"><b>Max</b></button></div></div>
+          </div>
+        </div>
+
+        <!-- ============ AVATAR — exact ============ -->
+        <div class="panel" data-p="avatar">
+          <label class="lbl">Mode</label>
+          <div class="sub-tabs" data-single>
+            <button class="stab on">🎞 Talking video</button><button class="stab">🎬 Presentation</button>
+            <button class="stab">🖼 Photo → video</button><button class="stab">🗣 Translate</button><button class="stab">📦 Batch</button>
+          </div>
+          <label class="lbl mt">Start from a template <span class="n">— optional</span></label>
+          <div class="row" data-single>
+            <button class="chip">Launch Reel</button><button class="chip on">UGC testimonial</button><button class="chip">Explainer</button>
+            <button class="chip">Sale announcement</button><button class="chip">Course lesson</button>
+          </div>
+          <label class="lbl mt">Brief <span class="n">— what the video series is about (the agent scripts the scenes)</span></label>
+          <textarea rows="3" placeholder="e.g. Launch week for our spring serum — build hype, show the benefits, drive to the sale."></textarea>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:13px;">
+            <label class="lbl" style="margin:0">Scenes</label><span class="n" style="font-size:10.5px;color:var(--muted)">— the agent drafts this many, you generate each</span>
+            <div class="row" style="margin-left:auto;gap:6px" data-single>
+              <button class="chip">1</button><button class="chip on">3</button><button class="chip">4</button><button class="chip">6</button><button class="chip">8</button>
+            </div>
+          </div>
+          <label class="lbl mt">Avatar &amp; look</label>
+          <div class="avatars" data-single-av>
+            <div class="av on"><div class="th"></div><div class="cap">Upper body</div></div>
+            <div class="av"><div class="th"></div><div class="cap">Office Front</div></div>
+            <div class="av"><div class="th"></div><div class="cap">Office Side</div></div>
+            <div class="av"><div class="th"></div><div class="cap">Sofa Front</div></div>
+            <div class="av"><div class="th"></div><div class="cap">Sofa Side</div></div>
+            <div class="av"><div class="th"></div><div class="cap">Suit Front</div></div>
+          </div>
+          <label class="lbl mt">Voice <span class="n">· 175+ languages</span></label>
+          <select><option>Allison · English</option><option>Aria · English</option><option>Bill · English</option></select>
+          <label class="lbl mt">Quality</label>
+          <div class="qcards" data-single>
+            <button class="qc on"><b>Standard</b><small>fast · social &amp; outreach</small></button>
+            <button class="qc"><b>Avatar IV</b><small>photoreal · hero &amp; ads</small></button>
+          </div>
+          <label class="lbl mt">Format &amp; length</label>
+          <div class="grid3" data-single>
+            <button class="opt on"><b>9:16 Reel</b></button><button class="opt"><b>1:1</b></button><button class="opt"><b>16:9</b></button>
+          </div>
+          <div class="grid3" style="margin-top:6px" data-single>
+            <button class="opt"><b>15s</b><small>≈30 words</small></button><button class="opt on"><b>30s</b><small>≈60 words</small></button><button class="opt"><b>60s</b><small>≈120 words</small></button>
+          </div>
+          <div class="estimate">
+            <div class="top">🪙 <b>80 credits</b> <span class="q">Avatar IV</span></div>
+            <p class="note">Allison · captions · branded to your Brand Kit.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- FOOTERS (per tab, matching each studio) -->
+      <div class="foot" data-foot="video">
+        <span class="hint">Brief + length → estimate.</span><span class="sp"></span>
+        <button class="btn sec">🪙 Estimate</button><button class="btn go">✦ Build video</button>
+      </div>
+      <div class="foot" data-foot="reel" style="display:none">
+        <span class="hint">≈ <b style="color:var(--ink)">6 credits</b> · refunded if it fails</span><span class="sp"></span>
+        <button class="btn sec">Cancel</button><button class="btn reel">✦ Build reels</button>
+      </div>
+      <div class="foot" data-foot="avatar" style="display:none">
+        <span class="hint">Drafting is free — you generate (and pay for) each scene.</span><span class="sp"></span>
+        <button class="btn sec">🪙 Estimate</button><button class="btn go">✦ Plan 3 scenes</button>
+      </div>
+    </div>
+  </div>
+
+  <ul class="note-list">
+    <li><b>Nothing is redesigned</b> — each tab is the studio's current brief, field-for-field (Video: brief + style + length · Reel: link/upload + clip length + aspect + how many · Avatar: mode + template + brief + scenes + avatar &amp; look + voice + quality + format/length + estimate).</li>
+    <li>The only new thing is the <b>tab bar on top</b> to switch between them, and the footer swaps to match the active tab.</li>
+    <li>Building on a tab drops that studio's scenes onto the one shared canvas — so a film can mix all three.</li>
+  </ul>
+</div>
+
+<script>
+  // tab switching
+  var tabs = document.getElementById('tabs');
+  tabs.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    tabs.querySelectorAll('button').forEach(function(x){x.classList.remove('on');}); b.classList.add('on');
+    var t = b.dataset.t;
+    document.querySelectorAll('.panel').forEach(function(p){ p.classList.toggle('on', p.dataset.p===t); });
+    document.querySelectorAll('.foot').forEach(function(f){ f.style.display = f.dataset.foot===t ? 'flex' : 'none'; });
+  });
+  // single-select groups (opts / chips / stabs / qc)
+  document.querySelectorAll('[data-single]').forEach(function(g){
+    g.addEventListener('click', function(e){
+      var b = e.target.closest('.opt,.chip,.stab,.qc'); if(!b) return;
+      g.querySelectorAll('.opt,.chip,.stab,.qc').forEach(function(x){x.classList.remove('on');}); b.classList.add('on');
+    });
+  });
+  document.querySelectorAll('[data-single-av]').forEach(function(g){
+    g.addEventListener('click', function(e){ var b=e.target.closest('.av'); if(!b) return;
+      g.querySelectorAll('.av').forEach(function(x){x.classList.remove('on');}); b.classList.add('on'); });
+  });
+</script>

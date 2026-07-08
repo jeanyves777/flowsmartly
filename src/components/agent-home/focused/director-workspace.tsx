@@ -1012,7 +1012,9 @@ function PillRow({ options, labels, value, onSelect }: { options: string[]; labe
 }
 
 // ============================================================ master brief sheet
-function BriefSheet({ film, avatars, voices, onClose, onSubmit, onAsk }: {
+// A tab per studio (Video / Reel / Avatar). Each tab is that studio's real brief,
+// ported field-for-field; the footer + Build map to the shared Director film.
+function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
   film: FilmProject | null;
   avatars: { id: string; name: string; previewUrl?: string }[];
   voices: { id: string; name: string; language?: string }[];
@@ -1020,166 +1022,180 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit, onAsk }: {
   onSubmit: (d: BriefDraft) => void;
   onAsk?: (prompt: string) => void;
 }) {
-  const [brief, setBrief] = useState(film?.brief || "");
-  const [filmType, setFilmType] = useState<FilmType>(film?.filmType || "product_ad");
-  const [aspect, setAspect] = useState<FilmAspect>(film?.aspect || "9:16");
-  const [targetSeconds, setTargetSeconds] = useState<number>(film?.targetSeconds || 30);
-  const [sceneCount, setSceneCount] = useState<number | null>(film?.sceneCount ?? null);
-  const [style, setStyle] = useState<string>(film?.style || "cinematic");
-  const [quality, setQuality] = useState<string>(film?.quality || "avatar_iv");
-  const [avatarId, setAvatarId] = useState<string>(film?.avatarId || "");
-  const [avatarName, setAvatarName] = useState<string>(film?.avatarName || "");
-  const [voiceId, setVoiceId] = useState<string>(film?.voiceId || "");
-  const [voiceName, setVoiceName] = useState<string>(film?.voiceName || "");
-  const [sourceVideoUrl, setSourceVideoUrl] = useState<string>(film?.sourceVideoUrl || "");
+  const [tab, setTab] = useState<"video" | "reel" | "avatar">(
+    film?.filmType === "reel" ? "reel" : film?.filmType === "testimonial" ? "avatar" : "video",
+  );
+  // VIDEO (AdBuilder) — brief · style · length
+  const [vBrief, setVBrief] = useState(film?.filmType === "ai_film" ? film?.brief || "" : "");
+  const [vStyle, setVStyle] = useState<string>(film?.style || "cinematic");
+  const [vLen, setVLen] = useState<number>(film?.targetSeconds || 30);
+  // REEL — source · clip length · aspect · how many
+  const [rSource, setRSource] = useState<string>(film?.sourceVideoUrl || "");
+  const [rClip, setRClip] = useState<number>(30);
+  const [rAspect, setRAspect] = useState<FilmAspect>("9:16");
+  const [rCount, setRCount] = useState<number | null>(6);
+  // AVATAR — mode · template · brief · scenes · avatar · voice · quality · format/length
+  const [aMode, setAMode] = useState<"talking" | "presentation">("talking");
+  const [aTemplate, setATemplate] = useState<string>("");
+  const [aBrief, setABrief] = useState(film?.filmType === "testimonial" ? film?.brief || "" : "");
+  const [aScenes, setAScenes] = useState<number>(film?.sceneCount || 3);
+  const [aAvatarId, setAAvatarId] = useState<string>(film?.avatarId || "");
+  const [aAvatarName, setAAvatarName] = useState<string>(film?.avatarName || "");
+  const [aVoiceId, setAVoiceId] = useState<string>(film?.voiceId || "");
+  const [aVoiceName, setAVoiceName] = useState<string>(film?.voiceName || "");
+  const [aQuality, setAQuality] = useState<string>(film?.quality || "standard");
+  const [aAspect, setAAspect] = useState<FilmAspect>(film?.aspect || "9:16");
+  const [aLen, setALen] = useState<number>(film?.targetSeconds || 30);
 
-  const scenesEst = Math.max(2, Math.round(targetSeconds / 8));
-  const fmtMeta: { v: FilmAspect; label: string; hint: string }[] = [
-    { v: "9:16", label: "9:16", hint: "Reel / TikTok" },
-    { v: "1:1", label: "1:1", hint: "Feed" },
-    { v: "16:9", label: "16:9", hint: "YouTube" },
+  const AV_TEMPLATES: { id: string; name: string; brief: string }[] = [
+    { id: "launch", name: "Launch Reel", brief: "Big news — we just launched something we're really proud of. Here's what it does and why it matters for you…" },
+    { id: "ugc", name: "UGC testimonial", brief: "Okay, I have to tell you about this. I've been using it for a week and here's what changed…" },
+    { id: "explainer", name: "Explainer", brief: "In under a minute, here's exactly how it works — and how to get started today." },
+    { id: "sale", name: "Sale announcement", brief: "For this week only, everything is on sale. Here's the deal and how to grab it before it's gone." },
+    { id: "course", name: "Course lesson", brief: "Welcome back. In today's lesson we'll cover the three things you need to know…" },
   ];
-  const lenMeta = [
-    { v: 15, label: "15s", hint: "~2 scenes" },
-    { v: 30, label: "30s", hint: "~4 scenes" },
-    { v: 60, label: "60s", hint: "~7 scenes" },
-    { v: 90, label: "90s", hint: "~10 scenes" },
-  ];
-  // Each TYPE tab renders only its relevant fields (like the original 3 studios).
-  const isReel = filmType === "reel";
-  const isTestimonial = filmType === "testimonial";
-  const show = {
-    presenter: filmType === "product_ad" || isTestimonial || filmType === "explainer",
-    style: filmType === "product_ad" || filmType === "ai_film" || filmType === "explainer",
-    scenes: !isReel,
-    media: !isReel,
+
+  const build = () => {
+    if (tab === "video") {
+      onSubmit({ brief: vBrief, filmType: "ai_film", aspect: "9:16", targetSeconds: vLen, title: vBrief.slice(0, 60) || "AI video", style: vStyle, sceneCount: null });
+    } else if (tab === "reel") {
+      onSubmit({ brief: "Scored reel clips cut from the source video.", filmType: "reel", aspect: rAspect, targetSeconds: rClip, title: "Reel clips", sourceVideoUrl: rSource.trim() || null, sceneCount: rCount });
+    } else {
+      onSubmit({ brief: aBrief, filmType: "testimonial", aspect: aAspect, targetSeconds: aLen, title: aBrief.slice(0, 60) || "Avatar video", sceneCount: aScenes, quality: aQuality, avatarId: aAvatarId || undefined, avatarName: aAvatarName || undefined, voiceId: aVoiceId || undefined, voiceName: aVoiceName || undefined });
+    }
   };
-  const canSubmit = isReel ? !!sourceVideoUrl.trim() : !!brief.trim();
-  const effectiveBrief = brief.trim() || (isReel && sourceVideoUrl.trim() ? "Scored reel clips cut from the source video." : brief);
-  const submit = () => onSubmit({ brief: effectiveBrief, filmType, aspect, targetSeconds, title: (effectiveBrief.slice(0, 60)) || "Untitled film", sceneCount, style, quality, avatarId: avatarId || undefined, avatarName: avatarName || undefined, voiceId: voiceId || undefined, voiceName: voiceName || undefined, sourceVideoUrl: sourceVideoUrl.trim() || null });
-  const Scenes = () => (
-    <><label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Scenes <span className="font-normal text-muted-foreground">— the director drafts this many</span></label>
-    <div className="flex flex-wrap gap-1.5">{[{ v: null, l: "Auto" }, { v: 3, l: "3" }, { v: 5, l: "5" }, { v: 7, l: "7" }].map((c) => (
-      <button key={c.l} onClick={() => setSceneCount(c.v)} className={cn("rounded-full border px-3 py-1 text-[11px] font-semibold transition", sceneCount === c.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{c.l}</button>
-    ))}</div></>
-  );
-  const Style = () => (
-    <><label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Visual style <span className="font-normal text-muted-foreground">— AI shots</span></label>
-    <div className="grid grid-cols-3 gap-1.5">{[{ v: "cinematic", l: "Cinematic", h: "live-action" }, { v: "3d", l: "3D", h: "animated" }, { v: "narrated", l: "Narrated", h: "stills + VO" }].map((st) => (
-      <button key={st.v} onClick={() => setStyle(st.v)} className={cn("rounded-[10px] border px-1 py-1.5 text-center transition", style === st.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}><span className="block text-[12px] font-bold leading-tight">{st.l}</span><span className="text-[9px]">{st.h}</span></button>
-    ))}</div></>
-  );
-  const Presenter = () => (
-    <><label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Presenter <span className="font-normal text-muted-foreground">— your talking-avatar clone</span></label>
-    {avatars.length > 0 ? (
-      <div className="flex gap-1.5 overflow-x-auto pb-1">{avatars.slice(0, 24).map((a) => (
-        <button key={a.id} onClick={() => { setAvatarId(a.id); setAvatarName(a.name); }} title={a.name} className={cn("h-12 w-9 shrink-0 overflow-hidden rounded-md border-2", avatarId === a.id ? "border-brand-500" : "border-transparent hover:border-brand-500/40")}>
-          {a.previewUrl ? <Image src={a.previewUrl} alt="" width={36} height={48} className="h-full w-full object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center bg-muted text-muted-foreground"><UserSquare2 className="h-3.5 w-3.5" /></span>}
-        </button>
-      ))}</div>
-    ) : <p className="text-[11px] text-muted-foreground">Your default clone will present.</p>}
-    <div className="mt-1.5 flex gap-1.5">
-      <select value={voiceId} onChange={(e) => { const v = voices.find((x) => x.id === e.target.value); setVoiceId(e.target.value); setVoiceName(v?.name || ""); }} className="min-w-0 flex-1 rounded-[9px] border border-input bg-background px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500/60">
-        <option value="">Default voice</option>{voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
-      </select>
-      {[{ v: "standard", l: "Standard" }, { v: "avatar_iv", l: "Avatar IV" }].map((q) => (
-        <button key={q.v} onClick={() => setQuality(q.v)} className={cn("shrink-0 rounded-[9px] border px-2.5 py-1.5 text-[11px] font-semibold", quality === q.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{q.l}</button>
-      ))}
-    </div></>
-  );
-  const LenFmt = () => (
-    <><label className="mb-1.5 block text-[11.5px] font-semibold">Length</label>
-    <div className="grid grid-cols-4 gap-1.5">{lenMeta.map((l) => (
-      <button key={l.v} onClick={() => setTargetSeconds(l.v)} className={cn("rounded-[10px] border px-1 py-1.5 text-center transition", targetSeconds === l.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}><span className="block text-[12px] font-bold leading-tight">{l.label}</span><span className="text-[9px]">{l.hint}</span></button>
-    ))}</div>
-    <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Format</label>
-    <div className="grid grid-cols-3 gap-1.5">{fmtMeta.map((f) => (
-      <button key={f.v} onClick={() => setAspect(f.v)} className={cn("rounded-[10px] border px-1 py-1.5 text-center transition", aspect === f.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}><span className="block text-[12px] font-bold leading-tight">{f.label}</span><span className="text-[9px]">{f.hint}</span></button>
-    ))}</div></>
-  );
+  const canBuild = tab === "video" ? !!vBrief.trim() : tab === "reel" ? !!rSource.trim() : !!aBrief.trim();
 
   return (
     <div className="absolute inset-0 z-40">
       <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/45" />
-      <div className="absolute inset-x-3 bottom-3 flex max-h-[88%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+      <div className="absolute inset-x-3 bottom-3 flex max-h-[90%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
         <div className="relative flex items-center gap-2 border-b border-border px-4 pb-2 pt-2.5">
           <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
           <span className="rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-brand-500">Brief</span>
           <span className="text-[11px] text-muted-foreground">node</span>
-          <span className="ml-1 text-[12.5px] font-bold">{film ? "Edit the film brief" : "Direct a new film"}</span>
+          <span className="ml-1 text-[12.5px] font-bold">Direct a new film</span>
           <button onClick={onClose} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
         </div>
 
-        {/* TAB BAR — the film TYPE drives which fields the brief shows */}
-        <div className="flex gap-1 overflow-x-auto border-b border-border px-3">
-          {FILM_TYPE_META.map((t) => (
-            <button key={t.v} onClick={() => setFilmType(t.v)} className={cn("-mb-px inline-flex shrink-0 items-center gap-1.5 border-b-2 px-3 py-2 text-[12px] font-semibold transition", filmType === t.v ? "border-brand-500 text-brand-500" : "border-transparent text-muted-foreground hover:text-foreground")}>
-              <span>{t.icon}</span> {t.label}
+        {/* TAB BAR — one tab per studio */}
+        <div className="flex gap-1 border-b border-border px-3">
+          {([{ v: "video", icon: <Film className="h-3.5 w-3.5" />, label: "Video" }, { v: "reel", icon: <Scissors className="h-3.5 w-3.5" />, label: "Reel" }, { v: "avatar", icon: <UserSquare2 className="h-3.5 w-3.5" />, label: "Avatar" }] as const).map((t) => (
+            <button key={t.v} onClick={() => setTab(t.v)} className={cn("-mb-px inline-flex items-center gap-1.5 border-b-2 px-4 py-2 text-[12.5px] font-bold transition", tab === t.v ? "border-brand-500 text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
+              {t.icon} {t.label}
             </button>
           ))}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-3">
-          {isReel ? (
-            <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-              <div>
-                <label className="mb-1 flex items-center gap-1.5 text-[11.5px] font-semibold"><Scissors className="h-3.5 w-3.5 text-brand-500" /> Long video to clip</label>
-                <input value={sourceVideoUrl} onChange={(e) => setSourceVideoUrl(e.target.value)} placeholder="Paste a YouTube / Vimeo / TikTok / Loom / Drive link" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
-                <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">{["YouTube", "Vimeo", "TikTok", "Loom", "Drive", "Direct link"].map((s) => <span key={s} className="rounded-full border border-border px-2 py-0.5">{s}</span>)}</div>
-                <div className="mt-2 rounded-[12px] border border-dashed border-border bg-background/60 p-3 text-center text-[11.5px] text-muted-foreground"><Upload className="mx-auto mb-1 h-4 w-4" /> or <b className="text-foreground">drop a video</b> — we transcribe it and cut the best moments into scored clips.</div>
+          {/* ---------------- VIDEO (AdBuilder) ---------------- */}
+          {tab === "video" && (
+            <>
+              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Campaign brief</label>
+              <textarea value={vBrief} onChange={(e) => setVBrief(e.target.value)} rows={4} placeholder="e.g. A 30-second reel for our glow serum — a woman's calming night skincare routine, cinematic." className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
+              <label className="mb-1 mt-3 block text-[11px] font-semibold text-muted-foreground">Type — choose the visual style</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[{ v: "cinematic", l: "Cinematic", h: "live-action" }, { v: "3d", l: "3D", h: "animated" }, { v: "narrated", l: "Narrated", h: "stills + VO" }].map((s) => (
+                  <button key={s.v} onClick={() => setVStyle(s.v)} className={cn("rounded-lg border px-2 py-1.5 text-center transition", vStyle === s.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}><span className="block text-[12px] font-bold">{s.l}</span><span className="text-[10px] text-muted-foreground">{s.h}</span></button>
+                ))}
               </div>
-              <div>
-                <label className="mb-1.5 block text-[11.5px] font-semibold">Clip length</label>
-                <div className="grid grid-cols-3 gap-1.5">{[{ v: 30, l: "<30s" }, { v: 60, l: "30–60s" }, { v: 90, l: "60–90s" }].map((c) => (
-                  <button key={c.v} onClick={() => setTargetSeconds(c.v)} className={cn("rounded-[10px] border px-1 py-1.5 text-center text-[12px] font-bold transition", targetSeconds === c.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{c.l}</button>
-                ))}</div>
-                <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Format</label>
-                <div className="grid grid-cols-3 gap-1.5">{fmtMeta.map((f) => (
-                  <button key={f.v} onClick={() => setAspect(f.v)} className={cn("rounded-[10px] border px-1 py-1.5 text-center transition", aspect === f.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}><span className="block text-[12px] font-bold leading-tight">{f.label}</span><span className="text-[9px]">{f.hint}</span></button>
-                ))}</div>
-                <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">How many clips</label>
-                <div className="flex flex-wrap gap-1.5">{[{ v: 4, l: "4" }, { v: 6, l: "6" }, { v: 10, l: "10" }].map((c) => (
-                  <button key={c.v} onClick={() => setSceneCount(c.v)} className={cn("rounded-full border px-3 py-1 text-[11px] font-semibold", sceneCount === c.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{c.l}</button>
-                ))}</div>
-                <div className="mt-3 rounded-[10px] border border-border bg-muted/30 p-2.5 text-[11px] text-muted-foreground"><Scissors className="mb-0.5 inline h-3.5 w-3.5 text-brand-500" /> The director scores the video and lays the best clips onto the canvas as reel scenes.</div>
+              <label className="mb-1 mt-3 block text-[11px] font-semibold text-muted-foreground">Video length</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[{ v: 30, l: "30s", h: "≈4 scenes" }, { v: 60, l: "60s", h: "≈8 scenes" }, { v: 90, l: "90s", h: "≈12 scenes" }].map((l) => (
+                  <button key={l.v} onClick={() => setVLen(l.v)} className={cn("rounded-lg border px-2 py-1.5 text-center transition", vLen === l.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}><span className="block text-[12px] font-bold">{l.l}</span><span className="text-[10px] text-muted-foreground">{l.h}</span></button>
+                ))}
               </div>
-            </div>
-          ) : (
-            <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-              <div>
-                <label className="mb-1 flex items-center gap-1.5 text-[11.5px] font-semibold"><Wand2 className="h-3.5 w-3.5 text-brand-500" /> {isTestimonial ? "What should they say?" : "Describe the film"}</label>
-                <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={4} placeholder={isTestimonial ? "e.g. I was skeptical, but two weeks in my skin looked calmer and brighter — if you've been on the fence, just try it." : "e.g. A 30-second ad for our glow serum. Open on a cinematic macro of a droplet, cut to my avatar's testimonial, then night-routine b-roll, end on a 'Shop now' card."} className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] leading-relaxed outline-none focus:border-brand-500/60" />
-                <div className="mt-2 flex flex-wrap gap-1.5"><span className="text-[10.5px] text-muted-foreground">Try:</span>{BRIEF_STARTERS.map((s, i) => (
-                  <button key={i} onClick={() => setBrief(s.full)} className="rounded-full border border-border px-2.5 py-0.5 text-[10.5px] font-medium text-muted-foreground hover:border-brand-500/50 hover:text-brand-500">{s.label}</button>
+            </>
+          )}
+
+          {/* ---------------- REEL ---------------- */}
+          {tab === "reel" && (
+            <>
+              <label className="mb-1 block text-[11.5px] font-semibold">Long video <span className="font-normal text-muted-foreground">— paste a link or upload</span></label>
+              <input value={rSource} onChange={(e) => setRSource(e.target.value)} placeholder="https://youtube.com/watch?v=…" className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[10.5px] text-muted-foreground">{["YouTube", "Vimeo", "TikTok", "Loom", "Drive", "Direct link"].map((s) => <span key={s} className="rounded-full border border-border px-2 py-0.5">{s}</span>)}</div>
+              <div className="my-3 flex items-center gap-2 text-[11px] text-muted-foreground"><span className="h-px flex-1 bg-border" /> or upload a file <span className="h-px flex-1 bg-border" /></div>
+              <div className="rounded-[12px] border border-dashed border-border bg-background/60 p-4 text-center text-[12px] text-muted-foreground"><Upload className="mx-auto mb-1 h-4 w-4" /> <b className="text-foreground">Drop a video, or browse</b><br /><span className="text-[10.5px]">MP4, MOV, WebM · we transcribe + cut it into reels</span></div>
+              <div className="mt-3 grid grid-cols-3 gap-3">
+                <div>
+                  <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Clip length</label>
+                  <div className="grid gap-1.5">{[{ v: 30, l: "<30s" }, { v: 60, l: "30–60s" }, { v: 90, l: "60–90s" }].map((c) => <button key={c.v} onClick={() => setRClip(c.v)} className={cn("rounded-lg border px-2 py-1.5 text-center text-[12px] font-bold transition", rClip === c.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{c.l}</button>)}</div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Aspect</label>
+                  <div className="grid gap-1.5">{(["9:16", "1:1", "16:9"] as FilmAspect[]).map((a) => <button key={a} onClick={() => setRAspect(a)} className={cn("rounded-lg border px-2 py-1.5 text-center text-[12px] font-bold transition", rAspect === a ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{a}</button>)}</div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">How many</label>
+                  <div className="grid gap-1.5">{[{ v: 6 as number | null, l: "6" }, { v: 10, l: "10" }, { v: null, l: "Max" }].map((c) => <button key={c.l} onClick={() => setRCount(c.v)} className={cn("rounded-lg border px-2 py-1.5 text-center text-[12px] font-bold transition", rCount === c.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{c.l}</button>)}</div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ---------------- AVATAR ---------------- */}
+          {tab === "avatar" && (
+            <>
+              <label className="mb-1 block text-[11.5px] font-semibold">Mode</label>
+              <div className="flex flex-wrap gap-1.5">
+                {([{ v: "talking", l: "Talking video", icon: <Film className="h-3.5 w-3.5" /> }, { v: "presentation", l: "Presentation", icon: <Clapperboard className="h-3.5 w-3.5" /> }] as const).map((m) => (
+                  <button key={m.v} onClick={() => setAMode(m.v)} className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-semibold transition", aMode === m.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{m.icon} {m.l}</button>
+                ))}
+              </div>
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Start from a template <span className="font-normal text-muted-foreground">— optional</span></label>
+              <div className="flex flex-wrap gap-1.5">
+                {AV_TEMPLATES.map((t) => (
+                  <button key={t.id} onClick={() => { setATemplate(t.id); setABrief(t.brief); }} className={cn("rounded-[10px] border px-2.5 py-1.5 text-[11.5px] font-semibold transition", aTemplate === t.id ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{t.name}</button>
+                ))}
+              </div>
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Brief <span className="font-normal text-muted-foreground">— what the video series is about (the agent scripts the scenes)</span></label>
+              <textarea value={aBrief} onChange={(e) => setABrief(e.target.value)} rows={3} placeholder="e.g. Launch week for our spring serum — build hype, show the benefits, drive to the sale." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
+              <div className="mt-2.5 flex items-center gap-2">
+                <label className="text-[11.5px] font-semibold">Scenes</label><span className="text-[10.5px] text-muted-foreground">— the agent drafts this many, you generate each</span>
+                <div className="ms-auto flex items-center gap-1.5">{[1, 3, 4, 6, 8].map((n) => <button key={n} onClick={() => setAScenes(n)} className={cn("h-7 w-7 rounded-[8px] border text-[12px] font-bold transition", aScenes === n ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{n}</button>)}</div>
+              </div>
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Avatar &amp; look</label>
+              {avatars.length > 0 ? (
+                <div className="flex gap-1.5 overflow-x-auto pb-1">{avatars.slice(0, 30).map((a) => (
+                  <button key={a.id} onClick={() => { setAAvatarId(a.id); setAAvatarName(a.name); }} title={a.name} className={cn("h-16 w-12 shrink-0 overflow-hidden rounded-[10px] border-2", aAvatarId === a.id ? "border-brand-500" : "border-transparent hover:border-brand-500/40")}>
+                    {a.previewUrl ? <Image src={a.previewUrl} alt="" width={48} height={64} className="h-full w-full object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center bg-muted text-muted-foreground"><UserSquare2 className="h-4 w-4" /></span>}
+                  </button>
                 ))}</div>
-                {show.media && (
-                  <div className="mt-3 rounded-[12px] border border-dashed border-border bg-background/60 p-3 text-center text-[11.5px] text-muted-foreground"><Upload className="mx-auto mb-1 h-4 w-4" /> Drop <b className="text-foreground">product photos</b>, <b className="text-foreground">footage</b>, or a <b className="text-foreground">selfie</b> to clone — the director routes each into the right scene.</div>
-                )}
+              ) : <p className="text-[11px] text-muted-foreground">Loading avatars…</p>}
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Voice <span className="font-normal text-muted-foreground">· 175+ languages</span></label>
+              <select value={aVoiceId} onChange={(e) => { const v = voices.find((x) => x.id === e.target.value); setAVoiceId(e.target.value); setAVoiceName(v?.name || ""); }} className="w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60">
+                <option value="">Default voice</option>{voices.map((v) => <option key={v.id} value={v.id}>{v.name}{v.language ? ` · ${v.language}` : ""}</option>)}
+              </select>
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Quality</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[{ v: "standard", l: "Standard", h: "fast · social & outreach" }, { v: "avatar_iv", l: "Avatar IV", h: "photoreal · hero & ads" }].map((q) => (
+                  <button key={q.v} onClick={() => setAQuality(q.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-left transition", aQuality === q.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/40")}><span className="block text-[12px] font-bold">{q.l}</span><span className="block text-[10px] text-muted-foreground">{q.h}</span></button>
+                ))}
               </div>
-              <div>
-                {LenFmt()}
-                {show.scenes && Scenes()}
-                {show.style && Style()}
-                {show.presenter && Presenter()}
-                <div className="mt-3 rounded-[10px] border border-border bg-muted/30 p-2.5 text-[11px] text-muted-foreground"><Clapperboard className="mb-0.5 inline h-3.5 w-3.5 text-brand-500" /> The director storyboards <b className="text-foreground">{sceneCount ?? `~${scenesEst}`} scenes</b>. Drafting is free — you generate (and pay for) each scene.</div>
+              <label className="mb-1 mt-3 block text-[11.5px] font-semibold">Format &amp; length</label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(["9:16", "1:1", "16:9"] as FilmAspect[]).map((a) => <button key={a} onClick={() => setAAspect(a)} className={cn("rounded-[10px] border px-2 py-1.5 text-center text-[12px] font-bold transition", aAspect === a ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}>{a === "9:16" ? "9:16 Reel" : a}</button>)}
               </div>
-            </div>
+              <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                {[{ v: 15, l: "15s", h: "≈30 words" }, { v: 30, l: "30s", h: "≈60 words" }, { v: 60, l: "60s", h: "≈120 words" }].map((l) => <button key={l.v} onClick={() => setALen(l.v)} className={cn("rounded-[10px] border px-2 py-1.5 text-center transition", aLen === l.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border hover:border-brand-500/40")}><span className="text-[12px] font-bold">{l.l}</span><span className="ms-1 text-[10px] text-muted-foreground">{l.h}</span></button>)}
+              </div>
+            </>
           )}
         </div>
 
         <div className="flex items-center gap-2 border-t border-border px-4 py-3">
-          {onAsk && <button onClick={() => { onClose(); onAsk(`Direct a ${targetSeconds}s ${filmType.replace("_", " ")}: ${effectiveBrief}`); }} className="rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:text-foreground">Ask the director</button>}
-          <button onClick={submit} disabled={!canSubmit} className="ms-auto inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-bold text-white shadow-sm disabled:opacity-50"><Clapperboard className="h-4 w-4" /> {film ? "Save brief" : "Direct it"}</button>
+          {tab === "video" && <span className="hidden text-[11px] text-muted-foreground sm:inline">Brief + length → the director storyboards the scenes.</span>}
+          {tab === "reel" && <span className="hidden text-[11px] text-muted-foreground sm:inline">≈ <b className="text-foreground">6 credits</b> · refunded if it fails</span>}
+          {tab === "avatar" && <span className="hidden text-[11px] text-muted-foreground sm:inline">Drafting is free — you generate (and pay for) each scene.</span>}
+          <button onClick={build} disabled={!canBuild} className="ms-auto inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-bold text-white shadow-sm disabled:opacity-50">
+            <Clapperboard className="h-4 w-4" /> {tab === "video" ? "Build video" : tab === "reel" ? "Build reels" : `Plan ${aScenes} scene${aScenes === 1 ? "" : "s"}`}
+          </button>
         </div>
       </div>
     </div>
   );
 }
-const BRIEF_STARTERS: { label: string; full: string }[] = [
-  { label: "Product ad", full: "A 30-second product ad. Open on a cinematic hook of the product, a quick testimonial from my avatar, fast b-roll of it in use, and end on a bold 'Shop now' card with the logo." },
-  { label: "Founder story", full: "A 60-second founder story. Me (my avatar) on camera explaining the problem I solved, intercut with cinematic b-roll of the product, ending with a clear call to action." },
-  { label: "Social reel", full: "A 15-second social reel: a punchy scroll-stopping hook, three fast benefit cuts, and a bold CTA card." },
-];
+
 
 // ============================================================ films library
 function FilmsLibrary({ onClose, onOpen, onNew }: { onClose: () => void; onOpen: (id: string) => void; onNew: () => void }) {
