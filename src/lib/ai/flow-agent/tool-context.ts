@@ -40,7 +40,7 @@ export type AgentEvent =
   | { type: "tool_call_result"; id: string; name: string; output: unknown; durationMs: number; creditCost: number; errorCode?: string }
   | { type: "plan_proposal"; id: string; steps: PlanStep[]; summary: string; totalCreditCost: number }
   | { type: "task_started"; taskId: string; kind: string; summary: string }
-  | { type: "task_progress"; taskId: string; progress: number; message: string }
+  | { type: "task_progress"; taskId: string; progress: number; message: string; script?: unknown; scenes?: unknown }
   | { type: "task_completed"; taskId: string; resultRefType?: string; resultRefId?: string; output?: unknown }
   | { type: "task_failed"; taskId: string; error: string }
   | { type: "template_options"; requestId: string; templates: TemplateOptionData[] }

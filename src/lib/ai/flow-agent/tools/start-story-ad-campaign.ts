@@ -15,6 +15,30 @@ import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
 
+/** Parse the persisted CartoonVideo.script JSON into a trimmed screenplay the
+ *  in-chat film card can render (title + per-scene narration/caption/visual). */
+function parseFilmScript(raw: string | null): { title?: string; scenes: { n: number; narration?: string; caption?: string; visual?: string }[] } | null {
+  if (!raw) return null;
+  try {
+    const j = JSON.parse(raw) as { title?: unknown; scenes?: unknown };
+    const scenes = Array.isArray(j.scenes)
+      ? j.scenes.map((s, i) => {
+          const o = (s ?? {}) as Record<string, unknown>;
+          return {
+            n: typeof o.sceneNumber === "number" ? o.sceneNumber : i + 1,
+            narration: typeof o.narration === "string" ? o.narration.slice(0, 400) : undefined,
+            caption: typeof o.caption === "string" ? o.caption.slice(0, 200) : undefined,
+            visual: typeof o.visualDescription === "string" ? o.visualDescription.slice(0, 300) : undefined,
+          };
+        })
+      : [];
+    if (scenes.length === 0 && typeof j.title !== "string") return null;
+    return { title: typeof j.title === "string" ? j.title.slice(0, 160) : undefined, scenes };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * start_story_ad_campaign — kicks off the full Story Ad Movie pipeline
  * (script → characters → scene illustrations → narrator + character
@@ -256,6 +280,7 @@ export const startStoryAdCampaign: FlowAgentTool = {
         const MAX_POLLS = (25 * 60 * 1000) / POLL_INTERVAL_MS; // 300
         let lastProgress = 0;
         let lastStep: string | null = null;
+        let lastScriptRaw: string | null = null;
 
         for (let i = 0; i < MAX_POLLS; i++) {
           await sleep(POLL_INTERVAL_MS);
@@ -265,6 +290,7 @@ export const startStoryAdCampaign: FlowAgentTool = {
               status: true,
               progress: true,
               currentStep: true,
+              script: true,
               videoUrl: true,
               thumbnailUrl: true,
               errorMessage: true,
@@ -274,18 +300,25 @@ export const startStoryAdCampaign: FlowAgentTool = {
             throw new Error("Story Ad Movie job vanished from the database");
           }
 
-          // Emit progress if anything changed.
+          // The screenplay lands on the row at ~28% (before the video renders).
+          // Stream it once it appears/changes so the in-chat card shows the
+          // actual script as it's written. [[agent-authored-views]]
+          const scriptChanged = !!row.script && row.script !== lastScriptRaw;
+          // Emit progress if anything changed (incl. the script first appearing).
           if (
             (typeof row.progress === "number" && row.progress !== lastProgress) ||
-            row.currentStep !== lastStep
+            row.currentStep !== lastStep ||
+            scriptChanged
           ) {
             lastProgress = row.progress ?? lastProgress;
             lastStep = row.currentStep ?? lastStep;
+            if (scriptChanged) lastScriptRaw = row.script;
             publishTaskEvent({
               type: "progress",
               taskId,
               progress: Math.min(99, Math.max(5, row.progress ?? 5)),
               message: row.currentStep ?? "Working on your story ad movie…",
+              ...(scriptChanged ? { script: parseFilmScript(row.script) } : {}),
             });
           }
 

@@ -312,6 +312,12 @@ export interface PlanProposalCardData {
   status: "pending" | "confirmed" | "rejected" | "expired";
 }
 
+/** One scene of a streamed screenplay (narration/caption/visual). */
+export interface FilmScriptScene { n: number; narration?: string; caption?: string; visual?: string }
+export interface FilmScriptData { title?: string; scenes: FilmScriptScene[] }
+/** Live per-scene render state for a film build's filmstrip. */
+export interface FilmSceneState { n: number; status: "pending" | "rendering" | "ready" | "failed"; thumbnailUrl?: string | null }
+
 export interface AgentTaskCardData {
   id: string;
   kind: string;
@@ -323,6 +329,39 @@ export interface AgentTaskCardData {
   error?: string | null;
   resultRefType?: string | null;
   resultRefId?: string | null;
+  /** Live screenplay for a film/story-ad build (streamed as it's written). */
+  script?: FilmScriptData | null;
+  /** Live per-scene render state for a film build's filmstrip. */
+  scenes?: FilmSceneState[] | null;
+}
+
+/** Coerce an untrusted streamed `script` payload into a safe FilmScriptData. */
+export function normalizeFilmScript(raw: unknown): FilmScriptData | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as { title?: unknown; scenes?: unknown };
+  const scenes: FilmScriptScene[] = Array.isArray(r.scenes)
+    ? r.scenes.map((s, i) => {
+        const o = (s ?? {}) as Record<string, unknown>;
+        return {
+          n: typeof o.n === "number" ? o.n : typeof o.sceneNumber === "number" ? o.sceneNumber : i + 1,
+          narration: typeof o.narration === "string" ? o.narration : undefined,
+          caption: typeof o.caption === "string" ? o.caption : undefined,
+          visual: typeof o.visual === "string" ? o.visual : typeof o.visualDescription === "string" ? o.visualDescription : undefined,
+        };
+      })
+    : [];
+  if (scenes.length === 0 && typeof r.title !== "string") return null;
+  return { title: typeof r.title === "string" ? r.title : undefined, scenes };
+}
+
+/** Coerce an untrusted streamed `scenes` payload into safe FilmSceneState[]. */
+export function normalizeFilmScenes(raw: unknown): FilmSceneState[] | null {
+  if (!Array.isArray(raw)) return null;
+  return raw.map((s, i) => {
+    const o = (s ?? {}) as Record<string, unknown>;
+    const status = o.status === "ready" || o.status === "rendering" || o.status === "failed" ? o.status : "pending";
+    return { n: typeof o.n === "number" ? o.n : i + 1, status, thumbnailUrl: typeof o.thumbnailUrl === "string" ? o.thumbnailUrl : null };
+  });
 }
 
 /**
@@ -605,51 +644,120 @@ function OpenLink({ href, className, children }: { href: string; className?: str
   );
 }
 
-// Real pipeline stages of the story-ad / film build, keyed to the progress %
-// the worker reports. Lets the running card show honest stage-by-stage progress
-// (the pipeline streams a % + a step message, NOT per-scene thumbnails).
-const FILM_STAGES: { label: string; at: number }[] = [
-  { label: "Screenplay", at: 5 },
-  { label: "Characters & turnaround", at: 22 },
-  { label: "Rendering scenes", at: 40 },
-  { label: "Voiceover & music", at: 78 },
-  { label: "Final cut", at: 92 },
+// Cinematic gradient placeholders for scene tiles before real thumbnails exist
+// (the story-ad-movie pipeline renders one video, so mid-render there are no
+// per-scene stills — the tiles fill by progress like a filmstrip).
+const SCENE_GRADIENTS = [
+  "radial-gradient(120% 90% at 40% 20%, #3730a3, #0a0f1b)",
+  "linear-gradient(160deg, #164e63, #0a0f1b)",
+  "radial-gradient(120% 90% at 60% 30%, #92400e, #0a0f1b)",
+  "linear-gradient(160deg, #334155, #0a0f1b)",
+  "radial-gradient(120% 90% at 50% 30%, #065f46, #0a0f1b)",
+  "radial-gradient(120% 90% at 45% 25%, #4c1d95, #0a0f1b)",
 ];
 
-function FilmProgress({ progress, message }: { progress?: number; message?: string }) {
-  const p = Math.max(3, Math.min(99, typeof progress === "number" ? progress : 5));
-  let activeIdx = 0;
-  for (let i = 0; i < FILM_STAGES.length; i++) if (p >= FILM_STAGES[i].at) activeIdx = i;
-  const step = message?.trim() || "Directing your film…";
+/** The streamed screenplay — shown as it's written (title + per-scene narration). */
+function ScreenplayPanel({ script, writing }: { script: FilmScriptData; writing: boolean }) {
   return (
-    <div className="flex flex-col gap-3 px-3.5 py-3">
-      <div className="flex items-center gap-2 text-[12.5px] font-semibold">
-        <AISpinner size={14} />
-        <span className="truncate">{step}</span>
-        <span className="ms-auto font-mono text-[11px] text-muted-foreground">{Math.round(p)}%</span>
+    <div className="border-b border-border px-3.5 py-2.5">
+      <div className="mb-1.5 flex items-center gap-2">
+        <span className="text-[11px] font-bold">Screenplay</span>
+        {script.title && <span className="min-w-0 truncate text-[10.5px] text-muted-foreground">“{script.title}”</span>}
+        <span className={cn("ms-auto shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold", writing ? "bg-brand-500/15 text-brand-500" : "bg-emerald-500/15 text-emerald-500")}>{writing ? "writing…" : "ready"}</span>
       </div>
-      <div className="flex flex-col gap-2">
-        {FILM_STAGES.map((s, i) => {
+      <div className="max-h-44 space-y-2 overflow-auto rounded-xl border border-border bg-background/50 p-2.5 font-mono text-[11px] leading-relaxed">
+        {script.scenes.map((s, i) => (
+          <div key={i}>
+            <div className="text-[9px] font-extrabold uppercase tracking-wider text-brand-500">Scene {s.n}</div>
+            {s.visual && <div className="pl-2 text-[10px] italic text-muted-foreground">[{s.visual}]</div>}
+            {s.narration && <div className="pl-2 text-foreground">{s.narration}</div>}
+            {s.caption && <div className="pl-2 text-cyan-500">— {s.caption}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FilmProgress({ task }: { task: AgentTaskCardData }) {
+  const p = Math.max(3, Math.min(99, typeof task.progress === "number" ? task.progress : 5));
+  const script = task.script ?? null;
+  const sceneCount = script?.scenes.length || 5;
+  // Scenes render in the ~26%–82% window; fill the strip by progress unless the
+  // pipeline streamed explicit per-scene state.
+  const readyByProgress = Math.max(0, Math.min(sceneCount, Math.floor((p - 26) / ((82 - 26) / sceneCount))));
+  const scenes: FilmSceneState[] = task.scenes?.length
+    ? task.scenes
+    : Array.from({ length: sceneCount }, (_, i) => ({
+        n: i + 1,
+        status: i < readyByProgress ? "ready" : i === readyByProgress && p > 26 ? "rendering" : "pending",
+      }));
+  const readyCount = scenes.filter((s) => s.status === "ready").length;
+
+  const STAGES: { label: string; at: number; sub?: string }[] = [
+    { label: "Writing the screenplay", at: 5 },
+    { label: "Storyboarding the scenes", at: 20, sub: `${sceneCount} scenes` },
+    { label: "Generating cinematic scenes", at: 26, sub: `${readyCount}/${sceneCount}` },
+    { label: "Recording narration", at: 82 },
+    { label: "Stitching the final cut", at: 92 },
+  ];
+  let activeIdx = 0;
+  for (let i = 0; i < STAGES.length; i++) if (p >= STAGES[i].at) activeIdx = i;
+
+  return (
+    <div>
+      {/* progress bar */}
+      <div className="h-1 bg-muted">
+        <div className="h-full bg-gradient-to-r from-brand-500 to-violet-500 transition-[width] duration-500" style={{ width: `${p}%` }} />
+      </div>
+      {/* step checklist */}
+      <div className="flex flex-col gap-1.5 border-b border-border px-3.5 py-2.5">
+        {STAGES.map((s, i) => {
           const state = i < activeIdx ? "done" : i === activeIdx ? "active" : "pending";
           return (
             <div key={s.label} className={cn("flex items-center gap-2 text-[12px]", state === "pending" ? "text-muted-foreground" : "text-foreground")}>
               <span className={cn(
                 "grid h-4 w-4 shrink-0 place-items-center rounded-full border text-[9px]",
                 state === "done" ? "border-emerald-500 bg-emerald-500/15 text-emerald-500"
-                  : state === "active" ? "border-brand-500 text-brand-500 animate-pulse"
-                  : "border-border text-muted-foreground",
+                  : state === "active" ? "border-brand-500 text-brand-500" : "border-border text-muted-foreground",
               )}>
-                {state === "done" ? "✓" : state === "active" ? "◜" : ""}
+                {state === "done" ? "✓" : state === "active" ? <AISpinner size={9} /> : ""}
               </span>
               <span>{s.label}</span>
-              {state === "done" && <span className="ms-auto font-mono text-[10px] text-muted-foreground">done</span>}
+              {s.sub && <span className="ms-auto font-mono text-[10px] text-muted-foreground">{s.sub}</span>}
             </div>
           );
         })}
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500 transition-all" style={{ width: `${p}%` }} />
+      {/* filmstrip — scenes fill in */}
+      <div className="border-b border-border px-3.5 py-2.5">
+        <div className="mb-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+          <span>Scenes</span>
+          <span>{readyCount === sceneCount ? `${sceneCount} scenes ready` : "building…"}</span>
+        </div>
+        <div className="flex gap-1.5">
+          {scenes.map((s, i) => (
+            <div
+              key={i}
+              className={cn(
+                "relative flex-1 overflow-hidden rounded-lg border",
+                s.status === "ready" ? "border-emerald-500/50" : s.status === "rendering" ? "border-brand-500" : s.status === "failed" ? "border-rose-500/60" : "border-dashed border-border",
+              )}
+              style={{ aspectRatio: "9/16" }}
+            >
+              {s.thumbnailUrl ? (
+                <Image src={s.thumbnailUrl} alt="" fill sizes="60px" className="object-cover" unoptimized />
+              ) : (
+                <span className="absolute inset-0 transition-opacity duration-500" style={{ background: SCENE_GRADIENTS[i % SCENE_GRADIENTS.length], opacity: s.status === "ready" ? 1 : s.status === "rendering" ? 0.6 : 0.22 }} />
+              )}
+              <span className="absolute left-1 top-0.5 z-[2] text-[8px] font-extrabold text-white drop-shadow">{s.n}</span>
+              {s.status === "rendering" && <span className="absolute inset-0 z-[2] grid place-items-center"><AISpinner size={14} /></span>}
+            </div>
+          ))}
+        </div>
       </div>
+      {/* screenplay — streamed as it's written */}
+      {script && script.scenes.length > 0 && <ScreenplayPanel script={script} writing={p < 40} />}
     </div>
   );
 }
@@ -716,7 +824,7 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
         </span>
       </div>
       {isRunning && (isFilm ? (
-        <FilmProgress progress={task.progress} message={task.progressMessage} />
+        <FilmProgress task={task} />
       ) : (
         <div className="relative grid place-items-center overflow-hidden py-11 text-muted-foreground/20">
           <DotGrid />

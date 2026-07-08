@@ -7,6 +7,7 @@ import type {
   PlanProposalCardData,
   MessageBlock,
 } from "@/components/flow-ai/agent-cards";
+import { normalizeFilmScript, normalizeFilmScenes } from "@/components/flow-ai/agent-cards";
 import {
   consumeAgentStreamWithReplay,
   useAgentSender,
@@ -196,10 +197,18 @@ export function useHomeAgent() {
             if (task.kind === "create_branded_design") canvasUpdateRef.current?.({ generating: true });
             startTaskSubscription(task.id, tasksById, flushMessage, taskStreamsRef.current, appendCompletionMessage, (patch) => canvasUpdateRef.current?.(patch));
           },
-          onTaskProgress: (taskId, progress, message) => {
+          onTaskProgress: (taskId, progress, message, extra) => {
             const existing = tasksById.get(taskId);
             if (existing) {
-              tasksById.set(taskId, { ...existing, progress: progress ?? existing.progress, progressMessage: message ?? existing.progressMessage });
+              const script = extra?.script ? normalizeFilmScript(extra.script) : null;
+              const scenes = extra?.scenes ? normalizeFilmScenes(extra.scenes) : null;
+              tasksById.set(taskId, {
+                ...existing,
+                progress: progress ?? existing.progress,
+                progressMessage: message ?? existing.progressMessage,
+                script: script ?? existing.script,
+                scenes: scenes ?? existing.scenes,
+              });
               flushMessage();
             }
           },
@@ -447,7 +456,9 @@ function startTaskSubscription(
       // must apply the canvas result here too or it's silently dropped.
       if (event.status === "completed") applyCanvasResult(current.kind, next.output);
     } else if (event.type === "progress") {
-      next = { ...current, progress: event.progress ?? current.progress, progressMessage: event.message ?? current.progressMessage };
+      const script = event.script ? normalizeFilmScript(event.script) : null;
+      const scenes = event.scenes ? normalizeFilmScenes(event.scenes) : null;
+      next = { ...current, progress: event.progress ?? current.progress, progressMessage: event.message ?? current.progressMessage, script: script ?? current.script, scenes: scenes ?? current.scenes };
     } else if (event.type === "completed") {
       next = { ...current, status: "completed", output: event.output ?? current.output, resultRefType: event.resultRefType ?? current.resultRefType, resultRefId: event.resultRefId ?? current.resultRefId };
       applyCanvasResult(current.kind, next.output);

@@ -184,6 +184,11 @@ export interface TaskProgressEvent {
   progress?: number;
   message?: string;
   output?: unknown;
+  /** Live screenplay for a film/story-ad build — streamed as it's written so
+   *  the in-chat card can show the actual script. { title?, scenes:[...] }. */
+  script?: unknown;
+  /** Live per-scene render state for a film build (status + thumbnail). */
+  scenes?: unknown;
   error?: string;
   resultRefType?: string;
   resultRefId?: string;
