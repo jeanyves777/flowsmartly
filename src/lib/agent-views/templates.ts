@@ -44,6 +44,34 @@ export function leadsTableView(leads: { id?: string; name: string; location?: st
   };
 }
 
+/** Leads just found + saved → a pickable table (reveal one, or open the studio). */
+export function foundLeadsView(
+  created: { id: string; name: string; company?: string | null; isOrg?: boolean }[],
+  listId?: string | null,
+): ViewSpec {
+  const orgCount = created.filter((c) => c.isOrg).length;
+  return {
+    name: "found-leads", source: "library", skill: "find_leads",
+    title: "Leads found", subtitle: `${created.length} saved${orgCount ? ` · ${orgCount} org-level` : ""}`, icon: "🔎",
+    badge: { text: `${created.length}`, tone: "success" },
+    body: [
+      {
+        type: "table",
+        columns: [
+          { key: "business", label: "Business" },
+          { key: "company", label: "Company" },
+          { key: "type", label: "Type", kind: "badge" },
+        ],
+        rows: created.slice(0, 30).map((c) => ({ business: c.name, company: c.company || "—", type: c.isOrg ? "Org" : "Person", id: c.id, name: c.name })),
+        rowAction: { event: "enrich_lead", tool: "enrich_lead", payload: listId ? { listId } : undefined },
+        rowActionLabel: "Reveal ✨",
+      },
+      { type: "note", tone: "muted", icon: "💡", text: "Tap Reveal to unlock a lead's contact details (billed per lead), or open the studio to start outreach." },
+    ],
+    footer: [{ type: "button", label: "Open Lead Studio →", action: { event: "open_studio", href: "/home/leads" } }],
+  };
+}
+
 /** A generic build-in-progress view for any long task (design, campaign, etc.). */
 export function buildProgressView(input: { title: string; icon?: string; steps: { text: string; state: "done" | "active" | "pending"; sub?: string }[]; progress: number; note?: string }): ViewSpec {
   const body: ViewBlock[] = [

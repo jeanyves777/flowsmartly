@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import type { FlowAgentTool } from "../registry";
 import { normalizeViewSpec } from "@/lib/agent-views/spec";
+import { saveView } from "@/lib/agent-views/registry";
 
 /**
  * render_view — draw a rich, INTERACTIVE view inline in the chat from a safe,
@@ -29,6 +30,7 @@ export const renderView: FlowAgentTool = {
           "The view spec. { title?, subtitle?, icon? (one emoji), badge?:{text,tone}, body: ViewBlock[] (required), footer?: ViewBlock[] }. Each block is { type, ...fields } per the block vocabulary in the tool description. Give interactive controls an `action` with a short `event` name so the user's interaction routes back to you.",
       },
       title: { type: "string", description: "Optional shorthand title (used only if spec.title is absent)." },
+      saveAs: { type: "string", description: "Optional. Save this view to the user's library under this stable name so you can REUSE it later (e.g. 'weekly-kpis', 'lead-picker'). Later call use_saved_view or list_saved_views to bring it back and refresh its data — don't rebuild a view you'll reuse." },
     },
     required: ["spec"],
   },
@@ -51,6 +53,17 @@ export const renderView: FlowAgentTool = {
     const requestId = randomUUID();
     ctx.emit({ type: "agent_view", requestId, spec });
 
+    let savedAs: string | null = null;
+    const saveAs = typeof input.saveAs === "string" ? input.saveAs.trim() : "";
+    if (saveAs) {
+      try {
+        const saved = await saveView(ctx.userId, spec, { name: saveAs });
+        savedAs = saved?.name ?? null;
+      } catch {
+        /* non-fatal — rendering already succeeded */
+      }
+    }
+
     const interactive = countInteractive(spec.body) + countInteractive(spec.footer || []);
     return {
       ok: true,
@@ -58,6 +71,7 @@ export const renderView: FlowAgentTool = {
         requestId,
         blocks: spec.body.length,
         interactive,
+        savedAs,
         userMessage:
           interactive > 0
             ? `Rendered an interactive view "${spec.title || spec.name || "view"}" in the chat. STOP and wait — the user's interaction (a tap/input/rating) arrives as the next message with the event name + value; then act on it. Do NOT restate the view as text.`
