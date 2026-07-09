@@ -792,10 +792,14 @@ export function campaignTimelineView(input: {
                   type: "buttonRow" as const,
                   buttons: [
                     { label: "Rewrite", variant: "default" as const, action: { event: "rewrite_caption", payload: { postId: p.id, campaignId: input.campaignId } } },
-                    { label: p.hasMedia && p.mediaType === "image" ? "Redo image" : "Add image", action: { event: "post_image", tool: "regenerate_post_image", payload: { postId: p.id, campaignId: input.campaignId, tier: "standard" } } },
-                    { label: p.hasMedia && p.mediaType === "video" ? "Redo video" : "Add video", action: { event: "post_video", tool: "regenerate_post_video", payload: { postId: p.id, campaignId: input.campaignId, tier: "standard" } } },
-                    { label: "Upload", action: { event: "upload_campaign_post_media", payload: { postId: p.id, campaignId: input.campaignId } } },
-                    { label: "Library", action: { event: "pick_campaign_post_media", tool: "list_media", payload: { postId: p.id, campaignId: input.campaignId, attachToPost: true, limit: 40 } } },
+                    // ONE "Add media" entry covers both image + video — the agent asks
+                    // which type on click (post_media handler), then generates it. No
+                    // separate Add image / Add video buttons.
+                    { label: p.hasMedia ? "Redo media" : "Add media", action: { event: "post_media", payload: { postId: p.id, campaignId: input.campaignId, hasMedia: p.hasMedia, mediaType: p.mediaType || null } } },
+                    // "Library" opens the media-library MODAL (select existing OR upload
+                    // new — the picker already has an Upload button), then attaches the
+                    // chosen asset. Replaces the old separate Upload + Library buttons.
+                    { label: "Library", action: { event: "pick_campaign_post_media", payload: { postId: p.id, campaignId: input.campaignId } } },
                     { label: "Reschedule", action: { event: "reschedule_post", payload: { postId: p.id } } },
                     { label: "Remove", variant: "danger" as const, action: { event: "remove_post", payload: { postId: p.id } } },
                   ],
