@@ -358,7 +358,7 @@ export const createContentCampaign: FlowAgentTool = {
           campaignId: campaign.id,
           plannedPosts: count,
           platforms,
-          userMessage: `Planning a ${count}-post "${name}" campaign across ${platforms.join(", ")} — captions + dates + a media prompt per post (no images/videos generated yet; that's per-post after review). The full campaign review card will render inline in chat. Do not tell the user to open Campaign Studio.`,
+          userMessage: `Planning a ${count}-post "${name}" campaign across ${platforms.join(", ")} — captions + dates + a media prompt per post (no images/videos generated yet; that's per-post after review). Give the user ONE short "planning your campaign…" line and STOP. Do NOT call show_content_campaign, and do NOT say it's ready/done/above yet — the finished review card renders here AUTOMATICALLY when planning completes (calling show_content_campaign now shows a half-built 1-post card, then a duplicate). Confirm once when the card lands. Don't tell the user to open Campaign Studio.`,
         },
       };
     } catch (e) {

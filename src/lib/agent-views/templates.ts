@@ -818,6 +818,202 @@ export function campaignTimelineView(input: {
   };
 }
 
+// ─── Social posting: preview + honest per-channel result ────────────────────
+// Human labels + a small emoji marker per destination (base platform). Kept
+// inline so this pure view module has no client-component dependency.
+const SOCIAL_LABELS: Record<string, { label: string; icon: string }> = {
+  feed: { label: "Your feed", icon: "🏠" },
+  facebook: { label: "Facebook", icon: "📘" },
+  instagram: { label: "Instagram", icon: "📸" },
+  twitter: { label: "X / Twitter", icon: "𝕏" },
+  x: { label: "X / Twitter", icon: "𝕏" },
+  linkedin: { label: "LinkedIn", icon: "💼" },
+  tiktok: { label: "TikTok", icon: "🎵" },
+  youtube: { label: "YouTube", icon: "▶️" },
+  pinterest: { label: "Pinterest", icon: "📌" },
+  threads: { label: "Threads", icon: "🧵" },
+  google_business: { label: "Google Business", icon: "🗺️" },
+  whatsapp: { label: "WhatsApp", icon: "💬" },
+};
+
+/** Base platform for a destination string ("instagram", "account:abc" → resolved by caller,
+ *  or "instagram:xyz" → "instagram"). Falls back to the raw value. */
+function socialBase(destination: string): string {
+  const d = destination.toLowerCase();
+  if (d.startsWith("account:")) return d; // caller should pass a base; leave as-is
+  return d.split(":")[0];
+}
+
+function socialMeta(destination: string): { label: string; icon: string } {
+  return SOCIAL_LABELS[socialBase(destination)] || { label: destination, icon: "🌐" };
+}
+
+export type PostChannelResult = { success: boolean; error?: string; pending?: boolean };
+
+/**
+ * A pre-publish PREVIEW — what the post will look like (media + caption) and
+ * exactly which channels it goes to — so the user reviews it in the chat like
+ * the Publish view, then taps Post now / Schedule.
+ */
+export function postPreviewView(input: {
+  caption: string;
+  mediaUrl?: string | null;
+  mediaType?: "image" | "video" | null;
+  platforms: string[];
+  scheduledAtLabel?: string | null;
+  postId?: string | null;
+}): ViewSpec {
+  const platforms = input.platforms.length ? input.platforms : ["feed"];
+  const chips = platforms.map((p) => {
+    const m = socialMeta(p);
+    return { type: "badge" as const, text: `${m.icon} ${m.label}`, tone: "brand" as const };
+  });
+  const body: ViewBlock[] = [];
+  if (input.mediaUrl) {
+    body.push({
+      type: "mediaBox" as const,
+      url: input.mediaUrl,
+      mediaType: input.mediaType || "image",
+      label: "Preview",
+    });
+  }
+  // Always show a TRUNCATED caption in the card — never the full body (long
+  // captions blow up the card and bury the actions).
+  const captionText = (input.caption || "").trim();
+  const shownCaption = captionText.length > 160 ? `${captionText.slice(0, 160).trimEnd()}…` : (captionText || "(no caption)");
+  body.push({ type: "text" as const, text: shownCaption, size: "sm" as const });
+  body.push({ type: "row" as const, gap: 6, wrap: true, align: "start" as const, children: chips });
+  body.push({
+    type: "note" as const,
+    tone: "muted" as const,
+    text: input.scheduledAtLabel
+      ? `Will publish ${input.scheduledAtLabel} to the ${platforms.length} channel${platforms.length === 1 ? "" : "s"} above.`
+      : `Publishes now to the ${platforms.length} channel${platforms.length === 1 ? "" : "s"} above.`,
+  });
+  return {
+    name: "post-preview",
+    source: "library",
+    skill: "preview_social_post",
+    width: "md",
+    title: "Review your post",
+    icon: "📤",
+    badge: { text: input.scheduledAtLabel ? "Ready to schedule" : "Ready to post", tone: "brand" },
+    body,
+    footer: [
+      {
+        type: "button" as const,
+        label: input.scheduledAtLabel ? "Schedule it" : "Post now",
+        variant: "primary" as const,
+        action: {
+          event: "publish_post_now",
+          confirm: input.scheduledAtLabel
+            ? `Schedule this post to ${platforms.length} channel${platforms.length === 1 ? "" : "s"}?`
+            : `Publish this post now to ${platforms.length} channel${platforms.length === 1 ? "" : "s"}?`,
+          payload: { platforms, scheduled: !!input.scheduledAtLabel, postId: input.postId ?? null },
+        },
+      },
+      { type: "button" as const, label: "Edit caption", action: { event: "edit_post_caption_prompt", payload: { postId: input.postId ?? null } } },
+    ],
+  };
+}
+
+/**
+ * Honest per-channel RESULT after a real publish — one row per selected channel
+ * with its true status (published / pending / failed + the reason and next step),
+ * so the user sees exactly what went out and what they must fix. Never a blanket
+ * "all live".
+ */
+export function postPublishResultView(input: {
+  postId: string;
+  caption?: string;
+  platforms: string[];
+  results: Record<string, PostChannelResult>;
+  scheduled?: boolean;
+  scheduledAtLabel?: string | null;
+}): ViewSpec {
+  const platforms = input.platforms.length ? input.platforms : ["feed"];
+
+  // Resolve each selected channel's status. "feed" is the always-on in-app feed
+  // (the publisher skips it), so it counts as posted whenever the post is live.
+  type Row = { destination: string; state: "published" | "pending" | "failed" | "scheduled"; note?: string };
+  const rows: Row[] = platforms.map((p) => {
+    if (socialBase(p) === "feed") {
+      return { destination: p, state: input.scheduled ? "scheduled" : "published" };
+    }
+    if (input.scheduled) return { destination: p, state: "scheduled" };
+    const r = input.results[p] || input.results[socialBase(p)];
+    if (!r) return { destination: p, state: "failed", note: "No result returned — the channel may not be connected." };
+    if (r.pending) return { destination: p, state: "pending", note: r.error || "Uploaded, awaiting the platform." };
+    if (r.success) return { destination: p, state: "published" };
+    return { destination: p, state: "failed", note: r.error || "Publish failed." };
+  });
+
+  const published = rows.filter((r) => r.state === "published").length;
+  const scheduledCount = rows.filter((r) => r.state === "scheduled").length;
+  const pending = rows.filter((r) => r.state === "pending").length;
+  const failed = rows.filter((r) => r.state === "failed");
+
+  const toneFor = (s: Row["state"]): "success" | "warn" | "danger" | "info" =>
+    s === "published" ? "success" : s === "pending" ? "warn" : s === "scheduled" ? "info" : "danger";
+  const labelFor = (s: Row["state"]): string =>
+    s === "published" ? "Published" : s === "pending" ? "Pending" : s === "scheduled" ? "Scheduled" : "Failed";
+
+  const body: ViewBlock[] = rows.map((r) => {
+    const m = socialMeta(r.destination);
+    const children: ViewBlock[] = [
+      {
+        type: "row" as const,
+        align: "between" as const,
+        children: [
+          { type: "text" as const, text: `${m.icon}  ${m.label}`, size: "sm" as const, strong: true },
+          { type: "badge" as const, text: labelFor(r.state), tone: toneFor(r.state) },
+        ],
+      },
+    ];
+    if (r.note) children.push({ type: "text" as const, text: r.note, size: "xs" as const, tone: "muted" as const });
+    return { type: "card" as const, children };
+  });
+
+  // Summary headline — always honest about the split.
+  const parts: string[] = [];
+  if (published) parts.push(`${published} published`);
+  if (scheduledCount) parts.push(`${scheduledCount} scheduled`);
+  if (pending) parts.push(`${pending} pending`);
+  if (failed.length) parts.push(`${failed.length} failed`);
+  const allOk = failed.length === 0 && pending === 0;
+  const badgeTone: "success" | "warn" | "danger" = failed.length
+    ? (published || scheduledCount ? "warn" : "danger")
+    : pending
+      ? "warn"
+      : "success";
+
+  const footer: ViewBlock[] = [];
+  if (failed.length) {
+    footer.push({
+      type: "button" as const,
+      label: `Retry ${failed.length} failed`,
+      variant: "primary" as const,
+      action: { event: "retry_post_publish", payload: { postId: input.postId, platforms: failed.map((f) => f.destination) } },
+    });
+    // Most failures are auth/permission — send them to reconnect.
+    footer.push({ type: "button" as const, label: "Fix connections", action: { event: "open_studio", href: "/home/connections" } });
+  }
+  footer.push({ type: "button" as const, label: "Open in Publish", action: { event: "open_studio", href: "/home/publish" } });
+
+  return {
+    name: "post-result",
+    source: "library",
+    skill: "schedule_social_post",
+    width: "md",
+    title: input.scheduled ? "Post scheduled" : allOk ? "Post published" : failed.length && !published && !scheduledCount ? "Post failed" : "Post — partial",
+    subtitle: parts.join(" · ") || undefined,
+    icon: allOk ? "✅" : failed.length ? "⚠️" : "📤",
+    badge: { text: input.scheduled ? "Scheduled" : parts.join(" · ") || "Done", tone: input.scheduled ? "info" : badgeTone },
+    body,
+    footer,
+  };
+}
+
 /** A generic build-in-progress view for any long task (design, campaign, etc.). */
 export function buildProgressView(input: { title: string; icon?: string; steps: { text: string; state: "done" | "active" | "pending"; sub?: string }[]; progress: number; note?: string }): ViewSpec {
   const body: ViewBlock[] = [
