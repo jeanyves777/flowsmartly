@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import type { FlowAgentTool } from "../registry";
-import { pitchView } from "@/lib/agent-views/templates";
+import { proposalPitchView } from "@/lib/agent-views/templates";
 
 /**
  * show_pitch — render a proposal/pitch as an EDITABLE card inline in the chat:
@@ -31,6 +31,7 @@ export const showPitch: FlowAgentTool = {
     try { const p = JSON.parse(pitch.pitchContent || "{}"); if (p && typeof p === "object") c = p as Record<string, unknown>; } catch { /* empty */ }
     const str = (k: string) => (typeof c[k] === "string" && (c[k] as string).trim() ? (c[k] as string).trim() : undefined);
     const list = (k: string) => (Array.isArray(c[k]) ? (c[k] as unknown[]).filter((x): x is string => typeof x === "string") : []);
+    const objList = (k: string) => (Array.isArray(c[k]) ? (c[k] as unknown[]).filter((x): x is Record<string, unknown> => !!x && typeof x === "object") : []);
 
     const sections: { label: string; text: string }[] = [];
     const need = str("clientNeed"); if (need) sections.push({ label: "The need", text: need });
@@ -38,10 +39,19 @@ export const showPitch: FlowAgentTool = {
     const benefits = list("benefits"); if (benefits.length) sections.push({ label: "Benefits", text: benefits.slice(0, 5).join(" • ") });
     const nextSteps = list("nextSteps"); if (nextSteps.length) sections.push({ label: "Next steps", text: nextSteps.slice(0, 4).join(" • ") });
 
+    const visualImages = (c.visualAssets && typeof c.visualAssets === "object" && Array.isArray((c.visualAssets as { images?: unknown }).images))
+      ? ((c.visualAssets as { images: unknown[] }).images.filter((x): x is Record<string, unknown> => !!x && typeof x === "object"))
+      : [];
+    const coverImage = visualImages.find((im) => im.kind === "cover" && typeof im.url === "string")?.url as string | undefined;
+    const metrics = objList("proofPoints").map((p) => ({ label: String(p.label ?? ""), value: String(p.metric ?? "") })).filter((p) => p.label || p.value);
+    const deliverables = objList("deliverables").map((d) => ({ title: String(d.title ?? ""), description: String(d.description ?? "") })).filter((d) => d.title || d.description);
+    const timeline = objList("timeline").map((t) => ({ label: String(t.label ?? ""), title: String(t.title ?? "") })).filter((t) => t.label || t.title);
+    const variant = c.studioDocType === "visual" ? "visual" : "deck";
+
     ctx.emit({
       type: "agent_view",
       requestId: `pitch-${pitch.id}`,
-      spec: pitchView({ id: pitch.id, business: pitch.businessName, title: str("title"), subject: str("subject"), summary: str("executiveSummary"), sections }),
+      spec: proposalPitchView({ id: pitch.id, business: pitch.businessName, title: str("title"), subject: str("subject"), summary: str("executiveSummary"), variant, coverImage, metrics, deliverables, timeline, sections }),
     });
 
     return {

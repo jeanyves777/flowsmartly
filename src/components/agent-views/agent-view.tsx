@@ -126,7 +126,7 @@ function InputBlock({ block, emit }: { block: Extract<ViewBlock, { type: "input"
   const [val, setVal] = useState(block.value || "");
   const submit = () => { if (val.trim() && block.action) emit({ action: block.action, name: block.name, value: val.trim() }); };
   return (
-    <div className="flex items-end gap-1.5">
+    <div className="flex w-full items-end gap-1.5">
       {block.multiline
         ? <textarea value={val} onChange={(e) => setVal(e.target.value)} placeholder={block.placeholder} rows={2} className="min-w-0 flex-1 resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
         : <input value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder={block.placeholder} className="min-w-0 flex-1 rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />}

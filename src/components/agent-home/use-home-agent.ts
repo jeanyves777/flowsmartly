@@ -18,6 +18,7 @@ import {
   fetchConversationCards,
   parseMessageBlocks,
 } from "@/components/flow-ai/use-agent-stream";
+import { proposalPitchView } from "@/lib/agent-views/templates";
 
 /**
  * Real Flow-AI conversation for the agent home. A third consumer of the
@@ -77,6 +78,51 @@ export function useHomeAgent() {
     } else if (kind === "canvas_object") {
       const out = output as { url?: string; objectType?: string; slotId?: string } | null | undefined;
       if (out?.url) canvasUpdateRef.current?.(out.slotId ? { fillImageLayer: { id: out.slotId, url: out.url } } : out.objectType === "background" ? { bgImageUrl: out.url } : { addImageLayer: { url: out.url } });
+    }
+  }, []);
+
+  const appendProposalViewMessage = useCallback(async (task: AgentTaskCardData) => {
+    if (task.kind !== "create_proposal") return;
+    const pitchId = typeof task.output?.pitchId === "string" ? task.output.pitchId : task.resultRefType === "Pitch" ? task.resultRefId : null;
+    if (!pitchId) return;
+    const viewId = `pitch-view-${pitchId}`;
+    try {
+      const json = await fetch(`/api/pitch/${encodeURIComponent(pitchId)}`).then((r) => r.json()).catch(() => null);
+      const row = json?.data?.pitch;
+      const c = row?.pitchContent && typeof row.pitchContent === "object" ? row.pitchContent as Record<string, unknown> : {};
+      const str = (k: string) => (typeof c[k] === "string" && (c[k] as string).trim() ? (c[k] as string).trim() : undefined);
+      const list = (k: string) => (Array.isArray(c[k]) ? (c[k] as unknown[]).filter((x): x is string => typeof x === "string") : []);
+      const objList = (k: string) => (Array.isArray(c[k]) ? (c[k] as unknown[]).filter((x): x is Record<string, unknown> => !!x && typeof x === "object") : []);
+      const visualImages = c.visualAssets && typeof c.visualAssets === "object" && Array.isArray((c.visualAssets as { images?: unknown }).images)
+        ? (c.visualAssets as { images: unknown[] }).images.filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+        : [];
+      const sections: { key: string; label: string; text: string }[] = [];
+      const add = (key: string, label: string, text?: string) => { if (text) sections.push({ key, label, text }); };
+      add("clientNeed", "The need", str("clientNeed"));
+      add("aboutBrand", "About your brand", str("aboutBrand"));
+      const commitments = list("commitments"); if (commitments.length) sections.push({ key: "commitments", label: "Commitments", text: commitments.slice(0, 6).join(" | ") });
+      const benefits = list("benefits"); if (benefits.length) sections.push({ key: "benefits", label: "Benefits", text: benefits.slice(0, 6).join(" | ") });
+      const nextSteps = list("nextSteps"); if (nextSteps.length) sections.push({ key: "nextSteps", label: "Next steps", text: nextSteps.slice(0, 5).join(" | ") });
+      const spec = proposalPitchView({
+        id: pitchId,
+        business: row?.businessName,
+        title: str("title"),
+        subject: str("subject"),
+        summary: str("executiveSummary"),
+        variant: c.studioDocType === "visual" ? "visual" : "deck",
+        coverImage: visualImages.find((im) => im.kind === "cover" && typeof im.url === "string")?.url as string | undefined,
+        metrics: objList("proofPoints").map((p) => ({ label: String(p.label ?? ""), value: String(p.metric ?? "") })).filter((p) => p.label || p.value),
+        deliverables: objList("deliverables").map((d) => ({ title: String(d.title ?? ""), description: String(d.description ?? "") })).filter((d) => d.title || d.description),
+        timeline: objList("timeline").map((t) => ({ label: String(t.label ?? ""), title: String(t.title ?? "") })).filter((t) => t.label || t.title),
+        sections,
+      });
+      setMessages((prev) => (
+        prev.some((m) => m.id === viewId)
+          ? prev
+          : [...prev, { id: viewId, role: "assistant", content: "", blocks: [{ type: "view", requestId: viewId, spec }] }]
+      ));
+    } catch {
+      /* best effort */
     }
   }, []);
 
@@ -195,7 +241,7 @@ export function useHomeAgent() {
             flushMessage();
             // A branded-design task → the open design canvas shows a live rendering state.
             if (task.kind === "create_branded_design") canvasUpdateRef.current?.({ generating: true });
-            startTaskSubscription(task.id, tasksById, flushMessage, taskStreamsRef.current, appendCompletionMessage, (patch) => canvasUpdateRef.current?.(patch));
+            startTaskSubscription(task.id, tasksById, flushMessage, taskStreamsRef.current, appendCompletionMessage, (patch) => canvasUpdateRef.current?.(patch), appendProposalViewMessage);
           },
           onTaskProgress: (taskId, progress, message, extra) => {
             const existing = tasksById.get(taskId);
@@ -216,6 +262,7 @@ export function useHomeAgent() {
             const existing = tasksById.get(task.id);
             const merged = { ...(existing ?? task), ...task };
             tasksById.set(task.id, merged);
+            void appendProposalViewMessage(merged);
             flushMessage();
             // Apply the result to the open canvas here too — the live stream may
             // deliver completion before/instead of the per-task subscription
@@ -278,7 +325,7 @@ export function useHomeAgent() {
         setSending(false);
       }
     },
-    [conversationId, send, sending, appendCompletionMessage],
+    [conversationId, send, sending, appendCompletionMessage, appendProposalViewMessage],
   );
 
   const handlePlanResponse = useCallback(
@@ -427,6 +474,7 @@ function startTaskSubscription(
   registry: Map<string, AbortController>,
   appendAssistantMessage?: (msg: { id: string; content: string }) => void,
   onCanvasImage?: (patch: Record<string, unknown>) => void,
+  onCompletedTask?: (task: AgentTaskCardData) => void,
 ) {
   if (registry.has(taskId)) return;
   const controller = subscribeToTaskStream(taskId, (event) => {
@@ -454,7 +502,10 @@ function startTaskSubscription(
       // The task may already be DONE when we connect — the stream sends a
       // *completed snapshot* (not a separate completed event) and closes, so we
       // must apply the canvas result here too or it's silently dropped.
-      if (event.status === "completed") applyCanvasResult(current.kind, next.output);
+      if (event.status === "completed") {
+        applyCanvasResult(current.kind, next.output);
+        onCompletedTask?.(next);
+      }
     } else if (event.type === "progress") {
       const script = event.script ? normalizeFilmScript(event.script) : null;
       const scenes = event.scenes ? normalizeFilmScenes(event.scenes) : null;
@@ -462,6 +513,7 @@ function startTaskSubscription(
     } else if (event.type === "completed") {
       next = { ...current, status: "completed", output: event.output ?? current.output, resultRefType: event.resultRefType ?? current.resultRefType, resultRefId: event.resultRefId ?? current.resultRefId };
       applyCanvasResult(current.kind, next.output);
+      onCompletedTask?.(next);
       registry.get(taskId)?.abort();
       registry.delete(taskId);
     } else if (event.type === "failed") {
