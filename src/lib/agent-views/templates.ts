@@ -437,6 +437,228 @@ export function visualDeckMaterialsView(input: {
   };
 }
 
+/** Existing pitches/proposals -> a pickable library with inline review actions. */
+export function pitchesListView(
+  pitches: {
+    id: string;
+    business: string | null;
+    url?: string | null;
+    type: string;
+    status: string;
+    recipient?: string | null;
+    sentAt?: string | null;
+    createdAt: string;
+  }[],
+  total?: number,
+): ViewSpec {
+  const count = total ?? pitches.length;
+  return {
+    name: "pitches-list",
+    source: "library",
+    skill: "list_pitches",
+    width: "full",
+    title: "Pitch Studio library",
+    subtitle: `${count} pitch/proposal${count === 1 ? "" : "s"} found`,
+    icon: "Pitch",
+    badge: { text: "Inline review", tone: "brand" },
+    body: [
+      {
+        type: "table",
+        columns: [
+          { key: "business", label: "Business" },
+          { key: "type", label: "Type", kind: "badge" },
+          { key: "recipient", label: "Recipient" },
+          { key: "status", label: "Status", kind: "badge" },
+          { key: "created", label: "Created" },
+        ],
+        rows: pitches.slice(0, 40).map((p) => ({
+          pitchId: p.id,
+          id: p.id,
+          business: p.business || "Untitled",
+          url: p.url || "",
+          type: p.type,
+          recipient: p.recipient || "-",
+          status: p.status || "draft",
+          created: p.createdAt ? p.createdAt.slice(0, 10) : "-",
+          sentAt: p.sentAt || "",
+        })),
+        rowActions: [
+          { label: "Show inline", variant: "primary", action: { event: "show_pitch", tool: "show_pitch" } },
+          { label: "Edit", action: { event: "edit_pitch", tool: "show_pitch" } },
+        ],
+      },
+      { type: "note", tone: "muted", text: "Pick any row to render the full pitch/proposal card here in chat with edit, PDF download, and send actions attached." },
+    ],
+    footer: [{ type: "button", label: "Open Pitch Studio", action: { event: "open_studio", href: "/home/pitchstudio" } }],
+  };
+}
+
+/** Saved designs -> a reusable picker for visual decks and design follow-ups. */
+export function designsLibraryView(
+  designs: {
+    id: string;
+    name: string;
+    category?: string | null;
+    size?: string | null;
+    style?: string | null;
+    type?: string | null;
+    status?: string | null;
+    imageUrl?: string | null;
+    updatedAt?: string | null;
+  }[],
+): ViewSpec {
+  const rows = designs.slice(0, 40).map((d) => ({
+    id: d.id,
+    designId: d.id,
+    title: d.name || "Untitled design",
+    category: d.category || "-",
+    size: d.size || "-",
+    style: d.style || "-",
+    type: d.type || "design",
+    status: d.status || "-",
+    url: d.imageUrl || "",
+    updatedAt: d.updatedAt || "",
+  }));
+  return {
+    name: "designs-library",
+    source: "library",
+    skill: "list_designs",
+    width: "full",
+    title: "Saved designs",
+    subtitle: `${rows.length} design${rows.length === 1 ? "" : "s"} ready to reuse`,
+    icon: "Design",
+    badge: { text: "Reusable", tone: "success" },
+    body: [
+      {
+        type: "table",
+        columns: [
+          { key: "title", label: "Design" },
+          { key: "category", label: "Category", kind: "badge" },
+          { key: "size", label: "Size" },
+          { key: "status", label: "Status", kind: "badge" },
+        ],
+        rows,
+        rowActions: [
+          { label: "Use in deck", variant: "primary", action: { event: "use_design_in_visual_deck", tool: "create_visual_deck" } },
+          { label: "Open", action: { event: "open_design" } },
+        ],
+      },
+      { type: "note", tone: "muted", text: "Choose a design to build a branded visual deck around it, or ask for edits and the agent will keep the work inside the chat." },
+    ],
+    footer: [{ type: "button", label: "Open Design Studio", action: { event: "open_studio", href: "/home/create" } }],
+  };
+}
+
+/** Media library -> a reusable asset picker for decks, posts, and campaigns. */
+export function mediaLibraryView(
+  media: {
+    id: string;
+    name: string;
+    url: string;
+    type: string;
+    dimensions?: string | null;
+    sizeKB?: number | null;
+    createdAt?: string | null;
+  }[],
+): ViewSpec {
+  const rows = media.slice(0, 50).map((m) => ({
+    id: m.id,
+    mediaId: m.id,
+    title: m.name || "Untitled file",
+    type: m.type || "file",
+    details: [m.dimensions, typeof m.sizeKB === "number" ? `${m.sizeKB} KB` : null].filter(Boolean).join(" - ") || "-",
+    url: m.url,
+    thumb: /^https?:\/\//.test(m.url || "") && (m.type === "image" || m.type === "svg") ? m.url : undefined,
+    created: m.createdAt ? m.createdAt.slice(0, 10) : "-",
+  }));
+  const hasThumbs = rows.some((r) => typeof r.thumb === "string" && r.thumb);
+  return {
+    name: "media-library",
+    source: "library",
+    skill: "list_media",
+    width: "full",
+    title: "Media library",
+    subtitle: `${rows.length} file${rows.length === 1 ? "" : "s"} available`,
+    icon: "Media",
+    badge: { text: "Use as material", tone: "brand" },
+    body: [
+      {
+        type: "table",
+        columns: [
+          ...(hasThumbs ? [{ key: "thumb", label: "", kind: "thumb" as const }] : []),
+          { key: "title", label: "File" },
+          { key: "type", label: "Type", kind: "badge" },
+          { key: "details", label: "Details" },
+          { key: "created", label: "Created" },
+        ],
+        rows,
+        rowActions: [
+          { label: "Use in deck", variant: "primary", action: { event: "use_media_in_visual_deck", tool: "create_visual_deck" } },
+          { label: "Create post", action: { event: "use_media_for_post" } },
+        ],
+      },
+      { type: "note", tone: "muted", text: "Pick an asset to create a branded visual deck, post, or campaign without leaving the chat." },
+    ],
+    footer: [{ type: "button", label: "Open Media Library", action: { event: "open_studio", href: "/home/media" } }],
+  };
+}
+
+/** Campaign Studio index -> pick a campaign and continue inline. */
+export function contentCampaignsListView(
+  campaigns: {
+    id: string;
+    name: string;
+    status: string;
+    brief?: string;
+    platforms?: unknown[];
+    postCount: number;
+    startDate?: string | null;
+    endDate?: string | null;
+    updatedAt: string;
+  }[],
+): ViewSpec {
+  return {
+    name: "content-campaigns-list",
+    source: "library",
+    skill: "list_content_campaigns",
+    width: "full",
+    title: "Content campaigns",
+    subtitle: `${campaigns.length} campaign${campaigns.length === 1 ? "" : "s"} ready to manage`,
+    icon: "Campaign",
+    badge: { text: "Inline editor", tone: "brand" },
+    body: [
+      {
+        type: "table",
+        columns: [
+          { key: "name", label: "Campaign" },
+          { key: "status", label: "Status", kind: "badge" },
+          { key: "posts", label: "Posts", align: "right" },
+          { key: "platforms", label: "Platforms" },
+          { key: "updated", label: "Updated" },
+        ],
+        rows: campaigns.slice(0, 40).map((c) => ({
+          id: c.id,
+          campaignId: c.id,
+          name: c.name,
+          status: c.status,
+          brief: c.brief || "",
+          posts: c.postCount,
+          platforms: Array.isArray(c.platforms) && c.platforms.length ? c.platforms.join(", ") : "-",
+          startDate: c.startDate || "",
+          endDate: c.endDate || "",
+          updated: c.updatedAt ? c.updatedAt.slice(0, 10) : "-",
+        })),
+        rowActions: [
+          { label: "Show inline", variant: "primary", action: { event: "show_content_campaign", tool: "show_content_campaign" } },
+          { label: "Improve", action: { event: "improve_content_campaign", tool: "improve_content_campaign" } },
+        ],
+      },
+      { type: "note", tone: "muted", text: "Open a campaign here to rewrite captions, regenerate images, reschedule posts, remove items, or approve everything from the same chat thread." },
+    ],
+    footer: [{ type: "button", label: "Open Campaign Studio", action: { event: "open_studio", href: "/home/campaign" } }],
+  };
+}
+
 /** A drafted screenplay awaiting the user's approval before the paid render. */
 export function scriptApprovalView(input: {
   draftId: string;
