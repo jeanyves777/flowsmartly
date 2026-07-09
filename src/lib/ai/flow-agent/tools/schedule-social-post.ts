@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db/client";
+import { publishToSocialPlatforms } from "@/lib/social/publisher";
+import { postPublishResultView } from "@/lib/agent-views/templates";
 import type { FlowAgentTool } from "../registry";
 
 /**
@@ -15,7 +17,7 @@ import type { FlowAgentTool } from "../registry";
 export const scheduleSocialPost: FlowAgentTool = {
   name: "schedule_social_post",
   description:
-    "Create a social post with a caption (required) and optional media + hashtags + platforms, then publish it now or schedule it for a future ISO datetime. Pass `planId` from a confirmed propose_plan call. Returns the created post id and a link to view it on the calendar. Use ISO 8601 in UTC for scheduledAt — convert from the user's stated time using their timezone from the system prompt.",
+    "Create a social post with a caption (required) and optional media + hashtags + platforms, then ACTUALLY publish it now (real push to each connected external platform) or schedule it for a future ISO datetime. Pass `planId` from a confirmed propose_plan call. On an immediate post it returns the TRUE per-platform result (published / pending / failed with the reason) plus a result card the user sees inline — report those results HONESTLY (never claim every platform succeeded; some may need reconnect/retry, which the card surfaces). Use ISO 8601 in UTC for scheduledAt — convert from the user's stated time using their timezone from the system prompt.",
   input_schema: {
     type: "object",
     properties: {
@@ -134,6 +136,8 @@ export const scheduleSocialPost: FlowAgentTool = {
       }
 
       const status = parsedScheduledAt ? "SCHEDULED" : "PUBLISHED";
+      const externalDests = platforms.filter((p) => p !== "feed");
+      const hasExternal = externalDests.length > 0;
 
       const post = await prisma.post.create({
         data: {
@@ -152,7 +156,60 @@ export const scheduleSocialPost: FlowAgentTool = {
         select: { id: true, status: true, scheduledAt: true, publishedAt: true },
       });
 
-      const link = parsedScheduledAt ? `/content/calendar` : `/`;
+      // ACTUALLY PUBLISH. For an immediate post we push to each external platform
+      // via the SAME engine the composer's streamed publish uses and collect the
+      // TRUE per-channel result — never the old fiction of marking the row
+      // PUBLISHED and claiming "live everywhere". Scheduled posts fan out later
+      // via the scheduler, so nothing is pushed now.
+      let results: Record<string, { success: boolean; error?: string; pending?: boolean }> = {};
+      if (!parsedScheduledAt && hasExternal) {
+        try {
+          results = await publishToSocialPlatforms(post.id, ctx.userId);
+        } catch (pubErr) {
+          console.error("[schedule_social_post] publish failed:", pubErr);
+          // Leave results empty → the result card marks the external channels
+          // failed rather than falsely reporting success.
+        }
+      }
+
+      // Honest tallies (feed is the always-on in-app destination — no external push).
+      const publishedExt = externalDests.filter((p) => results[p]?.success && !results[p]?.pending);
+      const pendingExt = externalDests.filter((p) => results[p]?.pending);
+      const failedExt = externalDests.filter((p) => results[p] && !results[p]!.success && !results[p]!.pending);
+      const notConnected = externalDests.filter((p) => !results[p]);
+
+      const inlineView = {
+        requestId: `post-result-${post.id}`,
+        spec: postPublishResultView({
+          postId: post.id,
+          caption: content,
+          platforms,
+          results,
+          scheduled: !!parsedScheduledAt,
+          scheduledAtLabel: parsedScheduledAt ? parsedScheduledAt.toISOString() : null,
+        }),
+      };
+
+      const link = parsedScheduledAt ? `/home/calendar` : `/home/publish`;
+
+      // HONEST summary for the model — it must report per-platform, never a
+      // blanket "all live". The result card below already shows the detail +
+      // retry/fix actions, so the agent should confirm briefly, not re-list it.
+      let summary: string;
+      if (parsedScheduledAt) {
+        summary = `Scheduled for ${post.scheduledAt?.toISOString()} across ${platforms.join(", ")}. A result card is shown below — confirm briefly, don't re-list it.`;
+      } else {
+        const bits = ["feed: posted"];
+        for (const p of externalDests) {
+          const r = results[p];
+          bits.push(`${p}: ${!r ? "NOT CONNECTED" : r.pending ? "pending" : r.success ? "published" : `FAILED (${r.error || "unknown"})`}`);
+        }
+        summary =
+          `REAL publish results — report these HONESTLY per platform, do NOT claim everything succeeded: ${bits.join("; ")}. ` +
+          `${failedExt.length || notConnected.length ? "Some channels need the user's attention (reconnect / retry) — the card below has the actions. " : ""}` +
+          `A result card is shown below; confirm briefly and don't re-list it as text.`;
+      }
+
       return {
         ok: true,
         data: {
@@ -161,10 +218,14 @@ export const scheduleSocialPost: FlowAgentTool = {
           scheduledAt: post.scheduledAt?.toISOString() ?? null,
           publishedAt: post.publishedAt?.toISOString() ?? null,
           platforms,
+          results,
+          published: publishedExt,
+          pending: pendingExt,
+          failed: failedExt,
+          notConnected,
+          inlineView,
           link,
-          summary: parsedScheduledAt
-            ? `Scheduled for ${post.scheduledAt?.toISOString()} across ${platforms.join(", ")}`
-            : `Published now to ${platforms.join(", ")}`,
+          summary,
         },
         resultRefType: "Post",
         resultRefId: post.id,
