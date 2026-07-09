@@ -9,14 +9,17 @@
  */
 
 /**
- * Strong directive for DESIGN / image / flyer prompts: tells the model today's
- * date and forbids printing a past year unless the user asked. Use in any
- * generator that renders dated/seasonal visuals or copy.
+ * Date directive for DESIGN / image / flyer prompts. The date is CONTEXT so the
+ * model knows "now" — it is NOT content to render. The model was reading the old
+ * "any year shown must be 2026" phrasing as a cue to STAMP the year on the
+ * design (uninstructed "2026" badges / "Limited 2026 Run" lines — the year-drift
+ * bug). So: forbid adding a year/date unless the brief asks, and only then pin it
+ * to the current (or a user-provided future) year — never a stale past year.
  */
 export function currentDateDirective(now: Date = new Date()): string {
   const year = now.getFullYear();
   const formatted = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  return `Today's date is ${formatted} (current year ${year}). Any year shown — event dates, "20XX" badges, copyright lines, seasonal references — MUST be ${year} or a future date the user explicitly provided. NEVER print a past year (e.g. 2023, 2024) unless the user asked for it.`;
+  return `Today's date is ${formatted} (current year ${year}) — this is CONTEXT so you know what "now" is; it is NOT content to put on the design. Do NOT add any year, date, "20XX" badge, "Season ${year}", copyright line, or other time stamp to the design UNLESS the user's brief explicitly calls for a date. When the brief DOES call for a year/date, it MUST be ${year} (or a future date the user provided) — never a past year like 2023 or 2024.`;
 }
 
 /**
