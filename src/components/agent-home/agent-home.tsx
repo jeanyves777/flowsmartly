@@ -1374,7 +1374,7 @@ export function AgentHome() {
                 {messages.map((m) => (
                   <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} onViewEvent={handleViewEvent} />
                 ))}
-                <div ref={bottomRef} />
+                <div ref={bottomRef} className="h-36 sm:h-40" />
               </div>
             )}
           </div>

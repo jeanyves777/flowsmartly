@@ -20,6 +20,7 @@ import {
 } from "@/components/flow-ai/use-agent-stream";
 import { proposalPitchView } from "@/lib/agent-views/templates";
 import { normalizeViewSpec } from "@/lib/agent-views/spec";
+import type { ViewBlock } from "@/lib/agent-views/spec";
 
 /**
  * Real Flow-AI conversation for the agent home. A third consumer of the
@@ -157,6 +158,28 @@ export function useHomeAgent() {
     setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: "assistant", content: msg.content }]));
   }, []);
 
+  const patchInlinePostMedia = useCallback((call: AgentToolCardData) => {
+    if (call.name !== "regenerate_post_image" && call.name !== "regenerate_post_video") return;
+    const output = call.output as { ok?: boolean; data?: { postId?: unknown; url?: unknown } } | null | undefined;
+    const postId = typeof output?.data?.postId === "string" ? output.data.postId : "";
+    const url = typeof output?.data?.url === "string" ? output.data.url : "";
+    if (!postId || !url) return;
+    const mediaType = call.name === "regenerate_post_video" ? "video" : "image";
+    const patchBlocks = (blocks: ViewBlock[]): ViewBlock[] => blocks.map((block) => {
+      if (block.type === "mediaBox" && block.postId === postId) return { ...block, url, mediaType, label: "Media", status: undefined };
+      if ("children" in block && Array.isArray(block.children)) return { ...block, children: patchBlocks(block.children) } as ViewBlock;
+      return block;
+    });
+    setMessages((prev) => prev.map((m) => ({
+      ...m,
+      blocks: m.blocks?.map((b) => (
+        b.type === "view" && b.spec.name === "content-campaign"
+          ? { ...b, spec: { ...b.spec, body: patchBlocks(b.spec.body) } }
+          : b
+      )),
+    })));
+  }, []);
+
   // ── Publish narration ── Compose's "Post now" streams per-channel status into
   // its modal AND narrates it here, so the agent panel stays visibly involved in
   // the publish (not dormant). These are live-only bubbles (not persisted).
@@ -255,6 +278,7 @@ export function useHomeAgent() {
           },
           onToolCallResult: (call) => {
             toolCallsById.set(call.id, call);
+            patchInlinePostMedia(call);
             flushMessage();
           },
           onPlanProposal: (proposal) => {
@@ -352,7 +376,7 @@ export function useHomeAgent() {
         setSending(false);
       }
     },
-    [conversationId, send, sending, appendCompletionMessage, appendCompletedTaskViews],
+    [conversationId, send, sending, appendCompletionMessage, appendCompletedTaskViews, patchInlinePostMedia],
   );
 
   const handlePlanResponse = useCallback(

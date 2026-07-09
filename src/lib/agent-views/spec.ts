@@ -51,6 +51,7 @@ export type ViewBlock =
   | { type: "timeline"; items: { text: string; time?: string; tone?: Tone }[] }
   | { type: "image"; url: string; alt?: string; aspect?: string; rounded?: boolean; action?: ViewAction }
   | { type: "video"; url: string; poster?: string | null }
+  | { type: "mediaBox"; postId?: string; url?: string | null; mediaType?: "image" | "video" | "planned_image" | "planned_video" | string | null; label?: string; status?: string; action?: ViewAction }
   | { type: "mediaStrip"; items: { url?: string | null; label?: string; status?: "ready" | "busy" | "pending" }[]; aspect?: string; action?: ViewAction }
   | { type: "table"; columns: ViewColumn[]; rows: Record<string, unknown>[]; rowAction?: ViewAction; rowActionLabel?: string; rowActions?: { label: string; variant?: "primary" | "default" | "ghost" | "danger"; action: ViewAction }[] }
   | { type: "code"; code: string; lang?: string }
@@ -103,7 +104,7 @@ export interface ViewEvent {
 const BLOCK_TYPES = new Set([
   "stack", "row", "grid", "card", "section", "divider", "spacer",
   "heading", "text", "badge", "stat", "kpis", "progress", "status", "checklist", "timeline",
-  "image", "video", "mediaStrip", "table", "code", "note",
+  "image", "video", "mediaBox", "mediaStrip", "table", "code", "note",
   "button", "buttonRow", "chips", "input", "select", "toggle", "rating", "slotGrid",
 ]);
 

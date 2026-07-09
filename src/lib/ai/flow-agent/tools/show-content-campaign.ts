@@ -49,7 +49,7 @@ export const showContentCampaign: FlowAgentTool = {
       where: { id: campaignId, userId: ctx.userId },
       select: {
         id: true, name: true, status: true,
-        automations: { select: { posts: { select: { id: true, caption: true, platforms: true, mediaUrl: true, status: true, scheduledAt: true } } } },
+        automations: { select: { posts: { select: { id: true, caption: true, platforms: true, mediaUrl: true, mediaType: true, status: true, scheduledAt: true } } } },
       },
     });
     if (!campaign) return { ok: false, error_code: "not_found", message: `No content campaign "${campaignId}". Use list_content_campaigns to find it.` };
@@ -64,6 +64,8 @@ export const showContentCampaign: FlowAgentTool = {
         caption: p.caption || "",
         status: p.status,
         hasMedia: !!p.mediaUrl,
+        mediaUrl: p.mediaUrl,
+        mediaType: p.mediaType,
       }));
 
     if (posts.length === 0) {

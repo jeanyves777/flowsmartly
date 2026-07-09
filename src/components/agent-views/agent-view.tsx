@@ -59,7 +59,7 @@ function Block({ block, emit }: { block: ViewBlock; emit: Emit }): React.ReactEl
   switch (block.type) {
     // ---- layout ----
     case "stack": return <div className="flex flex-col" style={{ gap: (block.gap ?? 10) }}>{block.children.map((c, i) => <Block key={i} block={c} emit={emit} />)}</div>;
-    case "row": return <div className={cn("flex items-center", block.wrap && "flex-wrap", block.align === "between" && "justify-between", block.align === "end" && "justify-end", block.align === "center" && "justify-center")} style={{ gap: (block.gap ?? 8) }}>{block.children.map((c, i) => <Block key={i} block={c} emit={emit} />)}</div>;
+    case "row": return <div className={cn("flex", block.align === "start" ? "items-start" : "items-center", block.wrap && "flex-wrap", block.align === "between" && "justify-between", block.align === "end" && "justify-end", block.align === "center" && "justify-center")} style={{ gap: (block.gap ?? 8) }}>{block.children.map((c, i) => <Block key={i} block={c} emit={emit} />)}</div>;
     case "grid": return <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${block.cols ?? 3}, minmax(0,1fr))`, gap: (block.gap ?? 8) }}>{block.children.map((c, i) => <Block key={i} block={c} emit={emit} />)}</div>;
     case "card": return <div className="space-y-2 rounded-xl border border-border bg-background/35 p-3">{block.children.map((c, i) => <Block key={i} block={c} emit={emit} />)}</div>;
     case "section": return <div className="space-y-2">{block.title && <div><p className="text-[12px] font-semibold">{block.title}</p>{block.subtitle && <p className="text-[10.5px] text-muted-foreground">{block.subtitle}</p>}</div>}{block.children.map((c, i) => <Block key={i} block={c} emit={emit} />)}</div>;
@@ -78,6 +78,32 @@ function Block({ block, emit }: { block: ViewBlock; emit: Emit }): React.ReactEl
     case "timeline": return <div className="space-y-2">{block.items.map((it, i) => <div key={i} className="flex gap-2 text-[11.5px]"><span className={cn("mt-1 h-1.5 w-1.5 shrink-0 rounded-full", block.items && "bg-brand-500")} /><div><span className={t(it.tone)}>{it.text}</span>{it.time && <span className="ms-2 text-[10px] text-muted-foreground">{it.time}</span>}</div></div>)}</div>;
     case "image": return <button onClick={() => block.action && emit({ action: block.action })} className={cn("relative block w-full overflow-hidden", block.rounded !== false && "rounded-xl", block.action && "cursor-pointer")} style={{ aspectRatio: block.aspect || "16/9" }}><Image src={block.url} alt={block.alt || ""} fill sizes="100%" className="object-cover" unoptimized /></button>;
     case "video": return <video src={block.url} poster={block.poster || undefined} controls className="w-full rounded-xl bg-black" />; // eslint-disable-line jsx-a11y/media-has-caption
+    case "mediaBox": {
+      const isVideoBox = block.mediaType === "video" || /\.(mp4|webm|mov)(\?|$)/i.test(block.url || "");
+      return (
+        <button
+          type="button"
+          onClick={() => block.action && emit({ action: block.action })}
+          className={cn("relative h-[112px] w-[140px] shrink-0 overflow-hidden rounded-xl border border-border bg-muted/25", block.action && "cursor-pointer hover:border-brand-500/60")}
+        >
+          {block.url ? (
+            isVideoBox ? (
+              <video src={block.url} className="h-full w-full object-cover" muted playsInline />
+            ) : (
+              <Image src={block.url} alt={block.label || ""} fill sizes="140px" className="object-cover" unoptimized />
+            )
+          ) : (
+            <span className="grid h-full w-full place-items-center text-center">
+              <span>
+                <span className="block text-[22px] text-muted-foreground/70">□</span>
+                <span className="mt-1 block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{block.label || "Planned"}</span>
+                {block.status && <span className="mt-1 block text-[9.5px] text-amber-500">{block.status}</span>}
+              </span>
+            </span>
+          )}
+        </button>
+      );
+    }
     case "mediaStrip": return <div className="flex gap-1.5">{block.items.map((it, i) => <button key={i} onClick={() => block.action && emit({ action: block.action, value: { index: i } })} className={cn("relative flex-1 overflow-hidden rounded-lg border", it.status === "busy" ? "border-brand-500" : it.status === "pending" ? "border-dashed border-border" : "border-border")} style={{ aspectRatio: block.aspect || "9/16" }}>{it.url ? <Image src={it.url} alt="" fill sizes="80px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center bg-muted/40">{it.status === "busy" ? <FlowLoader size={16} /> : <span className="text-[9px] text-muted-foreground">{it.label || i + 1}</span>}</span>}</button>)}</div>;
     case "table": return (
       <div className="overflow-x-auto"><table className="w-full border-separate border-spacing-0 text-[12px]"><thead><tr>{block.columns.map((c) => <th key={c.key} className={cn("pb-2 pe-4 text-[10px] font-bold uppercase tracking-wide text-muted-foreground", c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left")}>{c.label}</th>)}{(block.rowActions?.length || block.rowAction) && <th className="pb-2" />}</tr></thead>
