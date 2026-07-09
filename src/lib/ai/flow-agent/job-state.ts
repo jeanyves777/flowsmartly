@@ -415,6 +415,9 @@ function taskKindMeta(kind: string): { noun: string; media: "image" | "video" | 
       return { noun: "website", media: null, next: "review and edit it" };
     case "build_store":
       return { noun: "store", media: null, next: "review it and add products" };
+    case "create_content_campaign":
+    case "improve_content_campaign":
+      return { noun: "campaign", media: null, next: "review and tweak it in the inline campaign card" };
     case "create_proposal":
       return { noun: "proposal", media: null, next: "review and send it" };
     case "create_pitch":

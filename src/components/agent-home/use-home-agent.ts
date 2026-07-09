@@ -19,6 +19,7 @@ import {
   parseMessageBlocks,
 } from "@/components/flow-ai/use-agent-stream";
 import { proposalPitchView } from "@/lib/agent-views/templates";
+import { normalizeViewSpec } from "@/lib/agent-views/spec";
 
 /**
  * Real Flow-AI conversation for the agent home. A third consumer of the
@@ -131,6 +132,26 @@ export function useHomeAgent() {
       /* best effort */
     }
   }, []);
+
+  const appendInlineTaskViewMessage = useCallback((task: AgentTaskCardData) => {
+    const inline = task.output?.inlineView;
+    if (!inline || typeof inline !== "object") return;
+    const requestId = typeof (inline as { requestId?: unknown }).requestId === "string"
+      ? (inline as { requestId: string }).requestId
+      : `task-view-${task.id}`;
+    const spec = normalizeViewSpec((inline as { spec?: unknown }).spec);
+    if (!spec) return;
+    setMessages((prev) => (
+      prev.some((m) => m.id === requestId)
+        ? prev
+        : [...prev, { id: requestId, role: "assistant", content: "", blocks: [{ type: "view", requestId, spec }] }]
+    ));
+  }, []);
+
+  const appendCompletedTaskViews = useCallback((task: AgentTaskCardData) => {
+    void appendProposalViewMessage(task);
+    appendInlineTaskViewMessage(task);
+  }, [appendInlineTaskViewMessage, appendProposalViewMessage]);
 
   const appendCompletionMessage = useCallback((msg: { id: string; content: string }) => {
     setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: "assistant", content: msg.content }]));
@@ -247,7 +268,7 @@ export function useHomeAgent() {
             flushMessage();
             // A branded-design task → the open design canvas shows a live rendering state.
             if (task.kind === "create_branded_design") canvasUpdateRef.current?.({ generating: true });
-            startTaskSubscription(task.id, tasksById, flushMessage, taskStreamsRef.current, appendCompletionMessage, (patch) => canvasUpdateRef.current?.(patch), appendProposalViewMessage);
+            startTaskSubscription(task.id, tasksById, flushMessage, taskStreamsRef.current, appendCompletionMessage, (patch) => canvasUpdateRef.current?.(patch), appendCompletedTaskViews);
           },
           onTaskProgress: (taskId, progress, message, extra) => {
             const existing = tasksById.get(taskId);
@@ -268,7 +289,7 @@ export function useHomeAgent() {
             const existing = tasksById.get(task.id);
             const merged = { ...(existing ?? task), ...task };
             tasksById.set(task.id, merged);
-            void appendProposalViewMessage(merged);
+            appendCompletedTaskViews(merged);
             flushMessage();
             // Apply the result to the open canvas here too — the live stream may
             // deliver completion before/instead of the per-task subscription
@@ -331,7 +352,7 @@ export function useHomeAgent() {
         setSending(false);
       }
     },
-    [conversationId, send, sending, appendCompletionMessage, appendProposalViewMessage],
+    [conversationId, send, sending, appendCompletionMessage, appendCompletedTaskViews],
   );
 
   const handlePlanResponse = useCallback(

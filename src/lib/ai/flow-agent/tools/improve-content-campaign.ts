@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { generateAutomationCopy } from "@/lib/content/automation-copy-generator";
+import { campaignView } from "@/lib/agent-views/templates";
 import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
@@ -31,6 +32,25 @@ function splitHashtags(caption: string): { body: string; tags: string[] } {
   if (!m) return { body: caption, tags: [] };
   const tags = m[1].split(/\s+/).map((t) => t.replace(/^#/, "")).filter(Boolean);
   return { body: caption.slice(0, m.index).trimEnd(), tags };
+}
+
+const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fmtWhen(d: Date | null): string {
+  if (!d) return "unscheduled";
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${DAYS_SHORT[d.getDay()]}, ${MONTHS_SHORT[d.getMonth()]} ${d.getDate()} - ${h}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+function fmtPlatforms(raw: string | null): string {
+  try {
+    const a = JSON.parse(raw || "[]");
+    return Array.isArray(a) && a.length ? a.map((p: string) => String(p)).join(" | ") : "feed";
+  } catch {
+    return "feed";
+  }
 }
 
 export const improveContentCampaign: FlowAgentTool = {
@@ -155,26 +175,45 @@ export const improveContentCampaign: FlowAgentTool = {
             kind: "improve_content_campaign",
             ok: true,
             summary: `Improved "${campaign.name}" — ${improved} posts rewritten`,
-            detail: "Open Campaign Studio to review the refreshed captions, generate media, then approve.",
+            detail: "Review the refreshed captions directly in the chat, generate media, then approve.",
             deepLink: `/home/campaign?campaign=${campaignId}`,
           });
 
+          const refreshedPosts = await prisma.post.findMany({
+            where: { userId: ctx.userId, deletedAt: null, contentAutomationId: container.id },
+            orderBy: { scheduledAt: "asc" },
+            select: { id: true, caption: true, platforms: true, mediaUrl: true, status: true, scheduledAt: true },
+          });
+          const inlineView = campaignView({
+            campaignId,
+            name: campaign.name,
+            status: "DRAFT",
+            posts: refreshedPosts.map((p) => ({
+              id: p.id,
+              when: fmtWhen(p.scheduledAt),
+              platforms: fmtPlatforms(p.platforms),
+              caption: p.caption || "",
+              status: p.status,
+              hasMedia: !!p.mediaUrl,
+            })),
+          });
+
           return {
-            output: { campaignId, improved },
+            output: { campaignId, improved, inlineView: { requestId: `campaign-view-${campaignId}`, spec: inlineView } },
             resultRefType: "ContentCampaign",
             resultRefId: campaignId,
           };
         },
       });
 
-      ctx.emit({ type: "task_started", taskId, kind: "improve_content_campaign", summary: `Improving "${campaign.name}" — rewriting ${posts.length} posts' captions + media prompts to match your update. They refresh in Campaign Studio; nothing is re-rendered.` });
+      ctx.emit({ type: "task_started", taskId, kind: "improve_content_campaign", summary: `Improving "${campaign.name}" — rewriting ${posts.length} posts' captions + media prompts to match your update. They refresh in the inline campaign review card; nothing is re-rendered.` });
 
       return {
         ok: true,
         data: {
           taskId,
           campaignId,
-          userMessage: `Improving the "${campaign.name}" campaign — rewriting its ${posts.length} posts' captions + media prompts to match the update (no new campaign, no media re-rendered). They refresh in the studio. Say this in ONE short sentence.`,
+          userMessage: `Improving the "${campaign.name}" campaign — rewriting its ${posts.length} posts' captions + media prompts to match the update (no new campaign, no media re-rendered). The refreshed campaign review card will render inline in chat. Say this in ONE short sentence and do not tell the user to open Campaign Studio.`,
         },
       };
     } catch (e) {
