@@ -19,6 +19,7 @@ import { LanguageSwitcher } from "./language-switcher";
 import { useHomeAgent, type ConversationSummary } from "./use-home-agent";
 import { AgentNavContext } from "@/components/flow-ai/agent-nav-context";
 import { HomeMessageView } from "./home-message";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import type { ViewEvent } from "@/lib/agent-views/spec";
 import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
@@ -846,6 +847,10 @@ export function AgentHome() {
   const sendActionFiles = (p: string, atts: { dataUrl?: string; url?: string; name: string; mediaType?: "image" | "video" }[]) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true, attachments: atts });
   const isMobile = useIsMobile();
   const [composerSeed, setComposerSeed] = useState<{ text: string; nonce: number } | null>(null);
+  // Which campaign post (if any) is picking media from the library modal. The
+  // modal supports BOTH selecting existing assets AND uploading new ones, so it
+  // is the single "Library"/"attach" entry point — no separate upload prompt.
+  const [mediaPicker, setMediaPicker] = useState<{ postId: string; campaignId: string } | null>(null);
   const [revealChat, setRevealChat] = useState(0);
   const seedComposer = useCallback((text: string) => {
     setComposerSeed((s) => ({ text, nonce: (s?.nonce ?? 0) + 1 }));
@@ -862,15 +867,32 @@ export function AgentHome() {
       window.open(href, "_blank", "noopener,noreferrer");
       return;
     }
-    if (e.action.event === "upload_campaign_post_media") {
+    // "Library" button OR an empty media slot's "click to attach": open the
+    // media-library modal (it lists existing assets AND has its own Upload
+    // button), then attach whatever the user picks. One entry point for both
+    // "choose from library" and "upload new" — no separate Upload prompt.
+    if (e.action.event === "pick_campaign_post_media" || e.action.event === "upload_campaign_post_media") {
       const payload = e.action.payload || {};
       const postId = typeof payload.postId === "string" ? payload.postId : "";
       const campaignId = typeof payload.campaignId === "string" ? payload.campaignId : "";
-      seedComposer([
-        "Attach media to this campaign post.",
+      if (postId) { setMediaPicker({ postId, campaignId }); return; }
+    }
+    // "Add media" / "Redo media": ONE button for both image and video — hand off
+    // to the agent, which asks which type then generates it (regenerate_post_image
+    // / regenerate_post_video). Generation only; attaching an existing file is the
+    // Library button above.
+    if (e.action.event === "post_media") {
+      const payload = e.action.payload || {};
+      const postId = typeof payload.postId === "string" ? payload.postId : "";
+      const campaignId = typeof payload.campaignId === "string" ? payload.campaignId : "";
+      const hasMedia = payload.hasMedia === true;
+      sendAction([
+        `The user wants to ${hasMedia ? "replace the media on" : "add media to"} a campaign post.`,
         postId ? `Post id: "${postId}".` : "",
         campaignId ? `Campaign id: "${campaignId}".` : "",
-        "Use the + button to upload an image/video or choose from Media library, then send. Use attach_media_to_post with the uploaded or selected media URL.",
+        "First ask ONE short question — image or video? — unless they've already said which.",
+        "Then generate it: regenerate_post_image for an image, regenerate_post_video for a video (pass that postId and campaignId, tier \"standard\").",
+        "Do NOT offer file upload here — that is the separate Library button.",
       ].filter(Boolean).join(" "));
       return;
     }
@@ -1498,6 +1520,28 @@ export function AgentHome() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Campaign-post media picker — select an existing asset OR upload a new one
+          (the picker has its own Upload button), then attach it to the post. */}
+      {mediaPicker && (
+        <MediaLibraryPicker
+          open
+          title="Attach media to post"
+          filterTypes={["image", "video"]}
+          onClose={() => setMediaPicker(null)}
+          onSelect={(url, file) => {
+            const { postId, campaignId } = mediaPicker;
+            setMediaPicker(null);
+            const ref = file?.id ? `mediaId "${file.id}"` : `mediaUrl "${url}"`;
+            sendAction([
+              "Attach this media to the campaign post — the user picked it from the media library.",
+              `Post id: "${postId}".`,
+              campaignId ? `Campaign id: "${campaignId}".` : "",
+              `Use attach_media_to_post with ${ref}${campaignId ? ` and campaignId "${campaignId}"` : ""}. Do not re-ask — just attach and confirm.`,
+            ].filter(Boolean).join(" "));
+          }}
+        />
       )}
     </div>
     </AgentNavContext.Provider>
