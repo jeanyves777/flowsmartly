@@ -563,7 +563,7 @@ export function PlanProposalCard({
           : "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300";
 
   return (
-    <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+    <div className="w-full max-w-2xl rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
       <div className="px-3.5 py-2.5 border-b border-border flex items-center justify-between gap-2">
         <span className="text-xs font-semibold text-foreground">Confirm action</span>
         <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded-full", statusTone)}>
@@ -794,7 +794,7 @@ export function TaskCard({ task }: { task: AgentTaskCardData }) {
 
   return (
     <div className={cn(
-      "w-full max-w-md rounded-2xl border bg-white dark:bg-gray-900 overflow-hidden transition-shadow",
+      "w-full max-w-2xl rounded-2xl border bg-white dark:bg-gray-900 overflow-hidden transition-shadow",
       isRunning
         ? "border-brand-500/40 shadow-[0_0_0_1px_rgba(109,92,255,0.25),0_10px_34px_-8px_rgba(109,92,255,0.4)]"
         : "border-border shadow-sm",
@@ -971,7 +971,7 @@ export function TemplateOptionsCard({
     onPick?.(t ? { id: t.id, name: t.name } : null);
   };
   return (
-    <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 p-3 shadow-sm">
+    <div className="w-full max-w-2xl rounded-2xl border border-border bg-white dark:bg-gray-900 p-3 shadow-sm">
       <div className="text-xs font-semibold text-foreground mb-0.5">Pick a look — or design from your idea</div>
       <div className="text-[10px] text-muted-foreground mb-2">Tap a thumbnail to preview, then Select.</div>
       <div className="grid grid-cols-2 gap-2.5">
@@ -1069,7 +1069,7 @@ export function QuestionOptionsCard({
     onPick?.(text);
   };
   return (
-    <div className="w-full max-w-md rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+    <div className="w-full max-w-2xl rounded-2xl border border-border bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
       <div className="px-4 py-3 text-sm font-semibold text-foreground border-b border-border">{question}</div>
       <div className="divide-y divide-border">
         {options.map((o, i) => {

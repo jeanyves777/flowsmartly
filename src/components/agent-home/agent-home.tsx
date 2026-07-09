@@ -367,7 +367,10 @@ export function AgentHome() {
   const requestChatAutoscroll = useCallback(() => {
     pinnedRef.current = true;
     forceNextScrollRef.current = true;
-    requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ block: "end" }));
+    const snap = () => bottomRef.current?.scrollIntoView({ block: "end" });
+    requestAnimationFrame(snap);
+    setTimeout(snap, 80);
+    setTimeout(snap, 260);
   }, []);
 
   const send = useCallback(
@@ -497,20 +500,31 @@ export function AgentHome() {
     if (!anchor || !content) return;
     let sc: HTMLElement | null = content;
     while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
-    const toBottom = () => anchor.scrollIntoView({ block: "end" });
+    const toBottom = () => {
+      if (sc) sc.scrollTop = sc.scrollHeight;
+      anchor.scrollIntoView({ block: "end" });
+    };
+    const scheduleBottom = () => {
+      if (!pinnedRef.current && !forceNextScrollRef.current) return;
+      requestAnimationFrame(() => {
+        toBottom();
+        setTimeout(toBottom, 80);
+        setTimeout(toBottom, 240);
+      });
+      forceNextScrollRef.current = false;
+    };
     const onScroll = () => { if (sc) pinnedRef.current = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 150; };
     sc?.addEventListener("scroll", onScroll, { passive: true });
     const ro = new ResizeObserver(() => {
-      if (!pinnedRef.current && !forceNextScrollRef.current) return;
-      toBottom();
-      forceNextScrollRef.current = false;
+      scheduleBottom();
     });
     ro.observe(content);
+    const mo = new MutationObserver(() => scheduleBottom());
+    mo.observe(content, { childList: true, subtree: true, characterData: true });
     if (pinnedRef.current || forceNextScrollRef.current) {
-      toBottom();
-      forceNextScrollRef.current = false;
+      scheduleBottom();
     }
-    return () => { sc?.removeEventListener("scroll", onScroll); ro.disconnect(); };
+    return () => { sc?.removeEventListener("scroll", onScroll); ro.disconnect(); mo.disconnect(); };
   }, [messages.length === 0, conversationId, focused]);
   // Follow STREAMING growth too: the agent streams tokens / plan cards INTO an
   // existing message (message count unchanged), and the ResizeObserver above
@@ -518,7 +532,10 @@ export function AgentHome() {
   // its scrollHeight grows. Re-scroll on every message-content change while pinned.
   useEffect(() => {
     if (!pinnedRef.current && !forceNextScrollRef.current) return;
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    const snap = () => bottomRef.current?.scrollIntoView({ block: "end" });
+    requestAnimationFrame(snap);
+    setTimeout(snap, 80);
+    setTimeout(snap, 240);
     forceNextScrollRef.current = false;
   }, [messages, sending]);
 
