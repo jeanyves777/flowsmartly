@@ -135,6 +135,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { sendTestEmailCampaign } = await import("./tools/send-test-email-campaign");
   const { analyzeUrl } = await import("./tools/analyze-url");
   const { createProposal } = await import("./tools/create-proposal");
+  const { createVisualDeck } = await import("./tools/create-visual-deck");
   const { createPitch } = await import("./tools/create-pitch");
   const { listLeads } = await import("./tools/list-leads");
   const { findLeads } = await import("./tools/find-leads");
@@ -150,6 +151,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { showContentCampaign } = await import("./tools/show-content-campaign");
   const { listOrders, listProducts } = await import("./tools/list-store-items");
   const { listDesigns, listMedia } = await import("./tools/list-library");
+  const { listVisualDeckMaterials } = await import("./tools/list-visual-deck-materials");
   const { listAvatarVideosTool, listAdCampaigns, listVoiceovers } = await import("./tools/list-studio-outputs");
   const { getActivities, listSequences, listCompanies } = await import("./tools/list-crm-extra");
   const { listCustomers, listReviews } = await import("./tools/list-customers-reviews");
@@ -259,6 +261,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(sendTestEmailCampaign);
   flowAgentTools.register(analyzeUrl);
   flowAgentTools.register(createProposal);
+  flowAgentTools.register(createVisualDeck);
   flowAgentTools.register(createPitch);
   flowAgentTools.register(listLeads);
   flowAgentTools.register(listOpportunities);
@@ -272,6 +275,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(listProducts);
   flowAgentTools.register(listDesigns);
   flowAgentTools.register(listMedia);
+  flowAgentTools.register(listVisualDeckMaterials);
   flowAgentTools.register(listAvatarVideosTool);
   flowAgentTools.register(listAdCampaigns);
   flowAgentTools.register(listVoiceovers);

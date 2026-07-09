@@ -28,6 +28,7 @@ function friendlyActionLabel(toolName: string): string {
     generate_video: "Generate the video",
     create_avatar_video: "Create the avatar video",
     create_presentation: "Create the presentation",
+    create_visual_deck: "Create your visual deck",
     schedule_social_post: "Schedule the post",
     create_email_campaign: "Create the email campaign",
     send_email_campaign: "Send the email campaign",

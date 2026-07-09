@@ -82,7 +82,7 @@ export function useHomeAgent() {
   }, []);
 
   const appendProposalViewMessage = useCallback(async (task: AgentTaskCardData) => {
-    if (task.kind !== "create_proposal") return;
+    if (task.kind !== "create_proposal" && task.kind !== "create_visual_deck") return;
     const pitchId = typeof task.output?.pitchId === "string" ? task.output.pitchId : task.resultRefType === "Pitch" ? task.resultRefId : null;
     if (!pitchId) return;
     const viewId = `pitch-view-${pitchId}`;

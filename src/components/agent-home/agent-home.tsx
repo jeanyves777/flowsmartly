@@ -834,6 +834,10 @@ export function AgentHome() {
   const handleViewEvent = (e: ViewEvent) => {
     const href = e.action.href;
     if (href && navigateInApp(href)) return;
+    if (href && /^\/api\/pitch\/[^/]+\/pdf(?:\?|$)/.test(href)) {
+      window.open(href, "_blank", "noopener,noreferrer");
+      return;
+    }
     const parts: string[] = [`The user interacted with the "${e.action.event}" control in a view you rendered.`];
     if (e.name) parts.push(`Field: ${e.name}.`);
     if (e.value !== undefined && e.value !== null && e.value !== "") {

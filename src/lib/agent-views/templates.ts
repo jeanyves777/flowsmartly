@@ -374,8 +374,65 @@ export function proposalPitchView(pitch: {
     badge: { text: "Draft", tone: "warn" },
     body,
     footer: [
+      { type: "button", label: "Download PDF", variant: "default", action: { event: "download_pitch_pdf", href: `/api/pitch/${pitch.id}/pdf?variant=${variant}` } },
       { type: "input", name: "recipientEmail", placeholder: "Recipient email to send PDF...", submitLabel: "Send", action: { event: "send_pitch", tool: "send_proposal", payload: { pitchId: pitch.id, variant } } },
       { type: "button", label: "Open full Pitch Studio", action: { event: "open_studio", href: `/home/pitchstudio?pitch=${pitch.id}` } },
+    ],
+  };
+}
+
+/** Existing images/designs -> a click-to-use picker for custom visual decks. */
+export function visualDeckMaterialsView(input: {
+  title?: string;
+  query?: string;
+  materials: {
+    id: string;
+    title: string;
+    sourceType: "media" | "design";
+    type?: string | null;
+    url?: string | null;
+    details?: string | null;
+    updatedAt?: string | null;
+  }[];
+}): ViewSpec {
+  const rows = input.materials.slice(0, 30).map((m) => ({
+    id: m.id,
+    title: m.title,
+    sourceType: m.sourceType,
+    type: m.type || "-",
+    details: m.details || "-",
+    thumb: m.url || "",
+    url: m.url || "",
+    updatedAt: m.updatedAt || "",
+  }));
+  return {
+    name: "visual-deck-material-picker",
+    source: "library",
+    skill: "visual_deck",
+    width: "full",
+    title: input.title || "Choose material for the visual deck",
+    subtitle: input.query ? `Matches for "${input.query}"` : `${rows.length} recent images and designs`,
+    icon: "Deck",
+    badge: { text: "Visual deck", tone: "brand" },
+    body: [
+      {
+        type: "table",
+        columns: [
+          { key: "thumb", label: "", kind: "thumb" },
+          { key: "title", label: "Material" },
+          { key: "sourceType", label: "Source", kind: "badge" },
+          { key: "details", label: "Details" },
+        ],
+        rows,
+        rowActions: [
+          { label: "Use in deck", variant: "primary", action: { event: "use_visual_deck_material", tool: "create_visual_deck" } },
+        ],
+      },
+      { type: "note", tone: "muted", text: "Pick one item, or use all shown. The agent will build a branded visual deck, show it inline, and keep PDF/email actions attached." },
+    ],
+    footer: [
+      { type: "button", label: "Use all shown", variant: "primary", action: { event: "use_all_visual_deck_materials", tool: "create_visual_deck", payload: { materials: rows.slice(0, 12) } } },
+      { type: "button", label: "Open Media Library", action: { event: "open_studio", href: "/home/media" } },
     ],
   };
 }
