@@ -32,9 +32,13 @@ export interface LogoPlacement {
 // Logo kept SMALL (15% of width) so it tucks into a corner without dominating
 // or covering the headline. top-right x leaves a ~15% logo flush near the right
 // edge with a small margin.
+// y is pulled tight to the top edge (2%) so the mark clears the tagline/header
+// text that usually sits just below the top corner — the logo box runs up to
+// ~15% of image height, and a higher anchor keeps its bottom inside the reserved
+// top safe-zone instead of grazing the copy underneath.
 const CORNER_TO_PLACEMENT: Record<LogoCorner, { x: number; y: number; sizePercent: number }> = {
-  "top-left": { x: 0.04, y: 0.035, sizePercent: 13 },
-  "top-right": { x: 0.84, y: 0.035, sizePercent: 13 },
+  "top-left": { x: 0.04, y: 0.02, sizePercent: 13 },
+  "top-right": { x: 0.84, y: 0.02, sizePercent: 13 },
 };
 
 async function shrinkForVision(buffer: Buffer): Promise<{ base64: string; mediaType: "image/jpeg" }> {
@@ -90,7 +94,7 @@ export async function analyzeLogoPlacement(
     return FALLBACK;
   }
 
-  const prompt = `Pick the TOP corner to drop a SMALL brand logo (about 15% of the image width, positioned 3-5% from the chosen edges).
+  const prompt = `Pick the TOP corner to drop a SMALL brand logo (about 15% of the image width, tucked into the top ~2% from the top edge and ~4% from the chosen side).
 
 CONVENTION: brand logos belong in the TOP-LEFT. Strongly PREFER top-left. Only choose top-right if the top-left corner is genuinely occupied — i.e. the small logo there would overlap a headline, other text, a face, or the main subject. When in doubt, or if both corners are equally clear, choose top-left.
 
