@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db/client";
+import { randomUUID } from "crypto";
+import { pitchesListView } from "@/lib/agent-views/templates";
 import type { FlowAgentTool } from "../registry";
 
 /**
@@ -17,6 +19,7 @@ export const listPitches: FlowAgentTool = {
       documentType: { type: "string", enum: ["pitch", "service_proposal"], description: "Optional — 'pitch' (cold email) or 'service_proposal' (branded deck)." },
       status: { type: "string", description: "Optional status filter." },
       limit: { type: "number", description: "Max rows (1-100, default 30)." },
+      asView: { type: "boolean", description: "Render a pickable inline chat view. Default true." },
     },
   },
   plans: null,
@@ -40,22 +43,26 @@ export const listPitches: FlowAgentTool = {
         }),
         prisma.pitch.count({ where }),
       ]);
+      const pitches = rows.map((p) => ({
+        id: p.id,
+        business: p.businessName,
+        url: p.businessUrl,
+        type: p.documentType === "service_proposal" ? "proposal" : "pitch",
+        status: p.status,
+        recipient: p.recipientName || p.recipientEmail || null,
+        sentAt: p.sentAt?.toISOString() ?? null,
+        createdAt: p.createdAt.toISOString(),
+      }));
+      if (input.asView !== false && pitches.length > 0) {
+        ctx.emit({ type: "agent_view", requestId: randomUUID(), spec: pitchesListView(pitches, total) });
+      }
       return {
         ok: true,
         data: {
           count: total,
           returned: rows.length,
-          pitches: rows.map((p) => ({
-            id: p.id,
-            business: p.businessName,
-            url: p.businessUrl,
-            type: p.documentType === "service_proposal" ? "proposal" : "pitch",
-            status: p.status,
-            recipient: p.recipientName || p.recipientEmail || null,
-            sentAt: p.sentAt?.toISOString() ?? null,
-            createdAt: p.createdAt.toISOString(),
-          })),
-          userMessage: total === 0 ? "No pitches or proposals yet." : `${total} pitch${total === 1 ? "" : "es"}/proposal${total === 1 ? "" : "s"}.`,
+          pitches,
+          userMessage: total === 0 ? "No pitches or proposals yet." : `${total} pitch${total === 1 ? "" : "es"}/proposal${total === 1 ? "" : "s"} shown in an inline picker. STOP and wait for the user's row action if they need to choose one.`,
         },
       };
     } catch (e) {
