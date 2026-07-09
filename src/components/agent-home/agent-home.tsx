@@ -299,7 +299,7 @@ export function AgentHome() {
   const searchParams = useSearchParams();
   const { language, setLanguage, dir } = usePreferredLanguage();
   const s = getHomeStrings(language);
-  const { messages, sending, conversationId, conversations, send, handlePlanResponse, handlePickTemplate, handlePickOption, loadConversation, newConversation, refreshConversations, canvasUpdateRef, actionCount, beginPublishNarration, updatePublishNarration, endPublishNarration } = useHomeAgent();
+  const { messages, sending, conversationId, conversations, send: agentSend, handlePlanResponse, handlePickTemplate, handlePickOption, loadConversation: agentLoadConversation, newConversation: agentNewConversation, refreshConversations, canvasUpdateRef, actionCount, beginPublishNarration, updatePublishNarration, endPublishNarration } = useHomeAgent();
   // Bridge the Compose publish stream into the agent chat (keeps the agent involved).
   const publishNarrate = { begin: beginPublishNarration, update: updatePublishNarration, end: endPublishNarration };
 
@@ -355,12 +355,41 @@ export function AgentHome() {
   const [brandIcon, setBrandIcon] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const pinnedRef = useRef(true);
+  const forceNextScrollRef = useRef(true);
   const accountRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
   const saverRef = useRef<null | (() => void | Promise<void>)>(null);
   const savedDesignRef = useRef<DesignDoc>(DEFAULT_DESIGN);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const requestChatAutoscroll = useCallback(() => {
+    pinnedRef.current = true;
+    forceNextScrollRef.current = true;
+    requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ block: "end" }));
+  }, []);
+
+  const send = useCallback(
+    (...args: Parameters<typeof agentSend>) => {
+      requestChatAutoscroll();
+      return agentSend(...args);
+    },
+    [agentSend, requestChatAutoscroll],
+  );
+
+  const loadConversation = useCallback(
+    (id: string) => {
+      requestChatAutoscroll();
+      return agentLoadConversation(id);
+    },
+    [agentLoadConversation, requestChatAutoscroll],
+  );
+
+  const newConversation = useCallback(() => {
+    requestChatAutoscroll();
+    return agentNewConversation();
+  }, [agentNewConversation, requestChatAutoscroll]);
 
   useEffect(() => setMounted(true), []);
 
@@ -459,13 +488,9 @@ export function AgentHome() {
   // Keep the chat pinned to the newest content while the agent streams — the
   // message COUNT doesn't change as a single reply/plan/task card grows, so a
   // ResizeObserver on the list drives the scroll. We only auto-follow when the
-  // user is already near the bottom, and a brand-new turn always re-pins.
-  const pinnedRef = useRef(true);
-  const prevLenRef = useRef(0);
-  useEffect(() => {
-    if (messages.length > prevLenRef.current) pinnedRef.current = true;
-    prevLenRef.current = messages.length;
-  }, [messages.length]);
+  // user is already near the bottom. New sends / opened threads opt into one
+  // forced bottom snap through requestChatAutoscroll(); background cards should
+  // not yank the user away from older content they are reading.
   useEffect(() => {
     const anchor = bottomRef.current;
     const content = anchor?.parentElement;
@@ -475,9 +500,16 @@ export function AgentHome() {
     const toBottom = () => anchor.scrollIntoView({ block: "end" });
     const onScroll = () => { if (sc) pinnedRef.current = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 150; };
     sc?.addEventListener("scroll", onScroll, { passive: true });
-    const ro = new ResizeObserver(() => { if (pinnedRef.current) toBottom(); });
+    const ro = new ResizeObserver(() => {
+      if (!pinnedRef.current && !forceNextScrollRef.current) return;
+      toBottom();
+      forceNextScrollRef.current = false;
+    });
     ro.observe(content);
-    toBottom();
+    if (pinnedRef.current || forceNextScrollRef.current) {
+      toBottom();
+      forceNextScrollRef.current = false;
+    }
     return () => { sc?.removeEventListener("scroll", onScroll); ro.disconnect(); };
   }, [messages.length === 0, conversationId, focused]);
   // Follow STREAMING growth too: the agent streams tokens / plan cards INTO an
@@ -485,7 +517,9 @@ export function AgentHome() {
   // misses it because the scroll container's own box size is fixed (flex-1) — only
   // its scrollHeight grows. Re-scroll on every message-content change while pinned.
   useEffect(() => {
-    if (pinnedRef.current) bottomRef.current?.scrollIntoView({ block: "end" });
+    if (!pinnedRef.current && !forceNextScrollRef.current) return;
+    bottomRef.current?.scrollIntoView({ block: "end" });
+    forceNextScrollRef.current = false;
   }, [messages, sending]);
 
   // Deep-link: load ?conversationId= on first mount, and keep the URL in sync
