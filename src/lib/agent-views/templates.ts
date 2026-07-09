@@ -293,6 +293,93 @@ export function pitchView(pitch: {
   };
 }
 
+/** A full proposal/pitch review surface in chat, mirroring the lead cards. */
+export function proposalPitchView(pitch: {
+  id: string;
+  business?: string | null;
+  title?: string;
+  subject?: string;
+  summary?: string;
+  variant?: "deck" | "visual";
+  coverImage?: string | null;
+  metrics?: { label: string; value: string }[];
+  deliverables?: { title: string; description: string }[];
+  timeline?: { label: string; title: string }[];
+  sections?: { key?: string; label: string; text: string }[];
+}): ViewSpec {
+  const body: ViewBlock[] = [];
+  const variant = pitch.variant || "deck";
+  if (pitch.coverImage) body.push({ type: "image", url: pitch.coverImage, alt: "Proposal visual", aspect: "16/7" });
+  body.push({
+    type: "row",
+    wrap: true,
+    gap: 6,
+    children: [
+      { type: "badge", text: variant === "visual" ? "Visual deck PDF" : "Proposal deck PDF", tone: "info" },
+      { type: "badge", text: "Inline editable", tone: "success" },
+      { type: "badge", text: "PDF attached on send", tone: "brand" },
+    ],
+  });
+  if (pitch.subject) body.push({ type: "card", children: [{ type: "text", text: "Email subject", size: "xs", tone: "muted", strong: true }, { type: "text", text: pitch.subject, size: "sm" }] });
+  if (pitch.summary) body.push({ type: "card", children: [{ type: "text", text: "Executive summary", size: "xs", tone: "muted", strong: true }, { type: "text", text: pitch.summary.length > 520 ? `${pitch.summary.slice(0, 520)}...` : pitch.summary, size: "sm" }] });
+  if (pitch.metrics?.length) body.push({ type: "kpis", items: pitch.metrics.slice(0, 4).map((m) => ({ label: m.label, value: m.value, tone: "brand" })) });
+  if (pitch.deliverables?.length) {
+    body.push({
+      type: "section",
+      title: "Deliverables",
+      subtitle: "Review the offer before sending",
+      children: pitch.deliverables.slice(0, 4).map((d) => ({
+        type: "card",
+        children: [
+          { type: "text", text: d.title, size: "sm", tone: "brand", strong: true },
+          { type: "text", text: d.description.length > 240 ? `${d.description.slice(0, 240)}...` : d.description, size: "xs" },
+        ],
+      })),
+    });
+  }
+  for (const s of (pitch.sections || []).slice(0, 6)) {
+    const payload = { pitchId: pitch.id, field: s.key || s.label };
+    body.push({
+      type: "card",
+      children: [
+        { type: "text", text: s.label, size: "xs", tone: "brand", strong: true },
+        { type: "text", text: s.text.length > 420 ? `${s.text.slice(0, 420)}...` : s.text, size: "sm" },
+        { type: "buttonRow", buttons: [
+          { label: "Rewrite", action: { event: "rewrite_pitch_section", payload } },
+          { label: "Shorten", action: { event: "shorten_pitch_section", payload } },
+          { label: "More formal", action: { event: "formal_pitch_section", payload } },
+        ] },
+      ],
+    });
+  }
+  if (pitch.timeline?.length) {
+    body.push({ type: "timeline", items: pitch.timeline.slice(0, 5).map((t) => ({ text: `${t.label}: ${t.title}`, tone: "info" })) });
+  }
+  body.push({
+    type: "card",
+    children: [
+      { type: "buttonRow", buttons: [
+        { label: "Rewrite all", action: { event: "rewrite_pitch", payload: { pitchId: pitch.id } } },
+        { label: "Shorten all", action: { event: "shorten_pitch", payload: { pitchId: pitch.id } } },
+        { label: "More formal", action: { event: "formal_pitch", payload: { pitchId: pitch.id } } },
+      ] },
+      { type: "input", name: "instruction", multiline: true, placeholder: "Tell me how to change it: trim every page, add pricing, warmer tone, mention their city...", submitLabel: "Apply", action: { event: "edit_pitch", payload: { pitchId: pitch.id } } },
+    ],
+  });
+  return {
+    name: "pitch-editor", source: "library", skill: "show_pitch", width: "lg",
+    title: pitch.title || `Pitch${pitch.business ? ` - ${pitch.business}` : ""}`,
+    subtitle: `${pitch.business || "Proposal"} - edit inline, then send`,
+    icon: "Proposal",
+    badge: { text: "Draft", tone: "warn" },
+    body,
+    footer: [
+      { type: "input", name: "recipientEmail", placeholder: "Recipient email to send PDF...", submitLabel: "Send", action: { event: "send_pitch", tool: "send_proposal", payload: { pitchId: pitch.id, variant } } },
+      { type: "button", label: "Open full Pitch Studio", action: { event: "open_studio", href: `/home/pitchstudio?pitch=${pitch.id}` } },
+    ],
+  };
+}
+
 /** A drafted screenplay awaiting the user's approval before the paid render. */
 export function scriptApprovalView(input: {
   draftId: string;

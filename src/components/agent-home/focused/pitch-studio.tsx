@@ -145,6 +145,10 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOp
   const bs = (pitch?.content.brandSnapshot as Record<string, unknown> | undefined);
   const brandName = (pitch && (typeof pitch.content.preparedBy === "string" ? pitch.content.preparedBy : (typeof bs?.name === "string" ? bs.name : undefined))) as string | undefined;
   const logoUrl = (typeof bs?.logoUrl === "string" ? bs.logoUrl : typeof bs?.iconLogoUrl === "string" ? bs.iconLogoUrl : null);
+  useEffect(() => {
+    const saved = (pitch?.content as { studioDocType?: unknown } | undefined)?.studioDocType;
+    if (saved === "visual" || saved === "deck") setDocType(saved);
+  }, [pitch?.id]);
 
   // Debounced autosave of the edited document.
   const commit = useCallback((next: ServiceProposalContent) => {
@@ -158,6 +162,12 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOp
       dirtyRef.current = false;
     }, 900);
   }, [pitch?.id]);
+
+  const chooseDocType = useCallback((next: "deck" | "visual" | "email") => {
+    setDocType(next);
+    if (!pitch || next === "email") return;
+    commit({ ...pitch.content, studioDocType: next } as ServiceProposalContent);
+  }, [commit, pitch]);
 
   const editWithAI = (field: string, current: string) => { setAi({ field, current }); setAiInstruction(""); };
   const runAi = () => {
@@ -310,7 +320,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOp
                       {PITCH_TYPES.map((t) => {
                         const Icon = t.icon;
                         return (
-                          <button key={t.id} onClick={() => { setDocType(t.id); setTypeOpen(false); }} className={cn("flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted", docType === t.id && "bg-brand-500/[0.08]")}>
+                          <button key={t.id} onClick={() => { chooseDocType(t.id); setTypeOpen(false); }} className={cn("flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted", docType === t.id && "bg-brand-500/[0.08]")}>
                             <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", docType === t.id ? "text-brand-500" : "text-muted-foreground")} />
                             <span className="min-w-0 flex-1"><span className="block text-[12.5px] font-semibold">{t.label}</span><span className="block text-[11px] text-muted-foreground">{t.desc}</span></span>
                             {docType === t.id && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" />}
@@ -347,7 +357,7 @@ export function FocusedPitchStudio({ target, onAsk, refreshKey, onOpenView, onOp
               <button onClick={() => setRailOpen(false)} title="Collapse panel" className="grid h-9 w-8 shrink-0 place-items-center text-muted-foreground hover:text-foreground"><ChevronRight className="h-4 w-4" /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3.5">
-              {tab === "design" ? <DesignTab theme={theme} content={pitch.content} /> : tab === "sections" ? <SectionsTab content={pitch.content} onChange={commit} onAsk={onAsk} pitchId={pitch.id} /> : <TypeTab docType={docType} setDocType={setDocType} />}
+              {tab === "design" ? <DesignTab theme={theme} content={pitch.content} /> : tab === "sections" ? <SectionsTab content={pitch.content} onChange={commit} onAsk={onAsk} pitchId={pitch.id} /> : <TypeTab docType={docType} setDocType={chooseDocType} />}
             </div>
           </aside>
         ) : (
