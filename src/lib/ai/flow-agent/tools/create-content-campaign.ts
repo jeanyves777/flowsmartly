@@ -79,6 +79,9 @@ function fmtPlatforms(raw: string | null): string {
     return "feed";
   }
 }
+function norm(v: string | null | undefined): string {
+  return clean(v, 2000).toLowerCase().replace(/\s+/g, " ");
+}
 
 export const createContentCampaign: FlowAgentTool = {
   name: "create_content_campaign",
@@ -145,6 +148,70 @@ export const createContentCampaign: FlowAgentTool = {
       const schedule = computeSchedule(startMs, days, count);
       const startDate = new Date(schedule[0]);
       const endDate = new Date(schedule[schedule.length - 1]);
+
+      const recent = await prisma.contentCampaign.findMany({
+        where: {
+          userId: ctx.userId,
+          createdAt: { gte: new Date(Date.now() - 7 * 24 * 3600 * 1000) },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 12,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          status: true,
+          automations: {
+            select: {
+              posts: {
+                select: { id: true, caption: true, platforms: true, mediaUrl: true, status: true, scheduledAt: true },
+              },
+            },
+          },
+        },
+      });
+      const requestedName = norm(name);
+      const requestedBrief = norm(brief);
+      const existing = recent.find((c) => {
+        const posts = c.automations.flatMap((a) => a.posts);
+        if (posts.length === 0) return false;
+        if (norm(c.name) !== requestedName) return false;
+        const existingBrief = norm(c.description);
+        return !requestedBrief || !existingBrief || existingBrief === requestedBrief || existingBrief.includes(requestedBrief.slice(0, 160));
+      });
+      if (existing) {
+        const posts = existing.automations
+          .flatMap((a) => a.posts)
+          .sort((a, b) => (a.scheduledAt?.getTime() ?? 0) - (b.scheduledAt?.getTime() ?? 0));
+        ctx.emit({
+          type: "agent_view",
+          requestId: `campaign-view-${existing.id}`,
+          spec: campaignView({
+            campaignId: existing.id,
+            name: existing.name,
+            status: existing.status,
+            posts: posts.map((p) => ({
+              id: p.id,
+              when: fmtWhen(p.scheduledAt),
+              platforms: fmtPlatforms(p.platforms),
+              caption: p.caption || "",
+              status: p.status,
+              hasMedia: !!p.mediaUrl,
+            })),
+          }),
+        });
+        return {
+          ok: true,
+          data: {
+            campaignId: existing.id,
+            existing: true,
+            posts: posts.length,
+            userMessage: `Found the existing "${existing.name}" campaign with ${posts.length} posts and rendered it inline. Do not create or propose a duplicate. Tell the user it was already created and is shown here.`,
+          },
+          resultRefType: "ContentCampaign",
+          resultRefId: existing.id,
+        };
+      }
 
       // Campaign + a disabled "container" automation (groups the posts + stores
       // the brief; enabled:false so the recurring scheduler never fires it).

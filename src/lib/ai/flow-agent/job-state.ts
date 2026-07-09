@@ -450,7 +450,7 @@ async function persistTaskAnnouncement(args: {
 
     void resultUrl; // the finished asset already renders in the task card above
     const content = args.ok
-      ? `✅ Your ${meta.noun} is ready — it's the card above. Want me to ${meta.next}? Just tell me.`
+      ? `Your ${meta.noun} is ready. Want me to ${meta.next}? Just tell me.`
       : `⚠️ Your ${meta.noun} couldn't be finished${args.error ? `: ${args.error.slice(0, 160)}` : ""}. Want me to try again?`;
 
     // Text-only: the media already shows in the task card, so don't attach it
