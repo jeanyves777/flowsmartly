@@ -161,14 +161,22 @@ export function useHomeAgent() {
   const patchInlinePostMedia = useCallback((call: AgentToolCardData) => {
     const output = call.output as {
       ok?: boolean;
-      data?: { postId?: unknown; url?: unknown; mediaUrl?: unknown };
+      data?: { postId?: unknown; url?: unknown; mediaUrl?: unknown; inlineView?: unknown };
       postId?: unknown;
       url?: unknown;
       mediaUrl?: unknown;
+      inlineView?: unknown;
       resultRefId?: unknown;
     } | null | undefined;
     if (output?.ok === false) return;
     const data = output?.data && typeof output.data === "object" ? output.data : output;
+    const inline = data && typeof data === "object" && "inlineView" in data ? data.inlineView : output?.inlineView;
+    const inlineRequestId = inline && typeof inline === "object" && typeof (inline as { requestId?: unknown }).requestId === "string"
+      ? (inline as { requestId: string }).requestId
+      : `tool-view-${call.id}`;
+    const inlineSpec = inline && typeof inline === "object"
+      ? normalizeViewSpec((inline as { spec?: unknown }).spec)
+      : null;
     const postId =
       typeof data?.postId === "string" ? data.postId
         : typeof output?.resultRefId === "string" ? output.resultRefId
@@ -177,7 +185,16 @@ export function useHomeAgent() {
       typeof data?.url === "string" ? data.url
         : typeof data?.mediaUrl === "string" ? data.mediaUrl
           : "";
-    if (!postId || !url) return;
+    const appendInlineView = (prev: HomeMessage[]) => {
+      if (!inlineSpec) return prev;
+      const messageId = `tool-inline-${call.id}`;
+      if (prev.some((m) => m.id === messageId)) return prev;
+      return [...prev, { id: messageId, role: "assistant" as const, content: "", blocks: [{ type: "view" as const, requestId: inlineRequestId, spec: inlineSpec }] }];
+    };
+    if (!postId || !url) {
+      setMessages(appendInlineView);
+      return;
+    }
     const mediaType = call.name === "regenerate_post_video" || /\.(mp4|webm|mov)(\?|$)/i.test(url) ? "video" : "image";
     const patchBlocks = (blocks: ViewBlock[]): ViewBlock[] => blocks.map((block) => {
       if (block.type === "mediaBox" && block.postId === postId) return { ...block, url, mediaType, label: "Media", status: undefined };
@@ -196,14 +213,14 @@ export function useHomeAgent() {
       if ("children" in block && Array.isArray(block.children)) return { ...block, children: patchBlocks(block.children) } as ViewBlock;
       return block;
     });
-    setMessages((prev) => prev.map((m) => ({
+    setMessages((prev) => appendInlineView(prev.map((m) => ({
       ...m,
       blocks: m.blocks?.map((b) => (
         b.type === "view" && b.spec.name === "content-campaign"
           ? { ...b, spec: { ...b.spec, body: patchBlocks(b.spec.body) } }
           : b
       )),
-    })));
+    }))));
   }, []);
 
   // ── Publish narration ── Compose's "Post now" streams per-channel status into

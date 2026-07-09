@@ -757,9 +757,9 @@ function buildRawBrandPrompt(params: PipelineParams): string {
     "Brand identity:",
     JSON.stringify(Object.keys(brandIdentity).length > 0 ? brandIdentity : fallbackBrand),
     params.logoReferenceUrl
-      ? "Brand logo handling (CRITICAL): the LAST attached reference image is the brand's REAL logo. PLACE THAT EXACT logo into THIS design as the real brand mark — reproduce it faithfully (same shapes, colors, and lettering; do NOT redraw, restyle, recolor, crop, or invent it). Position it cleanly in the header / a top corner at a tasteful size with generous clear margin, and arrange ALL headline, subhead, body, and contact text so that NOTHING overlaps, touches, or crowds the logo — leave a calm clear zone around it. The logo is part of the image you generate now; it will NOT be added afterward, so it must already be present, sharp, and unobstructed. Do not also render the brand name as a separate wordmark next to it."
+      ? "Brand logo handling (CRITICAL): the LAST attached reference image is the brand's REAL logo. PLACE THAT EXACT logo into THIS design as the real brand mark — reproduce it faithfully (same shapes, colors, and lettering; do NOT redraw, restyle, recolor, crop, or invent it). Position it cleanly where it naturally belongs in the composition at a tasteful size. Do NOT create a blank logo box, pale panel, white rectangle, placeholder space, reserved zone, frame, label, or artificial background patch behind it. The surrounding artwork should flow naturally under and around the logo. The logo is part of the image you generate now; it will NOT be added afterward, so it must already be present, sharp, and unobstructed. Do not also render the brand name as a separate wordmark next to it."
       : params.brandLogo
-        ? "Brand logo handling (CRITICAL): the real brand logo is added to the top-left corner AFTER generation. Simply keep the top-left area (about the top 18% height × left 28% width) as plain, calm, uncluttered BACKGROUND — ordinary background only. Do NOT draw a white box, rectangle, panel, frame, or placeholder there, and do NOT write any label or words (never 'logo', 'reserved', 'zone'); it must look like normal empty background. Keep the eyebrow/tagline and headline out of that corner — start them to the right of or below it, never a text line across the top."
+        ? "Brand logo handling (CRITICAL): the real brand logo is composited AFTER generation. Do NOT draw, invent, approximate, or leave space for any logo or wordmark. Do NOT create a blank logo area, pale block, white rectangle, panel, frame, placeholder, reserved zone, label, or artificial background patch anywhere. Let the artwork, gradients, photo, texture, and layout continue naturally edge-to-edge; the later logo will sit on top of the finished design without the image model preparing a special area for it."
         : "Brand logo handling: no real logo file was provided; use brand name text only if needed, never create a fake emblem.",
     "",
     "User prompt:",
@@ -1220,7 +1220,7 @@ ${params.ctaText ? `- CTA BUTTON: Rounded or pill-shaped button with bold contra
   const recipe = await getRecipeConfig();
   designPrompt += `\n\nBRAND:`;
   if (hasLogo) {
-    designPrompt += `\n- REAL LOGO LOCK: The user's real brand logo is supplied separately and FlowSmartly composites it after generation exactly once. Do NOT draw, approximate, invent, stylize, or copy any logo, icon mark, seal, monogram, badge, mascot, wordmark, or fake brand emblem anywhere in the design. Do NOT keep or copy a logo from a selected template image. Do NOT create a visible blank logo area, white rectangle, dashed placeholder, label, watermark, frame, or logo-space indicator; keep the underlying design natural.`;
+    designPrompt += `\n- REAL LOGO LOCK: The user's real brand logo is supplied separately and FlowSmartly composites it after generation exactly once. Do NOT draw, approximate, invent, stylize, or copy any logo, icon mark, seal, monogram, badge, mascot, wordmark, or fake brand emblem anywhere in the design. Do NOT keep or copy a logo from a selected template image. Do NOT create a blank logo area, pale block, white rectangle, dashed placeholder, label, watermark, frame, logo-space indicator, or reserved zone. Keep the underlying artwork completely natural and continuous.`;
     // With the single-logo recipe on, the model must draw NO brand-name lettering
     // either (the real logo — which usually carries the name — is composited on).
     // Emitting a "brand name may appear as text" hint here is exactly what caused
@@ -1388,7 +1388,7 @@ TEXT ZONE — the left 45%:
 6. NEGATIVE SPACE:
    - Margins of at least 5% on all four edges. Nothing should crowd the canvas edges.
    - Generous space between the headline block and the supporting copy. Resist filling every pixel.
-   - RESERVE one of the two TOP corners as clear, low-detail space (sky, soft gradient, plain wall, or empty background — roughly 22% of the width and ~18% of the height) with NO text and no critical subject in it. The user's real brand logo is overlaid in that reserved corner AFTER generation, so it must never end up on top of any text or the focal subject. Keep headline and body text clear of at least one top corner.
+   - Do NOT reserve any special logo-safe corner. No blank top-left/top-right patch, pale panel, white box, empty rectangle, dashed area, label, or visible placeholder. Keep the artwork natural and continuous; if a corner is quiet, it should happen organically from the composition, not as an added block.
 
 7. COLOUR DISCIPLINE:
    - Use the user's brand palette (or the picked palette) — primary as the dominant hue, accent for the small details (icons, dividers, CTA), neutral for body text. Maximum 3 colours total + white/black for text contrast.
