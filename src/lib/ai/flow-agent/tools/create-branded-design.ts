@@ -40,7 +40,7 @@ export const createBrandedDesign: FlowAgentTool = {
       planId: { type: "string", description: "REQUIRED — planId from a confirmed propose_plan." },
       prompt: {
         type: "string",
-        description: "The creative brief: message/headline, occasion, mood, and any EXACT text to include (e.g. the Bible verse, the name 'Daniel'). Keep it focused on what the user asked for (e.g. 'a fun, festive birthday flyer with a Bible verse') — do NOT add brand-tone adjectives; the engine applies the brand separately.",
+        description: "The creative brief: message/headline, occasion, mood, and any EXACT text to include (e.g. the Bible verse, the name 'Daniel'). Keep it focused on what the user asked for (e.g. 'a fun, festive birthday flyer with a Bible verse') — do NOT add brand-tone adjectives; the engine applies the brand separately. The design must ADVERTISE the client's own business/services: if the request names a print medium (car sticker/decal, magnet, flyer, banner, mug, tee), that's the SURFACE the promo prints on — brief a design that promotes the client's business, NOT product-catalog copy selling that item ('Premium Vinyl Sticker', '6×6', 'Order yours today') unless the client actually sells it.",
       },
       tier: {
         type: "string",
