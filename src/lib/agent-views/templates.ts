@@ -877,7 +877,11 @@ export function postPreviewView(input: {
       label: "Preview",
     });
   }
-  body.push({ type: "text" as const, text: input.caption || "(no caption)", size: "sm" as const });
+  // Always show a TRUNCATED caption in the card — never the full body (long
+  // captions blow up the card and bury the actions).
+  const captionText = (input.caption || "").trim();
+  const shownCaption = captionText.length > 160 ? `${captionText.slice(0, 160).trimEnd()}…` : (captionText || "(no caption)");
+  body.push({ type: "text" as const, text: shownCaption, size: "sm" as const });
   body.push({ type: "row" as const, gap: 6, wrap: true, align: "start" as const, children: chips });
   body.push({
     type: "note" as const,
