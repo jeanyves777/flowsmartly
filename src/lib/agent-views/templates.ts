@@ -50,6 +50,7 @@ export function foundLeadsView(
   listId?: string | null,
 ): ViewSpec {
   const orgCount = created.filter((c) => c.isOrg).length;
+  const leadStudioHref = listId ? `/home/leads?leadList=${listId}` : "/home/leads";
   return {
     name: "found-leads", source: "library", skill: "find_leads", width: "full",
     title: "Leads found", subtitle: `${created.length} saved${orgCount ? ` · ${orgCount} org-level` : ""}`, icon: "🔎",
@@ -72,7 +73,7 @@ export function foundLeadsView(
       },
       { type: "note", tone: "muted", icon: "💡", text: "Get details finds a lead's contact info (billed per lead) — then Pitch it right here, or open the studio for outreach." },
     ],
-    footer: [{ type: "button", label: "Open Lead Studio →", action: { event: "open_studio", href: "/home/leads" } }],
+    footer: [{ type: "button", label: "Open Lead Studio →", action: { event: "open_studio", href: leadStudioHref } }],
   };
 }
 
