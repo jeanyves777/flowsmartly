@@ -164,7 +164,7 @@ export const createContentCampaign: FlowAgentTool = {
           automations: {
             select: {
               posts: {
-                select: { id: true, caption: true, platforms: true, mediaUrl: true, status: true, scheduledAt: true },
+                select: { id: true, caption: true, platforms: true, mediaUrl: true, mediaType: true, status: true, scheduledAt: true },
               },
             },
           },
@@ -197,6 +197,8 @@ export const createContentCampaign: FlowAgentTool = {
               caption: p.caption || "",
               status: p.status,
               hasMedia: !!p.mediaUrl,
+              mediaUrl: p.mediaUrl,
+              mediaType: p.mediaType,
             })),
           }),
         });
@@ -321,7 +323,7 @@ export const createContentCampaign: FlowAgentTool = {
           const drafted = await prisma.post.findMany({
             where: { userId: ctx.userId, deletedAt: null, contentAutomationId: container.id },
             orderBy: { scheduledAt: "asc" },
-            select: { id: true, caption: true, platforms: true, mediaUrl: true, status: true, scheduledAt: true },
+            select: { id: true, caption: true, platforms: true, mediaUrl: true, mediaType: true, status: true, scheduledAt: true },
           });
           const inlineView = campaignTimelineView({
             campaignId: campaign.id,
@@ -334,6 +336,8 @@ export const createContentCampaign: FlowAgentTool = {
               caption: p.caption || "",
               status: p.status,
               hasMedia: !!p.mediaUrl,
+              mediaUrl: p.mediaUrl,
+              mediaType: p.mediaType,
             })),
           });
 

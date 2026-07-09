@@ -617,6 +617,10 @@ export function contentCampaignsListView(
     updatedAt: string;
   }[],
 ): ViewSpec {
+  const shortDate = (iso: string) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? (iso ? iso.slice(0, 10) : "-") : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
   return {
     name: "content-campaigns-list",
     source: "library",
@@ -646,7 +650,7 @@ export function contentCampaignsListView(
           platforms: Array.isArray(c.platforms) && c.platforms.length ? c.platforms.join(", ") : "-",
           startDate: c.startDate || "",
           endDate: c.endDate || "",
-          updated: c.updatedAt ? c.updatedAt.slice(0, 10) : "-",
+          updated: c.updatedAt ? shortDate(c.updatedAt) : "-",
         })),
         rowActions: [
           { label: "Show inline", variant: "primary", action: { event: "show_content_campaign", tool: "show_content_campaign" } },
@@ -735,7 +739,7 @@ export function campaignTimelineView(input: {
   campaignId: string;
   name: string;
   status: string;
-  posts: { id: string; when: string; platforms: string; caption: string; status: string; hasMedia: boolean }[];
+  posts: { id: string; when: string; platforms: string; caption: string; status: string; hasMedia: boolean; mediaUrl?: string | null; mediaType?: string | null }[];
 }): ViewSpec {
   const needsApproval = input.posts.some((p) => p.status === "DRAFT");
   return {
@@ -752,24 +756,38 @@ export function campaignTimelineView(input: {
       children: [
         {
           type: "row" as const,
-          align: "between" as const,
+          align: "start" as const,
+          gap: 14,
           children: [
-            { type: "text" as const, text: p.when, size: "xs" as const, tone: "muted" as const, strong: true },
-            { type: "badge" as const, text: p.status, tone: p.status === "PUBLISHED" ? "success" as const : p.status === "SCHEDULED" ? "info" as const : "muted" as const },
+            { type: "mediaBox" as const, postId: p.id, url: p.mediaUrl || null, mediaType: p.mediaType || (p.hasMedia ? "image" : "planned_image"), label: p.hasMedia ? "Media" : "Planned", status: p.hasMedia ? undefined : "not generated" },
+            {
+              type: "stack" as const,
+              gap: 7,
+              children: [
+                {
+                  type: "row" as const,
+                  align: "between" as const,
+                  children: [
+                    { type: "text" as const, text: p.when, size: "xs" as const, tone: "muted" as const, strong: true },
+                    { type: "badge" as const, text: p.status, tone: p.status === "PUBLISHED" ? "success" as const : p.status === "SCHEDULED" ? "info" as const : "muted" as const },
+                  ],
+                },
+                { type: "text" as const, text: p.platforms, size: "xs" as const, tone: "brand" as const },
+                { type: "text" as const, text: p.caption.length > 260 ? `${p.caption.slice(0, 260)}...` : p.caption, size: "sm" as const, strong: true },
+                {
+                  type: "buttonRow" as const,
+                  buttons: [
+                    { label: "Rewrite", variant: "default" as const, action: { event: "rewrite_caption", payload: { postId: p.id, campaignId: input.campaignId } } },
+                    { label: p.hasMedia ? "Redo image" : "Add image", action: { event: "post_image", tool: "regenerate_post_image", payload: { postId: p.id, tier: "standard" } } },
+                    { label: "Reschedule", action: { event: "reschedule_post", payload: { postId: p.id } } },
+                    { label: "Remove", variant: "danger" as const, action: { event: "remove_post", payload: { postId: p.id } } },
+                  ],
+                },
+                { type: "input" as const, name: "instruction", placeholder: "Tweak this post - e.g. punchier hook, add the free-trial CTA...", submitLabel: "Apply", action: { event: "post_instruction", payload: { postId: p.id, campaignId: input.campaignId } } },
+              ],
+            },
           ],
         },
-        { type: "text" as const, text: p.platforms, size: "xs" as const, tone: "brand" as const },
-        { type: "text" as const, text: p.caption.length > 260 ? `${p.caption.slice(0, 260)}...` : p.caption, size: "sm" as const, strong: true },
-        {
-          type: "buttonRow" as const,
-          buttons: [
-            { label: "Rewrite", variant: "default" as const, action: { event: "rewrite_caption", payload: { postId: p.id, campaignId: input.campaignId } } },
-            { label: p.hasMedia ? "Redo image" : "Add image", action: { event: "post_image", tool: "regenerate_post_image", payload: { postId: p.id } } },
-            { label: "Reschedule", action: { event: "reschedule_post", payload: { postId: p.id } } },
-            { label: "Remove", variant: "danger" as const, action: { event: "remove_post", payload: { postId: p.id } } },
-          ],
-        },
-        { type: "input" as const, name: "instruction", placeholder: "Tweak this post - e.g. punchier hook, add the free-trial CTA...", submitLabel: "Apply", action: { event: "post_instruction", payload: { postId: p.id, campaignId: input.campaignId } } },
       ],
     })),
     footer: [
