@@ -159,14 +159,40 @@ export function useHomeAgent() {
   }, []);
 
   const patchInlinePostMedia = useCallback((call: AgentToolCardData) => {
-    if (call.name !== "regenerate_post_image" && call.name !== "regenerate_post_video") return;
-    const output = call.output as { ok?: boolean; data?: { postId?: unknown; url?: unknown } } | null | undefined;
-    const postId = typeof output?.data?.postId === "string" ? output.data.postId : "";
-    const url = typeof output?.data?.url === "string" ? output.data.url : "";
+    const output = call.output as {
+      ok?: boolean;
+      data?: { postId?: unknown; url?: unknown; mediaUrl?: unknown };
+      postId?: unknown;
+      url?: unknown;
+      mediaUrl?: unknown;
+      resultRefId?: unknown;
+    } | null | undefined;
+    if (output?.ok === false) return;
+    const data = output?.data && typeof output.data === "object" ? output.data : output;
+    const postId =
+      typeof data?.postId === "string" ? data.postId
+        : typeof output?.resultRefId === "string" ? output.resultRefId
+          : "";
+    const url =
+      typeof data?.url === "string" ? data.url
+        : typeof data?.mediaUrl === "string" ? data.mediaUrl
+          : "";
     if (!postId || !url) return;
-    const mediaType = call.name === "regenerate_post_video" ? "video" : "image";
+    const mediaType = call.name === "regenerate_post_video" || /\.(mp4|webm|mov)(\?|$)/i.test(url) ? "video" : "image";
     const patchBlocks = (blocks: ViewBlock[]): ViewBlock[] => blocks.map((block) => {
       if (block.type === "mediaBox" && block.postId === postId) return { ...block, url, mediaType, label: "Media", status: undefined };
+      if (block.type === "buttonRow") {
+        return {
+          ...block,
+          buttons: block.buttons.map((button) => {
+            const payload = button.action.payload;
+            const matches = payload && typeof payload === "object" && "postId" in payload && payload.postId === postId;
+            if (!matches) return button;
+            if (!/add image|redo image|add video|redo video/i.test(button.label)) return button;
+            return { ...button, label: mediaType === "video" ? "Redo video" : "Redo image" };
+          }),
+        };
+      }
       if ("children" in block && Array.isArray(block.children)) return { ...block, children: patchBlocks(block.children) } as ViewBlock;
       return block;
     });

@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils/cn";
 import type { ViewSpec, ViewBlock, ViewAction, ViewEvent, ViewValue, Tone } from "@/lib/agent-views/spec";
 
 type Emit = (e: ViewEvent) => void;
+type MediaPreview = { url: string; mediaType?: string | null; label?: string };
 
 const toneText: Record<Tone, string> = {
   default: "text-foreground", brand: "text-brand-500", muted: "text-muted-foreground",
@@ -28,7 +29,10 @@ const t = (x?: Tone) => toneText[x || "default"];
 
 export function AgentView({ spec, onEvent, className }: { spec: ViewSpec; onEvent?: Emit; className?: string }) {
   const emit: Emit = (e) => onEvent?.(e);
+  const [preview, setPreview] = useState<MediaPreview | null>(null);
+  const previewIsVideo = !!preview && (preview.mediaType === "video" || /\.(mp4|webm|mov)(\?|$)/i.test(preview.url));
   return (
+    <>
     <div className={cn("overflow-hidden rounded-2xl border border-border bg-card shadow-sm", className)}>
       {(spec.title || spec.badge || spec.icon) && (
         <div className="flex items-center gap-2.5 border-b border-border px-3.5 py-2.5">
@@ -44,25 +48,51 @@ export function AgentView({ spec, onEvent, className }: { spec: ViewSpec; onEven
         </div>
       )}
       <div className="space-y-2.5 px-3.5 py-3">
-        {spec.body.map((b, i) => <Block key={i} block={b} emit={emit} />)}
+        {spec.body.map((b, i) => <Block key={i} block={b} emit={emit} openPreview={setPreview} />)}
       </div>
       {spec.footer && spec.footer.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-t border-border px-3.5 py-2.5">
-          {spec.footer.map((b, i) => <Block key={i} block={b} emit={emit} />)}
+          {spec.footer.map((b, i) => <Block key={i} block={b} emit={emit} openPreview={setPreview} />)}
         </div>
       )}
     </div>
+    {preview && (
+      <div
+        aria-modal="true"
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
+        role="dialog"
+        onClick={() => setPreview(null)}
+      >
+        <div className="relative flex max-h-[92vh] w-full max-w-5xl flex-col gap-3" onClick={(event) => event.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => setPreview(null)}
+            className="ms-auto rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-white/20"
+          >
+            Close
+          </button>
+          <div className="relative min-h-[50vh] overflow-hidden rounded-2xl border border-white/15 bg-black shadow-2xl">
+            {previewIsVideo ? (
+              <video src={preview.url} controls autoPlay className="max-h-[86vh] w-full bg-black object-contain" />
+            ) : (
+              <Image src={preview.url} alt={preview.label || "Generated media"} fill sizes="90vw" className="object-contain" unoptimized />
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
-function Block({ block, emit }: { block: ViewBlock; emit: Emit }): React.ReactElement | null {
+function Block({ block, emit, openPreview }: { block: ViewBlock; emit: Emit; openPreview: (preview: MediaPreview) => void }): React.ReactElement | null {
   switch (block.type) {
     // ---- layout ----
-    case "stack": return <div className="flex flex-col" style={{ gap: (block.gap ?? 10) }}>{block.children.map((c, i) => <Block key={i} block={c} emit={emit} />)}</div>;
-    case "row": return <div className={cn("flex", block.align === "start" ? "items-start" : "items-center", block.wrap && "flex-wrap", block.align === "between" && "justify-between", block.align === "end" && "justify-end", block.align === "center" && "justify-center")} style={{ gap: (block.gap ?? 8) }}>{block.children.map((c, i) => <Block key={i} block={c} emit={emit} />)}</div>;
-    case "grid": return <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${block.cols ?? 3}, minmax(0,1fr))`, gap: (block.gap ?? 8) }}>{block.children.map((c, i) => <Block key={i} block={c} emit={emit} />)}</div>;
-    case "card": return <div className="space-y-2 rounded-xl border border-border bg-background/35 p-3">{block.children.map((c, i) => <Block key={i} block={c} emit={emit} />)}</div>;
-    case "section": return <div className="space-y-2">{block.title && <div><p className="text-[12px] font-semibold">{block.title}</p>{block.subtitle && <p className="text-[10.5px] text-muted-foreground">{block.subtitle}</p>}</div>}{block.children.map((c, i) => <Block key={i} block={c} emit={emit} />)}</div>;
+    case "stack": return <div className="flex flex-col" style={{ gap: (block.gap ?? 10) }}>{block.children.map((c, i) => <Block key={i} block={c} emit={emit} openPreview={openPreview} />)}</div>;
+    case "row": return <div className={cn("flex", block.align === "start" ? "items-start" : "items-center", block.wrap && "flex-wrap", block.align === "between" && "justify-between", block.align === "end" && "justify-end", block.align === "center" && "justify-center")} style={{ gap: (block.gap ?? 8) }}>{block.children.map((c, i) => <Block key={i} block={c} emit={emit} openPreview={openPreview} />)}</div>;
+    case "grid": return <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${block.cols ?? 3}, minmax(0,1fr))`, gap: (block.gap ?? 8) }}>{block.children.map((c, i) => <Block key={i} block={c} emit={emit} openPreview={openPreview} />)}</div>;
+    case "card": return <div className="space-y-2 rounded-xl border border-border bg-background/35 p-3">{block.children.map((c, i) => <Block key={i} block={c} emit={emit} openPreview={openPreview} />)}</div>;
+    case "section": return <div className="space-y-2">{block.title && <div><p className="text-[12px] font-semibold">{block.title}</p>{block.subtitle && <p className="text-[10.5px] text-muted-foreground">{block.subtitle}</p>}</div>}{block.children.map((c, i) => <Block key={i} block={c} emit={emit} openPreview={openPreview} />)}</div>;
     case "divider": return <div className="h-px bg-border" />;
     case "spacer": return <div style={{ height: block.size ?? 8 }} />;
 
@@ -83,8 +113,8 @@ function Block({ block, emit }: { block: ViewBlock; emit: Emit }): React.ReactEl
       return (
         <button
           type="button"
-          onClick={() => block.action && emit({ action: block.action })}
-          className={cn("relative h-[112px] w-[140px] shrink-0 overflow-hidden rounded-xl border border-border bg-muted/25", block.action && "cursor-pointer hover:border-brand-500/60")}
+          onClick={() => block.url ? openPreview({ url: block.url, mediaType: block.mediaType, label: block.label }) : block.action && emit({ action: block.action })}
+          className={cn("relative h-[112px] w-[140px] shrink-0 overflow-hidden rounded-xl border border-border bg-muted/25", (block.url || block.action) && "cursor-pointer hover:border-brand-500/60")}
         >
           {block.url ? (
             isVideoBox ? (
