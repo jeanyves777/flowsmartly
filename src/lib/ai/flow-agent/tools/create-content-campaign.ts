@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { generateAutomationCopy } from "@/lib/content/automation-copy-generator";
+import { campaignView } from "@/lib/agent-views/templates";
 import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
@@ -58,6 +59,25 @@ function splitHashtags(caption: string): { body: string; tags: string[] } {
   if (!m) return { body: caption, tags: [] };
   const tags = m[1].split(/\s+/).map((t) => t.replace(/^#/, "")).filter(Boolean);
   return { body: caption.slice(0, m.index).trimEnd(), tags };
+}
+
+const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fmtWhen(d: Date | null): string {
+  if (!d) return "unscheduled";
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${DAYS_SHORT[d.getDay()]}, ${MONTHS_SHORT[d.getMonth()]} ${d.getDate()} - ${h}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+function fmtPlatforms(raw: string | null): string {
+  try {
+    const a = JSON.parse(raw || "[]");
+    return Array.isArray(a) && a.length ? a.map((p: string) => String(p)).join(" | ") : "feed";
+  } catch {
+    return "feed";
+  }
 }
 
 export const createContentCampaign: FlowAgentTool = {
@@ -227,19 +247,38 @@ export const createContentCampaign: FlowAgentTool = {
             kind: "create_content_campaign",
             ok: true,
             summary: `Your "${name}" campaign plan is ready — ${made} posts drafted`,
-            detail: "Open Campaign Studio to review + edit each post, generate its image/video, then approve to auto-publish.",
+            detail: "Review and edit each post directly in the chat, generate its image/video, then approve to auto-publish.",
             deepLink: `/home/campaign?campaign=${campaign.id}`,
           });
 
+          const drafted = await prisma.post.findMany({
+            where: { userId: ctx.userId, deletedAt: null, contentAutomationId: container.id },
+            orderBy: { scheduledAt: "asc" },
+            select: { id: true, caption: true, platforms: true, mediaUrl: true, status: true, scheduledAt: true },
+          });
+          const inlineView = campaignView({
+            campaignId: campaign.id,
+            name,
+            status: "DRAFT",
+            posts: drafted.map((p) => ({
+              id: p.id,
+              when: fmtWhen(p.scheduledAt),
+              platforms: fmtPlatforms(p.platforms),
+              caption: p.caption || "",
+              status: p.status,
+              hasMedia: !!p.mediaUrl,
+            })),
+          });
+
           return {
-            output: { campaignId: campaign.id, posts: made, platforms, link: `/home/campaign?campaign=${campaign.id}` },
+            output: { campaignId: campaign.id, posts: made, platforms, inlineView: { requestId: `campaign-view-${campaign.id}`, spec: inlineView } },
             resultRefType: "ContentCampaign",
             resultRefId: campaign.id,
           };
         },
       });
 
-      ctx.emit({ type: "task_started", taskId, kind: "create_content_campaign", summary: `Planning a ${count}-post "${name}" campaign — captions + dates + media prompts. It opens in Campaign Studio for you to review; images/videos are generated per-post after you approve them.` });
+      ctx.emit({ type: "task_started", taskId, kind: "create_content_campaign", summary: `Planning a ${count}-post "${name}" campaign — captions + dates + media prompts. It will appear here as an inline campaign review card; images/videos are generated per-post after review.` });
 
       return {
         ok: true,
@@ -248,7 +287,7 @@ export const createContentCampaign: FlowAgentTool = {
           campaignId: campaign.id,
           plannedPosts: count,
           platforms,
-          userMessage: `Planning a ${count}-post "${name}" campaign across ${platforms.join(", ")} — captions + dates + a media prompt per post (no images/videos generated yet; that's per-post after review). It streams into Campaign Studio. Tell the user to review, tweak, then generate + approve each post.`,
+          userMessage: `Planning a ${count}-post "${name}" campaign across ${platforms.join(", ")} — captions + dates + a media prompt per post (no images/videos generated yet; that's per-post after review). The full campaign review card will render inline in chat. Do not tell the user to open Campaign Studio.`,
         },
       };
     } catch (e) {
