@@ -624,7 +624,7 @@ export function contentCampaignsListView(
     width: "full",
     title: "Content campaigns",
     subtitle: `${campaigns.length} campaign${campaigns.length === 1 ? "" : "s"} ready to manage`,
-    icon: "Campaign",
+    icon: "Cal",
     badge: { text: "Inline editor", tone: "brand" },
     body: [
       {
@@ -655,7 +655,7 @@ export function contentCampaignsListView(
       },
       { type: "note", tone: "muted", text: "Open a campaign here to rewrite captions, regenerate images, reschedule posts, remove items, or approve everything from the same chat thread." },
     ],
-    footer: [{ type: "button", label: "Open Campaign Studio", action: { event: "open_studio", href: "/home/campaign" } }],
+    footer: [],
   };
 }
 
@@ -726,6 +726,55 @@ export function campaignView(input: {
       { type: "button", label: "✓ Approve all — schedule", variant: "primary", action: { event: "approve_campaign", payload: { campaignId: input.campaignId } } },
       { type: "button", label: "✨ Improve", action: { event: "improve_campaign", tool: "improve_content_campaign", payload: { campaignId: input.campaignId } } },
       { type: "button", label: "Open Campaign Studio →", action: { event: "open_studio", href: "/home/campaign" } },
+    ],
+  };
+}
+
+/** A content campaign styled closer to the Campaign Studio timeline. */
+export function campaignTimelineView(input: {
+  campaignId: string;
+  name: string;
+  status: string;
+  posts: { id: string; when: string; platforms: string; caption: string; status: string; hasMedia: boolean }[];
+}): ViewSpec {
+  const needsApproval = input.posts.some((p) => p.status === "DRAFT");
+  return {
+    name: "content-campaign",
+    source: "library",
+    skill: "show_content_campaign",
+    width: "full",
+    title: input.name,
+    subtitle: `${input.posts.length} post${input.posts.length === 1 ? "" : "s"} - ${input.status.toLowerCase()}`,
+    icon: "Cal",
+    badge: needsApproval ? { text: "Needs approval", tone: "warn" } : { text: input.status, tone: "success" },
+    body: input.posts.slice(0, 12).map((p) => ({
+      type: "card" as const,
+      children: [
+        {
+          type: "row" as const,
+          align: "between" as const,
+          children: [
+            { type: "text" as const, text: p.when, size: "xs" as const, tone: "muted" as const, strong: true },
+            { type: "badge" as const, text: p.status, tone: p.status === "PUBLISHED" ? "success" as const : p.status === "SCHEDULED" ? "info" as const : "muted" as const },
+          ],
+        },
+        { type: "text" as const, text: p.platforms, size: "xs" as const, tone: "brand" as const },
+        { type: "text" as const, text: p.caption.length > 260 ? `${p.caption.slice(0, 260)}...` : p.caption, size: "sm" as const, strong: true },
+        {
+          type: "buttonRow" as const,
+          buttons: [
+            { label: "Rewrite", variant: "default" as const, action: { event: "rewrite_caption", payload: { postId: p.id, campaignId: input.campaignId } } },
+            { label: p.hasMedia ? "Redo image" : "Add image", action: { event: "post_image", tool: "regenerate_post_image", payload: { postId: p.id } } },
+            { label: "Reschedule", action: { event: "reschedule_post", payload: { postId: p.id } } },
+            { label: "Remove", variant: "danger" as const, action: { event: "remove_post", payload: { postId: p.id } } },
+          ],
+        },
+        { type: "input" as const, name: "instruction", placeholder: "Tweak this post - e.g. punchier hook, add the free-trial CTA...", submitLabel: "Apply", action: { event: "post_instruction", payload: { postId: p.id, campaignId: input.campaignId } } },
+      ],
+    })),
+    footer: [
+      { type: "button", label: "Approve all and schedule", variant: "primary", action: { event: "approve_campaign", payload: { campaignId: input.campaignId } } },
+      { type: "button", label: "Improve", action: { event: "improve_campaign", tool: "improve_content_campaign", payload: { campaignId: input.campaignId } } },
     ],
   };
 }

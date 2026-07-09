@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { generateAutomationCopy } from "@/lib/content/automation-copy-generator";
-import { campaignView } from "@/lib/agent-views/templates";
+import { campaignTimelineView } from "@/lib/agent-views/templates";
 import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
@@ -184,7 +184,7 @@ export const improveContentCampaign: FlowAgentTool = {
             orderBy: { scheduledAt: "asc" },
             select: { id: true, caption: true, platforms: true, mediaUrl: true, status: true, scheduledAt: true },
           });
-          const inlineView = campaignView({
+          const inlineView = campaignTimelineView({
             campaignId,
             name: campaign.name,
             status: "DRAFT",

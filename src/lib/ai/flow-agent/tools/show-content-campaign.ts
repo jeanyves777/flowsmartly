@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import type { FlowAgentTool } from "../registry";
-import { campaignView } from "@/lib/agent-views/templates";
+import { campaignTimelineView } from "@/lib/agent-views/templates";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -70,7 +70,7 @@ export const showContentCampaign: FlowAgentTool = {
       return { ok: true, data: { campaignId, posts: 0, userMessage: `"${campaign.name}" has no posts yet — add some with add_campaign_post, then show it again.` } };
     }
 
-    ctx.emit({ type: "agent_view", requestId: campaign.id, spec: campaignView({ campaignId: campaign.id, name: campaign.name, status: campaign.status, posts }) });
+    ctx.emit({ type: "agent_view", requestId: campaign.id, spec: campaignTimelineView({ campaignId: campaign.id, name: campaign.name, status: campaign.status, posts }) });
 
     return {
       ok: true,
