@@ -82,7 +82,7 @@ export function useHomeAgent() {
   }, []);
 
   const appendProposalViewMessage = useCallback(async (task: AgentTaskCardData) => {
-    if (task.kind !== "create_proposal" && task.kind !== "create_visual_deck") return;
+    if (task.kind !== "create_proposal" && task.kind !== "create_visual_deck" && task.kind !== "create_pitch") return;
     const pitchId = typeof task.output?.pitchId === "string" ? task.output.pitchId : task.resultRefType === "Pitch" ? task.resultRefId : null;
     if (!pitchId) return;
     const viewId = `pitch-view-${pitchId}`;
@@ -100,19 +100,25 @@ export function useHomeAgent() {
       const add = (key: string, label: string, text?: string) => { if (text) sections.push({ key, label, text }); };
       add("clientNeed", "The need", str("clientNeed"));
       add("aboutBrand", "About your brand", str("aboutBrand"));
+      add("personalizedHook", "Personalized hook", str("personalizedHook"));
+      add("opportunityParagraph", "Opportunity", str("opportunityParagraph"));
+      add("impactParagraph", "Impact", str("impactParagraph"));
       const commitments = list("commitments"); if (commitments.length) sections.push({ key: "commitments", label: "Commitments", text: commitments.slice(0, 6).join(" | ") });
       const benefits = list("benefits"); if (benefits.length) sections.push({ key: "benefits", label: "Benefits", text: benefits.slice(0, 6).join(" | ") });
       const nextSteps = list("nextSteps"); if (nextSteps.length) sections.push({ key: "nextSteps", label: "Next steps", text: nextSteps.slice(0, 5).join(" | ") });
+      const findings = list("keyFindings"); if (findings.length) sections.push({ key: "keyFindings", label: "Key findings", text: findings.slice(0, 6).join(" | ") });
+      const solution = list("solutionBullets"); if (solution.length) sections.push({ key: "solutionBullets", label: "Solution", text: solution.slice(0, 6).join(" | ") });
       const spec = proposalPitchView({
         id: pitchId,
         business: row?.businessName,
-        title: str("title"),
+        title: str("title") || str("headline") || `Pitch for ${row?.businessName || "lead"}`,
         subject: str("subject"),
-        summary: str("executiveSummary"),
+        summary: str("executiveSummary") || str("personalizedHook"),
         variant: c.studioDocType === "visual" ? "visual" : "deck",
         coverImage: visualImages.find((im) => im.kind === "cover" && typeof im.url === "string")?.url as string | undefined,
         metrics: objList("proofPoints").map((p) => ({ label: String(p.label ?? ""), value: String(p.metric ?? "") })).filter((p) => p.label || p.value),
-        deliverables: objList("deliverables").map((d) => ({ title: String(d.title ?? ""), description: String(d.description ?? "") })).filter((d) => d.title || d.description),
+        deliverables: objList("deliverables").map((d) => ({ title: String(d.title ?? ""), description: String(d.description ?? "") })).filter((d) => d.title || d.description)
+          .concat(solution.slice(0, 4).map((s) => ({ title: s.split(":")[0]?.trim() || "Recommended action", description: s }))),
         timeline: objList("timeline").map((t) => ({ label: String(t.label ?? ""), title: String(t.title ?? "") })).filter((t) => t.label || t.title),
         sections,
       });

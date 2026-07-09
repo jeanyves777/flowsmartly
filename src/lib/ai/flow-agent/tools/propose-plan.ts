@@ -136,6 +136,39 @@ export const proposePlan: FlowAgentTool = {
         };
       });
 
+      const recentDuplicate = await prisma.agentPlanProposal.findFirst({
+        where: {
+          conversationId: ctx.conversationId,
+          userId: ctx.userId,
+          summary,
+          status: { in: ["pending", "confirmed"] },
+          createdAt: { gte: new Date(Date.now() - PROPOSAL_TTL_MS) },
+        },
+        orderBy: { seq: "desc" },
+        select: { id: true, status: true, totalCreditCost: true },
+      }).catch(() => null);
+
+      if (recentDuplicate) {
+        const confirmed =
+          recentDuplicate.status === "confirmed"
+            ? true
+            : await ctx.awaitConfirmation(recentDuplicate.id);
+        return {
+          ok: true,
+          data: {
+            planId: recentDuplicate.id,
+            confirmed,
+            canceled: false,
+            status: confirmed ? "confirmed" : "expired",
+            summary,
+            totalCreditCost: recentDuplicate.totalCreditCost,
+            guidance: confirmed
+              ? `User confirmed. Reuse the existing planId="${recentDuplicate.id}" and call the mutating tool now. Do NOT create another confirm card.`
+              : "The existing plan was not confirmed. Do not run the steps.",
+          },
+        };
+      }
+
       const planId = `plan_${randomUUID().slice(0, 12)}`;
       const expiresAt = new Date(Date.now() + PROPOSAL_TTL_MS);
 
