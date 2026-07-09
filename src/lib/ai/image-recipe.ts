@@ -59,6 +59,9 @@ export function buildArtDirection(opts: {
       "• COPY ACCURACY: all text ultra-crisp, vector-sharp and PERFECTLY SPELLED. Render ONLY the actual marketing copy provided, EXACTLY — never misspell, duplicate, garble, truncate, or invent text. Kerned and grid-aligned. No lorem ipsum, no gibberish micro-text.",
     );
     parts.push(
+      "• NO INVENTED YEAR/DATE: do NOT append a year, a \"Season 20XX\" / \"Tax Season 20XX\" badge, a copyright line, or any date stamp that is not already in the provided copy — the current date is context only, not something to print. If no date is in the copy, the design shows no year at all.",
+    );
+    parts.push(
       "• NO DESIGN-SPEC ANNOTATIONS: this is a finished piece, not a design mockup. Do NOT render any font names, hex color codes (e.g. #E0D1FF), pt/px sizes, color names, measurements, rulers, spec labels, or annotation callouts anywhere — only the real copy.",
     );
   }
