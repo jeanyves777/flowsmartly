@@ -40,7 +40,7 @@ export interface HomeMessage {
   role: "user" | "assistant";
   content: string;
   /** Images the user attached to this turn (shown in their bubble). */
-  attachments?: { dataUrl?: string; url?: string; name: string }[];
+  attachments?: { dataUrl?: string; url?: string; name: string; mediaType?: "image" | "video" }[];
   blocks?: MessageBlock[];
   toolCalls?: AgentToolCardData[];
   planProposals?: PlanProposalCardData[];
@@ -161,10 +161,11 @@ export function useHomeAgent() {
   const patchInlinePostMedia = useCallback((call: AgentToolCardData) => {
     const output = call.output as {
       ok?: boolean;
-      data?: { postId?: unknown; url?: unknown; mediaUrl?: unknown; inlineView?: unknown };
+      data?: { postId?: unknown; url?: unknown; mediaUrl?: unknown; mediaType?: unknown; inlineView?: unknown };
       postId?: unknown;
       url?: unknown;
       mediaUrl?: unknown;
+      mediaType?: unknown;
       inlineView?: unknown;
       resultRefId?: unknown;
     } | null | undefined;
@@ -195,7 +196,7 @@ export function useHomeAgent() {
       setMessages(appendInlineView);
       return;
     }
-    const mediaType = call.name === "regenerate_post_video" || /\.(mp4|webm|mov)(\?|$)/i.test(url) ? "video" : "image";
+    const mediaType = data?.mediaType === "video" || call.name === "regenerate_post_video" || /\.(mp4|webm|mov)(\?|$)/i.test(url) ? "video" : "image";
     const patchBlocks = (blocks: ViewBlock[]): ViewBlock[] => blocks.map((block) => {
       if (block.type === "mediaBox" && block.postId === postId) return { ...block, url, mediaType, label: "Media", status: undefined };
       if (block.type === "buttonRow") {
@@ -246,7 +247,7 @@ export function useHomeAgent() {
   }, []);
 
   const handleSend = useCallback(
-    async (text: string, superMode = false, canvasContext?: string, surfaceContext?: string, opts?: { hidden?: boolean; attachments?: { dataUrl?: string; url?: string; name: string }[] }) => {
+    async (text: string, superMode = false, canvasContext?: string, surfaceContext?: string, opts?: { hidden?: boolean; attachments?: { dataUrl?: string; url?: string; name: string; mediaType?: "image" | "video" }[] }) => {
       const trimmed = text.trim();
       const atts = opts?.attachments && opts.attachments.length ? opts.attachments : undefined;
       if ((!trimmed && !atts) || sending) return;

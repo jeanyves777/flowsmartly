@@ -180,13 +180,14 @@ function ChipsBlock({ block, emit }: { block: Extract<ViewBlock, { type: "chips"
 
 function InputBlock({ block, emit }: { block: Extract<ViewBlock, { type: "input" }>; emit: Emit }) {
   const [val, setVal] = useState(block.value || "");
+  const canSubmit = val.trim().length > 0;
   const submit = () => { if (val.trim() && block.action) emit({ action: block.action, name: block.name, value: val.trim() }); };
   return (
     <div className="flex w-full items-end gap-1.5">
       {block.multiline
         ? <textarea value={val} onChange={(e) => setVal(e.target.value)} placeholder={block.placeholder} rows={2} className="min-w-0 flex-1 resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
         : <input value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} placeholder={block.placeholder} className="min-w-0 flex-1 rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />}
-      {block.action && <button onClick={submit} className={cn("grid h-9 shrink-0 place-items-center rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 text-white", block.submitLabel ? "min-w-[64px] px-3" : "w-9")}>{block.submitLabel ? <span className="text-[12px] font-semibold">{block.submitLabel}</span> : "Send"}</button>}
+      {block.action && <button onClick={submit} disabled={!canSubmit} className={cn("grid h-9 shrink-0 place-items-center rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 text-white transition disabled:cursor-not-allowed disabled:bg-none disabled:bg-muted disabled:text-muted-foreground disabled:opacity-60", block.submitLabel ? "min-w-[64px] px-3" : "w-9")}>{block.submitLabel ? <span className="text-[12px] font-semibold">{block.submitLabel}</span> : "Send"}</button>}
     </div>
   );
 }

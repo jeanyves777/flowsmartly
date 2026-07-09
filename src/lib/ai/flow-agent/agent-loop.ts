@@ -307,6 +307,16 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
       }));
       messages[lastUserIdx] = { role: "user", content: [textPart, ...imageParts] };
     }
+  } else if (input.attachmentUrls && input.attachmentUrls.length > 0) {
+    const lastUserIdx = messages.length - 1;
+    if (lastUserIdx >= 0 && messages[lastUserIdx].role === "user") {
+      const existing = messages[lastUserIdx].content;
+      const note = `[The user attached hosted media URL(s): ${input.attachmentUrls.join(", ")}. Use these real URLs directly in tools such as attach_media_to_post or schedule_social_post. Do not generate replacement media unless the user explicitly asks.]`;
+      messages[lastUserIdx] = {
+        role: "user",
+        content: typeof existing === "string" ? `${existing}\n\n${note}` : `${input.userMessage}\n\n${note}`,
+      };
+    }
   } else if (mostRecentImageUrl) {
     // No fresh upload this turn, but the user shared an image earlier in the
     // conversation (before a follow-up turn or a system reload). Re-attach

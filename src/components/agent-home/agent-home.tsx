@@ -843,7 +843,14 @@ export function AgentHome() {
               : focused === "reel" ? (reelOpsRef.current?.getContext() || undefined)
                 : undefined;
   const sendAction = (p: string) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true });
-  const sendActionFiles = (p: string, atts: { dataUrl?: string; url?: string; name: string }[]) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true, attachments: atts });
+  const sendActionFiles = (p: string, atts: { dataUrl?: string; url?: string; name: string; mediaType?: "image" | "video" }[]) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true, attachments: atts });
+  const isMobile = useIsMobile();
+  const [composerSeed, setComposerSeed] = useState<{ text: string; nonce: number } | null>(null);
+  const [revealChat, setRevealChat] = useState(0);
+  const seedComposer = useCallback((text: string) => {
+    setComposerSeed((s) => ({ text, nonce: (s?.nonce ?? 0) + 1 }));
+    setRevealChat((n) => n + 1);
+  }, []);
   // A user interaction with an agent-authored view rendered inline in the chat.
   // A pure deep-link (open a studio/surface) navigates in place; every other
   // interaction (tap/input/rate/pick) is relayed to the agent as a hidden
@@ -853,6 +860,18 @@ export function AgentHome() {
     if (href && navigateInApp(href)) return;
     if (href && /^\/api\/pitch\/[^/]+\/pdf(?:\?|$)/.test(href)) {
       window.open(href, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (e.action.event === "upload_campaign_post_media") {
+      const payload = e.action.payload || {};
+      const postId = typeof payload.postId === "string" ? payload.postId : "";
+      const campaignId = typeof payload.campaignId === "string" ? payload.campaignId : "";
+      seedComposer([
+        "Attach media to this campaign post.",
+        postId ? `Post id: "${postId}".` : "",
+        campaignId ? `Campaign id: "${campaignId}".` : "",
+        "Use the + button to upload an image/video or choose from Media library, then send. Use attach_media_to_post with the uploaded or selected media URL.",
+      ].filter(Boolean).join(" "));
       return;
     }
     const parts: string[] = [`The user interacted with the "${e.action.event}" control in a view you rendered.`];
@@ -867,16 +886,6 @@ export function AgentHome() {
     parts.push("Act on it and confirm — do not re-ask what the view already captured.");
     sendAction(parts.join(" "));
   };
-  // Mobile "collect via chat" bridge: on phones, studios seed the composer with
-  // an editable starter (user edits + sends) instead of opening a data-fill
-  // modal. `seedComposer` fills the focused composer + reveals the chat overlay.
-  const isMobile = useIsMobile();
-  const [composerSeed, setComposerSeed] = useState<{ text: string; nonce: number } | null>(null);
-  const [revealChat, setRevealChat] = useState(0);
-  const seedComposer = useCallback((text: string) => {
-    setComposerSeed((s) => ({ text, nonce: (s?.nonce ?? 0) + 1 }));
-    setRevealChat((n) => n + 1);
-  }, []);
   // A photo SLOT's "Generate" button — drive the agent to generate a contextual
   // photo and drop it into that exact slot (it may ask one clarifying question).
   const sendFillSlot = (layer: { id: string; label?: string; genHint?: string }, doc: DesignDoc) => send(

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils/cn";
 
 /** An image attached to the next agent message — a device upload (base64
  *  `dataUrl`) or a hosted media-library pick (`url`). */
-export type ComposerAttachment = { dataUrl?: string; url?: string; name: string };
+export type ComposerAttachment = { dataUrl?: string; url?: string; name: string; mediaType?: "image" | "video" };
 
 const MAX_ATTACHMENTS = 4;
 
@@ -48,6 +48,7 @@ export function Composer({
   const [attachOpen, setAttachOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [uploadingCount, setUploadingCount] = useState(0);
   const modeRef = useRef<HTMLDivElement>(null);
   const attachRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,31 +99,48 @@ export function Composer({
   const addFiles = useCallback((files: FileList | null) => {
     if (!files || files.length === 0) return;
     const slots = Math.max(0, MAX_ATTACHMENTS - attachments.length);
-    const picked = Array.from(files).filter((f) => f.type.startsWith("image/")).slice(0, slots);
+    const picked = Array.from(files).filter((f) => f.type.startsWith("image/") || f.type.startsWith("video/")).slice(0, slots);
     if (picked.length === 0) {
-      if (attachments.length >= MAX_ATTACHMENTS) toast({ variant: "destructive", title: "Limit reached", description: `Up to ${MAX_ATTACHMENTS} images.` });
-      else toast({ title: "Images only", description: "Attach PNG/JPG/WebP images as reference." });
+      if (attachments.length >= MAX_ATTACHMENTS) toast({ variant: "destructive", title: "Limit reached", description: `Up to ${MAX_ATTACHMENTS} media files.` });
+      else toast({ title: "Images or videos only", description: "Attach PNG/JPG/WebP/GIF images or MP4/WebM/MOV videos." });
       return;
     }
     picked.forEach((file) => {
+      if (file.type.startsWith("video/")) {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("tags", JSON.stringify(["flow-ai", "campaign-upload"]));
+        setUploadingCount((n) => n + 1);
+        fetch("/api/media", { method: "POST", body: form })
+          .then((res) => res.json())
+          .then((data) => {
+            const uploaded = data?.data?.file;
+            if (!data?.success || !uploaded?.url) throw new Error(data?.error?.message || "Upload failed");
+            setAttachments((prev) => (prev.length >= MAX_ATTACHMENTS ? prev : [...prev, { url: uploaded.url, name: file.name, mediaType: "video" }]));
+          })
+          .catch((err) => toast({ variant: "destructive", title: "Video upload failed", description: err instanceof Error ? err.message : "Try a smaller MP4/WebM/MOV." }))
+          .finally(() => setUploadingCount((n) => Math.max(0, n - 1)));
+        return;
+      }
       if (file.size > 5 * 1024 * 1024) { toast({ variant: "destructive", title: "File too large", description: "Max 5 MB per image." }); return; }
       const reader = new FileReader();
-      reader.onload = () => { const dataUrl = reader.result as string; setAttachments((prev) => (prev.length >= MAX_ATTACHMENTS ? prev : [...prev, { dataUrl, name: file.name }])); };
+      reader.onload = () => { const dataUrl = reader.result as string; setAttachments((prev) => (prev.length >= MAX_ATTACHMENTS ? prev : [...prev, { dataUrl, name: file.name, mediaType: "image" }])); };
       reader.readAsDataURL(file);
     });
   }, [attachments.length, toast]);
 
   // A hosted image from the user's own media library — keep the URL (the server
   // fetches it for vision on send).
-  const pickFromLibrary = useCallback((url: string) => {
-    setAttachments((prev) => (prev.length >= MAX_ATTACHMENTS || prev.some((a) => a.url === url) ? prev : [...prev, { url, name: url.split("/").pop() || "library image" }]));
+  const pickFromLibrary = useCallback((url: string, file?: { type?: string; originalName?: string }) => {
+    const mediaType = file?.type === "video" || /\.(mp4|webm|mov|m4v)(?:\?|#|$)/i.test(url) ? "video" : "image";
+    setAttachments((prev) => (prev.length >= MAX_ATTACHMENTS || prev.some((a) => a.url === url) ? prev : [...prev, { url, name: file?.originalName || url.split("/").pop() || "library media", mediaType }]));
     setLibraryOpen(false);
     setAttachOpen(false);
   }, []);
 
   const mode = COMPOSER_MODES.find((m) => m.key === modeKey) ?? COMPOSER_MODES[0];
   const superMode = mode.superMode;
-  const canSend = draft.trim().length > 0 || attachments.length > 0;
+  const canSend = uploadingCount === 0 && (draft.trim().length > 0 || attachments.length > 0);
   const atLimit = attachments.length >= MAX_ATTACHMENTS;
 
   const submit = () => {
@@ -144,7 +162,7 @@ export function Composer({
     >
       {dragOver && (
         <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center rounded-3xl bg-brand-500/10 text-[13px] font-semibold text-brand-500">
-          <ImageUp className="me-1.5 h-4 w-4" /> Drop images to attach
+          <ImageUp className="me-1.5 h-4 w-4" /> Drop media to attach
         </div>
       )}
 
@@ -192,8 +210,12 @@ export function Composer({
         <div className="flex flex-wrap gap-2 px-3 pt-2.5">
           {attachments.map((a, i) => (
             <div key={i} className="group relative h-14 w-14 overflow-hidden rounded-lg border border-border bg-muted/30">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={a.dataUrl || a.url} alt={a.name} className="h-full w-full object-cover" />
+              {a.mediaType === "video" || /\.(mp4|webm|mov|m4v)(?:\?|#|$)/i.test(a.url || "") ? (
+                <video src={a.url || a.dataUrl} className="h-full w-full object-cover" muted playsInline />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={a.dataUrl || a.url} alt={a.name} className="h-full w-full object-cover" />
+              )}
               <button
                 type="button"
                 onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
@@ -233,8 +255,8 @@ export function Composer({
             type="button"
             onClick={() => setAttachOpen((o) => !o)}
             disabled={sending || atLimit}
-            title={atLimit ? `Up to ${MAX_ATTACHMENTS} images` : "Attach images"}
-            aria-label="Attach images"
+            title={atLimit ? `Up to ${MAX_ATTACHMENTS} media files` : "Attach media"}
+            aria-label="Attach media"
             className={cn(
               "grid h-9 w-9 place-items-center rounded-full border border-border text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40",
               attachOpen && "border-brand-500/60 text-brand-500",
@@ -247,7 +269,7 @@ export function Composer({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+          accept="image/png,image/jpeg,image/jpg,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
           multiple
           className="hidden"
           onChange={(e) => { addFiles(e.target.files); if (e.target) e.target.value = ""; }}
@@ -258,7 +280,7 @@ export function Composer({
           rows={1}
           value={draft}
           placeholder={placeholder}
-          disabled={sending}
+          disabled={sending || uploadingCount > 0}
           autoFocus={autoFocus}
           onChange={(e) => { setDraft(e.target.value); autosize(e.target); }}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }}
@@ -274,11 +296,11 @@ export function Composer({
             canSend ? "bg-gradient-to-r from-brand-500 to-violet-500 text-white shadow-sm shadow-brand-500/30" : "border border-border text-muted-foreground hover:text-foreground",
           )}
         >
-          {sending ? <FlowLoader size={18} tone="white" /> : canSend ? <ArrowUp className="h-[18px] w-[18px]" /> : <Mic className="h-[18px] w-[18px]" />}
+          {sending || uploadingCount > 0 ? <FlowLoader size={18} tone="white" /> : canSend ? <ArrowUp className="h-[18px] w-[18px]" /> : <Mic className="h-[18px] w-[18px]" />}
         </button>
       </div>
 
-      <MediaLibraryPicker open={libraryOpen} onClose={() => setLibraryOpen(false)} onSelect={(url) => pickFromLibrary(url)} />
+      <MediaLibraryPicker open={libraryOpen} onClose={() => setLibraryOpen(false)} onSelect={(url, file) => pickFromLibrary(url, file)} filterTypes={["image", "svg", "video"]} />
     </div>
   );
 }
