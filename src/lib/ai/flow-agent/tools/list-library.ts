@@ -80,6 +80,9 @@ export const listMedia: FlowAgentTool = {
       type: { type: "string", enum: ["image", "video", "document", "svg"], description: "Optional media type filter." },
       limit: { type: "number", description: "Max files (1-100, default 40)." },
       asView: { type: "boolean", description: "Render a pickable inline chat view. Default true." },
+      postId: { type: "string", description: "Optional campaign Post id when listing media to attach to that post." },
+      campaignId: { type: "string", description: "Optional ContentCampaign id for post attachment context." },
+      attachToPost: { type: "boolean", description: "When true, the inline picker uses an Attach to post action." },
     },
   },
   plans: null,
@@ -109,7 +112,15 @@ export const listMedia: FlowAgentTool = {
       }));
 
       if (input.asView !== false && media.length > 0) {
-        ctx.emit({ type: "agent_view", requestId: randomUUID(), spec: mediaLibraryView(media) });
+        ctx.emit({
+          type: "agent_view",
+          requestId: randomUUID(),
+          spec: mediaLibraryView(media, {
+            postId: typeof input.postId === "string" ? input.postId : undefined,
+            campaignId: typeof input.campaignId === "string" ? input.campaignId : undefined,
+            attachToPost: input.attachToPost === true,
+          }),
+        });
       }
 
       return {

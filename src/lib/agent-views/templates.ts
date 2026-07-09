@@ -560,6 +560,7 @@ export function mediaLibraryView(
     sizeKB?: number | null;
     createdAt?: string | null;
   }[],
+  context?: { postId?: string; campaignId?: string; attachToPost?: boolean },
 ): ViewSpec {
   const rows = media.slice(0, 50).map((m) => ({
     id: m.id,
@@ -592,12 +593,17 @@ export function mediaLibraryView(
           { key: "created", label: "Created" },
         ],
         rows,
-        rowActions: [
-          { label: "Use in deck", variant: "primary", action: { event: "use_media_in_visual_deck", tool: "create_visual_deck" } },
-          { label: "Create post", action: { event: "use_media_for_post" } },
-        ],
+        rowActions: context?.attachToPost && context.postId
+          ? [
+              { label: "Attach to post", variant: "primary", action: { event: "attach_media_to_campaign_post", tool: "attach_media_to_post", payload: { postId: context.postId, campaignId: context.campaignId || null } } },
+              { label: "Use in deck", action: { event: "use_media_in_visual_deck", tool: "create_visual_deck" } },
+            ]
+          : [
+              { label: "Use in deck", variant: "primary", action: { event: "use_media_in_visual_deck", tool: "create_visual_deck" } },
+              { label: "Create post", action: { event: "use_media_for_post" } },
+            ],
       },
-      { type: "note", tone: "muted", text: "Pick an asset to create a branded visual deck, post, or campaign without leaving the chat." },
+      { type: "note", tone: "muted", text: context?.attachToPost ? "Pick an asset to attach it to this campaign post without leaving the chat." : "Pick an asset to create a branded visual deck, post, or campaign without leaving the chat." },
     ],
     footer: [{ type: "button", label: "Open Media Library", action: { event: "open_studio", href: "/home/media" } }],
   };
@@ -759,7 +765,15 @@ export function campaignTimelineView(input: {
           align: "start" as const,
           gap: 14,
           children: [
-            { type: "mediaBox" as const, postId: p.id, url: p.mediaUrl || null, mediaType: p.mediaType || (p.hasMedia ? "image" : "planned_image"), label: p.hasMedia ? "Media" : "Planned", status: p.hasMedia ? undefined : "not generated" },
+            {
+              type: "mediaBox" as const,
+              postId: p.id,
+              url: p.mediaUrl || null,
+              mediaType: p.mediaType || (p.hasMedia ? "image" : "planned_image"),
+              label: p.hasMedia ? "Media" : "Planned",
+              status: p.hasMedia ? undefined : "click to attach",
+              action: p.hasMedia ? undefined : { event: "upload_campaign_post_media", payload: { postId: p.id, campaignId: input.campaignId } },
+            },
             {
               type: "stack" as const,
               gap: 7,
@@ -778,7 +792,10 @@ export function campaignTimelineView(input: {
                   type: "buttonRow" as const,
                   buttons: [
                     { label: "Rewrite", variant: "default" as const, action: { event: "rewrite_caption", payload: { postId: p.id, campaignId: input.campaignId } } },
-                    { label: p.hasMedia ? "Redo image" : "Add image", action: { event: "post_image", tool: "regenerate_post_image", payload: { postId: p.id, tier: "standard" } } },
+                    { label: p.hasMedia && p.mediaType === "image" ? "Redo image" : "Add image", action: { event: "post_image", tool: "regenerate_post_image", payload: { postId: p.id, campaignId: input.campaignId, tier: "standard" } } },
+                    { label: p.hasMedia && p.mediaType === "video" ? "Redo video" : "Add video", action: { event: "post_video", tool: "regenerate_post_video", payload: { postId: p.id, campaignId: input.campaignId, tier: "standard" } } },
+                    { label: "Upload", action: { event: "upload_campaign_post_media", payload: { postId: p.id, campaignId: input.campaignId } } },
+                    { label: "Library", action: { event: "pick_campaign_post_media", tool: "list_media", payload: { postId: p.id, campaignId: input.campaignId, attachToPost: true, limit: 40 } } },
                     { label: "Reschedule", action: { event: "reschedule_post", payload: { postId: p.id } } },
                     { label: "Remove", variant: "danger" as const, action: { event: "remove_post", payload: { postId: p.id } } },
                   ],

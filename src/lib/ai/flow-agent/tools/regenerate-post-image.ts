@@ -1,26 +1,7 @@
 import { prisma } from "@/lib/db/client";
 import { generateBrandedImage } from "@/lib/media/branded-image";
-import { campaignTimelineView } from "@/lib/agent-views/templates";
+import { buildCampaignInlineView } from "./campaign-inline-view";
 import type { FlowAgentTool } from "../registry";
-
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function fmtWhen(d: Date | null): string {
-  if (!d) return "unscheduled";
-  let h = d.getHours();
-  const m = d.getMinutes();
-  const ampm = h >= 12 ? "PM" : "AM";
-  h = h % 12 || 12;
-  return `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()} - ${h}:${String(m).padStart(2, "0")} ${ampm}`;
-}
-function fmtPlatforms(raw: string | null): string {
-  try {
-    const a = JSON.parse(raw || "[]");
-    return Array.isArray(a) && a.length ? a.map((p: string) => String(p)).join(" - ") : "feed";
-  } catch {
-    return "feed";
-  }
-}
 
 /**
  * regenerate_post_image — generate an on-brand IMAGE for a Campaign Studio post
@@ -71,44 +52,7 @@ export const regeneratePostImage: FlowAgentTool = {
     await prisma.post.update({ where: { id: postId }, data: { mediaUrl: d.imageUrl, mediaMeta: JSON.stringify([d.imageUrl]), mediaType: "image" } });
     ctx.emit({ type: "canvas_update", patch: { __post: { postId, image: true } } });
 
-    let inlineView: { requestId: string; spec: ReturnType<typeof campaignTimelineView> } | undefined;
-    const campaignId = post.contentAutomation?.campaignId;
-    if (campaignId) {
-      const campaign = await prisma.contentCampaign.findFirst({
-        where: { id: campaignId, userId: ctx.userId },
-        select: {
-          id: true,
-          name: true,
-          status: true,
-          automations: {
-            select: {
-              posts: {
-                select: { id: true, caption: true, platforms: true, mediaUrl: true, mediaType: true, status: true, scheduledAt: true },
-              },
-            },
-          },
-        },
-      });
-      if (campaign) {
-        const posts = campaign.automations
-          .flatMap((automation) => automation.posts)
-          .sort((a, b) => (a.scheduledAt?.getTime() ?? 0) - (b.scheduledAt?.getTime() ?? 0))
-          .map((item) => ({
-            id: item.id,
-            when: fmtWhen(item.scheduledAt),
-            platforms: fmtPlatforms(item.platforms),
-            caption: item.caption || "",
-            status: item.status,
-            hasMedia: !!item.mediaUrl,
-            mediaUrl: item.mediaUrl,
-            mediaType: item.mediaType,
-          }));
-        inlineView = {
-          requestId: `campaign-view-${campaign.id}-media-${postId}`,
-          spec: campaignTimelineView({ campaignId: campaign.id, name: campaign.name, status: campaign.status, posts }),
-        };
-      }
-    }
+    const inlineView = await buildCampaignInlineView({ userId: ctx.userId, campaignId: post.contentAutomation?.campaignId, postIdForRequest: postId });
 
     return {
       ok: true,
