@@ -215,7 +215,7 @@ export const improveContentCampaign: FlowAgentTool = {
         data: {
           taskId,
           campaignId,
-          userMessage: `Improving the "${campaign.name}" campaign — rewriting its ${posts.length} posts' captions + media prompts to match the update (no new campaign, no media re-rendered). The refreshed campaign review card will render inline in chat. Say this in ONE short sentence and do not tell the user to open Campaign Studio.`,
+          userMessage: `Improving the "${campaign.name}" campaign — rewriting its ${posts.length} posts' captions + media prompts to match the update (no new campaign, no media re-rendered). Give ONE short "updating your campaign…" line and STOP. Do NOT call show_content_campaign, and do NOT say it's ready before the task finishes — the refreshed review card renders here AUTOMATICALLY when done (calling show_content_campaign now shows a stale/half-built card, then a duplicate). Confirm once when it lands. Don't tell the user to open Campaign Studio.`,
         },
       };
     } catch (e) {
