@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/client";
+import { sanitizeUserError } from "@/lib/ai/user-error";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
 import { verifyDesignText } from "@/lib/media/verify-design-text";
@@ -149,17 +150,19 @@ export const createBrandedDesign: FlowAgentTool = {
         });
 
         if (!design.ok || !design.imageUrl) {
-          const msg = design.error || "The design could not be generated.";
+          // Log the real error; show the user only a friendly, non-technical line.
+          console.error("[create_branded_design] generation failed:", design.error);
+          const safeMsg = sanitizeUserError(design.error || "The design could not be generated.", "image");
           await notifyAgentTaskComplete({
             userId: ctx.userId,
             taskId,
             kind: "create_branded_design",
             ok: false,
             summary: "Your branded design hit a snag",
-            detail: msg,
+            detail: safeMsg,
             deepLink: `/flow-ai?conversationId=${ctx.conversationId}&taskId=${taskId}`,
           });
-          throw new Error(msg);
+          throw new Error(safeMsg);
         }
 
         let url = design.imageUrl;

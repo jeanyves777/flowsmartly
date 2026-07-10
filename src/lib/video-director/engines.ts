@@ -16,11 +16,42 @@ import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsAvailable } from "@/lib/credits/costs";
 import { prisma } from "@/lib/db/client";
 import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
+import { sanitizeUserError } from "@/lib/ai/user-error";
 import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName, compositeOverlay } from "./clip-helpers";
 
 const isVideoUrl = (u?: string | null): u is string => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
 const isImageUrl = (u?: string | null): u is string => !!u && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(u);
 const AI_SCENE_COST_KEY = "AI_VIDEO_LITE";
+
+// Anti-leak guard appended to every AI shot prompt. The director used to pass
+// the raw scene script to Grok/Veo with NO guard, so the same artifacts we
+// fixed for images leaked into video — burned-in captions/subtitles, watermarks,
+// "AI-generated" badges, warped gibberish text on signs/screens, morphing faces.
+// Grok has no negativePrompt param, so the guard lives in the POSITIVE prompt
+// (it also constrains the Veo fallback). Kept short so it never crowds the shot.
+const VIDEO_ANTI_LEAK =
+  "Clean live-action footage: absolutely NO on-screen text, subtitles, captions, title cards, lower-thirds, or watermark; " +
+  "no logos or brand marks on props/screens/signage, no readable gibberish text anywhere, no date or year stamp; " +
+  "no AI-tool watermark or 'AI-generated' badge. Photoreal, natural continuous motion with correct anatomy — " +
+  "no distorted or morphing faces, no extra or fused fingers, no warping.";
+
+/** Append the anti-leak guard to a shot prompt (once). */
+function withVideoGuard(prompt: string): string {
+  const base = (prompt || "").trim();
+  if (!base) return VIDEO_ANTI_LEAK;
+  return `${base}\n\n${VIDEO_ANTI_LEAK}`;
+}
+
+// A single AI shot is a ≤15s clip — it should render in 1-3 min. Bound the
+// in-process wait so a stuck provider can't leave the scene "rendering" forever
+// (the catch then fails + refunds with a friendly timeout message).
+const AI_SCENE_TIMEOUT_MS = 8 * 60 * 1000;
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
+}
 const XFADE_DUR = 0.5; // seconds of overlap for a scene transition
 const playedLenOf = (s: FilmScene) =>
   typeof s.clipStart === "number" && typeof s.clipEnd === "number" && s.clipEnd > s.clipStart ? s.clipEnd - s.clipStart : s.durationSec || 4;
@@ -170,7 +201,7 @@ export async function generateSceneOverlay(filmId: string, userId: string, scene
 async function renderAiOverlay(filmId: string, userId: string, sceneId: string, ov: FilmOverlay, aspect: FilmAspect, cost: number): Promise<void> {
   try {
     const result = await generateVideoForRole("video_standard", {
-      prompt: ov.script || ov.title || "overlay",
+      prompt: withVideoGuard(ov.script || ov.title || "overlay"),
       durationSeconds: 8,
       aspectRatio: aspect,
       onStatus: () => { void patchOverlay(filmId, userId, sceneId, { status: "rendering", progress: 55 }).catch(() => {}); },
@@ -179,7 +210,7 @@ async function renderAiOverlay(filmId: string, userId: string, sceneId: string, 
     await patchOverlay(filmId, userId, sceneId, { status: "ready", progress: 100, videoUrl: url });
   } catch (e) {
     if (cost > 0) await creditService.addCredits({ userId, type: TRANSACTION_TYPES.REFUND, amount: cost, referenceType: "director_scene", referenceId: `${sceneId}:overlay`, description: "Refund: Director overlay failed" }).catch(() => {});
-    await patchOverlay(filmId, userId, sceneId, { status: "failed", error: e instanceof Error ? e.message : "Overlay render failed" }).catch(() => {});
+    await patchOverlay(filmId, userId, sceneId, { status: "failed", error: sanitizeUserError(e, "video") }).catch(() => {});
   }
 }
 
@@ -187,14 +218,18 @@ async function renderAiOverlay(filmId: string, userId: string, sceneId: string, 
 async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number): Promise<void> {
   try {
     let p = 8;
-    const result = await generateVideoForRole("video_standard", {
-      prompt: scene.script || scene.title,
-      durationSeconds: Math.min(15, scene.durationSec || 8),
-      aspectRatio: aspect,
-      // A product/reference image anchors the shot so it shows the user's actual product.
-      referenceImageUrl: scene.referenceImageUrl || undefined,
-      onStatus: () => { p = Math.min(90, p + 14); void patchScene(filmId, userId, sceneId, { status: "rendering", progress: p }).catch(() => {}); },
-    });
+    const result = await withTimeout(
+      generateVideoForRole("video_standard", {
+        prompt: withVideoGuard(scene.script || scene.title),
+        durationSeconds: Math.min(15, scene.durationSec || 8),
+        aspectRatio: aspect,
+        // A product/reference image anchors the shot so it shows the user's actual product.
+        referenceImageUrl: scene.referenceImageUrl || undefined,
+        onStatus: () => { p = Math.min(90, p + 14); void patchScene(filmId, userId, sceneId, { status: "rendering", progress: p }).catch(() => {}); },
+      }),
+      AI_SCENE_TIMEOUT_MS,
+      "This shot took too long and timed out.",
+    );
     const url = await uploadToS3(`director/${filmId}/${sceneId}.mp4`, result.videoBuffer, "video/mp4");
     await patchScene(filmId, userId, sceneId, { status: "ready", progress: 100, videoUrl: url });
   } catch (e) {
@@ -204,7 +239,8 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
         referenceType: "director_scene", referenceId: sceneId, description: "Refund: Director AI scene failed",
       }).catch(() => {});
     }
-    await patchScene(filmId, userId, sceneId, { status: "failed", error: e instanceof Error ? e.message : "AI render failed" }).catch(() => {});
+    console.error("[video-director] AI scene render failed:", e);
+    await patchScene(filmId, userId, sceneId, { status: "failed", error: sanitizeUserError(e, "video") }).catch(() => {});
   }
 }
 
