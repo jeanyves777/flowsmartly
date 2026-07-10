@@ -2,6 +2,16 @@ import { prisma } from "@/lib/db/client";
 import { createNotification } from "@/lib/notifications";
 import { sendEmail } from "@/lib/email/core";
 import { sendWebPushToUser } from "@/lib/notifications/web-push";
+import { sanitizeUserError, type UserErrorContext } from "@/lib/ai/user-error";
+
+/** Map a task kind to the error context so a failure line reads naturally. */
+function kindToErrorContext(kind: string): UserErrorContext {
+  if (/image|design|flyer|logo|proposal_visual/i.test(kind)) return "image";
+  if (/video|film|story_ad|avatar|reel|narration/i.test(kind)) return "video";
+  if (/campaign/i.test(kind)) return "campaign";
+  if (/publish|post/i.test(kind)) return "publish";
+  return "generic";
+}
 
 /**
  * notifyAgentTaskComplete — called by every background AgentTask when it
@@ -45,8 +55,18 @@ export interface NotifyAgentTaskCompleteInput {
 }
 
 export async function notifyAgentTaskComplete(
-  input: NotifyAgentTaskCompleteInput,
+  rawInput: NotifyAgentTaskCompleteInput,
 ): Promise<void> {
+  // NEVER surface a raw backend/provider error to the user. On failure, run the
+  // user-facing strings through the sanitizer so the bell / push / email show a
+  // friendly line — the real error is already logged at the source.
+  const input: NotifyAgentTaskCompleteInput = rawInput.ok
+    ? rawInput
+    : {
+        ...rawInput,
+        summary: sanitizeUserError(rawInput.summary, kindToErrorContext(rawInput.kind)),
+        detail: rawInput.detail ? sanitizeUserError(rawInput.detail, kindToErrorContext(rawInput.kind)) : rawInput.detail,
+      };
   // ── 1. in-app notification ────────────────────────────────────────
   try {
     await createNotification({
