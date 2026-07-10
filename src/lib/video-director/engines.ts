@@ -58,6 +58,24 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
     new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
   ]);
 }
+
+/** For a movie scene: the reference image (first cast member's sheet, else the
+ *  approved lead) + the spoken dialogue block, so the AI shot shows the same
+ *  people saying their lines. */
+function sceneCastData(film: FilmProject, scene: FilmScene): { ref?: string; dialogue?: string } {
+  const chars = film.characters || [];
+  const lines = scene.cast || [];
+  let ref: string | undefined;
+  for (const l of lines) {
+    const c = chars.find((x) => x.id === l.characterId) || chars.find((x) => x.name.toLowerCase() === (l.name || "").toLowerCase());
+    const url = c?.characterSheetUrl || c?.referenceImageUrl;
+    if (url) { ref = url; break; }
+  }
+  if (!ref) ref = approvedCastReferences(film)[0];
+  const spoken = lines.filter((l) => (l.dialogue || "").trim());
+  const dialogue = spoken.length ? spoken.map((l) => `${l.name} says: "${(l.dialogue || "").trim()}"`).join(" ") : undefined;
+  return { ref, dialogue };
+}
 const XFADE_DUR = 0.5; // seconds of overlap for a scene transition
 const playedLenOf = (s: FilmScene) =>
   typeof s.clipStart === "number" && typeof s.clipEnd === "number" && s.clipEnd > s.clipStart ? s.clipEnd - s.clipStart : s.durationSec || 4;
@@ -131,10 +149,8 @@ export async function generateSceneRender(filmId: string, userId: string, sceneI
         if (!charge.success) return { ok: false, message: charge.error || "Could not charge credits." };
       }
       await patchScene(filmId, userId, sceneId, { status: "rendering", progress: 6, error: null });
-      // Anchor the shot on the scene's product image if it has one, else the lead
-      // approved cast member's turnaround sheet so the same person shows up shot-to-shot.
-      const castRef = approvedCastReferences(film)[0];
-      void renderAiScene(filmId, userId, sceneId, scene, film.aspect, cost, castRef); // fire-and-forget (VPS is long-lived)
+      const { ref: castRef, dialogue } = sceneCastData(film, scene);
+      void renderAiScene(filmId, userId, sceneId, scene, film.aspect, cost, castRef, dialogue); // fire-and-forget (VPS is long-lived)
       const f = await getFilm(filmId, userId);
       return { ok: true, film: f ?? undefined };
     }
@@ -224,15 +240,19 @@ async function renderAiOverlay(filmId: string, userId: string, sceneId: string, 
 }
 
 /** Fire-and-forget AI shot render → upload → mark ready. Refunds on failure. Never throws. */
-async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number, castRef?: string): Promise<void> {
+async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number, castRef?: string, dialogue?: string): Promise<void> {
   try {
     let p = 8;
     // Stamp the render start so the watchdog can fail this scene if the worker
     // dies mid-render (e.g. a deploy) and leaves it stuck "rendering".
     await patchScene(filmId, userId, sceneId, { status: "rendering", progress: p, renderStartedAt: Date.now() }).catch(() => {});
+    // Fold the cast's spoken lines into the shot prompt as AUDIBLE dialogue (Veo
+    // does native speech) — not on-screen captions, which the leak guard forbids.
+    const shot = scene.script || scene.title;
+    const shotWithDialogue = dialogue ? `${shot}\n\nDIALOGUE — spoken aloud on camera, audible and lip-synced (NOT subtitles or on-screen text): ${dialogue}` : shot;
     const result = await withTimeout(
       generateVideoForRole("video_standard", {
-        prompt: withVideoGuard(scene.script || scene.title, scene.style),
+        prompt: withVideoGuard(shotWithDialogue, scene.style),
         durationSeconds: Math.min(15, scene.durationSec || 8),
         aspectRatio: aspect,
         // Anchor the shot: the scene's product/reference image if set, else the

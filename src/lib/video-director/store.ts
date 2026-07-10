@@ -70,22 +70,37 @@ export async function listFilms(userId: string, limit = 24) {
     where: { userId, type: TYPE },
     orderBy: { updatedAt: "desc" },
     take: Math.min(limit, 50),
-    select: { id: true, canvasData: true, updatedAt: true },
+    select: { id: true, canvasData: true, name: true, updatedAt: true },
   });
-  return rows.map((r) => {
-    const film = parseFilm(r.canvasData, r.id);
-    return {
-      id: r.id,
-      title: film.title,
-      aspect: film.aspect,
-      filmType: film.filmType,
-      sceneCount: film.scenes.length,
-      readyCount: film.scenes.filter((s) => s.status === "ready").length,
-      finalVideoUrl: film.finalVideoUrl ?? null,
-      finalStatus: film.finalStatus ?? "draft",
-      updatedAt: r.updatedAt.toISOString(),
-    };
-  });
+  // Per-row resilience: one unparseable film must NEVER blank the whole library.
+  const out: {
+    id: string; title: string; aspect: string; filmType: string; sceneCount: number;
+    readyCount: number; finalVideoUrl: string | null; finalStatus: string; updatedAt: string;
+  }[] = [];
+  for (const r of rows) {
+    try {
+      const film = parseFilm(r.canvasData, r.id);
+      out.push({
+        id: r.id,
+        title: film.title || r.name || "Untitled film",
+        aspect: film.aspect,
+        filmType: film.filmType,
+        sceneCount: film.scenes.length,
+        readyCount: film.scenes.filter((s) => s.status === "ready").length,
+        finalVideoUrl: film.finalVideoUrl ?? null,
+        finalStatus: film.finalStatus ?? "draft",
+        updatedAt: r.updatedAt.toISOString(),
+      });
+    } catch (err) {
+      // Still surface the film with a minimal card rather than dropping it.
+      console.error(`[video-director] listFilms: bad row ${r.id}:`, err);
+      out.push({
+        id: r.id, title: r.name || "Untitled film", aspect: "9:16", filmType: "ai_film",
+        sceneCount: 0, readyCount: 0, finalVideoUrl: null, finalStatus: "draft", updatedAt: r.updatedAt.toISOString(),
+      });
+    }
+  }
+  return out;
 }
 
 export async function saveFilm(id: string, userId: string, project: FilmProject): Promise<boolean> {
