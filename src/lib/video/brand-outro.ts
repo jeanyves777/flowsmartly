@@ -94,25 +94,37 @@ export async function buildBrandOutroClip(opts: BrandOutroOptions): Promise<Buff
     if (hasMusic) fs.writeFileSync(musicPath, opts.musicBuffer as Buffer);
     if (bgImg) fs.writeFileSync(bgPath, bgImg);
 
-    // Background card: a real image (cover-cropped + slightly darkened + a bottom
-    // scrim so the logo reads) with a slow push-in, else the solid brand colour.
+    // Background card: a real image (cover-cropped + slightly darkened) else the
+    // solid brand colour.
     const bgFilter = bgImg
       ? `[0:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},eq=brightness=-0.08:saturation=1.06,setsar=1,fps=30[bgcard]`
       : `[0:v]setsar=1,fps=30[bgcard]`;
-    const videoFilter =
+    const fadeOut = `fade=out:st=${(dur - 0.6).toFixed(2)}:d=0.6:alpha=1`;
+    const slideY = `'(H-h)/2 + 42*(1-min(t/0.7,1))'`;
+    const logoScale = `scale=w='min(${logoW},iw)':h='min(${logoH},ih)':force_original_aspect_ratio=decrease,format=rgba,setsar=1`;
+    // Animated logo REVEAL: the logo fades + slides up with a soft GLOW BLOOM
+    // behind it (a brand-safe reveal — the exact logo, never AI-distorted).
+    const revealFilter =
       `${bgFilter};` +
-      `[1:v]scale=w='min(${logoW},iw)':h='min(${logoH},ih)':force_original_aspect_ratio=decrease,format=rgba,` +
-      `fade=in:st=0:d=0.7:alpha=1,fade=out:st=${(dur - 0.6).toFixed(2)}:d=0.6:alpha=1[logo];` +
-      `[bgcard][logo]overlay=x=(W-w)/2:y='(H-h)/2 + 42*(1-min(t/0.7,1))':format=auto,setsar=1,fps=30[v]`;
+      `[1:v]${logoScale},split[logoraw][logoglow];` +
+      `[logoglow]gblur=sigma=20,eq=brightness=0.12,colorchannelmixer=aa=0.5,fade=in:st=0.15:d=0.9:alpha=1,${fadeOut}[glow];` +
+      `[logoraw]fade=in:st=0:d=0.7:alpha=1,${fadeOut}[logo];` +
+      `[bgcard][glow]overlay=x=(W-w)/2:y=${slideY}:format=auto[bgglow];` +
+      `[bgglow][logo]overlay=x=(W-w)/2:y=${slideY}:format=auto,setsar=1,fps=30[v]`;
+    // Fallback if the reveal graph errors on this ffmpeg build (no glow).
+    const simpleFilter =
+      `${bgFilter};` +
+      `[1:v]${logoScale},fade=in:st=0:d=0.7:alpha=1,${fadeOut}[logo];` +
+      `[bgcard][logo]overlay=x=(W-w)/2:y=${slideY}:format=auto,setsar=1,fps=30[v]`;
 
-    const args = [
+    const makeArgs = (vf: string) => [
       ...(bgImg ? ["-loop", "1", "-t", String(dur), "-i", bgPath] : ["-f", "lavfi", "-t", String(dur), "-i", `color=c=${bg}:s=${w}x${h}:r=30`]),
       "-loop", "1", "-t", String(dur), "-i", logoPath,
       ...(hasMusic ? ["-i", musicPath] : ["-f", "lavfi", "-t", String(dur), "-i", "anullsrc=r=48000:cl=stereo"]),
       "-filter_complex",
       hasMusic
-        ? `${videoFilter};[2:a]atrim=0:${dur.toFixed(2)},asetpts=PTS-STARTPTS,afade=in:st=0:d=0.5,afade=out:st=${(dur - 0.7).toFixed(2)}:d=0.7,volume=0.8,aformat=sample_rates=48000:channel_layouts=stereo[a]`
-        : videoFilter,
+        ? `${vf};[2:a]atrim=0:${dur.toFixed(2)},asetpts=PTS-STARTPTS,afade=in:st=0:d=0.5,afade=out:st=${(dur - 0.7).toFixed(2)}:d=0.7,volume=0.8,aformat=sample_rates=48000:channel_layouts=stereo[a]`
+        : vf,
       "-map", "[v]",
       "-map", hasMusic ? "[a]" : "2:a",
       "-t", String(dur),
@@ -121,7 +133,12 @@ export async function buildBrandOutroClip(opts: BrandOutroOptions): Promise<Buff
       "-movflags", "+faststart",
       "-y", outPath,
     ];
-    await execFileAsync(ffmpegPath, args, { timeout: 180000, maxBuffer: 1024 * 1024 * 16 });
+    try {
+      await execFileAsync(ffmpegPath, makeArgs(revealFilter), { timeout: 180000, maxBuffer: 1024 * 1024 * 16 });
+    } catch (revealErr) {
+      console.warn("[brand-outro] logo-reveal graph failed; plain outro:", revealErr instanceof Error ? revealErr.message : revealErr);
+      await execFileAsync(ffmpegPath, makeArgs(simpleFilter), { timeout: 180000, maxBuffer: 1024 * 1024 * 16 });
+    }
     return fs.readFileSync(outPath);
   } catch (err) {
     console.warn("[brand-outro] standalone clip failed:", err instanceof Error ? err.message : err);
