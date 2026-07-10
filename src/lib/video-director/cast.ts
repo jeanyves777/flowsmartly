@@ -30,27 +30,37 @@ async function brandName(userId: string): Promise<string> {
   return [kit?.name, kit?.industry].filter(Boolean).join(" · ") || "the brand";
 }
 
+const is3d = (style?: string | null) => style === "3d";
+
 function styleLook(style?: string | null): string {
-  return style === "3d"
-    ? "Premium Pixar/Disney-grade 3D animation render: expressive character, soft global illumination, subsurface scattering, cinematic 3D lighting."
-    : "Photoreal cinematic look: naturalistic studio lighting, photoreal skin texture, real production wardrobe. A real-human photograph aesthetic — NOT 3D, NOT illustration.";
+  return is3d(style)
+    ? "Premium Pixar/Disney-grade 3D ANIMATION render: expressive stylized character, soft global illumination, subsurface scattering, polished CGI surfaces, cinematic 3D lighting."
+    : "PHOTOREAL live-action still, shot on a professional cinema camera (ARRI Alexa, 85mm, shallow depth of field): a REAL human PHOTOGRAPH with real skin texture (visible pores, fine detail), real hair and real fabric, natural film lighting and colour. This is a photograph of a real person — a live-action film still.";
+}
+
+/** For cinematic/live-action, hard-negative the model's default drift to CGI. */
+function antiStyleNegative(style?: string | null): string {
+  return is3d(style)
+    ? "- Must read as polished 3D animation — NOT a live-action photo."
+    : "- PHOTOREAL ONLY: this MUST look like a real photograph of a real human. It must NOT be a 3D render, CGI, Pixar/Disney-style animation, video-game character, illustration, cartoon, anime, painting, or any stylized art. No plastic/rendered skin.";
 }
 
 function portraitPrompt(c: FilmCharacter, style: string | null | undefined, brand: string): string {
-  return `Single clean CHARACTER PORTRAIT for a film — the anchor used to lock this person's identity across every shot.
+  return `Single clean CHARACTER PORTRAIT for a ${is3d(style) ? "3D-animated" : "live-action cinematic"} film — the anchor used to lock this person's identity across every shot.
 
 CHARACTER
 - Name: ${c.name}
 - Role: ${c.role}
 - Description: ${c.description}
 
-STYLE
+STYLE (critical — hold this exactly)
 ${styleLook(style)}
 
 FRAMING
 - One person only, head-and-shoulders to three-quarter body, front/three-quarter angle, neutral confident expression, plain seamless studio backdrop, even flattering lighting.
 
 HARD RULES
+${antiStyleNegative(style)}
 - No text, labels, captions, watermark, UI, logo. No other people, no props beyond wardrobe.
 - Tonal brand context only (do NOT draw a logo): ${brand}.`;
 }
@@ -58,18 +68,21 @@ HARD RULES
 function sheetPrompt(c: FilmCharacter, style: string | null | undefined, brand: string): string {
   return `Character TURNAROUND SHEET — recreate the EXACT person in the provided image (identical face, skin tone, hair, build, wardrobe). This is a turnaround of THAT person, do not invent a new face.
 
-CHARACTER (same person in every pose)
+CHARACTER (the SAME person in every pose)
 - Name: ${c.name} — Role: ${c.role}
 - ${c.description}
 
-STYLE
+STYLE (critical — hold this exactly, matching the reference image)
 ${styleLook(style)}
 
-LAYOUT (one landscape image)
-- The SAME character shown left-to-right in THREE full-body poses — front, three-quarter, side profile — standing, neutral posture, plus ONE head-and-shoulders close-up in a corner. Even studio lighting, plain seamless light-grey backdrop, identical wardrobe/hair/proportions across all poses.
+LAYOUT (ONE landscape image showing the SAME person MULTIPLE times)
+- Three SEPARATE full-body standing poses of the identical person, side by side left-to-right: (1) FRONT view, (2) THREE-QUARTER view, (3) SIDE PROFILE view — three distinct figures of the same person, evenly spaced, consistent scale.
+- PLUS one head-and-shoulders face CLOSE-UP in the top corner.
+- This is a model turnaround: clearly THREE full-body poses + a close-up in one frame — NOT a single figure. Even flat studio lighting, plain seamless light-grey backdrop, identical wardrobe/hair/proportions in every pose.
 
 HARD RULES
-- No text, labels, captions, measurement lines, grid, watermark, UI, logo. No other people.
+${antiStyleNegative(style)}
+- No text, labels, captions, measurement lines, grid, watermark, UI, logo. No other different people (all poses are the SAME person).
 - Tonal brand context only (do NOT draw a logo): ${brand}.`;
 }
 

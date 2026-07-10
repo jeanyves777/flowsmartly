@@ -1122,7 +1122,15 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
                     <div className="flex-1 p-2.5">
                       <p className="text-[13px] font-bold leading-tight">{c.name}</p>
                       <p className="text-[11px] text-brand-500">{c.role}</p>
-                      <p className="mt-1 line-clamp-3 text-[11px] leading-snug text-muted-foreground">{c.description}</p>
+                      <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted-foreground">{c.description}</p>
+                      {hasPreview && c.characterSheetUrl && (
+                        <div className="mt-2">
+                          <div className="mb-1 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Turnaround — front · ¾ · profile</div>
+                          <div className="relative aspect-[3/2] overflow-hidden rounded-lg border border-border bg-muted/30">
+                            <Image src={c.characterSheetUrl} alt={`${c.name} turnaround sheet`} fill sizes="320px" className="object-contain" unoptimized />
+                          </div>
+                        </div>
+                      )}
                       {c.previewStatus === "failed" && c.previewError && <p className="mt-1 text-[10.5px] text-rose-500">{c.previewError}</p>}
                     </div>
                     <div className="flex gap-1.5 border-t border-border p-2">
