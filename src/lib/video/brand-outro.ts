@@ -77,26 +77,36 @@ export async function buildBrandOutroClip(opts: BrandOutroOptions): Promise<Buff
   const { w, h } = targetDims(opts.aspectRatio);
   const dur = Math.min(6, Math.max(2, opts.durationSec ?? 3));
   const bg = toFfmpegColor(opts.brandColor);
-  const logoW = Math.round(w * 0.55);
-  const logoH = Math.round(h * 0.45);
+  const logoW = Math.round(w * 0.5);
+  const logoH = Math.round(h * 0.4);
   const hasMusic = !!(opts.musicBuffer && opts.musicBuffer.length);
+  // A REAL background image (on-brand / AI-generated) beats a flat colour card.
+  const bgImg = opts.backgroundImage && opts.backgroundImage.length ? opts.backgroundImage : null;
 
   const tmpDir = path.join(os.tmpdir(), `fs-outroclip-${randomUUID()}`);
   const logoPath = path.join(tmpDir, "logo.png");
+  const bgPath = path.join(tmpDir, "bg.png");
   const musicPath = path.join(tmpDir, `music.${(opts.musicExt || "wav").replace(/[^a-z0-9]/gi, "") || "wav"}`);
   const outPath = path.join(tmpDir, "outro.mp4");
   try {
     fs.mkdirSync(tmpDir, { recursive: true });
     fs.writeFileSync(logoPath, logoBuf);
     if (hasMusic) fs.writeFileSync(musicPath, opts.musicBuffer as Buffer);
+    if (bgImg) fs.writeFileSync(bgPath, bgImg);
 
+    // Background card: a real image (cover-cropped + slightly darkened + a bottom
+    // scrim so the logo reads) with a slow push-in, else the solid brand colour.
+    const bgFilter = bgImg
+      ? `[0:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},eq=brightness=-0.08:saturation=1.06,setsar=1,fps=30[bgcard]`
+      : `[0:v]setsar=1,fps=30[bgcard]`;
     const videoFilter =
+      `${bgFilter};` +
       `[1:v]scale=w='min(${logoW},iw)':h='min(${logoH},ih)':force_original_aspect_ratio=decrease,format=rgba,` +
       `fade=in:st=0:d=0.7:alpha=1,fade=out:st=${(dur - 0.6).toFixed(2)}:d=0.6:alpha=1[logo];` +
-      `[0:v][logo]overlay=x=(W-w)/2:y='(H-h)/2 + 36*(1-min(t/0.7,1))':format=auto,setsar=1,fps=30[v]`;
+      `[bgcard][logo]overlay=x=(W-w)/2:y='(H-h)/2 + 42*(1-min(t/0.7,1))':format=auto,setsar=1,fps=30[v]`;
 
     const args = [
-      "-f", "lavfi", "-t", String(dur), "-i", `color=c=${bg}:s=${w}x${h}:r=30`,
+      ...(bgImg ? ["-loop", "1", "-t", String(dur), "-i", bgPath] : ["-f", "lavfi", "-t", String(dur), "-i", `color=c=${bg}:s=${w}x${h}:r=30`]),
       "-loop", "1", "-t", String(dur), "-i", logoPath,
       ...(hasMusic ? ["-i", musicPath] : ["-f", "lavfi", "-t", String(dur), "-i", "anullsrc=r=48000:cl=stereo"]),
       "-filter_complex",
@@ -138,6 +148,9 @@ export interface BrandOutroOptions {
   musicExt?: string;
   /** Pre-fetched logo bytes (preferred over re-loading logoSource). */
   logoBuffer?: Buffer | null;
+  /** A real background image (on-brand / AI-generated) for the outro card —
+   *  used instead of the flat brand-colour fill when provided. */
+  backgroundImage?: Buffer | null;
 }
 
 /**
