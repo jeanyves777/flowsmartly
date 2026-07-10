@@ -36,11 +36,16 @@ const VIDEO_ANTI_LEAK =
   "no AI-tool watermark or 'AI-generated' badge. Photoreal, natural continuous motion with correct anatomy — " +
   "no distorted or morphing faces, no extra or fused fingers, no warping.";
 
-/** Append the anti-leak guard to a shot prompt (once). */
-function withVideoGuard(prompt: string): string {
+/** Append the anti-leak guard to a shot prompt (once), plus a leading style
+ *  directive so an AI shot honours the film's chosen look (live-action vs 3D)
+ *  instead of drifting to the model's default CGI. */
+function withVideoGuard(prompt: string, style?: string): string {
   const base = (prompt || "").trim();
-  if (!base) return VIDEO_ANTI_LEAK;
-  return `${base}\n\n${VIDEO_ANTI_LEAK}`;
+  const lead = style === "3d"
+    ? "3D-ANIMATED shot — premium Pixar/Disney-grade CGI, stylized characters. "
+    : "PHOTOREAL LIVE-ACTION cinematic shot — real people and real footage shot on a cinema camera; NOT 3D, NOT CGI, NOT animation, NOT a cartoon. ";
+  if (!base) return `${lead}\n\n${VIDEO_ANTI_LEAK}`;
+  return `${lead}${base}\n\n${VIDEO_ANTI_LEAK}`;
 }
 
 // A single AI shot is a ≤15s clip — it should render in 1-3 min. Bound the
@@ -227,7 +232,7 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     await patchScene(filmId, userId, sceneId, { status: "rendering", progress: p, renderStartedAt: Date.now() }).catch(() => {});
     const result = await withTimeout(
       generateVideoForRole("video_standard", {
-        prompt: withVideoGuard(scene.script || scene.title),
+        prompt: withVideoGuard(scene.script || scene.title, scene.style),
         durationSeconds: Math.min(15, scene.durationSec || 8),
         aspectRatio: aspect,
         // Anchor the shot: the scene's product/reference image if set, else the
