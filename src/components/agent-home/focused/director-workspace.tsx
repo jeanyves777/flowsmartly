@@ -1023,7 +1023,7 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
 
         <label className="mb-1 mt-3 block text-[11px] font-semibold">Duration <span className="font-normal text-muted-foreground">— caps this shot&rsquo;s dialogue</span></label>
         <PillRow options={["3", "5", "8", "10", "15"]} labels={["3s", "5s", "8s", "10s", "15s"]} value={String(scene.durationSec ?? 8)} onSelect={(v) => onPatch({ durationSec: Number(v) })} />
-        {scene.engine === "ai" && <p className="mt-1 text-[10px] leading-snug text-muted-foreground">8s renders most reliably. 15s is the max (Grok) — richer, but composited and a little less stable.</p>}
+        {scene.engine === "ai" && <p className="mt-1 text-[10px] leading-snug text-muted-foreground">Shorter shots render fastest; longer shots hold more dialogue.</p>}
 
         <label className="mb-1 mt-3 block text-[11px] font-semibold">Transition · captions</label>
         <div className="flex flex-wrap gap-1.5">
