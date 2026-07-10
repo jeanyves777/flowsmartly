@@ -28,6 +28,12 @@ export interface WorkspaceItem {
   /** Per-item panel icon. Falls back to the view's icon, then the workspace icon,
    *  so items that all open the SAME surface don't share one generic icon. */
   icon?: LucideIcon;
+  /** Curated thumbnail art key for the full-screen Create hub cards. */
+  thumb?: "design" | "logo" | "video" | "media" | "voice";
+  /** Sub-tags shown on a hub card — what a consolidated studio now includes. */
+  includes?: string[];
+  /** Render this card as the hero (spans two columns) in the Create hub. */
+  hero?: boolean;
 }
 
 export interface Workspace {
@@ -54,13 +60,13 @@ export const WORKSPACES: Workspace[] = [
     icon: Palette,
     route: "/studio",
     items: [
-      { label: "Design studio", route: "/studio", viewKey: "create", desc: "Create graphics, posts & ads with AI" },
-      { label: "Logo generator", route: "/logo-generator", viewKey: "logo", desc: "Generate a logo for your brand" },
-      { label: "Video studio", route: "/home/director", viewKey: "director", desc: "Direct AI, avatar & reel into one film" },
-      { label: "Reel studio", route: "/home/reel", viewKey: "reel", desc: "Long video → scored 9:16 clips to post" },
-      { label: "Avatar studio", route: "/home/avatar", viewKey: "avatar", desc: "Talking-avatar videos from your clone" },
-      { label: "Media library", route: "/media", viewKey: "media", desc: "All your images & videos in one place" },
-      { label: "Voice studio", route: "/voice-studio", viewKey: "voice", desc: "Voiceovers, narration & voice cloning" },
+      // Consolidated creative hub — Video folds in Reel + Avatar; Design folds in
+      // Print. No more separate Reel/Avatar entries or a Print rail section.
+      { label: "Video Studio", route: "/home/director", viewKey: "director", desc: "Direct a full film — AI shots, avatar & reel clips — into one movie.", thumb: "video", includes: ["AI film", "Reel clips", "Avatar"], hero: true },
+      { label: "Design Studio", route: "/studio", viewKey: "create", desc: "Graphics, posts, ads & print — one canvas for screen and print-ready output.", thumb: "design", includes: ["Graphics & ads", "Print"] },
+      { label: "Logo Generator", route: "/logo-generator", viewKey: "logo", desc: "Generate, refine & export a logo system for your brand.", thumb: "logo" },
+      { label: "Voice Studio", route: "/voice-studio", viewKey: "voice", desc: "AI voiceovers, narration & voice cloning.", thumb: "voice" },
+      { label: "Media Library", route: "/media", viewKey: "media", desc: "Every image & video you've made, in one place.", thumb: "media" },
     ],
   },
   {
