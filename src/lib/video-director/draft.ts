@@ -132,7 +132,7 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
         `- "title": 2-4 words.\n` +
         `- "script": the SHOT — setting, action, camera, mood (what is ON SCREEN). This is NOT the dialogue.\n` +
         `- "cast": who is in the shot and what they SAY — [{"name":"<a cast name from above>","dialogue":"their spoken line, or empty for a silent/background appearance"}]. Include every character visible; give speaking characters a natural line that moves the story forward. 1-3 characters per scene.\n` +
-        `- "durationSec": 6-15.\n` +
+        `- "durationSec": how long the shot runs — PREFER 8 (renders most reliably); use up to 15 only for a shot that truly needs it. CRITICAL: the total spoken dialogue in a scene must FIT its duration — about 2 words per second (an 8s shot ≈ 16 words of dialogue total, a 15s shot ≈ 30). Keep lines short so they don't get cut off.\n` +
         `Open strong, develop the story, close on a satisfying beat. Return JSON: {"scenes":[{"engine":"ai","title":"...","script":"...","cast":[{"name":"...","dialogue":"..."}],"durationSec":10}, ...]} with exactly ${approx} scenes.`;
     } else {
       const engines: string[] = ['"ai": a cinematic AI shot. script = a vivid SHOT PROMPT (what\'s on screen, mood, motion) — no dialogue.'];
