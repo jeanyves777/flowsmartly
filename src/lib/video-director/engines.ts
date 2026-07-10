@@ -21,6 +21,25 @@ import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfa
 const isVideoUrl = (u?: string | null): u is string => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
 const isImageUrl = (u?: string | null): u is string => !!u && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(u);
 const AI_SCENE_COST_KEY = "AI_VIDEO_LITE";
+
+// Anti-leak guard appended to every AI shot prompt. The director used to pass
+// the raw scene script to Grok/Veo with NO guard, so the same artifacts we
+// fixed for images leaked into video — burned-in captions/subtitles, watermarks,
+// "AI-generated" badges, warped gibberish text on signs/screens, morphing faces.
+// Grok has no negativePrompt param, so the guard lives in the POSITIVE prompt
+// (it also constrains the Veo fallback). Kept short so it never crowds the shot.
+const VIDEO_ANTI_LEAK =
+  "Clean live-action footage: absolutely NO on-screen text, subtitles, captions, title cards, lower-thirds, or watermark; " +
+  "no logos or brand marks on props/screens/signage, no readable gibberish text anywhere, no date or year stamp; " +
+  "no AI-tool watermark or 'AI-generated' badge. Photoreal, natural continuous motion with correct anatomy — " +
+  "no distorted or morphing faces, no extra or fused fingers, no warping.";
+
+/** Append the anti-leak guard to a shot prompt (once). */
+function withVideoGuard(prompt: string): string {
+  const base = (prompt || "").trim();
+  if (!base) return VIDEO_ANTI_LEAK;
+  return `${base}\n\n${VIDEO_ANTI_LEAK}`;
+}
 const XFADE_DUR = 0.5; // seconds of overlap for a scene transition
 const playedLenOf = (s: FilmScene) =>
   typeof s.clipStart === "number" && typeof s.clipEnd === "number" && s.clipEnd > s.clipStart ? s.clipEnd - s.clipStart : s.durationSec || 4;
@@ -170,7 +189,7 @@ export async function generateSceneOverlay(filmId: string, userId: string, scene
 async function renderAiOverlay(filmId: string, userId: string, sceneId: string, ov: FilmOverlay, aspect: FilmAspect, cost: number): Promise<void> {
   try {
     const result = await generateVideoForRole("video_standard", {
-      prompt: ov.script || ov.title || "overlay",
+      prompt: withVideoGuard(ov.script || ov.title || "overlay"),
       durationSeconds: 8,
       aspectRatio: aspect,
       onStatus: () => { void patchOverlay(filmId, userId, sceneId, { status: "rendering", progress: 55 }).catch(() => {}); },
@@ -188,7 +207,7 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
   try {
     let p = 8;
     const result = await generateVideoForRole("video_standard", {
-      prompt: scene.script || scene.title,
+      prompt: withVideoGuard(scene.script || scene.title),
       durationSeconds: Math.min(15, scene.durationSec || 8),
       aspectRatio: aspect,
       // A product/reference image anchors the shot so it shows the user's actual product.
