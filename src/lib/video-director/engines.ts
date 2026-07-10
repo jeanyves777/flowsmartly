@@ -16,6 +16,8 @@ import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsAvailable } from "@/lib/credits/costs";
 import { prisma } from "@/lib/db/client";
 import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
+import { buildBrandOutroClip } from "@/lib/video/brand-outro";
+import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { sanitizeUserError } from "@/lib/ai/user-error";
 import { approvedCastReferences } from "./cast";
 import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName, compositeOverlay } from "./clip-helpers";
@@ -338,6 +340,24 @@ export async function syncFilmScenes(film: FilmProject, userId: string): Promise
  * the mixed-provider outputs concat cleanly. Fire-and-forget; poll finalStatus.
  * Never throws.
  */
+/** A branded outro clip: a REAL on-brand (AI-generated) background + the
+ *  animated logo. Best-effort — returns null if image-gen / ffmpeg is
+ *  unavailable, so composition never breaks on the outro. */
+async function buildDirectorOutro(logoSource: string, aspect: FilmAspect, brandColor: string | null): Promise<Buffer | null> {
+  let bgImage: Buffer | null = null;
+  try {
+    const [iw, ih] = aspect === "9:16" ? [1024, 1536] : aspect === "16:9" ? [1536, 1024] : [1024, 1024];
+    const prompt =
+      `A premium ABSTRACT brand background for a film outro end-card: soft cinematic light, elegant out-of-focus bokeh and a gentle gradient, ${brandColor ? `built around the brand colour ${brandColor}` : "deep tasteful brand tones"}, with a calmer darker area toward the centre for a logo. ` +
+      `Absolutely NO text, NO letters, NO logo, NO watermark, NO people, NO products — only an atmospheric on-brand backdrop.`;
+    const res = await generateImageXaiFirst(prompt, iw, ih, { quality: "high", preferredProvider: "openai" });
+    if (res.base64) bgImage = Buffer.from(res.base64, "base64");
+  } catch (e) {
+    console.warn("[video-director] outro background gen failed; using colour card:", e instanceof Error ? e.message : e);
+  }
+  return buildBrandOutroClip({ logoSource, aspectRatio: aspect, brandColor, durationSec: 3, backgroundImage: bgImage });
+}
+
 export async function composeFilm(filmId: string, userId: string): Promise<void> {
   try {
     const film = await getFilm(filmId, userId);
@@ -390,12 +410,27 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
       }
     }
 
-    // Brand logo — overlay the brand mark on the final cut (best-effort).
+    // Brand logo overlay + a proper branded OUTRO — a REAL on-brand (AI) backdrop
+    // with the animated logo, so the film ends on the brand, not a flat colour
+    // card. All best-effort: any failure leaves the film unchanged.
     if (film.brandLogo !== false) {
       try {
-        const bk = await prisma.brandKit.findFirst({ where: { userId }, orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], select: { logo: true, iconLogo: true } });
+        const bk = await prisma.brandKit.findFirst({ where: { userId }, orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], select: { logo: true, iconLogo: true, colors: true } });
         const logo = bk?.iconLogo || bk?.logo || null;
-        if (logo) finalBuffer = await overlayBrandLogoOnVideo(finalBuffer, logo);
+        if (logo) {
+          finalBuffer = await overlayBrandLogoOnVideo(finalBuffer, logo);
+          try {
+            let brandColor: string | null = null;
+            try { const c = bk?.colors ? JSON.parse(bk.colors) : null; brandColor = typeof c?.primary === "string" ? c.primary : null; } catch { /* ignore */ }
+            const outro = await buildDirectorOutro(logo, film.aspect, brandColor);
+            if (outro) {
+              const outroFit = await normalizeClip(outro, w, h, { preferSourceAudio: false });
+              finalBuffer = await concatenateVideoBuffers([finalBuffer, outroFit]);
+            }
+          } catch (e) {
+            console.error(`[video-director] outro skipped for ${filmId}:`, e instanceof Error ? e.message : e);
+          }
+        }
       } catch (e) {
         console.error(`[video-director] brand-logo overlay skipped for ${filmId}:`, e instanceof Error ? e.message : e);
       }
