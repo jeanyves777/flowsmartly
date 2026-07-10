@@ -103,7 +103,9 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   if (!brief) return film;
 
   const target = film.targetSeconds || 30;
-  const approx = film.sceneCount ? Math.max(1, Math.min(10, film.sceneCount)) : Math.max(2, Math.min(8, Math.round(target / 8)));
+  // ~15s per shot (Grok's max clip), so a 5-min movie → ~20 shots. Cap at 24 so a
+  // long film still storyboards fully instead of the old hard cap of 8.
+  const approx = film.sceneCount ? Math.max(1, Math.min(30, film.sceneCount)) : Math.max(2, Math.min(24, Math.round(target / 15)));
   const hasSource = !!film.sourceVideoUrl;
 
   let planned: { engine?: string; title?: string; script?: string; durationSec?: number }[] = [];
@@ -117,11 +119,11 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
       `- "avatar": the user's talking-avatar${photoAvatar ? " (their own photo)" : " clone"} speaking to camera (hook, testimonial, explainer, spoken CTA). script = the SPOKEN words — first person, punchy, to one viewer.\n` +
       `- "design": a branded still / end card (logo, offer, "Shop now"). script = the on-screen HEADLINE only.\n` +
       (hasSource ? `- "reel": a scored clip cut from the user's uploaded long video (use for b-roll / real-footage beats). script = a short note on what moment to grab.\n` : "") +
-      `Open with a scroll-stopping beat and close with a clear call to action. Durations sum to ~${target}s (each 3-10s).\n` +
-      `Return JSON: {"scenes":[{"engine":"ai|avatar|design${hasSource ? "|reel" : ""}","title":"2-4 words","script":"...","durationSec":8}, ...]} with exactly ${approx} scenes.`,
-      { maxTokens: 1600, temperature: 0.7 },
+      `Open with a scroll-stopping beat and close with a clear call to action. Durations sum to ~${target}s (each 6-15s).\n` +
+      `Return JSON: {"scenes":[{"engine":"ai|avatar|design${hasSource ? "|reel" : ""}","title":"2-4 words","script":"...","durationSec":10}, ...]} with exactly ${approx} scenes.`,
+      { maxTokens: 2600, temperature: 0.7 },
     );
-    planned = Array.isArray(json?.scenes) ? json.scenes.slice(0, 10) : [];
+    planned = Array.isArray(json?.scenes) ? json.scenes.slice(0, 30) : [];
   } catch {
     planned = [];
   }
