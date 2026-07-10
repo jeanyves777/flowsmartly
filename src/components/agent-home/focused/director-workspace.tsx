@@ -946,8 +946,7 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
 
         {scene.engine === "ai" && (
           <>
-            <label className="mb-1 mt-3 block text-[11px] font-semibold">Style</label>
-            <PillRow options={["cinematic", "3d", "narrated"]} value={scene.style} onSelect={(v) => onPatch({ style: v })} />
+            {/* Style is set once at the film brief — not per scene. */}
             <label className="mb-1 mt-3 block text-[11px] font-semibold">Cast &amp; dialogue <span className="font-normal text-muted-foreground">— who&rsquo;s in the shot + what they say</span></label>
             <div className="space-y-1.5">
               {(scene.cast || []).map((l, i) => (
@@ -959,6 +958,19 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
               ))}
               <button onClick={() => onPatch({ cast: [...(scene.cast || []), { name: "", dialogue: "" }] })} className="inline-flex items-center gap-1 rounded-[8px] border border-dashed border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-brand-500"><Plus className="h-3 w-3" /> Add a character line</button>
             </div>
+            {(() => {
+              // Spoken words must fit the shot's duration — natural speech is
+              // ~2.2 words/sec. Over-budget dialogue gets cut off or fails to render.
+              const dur = scene.durationSec || 8;
+              const maxWords = Math.max(4, Math.round(dur * 2.2));
+              const used = (scene.cast || []).reduce((n, l) => n + (l.dialogue || "").trim().split(/\s+/).filter(Boolean).length, 0);
+              const over = used > maxWords;
+              return (
+                <p className={cn("mt-1.5 text-[10px] leading-snug", over ? "font-semibold text-amber-500" : "text-muted-foreground")}>
+                  Dialogue budget: <b>{used}</b>/{maxWords} words for a {dur}s shot{over ? " — trim the lines or raise the duration, or it may get cut off." : "."}
+                </p>
+              );
+            })()}
           </>
         )}
         {scene.engine === "avatar" && (
@@ -1009,8 +1021,9 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
           </>
         )}
 
-        <label className="mb-1 mt-3 block text-[11px] font-semibold">Duration</label>
+        <label className="mb-1 mt-3 block text-[11px] font-semibold">Duration <span className="font-normal text-muted-foreground">— caps this shot&rsquo;s dialogue</span></label>
         <PillRow options={["3", "5", "8", "10", "15"]} labels={["3s", "5s", "8s", "10s", "15s"]} value={String(scene.durationSec ?? 8)} onSelect={(v) => onPatch({ durationSec: Number(v) })} />
+        {scene.engine === "ai" && <p className="mt-1 text-[10px] leading-snug text-muted-foreground">8s renders most reliably. 15s is the max (Grok) — richer, but composited and a little less stable.</p>}
 
         <label className="mb-1 mt-3 block text-[11px] font-semibold">Transition · captions</label>
         <div className="flex flex-wrap gap-1.5">
