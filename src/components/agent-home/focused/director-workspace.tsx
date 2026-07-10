@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { BriefSuggest, type BriefProposal } from "./brief-suggest";
 import { cn } from "@/lib/utils/cn";
 import type { FilmProject, FilmScene, FilmOverlay, FilmAsset, SceneEngine, FilmType, FilmAspect, FilmCharacter } from "@/lib/video-director/types";
 
@@ -55,6 +56,13 @@ interface BriefDraft {
 }
 
 const NODE_W = 248;
+
+/** A short project name auto-derived from the brief (used to name the film/folder). */
+function autoFilmName(brief: string): string {
+  const first = (brief || "").split(/[.!?\n]/)[0].trim();
+  const words = first.split(/\s+/).filter(Boolean).slice(0, 7).join(" ");
+  return (words ? words.charAt(0).toUpperCase() + words.slice(1) : "Untitled film").slice(0, 60);
+}
 const isRendering = (s?: string) => s === "rendering" || s === "queued";
 const isPlayable = (u?: string | null): u is string => typeof u === "string" && /^https?:\/\/|^\/uploads\//i.test(u);
 const isImageUrl = (u?: string | null): u is string => !!u && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(u);
@@ -442,6 +450,15 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
       {/* portal header controls */}
       {headerSlot && createPortal(
         <div className="flex items-center gap-2">
+          {film && (
+            <input
+              value={film.title}
+              onChange={(e) => mutate((f) => ({ ...f, title: e.target.value.slice(0, 160) }))}
+              placeholder="Untitled film"
+              title="Rename this film (auto-saved)"
+              className="hidden w-[150px] truncate rounded-lg border border-transparent bg-transparent px-2 py-1 text-[12.5px] font-bold hover:border-border focus:border-brand-500/60 focus:bg-card focus:outline-none md:block"
+            />
+          )}
           <span className="hidden items-center gap-1 text-[11.5px] text-muted-foreground sm:inline-flex">
             <span className="text-emerald-500">{stats.ready} ready</span> · <span>{stats.rendering} rendering</span> · <span>{stats.total} scenes</span>
           </span>
@@ -1222,6 +1239,7 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
   );
   // VIDEO (AdBuilder) — brief · style · length
   const [vBrief, setVBrief] = useState(film?.filmType === "ai_film" ? film?.brief || "" : "");
+  const [vTitle, setVTitle] = useState(film?.filmType === "ai_film" ? film?.title || "" : "");
   const [vStyle, setVStyle] = useState<string>(film?.style || "cinematic");
   const [vLen, setVLen] = useState<number>(film?.targetSeconds || 30);
   // REEL — source · clip length · aspect · how many
@@ -1268,7 +1286,7 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
 
   const build = () => {
     if (tab === "video") {
-      onSubmit({ assets, brief: vBrief, filmType: "ai_film", aspect: "9:16", targetSeconds: vLen, title: vBrief.slice(0, 60) || "AI video", style: vStyle, sceneCount: null });
+      onSubmit({ assets, brief: vBrief, filmType: "ai_film", aspect: "9:16", targetSeconds: vLen, title: vTitle.trim() || autoFilmName(vBrief), style: vStyle, sceneCount: null });
     } else if (tab === "reel") {
       onSubmit({ assets, brief: "Scored reel clips cut from the source video.", filmType: "reel", aspect: rAspect, targetSeconds: rClip, title: "Reel clips", sourceVideoUrl: rSource.trim() || null, sceneCount: rCount });
     } else {
@@ -1321,8 +1339,17 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
           {/* ---------------- VIDEO (AdBuilder) ---------------- */}
           {tab === "video" && (
             <>
-              <label className="mb-1 block text-[11px] font-semibold text-muted-foreground">Campaign brief</label>
-              <textarea value={vBrief} onChange={(e) => setVBrief(e.target.value)} rows={4} placeholder="e.g. A 30-second reel for our glow serum — a woman's calming night skincare routine, cinematic." className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
+              {!film && (
+                <div className="mb-3">
+                  <BriefSuggest kind="film" onApply={(p: BriefProposal) => {
+                    const brief = typeof p.brief === "string" ? p.brief : "";
+                    if (brief) setVBrief(brief);
+                    if (typeof p.title === "string" && p.title.trim()) setVTitle(p.title.trim());
+                  }} />
+                </div>
+              )}
+              <label className="mb-1 flex items-center gap-2 text-[11px] font-semibold text-muted-foreground">Film brief <span className="font-normal text-muted-foreground/70">— a real story; your brand lands at the end</span></label>
+              <textarea value={vBrief} onChange={(e) => setVBrief(e.target.value)} rows={4} placeholder="e.g. A young boy who lives to play football, told over one rainy season as he trains alone — until the pitch he's saving up for is finally within reach. Warm, cinematic; your academy appears at the very end." className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
               <label className="mb-1 mt-3 block text-[11px] font-semibold text-muted-foreground">Type — choose the visual style</label>
               <div className="grid grid-cols-3 gap-1.5">
                 {[{ v: "cinematic", l: "Cinematic", h: "live-action" }, { v: "3d", l: "3D", h: "animated" }, { v: "narrated", l: "Narrated", h: "stills + VO" }].map((s) => (
