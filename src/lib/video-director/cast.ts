@@ -180,10 +180,12 @@ export async function generateFilmCharacterPreview(
     } else {
       // Fast + cheap path (Nano Banana / Grok) — the strong photoreal prompt keeps
       // cinematic characters realistic without the slow, pricey gpt-image route.
+      const t0 = Date.now();
       const res = await generateImageXaiFirst(portraitPrompt(c, film.style, brand), 1024, 1280, {
         quality: "high",
         transparent: false,
       });
+      console.log(`[video-director] cast portrait "${c.name}": ${res.provider}/${res.model} in ${Date.now() - t0}ms`);
       if (!res.base64) throw new Error("no image returned");
       portraitBuffer = Buffer.from(res.base64, "base64");
       portraitUrl = await uploadCastImage(res.base64, res.format, filmId, c, "portrait");
@@ -192,10 +194,12 @@ export async function generateFilmCharacterPreview(
     // 2) Turnaround sheet derived from the portrait (identity-preserving). Best-effort.
     let sheetUrl: string | null = null;
     try {
+      const t1 = Date.now();
       const sheet = await editImagesXaiFirst(sheetPrompt(c, film.style, brand), [portraitBuffer], 1536, 1024, {
         intent: "identity",
         quality: "high",
       });
+      console.log(`[video-director] cast sheet "${c.name}": ${sheet.provider}/${sheet.model} in ${Date.now() - t1}ms`);
       if (sheet.base64) sheetUrl = await uploadCastImage(sheet.base64, sheet.format, filmId, c, "sheet");
     } catch (err) {
       console.warn("[video-director] character sheet failed; portrait-only anchor:", err);
