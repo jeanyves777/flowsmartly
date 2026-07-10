@@ -1635,6 +1635,36 @@ const CREATE_STILL_THUMBS = {
   voice: "/create-hub-thumbs/voice-studio-curated.png",
 } as const;
 
+const HUB_REAL_THUMBS: Record<string, { src: string; fit?: "cover" | "contain" }> = {
+  "publish:Content Campaign": { src: "/marketing/transparent/flowsmartly-dashboard-cutout.png", fit: "contain" },
+  "publish:Compose a post": { src: "/templates/flow-media/launch-collection-post.jpg" },
+  "publish:Content Calendar": { src: "/marketing/generated/gallery-publish-2.webp" },
+  "publish:Posts & scheduled": { src: "/marketing/generated/gallery-publish-3.webp" },
+
+  "grow:Ad Builder": { src: "/marketing/generated/asset-ad.webp" },
+  "grow:Automation": { src: "/marketing/transparent/flowsmartly-home-platform-operator.png", fit: "contain" },
+  "grow:Email marketing": { src: "/marketing/transparent/flowsmartly-home-messaging-manager.png", fit: "contain" },
+  "grow:SMS marketing": { src: "/marketing/transparent/flowsmartly-policy-sms.png", fit: "contain" },
+  "grow:WhatsApp": { src: "/marketing/transparent/flowsmartly-home-messaging-manager.png", fit: "contain" },
+
+  "sell:Store Dashboard": { src: "/proposal-assets/flowsmartly-flowshop-commerce-cutout.png", fit: "contain" },
+  "sell:Products": { src: "/templates/product-ads/floating-product-hero.jpg" },
+  "sell:Orders": { src: "/marketing/transparent/flowsmartly-flowshop-page-merchant.png", fit: "contain" },
+  "sell:Customers": { src: "/marketing/transparent/flowsmartly-home-flowshop-seller.png", fit: "contain" },
+  "sell:Delivery": { src: "/proposal-assets/flowsmartly-flowshop-commerce-cutout.png", fit: "contain" },
+
+  "web:Websites": { src: "/marketing/generated/surface-web.webp" },
+  "web:Portfolio & rÃ©sumÃ©": { src: "/marketing/transparent/flowsmartly-marketplace-page-agent.png", fit: "contain" },
+  "web:Landing pages": { src: "/marketing/generated/asset-website.webp" },
+  "web:Domains": { src: "/marketing/transparent/flowsmartly-dashboard-cutout.png", fit: "contain" },
+
+  "outreach:Lead Finder": { src: "/proposal-assets/flowsmartly-listsmartly-local-listings-cutout.png", fit: "contain" },
+  "outreach:Contacts & lists": { src: "/marketing/transparent/flowsmartly-home-agent-consultant.png", fit: "contain" },
+  "outreach:Reviews / local SEO": { src: "/marketing/transparent/flowsmartly-listsmartly-local-listings-cutout.png", fit: "contain" },
+  "outreach:Pitch board": { src: "/proposal-assets/pregenerated/proposal-metrics-consultant.png" },
+  "outreach:Forms & surveys": { src: "/marketing/generated/gallery-outreach-2.webp" },
+};
+
 function CreateThumb({ kind }: { kind?: "design" | "logo" | "video" | "media" | "voice" }) {
   const stillSrc = kind ? CREATE_STILL_THUMBS[kind as keyof typeof CREATE_STILL_THUMBS] : undefined;
   if (stillSrc) return <img src={stillSrc} alt="" className={cn("absolute inset-0 h-full w-full bg-[#050914]", kind === "design" ? "object-contain" : "object-cover")} draggable={false} />;
@@ -1691,6 +1721,20 @@ function CreateThumb({ kind }: { kind?: "design" | "logo" | "video" | "media" | 
   return <div className="absolute inset-0 bg-gradient-to-br from-brand-500/20 to-violet-500/20" />;
 }
 
+function HubRealThumb({ thumb }: { thumb: { src: string; fit?: "cover" | "contain" } }) {
+  return (
+    <div className="absolute inset-0 bg-gradient-to-br from-[#050914] via-[#101727] to-[#222036]">
+      <img
+        src={thumb.src}
+        alt=""
+        className={cn("absolute inset-0 h-full w-full", thumb.fit === "contain" ? "object-contain p-3" : "object-cover")}
+        draggable={false}
+      />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/5" />
+    </div>
+  );
+}
+
 function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView }: {
   panelKey: string;
   label: string;
@@ -1728,17 +1772,20 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
               <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", bento && "lg:grid-cols-3")}>
                 {items.map((it, idx) => {
                   const HubIcon = it.icon || (it.viewKey && FOCUS_META[it.viewKey]?.icon) || Icon;
+                  const realThumb = HUB_REAL_THUMBS[`${panelKey}:${it.label}`];
                   const isHero = bento && idx === 0;
                   const isWide = bento && n >= 5 && idx === n - 1;
                   return (
                   <button
                     key={it.label}
                     onClick={() => (it.viewKey ? onOpenView(it.viewKey, it.viewHint) : onAsk(`Open ${it.label} and help me get started.`))}
-                    className={cn("group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-2xl", isHero && "sm:col-span-2 lg:row-span-2", isWide && "lg:col-span-2")}
+                    className={cn("group flex self-start flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-2xl", isHero && "sm:col-span-2 lg:row-span-2", isWide && "lg:col-span-2")}
                   >
                     <div className={cn("relative w-full", isHero ? "min-h-[200px] flex-1" : cn("aspect-[16/10]", isWide && "lg:aspect-[16/5]"))}>
                       {it.thumb
                         ? <CreateThumb kind={it.thumb} />
+                        : realThumb
+                          ? <HubRealThumb thumb={realThumb} />
                         : <div className="absolute inset-0 grid place-items-center" style={{ background: HUB_GRADS[idx % HUB_GRADS.length] }}><HubIcon className="h-9 w-9 text-white/85" /></div>}
                       {it.thumb === "video" && <span className="absolute inset-0 grid place-items-center"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-[15px] text-brand-600 shadow-lg">▶</span></span>}
                     </div>
