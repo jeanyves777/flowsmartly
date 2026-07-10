@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db/client";
 import { publishToSocialPlatforms } from "@/lib/social/publisher";
 import { postPublishResultView } from "@/lib/agent-views/templates";
+import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
+import { notifyAgentTaskComplete } from "../notify-task-complete";
 import type { FlowAgentTool } from "../registry";
 
 /**
@@ -156,59 +158,100 @@ export const scheduleSocialPost: FlowAgentTool = {
         select: { id: true, status: true, scheduledAt: true, publishedAt: true },
       });
 
-      // ACTUALLY PUBLISH. For an immediate post we push to each external platform
-      // via the SAME engine the composer's streamed publish uses and collect the
-      // TRUE per-channel result — never the old fiction of marking the row
-      // PUBLISHED and claiming "live everywhere". Scheduled posts fan out later
-      // via the scheduler, so nothing is pushed now.
-      let results: Record<string, { success: boolean; error?: string; pending?: boolean }> = {};
+      // ── Publish path ─────────────────────────────────────────────────────
+      // Immediate post to EXTERNAL platforms → publish in the BACKGROUND. Real
+      // API calls take tens of seconds (Instagram image polling) to minutes
+      // (video), so awaiting them here froze the whole agent turn. Return
+      // instantly with a RUNNING card; the honest per-channel result card lands
+      // when the fan-out finishes — same pattern as designs/campaigns. Still the
+      // SAME real engine (publishToSocialPlatforms), so the result stays truthful.
       if (!parsedScheduledAt && hasExternal) {
-        try {
-          results = await publishToSocialPlatforms(post.id, ctx.userId);
-        } catch (pubErr) {
-          console.error("[schedule_social_post] publish failed:", pubErr);
-          // Leave results empty → the result card marks the external channels
-          // failed rather than falsely reporting success.
-        }
+        const taskId = await spawnBackgroundTask({
+          userId: ctx.userId,
+          conversationId: ctx.conversationId,
+          messageId: ctx.messageId,
+          kind: "publish_social_post",
+          input: { platforms: externalDests, hasMedia: !!mediaUrl },
+          creditCost: 0,
+          worker: async (taskId) => {
+            publishTaskEvent({ type: "progress", taskId, progress: 8, message: `Publishing to ${externalDests.length} channel${externalDests.length === 1 ? "" : "s"}…` });
+            let results: Record<string, { success: boolean; error?: string; pending?: boolean }> = {};
+            try {
+              results = await publishToSocialPlatforms(post.id, ctx.userId, undefined, (ev) => {
+                if (ev.type === "channel_start") {
+                  publishTaskEvent({ type: "progress", taskId, progress: 45, message: `Posting to ${ev.label || ev.platform}…` });
+                } else if (ev.type === "channel_stage") {
+                  publishTaskEvent({ type: "progress", taskId, progress: 65, message: ev.stage });
+                }
+              });
+            } catch (pubErr) {
+              console.error("[schedule_social_post] background publish failed:", pubErr);
+              // Leave results empty → the result card marks the channels failed
+              // rather than falsely reporting success.
+            }
+            const published = externalDests.filter((p) => results[p]?.success && !results[p]?.pending);
+            const failed = externalDests.filter((p) => results[p] && !results[p]!.success && !results[p]!.pending);
+            const notConnected = externalDests.filter((p) => !results[p]);
+            const needsAttention = failed.length + notConnected.length;
+
+            await notifyAgentTaskComplete({
+              userId: ctx.userId,
+              taskId,
+              kind: "publish_social_post",
+              ok: true,
+              summary: needsAttention
+                ? `Posted to ${published.length}/${externalDests.length} channels — ${needsAttention} need attention`
+                : `Published to ${externalDests.length} channel${externalDests.length === 1 ? "" : "s"}`,
+              detail: needsAttention ? "Open the result card to retry or reconnect the affected channels." : undefined,
+              deepLink: `/home/publish`,
+            });
+
+            return {
+              output: {
+                postId: post.id,
+                inlineView: {
+                  requestId: `post-result-${post.id}`,
+                  spec: postPublishResultView({ postId: post.id, caption: content, platforms, results, scheduled: false }),
+                },
+              },
+              resultRefType: "Post",
+              resultRefId: post.id,
+            };
+          },
+        });
+
+        ctx.emit({ type: "task_started", taskId, kind: "publish_social_post", summary: `Publishing to ${externalDests.length} channel${externalDests.length === 1 ? "" : "s"}…` });
+
+        return {
+          ok: true,
+          data: {
+            taskId,
+            postId: post.id,
+            platforms,
+            userMessage: `Publishing to ${externalDests.join(", ")} in the background — the HONEST per-channel result card (published / pending / failed + fixes) appears here when it finishes. Give ONE short "Publishing now…" line and STOP; never claim "live on all platforms" — report only what the result card shows.`,
+          },
+          resultRefType: "Post",
+          resultRefId: post.id,
+        };
       }
 
-      // Honest tallies (feed is the always-on in-app destination — no external push).
-      const publishedExt = externalDests.filter((p) => results[p]?.success && !results[p]?.pending);
-      const pendingExt = externalDests.filter((p) => results[p]?.pending);
-      const failedExt = externalDests.filter((p) => results[p] && !results[p]!.success && !results[p]!.pending);
-      const notConnected = externalDests.filter((p) => !results[p]);
-
+      // Feed-only immediate OR scheduled → nothing to push right now, so return an
+      // INSTANT result card synchronously (no external calls, no blocking).
       const inlineView = {
         requestId: `post-result-${post.id}`,
         spec: postPublishResultView({
           postId: post.id,
           caption: content,
           platforms,
-          results,
+          results: {},
           scheduled: !!parsedScheduledAt,
           scheduledAtLabel: parsedScheduledAt ? parsedScheduledAt.toISOString() : null,
         }),
       };
-
       const link = parsedScheduledAt ? `/home/calendar` : `/home/publish`;
-
-      // HONEST summary for the model — it must report per-platform, never a
-      // blanket "all live". The result card below already shows the detail +
-      // retry/fix actions, so the agent should confirm briefly, not re-list it.
-      let summary: string;
-      if (parsedScheduledAt) {
-        summary = `Scheduled for ${post.scheduledAt?.toISOString()} across ${platforms.join(", ")}. A result card is shown below — confirm briefly, don't re-list it.`;
-      } else {
-        const bits = ["feed: posted"];
-        for (const p of externalDests) {
-          const r = results[p];
-          bits.push(`${p}: ${!r ? "NOT CONNECTED" : r.pending ? "pending" : r.success ? "published" : `FAILED (${r.error || "unknown"})`}`);
-        }
-        summary =
-          `REAL publish results — report these HONESTLY per platform, do NOT claim everything succeeded: ${bits.join("; ")}. ` +
-          `${failedExt.length || notConnected.length ? "Some channels need the user's attention (reconnect / retry) — the card below has the actions. " : ""}` +
-          `A result card is shown below; confirm briefly and don't re-list it as text.`;
-      }
+      const summary = parsedScheduledAt
+        ? `Scheduled for ${post.scheduledAt?.toISOString()} across ${platforms.join(", ")}. A result card is shown below — confirm briefly, don't re-list it.`
+        : `Posted to your feed. A result card is shown below — confirm briefly.`;
 
       return {
         ok: true,
@@ -218,11 +261,6 @@ export const scheduleSocialPost: FlowAgentTool = {
           scheduledAt: post.scheduledAt?.toISOString() ?? null,
           publishedAt: post.publishedAt?.toISOString() ?? null,
           platforms,
-          results,
-          published: publishedExt,
-          pending: pendingExt,
-          failed: failedExt,
-          notConnected,
           inlineView,
           link,
           summary,
