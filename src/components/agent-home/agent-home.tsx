@@ -1628,7 +1628,17 @@ const HUB_GRADS = [
 
 // Curated (brand-neutral) thumbnail art for the Create hub cards — no external
 // assets; each studio gets a distinctive on-brand placeholder we control.
+const CREATE_STILL_THUMBS = {
+  design: "/create-hub-thumbs/design-studio-curated.png",
+  logo: "/create-hub-thumbs/logo-generator-curated.png",
+  media: "/create-hub-thumbs/media-library-curated.png",
+  voice: "/create-hub-thumbs/voice-studio-curated.png",
+} as const;
+
 function CreateThumb({ kind }: { kind?: "design" | "logo" | "video" | "media" | "voice" }) {
+  const stillSrc = kind ? CREATE_STILL_THUMBS[kind as keyof typeof CREATE_STILL_THUMBS] : undefined;
+  if (stillSrc) return <img src={stillSrc} alt="" className={cn("absolute inset-0 h-full w-full bg-[#050914]", kind === "design" ? "object-contain" : "object-cover")} draggable={false} />;
+
   if (kind === "design") return (
     <div className="absolute inset-0 bg-gradient-to-br from-[#12224a] to-[#3a1259]">
       <div className="absolute inset-[16%_30%] flex flex-col justify-center gap-1.5 rounded-lg bg-gradient-to-b from-brand-500 to-violet-500 p-3 shadow-xl">
@@ -1706,6 +1716,9 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
         <div className="min-h-0 flex-1 overflow-auto px-5 py-5 md:px-8 md:py-7">
           <div className="mx-auto max-w-[1120px]">
             <p className="mb-5 text-[13px] text-muted-foreground">{WS_DESC[panelKey]}</p>
+            {/* Bento grid: the hero spans 2 columns AND 2 rows, so the right column
+                stacks two cards to fill its height — no dead space beside the hero.
+                Cards stretch (no self-start) so their bottoms line up per row. */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {ws.items.map((it, idx) => {
                 const HubIcon = it.icon || (it.viewKey && FOCUS_META[it.viewKey]?.icon) || Icon;
@@ -1713,15 +1726,15 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
                 <button
                   key={it.label}
                   onClick={() => (it.viewKey ? onOpenView(it.viewKey, it.viewHint) : onAsk(`Open ${it.label} and help me get started.`))}
-                  className={cn("group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-2xl", it.hero && "sm:col-span-2")}
+                  className={cn("group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-2xl", it.hero && "sm:col-span-2 lg:row-span-2")}
                 >
-                  <div className={cn("relative", it.hero ? "aspect-[16/8]" : "aspect-[16/10]")}>
+                  <div className={cn("relative w-full", it.hero ? "min-h-[200px] flex-1" : "aspect-[16/10]")}>
                     {it.thumb
                       ? <CreateThumb kind={it.thumb} />
                       : <div className="absolute inset-0 grid place-items-center" style={{ background: HUB_GRADS[idx % HUB_GRADS.length] }}><HubIcon className="h-9 w-9 text-white/85" /></div>}
                     {it.thumb === "video" && <span className="absolute inset-0 grid place-items-center"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-[15px] text-brand-600 shadow-lg">▶</span></span>}
                   </div>
-                  <div className="flex flex-1 flex-col gap-1.5 p-4">
+                  <div className={cn("flex flex-col gap-1.5 p-4", !it.hero && "flex-1")}>
                     <div className="flex items-center gap-2"><span className="text-[15px] font-bold text-foreground">{it.label}</span><ChevronRight className="ms-auto h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-brand-500" /></div>
                     <p className="text-[12px] leading-relaxed text-muted-foreground">{it.desc}</p>
                     {it.includes && it.includes.length > 0 && (
