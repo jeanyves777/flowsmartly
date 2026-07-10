@@ -744,8 +744,8 @@ export function AgentHome() {
   const fMeta = focused ? FOCUS_META[focused] : undefined;
   const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fMeta ? fMeta.label : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
   const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fMeta ? fMeta.icon : fws?.icon ?? Sparkles;
-  // "print" is no longer its own rail section — it lives inside Create → Design Studio.
-  const primaryWorkspaces = WORKSPACES.filter((w) => w.key !== "business" && w.key !== "print");
+  // Consolidated rail: Print → Create, Campaign → Publish, Leads → Outreach.
+  const primaryWorkspaces = WORKSPACES.filter((w) => !["business", "print", "campaign", "leads"].includes(w.key));
   const businessWorkspace = WORKSPACES.find((w) => w.key === "business");
 
   const openWorkspace = (key: string) => {
@@ -1425,7 +1425,7 @@ export function AgentHome() {
           {/* workspace panel — slides over the CURRENT view (home or any focused
               surface). Browsing it never resets the open view; closing returns to
               it. Only picking an item navigates (guarded for unsaved changes). */}
-          <aside className={cn("fixed inset-0 z-50 flex flex-col bg-card transition-transform duration-300 md:absolute md:inset-y-0 md:left-0 md:right-auto md:border-e md:border-border md:shadow-2xl", panelKey === "create" ? "md:right-0 md:w-auto" : "md:w-[440px]", panelKey ? "translate-x-0" : "translate-x-full md:-translate-x-full")}>
+          <aside className={cn("fixed inset-0 z-50 flex flex-col bg-card transition-transform duration-300 md:absolute md:inset-y-0 md:left-0 md:right-auto md:border-e md:border-border md:shadow-2xl", panelKey && HUB_SECTIONS.has(panelKey) ? "md:right-0 md:w-auto" : "md:w-[440px]", panelKey ? "translate-x-0" : "translate-x-full md:-translate-x-full")}>
             {panelKey && (
               <WorkspacePanel
                 panelKey={panelKey}
@@ -1583,6 +1583,18 @@ function AccountMenu({ accountLabel, clients, isImpersonating, onSwitch, onExit,
   );
 }
 
+// Rail sections that render as a full-screen media-card HUB (vs the compact list).
+const HUB_SECTIONS = new Set(["create", "publish", "grow", "sell", "web", "outreach"]);
+// On-brand gradient backdrops for hub cards that don't have bespoke art.
+const HUB_GRADS = [
+  "linear-gradient(150deg,#0e2a4a,#3a1250)",
+  "linear-gradient(135deg,#12224a,#1e1150)",
+  "linear-gradient(135deg,#0b1a3a,#241243)",
+  "linear-gradient(135deg,#0c1a2e,#2a1440)",
+  "linear-gradient(135deg,#12143a,#241243)",
+  "linear-gradient(150deg,#1a2a12,#123a2a)",
+];
+
 // Curated (brand-neutral) thumbnail art for the Create hub cards — no external
 // assets; each studio gets a distinctive on-brand placeholder we control.
 function CreateThumb({ kind }: { kind?: "design" | "logo" | "video" | "media" | "voice" }) {
@@ -1639,19 +1651,23 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
         <b className="text-[15px]">{label}</b>
         <button onClick={onClose} className="ms-auto text-muted-foreground hover:text-foreground" aria-label="Close"><X className="h-[18px] w-[18px]" /></button>
       </div>
-      {panelKey === "create" ? (
+      {HUB_SECTIONS.has(panelKey) ? (
         <div className="min-h-0 flex-1 overflow-auto px-5 py-5 md:px-8 md:py-7">
           <div className="mx-auto max-w-[1120px]">
             <p className="mb-5 text-[13px] text-muted-foreground">{WS_DESC[panelKey]}</p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {ws.items.map((it) => (
+              {ws.items.map((it, idx) => {
+                const HubIcon = it.icon || (it.viewKey && FOCUS_META[it.viewKey]?.icon) || Icon;
+                return (
                 <button
                   key={it.label}
                   onClick={() => (it.viewKey ? onOpenView(it.viewKey, it.viewHint) : onAsk(`Open ${it.label} and help me get started.`))}
                   className={cn("group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-2xl", it.hero && "sm:col-span-2")}
                 >
                   <div className={cn("relative", it.hero ? "aspect-[16/8]" : "aspect-[16/10]")}>
-                    <CreateThumb kind={it.thumb} />
+                    {it.thumb
+                      ? <CreateThumb kind={it.thumb} />
+                      : <div className="absolute inset-0 grid place-items-center" style={{ background: HUB_GRADS[idx % HUB_GRADS.length] }}><HubIcon className="h-9 w-9 text-white/85" /></div>}
                     {it.thumb === "video" && <span className="absolute inset-0 grid place-items-center"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-[15px] text-brand-600 shadow-lg">▶</span></span>}
                   </div>
                   <div className="flex flex-1 flex-col gap-1.5 p-4">
@@ -1667,10 +1683,11 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
                     )}
                   </div>
                 </button>
-              ))}
+                );
+              })}
             </div>
             <div className="mt-6 flex justify-center">
-              <button onClick={() => onAsk("Help me create something.")} className="inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Ask the agent</button>
+              <button onClick={() => onAsk(`Help me with ${label}.`)} className="inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Ask the agent</button>
             </div>
           </div>
         </div>
