@@ -53,6 +53,8 @@ export interface FilmScene {
   designId?: string; headline?: string;
   // a product/reference image that anchors this scene (AI shots use it as a reference frame)
   referenceImageUrl?: string | null;
+  // which cast members appear in this scene + their dialogue (movie scenes)
+  cast?: SceneCastLine[];
   // link to the real render job on the underlying backend
   refKind?: string;           // "avatar_video" | "story_ad" | "reel_clip" | "media" | "design"
   refId?: string;
@@ -66,6 +68,14 @@ export interface FilmScene {
   error?: string | null;
   // picture-in-picture overlay composited on top of this scene
   overlay?: FilmOverlay | null;
+}
+
+/** One character's appearance + spoken line within a scene (a "movie" scene can
+ *  have several cast members, each with their own dialogue). */
+export interface SceneCastLine {
+  characterId?: string;   // links to a FilmCharacter on the film
+  name: string;           // display name (denormalized for the LLM + node UI)
+  dialogue?: string;      // what this character says in this scene ("" = silent/background)
 }
 
 export type OverlayCorner = "tl" | "tr" | "bl" | "br";
@@ -259,6 +269,13 @@ export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene 
     clipStart: raw.clipStart, clipEnd: raw.clipEnd, score: raw.score, aspectAuto: raw.aspectAuto,
     designId: raw.designId, headline: raw.headline,
     referenceImageUrl: raw.referenceImageUrl ?? null,
+    cast: Array.isArray(raw.cast)
+      ? raw.cast.slice(0, 6).map((l) => ({
+          characterId: typeof l?.characterId === "string" ? l.characterId : undefined,
+          name: String(l?.name || "").slice(0, 80),
+          dialogue: typeof l?.dialogue === "string" ? l.dialogue.slice(0, 2000) : undefined,
+        }))
+      : undefined,
     refKind: raw.refKind, refId: raw.refId,
     status,
     progress: typeof raw.progress === "number" ? raw.progress : 0,
@@ -273,7 +290,10 @@ export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene 
 /** Coerce untrusted JSON into a safe FilmProject (used on read + write). */
 export function normalizeFilm(raw: Partial<FilmProject> & { id: string }): FilmProject {
   const base = emptyFilm({ id: raw.id });
-  const scenes = Array.isArray(raw.scenes) ? raw.scenes.map((s, i) => normalizeScene(s, i)) : [];
+  // filter(Boolean) — a stored array must never contain a null/undefined hole, or
+  // normalizeScene/normalizeCharacter would throw and (in listFilms) blank the
+  // whole library on one bad row.
+  const scenes = Array.isArray(raw.scenes) ? raw.scenes.filter(Boolean).map((s, i) => normalizeScene(s, i)) : [];
   const sceneIds = new Set(scenes.map((s) => s.id));
   const edges = Array.isArray(raw.edges)
     ? raw.edges.filter((e): e is FilmEdge => Array.isArray(e) && e.length === 2 && sceneIds.has(e[1]))
@@ -289,6 +309,6 @@ export function normalizeFilm(raw: Partial<FilmProject> & { id: string }): FilmP
     scenes,
     edges,
     assets: Array.isArray(raw.assets) ? raw.assets.slice(0, 40) : [],
-    characters: Array.isArray(raw.characters) ? raw.characters.slice(0, 8).map((c, i) => normalizeCharacter(c, i)) : [],
+    characters: Array.isArray(raw.characters) ? raw.characters.filter(Boolean).slice(0, 8).map((c, i) => normalizeCharacter(c, i)) : [],
   };
 }

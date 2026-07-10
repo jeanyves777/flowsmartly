@@ -639,6 +639,17 @@ function SceneNode({ scene, selected, onDown, onSelect, onGenerate, onRemove, on
       {scene.status === "failed" && scene.error
         ? <p className="line-clamp-2 px-2.5 text-[9.5px] text-rose-500">{scene.error}</p>
         : <p className="line-clamp-1 px-2.5 text-[10px] text-muted-foreground">{scene.script || E.hint}</p>}
+      {scene.cast && scene.cast.length > 0 && (
+        <div className="mx-2.5 mt-1 max-h-[92px] space-y-1 overflow-y-auto rounded-lg border border-border bg-background/50 p-1.5">
+          <div className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground">In this scene</div>
+          {scene.cast.map((l, i) => (
+            <div key={i} className="text-[9.5px] leading-snug">
+              <span className="font-bold" style={{ color: E.color }}>{l.name}</span>
+              {l.dialogue ? <span className="text-muted-foreground">: &ldquo;{l.dialogue}&rdquo;</span> : <span className="text-muted-foreground/60"> · in shot</span>}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="flex gap-1.5 p-2.5">
         <button onClick={onSelect} className="flex-1 rounded-[9px] border border-border py-1.5 text-[10.5px] font-semibold text-foreground hover:border-brand-500/60 hover:text-brand-500">✎ Edit</button>
         <button onClick={onGenerate} disabled={rendering} className="flex-1 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 py-1.5 text-[10.5px] font-semibold text-white disabled:opacity-60">{rendering ? "…" : ready ? "Regenerate" : "Generate"}</button>

@@ -108,32 +108,61 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   const approx = film.sceneCount ? Math.max(1, Math.min(30, film.sceneCount)) : Math.max(2, Math.min(24, Math.round(target / 15)));
   const hasSource = !!film.sourceVideoUrl;
 
-  let planned: { engine?: string; title?: string; script?: string; durationSec?: number }[] = [];
+  // A MOVIE is built around its approved CAST acting in AI shots — it never uses
+  // a talking-head avatar (that's the Avatar tab) unless the user attached their
+  // OWN photo to present. So avatar is off for movies by default.
+  const isMovie = film.filmType === "ai_film";
+  const approvedCast = (film.characters || []).filter((c) => c.approved);
+  const castList = approvedCast.length ? approvedCast : (film.characters || []);
+  const useCast = isMovie && castList.length > 0;
+  const allowAvatar = !isMovie || !!photoAvatar;
+
+  type Planned = { engine?: string; title?: string; script?: string; durationSec?: number; cast?: { name?: string; dialogue?: string }[] };
+  let planned: Planned[] = [];
   try {
-    const json = await ai.generateJSON<{ scenes: { engine: string; title: string; script: string; durationSec: number }[] }>(
-      `You are a senior video DIRECTOR planning a ${target}s ${film.filmType.replace("_", " ")} as a sequence of scenes. Brief: "${brief}".\n` +
-      (photoAvatar ? `The user attached a PHOTO OF THEMSELVES — use "avatar" scenes for a PRESENTER that is them (open and/or close on the presenter, or have them speak between shots).\n` : "") +
-      (productImg ? `The user attached a PRODUCT/REFERENCE image — use "ai" shots to show that product (macro, in-use, hero) and a "design" end card featuring it.\n` : "") +
-      `Plan exactly ${approx} scenes that build one cohesive story. MIX the engines to deliver the best result. For EACH scene pick the best engine:\n` +
-      `- "ai": a cinematic AI-generated shot (product macro, b-roll, establishing, motion). script = a vivid SHOT PROMPT (what's on screen, mood, motion) — no dialogue.\n` +
-      `- "avatar": the user's talking-avatar${photoAvatar ? " (their own photo)" : " clone"} speaking to camera (hook, testimonial, explainer, spoken CTA). script = the SPOKEN words — first person, punchy, to one viewer.\n` +
-      `- "design": a branded still / end card (logo, offer, "Shop now"). script = the on-screen HEADLINE only.\n` +
-      (hasSource ? `- "reel": a scored clip cut from the user's uploaded long video (use for b-roll / real-footage beats). script = a short note on what moment to grab.\n` : "") +
-      `Open with a scroll-stopping beat and close with a clear call to action. Durations sum to ~${target}s (each 6-15s).\n` +
-      `Return JSON: {"scenes":[{"engine":"ai|avatar|design${hasSource ? "|reel" : ""}","title":"2-4 words","script":"...","durationSec":10}, ...]} with exactly ${approx} scenes.`,
-      { maxTokens: 2600, temperature: 0.7 },
-    );
+    let prompt: string;
+    if (useCast) {
+      const castBlock = castList.map((c) => `- ${c.name} — ${c.role}: ${c.description}`).join("\n");
+      prompt =
+        `You are a film DIRECTOR writing the shot list for a ${target}s ${film.style || "cinematic"} MOVIE. Brief: "${brief}".\n` +
+        `CAST — every on-screen character MUST be one of these EXACT people (use their names verbatim):\n${castBlock}\n` +
+        (productImg ? `A product/reference image is attached — you may feature it in a shot or a "design" end card.\n` : "") +
+        `Plan exactly ${approx} scenes that tell ONE cohesive story with these characters, in order. For EACH scene give:\n` +
+        `- "engine": "ai" for a shot of the cast acting (the default), or "design" for a branded end card.\n` +
+        `- "title": 2-4 words.\n` +
+        `- "script": the SHOT — setting, action, camera, mood (what is ON SCREEN). This is NOT the dialogue.\n` +
+        `- "cast": who is in the shot and what they SAY — [{"name":"<a cast name from above>","dialogue":"their spoken line, or empty for a silent/background appearance"}]. Include every character visible; give speaking characters a natural line that moves the story forward. 1-3 characters per scene.\n` +
+        `- "durationSec": 6-15.\n` +
+        `Open strong, develop the story, close on a satisfying beat. Return JSON: {"scenes":[{"engine":"ai","title":"...","script":"...","cast":[{"name":"...","dialogue":"..."}],"durationSec":10}, ...]} with exactly ${approx} scenes.`;
+    } else {
+      const engines: string[] = ['"ai": a cinematic AI shot. script = a vivid SHOT PROMPT (what\'s on screen, mood, motion) — no dialogue.'];
+      if (allowAvatar) engines.push(`"avatar": the user's talking-avatar${photoAvatar ? " (their own photo)" : " clone"} speaking to camera. script = the SPOKEN words — first person, punchy.`);
+      engines.push('"design": a branded still / end card. script = the on-screen HEADLINE only.');
+      if (hasSource) engines.push('"reel": a scored clip cut from the uploaded long video. script = a short note on which moment to grab.');
+      prompt =
+        `You are a senior video DIRECTOR planning a ${target}s ${film.filmType.replace("_", " ")} as a sequence of scenes. Brief: "${brief}".\n` +
+        (photoAvatar ? `The user attached a PHOTO OF THEMSELVES — use "avatar" scenes for a PRESENTER that is them.\n` : "") +
+        (productImg ? `A PRODUCT/REFERENCE image is attached — use "ai" shots to show it and a "design" end card featuring it.\n` : "") +
+        `Plan exactly ${approx} scenes that build one cohesive story. For EACH scene pick the best engine:\n` +
+        engines.map((e) => `- ${e}`).join("\n") + "\n" +
+        `Open with a scroll-stopping beat and close with a clear call to action. Durations sum to ~${target}s (each 6-15s).\n` +
+        `Return JSON: {"scenes":[{"engine":"...","title":"2-4 words","script":"...","durationSec":10}, ...]} with exactly ${approx} scenes.`;
+    }
+    const json = await ai.generateJSON<{ scenes: Planned[] }>(prompt, { maxTokens: 2800, temperature: 0.7 });
     planned = Array.isArray(json?.scenes) ? json.scenes.slice(0, 30) : [];
   } catch {
     planned = [];
   }
   if (planned.length === 0) {
-    planned = [
-      { engine: "ai", title: "Hook", script: brief, durationSec: 8 },
-      { engine: "avatar", title: "Message", script: brief, durationSec: 12 },
-      { engine: "design", title: "Call to action", script: "Learn more", durationSec: 4 },
-    ];
+    planned = useCast
+      ? castList.slice(0, 1).map((c) => ({ engine: "ai", title: "Opening", script: brief, durationSec: 8, cast: [{ name: c.name, dialogue: "" }] }))
+      : [
+          { engine: "ai", title: "Hook", script: brief, durationSec: 8 },
+          { engine: allowAvatar ? "avatar" : "ai", title: "Message", script: brief, durationSec: 12 },
+          { engine: "design", title: "Call to action", script: "Learn more", durationSec: 4 },
+        ];
   }
+  const nameToId = new Map(castList.map((c) => [c.name.toLowerCase(), c.id]));
 
   // Presenter defaults — the brief's chosen avatar/voice (or the account's first)
   // so drafted avatar scenes are one-click generatable.
@@ -151,13 +180,23 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   const aiStyle = ["cinematic", "3d", "narrated"].includes(String(film.style)) ? String(film.style) : "cinematic";
 
   const scenes: FilmScene[] = planned.map((s, i) => {
-    const engine = (ENGINE_SET.has(s.engine as SceneEngine) ? s.engine : "ai") as SceneEngine;
+    let engine = (ENGINE_SET.has(s.engine as SceneEngine) ? s.engine : "ai") as SceneEngine;
+    // A movie never renders as a talking-head avatar — coerce any avatar beat to an AI shot of the cast.
+    if (useCast && engine === "avatar") engine = "ai";
+    const sceneCast = Array.isArray(s.cast)
+      ? s.cast.filter((l) => l?.name).slice(0, 6).map((l) => ({
+          characterId: nameToId.get(String(l.name).toLowerCase()),
+          name: String(l.name).slice(0, 80),
+          dialogue: typeof l.dialogue === "string" ? l.dialogue.slice(0, 2000) : "",
+        }))
+      : undefined;
     return normalizeScene(
       {
         id: `sc_${i}_${Math.random().toString(36).slice(2, 7)}`,
         engine,
         title: (s.title || `Scene ${i + 1}`).slice(0, 60),
         script: (s.script || brief).slice(0, 4000),
+        cast: sceneCast,
         durationSec: typeof s.durationSec === "number" ? Math.max(2, Math.min(15, Math.round(s.durationSec))) : engine === "design" ? 3 : 8,
         order: i,
         x: 340 + i * 250,

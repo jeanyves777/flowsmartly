@@ -7,8 +7,14 @@ import { FILM_ASPECTS, FILM_TYPES, type FilmAsset, type FilmAspect, type FilmTyp
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
-  const films = await listFilms(session.userId);
-  return NextResponse.json({ success: true, data: { films } });
+  try {
+    const films = await listFilms(session.userId);
+    return NextResponse.json({ success: true, data: { films } });
+  } catch (err) {
+    // Never 500 the whole library — log the real cause, return an empty list.
+    console.error("[video-director] listFilms failed:", err);
+    return NextResponse.json({ success: true, data: { films: [] } });
+  }
 }
 
 /** POST — create a new film from the master brief (title/brief/type/aspect/length + uploaded assets). */
