@@ -65,12 +65,16 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
 function sceneCastData(film: FilmProject, scene: FilmScene): { ref?: string; dialogue?: string } {
   const chars = film.characters || [];
   const lines = scene.cast || [];
-  let ref: string | undefined;
-  for (const l of lines) {
+  const refFor = (l: { characterId?: string; name?: string }): string | undefined => {
     const c = chars.find((x) => x.id === l.characterId) || chars.find((x) => x.name.toLowerCase() === (l.name || "").toLowerCase());
-    const url = c?.characterSheetUrl || c?.referenceImageUrl;
-    if (url) { ref = url; break; }
-  }
+    return c?.characterSheetUrl || c?.referenceImageUrl || undefined;
+  };
+  // Anchor the shot on the character who SPEAKS in this scene (that's who the shot
+  // is on) — falling back to the first present cast member, then the film's lead.
+  // Otherwise every shot re-uses the lead's face (the "always Marcus" bug).
+  let ref: string | undefined;
+  for (const l of lines.filter((l) => (l.dialogue || "").trim())) { ref = refFor(l); if (ref) break; }
+  if (!ref) for (const l of lines) { ref = refFor(l); if (ref) break; }
   if (!ref) ref = approvedCastReferences(film)[0];
   const spoken = lines.filter((l) => (l.dialogue || "").trim());
   const dialogue = spoken.length ? spoken.map((l) => `${l.name} says: "${(l.dialogue || "").trim()}"`).join(" ") : undefined;

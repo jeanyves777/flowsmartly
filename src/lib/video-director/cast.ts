@@ -178,7 +178,13 @@ export async function generateFilmCharacterPreview(
       portraitBuffer = await toBuffer(opts.baseImageUrl);
       portraitUrl = opts.baseImageUrl;
     } else {
-      const res = await generateImageXaiFirst(portraitPrompt(c, film.style, brand), 1024, 1280, { quality: "high", transparent: false });
+      // Cinematic → force gpt-image (OpenAI): xAI/Gemini drift to a 3D/CGI look
+      // for people; gpt-image is reliably PHOTOREAL. 3D style keeps the default.
+      const res = await generateImageXaiFirst(portraitPrompt(c, film.style, brand), 1024, 1280, {
+        quality: "high",
+        transparent: false,
+        preferredProvider: is3d(film.style) ? null : "openai",
+      });
       if (!res.base64) throw new Error("no image returned");
       portraitBuffer = Buffer.from(res.base64, "base64");
       portraitUrl = await uploadCastImage(res.base64, res.format, filmId, c, "portrait");
@@ -187,7 +193,11 @@ export async function generateFilmCharacterPreview(
     // 2) Turnaround sheet derived from the portrait (identity-preserving). Best-effort.
     let sheetUrl: string | null = null;
     try {
-      const sheet = await editImagesXaiFirst(sheetPrompt(c, film.style, brand), [portraitBuffer], 1536, 1024, { intent: "identity", quality: "high" });
+      const sheet = await editImagesXaiFirst(sheetPrompt(c, film.style, brand), [portraitBuffer], 1536, 1024, {
+        intent: "identity",
+        quality: "high",
+        preferredProvider: is3d(film.style) ? null : "openai",
+      });
       if (sheet.base64) sheetUrl = await uploadCastImage(sheet.base64, sheet.format, filmId, c, "sheet");
     } catch (err) {
       console.warn("[video-director] character sheet failed; portrait-only anchor:", err);

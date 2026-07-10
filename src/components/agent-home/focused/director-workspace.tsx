@@ -54,7 +54,7 @@ interface BriefDraft {
   sourceVideoUrl?: string | null; assets?: FilmAsset[];
 }
 
-const NODE_W = 208;
+const NODE_W = 248;
 const isRendering = (s?: string) => s === "rendering" || s === "queued";
 const isPlayable = (u?: string | null): u is string => typeof u === "string" && /^https?:\/\/|^\/uploads\//i.test(u);
 const isImageUrl = (u?: string | null): u is string => !!u && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(u);
@@ -407,6 +407,17 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
     try { await draftPipeline(film.id); } finally { setDrafting(false); }
   };
 
+  // Re-open the cast step for the current movie (tweak / re-approve any time).
+  const reopenCast = async () => {
+    if (!film) return;
+    if ((film.characters || []).length > 0) { setCastOpen(true); return; }
+    setDrafting(true);
+    try {
+      const cj = await fetch(`/api/ai/video-director/${film.id}/cast`, { method: "POST" }).then((r) => r.json());
+      if (cj?.success) { setFilm(cj.data.film); setCastOpen(true); }
+    } catch { /* ignore */ } finally { setDrafting(false); }
+  };
+
   const startNew = () => { setFilm(null); setSelId(null); setBriefOpen(true); };
 
   const stats = useMemo(() => {
@@ -414,6 +425,17 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
     const rendering = scenes.filter((s) => isRendering(s.status)).length;
     return { ready, rendering, total: scenes.length };
   }, [scenes]);
+
+  // Resolve a scene's cast to {name, dialogue, img} using the film's characters,
+  // so each scene node can show WHO is in the shot (with their face) + the line.
+  const sceneCastList = (s: FilmScene): { name: string; dialogue?: string; img?: string }[] => {
+    const chars = film?.characters || [];
+    return (s.cast || []).map((l) => {
+      const c = chars.find((x) => x.id === l.characterId) || chars.find((x) => x.name.toLowerCase() === (l.name || "").toLowerCase());
+      return { name: l.name, dialogue: l.dialogue, img: c?.referenceImageUrl || c?.characterSheetUrl || undefined };
+    });
+  };
+  const castImgFor = (s: FilmScene): string | undefined => sceneCastList(s).find((l) => l.img)?.img;
 
   return (
     <div className="relative h-full w-full overflow-hidden" onPointerMove={(e) => { onNodeMove(e); onCanvasMove(e); }} onPointerUp={() => { onNodeUp(); onCanvasUp(); }}>
@@ -423,6 +445,9 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           <span className="hidden items-center gap-1 text-[11.5px] text-muted-foreground sm:inline-flex">
             <span className="text-emerald-500">{stats.ready} ready</span> · <span>{stats.rendering} rendering</span> · <span>{stats.total} scenes</span>
           </span>
+          {film && film.filmType === "ai_film" && (
+            <button onClick={reopenCast} title="Review / re-approve the cast" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold text-foreground hover:border-brand-500/60"><UserSquare2 className="h-3.5 w-3.5" /> Cast</button>
+          )}
           <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold text-foreground hover:border-brand-500/60"><FolderOpen className="h-3.5 w-3.5" /> Films</button>
           <button onClick={startNew} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Sparkles className="h-3.5 w-3.5" /> New film</button>
         </div>, headerSlot)}
@@ -455,7 +480,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
               {/* scene nodes */}
               {scenes.map((s) => (
                 <SceneNode
-                  key={s.id} scene={s} selected={selId === s.id}
+                  key={s.id} scene={s} selected={selId === s.id} castImg={castImgFor(s)} cast={sceneCastList(s)}
                   onDown={(e) => onNodeDown(e, s)}
                   onSelect={() => setSelId(s.id)}
                   onGenerate={() => generateScene(s.id)}
@@ -596,8 +621,8 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
 }
 
 // ============================================================ scene node card
-function SceneNode({ scene, selected, onDown, onSelect, onGenerate, onRemove, onPlay }: {
-  scene: FilmScene; selected: boolean;
+function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerate, onRemove, onPlay }: {
+  scene: FilmScene; selected: boolean; castImg?: string; cast?: { name: string; dialogue?: string; img?: string }[];
   onDown: (e: ReactPointerEvent) => void; onSelect: () => void; onGenerate: () => void; onRemove: () => void; onPlay: () => void;
 }) {
   const E = ENGINES[scene.engine];
@@ -622,6 +647,9 @@ function SceneNode({ scene, selected, onDown, onSelect, onGenerate, onRemove, on
           <Image src={scene.thumbnailUrl} alt="" fill sizes="208px" className="object-cover" unoptimized />
         ) : rendering ? (
           <div className="grid h-full w-full place-items-center bg-gradient-to-br from-brand-500/10 to-violet-500/10"><FlowGeneratingMark size={38} /></div>
+        ) : castImg ? (
+          // Storyboard preview before the video renders: a cast member in the shot.
+          <><Image src={castImg} alt="" fill sizes="208px" className="object-cover opacity-90" unoptimized /><span className="absolute left-1 top-1 rounded bg-black/55 px-1 py-0.5 text-[8px] font-semibold text-white/90">storyboard</span></>
         ) : (
           <div className="grid h-full w-full place-items-center text-muted-foreground/40"><E.Icon className="h-6 w-6" /></div>
         )}
@@ -639,13 +667,18 @@ function SceneNode({ scene, selected, onDown, onSelect, onGenerate, onRemove, on
       {scene.status === "failed" && scene.error
         ? <p className="line-clamp-2 px-2.5 text-[9.5px] text-rose-500">{scene.error}</p>
         : <p className="line-clamp-1 px-2.5 text-[10px] text-muted-foreground">{scene.script || E.hint}</p>}
-      {scene.cast && scene.cast.length > 0 && (
-        <div className="mx-2.5 mt-1 max-h-[92px] space-y-1 overflow-y-auto rounded-lg border border-border bg-background/50 p-1.5">
+      {cast && cast.length > 0 && (
+        <div className="mx-2.5 mt-1 max-h-[150px] space-y-1.5 overflow-y-auto rounded-lg border border-border bg-background/50 p-1.5">
           <div className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground">In this scene</div>
-          {scene.cast.map((l, i) => (
-            <div key={i} className="text-[9.5px] leading-snug">
-              <span className="font-bold" style={{ color: E.color }}>{l.name}</span>
-              {l.dialogue ? <span className="text-muted-foreground">: &ldquo;{l.dialogue}&rdquo;</span> : <span className="text-muted-foreground/60"> · in shot</span>}
+          {cast.map((l, i) => (
+            <div key={i} className="flex items-start gap-1.5">
+              {l.img
+                ? <Image src={l.img} alt="" width={22} height={22} className="h-[22px] w-[22px] shrink-0 rounded-full object-cover" unoptimized />
+                : <span className="grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full bg-muted text-[9px] font-bold text-muted-foreground">{(l.name || "?").slice(0, 1)}</span>}
+              <div className="min-w-0 text-[9.5px] leading-snug">
+                <span className="font-bold" style={{ color: E.color }}>{l.name}</span>
+                {l.dialogue ? <span className="text-muted-foreground">: &ldquo;{l.dialogue}&rdquo;</span> : <span className="text-muted-foreground/60"> · in shot</span>}
+              </div>
             </div>
           ))}
         </div>
@@ -898,8 +931,17 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
           <>
             <label className="mb-1 mt-3 block text-[11px] font-semibold">Style</label>
             <PillRow options={["cinematic", "3d", "narrated"]} value={scene.style} onSelect={(v) => onPatch({ style: v })} />
-            <label className="mb-1 mt-3 block text-[11px] font-semibold">Engine · motion</label>
-            <PillRow options={["veo", "grok"]} value={scene.aiProvider} onSelect={(v) => onPatch({ aiProvider: v })} />
+            <label className="mb-1 mt-3 block text-[11px] font-semibold">Cast &amp; dialogue <span className="font-normal text-muted-foreground">— who&rsquo;s in the shot + what they say</span></label>
+            <div className="space-y-1.5">
+              {(scene.cast || []).map((l, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <input value={l.name} onChange={(e) => onPatch({ cast: (scene.cast || []).map((x, j) => j === i ? { ...x, name: e.target.value } : x) })} placeholder="Character" className="w-24 shrink-0 rounded-[8px] border border-input bg-background px-2 py-1.5 text-[11.5px] font-semibold outline-none focus:border-brand-500/60" />
+                  <input value={l.dialogue || ""} onChange={(e) => onPatch({ cast: (scene.cast || []).map((x, j) => j === i ? { ...x, dialogue: e.target.value } : x) })} placeholder="their line (empty = silent)" className="min-w-0 flex-1 rounded-[8px] border border-input bg-background px-2 py-1.5 text-[11.5px] outline-none focus:border-brand-500/60" />
+                  <button onClick={() => onPatch({ cast: (scene.cast || []).filter((_, j) => j !== i) })} className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground hover:text-rose-500"><X className="h-3 w-3" /></button>
+                </div>
+              ))}
+              <button onClick={() => onPatch({ cast: [...(scene.cast || []), { name: "", dialogue: "" }] })} className="inline-flex items-center gap-1 rounded-[8px] border border-dashed border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-brand-500"><Plus className="h-3 w-3" /> Add a character line</button>
+            </div>
           </>
         )}
         {scene.engine === "avatar" && (
@@ -959,7 +1001,8 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
           <button onClick={() => onPatch({ captionsOn: !scene.captionsOn })} className={cn("rounded-full border px-3 py-1 text-[11px] font-semibold", scene.captionsOn ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground")}><CaptionsIcon className="mr-1 inline h-3 w-3" /> Captions</button>
         </div>
 
-        {/* swap engine */}
+        {/* swap engine + PiP overlay — not relevant for a cast-driven movie shot */}
+        {scene.engine !== "ai" && (<>
         <label className="mb-1 mt-4 block text-[11px] font-semibold">Swap engine <span className="font-normal text-muted-foreground">— same beat, different provider</span></label>
         <div className="flex flex-wrap gap-1.5">
           {ENGINE_LIST.map((k) => { const M = ENGINES[k]; return (
@@ -1014,6 +1057,7 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
             </button>
           </div>
         )}
+        </>)}
       </div>
 
       {scene.status === "failed" && scene.error && (
@@ -1110,44 +1154,37 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <p className="mb-3 text-[12px] text-muted-foreground">The director cast these characters from your brief. Generate a preview (portrait + multi-angle sheet), or upload your own photo, then <b className="text-foreground">approve each one</b>. Approved cast keep the same face across every shot.</p>
+          <p className="mb-3 text-[11.5px] text-muted-foreground">Generate a preview (multi-angle sheet) or upload your own photo, then <b className="text-foreground">approve each</b> — approved cast keep the same face across every shot.</p>
           {characters.length === 0 ? (
             <div className="grid place-items-center py-12 text-center text-[13px] text-muted-foreground">No cast yet — go back and add a brief.</div>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-4">
               {characters.map((c) => {
                 const isBusy = busy.has(c.id);
                 const hasPreview = c.previewStatus === "ready" && !!c.referenceImageUrl;
+                const mainImg = c.characterSheetUrl || c.referenceImageUrl;
                 return (
                   <div key={c.id} className={cn("flex flex-col overflow-hidden rounded-xl border bg-background/40", c.approved ? "border-emerald-500/50" : "border-border")}>
-                    <div className="relative aspect-square bg-gradient-to-br from-brand-500/10 to-violet-500/10">
-                      {c.referenceImageUrl ? (
-                        <Image src={c.referenceImageUrl} alt={c.name} fill sizes="240px" className="object-cover" unoptimized />
+                    <div className="relative aspect-[3/2] bg-gradient-to-br from-brand-500/10 to-violet-500/10">
+                      {mainImg ? (
+                        <Image src={mainImg} alt={c.name} fill sizes="320px" className={c.characterSheetUrl ? "object-contain" : "object-cover"} unoptimized />
                       ) : (
-                        <div className="grid h-full w-full place-items-center text-[11px] text-muted-foreground">{isBusy ? <FlowLoader size={22} /> : "No preview yet"}</div>
+                        <div className="grid h-full w-full place-items-center text-[10.5px] text-muted-foreground">{isBusy ? <FlowLoader size={20} /> : "No preview yet"}</div>
                       )}
-                      {isBusy && c.referenceImageUrl && <div className="absolute inset-0 grid place-items-center bg-black/40"><FlowLoader size={22} /></div>}
-                      {c.approved && <span className="absolute right-1.5 top-1.5 rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-bold text-emerald-950">✓ approved</span>}
-                      {hasPreview && c.characterSheetUrl && <span className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[8.5px] font-bold text-white">＋ sheet</span>}
+                      {isBusy && mainImg && <div className="absolute inset-0 grid place-items-center bg-black/40"><FlowLoader size={20} /></div>}
+                      {c.approved && <span className="absolute right-1 top-1 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[8.5px] font-bold text-emerald-950">✓</span>}
+                      {hasPreview && c.characterSheetUrl && <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[8px] font-bold text-white">front · ¾ · profile</span>}
                     </div>
-                    <div className="flex-1 p-2.5">
-                      <p className="text-[13px] font-bold leading-tight">{c.name}</p>
-                      <p className="text-[11px] text-brand-500">{c.role}</p>
-                      <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted-foreground">{c.description}</p>
-                      {hasPreview && c.characterSheetUrl && (
-                        <div className="mt-2">
-                          <div className="mb-1 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Turnaround — front · ¾ · profile</div>
-                          <div className="relative aspect-[3/2] overflow-hidden rounded-lg border border-border bg-muted/30">
-                            <Image src={c.characterSheetUrl} alt={`${c.name} turnaround sheet`} fill sizes="320px" className="object-contain" unoptimized />
-                          </div>
-                        </div>
-                      )}
-                      {c.previewStatus === "failed" && c.previewError && <p className="mt-1 text-[10.5px] text-rose-500">{c.previewError}</p>}
+                    <div className="flex-1 px-2 pb-1.5 pt-1.5">
+                      <p className="truncate text-[12px] font-bold leading-tight">{c.name}</p>
+                      <p className="truncate text-[10px] text-brand-500">{c.role}</p>
+                      <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-muted-foreground">{c.description}</p>
+                      {c.previewStatus === "failed" && c.previewError && <p className="mt-1 line-clamp-2 text-[9.5px] text-rose-500">{c.previewError}</p>}
                     </div>
-                    <div className="flex gap-1.5 border-t border-border p-2">
-                      <button disabled={isBusy} onClick={() => genPreview(c.id)} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-semibold hover:border-brand-500/60 disabled:opacity-50">{hasPreview ? "↻ Redo" : <><Sparkles className="h-3 w-3" /> Generate</>}</button>
-                      <button disabled={isBusy} onClick={() => { uploadFor.current = c.id; fileRef.current?.click(); }} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-semibold hover:border-brand-500/60 disabled:opacity-50"><Upload className="h-3 w-3" /> Upload</button>
-                      <button disabled={isBusy || !hasPreview} onClick={() => approve(c.id, !c.approved)} className={cn("inline-flex flex-1 items-center justify-center rounded-lg px-2 py-1.5 text-[11px] font-bold disabled:opacity-40", c.approved ? "bg-emerald-500 text-emerald-950" : "border border-border hover:border-emerald-500/60")}>{c.approved ? "✓ Approved" : "Approve"}</button>
+                    <div className="flex gap-1 border-t border-border p-1.5">
+                      <button disabled={isBusy} onClick={() => genPreview(c.id)} className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold hover:border-brand-500/60 disabled:opacity-50">{hasPreview ? "↻ Redo" : <><Sparkles className="h-2.5 w-2.5" /> Generate</>}</button>
+                      <button disabled={isBusy} onClick={() => { uploadFor.current = c.id; fileRef.current?.click(); }} className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold hover:border-brand-500/60 disabled:opacity-50"><Upload className="h-2.5 w-2.5" /> Upload</button>
+                      <button disabled={isBusy || !hasPreview} onClick={() => approve(c.id, !c.approved)} className={cn("inline-flex flex-1 items-center justify-center rounded-md px-1.5 py-1 text-[10px] font-bold disabled:opacity-40", c.approved ? "bg-emerald-500 text-emerald-950" : "border border-border hover:border-emerald-500/60")}>{c.approved ? "✓" : "Approve"}</button>
                     </div>
                   </div>
                 );
