@@ -343,13 +343,29 @@ export async function syncFilmScenes(film: FilmProject, userId: string): Promise
 /** A branded outro clip: a REAL on-brand (AI-generated) background + the
  *  animated logo. Best-effort — returns null if image-gen / ffmpeg is
  *  unavailable, so composition never breaks on the outro. */
-async function buildDirectorOutro(logoSource: string, aspect: FilmAspect, brandColor: string | null): Promise<Buffer | null> {
+interface OutroBrand {
+  primary?: string | null; secondary?: string | null; accent?: string | null;
+  name?: string | null; industry?: string | null; filmStyle?: string | null;
+}
+async function buildDirectorOutro(logoSource: string, aspect: FilmAspect, brand: OutroBrand): Promise<Buffer | null> {
+  const brandColor = typeof brand.primary === "string" ? brand.primary : null;
   let bgImage: Buffer | null = null;
   try {
     const [iw, ih] = aspect === "9:16" ? [1024, 1536] : aspect === "16:9" ? [1536, 1024] : [1024, 1024];
+    // Brand the backdrop on the CLIENT's identity — their palette, industry and
+    // the film's look — so the outro feels like an extension of the brand.
+    const palette = [
+      brand.primary ? `primary ${brand.primary}` : null,
+      brand.secondary ? `secondary ${brand.secondary}` : null,
+      brand.accent ? `accent ${brand.accent}` : null,
+    ].filter(Boolean).join(", ");
+    const mood = brand.filmStyle === "3d"
+      ? "clean stylized 3D-render lighting, glossy surfaces"
+      : "soft cinematic photographic light with elegant out-of-focus bokeh";
     const prompt =
-      `A premium ABSTRACT brand background for a film outro end-card: soft cinematic light, elegant out-of-focus bokeh and a gentle gradient, ${brandColor ? `built around the brand colour ${brandColor}` : "deep tasteful brand tones"}, with a calmer darker area toward the centre for a logo. ` +
-      `Absolutely NO text, NO letters, NO logo, NO watermark, NO people, NO products — only an atmospheric on-brand backdrop.`;
+      `A premium ABSTRACT brand end-card background for ${brand.name || "a brand"}${brand.industry ? ` (${brand.industry})` : ""}: ${mood}, tasteful depth, unmistakably on-brand` +
+      `${palette ? `, built entirely from the brand palette — ${palette}` : ", in deep tasteful brand tones"}, with a calmer darker area toward the centre for a logo. ` +
+      `Absolutely NO text, NO letters, NO numbers, NO logo, NO watermark, NO people, NO products — only an atmospheric on-brand backdrop.`;
     const res = await generateImageXaiFirst(prompt, iw, ih, { quality: "high", preferredProvider: "openai" });
     if (res.base64) bgImage = Buffer.from(res.base64, "base64");
   } catch (e) {
@@ -415,14 +431,17 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
     // card. All best-effort: any failure leaves the film unchanged.
     if (film.brandLogo !== false) {
       try {
-        const bk = await prisma.brandKit.findFirst({ where: { userId }, orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], select: { logo: true, iconLogo: true, colors: true } });
+        const bk = await prisma.brandKit.findFirst({ where: { userId }, orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], select: { logo: true, iconLogo: true, colors: true, name: true, industry: true } });
         const logo = bk?.iconLogo || bk?.logo || null;
         if (logo) {
           finalBuffer = await overlayBrandLogoOnVideo(finalBuffer, logo);
           try {
-            let brandColor: string | null = null;
-            try { const c = bk?.colors ? JSON.parse(bk.colors) : null; brandColor = typeof c?.primary === "string" ? c.primary : null; } catch { /* ignore */ }
-            const outro = await buildDirectorOutro(logo, film.aspect, brandColor);
+            let colors: { primary?: string; secondary?: string; accent?: string } = {};
+            try { const c = bk?.colors ? JSON.parse(bk.colors) : null; if (c && typeof c === "object") colors = c as typeof colors; } catch { /* ignore */ }
+            const outro = await buildDirectorOutro(logo, film.aspect, {
+              primary: colors.primary ?? null, secondary: colors.secondary ?? null, accent: colors.accent ?? null,
+              name: bk?.name ?? null, industry: bk?.industry ?? null, filmStyle: film.style ?? null,
+            });
             if (outro) {
               const outroFit = await normalizeClip(outro, w, h, { preferSourceAudio: false });
               finalBuffer = await concatenateVideoBuffers([finalBuffer, outroFit]);
