@@ -95,6 +95,26 @@ export interface FilmOverlay {
   error?: string | null;
 }
 
+export type CharacterPreviewStatus = "idle" | "generating" | "ready" | "failed";
+
+/**
+ * A cast member the film is built around. Generated (or uploaded) as a clean
+ * portrait + a multi-angle turnaround sheet, then APPROVED by the user before
+ * the film renders — the approved sheet is fed into every AI shot as a reference
+ * image so the SAME person appears across shots. Restores the story-ad cast step.
+ */
+export interface FilmCharacter {
+  id: string;
+  name: string;
+  role: string;
+  description: string;                 // visual description used for identity lock
+  referenceImageUrl?: string | null;   // clean portrait (anchor)
+  characterSheetUrl?: string | null;   // multi-angle turnaround (cross-shot reference)
+  previewStatus?: CharacterPreviewStatus;
+  previewError?: string | null;
+  approved?: boolean;
+}
+
 /** A canvas wire between two scene ids (visual pipeline direction). */
 export type FilmEdge = [string, string];
 
@@ -126,6 +146,8 @@ export interface FilmProject {
   scenes: FilmScene[];
   edges: FilmEdge[];
   assets?: FilmAsset[];
+  /** Cast the film is built around — approved before scenes render (see FilmCharacter). */
+  characters?: FilmCharacter[];
   music?: string | null;
   /** Burn the brand logo onto the final cut (overlay). Default on. */
   brandLogo?: boolean;
@@ -175,6 +197,22 @@ export function emptyFilm(partial?: Partial<FilmProject>): FilmProject {
 const VALID_ENGINES = new Set<SceneEngine>(SCENE_ENGINES);
 const VALID_STATUS = new Set<SceneStatus>(["draft", "queued", "rendering", "ready", "failed"]);
 const VALID_CORNERS = new Set<OverlayCorner>(["tl", "tr", "bl", "br"]);
+const VALID_PREVIEW_STATUS = new Set<CharacterPreviewStatus>(["idle", "generating", "ready", "failed"]);
+
+/** Coerce untrusted JSON into a safe FilmCharacter. */
+export function normalizeCharacter(raw: Partial<FilmCharacter>, idx: number): FilmCharacter {
+  return {
+    id: String(raw.id || `ch_${idx}_${Math.round((raw as { _r?: number })._r || 0)}`),
+    name: String(raw.name || `Character ${idx + 1}`).slice(0, 80),
+    role: String(raw.role || "").slice(0, 120),
+    description: String(raw.description || "").slice(0, 2000),
+    referenceImageUrl: raw.referenceImageUrl ?? null,
+    characterSheetUrl: raw.characterSheetUrl ?? null,
+    previewStatus: VALID_PREVIEW_STATUS.has(raw.previewStatus as CharacterPreviewStatus) ? (raw.previewStatus as CharacterPreviewStatus) : "idle",
+    previewError: raw.previewError ?? null,
+    approved: !!raw.approved,
+  };
+}
 
 /** Coerce untrusted JSON into a safe FilmOverlay. */
 export function normalizeOverlay(raw: Partial<FilmOverlay>): FilmOverlay {
@@ -251,5 +289,6 @@ export function normalizeFilm(raw: Partial<FilmProject> & { id: string }): FilmP
     scenes,
     edges,
     assets: Array.isArray(raw.assets) ? raw.assets.slice(0, 40) : [],
+    characters: Array.isArray(raw.characters) ? raw.characters.slice(0, 8).map((c, i) => normalizeCharacter(c, i)) : [],
   };
 }

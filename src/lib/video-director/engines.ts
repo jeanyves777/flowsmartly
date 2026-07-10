@@ -17,6 +17,7 @@ import { getDynamicCreditCost, checkCreditsAvailable } from "@/lib/credits/costs
 import { prisma } from "@/lib/db/client";
 import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { sanitizeUserError } from "@/lib/ai/user-error";
+import { approvedCastReferences } from "./cast";
 import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName, compositeOverlay } from "./clip-helpers";
 
 const isVideoUrl = (u?: string | null): u is string => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
@@ -125,7 +126,10 @@ export async function generateSceneRender(filmId: string, userId: string, sceneI
         if (!charge.success) return { ok: false, message: charge.error || "Could not charge credits." };
       }
       await patchScene(filmId, userId, sceneId, { status: "rendering", progress: 6, error: null });
-      void renderAiScene(filmId, userId, sceneId, scene, film.aspect, cost); // fire-and-forget (VPS is long-lived)
+      // Anchor the shot on the scene's product image if it has one, else the lead
+      // approved cast member's turnaround sheet so the same person shows up shot-to-shot.
+      const castRef = approvedCastReferences(film)[0];
+      void renderAiScene(filmId, userId, sceneId, scene, film.aspect, cost, castRef); // fire-and-forget (VPS is long-lived)
       const f = await getFilm(filmId, userId);
       return { ok: true, film: f ?? undefined };
     }
@@ -215,7 +219,7 @@ async function renderAiOverlay(filmId: string, userId: string, sceneId: string, 
 }
 
 /** Fire-and-forget AI shot render → upload → mark ready. Refunds on failure. Never throws. */
-async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number): Promise<void> {
+async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number, castRef?: string): Promise<void> {
   try {
     let p = 8;
     // Stamp the render start so the watchdog can fail this scene if the worker
@@ -226,8 +230,9 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
         prompt: withVideoGuard(scene.script || scene.title),
         durationSeconds: Math.min(15, scene.durationSec || 8),
         aspectRatio: aspect,
-        // A product/reference image anchors the shot so it shows the user's actual product.
-        referenceImageUrl: scene.referenceImageUrl || undefined,
+        // Anchor the shot: the scene's product/reference image if set, else the
+        // approved lead cast member so the same person appears across shots.
+        referenceImageUrl: scene.referenceImageUrl || castRef || undefined,
         onStatus: () => { p = Math.min(90, p + 14); void patchScene(filmId, userId, sceneId, { status: "rendering", progress: p }).catch(() => {}); },
       }),
       AI_SCENE_TIMEOUT_MS,

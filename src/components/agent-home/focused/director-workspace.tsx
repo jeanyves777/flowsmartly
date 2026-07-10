@@ -24,7 +24,7 @@ import {
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
-import type { FilmProject, FilmScene, FilmOverlay, FilmAsset, SceneEngine, FilmType, FilmAspect } from "@/lib/video-director/types";
+import type { FilmProject, FilmScene, FilmOverlay, FilmAsset, SceneEngine, FilmType, FilmAspect, FilmCharacter } from "@/lib/video-director/types";
 
 // ------------------------------------------------------------------ engine meta
 const ENGINES: Record<SceneEngine, { label: string; color: string; Icon: ElementType; hint: string }> = {
@@ -89,6 +89,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   const [film, setFilm] = useState<FilmProject | null>(null);
   const [loading, setLoading] = useState(true);
   const [briefOpen, setBriefOpen] = useState(false);
+  const [castOpen, setCastOpen] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
   const [selId, setSelId] = useState<string | null>(null);
   const [dockCollapsed, setDockCollapsed] = useState(false);
@@ -367,6 +368,11 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   };
 
   // -------- brief create/update --------
+  const draftPipeline = async (filmId: string) => {
+    const dj = await fetch(`/api/ai/video-director/${filmId}/draft`, { method: "POST" }).then((r) => r.json()).catch(() => null);
+    if (dj?.success) setFilm(dj.data.film);
+  };
+
   const submitBrief = async (draft: BriefDraft) => {
     setBriefOpen(false);
     if (film) { mutate((f) => ({ ...f, ...draft })); return; }
@@ -377,14 +383,28 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
       }).then((r) => r.json());
       if (j?.success) {
         setFilm(j.data.film);
-        // the director drafts the scene pipeline from the brief
-        if (draft.brief.trim()) {
-          const dj = await fetch(`/api/ai/video-director/${j.data.film.id}/draft`, { method: "POST" }).then((r) => r.json()).catch(() => null);
-          if (dj?.success) setFilm(dj.data.film);
+        if (!draft.brief.trim()) return;
+        // A MOVIE goes through the CAST step first (approve the people who'll
+        // appear), then storyboards. Reel/Avatar draft straight away.
+        if (draft.filmType === "ai_film") {
+          const cj = await fetch(`/api/ai/video-director/${j.data.film.id}/cast`, { method: "POST" }).then((r) => r.json()).catch(() => null);
+          if (cj?.success) { setFilm(cj.data.film); setCastOpen(true); return; }
+          // Casting failed → fall back to drafting so the flow never dead-ends.
+          await draftPipeline(j.data.film.id);
+        } else {
+          await draftPipeline(j.data.film.id);
         }
       }
     } catch { /* ignore */ }
     finally { setDrafting(false); }
+  };
+
+  // From the cast step → storyboard the film with the approved cast.
+  const buildFromCast = async () => {
+    if (!film) return;
+    setCastOpen(false);
+    setDrafting(true);
+    try { await draftPipeline(film.id); } finally { setDrafting(false); }
   };
 
   const startNew = () => { setFilm(null); setSelId(null); setBriefOpen(true); };
@@ -515,6 +535,11 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           onSubmit={submitBrief}
           onAsk={onAsk}
         />
+      )}
+
+      {/* cast approval — the people the movie is built around */}
+      {castOpen && film && (
+        <CastPanel film={film} setFilm={setFilm} onBuild={buildFromCast} onClose={() => setCastOpen(false)} />
       )}
 
       {/* films library */}
@@ -1011,6 +1036,120 @@ function PillRow({ options, labels, value, onSelect }: { options: string[]; labe
   );
 }
 
+// ============================================================ cast approval
+// The people the movie is built around. Each is generated (portrait + turnaround
+// sheet) or uploaded, then APPROVED — approved sheets anchor every AI shot so the
+// same person appears across the film. Restores the story-ad cast step.
+function CastPanel({ film, setFilm, onBuild, onClose }: {
+  film: FilmProject;
+  setFilm: (f: FilmProject) => void;
+  onBuild: () => void;
+  onClose: () => void;
+}) {
+  const characters = film.characters || [];
+  const [busy, setBusy] = useState<Set<string>>(new Set());
+  const uploadFor = useRef<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const setBusyFor = (id: string, on: boolean) =>
+    setBusy((b) => { const n = new Set(b); if (on) n.add(id); else n.delete(id); return n; });
+
+  const genPreview = async (cid: string, baseImageUrl?: string) => {
+    setBusyFor(cid, true);
+    try {
+      const j = await fetch(`/api/ai/video-director/${film.id}/cast/${cid}/preview`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(baseImageUrl ? { baseImageUrl } : {}),
+      }).then((r) => r.json());
+      if (j?.success && j.data?.film) setFilm(j.data.film);
+    } catch { /* the character keeps its previous state */ }
+    finally { setBusyFor(cid, false); }
+  };
+  const approve = async (cid: string, approved: boolean) => {
+    try {
+      const j = await fetch(`/api/ai/video-director/${film.id}/cast/${cid}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ approved }),
+      }).then((r) => r.json());
+      if (j?.success && j.data?.film) setFilm(j.data.film);
+    } catch { /* ignore */ }
+  };
+  const onUploadFile = async (files: FileList | null) => {
+    const cid = uploadFor.current; uploadFor.current = null;
+    if (!cid || !files?.length) return;
+    setBusyFor(cid, true);
+    try {
+      const fd = new FormData(); fd.append("file", files[0]);
+      const up = await fetch("/api/upload", { method: "POST", body: fd }).then((r) => r.json());
+      if (up?.success && up.data?.url) await genPreview(cid, up.data.url);
+    } catch { /* ignore */ }
+    finally { setBusyFor(cid, false); }
+  };
+
+  const approvedCount = characters.filter((c) => c.approved).length;
+  const allApproved = characters.length > 0 && characters.every((c) => c.approved);
+
+  return (
+    <div className="absolute inset-0 z-40">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/45" />
+      <div className="absolute inset-x-3 bottom-3 top-4 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+          <span className="rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-brand-500">Cast</span>
+          <span className="text-[12.5px] font-bold">Approve your cast</span>
+          <span className="ms-2 text-[11px] text-muted-foreground">{approvedCount} of {characters.length} approved</span>
+          <button onClick={onClose} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <p className="mb-3 text-[12px] text-muted-foreground">The director cast these characters from your brief. Generate a preview (portrait + multi-angle sheet), or upload your own photo, then <b className="text-foreground">approve each one</b>. Approved cast keep the same face across every shot.</p>
+          {characters.length === 0 ? (
+            <div className="grid place-items-center py-12 text-center text-[13px] text-muted-foreground">No cast yet — go back and add a brief.</div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {characters.map((c) => {
+                const isBusy = busy.has(c.id);
+                const hasPreview = c.previewStatus === "ready" && !!c.referenceImageUrl;
+                return (
+                  <div key={c.id} className={cn("flex flex-col overflow-hidden rounded-xl border bg-background/40", c.approved ? "border-emerald-500/50" : "border-border")}>
+                    <div className="relative aspect-square bg-gradient-to-br from-brand-500/10 to-violet-500/10">
+                      {c.referenceImageUrl ? (
+                        <Image src={c.referenceImageUrl} alt={c.name} fill sizes="240px" className="object-cover" unoptimized />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center text-[11px] text-muted-foreground">{isBusy ? <FlowLoader size={22} /> : "No preview yet"}</div>
+                      )}
+                      {isBusy && c.referenceImageUrl && <div className="absolute inset-0 grid place-items-center bg-black/40"><FlowLoader size={22} /></div>}
+                      {c.approved && <span className="absolute right-1.5 top-1.5 rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-bold text-emerald-950">✓ approved</span>}
+                      {hasPreview && c.characterSheetUrl && <span className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[8.5px] font-bold text-white">＋ sheet</span>}
+                    </div>
+                    <div className="flex-1 p-2.5">
+                      <p className="text-[13px] font-bold leading-tight">{c.name}</p>
+                      <p className="text-[11px] text-brand-500">{c.role}</p>
+                      <p className="mt-1 line-clamp-3 text-[11px] leading-snug text-muted-foreground">{c.description}</p>
+                      {c.previewStatus === "failed" && c.previewError && <p className="mt-1 text-[10.5px] text-rose-500">{c.previewError}</p>}
+                    </div>
+                    <div className="flex gap-1.5 border-t border-border p-2">
+                      <button disabled={isBusy} onClick={() => genPreview(c.id)} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-semibold hover:border-brand-500/60 disabled:opacity-50">{hasPreview ? "↻ Redo" : <><Sparkles className="h-3 w-3" /> Generate</>}</button>
+                      <button disabled={isBusy} onClick={() => { uploadFor.current = c.id; fileRef.current?.click(); }} className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-semibold hover:border-brand-500/60 disabled:opacity-50"><Upload className="h-3 w-3" /> Upload</button>
+                      <button disabled={isBusy || !hasPreview} onClick={() => approve(c.id, !c.approved)} className={cn("inline-flex flex-1 items-center justify-center rounded-lg px-2 py-1.5 text-[11px] font-bold disabled:opacity-40", c.approved ? "bg-emerald-500 text-emerald-950" : "border border-border hover:border-emerald-500/60")}>{c.approved ? "✓ Approved" : "Approve"}</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onUploadFile(e.target.files)} />
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-border bg-background/40 px-4 py-3">
+          <span className="text-[11.5px] text-muted-foreground">Approve all cast to storyboard the film with consistent characters.</span>
+          <div className="flex gap-2">
+            <button onClick={onBuild} className="rounded-lg border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:text-foreground">Skip cast</button>
+            <button onClick={onBuild} disabled={!allApproved} className="rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-bold text-white shadow-sm disabled:opacity-40">Build film →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============================================================ master brief sheet
 // A tab per studio (Video / Reel / Avatar). Each tab is that studio's real brief,
 // ported field-for-field; the footer + Build map to the shared Director film.
@@ -1223,7 +1362,7 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
           {tab === "reel" && <span className="hidden text-[11px] text-muted-foreground sm:inline">≈ <b className="text-foreground">6 credits</b> · refunded if it fails</span>}
           {tab === "avatar" && <span className="hidden text-[11px] text-muted-foreground sm:inline">Drafting is free — you generate (and pay for) each scene.</span>}
           <button onClick={build} disabled={!canBuild} className="ms-auto inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-bold text-white shadow-sm disabled:opacity-50">
-            <Clapperboard className="h-4 w-4" /> {tab === "video" ? "Build video" : tab === "reel" ? "Build reels" : `Plan ${aScenes} scene${aScenes === 1 ? "" : "s"}`}
+            <Clapperboard className="h-4 w-4" /> {tab === "video" ? "Cast the film" : tab === "reel" ? "Build reels" : `Plan ${aScenes} scene${aScenes === 1 ? "" : "s"}`}
           </button>
         </div>
       </div>
