@@ -1716,40 +1716,50 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
         <div className="min-h-0 flex-1 overflow-auto px-5 py-5 md:px-8 md:py-7">
           <div className="mx-auto max-w-[1120px]">
             <p className="mb-5 text-[13px] text-muted-foreground">{WS_DESC[panelKey]}</p>
-            {/* Bento grid: the hero spans 2 columns AND 2 rows, so the right column
-                stacks two cards to fill its height — no dead space beside the hero.
-                Cards stretch (no self-start) so their bottoms line up per row. */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {ws.items.map((it, idx) => {
-                const HubIcon = it.icon || (it.viewKey && FOCUS_META[it.viewKey]?.icon) || Icon;
-                return (
-                <button
-                  key={it.label}
-                  onClick={() => (it.viewKey ? onOpenView(it.viewKey, it.viewHint) : onAsk(`Open ${it.label} and help me get started.`))}
-                  className={cn("group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-2xl", it.hero && "sm:col-span-2 lg:row-span-2")}
-                >
-                  <div className={cn("relative w-full", it.hero ? "min-h-[200px] flex-1" : "aspect-[16/10]")}>
-                    {it.thumb
-                      ? <CreateThumb kind={it.thumb} />
-                      : <div className="absolute inset-0 grid place-items-center" style={{ background: HUB_GRADS[idx % HUB_GRADS.length] }}><HubIcon className="h-9 w-9 text-white/85" /></div>}
-                    {it.thumb === "video" && <span className="absolute inset-0 grid place-items-center"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-[15px] text-brand-600 shadow-lg">▶</span></span>}
-                  </div>
-                  <div className={cn("flex flex-col gap-1.5 p-4", !it.hero && "flex-1")}>
-                    <div className="flex items-center gap-2"><span className="text-[15px] font-bold text-foreground">{it.label}</span><ChevronRight className="ms-auto h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-brand-500" /></div>
-                    <p className="text-[12px] leading-relaxed text-muted-foreground">{it.desc}</p>
-                    {it.includes && it.includes.length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        {it.includes.map((t) => <span key={t} className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{t}</span>)}
-                      </div>
-                    )}
-                    {it.viewKey === "create" && (
-                      <span onClick={(e) => { e.stopPropagation(); onOpenView("print"); }} className="mt-1 self-start text-[11px] font-semibold text-brand-500 hover:underline">Print formats →</span>
-                    )}
-                  </div>
-                </button>
-                );
-              })}
-            </div>
+            {/* Packed hub grid — never leaves a lonely trailing card:
+                • even item count → uniform 2-col grid (2×2 / 2×3): every row is full.
+                • odd count → 3-col grid with a big 2×2 hero; the LAST card widens to
+                  span 2 columns so the bottom row has no empty cell. */}
+            {(() => {
+              const items = ws.items;
+              const n = items.length;
+              const bento = n % 2 === 1;
+              return (
+              <div className={cn("grid grid-cols-1 gap-4 sm:grid-cols-2", bento && "lg:grid-cols-3")}>
+                {items.map((it, idx) => {
+                  const HubIcon = it.icon || (it.viewKey && FOCUS_META[it.viewKey]?.icon) || Icon;
+                  const isHero = bento && idx === 0;
+                  const isWide = bento && n >= 5 && idx === n - 1;
+                  return (
+                  <button
+                    key={it.label}
+                    onClick={() => (it.viewKey ? onOpenView(it.viewKey, it.viewHint) : onAsk(`Open ${it.label} and help me get started.`))}
+                    className={cn("group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-2xl", isHero && "sm:col-span-2 lg:row-span-2", isWide && "lg:col-span-2")}
+                  >
+                    <div className={cn("relative w-full", isHero ? "min-h-[200px] flex-1" : cn("aspect-[16/10]", isWide && "lg:aspect-[16/5]"))}>
+                      {it.thumb
+                        ? <CreateThumb kind={it.thumb} />
+                        : <div className="absolute inset-0 grid place-items-center" style={{ background: HUB_GRADS[idx % HUB_GRADS.length] }}><HubIcon className="h-9 w-9 text-white/85" /></div>}
+                      {it.thumb === "video" && <span className="absolute inset-0 grid place-items-center"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-[15px] text-brand-600 shadow-lg">▶</span></span>}
+                    </div>
+                    <div className={cn("flex flex-col gap-1.5 p-4", !isHero && "flex-1")}>
+                      <div className="flex items-center gap-2"><span className="text-[15px] font-bold text-foreground">{it.label}</span><ChevronRight className="ms-auto h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-brand-500" /></div>
+                      <p className="text-[12px] leading-relaxed text-muted-foreground">{it.desc}</p>
+                      {it.includes && it.includes.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {it.includes.map((t) => <span key={t} className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{t}</span>)}
+                        </div>
+                      )}
+                      {it.viewKey === "create" && (
+                        <span onClick={(e) => { e.stopPropagation(); onOpenView("print"); }} className="mt-1 self-start text-[11px] font-semibold text-brand-500 hover:underline">Print formats →</span>
+                      )}
+                    </div>
+                  </button>
+                  );
+                })}
+              </div>
+              );
+            })()}
             <div className="mt-6 flex justify-center">
               <button onClick={() => onAsk(`Help me with ${label}.`)} className="inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Ask the agent</button>
             </div>
