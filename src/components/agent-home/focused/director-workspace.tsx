@@ -1096,7 +1096,7 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
 
         {/* TAB BAR — one tab per studio */}
         <div className="flex gap-1 border-b border-border px-3">
-          {([{ v: "video", icon: <Film className="h-3.5 w-3.5" />, label: "Video" }, { v: "reel", icon: <Scissors className="h-3.5 w-3.5" />, label: "Reel" }, { v: "avatar", icon: <UserSquare2 className="h-3.5 w-3.5" />, label: "Avatar" }] as const).map((t) => (
+          {([{ v: "video", icon: <Film className="h-3.5 w-3.5" />, label: "Movie" }, { v: "reel", icon: <Scissors className="h-3.5 w-3.5" />, label: "Reel" }, { v: "avatar", icon: <UserSquare2 className="h-3.5 w-3.5" />, label: "Avatar" }] as const).map((t) => (
             <button key={t.v} onClick={() => setTab(t.v)} className={cn("-mb-px inline-flex items-center gap-1.5 border-b-2 px-4 py-2 text-[12.5px] font-bold transition", tab === t.v ? "border-brand-500 text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
               {t.icon} {t.label}
             </button>
@@ -1134,9 +1134,9 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
                   <button key={s.v} onClick={() => setVStyle(s.v)} className={cn("rounded-lg border px-2 py-1.5 text-center transition", vStyle === s.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}><span className="block text-[12px] font-bold">{s.l}</span><span className="text-[10px] text-muted-foreground">{s.h}</span></button>
                 ))}
               </div>
-              <label className="mb-1 mt-3 block text-[11px] font-semibold text-muted-foreground">Video length</label>
+              <label className="mb-1 mt-3 block text-[11px] font-semibold text-muted-foreground">Length</label>
               <div className="grid grid-cols-3 gap-1.5">
-                {[{ v: 30, l: "30s", h: "≈4 scenes" }, { v: 60, l: "60s", h: "≈8 scenes" }, { v: 90, l: "90s", h: "≈12 scenes" }].map((l) => (
+                {[{ v: 30, l: "30s", h: "≈2 clips" }, { v: 60, l: "60s", h: "≈4 clips" }, { v: 90, l: "90s", h: "≈6 clips" }, { v: 120, l: "2 min", h: "≈8 clips" }, { v: 180, l: "3 min", h: "≈12 clips" }, { v: 300, l: "5 min", h: "≈20 clips" }].map((l) => (
                   <button key={l.v} onClick={() => setVLen(l.v)} className={cn("rounded-lg border px-2 py-1.5 text-center transition", vLen === l.v ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}><span className="block text-[12px] font-bold">{l.l}</span><span className="text-[10px] text-muted-foreground">{l.h}</span></button>
                 ))}
               </div>

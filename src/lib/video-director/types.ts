@@ -58,6 +58,9 @@ export interface FilmScene {
   refId?: string;
   status: SceneStatus;
   progress?: number;
+  /** Epoch ms when this scene's render started — the watchdog fails orphaned
+   *  "rendering" scenes (e.g. the worker died on a deploy) past a threshold. */
+  renderStartedAt?: number;
   videoUrl?: string | null;
   thumbnailUrl?: string | null;
   error?: string | null;
@@ -221,6 +224,7 @@ export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene 
     refKind: raw.refKind, refId: raw.refId,
     status,
     progress: typeof raw.progress === "number" ? raw.progress : 0,
+    renderStartedAt: typeof raw.renderStartedAt === "number" ? raw.renderStartedAt : undefined,
     videoUrl: raw.videoUrl ?? null,
     thumbnailUrl: raw.thumbnailUrl ?? null,
     error: raw.error ?? null,

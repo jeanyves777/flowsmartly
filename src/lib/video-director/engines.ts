@@ -218,6 +218,9 @@ async function renderAiOverlay(filmId: string, userId: string, sceneId: string, 
 async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number): Promise<void> {
   try {
     let p = 8;
+    // Stamp the render start so the watchdog can fail this scene if the worker
+    // dies mid-render (e.g. a deploy) and leaves it stuck "rendering".
+    await patchScene(filmId, userId, sceneId, { status: "rendering", progress: p, renderStartedAt: Date.now() }).catch(() => {});
     const result = await withTimeout(
       generateVideoForRole("video_standard", {
         prompt: withVideoGuard(scene.script || scene.title),
@@ -249,8 +252,32 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
  * back onto the film. Called on each GET poll so the canvas reflects live status.
  * AI/media/design update themselves in-process, so only external refs need this.
  */
+const AI_SCENE_WATCHDOG_MS = 12 * 60 * 1000; // > the 8-min in-process cap, so only true orphans hit this
+
 export async function syncFilmScenes(film: FilmProject, userId: string): Promise<FilmProject> {
   let changed = false;
+
+  // WATCHDOG: an AI scene stuck "rendering" past the watchdog window means its
+  // in-process worker died (e.g. a deploy) without ever hitting the 8-min
+  // timeout — otherwise it would already be "failed". Fail it + refund so it
+  // stops spinning forever. (The 12-min threshold sits above the 8-min cap, so a
+  // live-but-slow render fails via its own catch first — no double refund.)
+  const now = Date.now();
+  for (const s of film.scenes) {
+    if (s.engine === "ai" && s.status === "rendering" && s.renderStartedAt && now - s.renderStartedAt > AI_SCENE_WATCHDOG_MS) {
+      s.status = "failed";
+      s.error = "This shot took too long and timed out — please try again.";
+      changed = true;
+      const refund = await getDynamicCreditCost(AI_SCENE_COST_KEY).catch(() => 0);
+      if (refund > 0) {
+        await creditService.addCredits({
+          userId, type: TRANSACTION_TYPES.REFUND, amount: refund,
+          referenceType: "director_scene", referenceId: s.id, description: "Refund: Director AI scene stalled",
+        }).catch(() => {});
+      }
+    }
+  }
+
   const syncAvatarRef = async (t: { refKind?: string; refId?: string; status: string; progress?: number; videoUrl?: string | null; thumbnailUrl?: string | null; error?: string | null }, failMsg: string): Promise<boolean> => {
     if (t.refKind !== "avatar_video" || !t.refId || (t.status !== "rendering" && t.status !== "queued")) return false;
     const av = await getAvatarVideo(t.refId, userId).catch(() => null);
