@@ -1644,8 +1644,28 @@ function CreateThumb({ kind }: { kind?: "design" | "logo" | "video" | "media" | 
     </div>
   );
   if (kind === "video") return (
-    <div className="absolute inset-0 bg-gradient-to-b from-[#111a3a] to-[#2a1450]">
-      <div className="absolute inset-0" style={{ background: "radial-gradient(130px 100px at 34% 40%, rgba(56,189,248,.42), transparent 60%), radial-gradient(170px 130px at 74% 66%, rgba(139,92,246,.44), transparent 62%)" }} />
+    <div className="absolute inset-0 grid grid-cols-2 gap-px bg-black">
+      <video
+        className="pointer-events-none h-full w-full object-cover"
+        src="/create-hub-video-thumbs/video-studio-spy-chase.mp4"
+        poster="/create-hub-video-thumbs/video-studio-spy-chase-poster.jpg"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+      />
+      <video
+        className="pointer-events-none h-full w-full object-cover"
+        src="/create-hub-video-thumbs/video-studio-forest-warrior.mp4"
+        poster="/create-hub-video-thumbs/video-studio-forest-warrior-poster.jpg"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+      />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/10" />
     </div>
   );
   if (kind === "media") return (
