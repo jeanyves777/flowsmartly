@@ -6,7 +6,7 @@ import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard,
-  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, UserSquare2, type LucideIcon,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, UserSquare2, Monitor, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -651,7 +651,12 @@ export function AgentHome() {
       const printCmd = (patch as { __print?: unknown }).__print;
       if (printCmd && typeof printCmd === "object") {
         const fmt = (printCmd as { format?: unknown }).format;
-        if (typeof fmt === "string") printOpsRef.current?.selectFormat(fmt);
+        if (typeof fmt === "string") {
+          // If the Print mode is live, open the format directly; otherwise flip the
+          // Design Studio into Print mode and let it open the format on mount.
+          if (printOpsRef.current) printOpsRef.current.selectFormat(fmt);
+          else { setPrintInitialFormat(fmt); setActiveWs("create"); setFocused("print"); }
+        }
         return;
       }
       const composeCmd = (patch as { __compose?: unknown }).__compose;
@@ -742,8 +747,12 @@ export function AgentHome() {
   const isConnectionsFocus = focused === "connections";
   const fws = focused && !isAccountFocus && !isProfileFocus && !isBrandFocus && !isAnalyticsFocus && !isBillingFocus && !isConnectionsFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
   const fMeta = focused ? FOCUS_META[focused] : undefined;
-  const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fMeta ? fMeta.label : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
-  const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fMeta ? fMeta.icon : fws?.icon ?? Sparkles;
+  // Design Studio & Print are ONE surface (screen vs print MODE) — same identity,
+  // same rail highlight; a Screen⇄Print toggle in the header switches modes while
+  // keeping the two documents (design / printDesign) isolated. [[print-studio-reuses-canvas]]
+  const isDesignSurface = focused === "create" || focused === "print";
+  const fLabel = isDesignSurface ? "Design Studio" : isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fMeta ? fMeta.label : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
+  const FIcon = isDesignSurface ? Palette : isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fMeta ? fMeta.icon : fws?.icon ?? Sparkles;
   // Consolidated rail: Print → Create, Campaign → Publish, Leads → Outreach.
   const primaryWorkspaces = WORKSPACES.filter((w) => !["business", "print", "campaign", "leads"].includes(w.key));
   const businessWorkspace = WORKSPACES.find((w) => w.key === "business");
@@ -787,6 +796,17 @@ export function AgentHome() {
     setPanelKey(null);
     setFocused(key);
     setDrawerOpen(false);
+  };
+  // Flip the Design Studio between Screen (create) and Print modes — same surface,
+  // so it's NOT guarded like leaving a view (each mode autosaves its own document).
+  const switchDesignMode = (mode: "create" | "print") => {
+    if (focused === mode) return;
+    setHistoryOpen(false);
+    setPanelKey(null);
+    setDrawerOpen(false);
+    setActiveWs("create");
+    if (mode === "create") savedDesignRef.current = design;
+    setFocused(mode);
   };
   // Open Pitch Studio for a lead — set the target BEFORE switching surfaces so the
   // child mounts with it. Keeps the current rail (Leads).
@@ -1125,11 +1145,22 @@ export function AgentHome() {
           {focused ? (
             <FocusedView
               title={fLabel}
-              subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "billing" ? "Credits · plan · usage · transactions" : focused === "connections" ? "Connect your social accounts" : fMeta ? fMeta.subtitle : WS_DESC[focused]}
+              subtitle={isDesignSurface ? "Graphics, ads & print — one canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "billing" ? "Credits · plan · usage · transactions" : focused === "connections" ? "Connect your social accounts" : fMeta ? fMeta.subtitle : WS_DESC[focused]}
               icon={FIcon}
               agentBusy={sending}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
-              headerActions={focused === "leads" ? (
+              headerActions={isDesignSurface ? (
+                // Screen ⇄ Print mode switch — the deep Print↔Design merge. Both modes
+                // are the same "Design Studio" surface; each keeps its own document.
+                <div className="inline-flex overflow-hidden rounded-[10px] border border-border" role="tablist" aria-label="Design mode">
+                  <button onClick={() => switchDesignMode("create")} role="tab" aria-selected={focused === "create"} title="Design for screen — posts, ads & graphics" className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-semibold transition", focused === "create" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>
+                    <Monitor className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Screen</span>
+                  </button>
+                  <button onClick={() => switchDesignMode("print")} role="tab" aria-selected={focused === "print"} title="Print-ready formats — flyers, cards, brochures & product prints" className={cn("inline-flex items-center gap-1.5 border-s border-border px-2.5 py-1.5 text-[12px] font-semibold transition", focused === "print" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>
+                    <Printer className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Print</span>
+                  </button>
+                </div>
+              ) : focused === "leads" ? (
                 <button onClick={() => setLeadsMenuOpen((v) => !v)} title="Show / hide menu" className="grid h-8 w-8 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground">
                   <PanelRight className="h-[18px] w-[18px]" />
                 </button>

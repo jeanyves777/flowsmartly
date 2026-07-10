@@ -1,0 +1,236 @@
+<title>Design Studio — Print merged in</title>
+<style>
+  :root{
+    --bg:#0b0f1a; --panel:#0f1524; --card:#141b2d; --card2:#111827;
+    --border:#232c42; --border2:#2c374f;
+    --fg:#e8ecf6; --muted:#8b96ad; --muted2:#6b7688;
+    --brand:#7c6bff; --brand2:#a78bfa; --brandsoft:rgba(124,107,255,.14);
+    --radius:14px;
+  }
+  @media (prefers-color-scheme:light){
+    :root{ --bg:#f5f6fb; --panel:#ffffff; --card:#ffffff; --card2:#f7f8fc;
+      --border:#e6e9f2; --border2:#dbe0ee; --fg:#151a26; --muted:#5c6579; --muted2:#8a93a6;
+      --brandsoft:rgba(124,107,255,.10); }
+  }
+  :root[data-theme="dark"]{ --bg:#0b0f1a; --panel:#0f1524; --card:#141b2d; --card2:#111827;
+    --border:#232c42; --border2:#2c374f; --fg:#e8ecf6; --muted:#8b96ad; --muted2:#6b7688; --brandsoft:rgba(124,107,255,.14); }
+  :root[data-theme="light"]{ --bg:#f5f6fb; --panel:#ffffff; --card:#ffffff; --card2:#f7f8fc;
+    --border:#e6e9f2; --border2:#dbe0ee; --fg:#151a26; --muted:#5c6579; --muted2:#8a93a6; --brandsoft:rgba(124,107,255,.10); }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;padding:26px 20px 40px}
+  .wrap{max-width:1080px;margin:0 auto}
+  .lead{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .lead h1{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:0}
+  .lead .pill{font-size:11px;font-weight:700;color:var(--brand2);background:var(--brandsoft);
+    border:1px solid var(--border2);padding:3px 9px;border-radius:999px}
+  .sub{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 18px;max-width:64ch}
+
+  /* app shell */
+  .shell{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;
+    background:var(--panel);box-shadow:0 24px 60px -30px rgba(0,0,0,.6)}
+  .shellgrid{display:grid;grid-template-columns:236px 1fr;min-height:520px}
+  @media(max-width:720px){.shellgrid{grid-template-columns:1fr}.rail{display:none}}
+
+  /* left chat rail (dim, contextual) */
+  .rail{border-right:1px solid var(--border);background:var(--card2);padding:14px 12px}
+  .rail .st{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);
+    padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:12px}
+  .dot{width:7px;height:7px;border-radius:999px;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.18)}
+  .bubble{background:var(--card);border:1px solid var(--border);border-radius:11px;
+    padding:9px 11px;font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:9px}
+  .bubble b{color:var(--fg)}
+
+  /* surface header */
+  .surf{display:flex;flex-direction:column;min-width:0}
+  .shead{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);
+    background:color-mix(in srgb,var(--card) 55%,transparent);padding:10px 14px}
+  .sicon{display:grid;place-items:center;width:32px;height:32px;border-radius:9px;
+    background:linear-gradient(135deg,var(--brandsoft),rgba(167,139,250,.12));color:var(--brand2)}
+  .stitle{font-size:14px;font-weight:800;line-height:1.15}
+  .ssub{font-size:11.5px;color:var(--muted)}
+  .sactions{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+  /* the merged Screen/Print segmented toggle */
+  .seg{display:inline-flex;border:1px solid var(--border2);border-radius:10px;overflow:hidden}
+  .seg button{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;
+    color:var(--muted);font:inherit;font-size:12px;font-weight:700;padding:7px 11px;cursor:pointer;transition:.15s}
+  .seg button+button{border-left:1px solid var(--border2)}
+  .seg button.on{background:var(--brandsoft);color:var(--brand2)}
+  .seg button:hover:not(.on){color:var(--fg)}
+  .seg svg{width:14px;height:14px}
+
+  .tool{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);
+    border-radius:9px;background:transparent;color:var(--muted);font:inherit;font-size:12px;
+    padding:6px 9px;cursor:pointer}
+  .tool.brand{background:linear-gradient(90deg,var(--brand),var(--brand2));color:#fff;border:0;font-weight:700}
+  .exit{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);
+    border-radius:10px;color:var(--muted);font-size:12px;padding:6px 10px;cursor:pointer;background:transparent}
+  .divider{width:1px;height:20px;background:var(--border);margin:0 2px}
+
+  /* stage */
+  .stage{flex:1;position:relative;overflow:hidden;
+    background:radial-gradient(460px 280px at 40% -6%,rgba(124,107,255,.14),transparent 70%)}
+  .mode{display:none;height:100%}
+  .mode.show{display:block}
+
+  /* screen-mode canvas */
+  .screenwrap{height:100%;display:grid;place-items:center;padding:26px}
+  .poster{width:300px;aspect-ratio:4/5;border-radius:16px;overflow:hidden;position:relative;
+    box-shadow:0 22px 50px -22px rgba(0,0,0,.7);background:linear-gradient(150deg,#20143a,#3b1f6b 55%,#7c3aed)}
+  .poster .ey{position:absolute;top:22px;left:22px;font-size:10px;letter-spacing:.16em;font-weight:800;color:#d9ccff}
+  .poster .hl{position:absolute;top:44px;left:22px;right:22px;font-size:32px;font-weight:900;line-height:1.02;color:#fff;letter-spacing:-.02em}
+  .poster .cta{position:absolute;left:22px;bottom:24px;background:#fff;color:#2a1055;font-size:11px;font-weight:800;padding:8px 12px;border-radius:9px}
+  .poster .band{position:absolute;left:0;right:0;bottom:0;height:10%;background:#c4b5fd}
+  .stripstub{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;gap:7px}
+  .stripstub span{width:34px;height:44px;border-radius:6px;border:1px solid var(--border2);background:var(--card)}
+  .stripstub span.active{outline:2px solid var(--brand);outline-offset:1px}
+
+  /* print-mode: empty state + formats drawer */
+  .printwrap{height:100%;display:flex}
+  .printempty{flex:1;display:grid;place-items:center;padding:26px;text-align:center}
+  .printempty .glyph{width:60px;height:60px;border-radius:16px;display:grid;place-items:center;margin:0 auto;
+    background:linear-gradient(135deg,rgba(124,107,255,.22),rgba(167,139,250,.12));color:var(--brand2)}
+  .printempty h3{font-size:19px;font-weight:850;letter-spacing:-.02em;margin:14px 0 4px}
+  .printempty p{color:var(--muted);font-size:12.5px;line-height:1.55;max-width:38ch;margin:0 auto}
+  .askbar{margin:16px auto 0;max-width:360px;display:flex;align-items:center;gap:9px;
+    border:1px solid var(--border);background:var(--card);border-radius:14px;padding:9px 10px;text-align:left}
+  .askbar input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font:inherit;font-size:12.5px;outline:none}
+  .askbar input::placeholder{color:var(--muted2)}
+  .askbar .go{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;border:0;cursor:pointer}
+  .drawer{width:312px;border-left:1px solid var(--border);background:var(--card);display:flex;flex-direction:column}
+  .drawer .dh{display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border);padding:12px 13px;font-weight:800;font-size:13.5px}
+  .drawer .dh .g{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:var(--brandsoft);color:var(--brand2)}
+  .dbody{padding:11px;overflow:auto;flex:1}
+  .glabel{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted2);margin:6px 2px 8px}
+  .frow{display:flex;align-items:center;gap:11px;border:1px solid var(--border);background:var(--card2);
+    border-radius:12px;padding:9px 11px;margin-bottom:8px;cursor:pointer;transition:.15s}
+  .frow:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--border))}
+  .frow .fi{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;background:var(--brandsoft);color:var(--brand2);flex:none}
+  .frow .fn{font-size:12.5px;font-weight:700}
+  .frow .fd{font-size:11px;color:var(--muted);margin-top:1px;line-height:1.35}
+  .frow .chev{margin-left:auto;color:var(--muted2)}
+  svg{stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;fill:none}
+
+  .note{margin-top:16px;border:1px solid var(--border);border-radius:12px;background:var(--card2);padding:13px 15px}
+  .note b{font-size:12.5px}
+  .note ul{margin:7px 0 0;padding-left:18px;color:var(--muted);font-size:12.5px;line-height:1.65}
+  .note li b{color:var(--fg)}
+  .themebtn{position:fixed;top:14px;right:16px;border:1px solid var(--border);background:var(--card);
+    color:var(--muted);border-radius:9px;font:inherit;font-size:11.5px;padding:6px 10px;cursor:pointer}
+</style>
+
+<button class="themebtn" onclick="const r=document.documentElement;r.dataset.theme=(r.dataset.theme==='light'?'dark':'light')">◑ theme</button>
+
+<div class="wrap">
+  <div class="lead">
+    <h1>Design Studio — Print merged in</h1>
+    <span class="pill">one surface · two modes</span>
+  </div>
+  <p class="sub">Print is no longer a separate rail destination. It's a <b>mode inside the Design Studio</b>. A Screen ⇄ Print toggle in the surface header flips between the on-screen design canvas and print-ready formats — same identity, same rail highlight — while each mode keeps its own document so a post never silently becomes a flyer. Click the toggle below.</p>
+
+  <div class="shell">
+    <div class="shellgrid">
+      <!-- chat rail -->
+      <div class="rail">
+        <div class="st"><span class="dot"></span> Agent · <b style="color:var(--fg)">ready</b></div>
+        <div class="bubble">Design a <b>grand-opening flyer</b> for my bakery — same brand as my posts.</div>
+        <div class="bubble">On it — opening a <b>Letter flyer</b> in Print mode and laying it out on your brand colors.</div>
+      </div>
+
+      <!-- surface -->
+      <div class="surf">
+        <div class="shead">
+          <span class="sicon" title="Design Studio">
+            <svg viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2a10 10 0 1 0 0 20 2.5 2.5 0 0 0 2-4 2.5 2.5 0 0 1 2-4h1a5 5 0 0 0 5-5 10 10 0 0 0-10-7Z"/></svg>
+          </span>
+          <div style="min-width:0">
+            <div class="stitle">Design Studio</div>
+            <div class="ssub">Graphics, ads &amp; print — one canvas</div>
+          </div>
+          <div class="sactions">
+            <!-- the merged mode toggle -->
+            <div class="seg" id="seg">
+              <button class="on" data-mode="screen" onclick="setMode('screen')">
+                <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg> Screen
+              </button>
+              <button data-mode="print" onclick="setMode('print')">
+                <svg viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg> Print
+              </button>
+            </div>
+            <span class="divider"></span>
+            <button class="tool" title="Undo / redo · add · save">⌘ Tools</button>
+            <button class="tool brand">↧ Export</button>
+            <button class="exit">✕ Exit</button>
+          </div>
+        </div>
+
+        <div class="stage">
+          <!-- SCREEN MODE -->
+          <div class="mode show" id="mode-screen">
+            <div class="screenwrap">
+              <div class="poster">
+                <div class="ey">FRESH · DAILY</div>
+                <div class="hl">Grand<br>Opening</div>
+                <div class="cta">Get a free pastry →</div>
+                <div class="band"></div>
+              </div>
+              <div class="stripstub"><span class="active"></span><span></span></div>
+            </div>
+          </div>
+
+          <!-- PRINT MODE -->
+          <div class="mode" id="mode-print">
+            <div class="printwrap">
+              <div class="printempty">
+                <div>
+                  <div class="glyph"><svg viewBox="0 0 24 24" style="width:28px;height:28px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg></div>
+                  <h3>What are we printing?</h3>
+                  <p>Pick a print format to open a full editable canvas — the same controls as Screen — or ask the agent to build it print-ready.</p>
+                  <div class="askbar">
+                    <svg viewBox="0 0 24 24" style="width:16px;height:16px;color:var(--brand2)"><path d="m12 3 1.9 4.8L19 9.5l-4.1 3 1.4 5-4.3-2.8L7.7 17.5l1.4-5L5 9.5l5.1-1.7z"/></svg>
+                    <input placeholder="“A tri-fold brochure for my dental clinic”">
+                    <button class="go"><svg viewBox="0 0 24 24" style="width:15px;height:15px"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+                  </div>
+                </div>
+              </div>
+              <div class="drawer">
+                <div class="dh"><span class="g"><svg viewBox="0 0 24 24" style="width:17px;height:17px"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg></span> Print formats</div>
+                <div class="dbody">
+                  <div class="glabel">Paper &amp; signage</div>
+                  <div class="frow"><span class="fi"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span><span><div class="fn">Flyer &amp; Poster</div><div class="fd">Promos, event posters, menus &amp; hand-outs</div></span><span class="chev">›</span></div>
+                  <div class="frow"><span class="fi"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span><span><div class="fn">Business card</div><div class="fd">Front/back with bleed &amp; safe-zone</div></span><span class="chev">›</span></div>
+                  <div class="frow"><span class="fi"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M2 4h9v16H2zM13 4h9v16h-9z"/></svg></span><span><div class="fn">Brochure</div><div class="fd">Bi-fold or tri-fold with fold guides</div></span><span class="chev">›</span></div>
+                  <div class="glabel" style="margin-top:14px">Print on products</div>
+                  <div class="frow"><span class="fi"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M4 7l4-3 4 3 4-3 4 3-2 3v10H6V10z"/></svg></span><span><div class="fn">Apparel &amp; wearables</div><div class="fd">Tees, hoodies &amp; caps — real mockups</div></span><span class="chev">›</span></div>
+                  <div class="frow"><span class="fi"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M6 8h9v9a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4z"/><path d="M15 10h2a2 2 0 0 1 0 6h-2"/></svg></span><span><div class="fn">Drinkware &amp; gifts</div><div class="fd">Mugs, bottles &amp; totes</div></span><span class="chev">›</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>What this changes</b>
+    <ul>
+      <li><b>Screen ⇄ Print toggle</b> in the Design Studio header — the only new control.</li>
+      <li>Print reads as the <b>same surface</b> — header says “Design Studio”, the <b>Create</b> rail item stays highlighted (no separate Print destination).</li>
+      <li>Each mode keeps its <b>own document + autosave</b>, so toggling never converts or loses your work.</li>
+      <li>The agent’s <b>start_print_project</b> now flips into Print mode on its own when you’re in Screen mode.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  function setMode(m){
+    document.querySelectorAll('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));
+    document.getElementById('mode-screen').classList.toggle('show',m==='screen');
+    document.getElementById('mode-print').classList.toggle('show',m==='print');
+  }
+</script>

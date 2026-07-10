@@ -121,13 +121,14 @@ export function FocusedView({
             {subtitle && <div className="truncate text-[11.5px] text-muted-foreground">{subtitle}</div>}
           </div>
           <div className="ms-auto flex items-center gap-2">
+            {/* Mode switches / view controls sit at the left of the cluster. */}
+            {headerActions}
             {/* Surfaces (e.g. Pitch Studio) portal their own toolbar controls here,
                 so there's ONE header row instead of a duplicate title bar below. */}
             <div id="fv-header-slot" className="flex flex-wrap items-center justify-end gap-2 empty:hidden" />
             <button onClick={onClose} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">
               <X className="h-4 w-4" /> Exit
             </button>
-            {headerActions}
           </div>
         </div>
         <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
