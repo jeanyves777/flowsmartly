@@ -124,16 +124,22 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
     if (useCast) {
       const castBlock = castList.map((c) => `- ${c.name} — ${c.role}: ${c.description}`).join("\n");
       prompt =
-        `You are a film DIRECTOR writing the shot list for a ${target}s ${film.style || "cinematic"} MOVIE. Brief: "${brief}".\n` +
+        `You are a SCREENWRITER + director writing ONE continuous ${target}s ${film.style || "cinematic"} short FILM as a shot list. Brief: "${brief}".\n` +
         `CAST — every on-screen character MUST be one of these EXACT people (use their names verbatim):\n${castBlock}\n` +
         (productImg ? `A product/reference image is attached — you may feature it in a shot or a "design" end card.\n` : "") +
-        `Plan exactly ${approx} scenes that tell ONE cohesive story with these characters, in order. For EACH scene give:\n` +
-        `- "engine": "ai" for a shot of the cast acting (the default), or "design" for a branded end card.\n` +
+        `Write the WHOLE film as one coherent story before you output — a clear beginning, middle and end — then break it into exactly ${approx} scenes IN ORDER.\n` +
+        `STORY CONTINUITY (this is the most important rule):\n` +
+        `- Each scene must flow DIRECTLY and NATURALLY from the one before it — continuous time/place or a purposeful cut, clear cause → effect. No jumping to unrelated moments, no non-sequiturs.\n` +
+        `- The DIALOGUE across all scenes must read as ONE real, logical conversation/screenplay. If a character asks a question, it gets ANSWERED (in the same scene or the very next) — NEVER leave a question hanging or switch topics abruptly. A question with no answer, or a line that ignores the previous line, is a hard failure.\n` +
+        `- Keep CONSISTENCY throughout: the same names, relationships, goals, wardrobe and tone; the plot advances logically scene to scene.\n` +
+        `- Minimise SILENT scenes: MOST scenes should carry spoken dialogue that moves the story. Only make a scene silent when the silence itself is the point (one deliberate establishing or emotional beat) — never pad with silent 'in shot' characters. Only include a character in a scene if they matter to that beat.\n` +
+        `For EACH scene give:\n` +
+        `- "engine": "ai" for a shot of the cast acting (the default), or "design" for a branded end card (use only for the final beat).\n` +
         `- "title": 2-4 words.\n` +
-        `- "script": the SHOT — setting, action, camera, mood (what is ON SCREEN). This is NOT the dialogue.\n` +
-        `- "cast": who is in the shot and what they SAY — [{"name":"<a cast name from above>","dialogue":"their spoken line, or empty for a silent/background appearance"}]. Include every character visible; give speaking characters a natural line that moves the story forward. 1-3 characters per scene.\n` +
-        `- "durationSec": how long the shot runs — PREFER 8 (renders most reliably); use up to 15 only for a shot that truly needs it. CRITICAL: the total spoken dialogue in a scene must FIT its duration — about 2 words per second (an 8s shot ≈ 16 words of dialogue total, a 15s shot ≈ 30). Keep lines short so they don't get cut off.\n` +
-        `Open strong, develop the story, close on a satisfying beat. Return JSON: {"scenes":[{"engine":"ai","title":"...","script":"...","cast":[{"name":"...","dialogue":"..."}],"durationSec":10}, ...]} with exactly ${approx} scenes.`;
+        `- "script": the SHOT — setting, action, camera, mood (what is ON SCREEN). NOT the dialogue.\n` +
+        `- "cast": who is on screen and what they SAY — [{"name":"<a cast name from above>","dialogue":"their spoken line — leave empty ONLY for a deliberate silent beat"}]. Lines must continue the conversation from the previous scene.\n` +
+        `- "durationSec": PREFER 8; use up to 15 only when a beat truly needs it. The total spoken dialogue in a scene must FIT its duration — about 2 words per second (an 8s shot ≈ 16 words total, 15s ≈ 30). Keep lines short.\n` +
+        `Open on a hook, build the story with connected beats, resolve it at the end. Return JSON: {"scenes":[{"engine":"ai","title":"...","script":"...","cast":[{"name":"...","dialogue":"..."}],"durationSec":8}, ...]} with exactly ${approx} scenes.`;
     } else {
       const engines: string[] = ['"ai": a cinematic AI shot. script = a vivid SHOT PROMPT (what\'s on screen, mood, motion) — no dialogue.'];
       if (allowAvatar) engines.push(`"avatar": the user's talking-avatar${photoAvatar ? " (their own photo)" : " clone"} speaking to camera. script = the SPOKEN words — first person, punchy.`);
