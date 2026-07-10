@@ -366,7 +366,7 @@ async function buildDirectorOutro(logoSource: string, aspect: FilmAspect, brand:
       `A premium ABSTRACT brand end-card background for ${brand.name || "a brand"}${brand.industry ? ` (${brand.industry})` : ""}: ${mood}, tasteful depth, unmistakably on-brand` +
       `${palette ? `, built entirely from the brand palette — ${palette}` : ", in deep tasteful brand tones"}, with a calmer darker area toward the centre for a logo. ` +
       `Absolutely NO text, NO letters, NO numbers, NO logo, NO watermark, NO people, NO products — only an atmospheric on-brand backdrop.`;
-    const res = await generateImageXaiFirst(prompt, iw, ih, { quality: "high", preferredProvider: "openai" });
+    const res = await generateImageXaiFirst(prompt, iw, ih, { quality: "high" });
     if (res.base64) bgImage = Buffer.from(res.base64, "base64");
   } catch (e) {
     console.warn("[video-director] outro background gen failed; using colour card:", e instanceof Error ? e.message : e);
