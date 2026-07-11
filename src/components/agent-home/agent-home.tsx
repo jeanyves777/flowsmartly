@@ -1661,7 +1661,7 @@ const HUB_REAL_THUMBS: Record<string, { src: string; fit?: "cover" | "contain" }
   "outreach:Lead Finder": { src: "/proposal-assets/flowsmartly-listsmartly-local-listings-cutout.png", fit: "contain" },
   "outreach:Contacts & lists": { src: "/marketing/transparent/flowsmartly-home-agent-consultant.png", fit: "contain" },
   "outreach:Reviews / local SEO": { src: "/marketing/transparent/flowsmartly-listsmartly-local-listings-cutout.png", fit: "contain" },
-  "outreach:Pitch board": { src: "/proposal-assets/pregenerated/proposal-metrics-consultant.png" },
+  "outreach:Pitch board": { src: "/marketing/transparent/flowsmartly-human-marketer-cutout.png", fit: "contain" },
   "outreach:Forms & surveys": { src: "/marketing/generated/gallery-outreach-2.webp" },
 };
 
