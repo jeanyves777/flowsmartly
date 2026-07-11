@@ -45,13 +45,20 @@ function antiStyleNegative(style?: string | null): string {
     : "- PHOTOREAL ONLY: this MUST look like a real photograph of a real human. It must NOT be a 3D render, CGI, Pixar/Disney-style animation, video-game character, illustration, cartoon, anime, painting, or any stylized art. No plastic/rendered skin.";
 }
 
+/** When the user has locked a wardrobe, force it (overrides any clothing in the free-text description). */
+function wardrobeLine(c: FilmCharacter): string {
+  return c.wardrobe?.trim()
+    ? `\n- Wardrobe (WEAR EXACTLY THIS — overrides any clothing mentioned above): ${c.wardrobe.trim()}`
+    : "";
+}
+
 function portraitPrompt(c: FilmCharacter, style: string | null | undefined, brand: string): string {
   return `Single clean CHARACTER PORTRAIT for a ${is3d(style) ? "3D-animated" : "live-action cinematic"} film — the anchor used to lock this person's identity across every shot.
 
 CHARACTER
 - Name: ${c.name}
 - Role: ${c.role}
-- Description: ${c.description}
+- Description: ${c.description}${wardrobeLine(c)}
 
 STYLE (critical — hold this exactly)
 ${styleLook(style)}
@@ -70,7 +77,7 @@ function sheetPrompt(c: FilmCharacter, style: string | null | undefined, brand: 
 
 CHARACTER (the SAME person in every pose)
 - Name: ${c.name} — Role: ${c.role}
-- ${c.description}
+- ${c.description}${wardrobeLine(c)}
 
 STYLE (critical — hold this exactly, matching the reference image)
 ${styleLook(style)}
@@ -150,7 +157,7 @@ export async function generateFilmCharacterPreview(
   filmId: string,
   userId: string,
   characterId: string,
-  opts: { baseImageUrl?: string | null } = {},
+  opts: { baseImageUrl?: string | null; wardrobe?: string | null } = {},
 ): Promise<FilmProject | null> {
   const film = await getFilm(filmId, userId);
   if (!film) return null;
@@ -166,8 +173,11 @@ export async function generateFilmCharacterPreview(
     await saveFilm(filmId, userId, f);
   };
 
-  await setChar({ previewStatus: "generating", previewError: null });
-  const c = film.characters![idx];
+  // A wardrobe passed with the (re)generate applies BEFORE we render, so the new
+  // outfit is persisted AND drives this portrait/sheet (empty string = clear → auto).
+  const wardrobePatch: Partial<FilmCharacter> = opts.wardrobe !== undefined ? { wardrobe: opts.wardrobe } : {};
+  await setChar({ previewStatus: "generating", previewError: null, ...wardrobePatch });
+  const c = { ...film.characters![idx], ...wardrobePatch };
   const brand = await brandName(userId);
 
   try {
@@ -225,7 +235,7 @@ export async function patchFilmCharacter(
   const i = (film.characters || []).findIndex((c) => c.id === characterId);
   if (i < 0) return film;
   // Any content edit revokes approval — the user must re-approve what they see.
-  const revokes = ("name" in patch || "role" in patch || "description" in patch || "referenceImageUrl" in patch || "characterSheetUrl" in patch) && !("approved" in patch);
+  const revokes = ("name" in patch || "role" in patch || "description" in patch || "wardrobe" in patch || "referenceImageUrl" in patch || "characterSheetUrl" in patch) && !("approved" in patch);
   film.characters![i] = normalizeCharacter({ ...film.characters![i], ...patch, ...(revokes ? { approved: false } : {}) }, i);
   await saveFilm(filmId, userId, film);
   return film;

@@ -105,6 +105,26 @@ export interface FilmOverlay {
   error?: string | null;
 }
 
+/** One character's LOCKED outfit for the whole film (continuity). */
+export interface FilmWardrobe {
+  characterId?: string;
+  name: string;
+  outfit: string;
+}
+
+/**
+ * The film's CONTINUITY BIBLE — the single source of truth for the world every
+ * scene shares: where it happens, the time-of-day/colour palette, and each
+ * character's fixed wardrobe. Established once from the brief + cast, then woven
+ * into every AI shot (its keyframe still + its prompt) so scenes don't drift into
+ * different locations, lighting or clothes shot-to-shot.
+ */
+export interface FilmContinuity {
+  location?: string;         // the primary recurring setting(s)
+  timePalette?: string;      // time of day + lighting/colour palette held across the film
+  wardrobe?: FilmWardrobe[]; // one locked outfit per character
+}
+
 export type CharacterPreviewStatus = "idle" | "generating" | "ready" | "failed";
 
 /**
@@ -118,6 +138,7 @@ export interface FilmCharacter {
   name: string;
   role: string;
   description: string;                 // visual description used for identity lock
+  wardrobe?: string | null;            // LOCKED outfit (user-chosen/preset) — overrides the wardrobe in `description` for the portrait/sheet + every shot
   referenceImageUrl?: string | null;   // clean portrait (anchor)
   characterSheetUrl?: string | null;   // multi-angle turnaround (cross-shot reference)
   previewStatus?: CharacterPreviewStatus;
@@ -158,6 +179,8 @@ export interface FilmProject {
   assets?: FilmAsset[];
   /** Cast the film is built around — approved before scenes render (see FilmCharacter). */
   characters?: FilmCharacter[];
+  /** The film's continuity bible — one shared world (location/palette/wardrobe) across all scenes. */
+  continuity?: FilmContinuity | null;
   music?: string | null;
   /** Burn the brand logo onto the final cut (overlay). Default on. */
   brandLogo?: boolean;
@@ -216,12 +239,46 @@ export function normalizeCharacter(raw: Partial<FilmCharacter>, idx: number): Fi
     name: String(raw.name || `Character ${idx + 1}`).slice(0, 80),
     role: String(raw.role || "").slice(0, 120),
     description: String(raw.description || "").slice(0, 2000),
+    wardrobe: typeof raw.wardrobe === "string" ? raw.wardrobe.slice(0, 600) : null,
     referenceImageUrl: raw.referenceImageUrl ?? null,
     characterSheetUrl: raw.characterSheetUrl ?? null,
     previewStatus: VALID_PREVIEW_STATUS.has(raw.previewStatus as CharacterPreviewStatus) ? (raw.previewStatus as CharacterPreviewStatus) : "idle",
     previewError: raw.previewError ?? null,
     approved: !!raw.approved,
   };
+}
+
+/** Coerce untrusted JSON into a safe FilmContinuity (or null if empty). */
+export function normalizeContinuity(raw: unknown): FilmContinuity | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Partial<FilmContinuity>;
+  const location = typeof r.location === "string" ? r.location.slice(0, 600) : undefined;
+  const timePalette = typeof r.timePalette === "string" ? r.timePalette.slice(0, 400) : undefined;
+  const wardrobe = Array.isArray(r.wardrobe)
+    ? r.wardrobe
+        .filter(Boolean)
+        .slice(0, 8)
+        .map((w) => ({
+          characterId: typeof w?.characterId === "string" ? w.characterId : undefined,
+          name: String(w?.name || "").slice(0, 80),
+          outfit: String(w?.outfit || "").slice(0, 600),
+        }))
+        .filter((w) => w.name || w.outfit)
+    : undefined;
+  if (!location && !timePalette && !(wardrobe && wardrobe.length)) return null;
+  return { location, timePalette, wardrobe };
+}
+
+/** Flatten a continuity bible into one compact directive line for a shot/keyframe prompt. */
+export function continuityText(c?: FilmContinuity | null): string {
+  if (!c) return "";
+  const parts: string[] = [];
+  if (c.location) parts.push(`Location — ${c.location}`);
+  if (c.timePalette) parts.push(`Time & palette — ${c.timePalette}`);
+  if (c.wardrobe?.length) {
+    parts.push(`Wardrobe (locked per person) — ${c.wardrobe.filter((w) => w.name || w.outfit).map((w) => `${w.name}: ${w.outfit}`).join("; ")}`);
+  }
+  return parts.join(". ");
 }
 
 /** Coerce untrusted JSON into a safe FilmOverlay. */
@@ -310,5 +367,6 @@ export function normalizeFilm(raw: Partial<FilmProject> & { id: string }): FilmP
     edges,
     assets: Array.isArray(raw.assets) ? raw.assets.slice(0, 40) : [],
     characters: Array.isArray(raw.characters) ? raw.characters.filter(Boolean).slice(0, 8).map((c, i) => normalizeCharacter(c, i)) : [],
+    continuity: normalizeContinuity(raw.continuity),
   };
 }

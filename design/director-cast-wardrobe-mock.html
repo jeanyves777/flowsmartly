@@ -1,0 +1,272 @@
+<title>Director — Cast wardrobe editor + presets</title>
+<style>
+  :root{
+    --bg:#080b12; --bg-2:#0b1019; --panel:#0f1523; --panel-2:#131b2c;
+    --line:#1e2942; --line-2:#28344f; --ink:#eef2fb; --ink-2:#aeb9d0; --ink-3:#6b7690;
+    --brand:#6366f1; --brand-2:#8b5cf6; --teal:#22d3ee; --ok:#34d399; --rose:#f43f5e; --amber:#f59e0b;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#05070c;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.45;}
+  .page{max-width:1180px;margin:0 auto;padding:24px 16px 60px;}
+  .intro .kick{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--brand-2);margin:0 0 6px;}
+  .intro h1{font-size:clamp(21px,3vw,28px);margin:0 0 6px;letter-spacing:-.02em;font-weight:800;}
+  .intro p{margin:0 0 18px;color:var(--ink-2);font-size:13.5px;max-width:80ch;}
+
+  /* the sheet, matching the CastPanel bottom-sheet */
+  .sheet-wrap{position:relative;border-radius:18px;border:1px solid var(--line);overflow:hidden;box-shadow:0 40px 90px -50px #000;background:var(--bg);}
+  .sheet{display:flex;flex-direction:column;height:760px;background:var(--panel);}
+  .s-head{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding:11px 16px;}
+  .tag{border-radius:7px;background:#6366f11a;color:#a5b4fc;padding:2px 8px;font-size:10.5px;font-weight:800;}
+  .s-head b{font-size:13px;} .s-head .sub{margin-left:4px;font-size:11px;color:var(--ink-3);}
+  .s-head .x{margin-left:auto;width:26px;height:26px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--ink-3);cursor:pointer;}
+  .s-body{flex:1;min-height:0;overflow-y:auto;padding:16px;}
+  .lead{margin:0 0 14px;font-size:12px;color:var(--ink-2);} .lead b{color:var(--ink);}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  @media(max-width:820px){.grid{grid-template-columns:repeat(2,1fr);}}
+  .card{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--bg-2);position:relative;}
+  .card.appr{border-color:#34d39980;}
+  .thumb{position:relative;aspect-ratio:3/2;background:linear-gradient(135deg,#6366f11a,#8b5cf61a);display:grid;place-items:center;overflow:hidden;}
+  .thumb img{width:100%;height:100%;object-fit:cover;}
+  .thumb .sheetimg{object-fit:contain;background:#0d1220;}
+  .thumb .poses{position:absolute;left:6px;bottom:6px;background:#000000a0;color:#fff;border-radius:5px;padding:2px 6px;font-size:8px;font-weight:800;}
+  .thumb .ok{position:absolute;right:6px;top:6px;background:var(--ok);color:#04231a;border-radius:999px;padding:2px 7px;font-size:9px;font-weight:900;}
+  .thumb .busy{position:absolute;inset:0;display:none;place-items:center;background:#000000a0;font-size:11px;color:#fff;font-weight:700;letter-spacing:.03em;}
+  .thumb .busy .spin{width:16px;height:16px;border-radius:50%;border:2px solid #ffffff40;border-top-color:#fff;animation:sp .8s linear infinite;margin-right:8px;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+  .card.working .busy{display:grid;}
+
+  .meta{padding:8px 9px 6px;}
+  .meta .nm{font-size:12px;font-weight:800;line-height:1.15;}
+  .meta .rl{font-size:10px;color:#a5b4fc;margin-top:1px;}
+  .meta .ds{font-size:10px;color:var(--ink-3);margin-top:3px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+
+  /* wardrobe chip row (the new bit) */
+  .ward{margin:2px 9px 8px;display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:9px;padding:5px 7px;background:var(--panel);cursor:pointer;}
+  .ward:hover{border-color:#6366f180;}
+  .ward .ic{font-size:12px;}
+  .ward .lbl{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);}
+  .ward .val{font-size:10.5px;color:var(--ink);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ward .val.empty{color:var(--ink-3);font-style:italic;}
+  .ward .cv{margin-left:auto;color:var(--ink-3);font-size:11px;}
+
+  .acts{display:flex;gap:5px;border-top:1px solid var(--line);padding:7px;}
+  .acts button{flex:1;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);font-family:inherit;font-size:10px;font-weight:800;padding:6px 4px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:4px;}
+  .acts button:hover{border-color:#6366f180;}
+  .acts .approve.on{background:var(--ok);border-color:transparent;color:#04231a;}
+
+  /* wardrobe popover */
+  .pop{position:absolute;z-index:20;width:300px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 30px 70px -30px #000;padding:12px;display:none;}
+  .pop.open{display:block;}
+  .pop h4{margin:0 0 3px;font-size:12px;font-weight:800;}
+  .pop .hint{margin:0 0 10px;font-size:10.5px;color:var(--ink-3);line-height:1.4;}
+  .presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:11px;}
+  .preset{border:1px solid var(--line-2);background:var(--panel);color:var(--ink-2);border-radius:999px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .preset:hover{border-color:#8b5cf6;color:var(--ink);}
+  .preset.sel{background:linear-gradient(135deg,var(--brand),var(--brand-2));border-color:transparent;color:#fff;}
+  .pop textarea{width:100%;resize:none;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;color:var(--ink);font-family:inherit;font-size:11.5px;padding:8px 10px;line-height:1.4;}
+  .pop textarea:focus{outline:2px solid var(--brand);border-color:transparent;}
+  .pop .lockrow{display:flex;align-items:center;gap:7px;margin:9px 1px 2px;font-size:10.5px;color:var(--ink-2);}
+  .pop .prow{display:flex;gap:8px;margin-top:12px;}
+  .pop .prow button{flex:1;border-radius:9px;font-family:inherit;font-size:11.5px;font-weight:800;padding:8px;cursor:pointer;border:1px solid var(--line-2);background:transparent;color:var(--ink-2);}
+  .pop .prow .apply{border:0;background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;}
+  .pop .warn{margin:9px 0 0;font-size:10px;color:var(--amber);display:flex;gap:6px;align-items:flex-start;}
+
+  .s-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);background:var(--bg-2);padding:12px 16px;}
+  .s-foot span{font-size:11px;color:var(--ink-3);}
+  .s-foot .r{display:flex;gap:8px;}
+  .s-foot .skip{border:1px solid var(--line);background:transparent;color:var(--ink-3);border-radius:10px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .s-foot .build{border:0;background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;border-radius:10px;padding:8px 16px;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;opacity:.45;}
+
+  .legend{margin:18px 4px 0;display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:820px){.legend{grid-template-columns:1fr;}}
+  .lg{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px;}
+  .lg b{font-size:12.5px;} .lg p{margin:5px 0 0;font-size:12px;color:var(--ink-2);}
+  .lg .num{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:#6366f11a;color:#a5b4fc;font-size:11px;font-weight:900;margin-right:7px;}
+</style>
+
+<div class="page">
+  <div class="intro">
+    <p class="kick">Video Studio · Director — Cast</p>
+    <h1>Editable wardrobe + quick preset styles</h1>
+    <p>Each cast card now carries a <b>Wardrobe</b> row. Tap it to open a small editor: pick a quick preset style
+      (or type a custom outfit), then <b>Apply &amp; regenerate</b> re-renders that character's portrait + turnaround
+      sheet in the new clothes. The locked outfit is fed into the continuity bible, so the same wardrobe holds across
+      every shot of the film.</p>
+  </div>
+
+  <div class="sheet-wrap">
+    <div class="sheet">
+      <div class="s-head">
+        <span class="tag">Cast</span>
+        <b>Approve your cast</b>
+        <span class="sub">1 of 3 approved</span>
+        <button class="x">✕</button>
+      </div>
+
+      <div class="s-body">
+        <p class="lead">Generate a preview (multi-angle sheet) or upload your own photo, set each character's
+          <b>wardrobe</b>, then <b>approve each</b> — approved cast keep the same face <i>and clothes</i> across every shot.</p>
+
+        <div class="grid" id="grid"></div>
+      </div>
+
+      <div class="s-foot">
+        <span>Approve all cast to storyboard the film with consistent characters.</span>
+        <div class="r">
+          <button class="skip">Skip cast</button>
+          <button class="build">Build film →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- wardrobe popover (positioned by JS) -->
+    <div class="pop" id="pop">
+      <h4>Wardrobe — <span id="popName">Maya Reeves</span></h4>
+      <p class="hint">Pick a quick style or describe the outfit. Applying re-renders this character's look.</p>
+      <div class="presets" id="presets"></div>
+      <textarea id="wardInput" rows="3" placeholder="e.g. a red-and-white striped soccer kit with black shorts"></textarea>
+      <p class="warn" id="reapproveWarn" style="display:none">⚠ Changing wardrobe un-approves this character — re-approve the new look.</p>
+      <div class="prow">
+        <button id="popCancel">Cancel</button>
+        <button class="apply" id="popApply">Apply &amp; regenerate</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="lg"><b><span class="num">1</span>Quick preset styles</b><p>One tap fills a sensible outfit prompt (Business, Streetwear, Athletic, Uniform…). Fully editable before you apply.</p></div>
+    <div class="lg"><b><span class="num">2</span>Regenerate in the new clothes</b><p>Apply re-runs the same identity-preserving preview pipeline — same face, new wardrobe — and un-approves so you confirm the change.</p></div>
+    <div class="lg"><b><span class="num">3</span>Locked across the film</b><p>The chosen outfit is written into the continuity bible and every AI shot's keyframe, so clothes stop drifting scene-to-scene.</p></div>
+    <div class="lg"><b><span class="num">4</span>Works for uploads too</b><p>Uploaded a real photo? The turnaround sheet honours the wardrobe you set, keeping the same person on-model.</p></div>
+  </div>
+</div>
+
+<script>
+  const PRESETS = [
+    ["Business", "a sharp tailored business suit, crisp and professional"],
+    ["Smart casual", "smart-casual: a blazer over a plain tee with chinos"],
+    ["Streetwear", "modern streetwear: hoodie, joggers and clean sneakers"],
+    ["Athletic", "athletic sportswear: a fitted performance top and shorts"],
+    ["Evening", "elegant evening wear, refined and polished"],
+    ["Uniform", "a practical work uniform that fits their role"],
+    ["Outdoors", "rugged outdoor gear: a utility jacket and boots"],
+    ["Everyday", "relaxed everyday casual: jeans and a plain t-shirt"],
+  ];
+
+  const CAST = [
+    { id:"c1", name:"Maya Reeves", role:"Striker", desc:"A determined 12-year-old girl, athletic build, hair in a tight ponytail.", img:"https://images.unsplash.com/photo-1526232761682-d26e03ac148e?w=400&q=60", sheet:false, wardrobe:"", approved:false },
+    { id:"c2", name:"Coach Derek Walsh", role:"Coach", desc:"A weathered ex-pro in his 50s, grey beard, warm but tough presence.", img:"https://images.unsplash.com/photo-1552058544-f2b08422138a?w=400&q=60", sheet:true, wardrobe:"a navy-and-white tracksuit jacket with a whistle", approved:true },
+    { id:"c3", name:"Marcus Okafor", role:"Rival", desc:"A cocky 13-year-old midfielder, tall for his age, smug grin.", img:"https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&q=60", sheet:false, wardrobe:"", approved:false },
+  ];
+
+  let openId = null, sel = -1;
+  const grid = document.getElementById("grid");
+  const pop = document.getElementById("pop");
+  const presetsEl = document.getElementById("presets");
+  const wardInput = document.getElementById("wardInput");
+  const popName = document.getElementById("popName");
+  const warn = document.getElementById("reapproveWarn");
+
+  function render(){
+    grid.innerHTML = "";
+    CAST.forEach(c => {
+      const card = document.createElement("div");
+      card.className = "card" + (c.approved ? " appr" : "");
+      card.id = "card_" + c.id;
+      card.innerHTML = `
+        <div class="thumb">
+          <img class="${c.sheet ? 'sheetimg' : ''}" src="${c.img}" alt="">
+          ${c.sheet ? '<span class="poses">front · ¾ · profile</span>' : ''}
+          ${c.approved ? '<span class="ok">✓ Approved</span>' : ''}
+          <div class="busy"><span class="spin"></span>Regenerating…</div>
+        </div>
+        <div class="meta">
+          <div class="nm">${c.name}</div>
+          <div class="rl">${c.role}</div>
+          <div class="ds">${c.desc}</div>
+        </div>
+        <div class="ward" data-ward="${c.id}">
+          <span class="ic">👕</span>
+          <span class="lbl">Wardrobe</span>
+          <span class="val ${c.wardrobe ? '' : 'empty'}">${c.wardrobe || "Auto — from description"}</span>
+          <span class="cv">✎</span>
+        </div>
+        <div class="acts">
+          <button data-redo="${c.id}">✨ ${c.sheet || c.approved ? "Redo" : "Generate"}</button>
+          <button data-up="${c.id}">⤴ Upload</button>
+          <button class="approve ${c.approved ? 'on' : ''}" data-appr="${c.id}">${c.approved ? "✓" : "Approve"}</button>
+        </div>`;
+      grid.appendChild(card);
+    });
+    bind();
+  }
+
+  function bind(){
+    document.querySelectorAll("[data-ward]").forEach(el =>
+      el.onclick = e => { e.stopPropagation(); openPop(el.getAttribute("data-ward"), el); });
+    document.querySelectorAll("[data-appr]").forEach(el =>
+      el.onclick = () => { const c = CAST.find(x=>x.id===el.getAttribute("data-appr")); c.approved = !c.approved; render(); });
+    document.querySelectorAll("[data-redo]").forEach(el =>
+      el.onclick = () => regen(el.getAttribute("data-redo")));
+  }
+
+  function openPop(id, anchor){
+    openId = id;
+    const c = CAST.find(x => x.id === id);
+    popName.textContent = c.name;
+    wardInput.value = c.wardrobe || "";
+    warn.style.display = c.approved ? "flex" : "none";
+    sel = PRESETS.findIndex(p => p[1] === c.wardrobe);
+    drawPresets();
+    // position under the anchor, inside the sheet
+    const wrap = document.querySelector(".sheet-wrap").getBoundingClientRect();
+    const a = anchor.getBoundingClientRect();
+    let left = a.left - wrap.left;
+    left = Math.min(left, wrap.width - 312);
+    let top = a.bottom - wrap.top + 6;
+    if (top + 250 > wrap.height) top = a.top - wrap.top - 256;
+    pop.style.left = Math.max(8, left) + "px";
+    pop.style.top = top + "px";
+    pop.classList.add("open");
+  }
+
+  function drawPresets(){
+    presetsEl.innerHTML = "";
+    PRESETS.forEach((p, i) => {
+      const b = document.createElement("button");
+      b.className = "preset" + (i === sel ? " sel" : "");
+      b.textContent = p[0];
+      b.onclick = () => { sel = i; wardInput.value = p[1]; drawPresets(); };
+      presetsEl.appendChild(b);
+    });
+  }
+
+  function closePop(){ pop.classList.remove("open"); openId = null; }
+  document.getElementById("popCancel").onclick = closePop;
+  document.querySelector(".sheet-wrap").addEventListener("click", e => { if (!pop.contains(e.target) && openId) closePop(); });
+  pop.addEventListener("click", e => e.stopPropagation());
+  wardInput.addEventListener("input", () => { sel = PRESETS.findIndex(p => p[1] === wardInput.value.trim()); drawPresets(); });
+
+  document.getElementById("popApply").onclick = () => {
+    const c = CAST.find(x => x.id === openId);
+    c.wardrobe = wardInput.value.trim();
+    c.approved = false; // wardrobe change un-approves
+    closePop();
+    regen(c.id);
+  };
+
+  function regen(id){
+    render();
+    const card = document.getElementById("card_" + id);
+    card.classList.add("working");
+    setTimeout(() => {
+      const c = CAST.find(x => x.id === id);
+      c.sheet = true; // now has a fresh sheet in the chosen wardrobe
+      render();
+    }, 1400);
+  }
+
+  render();
+</script>

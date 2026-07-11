@@ -6,6 +6,7 @@
  */
 
 import { getFilm, saveFilm, patchScene, patchOverlay } from "./store";
+import { continuityText } from "./types";
 import type { FilmProject, FilmScene, FilmOverlay, FilmAspect } from "./types";
 import { startAvatarVideo, getAvatarVideo } from "@/lib/avatar-studio";
 import { emptyAvatarState } from "@/lib/avatar-studio/types";
@@ -17,7 +18,7 @@ import { getDynamicCreditCost, checkCreditsAvailable } from "@/lib/credits/costs
 import { prisma } from "@/lib/db/client";
 import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { buildBrandOutroClip } from "@/lib/video/brand-outro";
-import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { generateImageXaiFirst, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { sanitizeUserError } from "@/lib/ai/user-error";
 import { approvedCastReferences } from "./cast";
 import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName, compositeOverlay } from "./clip-helpers";
@@ -61,26 +62,106 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
   ]);
 }
 
-/** For a movie scene: the reference image (first cast member's sheet, else the
- *  approved lead) + the spoken dialogue block, so the AI shot shows the same
- *  people saying their lines. */
-function sceneCastData(film: FilmProject, scene: FilmScene): { ref?: string; dialogue?: string } {
+/** For a movie scene: the identity references for EVERY cast member present
+ *  (speakers first, so the primary anchor is who the shot is on) + the spoken
+ *  dialogue block, so the AI shot shows the same people saying their lines. */
+function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; dialogue?: string } {
   const chars = film.characters || [];
   const lines = scene.cast || [];
   const refFor = (l: { characterId?: string; name?: string }): string | undefined => {
     const c = chars.find((x) => x.id === l.characterId) || chars.find((x) => x.name.toLowerCase() === (l.name || "").toLowerCase());
     return c?.characterSheetUrl || c?.referenceImageUrl || undefined;
   };
-  // Anchor the shot on the character who SPEAKS in this scene (that's who the shot
-  // is on) — falling back to the first present cast member, then the film's lead.
-  // Otherwise every shot re-uses the lead's face (the "always Marcus" bug).
-  let ref: string | undefined;
-  for (const l of lines.filter((l) => (l.dialogue || "").trim())) { ref = refFor(l); if (ref) break; }
-  if (!ref) for (const l of lines) { ref = refFor(l); if (ref) break; }
-  if (!ref) ref = approvedCastReferences(film)[0];
+  // Collect each present cast member's sheet — speakers first (that's who the shot
+  // is on), then any silent/background cast, so a multi-person shot keeps everyone's
+  // identity. De-duped; falls back to the film's approved lead(s).
+  const refs: string[] = [];
+  const push = (u?: string) => { if (u && !refs.includes(u)) refs.push(u); };
+  for (const l of lines.filter((l) => (l.dialogue || "").trim())) push(refFor(l));
+  for (const l of lines) push(refFor(l));
+  if (refs.length === 0) approvedCastReferences(film).forEach(push);
   const spoken = lines.filter((l) => (l.dialogue || "").trim());
   const dialogue = spoken.length ? spoken.map((l) => `${l.name} says: "${(l.dialogue || "").trim()}"`).join(" ") : undefined;
-  return { ref, dialogue };
+  return { refs: refs.slice(0, 3), dialogue };
+}
+
+/** The continuity bible scoped to the cast actually in THIS scene (so the shot's
+ *  keyframe + prompt only carry the wardrobe of people who appear). */
+function continuityForScene(film: FilmProject, scene: FilmScene): string {
+  const c = film.continuity;
+  if (!c) return "";
+  const names = new Set((scene.cast || []).map((l) => (l.name || "").toLowerCase()).filter(Boolean));
+  const wardrobe = names.size
+    ? (c.wardrobe || []).filter((w) => names.has((w.name || "").toLowerCase()))
+    : (c.wardrobe || []);
+  return continuityText({ location: c.location, timePalette: c.timePalette, wardrobe });
+}
+
+/** Prompt for a scene's OPENING KEYFRAME — a real, full scene composition (NOT a
+ *  studio portrait / turnaround sheet), identity-locked from the cast sheets and
+ *  bound to the film's continuity, so the animated clip starts IN the scene and
+ *  inherits the shared location + wardrobe. */
+function keyframePrompt(scene: FilmScene, continuity: string, hasCast: boolean): string {
+  const is3d = scene.style === "3d";
+  const look = is3d
+    ? "Premium Pixar/Disney-grade 3D-ANIMATED film still — stylized characters, cinematic 3D lighting."
+    : "PHOTOREAL LIVE-ACTION cinematic film still, shot on a professional cinema camera (shallow depth of field, natural film lighting) — a real photograph of a real scene; NOT 3D, NOT CGI, NOT a cartoon.";
+  const shot = (scene.script || scene.title || "").trim();
+  const castLine = hasCast
+    ? "PEOPLE IN FRAME — recreate the EXACT people from the reference image(s): identical faces, hair, skin tone and build, wearing their established wardrobe. Do NOT invent new faces and do NOT change their clothes.\n"
+    : "";
+  return `The OPENING FRAME of a film shot — a full scene composition set in a real environment.
+${look}
+
+SHOT (what is on screen): ${shot}
+
+${castLine}${continuity ? `CONTINUITY — match the rest of the film EXACTLY: ${continuity}\n` : ""}Frame it as the shot describes (wide / medium / close as written), with the people placed naturally IN the environment and mid-action.
+
+HARD RULES:
+- A real scene in a real location — absolutely NOT a studio backdrop, NOT a grey/seamless background, NOT a character turnaround sheet, NOT a posed portrait, NOT multiple copies of one person side by side.
+- No on-screen text, captions, subtitles, watermark, logo or UI. Correct human anatomy; no warped, duplicated or morphing faces.`;
+}
+
+/** Compose a scene's opening keyframe still (best-effort). Identity-preserving
+ *  edit from the cast sheets when we have them, else a plain scene still. Returns
+ *  the uploaded URL, or null so the caller falls back gracefully. */
+async function buildSceneKeyframe(
+  filmId: string,
+  userId: string,
+  sceneId: string,
+  scene: FilmScene,
+  aspect: FilmAspect,
+  castRefs: string[],
+  continuity: string,
+): Promise<string | null> {
+  const [w, h] = aspect === "9:16" ? [768, 1344] : aspect === "16:9" ? [1344, 768] : [1024, 1024];
+  const prompt = keyframePrompt(scene, continuity, castRefs.length > 0);
+  try {
+    let res;
+    // Pull up to 2 cast sheets to anchor identity in the still.
+    const buffers: Buffer[] = [];
+    for (const url of castRefs.slice(0, 2)) {
+      try {
+        const r = await fetch(url);
+        if (r.ok) buffers.push(Buffer.from(await r.arrayBuffer()));
+      } catch { /* skip a broken ref */ }
+    }
+    if (buffers.length) {
+      res = await editImagesXaiFirst(prompt, buffers, w, h, { intent: "identity", quality: "high" });
+    } else {
+      res = await generateImageXaiFirst(prompt, w, h, { quality: "high" });
+    }
+    if (!res?.base64) return null;
+    const ext = res.format === "jpeg" ? "jpg" : res.format;
+    return await uploadToS3(
+      `director/${filmId}/${sceneId}-key.${ext}`,
+      Buffer.from(res.base64, "base64"),
+      res.format === "jpeg" ? "image/jpeg" : `image/${res.format}`,
+    );
+  } catch (e) {
+    console.warn(`[video-director] scene keyframe gen failed for ${sceneId}:`, e instanceof Error ? e.message : e);
+    return null;
+  }
 }
 const XFADE_DUR = 0.5; // seconds of overlap for a scene transition
 const playedLenOf = (s: FilmScene) =>
@@ -155,8 +236,9 @@ export async function generateSceneRender(filmId: string, userId: string, sceneI
         if (!charge.success) return { ok: false, message: charge.error || "Could not charge credits." };
       }
       await patchScene(filmId, userId, sceneId, { status: "rendering", progress: 6, error: null });
-      const { ref: castRef, dialogue } = sceneCastData(film, scene);
-      void renderAiScene(filmId, userId, sceneId, scene, film.aspect, cost, castRef, dialogue); // fire-and-forget (VPS is long-lived)
+      const { refs: castRefs, dialogue } = sceneCastData(film, scene);
+      const continuity = continuityForScene(film, scene);
+      void renderAiScene(filmId, userId, sceneId, scene, film.aspect, cost, castRefs, dialogue, continuity); // fire-and-forget (VPS is long-lived)
       const f = await getFilm(filmId, userId);
       return { ok: true, film: f ?? undefined };
     }
@@ -246,7 +328,7 @@ async function renderAiOverlay(filmId: string, userId: string, sceneId: string, 
 }
 
 /** Fire-and-forget AI shot render → upload → mark ready. Refunds on failure. Never throws. */
-async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number, castRef?: string, dialogue?: string): Promise<void> {
+async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number, castRefs: string[] = [], dialogue?: string, continuity = ""): Promise<void> {
   try {
     let p = 8;
     // Stamp the render start so the watchdog can fail this scene if the worker
@@ -254,17 +336,43 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     await patchScene(filmId, userId, sceneId, { status: "rendering", progress: p, renderStartedAt: Date.now() }).catch(() => {});
     // Fold the cast's spoken lines into the shot prompt as AUDIBLE dialogue (Veo
     // does native speech) — not on-screen captions, which the leak guard forbids.
+    // The continuity bible keeps the shot in the film's shared world (location/wardrobe).
     const shot = scene.script || scene.title;
-    const shotWithDialogue = dialogue ? `${shot}\n\nDIALOGUE — spoken aloud on camera, audible and lip-synced (NOT subtitles or on-screen text): ${dialogue}` : shot;
+    const continuityLine = continuity ? `\n\nCONTINUITY — keep consistent with the rest of the film (same place, lighting and clothes): ${continuity}` : "";
+    const shotBody = `${shot}${continuityLine}`;
+    const shotWithDialogue = dialogue ? `${shotBody}\n\nDIALOGUE — spoken aloud on camera, audible and lip-synced (NOT subtitles or on-screen text): ${dialogue}` : shotBody;
+
+    // FIRST FRAME: compose a real opening keyframe still so the clip STARTS in the
+    // scene (correct location + wardrobe, identity-locked) instead of on the actor's
+    // studio turnaround sheet — the old bug where the sheet was fed straight in as
+    // the first frame. An explicit product/reference image on the scene still wins
+    // as the deliberate first frame.
+    let firstFrameUrl: string | undefined = scene.referenceImageUrl || undefined;
+    let veoRefs: string[] = [];
+    if (!firstFrameUrl) {
+      const key = await buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity);
+      if (key) {
+        firstFrameUrl = key;
+        p = 22;
+        // Store it as the scene poster too (the node shows a real storyboard frame).
+        await patchScene(filmId, userId, sceneId, { status: "rendering", progress: p, thumbnailUrl: key }).catch(() => {});
+      } else if (castRefs.length) {
+        // Keyframe failed — do NOT fall back to the turnaround sheet as the first
+        // frame (that IS the bug). Anchor identity via Veo reference images instead;
+        // Grok then renders text-to-video (no portrait start), relying on continuity.
+        veoRefs = castRefs;
+      }
+    }
+
     const result = await withTimeout(
       generateVideoForRole("video_standard", {
         prompt: withVideoGuard(shotWithDialogue, scene.style),
         durationSeconds: Math.min(15, scene.durationSec || 8),
         aspectRatio: aspect,
-        // Anchor the shot: the scene's product/reference image if set, else the
-        // approved lead cast member so the same person appears across shots.
-        referenceImageUrl: scene.referenceImageUrl || castRef || undefined,
-        onStatus: () => { p = Math.min(90, p + 14); void patchScene(filmId, userId, sceneId, { status: "rendering", progress: p }).catch(() => {}); },
+        referenceImageUrl: firstFrameUrl,
+        // Veo-only identity anchor (used when there's no keyframe first frame).
+        characterReferenceUrls: veoRefs,
+        onStatus: () => { p = Math.min(90, p + 12); void patchScene(filmId, userId, sceneId, { status: "rendering", progress: p }).catch(() => {}); },
       }),
       AI_SCENE_TIMEOUT_MS,
       "This shot took too long and timed out.",

@@ -19,6 +19,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id, characterId } = await params;
   const body = await request.json().catch(() => ({}));
   const baseImageUrl = typeof body?.baseImageUrl === "string" && body.baseImageUrl.trim() ? body.baseImageUrl.trim() : null;
+  // Optional wardrobe applied atomically with the (re)generate (empty string clears it → auto from description).
+  const wardrobe = typeof body?.wardrobe === "string" ? body.wardrobe.slice(0, 600) : undefined;
 
   const cost = await getDynamicCreditCost("AI_VISUAL_DESIGN");
   const balance = await creditService.getBalance(session.userId);
@@ -29,7 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     );
   }
 
-  const film = await generateFilmCharacterPreview(id, session.userId, characterId, { baseImageUrl });
+  const film = await generateFilmCharacterPreview(id, session.userId, characterId, { baseImageUrl, wardrobe });
   if (!film) return NextResponse.json({ success: false, error: { message: "Not found" } }, { status: 404 });
 
   // Charge only when the preview came back ready — a failed gen is free.
