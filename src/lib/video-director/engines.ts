@@ -26,6 +26,12 @@ const isVideoUrl = (u?: string | null): u is string => !!u && /\.(mp4|webm|mov|m
 const isImageUrl = (u?: string | null): u is string => !!u && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(u);
 const AI_SCENE_COST_KEY = "AI_VIDEO_LITE";
 
+/** A short unique token so every (re)render writes a NEW S3 object + URL. A fixed
+ *  key gets OVERWRITTEN but keeps the same URL, so the browser/CDN keeps serving
+ *  the STALE clip after a regenerate ("still shows the old video" bug). A fresh
+ *  URL forces the player to reload the new render. */
+const uid = (): string => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
 // Anti-leak guard appended to every AI shot prompt. The director used to pass
 // the raw scene script to Grok/Veo with NO guard, so the same artifacts we
 // fixed for images leaked into video — burned-in captions/subtitles, watermarks,
@@ -153,7 +159,7 @@ async function buildSceneKeyframe(
     if (!res?.base64) return null;
     const ext = res.format === "jpeg" ? "jpg" : res.format;
     return await uploadToS3(
-      `director/${filmId}/${sceneId}-key.${ext}`,
+      `director/${filmId}/${sceneId}-key-${uid()}.${ext}`,
       Buffer.from(res.base64, "base64"),
       res.format === "jpeg" ? "image/jpeg" : `image/${res.format}`,
     );
@@ -318,7 +324,7 @@ async function renderAiOverlay(filmId: string, userId: string, sceneId: string, 
       aspectRatio: aspect,
       onStatus: () => { void patchOverlay(filmId, userId, sceneId, { status: "rendering", progress: 55 }).catch(() => {}); },
     });
-    const url = await uploadToS3(`director/${filmId}/${sceneId}-overlay.mp4`, result.videoBuffer, "video/mp4");
+    const url = await uploadToS3(`director/${filmId}/${sceneId}-overlay-${uid()}.mp4`, result.videoBuffer, "video/mp4");
     await patchOverlay(filmId, userId, sceneId, { status: "ready", progress: 100, videoUrl: url });
   } catch (e) {
     if (cost > 0) await creditService.addCredits({ userId, type: TRANSACTION_TYPES.REFUND, amount: cost, referenceType: "director_scene", referenceId: `${sceneId}:overlay`, description: "Refund: Director overlay failed" }).catch(() => {});
@@ -379,7 +385,7 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
       AI_SCENE_TIMEOUT_MS,
       "This shot took too long and timed out.",
     );
-    const url = await uploadToS3(`director/${filmId}/${sceneId}.mp4`, result.videoBuffer, "video/mp4");
+    const url = await uploadToS3(`director/${filmId}/${sceneId}-${uid()}.mp4`, result.videoBuffer, "video/mp4");
     await patchScene(filmId, userId, sceneId, { status: "ready", progress: 100, videoUrl: url });
   } catch (e) {
     if (cost > 0) {
@@ -565,7 +571,7 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
       }
     }
 
-    const url = await uploadToS3(`director/${filmId}/final.mp4`, finalBuffer, "video/mp4");
+    const url = await uploadToS3(`director/${filmId}/final-${uid()}.mp4`, finalBuffer, "video/mp4");
 
     const fresh = await getFilm(filmId, userId);
     if (!fresh) return;
