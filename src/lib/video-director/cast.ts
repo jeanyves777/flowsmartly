@@ -45,6 +45,17 @@ function antiStyleNegative(style?: string | null): string {
     : "- PHOTOREAL ONLY: this MUST look like a real photograph of a real human. It must NOT be a 3D render, CGI, Pixar/Disney-style animation, video-game character, illustration, cartoon, anime, painting, or any stylized art. No plastic/rendered skin.";
 }
 
+// A cast anchor must be a CLEAN, neutral identity reference — no held props /
+// devices, no floating graphics/UI, and NO text (including the character's own
+// name on their clothing). Anything here LEAKS into every AI shot that uses the
+// sheet as its reference (e.g. a phone + notification icons in hand, or "NAME"
+// printed on an apron), so it's hard-negatived on both the portrait and the sheet.
+const CLEAN_ANCHOR_RULES =
+  "- The person holds NOTHING and uses NO props: no phone, smartphone, tablet, device, screen, cup, bag or any object in their hands — hands empty and relaxed in a natural, neutral standing pose.\n" +
+  "- NO floating graphics, UI, app icons, notification badges, emoji, hearts, sparkles, speech bubbles or motion/glow effects anywhere in the frame.\n" +
+  "- NO text, letters, numbers, names, labels, logos, badges, name-tags or printed words ANYWHERE — including on the apron, shirt, clothing or background. NEVER print the character's name on their clothes.\n" +
+  "- Only this ONE person, nothing else in the scene beyond the clothing they wear.";
+
 /** When the user has locked a wardrobe, force it (overrides any clothing in the free-text description). */
 function wardrobeLine(c: FilmCharacter): string {
   return c.wardrobe?.trim()
@@ -64,12 +75,12 @@ STYLE (critical — hold this exactly)
 ${styleLook(style)}
 
 FRAMING
-- One person only, head-and-shoulders to three-quarter body, front/three-quarter angle, neutral confident expression, plain seamless studio backdrop, even flattering lighting.
+- One person only, head-and-shoulders to three-quarter body, front/three-quarter angle, hands empty and relaxed (holding NOTHING), neutral confident expression, plain seamless studio backdrop, even flattering lighting.
 
 HARD RULES
 ${antiStyleNegative(style)}
-- No text, labels, captions, watermark, UI, logo. No other people, no props beyond wardrobe.
-- Tonal brand context only (do NOT draw a logo): ${brand}.`;
+${CLEAN_ANCHOR_RULES}
+- Tonal brand context ONLY — do NOT depict the brand's products, app screens, phones, or a logo: ${brand}.`;
 }
 
 function sheetPrompt(c: FilmCharacter, style: string | null | undefined, brand: string): string {
@@ -83,14 +94,15 @@ STYLE (critical — hold this exactly, matching the reference image)
 ${styleLook(style)}
 
 LAYOUT (ONE landscape image showing the SAME person MULTIPLE times)
-- Three SEPARATE full-body standing poses of the identical person, side by side left-to-right: (1) FRONT view, (2) THREE-QUARTER view, (3) SIDE PROFILE view — three distinct figures of the same person, evenly spaced, consistent scale.
+- Three SEPARATE full-body standing poses of the identical person, side by side left-to-right: (1) FRONT view, (2) THREE-QUARTER view, (3) SIDE PROFILE view — three distinct figures of the same person, evenly spaced, consistent scale, arms relaxed at their sides and hands EMPTY (holding nothing).
 - PLUS one head-and-shoulders face CLOSE-UP in the top corner.
 - This is a model turnaround: clearly THREE full-body poses + a close-up in one frame — NOT a single figure. Even flat studio lighting, plain seamless light-grey backdrop, identical wardrobe/hair/proportions in every pose.
 
 HARD RULES
 ${antiStyleNegative(style)}
-- No text, labels, captions, measurement lines, grid, watermark, UI, logo. No other different people (all poses are the SAME person).
-- Tonal brand context only (do NOT draw a logo): ${brand}.`;
+${CLEAN_ANCHOR_RULES}
+- No measurement lines or grid. Every pose is the SAME single person.
+- Tonal brand context ONLY — do NOT depict the brand's products, app screens, phones, or a logo: ${brand}.`;
 }
 
 /**
@@ -112,7 +124,7 @@ export async function planFilmCast(filmId: string, userId: string): Promise<Film
   try {
     const json = await ai.generateJSON<{ characters: { name: string; role: string; description: string }[] }>(
       `You are a casting director for a ${film.targetSeconds}s ${film.style || "cinematic"} film. Brief: "${brief}".\n` +
-      `Cast 2-6 REAL HUMAN characters that dramatize this brief (the people actually on screen). Give each an ORIGINAL first+last name (never the brand name), a short ROLE (who they are in the story), and a vivid one-line VISUAL DESCRIPTION (age range, look, wardrobe, vibe) detailed enough to render the same person every shot. Brand for tone only: ${brand}.\n` +
+      `Cast 2-6 REAL HUMAN characters that dramatize this brief (the people actually on screen). Give each an ORIGINAL first+last name (never the brand name), a short ROLE (who they are in the story), and a vivid one-line VISUAL DESCRIPTION of ONLY their physical appearance + wardrobe (age range, face, hair, build, clothing) — detailed enough to render the SAME person every shot. Do NOT mention props, phones, devices, held objects, actions, or the brand's product/app in the description. Brand for tone ONLY — do not put the brand's product into the character: ${brand}.\n` +
       `Return JSON: {"characters":[{"name":"...","role":"...","description":"..."}, ...]}.`,
       { maxTokens: 1200, temperature: 0.7 },
     );
