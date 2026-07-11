@@ -1,0 +1,396 @@
+<title>Hub thumbnails — full-bleed 30s CSS scenes</title>
+<style>
+  :root{
+    --bg:#0e1118; --card:#161b24; --card2:#10141c; --border:#262e3b; --border2:#33405a;
+    --fg:#eef1f8; --muted:#93a0b6; --muted2:#67728a;
+    --brand:#7c6bff; --brand2:#a78bfa; --brandd:#5a48d6;
+    --amber:#f5b83d; --emerald:#27c98a; --sky:#3bb6f8; --rose:#f4476b; --cyan:#22d3ee;
+    --shadow:0 26px 60px -24px rgba(0,0,0,.75); --loop:30s;
+  }
+  @media (prefers-color-scheme:light){
+    :root{ --bg:#eceef5; --card:#fff; --card2:#f4f6fb; --border:#e4e7f0; --border2:#d3d9e8;
+      --fg:#141824; --muted:#5a6379; --muted2:#8993a7; --shadow:0 26px 55px -28px rgba(30,40,80,.35); }
+  }
+  :root[data-theme="dark"]{ --bg:#0e1118; --card:#161b24; --card2:#10141c; --border:#262e3b; --border2:#33405a; --fg:#eef1f8; --muted:#93a0b6; --muted2:#67728a; --shadow:0 26px 60px -24px rgba(0,0,0,.75); }
+  :root[data-theme="light"]{ --bg:#eceef5; --card:#fff; --card2:#f4f6fb; --border:#e4e7f0; --border2:#d3d9e8; --fg:#141824; --muted:#5a6379; --muted2:#8993a7; --shadow:0 26px 55px -28px rgba(30,40,80,.35); }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;padding:26px 22px 48px}
+  .wrap{max-width:1120px;margin:0 auto}
+  h1{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 10px;max-width:78ch;line-height:1.6}
+  .sub b{color:var(--fg)} code{font-size:11.5px;background:var(--card2);border:1px solid var(--border);border-radius:5px;padding:1px 5px}
+  .kick{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--brand2);margin:28px 0 12px}
+  .legend{display:inline-flex;gap:7px;align-items:center;font-size:11.5px;color:var(--muted);border:1px solid var(--border);background:var(--card2);border-radius:999px;padding:5px 12px}
+  .legend b{color:var(--brand2)}
+
+  .col{display:flex;flex-direction:column;gap:16px}
+  .row{display:grid;grid-template-columns:1fr;gap:16px}
+  @media(min-width:640px){ .row.four{grid-template-columns:1fr 1fr} .row.three{grid-template-columns:repeat(3,1fr)} }
+  @media(min-width:1000px){ .row.four{grid-template-columns:repeat(4,1fr)} }
+
+  .card{display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);
+    border-radius:16px;background:var(--card);text-align:left;box-shadow:var(--shadow)}
+  .thumb{position:relative;width:100%;aspect-ratio:16/10;overflow:hidden;background:#0a0d13}
+  .card.hero .thumb{aspect-ratio:16/5}
+  .body{display:flex;flex-direction:column;gap:5px;padding:14px 15px}
+  .body .top{display:flex;align-items:center;gap:8px}
+  .body .top b{font-size:14.5px}.body .top .chev{margin-left:auto;color:var(--muted2)}
+  .body p{margin:0;color:var(--muted);font-size:11.5px;line-height:1.5}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:3px}
+  .tags span{border:1px solid var(--border);background:color-mix(in srgb,var(--muted) 12%,transparent);color:var(--muted);border-radius:999px;font-size:10px;font-weight:700;padding:2px 8px}
+
+  .scene{position:absolute;inset:0}
+  .grain{position:absolute;inset:0;pointer-events:none;opacity:.05;mix-blend-mode:overlay;z-index:6;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  .vig{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 55px rgba(0,0,0,.4);z-index:6}
+  .badge{position:absolute;top:9px;left:9px;z-index:8;font-size:9.5px;font-weight:800;letter-spacing:.04em;color:#fff;background:rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.18);padding:2px 8px;border-radius:7px;backdrop-filter:blur(4px)}
+
+  /* CTA that lives inside every card window */
+  .cta{position:absolute;left:0;right:0;bottom:0;z-index:7;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;
+    background:linear-gradient(0deg,rgba(4,6,12,.74),rgba(4,6,12,.2) 62%,transparent)}
+  .cta .btn{font:800 10.5px ui-sans-serif;color:#fff;background:linear-gradient(90deg,var(--brand),var(--brand2));
+    padding:7px 13px;border-radius:22px;display:inline-flex;gap:5px;align-items:center;position:relative;overflow:hidden;
+    box-shadow:0 9px 20px -6px rgba(124,107,255,.85),inset 0 1px 0 rgba(255,255,255,.45)}
+  @keyframes shine{0%{left:-70%}22%,100%{left:130%}}
+  .cta .btn::after{content:"";position:absolute;top:0;left:-70%;width:45%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);animation:shine 7s ease-in-out infinite}
+
+  @keyframes sweep{0%{transform:translateX(-160%) skewX(-18deg)}100%{transform:translateX(320%) skewX(-18deg)}}
+  .gloss{position:absolute;top:-30%;left:0;width:45%;height:160%;pointer-events:none;z-index:5;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent);animation:sweep 9s ease-in-out infinite}
+
+  /* generic 3-step reveals over the 30s loop (join at 0 / 33 / 66 %) */
+  @keyframes in1{0%{opacity:0;transform:translateY(12px) scale(.97)}5%{opacity:1;transform:none}97%{opacity:1;transform:none}100%{opacity:0}}
+  @keyframes in2{0%,33%{opacity:0;transform:translateY(12px) scale(.97)}39%{opacity:1;transform:none}97%{opacity:1;transform:none}100%{opacity:0}}
+  @keyframes in3{0%,66%{opacity:0;transform:translateY(12px) scale(.97)}72%{opacity:1;transform:none}97%{opacity:1;transform:none}100%{opacity:0}}
+  .s1{animation:in1 var(--loop) cubic-bezier(.16,1,.3,1) infinite}
+  .s2{animation:in2 var(--loop) cubic-bezier(.16,1,.3,1) infinite}
+  .s3{animation:in3 var(--loop) cubic-bezier(.16,1,.3,1) infinite}
+
+  /* ===== VIDEO (keeps real MP4) ===== */
+  @keyframes kb{0%{transform:scale(1.06)}50%{transform:scale(1.13)}100%{transform:scale(1.06)}}
+  .video{position:absolute;inset:0;display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#000}
+  .video>div{position:relative;overflow:hidden}
+  .video .fill{position:absolute;inset:-8%;animation:kb 20s ease-in-out infinite}
+  .v1 .fill{background:linear-gradient(120deg,#0a1730,#122048)}
+  .v1 .fill::after{content:"";position:absolute;inset:0;background:radial-gradient(90px 90px at 34% 58%,rgba(244,71,107,.55),transparent),radial-gradient(150px 130px at 74% 62%,rgba(59,182,248,.42),transparent)}
+  .v2 .fill{background:linear-gradient(160deg,#20160b,#4a2c15)}
+  .v2 .fill::after{content:"";position:absolute;inset:0;background:radial-gradient(110px 110px at 55% 55%,rgba(217,180,80,.5),transparent)}
+  .play{position:absolute;inset:0;display:grid;place-items:center;z-index:4}
+  .play span{width:52px;height:52px;border-radius:999px;background:rgba(255,255,255,.94);color:#6d28d9;display:grid;place-items:center;font-size:16px;box-shadow:0 14px 30px rgba(0,0,0,.5);padding-left:3px}
+  @keyframes ring{0%{transform:scale(.9);opacity:.7}100%{transform:scale(1.8);opacity:0}}
+  .play::before{content:"";position:absolute;width:52px;height:52px;border-radius:999px;border:2px solid rgba(255,255,255,.6);animation:ring 3.4s ease-out infinite}
+
+  /* ===== DESIGN — full-bleed poster builds ===== */
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+  .d-scene{position:absolute;inset:0;background:linear-gradient(150deg,#0f1730,#1c1046)}
+  .d-frame{position:absolute;inset:5%;border-radius:11px;overflow:hidden;animation:float 9s ease-in-out infinite;
+    background:linear-gradient(165deg,#6b57e6,#8b5cf6 58%,#b268ff);box-shadow:0 20px 38px -14px rgba(20,10,60,.85),inset 0 1px 0 rgba(255,255,255,.28)}
+  .d-pad{position:absolute;inset:8% 9% 20%;display:flex;flex-direction:column}
+  .d-eye{font:800 8px/1 ui-sans-serif;letter-spacing:.18em;color:rgba(255,255,255,.9)}
+  .d-head{font:800 26px/.95 ui-sans-serif;letter-spacing:-.02em;color:#fff;margin-top:6px;text-shadow:0 3px 10px rgba(0,0,0,.28)}
+  .d-photo{position:absolute;right:9%;top:42%;width:40%;height:34%;border-radius:8px;overflow:hidden;
+    background:radial-gradient(60% 55% at 40% 32%,#ffe1ba,transparent),linear-gradient(150deg,#f6b93b,#f4476b);box-shadow:0 10px 18px rgba(0,0,0,.32)}
+  .d-sub{width:60%;height:5px;border-radius:3px;background:rgba(255,255,255,.62);margin-top:auto}
+  .d-sub+.d-sub{margin-top:6px;width:46%}
+  .d-badge{position:absolute;left:8%;bottom:13%;width:22px;height:22px;border-radius:7px;background:linear-gradient(145deg,#fff,#e7e0ff);box-shadow:0 5px 12px rgba(0,0,0,.3)}
+  .d-handles span{position:absolute;width:7px;height:7px;border:1.6px solid #fff;border-radius:2px;background:var(--brand);box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+  @keyframes cursor{0%,100%{transform:translate(8px,14px)}30%{transform:translate(0,0)}60%{transform:translate(-10px,30px)}}
+  .d-cursor{position:absolute;right:20%;top:26%;z-index:3;font-size:14px;color:#fff;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6));animation:cursor var(--loop) ease-in-out infinite}
+
+  /* ===== LOGO — full-bleed brand board ===== */
+  .l-scene{position:absolute;inset:0;background:radial-gradient(420px 240px at 34% 26%,rgba(124,107,255,.26),transparent 70%),linear-gradient(135deg,#0a1330,#10112c)}
+  .l-scene::before{content:"GENERATING BRAND…";position:absolute;top:11px;left:12px;font:800 8px ui-sans-serif;letter-spacing:.16em;color:var(--muted2)}
+  .l-markwrap{position:absolute;left:9%;top:24%;width:34%;aspect-ratio:1;display:grid;place-items:center}
+  .mark{position:absolute;inset:0;display:grid;place-items:center;font:800 34px ui-sans-serif;color:#fff}
+  .mark::after{content:"";position:absolute;top:6%;left:10%;width:80%;height:36%;border-radius:16px 16px 46px 46px/14px;background:linear-gradient(180deg,rgba(255,255,255,.5),transparent);pointer-events:none}
+  @keyframes mk1{0%{opacity:0;transform:scale(.7) rotate(-8deg)}3%{opacity:1;transform:none}30%{opacity:1}34%{opacity:0;transform:scale(1.06)}100%{opacity:0}}
+  @keyframes mk2{0%,30%{opacity:0;transform:scale(.7) rotate(8deg)}36%{opacity:1;transform:none}63%{opacity:1}67%{opacity:0;transform:scale(1.06)}100%{opacity:0}}
+  @keyframes mk3{0%,63%{opacity:0;transform:scale(.7) rotate(-8deg)}70%{opacity:1;transform:none}94%{opacity:1}100%{opacity:0;transform:scale(1.06)}}
+  .m1{animation:mk1 var(--loop) ease-in-out infinite;border-radius:22px;background:linear-gradient(145deg,#8b7bff,#5a48d6);box-shadow:0 16px 30px -10px rgba(90,72,214,.75),inset 0 1px 0 rgba(255,255,255,.5)}
+  .m2{animation:mk2 var(--loop) ease-in-out infinite;border-radius:999px;background:linear-gradient(145deg,#f7c65a,#f4476b);box-shadow:0 16px 30px -10px rgba(244,71,107,.6),inset 0 1px 0 rgba(255,255,255,.5)}
+  .m3{animation:mk3 var(--loop) ease-in-out infinite;border-radius:22px;background:linear-gradient(145deg,#43e0a6,#0e9f6e);box-shadow:0 16px 30px -10px rgba(14,159,110,.6),inset 0 1px 0 rgba(255,255,255,.5)}
+  .l-word{position:absolute;left:50%;top:38%;right:8%}
+  .l-word .wm{font:800 15px ui-sans-serif;letter-spacing:-.02em;color:#fff}
+  .l-word .tl{margin-top:6px;width:70%;height:4px;border-radius:3px;background:rgba(255,255,255,.28)}
+  .l-swatches{position:absolute;left:9%;right:9%;bottom:20%;display:flex;gap:7px}
+  .l-swatches i{flex:1;height:16px;border-radius:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+
+  /* ===== VOICE — full-width waveform ===== */
+  .vo-scene{position:absolute;inset:0;background:radial-gradient(420px 260px at 50% 46%,rgba(124,107,255,.22),transparent 70%),linear-gradient(135deg,#0a1230,#1b1040)}
+  .vo-lab{position:absolute;top:11px;left:12px;font:800 8px ui-sans-serif;letter-spacing:.06em;color:var(--muted)}
+  .wave-amp{position:absolute;left:6%;right:6%;top:26%;bottom:30%;transform-origin:center;animation:phase var(--loop) ease-in-out infinite}
+  @keyframes phase{0%,8%{transform:scaleY(.32)}25%,41%{transform:scaleY(1)}58%,74%{transform:scaleY(.62)}92%,100%{transform:scaleY(.32)}}
+  .wave{position:absolute;inset:0;display:flex;align-items:center;gap:2px;filter:drop-shadow(0 0 6px rgba(124,107,255,.5))}
+  .wave i{flex:1;border-radius:3px;background:linear-gradient(180deg,var(--brand2),var(--brand));transform-origin:center;animation:vb 2.6s ease-in-out infinite}
+  @keyframes vb{0%,100%{transform:scaleY(.6)}50%{transform:scaleY(1)}}
+  @keyframes head{0%{left:6%}96%{left:94%}100%{left:94%}}
+  .playhead{position:absolute;top:20%;bottom:30%;width:2px;background:linear-gradient(180deg,transparent,#fff,transparent);box-shadow:0 0 10px rgba(255,255,255,.85);z-index:3;animation:head var(--loop) linear infinite}
+  .vo-time{position:absolute;bottom:12px;right:12px;font:800 8px ui-sans-serif;letter-spacing:.05em;color:var(--muted)}
+
+  /* ===== MEDIA — full-bleed gallery fills ===== */
+  .me-scene{position:absolute;inset:0;background:#0a0e16;display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:1fr;gap:5px;padding:8px}
+  .tile{position:relative;border-radius:6px;overflow:hidden;box-shadow:0 6px 12px -6px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.14)}
+  .tile::after{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.18),transparent 45%)}
+  .t-sky{background:linear-gradient(135deg,#0ea5e9,#6366f1)}.t-amb{background:linear-gradient(135deg,#f59e0b,#f4476b)}
+  .t-emr{background:linear-gradient(135deg,#10b981,#047857)}.t-vio{background:linear-gradient(135deg,#8b5cf6,#ec4899)}
+  .t-ros{background:linear-gradient(135deg,#f4476b,#f59e0b)}.t-cya{background:linear-gradient(135deg,#06b6d4,#3b82f6)}
+  .t-lim{background:linear-gradient(135deg,#84cc16,#16a34a)}.t-pur{background:linear-gradient(135deg,#a855f7,#6366f1)}
+  .t-play::before{content:"▶";position:absolute;inset:0;display:grid;place-items:center;color:rgba(255,255,255,.92);font-size:12px;z-index:2}
+  .t-pic::before{content:"";position:absolute;left:14%;bottom:16%;width:34%;height:34%;background:rgba(255,255,255,.85);clip-path:polygon(0 100%,42% 34%,68% 66%,100% 20%,100% 100%);z-index:2}
+
+  /* ===== AD BUILDER — full-bleed analytics ===== */
+  .ad-scene{position:absolute;inset:0;background:radial-gradient(420px 240px at 26% 0%,rgba(59,182,248,.2),transparent 70%),linear-gradient(150deg,#0c223f,#231049);padding:13px 13px 0}
+  .ad-h{display:flex;align-items:baseline;gap:6px}
+  .ad-h b{font:800 9px ui-sans-serif;color:var(--muted)}
+  .ad-roas{font:800 18px ui-sans-serif;letter-spacing:-.02em;color:#fff}
+  .ad-up{font:800 9px ui-sans-serif;color:var(--emerald)}
+  .ad-chart{position:absolute;left:0;right:0;bottom:0;top:40%}
+  .ad-grid{position:absolute;inset:0 0 14% 0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.06) 0 1px,transparent 1px 25%)}
+  .ad-chart svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  @keyframes draw{0%{stroke-dashoffset:230}16%{stroke-dashoffset:230}66%{stroke-dashoffset:0}97%{stroke-dashoffset:0}100%{stroke-dashoffset:230}}
+  .ad-line{fill:none;stroke:url(#adg);stroke-width:2.4;stroke-linecap:round;stroke-dasharray:230;filter:drop-shadow(0 3px 5px rgba(59,182,248,.5));animation:draw var(--loop) ease-in-out infinite}
+  @keyframes areaIn{0%,18%{opacity:0}68%{opacity:1}97%{opacity:1}100%{opacity:0}}
+  .ad-area{fill:url(#ada);opacity:0;animation:areaIn var(--loop) ease-in-out infinite}
+  @keyframes ddot{0%,62%{opacity:0;transform:scale(0)}70%{opacity:1;transform:scale(1)}97%{opacity:1}100%{opacity:0}}
+  .ad-dot{position:absolute;right:5%;top:2%;width:9px;height:9px;border-radius:999px;background:#fff;box-shadow:0 0 0 3px rgba(59,182,248,.5),0 0 12px rgba(59,182,248,.9);animation:ddot var(--loop) ease-in-out infinite}
+
+  /* ===== LEAD FINDER — full-bleed map ===== */
+  .le-scene{position:absolute;inset:0;overflow:hidden;
+    background:linear-gradient(115deg,transparent 40%,rgba(59,182,248,.16) 41% 47%,transparent 48%),
+      repeating-linear-gradient(90deg,rgba(255,255,255,.045) 0 1px,transparent 1px 30px),
+      repeating-linear-gradient(0deg,rgba(255,255,255,.045) 0 1px,transparent 1px 30px),
+      linear-gradient(135deg,#122238,#0d2e26)}
+  .le-search{position:absolute;top:10px;left:10px;right:38%;height:21px;border-radius:8px;background:rgba(10,14,22,.72);border:1px solid rgba(255,255,255,.14);display:flex;align-items:center;gap:6px;padding:0 8px;backdrop-filter:blur(4px)}
+  .le-search .dot{width:7px;height:7px;border-radius:999px;background:var(--brand2)}
+  .le-search b{font:700 8px ui-sans-serif;color:var(--muted)}
+  .le-list{position:absolute;top:10px;right:10px;width:34%;border-radius:8px;background:rgba(10,14,22,.6);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(4px);padding:6px;display:flex;flex-direction:column;gap:5px}
+  .le-list .r{display:flex;align-items:center;gap:5px}
+  .le-list .r i{width:12px;height:12px;border-radius:3px;flex:none}
+  .le-list .r span{flex:1;height:4px;border-radius:3px;background:rgba(255,255,255,.28)}
+  @keyframes pindrop{0%{opacity:0;transform:translateY(-18px) scale(.5)}9%{opacity:1;transform:translateY(2px) scale(1.05)}12%{transform:translateY(0) scale(1)}97%{opacity:1}100%{opacity:0}}
+  .pinwrap{position:absolute}
+  .pin{position:absolute;left:-8px;top:-16px;width:16px;height:16px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 4px 7px rgba(0,0,0,.45)}
+  .pin::after{content:"";position:absolute;inset:4px;border-radius:50%;background:rgba(255,255,255,.92)}
+  .pshadow{position:absolute;left:-6px;top:1px;width:12px;height:4px;border-radius:50%;background:rgba(0,0,0,.35);filter:blur(1px)}
+  .pa{animation:pindrop var(--loop) cubic-bezier(.3,1.5,.5,1) infinite}
+  .pb{animation:pindrop var(--loop) cubic-bezier(.3,1.5,.5,1) infinite;animation-delay:-20s}
+  .pc{animation:pindrop var(--loop) cubic-bezier(.3,1.5,.5,1) infinite;animation-delay:-10s}
+
+  /* ===== CONTENT CAMPAIGN — full-bleed scheduling queue ===== */
+  .cc-scene{position:absolute;inset:0;background:linear-gradient(150deg,#0e2a4a,#1c1046);padding:9px 10px;display:flex;flex-direction:column;gap:7px}
+  .post{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:7px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+  .post .im{width:34px;height:34px;border-radius:6px;flex:none;box-shadow:0 4px 10px rgba(0,0,0,.4)}
+  .post .tx{flex:1;display:flex;flex-direction:column;gap:4px}
+  .post .tx i{height:4px;border-radius:3px;background:rgba(255,255,255,.3)}
+  .post .ck{font:800 6.5px ui-sans-serif;color:#052e1a;background:var(--emerald);padding:3px 6px;border-radius:20px;white-space:nowrap}
+  .im-a{background:radial-gradient(60% 60% at 40% 35%,#ffe0b8,transparent),linear-gradient(150deg,#8b5cf6,#3bb6f8)}
+  .im-b{background:linear-gradient(150deg,#f5b93d,#f4476b)}
+  .im-c{background:linear-gradient(150deg,#27c98a,#0ea5e9)}
+
+  /* ===== WEBSITE — browser builds a page ===== */
+  .web-scene{position:absolute;inset:0;background:linear-gradient(150deg,#0f1730,#1c1046)}
+  .browser{position:absolute;inset:7%;border-radius:10px;overflow:hidden;background:#0c1119;border:1px solid #2b3446;box-shadow:0 18px 34px -14px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.08)}
+  .bbar{height:22px;display:flex;align-items:center;gap:5px;padding:0 8px;background:#141b26;border-bottom:1px solid #222b3a}
+  .bbar>span{width:6px;height:6px;border-radius:999px}
+  .bbar>span:nth-child(1){background:#f4476b}.bbar>span:nth-child(2){background:#f5b83d}.bbar>span:nth-child(3){background:#27c98a}
+  .bbar .u{margin-left:6px;flex:1;height:10px;border-radius:5px;background:rgba(255,255,255,.12)}
+  .wpage{position:absolute;inset:22px 0 0;padding:10px 11px;display:flex;flex-direction:column;gap:8px}
+  .wnav{display:flex;gap:6px}.wnav i{width:24px;height:5px;border-radius:3px;background:rgba(255,255,255,.3)}
+  .whero{height:34%;border-radius:8px;background:radial-gradient(60% 60% at 35% 30%,rgba(167,139,250,.7),transparent),linear-gradient(150deg,#5a48d6,#3bb6f8);box-shadow:inset 0 1px 0 rgba(255,255,255,.2)}
+  .wline{height:6px;border-radius:3px;background:rgba(255,255,255,.22)}
+  .wgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:2px}.wgrid span{height:34px;border-radius:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1)}
+
+  /* ===== LIST — rows of people/records ===== */
+  .li-scene{position:absolute;inset:0;background:linear-gradient(150deg,#101827,#1a1140);padding:10px;display:flex;flex-direction:column;gap:8px;justify-content:center}
+  .lr{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 9px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+  .av{width:26px;height:26px;border-radius:999px;flex:none;box-shadow:0 4px 10px rgba(0,0,0,.4)}
+  .lt{flex:1;display:flex;flex-direction:column;gap:5px}.lt i{height:4px;border-radius:3px;background:rgba(255,255,255,.3)}
+  .lb{width:26px;height:11px;border-radius:20px;background:rgba(39,201,138,.85);flex:none}
+
+  @media (prefers-reduced-motion: reduce){
+    .s1,.s2,.s3,.mark,.wave-amp,.gloss,.ad-line,.ad-area,.ad-dot,.playhead,.d-frame,.video .fill,.pa,.pb,.pc,.wave i,.d-cursor,.play::before,.cta .btn::after{animation:none!important;opacity:1!important;transform:none!important}
+    .mark.m1,.mark.m2{opacity:0!important}.ad-line{stroke-dashoffset:0!important}
+  }
+  .themebtn{position:fixed;top:14px;right:16px;border:1px solid var(--border);background:var(--card);color:var(--muted);border-radius:9px;font:inherit;font-size:11.5px;padding:6px 10px;cursor:pointer;z-index:9}
+  .arr{font-size:11px}
+</style>
+
+<button class="themebtn" onclick="const r=document.documentElement;r.dataset.theme=(r.dataset.theme==='light'?'dark':'light')">◑ theme</button>
+
+<div class="wrap">
+  <h1>Hub thumbnails — full-bleed, 30s, with a CTA</h1>
+  <p class="sub">Each scene now <b>fills the whole card window</b> (no centered vignette of empty space), runs a <b>30-second</b> 3-step loop (~10s per step), and carries a <b>call-to-action button inside the window</b>. <b>Video Studio keeps its real MP4.</b> All HTML/CSS, theme-aware, reduced-motion friendly.</p>
+  <span class="legend">loop: <b>step 1 → step 2 → step 3</b> → repeat · 30s · CTA baked in</span>
+
+  <p class="kick">Create hub</p>
+  <div class="col">
+    <div class="card hero">
+      <div class="thumb">
+        <span class="badge">▶ real video</span>
+        <div class="video"><div class="v1"><div class="fill"></div></div><div class="v2"><div class="fill"></div></div></div>
+        <div class="play"><span>▶</span></div>
+        <div class="cta"><span class="btn">Direct a film <span class="arr">→</span></span></div>
+        <div class="grain"></div><div class="vig"></div>
+      </div>
+      <div class="body"><div class="top"><b>Video Studio</b><span class="chev">›</span></div>
+        <p>Direct a full film — AI shots, avatar &amp; reel clips — into one movie.</p>
+        <div class="tags"><span>AI film</span><span>Reel clips</span><span>Avatar</span></div>
+      </div>
+    </div>
+
+    <div class="row four">
+      <!-- DESIGN -->
+      <div class="card"><div class="thumb"><div class="scene d-scene">
+        <div class="d-frame">
+          <div class="d-pad">
+            <div class="d-eye s1">SUMMER · 2026</div>
+            <div class="d-head s1">Big<br>Sale</div>
+            <div class="d-sub s2"></div><div class="d-sub s2"></div>
+          </div>
+          <div class="d-photo s2"></div>
+          <div class="d-badge s3"></div>
+          <div class="d-handles s3"><span style="left:5%;top:5%"></span><span style="right:5%;top:5%"></span><span style="left:5%;bottom:5%"></span><span style="right:5%;bottom:5%"></span></div>
+        </div>
+        <div class="d-cursor">▲</div>
+      </div>
+      <div class="cta"><span class="btn">Open Design Studio <span class="arr">→</span></span></div>
+      <div class="gloss"></div><div class="grain"></div><div class="vig"></div></div>
+      <div class="body"><div class="top"><b>Design Studio</b><span class="chev">›</span></div><p>Graphics, posts, ads &amp; print — one canvas.</p></div></div>
+
+      <!-- LOGO -->
+      <div class="card"><div class="thumb"><div class="scene l-scene">
+        <div class="l-markwrap"><div class="mark m1">F</div><div class="mark m2">F</div><div class="mark m3">F</div></div>
+        <div class="l-word"><div class="wm s2">FlowSmartly</div><div class="tl s2"></div></div>
+        <div class="l-swatches">
+          <i class="s3" style="background:linear-gradient(135deg,#8b7bff,#5a48d6)"></i>
+          <i class="s3" style="background:linear-gradient(135deg,#f7c65a,#f4476b)"></i>
+          <i class="s3" style="background:linear-gradient(135deg,#43e0a6,#0e9f6e)"></i>
+          <i class="s3" style="background:linear-gradient(135deg,#3bb6f8,#6366f1)"></i>
+        </div>
+      </div>
+      <div class="cta"><span class="btn">Generate a logo <span class="arr">→</span></span></div>
+      <div class="gloss"></div><div class="grain"></div><div class="vig"></div></div>
+      <div class="body"><div class="top"><b>Logo Generator</b><span class="chev">›</span></div><p>Generate, refine &amp; export a logo system.</p></div></div>
+
+      <!-- VOICE -->
+      <div class="card"><div class="thumb"><div class="scene vo-scene">
+        <div class="vo-lab">VOICEOVER · Emma (natural)</div>
+        <div class="wave-amp"><div class="wave" id="wave"></div></div>
+        <div class="playhead"></div>
+        <div class="vo-time">0:12 / 0:30</div>
+      </div>
+      <div class="cta"><span class="btn">Create a voiceover <span class="arr">→</span></span></div>
+      <div class="grain"></div><div class="vig"></div></div>
+      <div class="body"><div class="top"><b>Voice Studio</b><span class="chev">›</span></div><p>AI voiceovers, narration &amp; voice cloning.</p></div></div>
+
+      <!-- MEDIA -->
+      <div class="card"><div class="thumb"><div class="scene me-scene">
+        <div class="tile t-sky t-pic s1"></div><div class="tile t-amb s1"></div>
+        <div class="tile t-emr t-play s2"></div><div class="tile t-vio s2"></div>
+        <div class="tile t-ros s3"></div><div class="tile t-cya t-pic s3"></div><div class="tile t-lim s3"></div><div class="tile t-pur t-play s3"></div>
+      </div>
+      <div class="cta"><span class="btn">Open Library <span class="arr">→</span></span></div>
+      <div class="gloss"></div><div class="grain"></div><div class="vig"></div></div>
+      <div class="body"><div class="top"><b>Media Library</b><span class="chev">›</span></div><p>Every image &amp; video you've made, in one place.</p></div></div>
+    </div>
+  </div>
+
+  <p class="kick">Same treatment across the other hubs</p>
+  <div class="row three">
+    <!-- AD BUILDER -->
+    <div class="card"><div class="thumb"><div class="scene ad-scene">
+      <div class="ad-h"><b>ROAS</b><span class="ad-roas">4.8×</span><span class="ad-up">▲ 62%</span></div>
+      <div class="ad-chart">
+        <div class="ad-grid"></div>
+        <svg viewBox="0 0 100 42" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="adg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3bb6f8"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
+            <linearGradient id="ada" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3bb6f8" stop-opacity=".45"/><stop offset="1" stop-color="#3bb6f8" stop-opacity="0"/></linearGradient>
+          </defs>
+          <path class="ad-area" d="M2,36 L20,30 L38,32 L56,20 L74,13 L98,4 L98,42 L2,42 Z"/>
+          <path class="ad-line" d="M2,36 L20,30 L38,32 L56,20 L74,13 L98,4"/>
+        </svg>
+        <div class="ad-dot"></div>
+      </div>
+    </div>
+    <div class="cta"><span class="btn">Launch an ad <span class="arr">→</span></span></div>
+    <div class="grain"></div><div class="vig"></div></div>
+    <div class="body"><div class="top"><b>Ad Builder</b><span class="chev">›</span></div><p>Launch ads &amp; track spend / ROAS.</p></div></div>
+
+    <!-- LEAD FINDER -->
+    <div class="card"><div class="thumb"><div class="scene le-scene">
+      <div class="le-search"><span class="dot"></span><b>Cafés near me</b></div>
+      <div class="le-list">
+        <div class="r"><i style="background:var(--brand2)"></i><span></span></div>
+        <div class="r"><i style="background:var(--sky)"></i><span style="width:70%"></span></div>
+        <div class="r"><i style="background:var(--amber)"></i><span style="width:85%"></span></div>
+      </div>
+      <div class="pinwrap" style="left:22%;top:46%"><div class="pshadow"></div><div class="pin pa" style="background:var(--brand2)"></div></div>
+      <div class="pinwrap" style="left:40%;top:36%"><div class="pshadow"></div><div class="pin pa" style="background:var(--sky)"></div></div>
+      <div class="pinwrap" style="left:32%;top:64%"><div class="pshadow"></div><div class="pin pc" style="background:var(--amber)"></div></div>
+      <div class="pinwrap" style="left:54%;top:56%"><div class="pshadow"></div><div class="pin pc" style="background:var(--emerald)"></div></div>
+      <div class="pinwrap" style="left:24%;top:76%"><div class="pshadow"></div><div class="pin pb" style="background:var(--rose)"></div></div>
+      <div class="pinwrap" style="left:48%;top:78%"><div class="pshadow"></div><div class="pin pb" style="background:var(--brand)"></div></div>
+    </div>
+    <div class="cta"><span class="btn">Find leads <span class="arr">→</span></span></div>
+    <div class="grain"></div><div class="vig"></div></div>
+    <div class="body"><div class="top"><b>Lead Finder</b><span class="chev">›</span></div><p>Find local businesses to pitch.</p></div></div>
+
+    <!-- CONTENT CAMPAIGN -->
+    <div class="card"><div class="thumb"><div class="scene cc-scene">
+      <div class="post s1"><div class="im im-a"></div><div class="tx"><i style="width:82%"></i><i style="width:60%"></i></div><div class="ck">✓ Mon 9:00</div></div>
+      <div class="post s2"><div class="im im-b"></div><div class="tx"><i style="width:74%"></i><i style="width:66%"></i></div><div class="ck">✓ Wed 12:00</div></div>
+      <div class="post s3"><div class="im im-c"></div><div class="tx"><i style="width:80%"></i><i style="width:54%"></i></div><div class="ck">✓ Fri 17:30</div></div>
+    </div>
+    <div class="cta"><span class="btn">Plan a campaign <span class="arr">→</span></span></div>
+    <div class="grain"></div><div class="vig"></div></div>
+    <div class="body"><div class="top"><b>Content Campaign</b><span class="chev">›</span></div><p>Plan &amp; auto-generate scheduled posts.</p></div></div>
+  </div>
+
+  <p class="kick">Two more scene types (Web / lists)</p>
+  <div class="row three">
+    <!-- WEBSITE -->
+    <div class="card"><div class="thumb"><div class="scene web-scene">
+      <div class="browser">
+        <div class="bbar"><span></span><span></span><span></span><div class="u s1"></div></div>
+        <div class="wpage">
+          <div class="wnav s1"><i></i><i></i><i></i></div>
+          <div class="whero s2"></div>
+          <div class="wline s2" style="width:70%"></div>
+          <div class="wgrid s3"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="cta"><span class="btn">Build a site <span class="arr">→</span></span></div>
+    <div class="gloss"></div><div class="grain"></div><div class="vig"></div></div>
+    <div class="body"><div class="top"><b>Websites</b><span class="chev">›</span></div><p>Build &amp; manage your sites.</p></div></div>
+
+    <!-- LIST -->
+    <div class="card"><div class="thumb"><div class="scene li-scene">
+      <div class="lr s1"><span class="av" style="background:linear-gradient(135deg,#8b7bff,#5a48d6)"></span><div class="lt"><i style="width:70%"></i><i style="width:44%"></i></div><span class="lb"></span></div>
+      <div class="lr s2"><span class="av" style="background:linear-gradient(135deg,#3bb6f8,#6366f1)"></span><div class="lt"><i style="width:80%"></i><i style="width:52%"></i></div><span class="lb"></span></div>
+      <div class="lr s3"><span class="av" style="background:linear-gradient(135deg,#27c98a,#0ea5e9)"></span><div class="lt"><i style="width:64%"></i><i style="width:40%"></i></div><span class="lb"></span></div>
+    </div>
+    <div class="cta"><span class="btn">Open contacts <span class="arr">→</span></span></div>
+    <div class="grain"></div><div class="vig"></div></div>
+    <div class="body"><div class="top"><b>Contacts &amp; lists</b><span class="chev">›</span></div><p>Your contacts, segments &amp; lists.</p></div></div>
+
+    <div></div>
+  </div>
+
+  <p class="sub" style="margin-top:24px">Shipping now: every non-video card is one of these CSS scenes (Video keeps its MP4). Scenes are assigned so no two cards in a row repeat. Want any card on a different scene? Tell me the card + scene.</p>
+</div>
+
+<script>
+  const heights = [];
+  for (let i=0;i<52;i++){
+    const env = Math.sin((i/51)*Math.PI);
+    const detail = 0.5 + 0.5*Math.abs(Math.sin(i*1.7))*Math.abs(Math.cos(i*0.6));
+    heights.push(Math.max(10, Math.round(env*detail*100)));
+  }
+  const w = document.getElementById('wave');
+  w.innerHTML = heights.map((h,i)=>`<i style="height:${h}%;animation-delay:${(i%7)*-0.35}s"></i>`).join('');
+</script>

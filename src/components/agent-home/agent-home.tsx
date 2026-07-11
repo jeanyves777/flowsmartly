@@ -26,6 +26,7 @@ import { Composer } from "./composer";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
 import { FocusedDesignStudio, DEFAULT_DESIGN, DESIGN_DRAFT_KEY, designCanvasContext, applyDesignPatch, type DesignDoc, type BrandContact } from "./focused/design-studio";
 import { FocusedPrintStudio } from "./focused/print-studio";
+import { HubThumb, HubThumbStyles, type HubScene } from "./hub-thumb";
 
 // The Print Studio canvas autosaves under its own key, fully separate from the
 // Create design draft (DESIGN_DRAFT_KEY) so the two never bleed into each other.
@@ -1635,34 +1636,44 @@ const CREATE_STILL_THUMBS = {
   voice: "/create-hub-thumbs/voice-studio-curated.png",
 } as const;
 
-const HUB_REAL_THUMBS: Record<string, { src: string; fit?: "cover" | "contain" }> = {
-  "publish:Content Campaign": { src: "/marketing/transparent/flowsmartly-dashboard-cutout.png", fit: "contain" },
-  "publish:Compose a post": { src: "/templates/flow-media/launch-collection-post.jpg" },
-  "publish:Content Calendar": { src: "/marketing/generated/gallery-publish-2.webp" },
-  "publish:Posts & scheduled": { src: "/marketing/generated/gallery-publish-3.webp" },
+// Each hub card gets a full-bleed, 30s, 3-step CSS scene (see hub-thumb.tsx) plus
+// a call-to-action. Keyed by `${panelKey}:${asciiLabel}` so accents (é) can't
+// break the match. Video Studio is the one exception — it keeps its real MP4.
+// Scenes are assigned so no two cards in the same row share one. [[menu-restructure-create-hub]]
+const scnKey = (pk: string, label: string) => `${pk}:${label.normalize("NFD").replace(/[̀-ͯ]/g, "")}`;
+const HUB_SCENES: Record<string, { scene: HubScene; cta: string }> = {
+  "create:Design Studio": { scene: "poster", cta: "Open Design Studio" },
+  "create:Logo Generator": { scene: "logo", cta: "Generate a logo" },
+  "create:Voice Studio": { scene: "voice", cta: "Create a voiceover" },
+  "create:Media Library": { scene: "gallery", cta: "Open Library" },
 
-  "grow:Ad Builder": { src: "/marketing/generated/asset-ad.webp" },
-  "grow:Automation": { src: "/marketing/transparent/flowsmartly-home-platform-operator.png", fit: "contain" },
-  "grow:Email marketing": { src: "/marketing/transparent/flowsmartly-home-messaging-manager.png", fit: "contain" },
-  "grow:SMS marketing": { src: "/marketing/transparent/flowsmartly-policy-sms.png", fit: "contain" },
-  "grow:WhatsApp": { src: "/marketing/transparent/flowsmartly-home-messaging-manager.png", fit: "contain" },
+  "publish:Content Campaign": { scene: "queue", cta: "Plan a campaign" },
+  "publish:Compose a post": { scene: "poster", cta: "Compose a post" },
+  "publish:Content Calendar": { scene: "list", cta: "Open calendar" },
+  "publish:Posts & scheduled": { scene: "gallery", cta: "See posts" },
 
-  "sell:Store Dashboard": { src: "/proposal-assets/flowsmartly-flowshop-commerce-cutout.png", fit: "contain" },
-  "sell:Products": { src: "/templates/product-ads/floating-product-hero.jpg" },
-  "sell:Orders": { src: "/marketing/transparent/flowsmartly-flowshop-page-merchant.png", fit: "contain" },
-  "sell:Customers": { src: "/marketing/transparent/flowsmartly-home-flowshop-seller.png", fit: "contain" },
-  "sell:Delivery": { src: "/proposal-assets/flowsmartly-flowshop-commerce-cutout.png", fit: "contain" },
+  "grow:Ad Builder": { scene: "analytics", cta: "Launch an ad" },
+  "grow:Automation": { scene: "list", cta: "Build a flow" },
+  "grow:Email marketing": { scene: "queue", cta: "Send email" },
+  "grow:SMS marketing": { scene: "list", cta: "Send SMS" },
+  "grow:WhatsApp": { scene: "queue", cta: "Open WhatsApp" },
 
-  "web:Websites": { src: "/marketing/generated/surface-web.webp" },
-  "web:Portfolio & rÃ©sumÃ©": { src: "/marketing/transparent/flowsmartly-marketplace-page-agent.png", fit: "contain" },
-  "web:Landing pages": { src: "/marketing/generated/asset-website.webp" },
-  "web:Domains": { src: "/marketing/transparent/flowsmartly-dashboard-cutout.png", fit: "contain" },
+  "sell:Store Dashboard": { scene: "analytics", cta: "Open dashboard" },
+  "sell:Products": { scene: "gallery", cta: "Manage products" },
+  "sell:Orders": { scene: "queue", cta: "View orders" },
+  "sell:Customers": { scene: "list", cta: "View customers" },
+  "sell:Delivery": { scene: "map", cta: "Track delivery" },
 
-  "outreach:Lead Finder": { src: "/proposal-assets/flowsmartly-listsmartly-local-listings-cutout.png", fit: "contain" },
-  "outreach:Contacts & lists": { src: "/marketing/transparent/flowsmartly-home-agent-consultant.png", fit: "contain" },
-  "outreach:Reviews / local SEO": { src: "/marketing/transparent/flowsmartly-listsmartly-local-listings-cutout.png", fit: "contain" },
-  "outreach:Pitch board": { src: "/marketing/transparent/flowsmartly-human-marketer-cutout.png", fit: "contain" },
-  "outreach:Forms & surveys": { src: "/marketing/generated/gallery-outreach-2.webp" },
+  "web:Websites": { scene: "website", cta: "Build a site" },
+  "web:Portfolio & resume": { scene: "website", cta: "Build portfolio" },
+  "web:Landing pages": { scene: "poster", cta: "Build a page" },
+  "web:Domains": { scene: "list", cta: "Manage domains" },
+
+  "outreach:Lead Finder": { scene: "map", cta: "Find leads" },
+  "outreach:Contacts & lists": { scene: "list", cta: "Open contacts" },
+  "outreach:Reviews / local SEO": { scene: "analytics", cta: "Boost reviews" },
+  "outreach:Pitch board": { scene: "queue", cta: "Open pitches" },
+  "outreach:Forms & surveys": { scene: "list", cta: "Build a form" },
 };
 
 function CreateThumb({ kind }: { kind?: "design" | "logo" | "video" | "media" | "voice" }) {
@@ -1721,20 +1732,6 @@ function CreateThumb({ kind }: { kind?: "design" | "logo" | "video" | "media" | 
   return <div className="absolute inset-0 bg-gradient-to-br from-brand-500/20 to-violet-500/20" />;
 }
 
-function HubRealThumb({ thumb }: { thumb: { src: string; fit?: "cover" | "contain" } }) {
-  return (
-    <div className="absolute inset-0 bg-gradient-to-br from-[#050914] via-[#101727] to-[#222036]">
-      <img
-        src={thumb.src}
-        alt=""
-        className={cn("absolute inset-0 h-full w-full", thumb.fit === "contain" ? "object-contain p-3" : "object-cover")}
-        draggable={false}
-      />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-white/5" />
-    </div>
-  );
-}
-
 function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView }: {
   panelKey: string;
   label: string;
@@ -1758,6 +1755,7 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
       </div>
       {HUB_SECTIONS.has(panelKey) ? (
         <div className="min-h-0 flex-1 overflow-auto px-5 py-5 md:px-8 md:py-7">
+          <HubThumbStyles />
           <div className="mx-auto max-w-[1120px]">
             <p className="mb-5 text-[13px] text-muted-foreground">{WS_DESC[panelKey]}</p>
             {/* Full-width hero banner + ONE packed row of the remaining studios.
@@ -1771,20 +1769,26 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
               const wideRow = rest.length >= 4; // 4 studios → a row of four; else three
               const renderCard = (it: (typeof items)[number], idx: number, isHero: boolean) => {
                 const HubIcon = it.icon || (it.viewKey && FOCUS_META[it.viewKey]?.icon) || Icon;
-                const realThumb = HUB_REAL_THUMBS[`${panelKey}:${it.label}`];
+                const isVideo = it.thumb === "video";
+                const scn = isVideo ? null : HUB_SCENES[scnKey(panelKey, it.label)];
                 return (
                   <button
                     key={it.label}
                     onClick={() => (it.viewKey ? onOpenView(it.viewKey, it.viewHint) : onAsk(`Open ${it.label} and help me get started.`))}
                     className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-2xl"
                   >
-                    <div className={cn("relative w-full", isHero ? "aspect-[16/5]" : "aspect-[16/10]")}>
-                      {it.thumb
-                        ? <CreateThumb kind={it.thumb} />
-                        : realThumb
-                          ? <HubRealThumb thumb={realThumb} />
-                        : <div className="absolute inset-0 grid place-items-center" style={{ background: HUB_GRADS[idx % HUB_GRADS.length] }}><HubIcon className="h-9 w-9 text-white/85" /></div>}
-                      {it.thumb === "video" && <span className="absolute inset-0 grid place-items-center"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-[15px] text-brand-600 shadow-lg">▶</span></span>}
+                    <div className={cn("relative w-full overflow-hidden", isHero ? "aspect-[16/5]" : "aspect-[16/10]")}>
+                      {isVideo ? (
+                        <>
+                          <CreateThumb kind="video" />
+                          <span className="absolute inset-0 z-[4] grid place-items-center"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-[15px] text-brand-600 shadow-lg">▶</span></span>
+                          <div className="ht-cta"><span className="ht-btn">Direct a film <span className="ht-arr">→</span></span></div>
+                        </>
+                      ) : scn ? (
+                        <HubThumb scene={scn.scene} cta={scn.cta} />
+                      ) : (
+                        <div className="absolute inset-0 grid place-items-center" style={{ background: HUB_GRADS[idx % HUB_GRADS.length] }}><HubIcon className="h-9 w-9 text-white/85" /></div>
+                      )}
                     </div>
                     <div className="flex flex-1 flex-col gap-1.5 p-4">
                       <div className="flex items-center gap-2"><span className="text-[15px] font-bold text-foreground">{it.label}</span><ChevronRight className="ms-auto h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-brand-500" /></div>
