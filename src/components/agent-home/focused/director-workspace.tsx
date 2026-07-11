@@ -19,10 +19,11 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   Sparkles, X, Film, Clapperboard, UserSquare2, Scissors, Images, Palette, Plus, Paperclip,
-  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon, Shirt, Pencil,
+  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon, Shirt, Pencil, Maximize2,
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { MediaLightbox } from "@/components/shared/media-lightbox";
 import { BriefSuggest, type BriefProposal } from "./brief-suggest";
 import { cn } from "@/lib/utils/cn";
 import type { FilmProject, FilmScene, FilmOverlay, FilmAsset, SceneEngine, FilmType, FilmAspect, FilmCharacter } from "@/lib/video-director/types";
@@ -1150,6 +1151,8 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
   // Wardrobe editor popover: which character is open + the working outfit text.
   const [wardFor, setWardFor] = useState<string | null>(null);
   const [wardText, setWardText] = useState("");
+  // Full-size image review (click a cast sheet to enlarge).
+  const [zoom, setZoom] = useState<string | null>(null);
   const setBusyFor = (id: string, on: boolean) =>
     setBusy((b) => { const n = new Set(b); if (on) n.add(id); else n.delete(id); return n; });
 
@@ -1223,13 +1226,23 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
                 const mainImg = c.characterSheetUrl || c.referenceImageUrl;
                 return (
                   <div key={c.id} className={cn("flex flex-col overflow-hidden rounded-xl border bg-background/40", c.approved ? "border-emerald-500/50" : "border-border")}>
-                    <div className="relative aspect-[3/2] bg-gradient-to-br from-brand-500/10 to-violet-500/10">
+                    <div
+                      className={cn("group relative aspect-[3/2] bg-gradient-to-br from-brand-500/10 to-violet-500/10", mainImg && "cursor-zoom-in")}
+                      onClick={() => { if (mainImg && !isBusy) setZoom(mainImg); }}
+                      role={mainImg ? "button" : undefined}
+                      aria-label={mainImg ? `Enlarge ${c.name}` : undefined}
+                    >
                       {mainImg ? (
                         <Image src={mainImg} alt={c.name} fill sizes="320px" className={c.characterSheetUrl ? "object-contain" : "object-cover"} unoptimized />
                       ) : (
                         <div className="grid h-full w-full place-items-center text-[10.5px] text-muted-foreground">{isBusy ? <FlowLoader size={20} /> : "No preview yet"}</div>
                       )}
                       {isBusy && mainImg && <div className="absolute inset-0 grid place-items-center bg-black/40"><FlowLoader size={20} /></div>}
+                      {mainImg && !isBusy && (
+                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/25 group-hover:opacity-100">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[9px] font-bold text-white"><Maximize2 className="h-2.5 w-2.5" /> Click to enlarge</span>
+                        </div>
+                      )}
                       {c.approved && <span className="absolute right-1 top-1 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[8.5px] font-bold text-emerald-950">✓</span>}
                       {hasPreview && c.characterSheetUrl && <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[8px] font-bold text-white">front · ¾ · profile</span>}
                     </div>
@@ -1300,6 +1313,9 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
           </div>
         );
       })()}
+
+      {/* Click a cast sheet to review it full-size. */}
+      {zoom && <MediaLightbox url={zoom} onClose={() => setZoom(null)} />}
     </div>
   );
 }
