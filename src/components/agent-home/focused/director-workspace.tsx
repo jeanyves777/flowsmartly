@@ -19,7 +19,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   Sparkles, X, Film, Clapperboard, UserSquare2, Scissors, Images, Palette, Plus, Paperclip,
-  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon,
+  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon, Shirt, Pencil,
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -1125,6 +1125,18 @@ function PillRow({ options, labels, value, onSelect }: { options: string[]; labe
 // The people the movie is built around. Each is generated (portrait + turnaround
 // sheet) or uploaded, then APPROVED — approved sheets anchor every AI shot so the
 // same person appears across the film. Restores the story-ad cast step.
+// Quick wardrobe presets — one tap fills a sensible outfit prompt (editable before apply).
+const WARDROBE_PRESETS: [string, string][] = [
+  ["Business", "a sharp tailored business suit, crisp and professional"],
+  ["Smart casual", "smart-casual: a blazer over a plain tee with chinos"],
+  ["Streetwear", "modern streetwear: hoodie, joggers and clean sneakers"],
+  ["Athletic", "athletic sportswear: a fitted performance top and shorts"],
+  ["Evening", "elegant evening wear, refined and polished"],
+  ["Uniform", "a practical work uniform that fits their role"],
+  ["Outdoors", "rugged outdoor gear: a utility jacket and boots"],
+  ["Everyday", "relaxed everyday casual: jeans and a plain t-shirt"],
+];
+
 function CastPanel({ film, setFilm, onBuild, onClose }: {
   film: FilmProject;
   setFilm: (f: FilmProject) => void;
@@ -1135,19 +1147,35 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const uploadFor = useRef<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Wardrobe editor popover: which character is open + the working outfit text.
+  const [wardFor, setWardFor] = useState<string | null>(null);
+  const [wardText, setWardText] = useState("");
   const setBusyFor = (id: string, on: boolean) =>
     setBusy((b) => { const n = new Set(b); if (on) n.add(id); else n.delete(id); return n; });
 
-  const genPreview = async (cid: string, baseImageUrl?: string) => {
+  const genPreview = async (cid: string, baseImageUrl?: string, wardrobe?: string) => {
     setBusyFor(cid, true);
     try {
+      const body: { baseImageUrl?: string; wardrobe?: string } = {};
+      if (baseImageUrl) body.baseImageUrl = baseImageUrl;
+      if (wardrobe !== undefined) body.wardrobe = wardrobe;
       const j = await fetch(`/api/ai/video-director/${film.id}/cast/${cid}/preview`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(baseImageUrl ? { baseImageUrl } : {}),
+        body: JSON.stringify(body),
       }).then((r) => r.json());
       if (j?.success && j.data?.film) setFilm(j.data.film);
     } catch { /* the character keeps its previous state */ }
     finally { setBusyFor(cid, false); }
+  };
+
+  const openWardrobe = (c: FilmCharacter) => { setWardText(c.wardrobe || ""); setWardFor(c.id); };
+  const applyWardrobe = async () => {
+    const cid = wardFor;
+    if (!cid) return;
+    const wardrobe = wardText.trim();
+    setWardFor(null);
+    // Re-render this character in the chosen wardrobe (applied atomically server-side).
+    await genPreview(cid, undefined, wardrobe);
   };
   const approve = async (cid: string, approved: boolean) => {
     try {
@@ -1211,6 +1239,12 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
                       <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-muted-foreground">{c.description}</p>
                       {c.previewStatus === "failed" && c.previewError && <p className="mt-1 line-clamp-2 text-[9.5px] text-rose-500">{c.previewError}</p>}
                     </div>
+                    <button disabled={isBusy} onClick={() => openWardrobe(c)} className="mx-2 mb-1.5 flex items-center gap-1.5 rounded-[9px] border border-border bg-background/60 px-2 py-1.5 text-left hover:border-brand-500/60 disabled:opacity-50">
+                      <Shirt className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <span className="shrink-0 text-[8px] font-bold uppercase tracking-wide text-muted-foreground">Wardrobe</span>
+                      <span className={cn("min-w-0 flex-1 truncate text-[10px]", c.wardrobe ? "text-foreground" : "italic text-muted-foreground")}>{c.wardrobe || "Auto — from description"}</span>
+                      <Pencil className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
+                    </button>
                     <div className="flex gap-1 border-t border-border p-1.5">
                       <button disabled={isBusy} onClick={() => genPreview(c.id)} className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold hover:border-brand-500/60 disabled:opacity-50">{hasPreview ? "↻ Redo" : <><Sparkles className="h-2.5 w-2.5" /> Generate</>}</button>
                       <button disabled={isBusy} onClick={() => { uploadFor.current = c.id; fileRef.current?.click(); }} className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold hover:border-brand-500/60 disabled:opacity-50"><Upload className="h-2.5 w-2.5" /> Upload</button>
@@ -1232,6 +1266,40 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
           </div>
         </div>
       </div>
+
+      {/* Wardrobe editor — quick preset styles + custom outfit, then regenerate. */}
+      {wardFor && (() => {
+        const c = characters.find((x) => x.id === wardFor);
+        if (!c) return null;
+        return (
+          <div className="absolute inset-0 z-50 grid place-items-center p-4">
+            <button aria-label="Close" onClick={() => setWardFor(null)} className="absolute inset-0 bg-black/55" />
+            <div className="relative w-full max-w-[340px] rounded-2xl border border-border bg-card p-3.5 shadow-2xl">
+              <p className="text-[12.5px] font-bold">Wardrobe — <span className="text-brand-500">{c.name}</span></p>
+              <p className="mb-2.5 mt-0.5 text-[10.5px] leading-snug text-muted-foreground">Pick a quick style or describe the outfit. Applying re-renders this character&apos;s look.</p>
+              <div className="mb-2.5 flex flex-wrap gap-1.5">
+                {WARDROBE_PRESETS.map(([label, prompt]) => {
+                  const sel = wardText.trim() === prompt;
+                  return (
+                    <button key={label} onClick={() => setWardText(prompt)}
+                      className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors", sel ? "border-transparent bg-gradient-to-r from-brand-500 to-violet-500 text-white" : "border-border text-muted-foreground hover:border-violet-500/60 hover:text-foreground")}>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <textarea value={wardText} onChange={(e) => setWardText(e.target.value)} rows={3}
+                placeholder="e.g. a red-and-white striped soccer kit with black shorts"
+                className="w-full resize-none rounded-[10px] border border-border bg-background px-2.5 py-2 text-[11.5px] leading-snug focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500" />
+              {c.approved && <p className="mt-2 text-[10px] text-amber-500">⚠ Changing wardrobe un-approves this character — re-approve the new look.</p>}
+              <div className="mt-3 flex gap-2">
+                <button onClick={() => setWardFor(null)} className="flex-1 rounded-[9px] border border-border py-2 text-[11.5px] font-bold text-muted-foreground hover:text-foreground">Cancel</button>
+                <button onClick={applyWardrobe} className="flex-1 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 py-2 text-[11.5px] font-bold text-white">Apply &amp; regenerate</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
