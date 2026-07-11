@@ -1649,31 +1649,31 @@ const HUB_SCENES: Record<string, { scene: HubScene; cta: string }> = {
 
   "publish:Content Campaign": { scene: "queue", cta: "Plan a campaign" },
   "publish:Compose a post": { scene: "poster", cta: "Compose a post" },
-  "publish:Content Calendar": { scene: "list", cta: "Open calendar" },
+  "publish:Content Calendar": { scene: "calendar", cta: "Open calendar" },
   "publish:Posts & scheduled": { scene: "gallery", cta: "See posts" },
 
   "grow:Ad Builder": { scene: "analytics", cta: "Launch an ad" },
-  "grow:Automation": { scene: "list", cta: "Build a flow" },
+  "grow:Automation": { scene: "flow", cta: "Build a flow" },
   "grow:Email marketing": { scene: "queue", cta: "Send email" },
   "grow:SMS marketing": { scene: "list", cta: "Send SMS" },
   "grow:WhatsApp": { scene: "queue", cta: "Open WhatsApp" },
 
   "sell:Store Dashboard": { scene: "analytics", cta: "Open dashboard" },
-  "sell:Products": { scene: "gallery", cta: "Manage products" },
+  "sell:Products": { scene: "product", cta: "Manage products" },
   "sell:Orders": { scene: "queue", cta: "View orders" },
   "sell:Customers": { scene: "list", cta: "View customers" },
   "sell:Delivery": { scene: "map", cta: "Track delivery" },
 
   "web:Websites": { scene: "website", cta: "Build a site" },
-  "web:Portfolio & resume": { scene: "website", cta: "Build portfolio" },
+  "web:Portfolio & resume": { scene: "gallery", cta: "Build portfolio" },
   "web:Landing pages": { scene: "poster", cta: "Build a page" },
-  "web:Domains": { scene: "list", cta: "Manage domains" },
+  "web:Domains": { scene: "globe", cta: "Manage domains" },
 
   "outreach:Lead Finder": { scene: "map", cta: "Find leads" },
   "outreach:Contacts & lists": { scene: "list", cta: "Open contacts" },
-  "outreach:Reviews / local SEO": { scene: "analytics", cta: "Boost reviews" },
-  "outreach:Pitch board": { scene: "queue", cta: "Open pitches" },
-  "outreach:Forms & surveys": { scene: "list", cta: "Build a form" },
+  "outreach:Reviews / local SEO": { scene: "reviews", cta: "Boost reviews" },
+  "outreach:Pitch board": { scene: "proposal", cta: "Open pitches" },
+  "outreach:Forms & surveys": { scene: "form", cta: "Build a form" },
 };
 
 function CreateThumb({ kind }: { kind?: "design" | "logo" | "video" | "media" | "voice" }) {
