@@ -51,7 +51,10 @@ export async function POST(req: NextRequest) {
 
     const raw = await ai.generate(prompt, {
       model: HAIKU_MODEL,
-      maxTokens: 700,
+      // Film ideas carry a 3-4 sentence brief EACH — 700 tokens truncated the JSON
+      // mid-array so it failed to parse ("Couldn't come up with ideas"). Give the
+      // longer kinds real headroom.
+      maxTokens: kind === "film" ? 1600 : 1000,
       temperature: 0.85,
       systemPrompt: "You are a sharp marketing strategist. You return concise, brand-specific, immediately usable ideas as STRICT JSON only — no prose, no markdown fences.",
     });
@@ -69,14 +72,46 @@ export async function POST(req: NextRequest) {
 
 type BriefKind = "campaign" | "leads" | "proposal" | "film";
 
+/**
+ * Salvage complete top-level `{…}` objects from a string — used when the model's
+ * JSON array is truncated (e.g. hit the token cap mid-brief) so a strict parse of
+ * the whole array fails. Scans balanced braces (string-aware) and keeps every
+ * object that parses, so the leading, complete ideas still come through.
+ */
+function extractJsonObjects(text: string): unknown[] {
+  const out: unknown[] = [];
+  let depth = 0, start = -1, inStr = false, esc = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") { if (depth === 0) start = i; depth++; }
+    else if (ch === "}" && depth > 0) {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        try { out.push(JSON.parse(text.slice(start, i + 1))); } catch { /* skip a partial object */ }
+        start = -1;
+      }
+    }
+  }
+  return out;
+}
+
 function parseProposals(raw: string, kind: BriefKind): Record<string, unknown>[] {
   let text = (raw || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
   const start = text.indexOf("[");
   const end = text.lastIndexOf("]");
   if (start >= 0 && end > start) text = text.slice(start, end + 1);
   let arr: unknown;
-  try { arr = JSON.parse(text); } catch { return []; }
-  if (!Array.isArray(arr)) return [];
+  try { arr = JSON.parse(text); } catch { arr = null; }
+  // Fallback: a truncated array won't strict-parse — pull out the complete objects.
+  if (!Array.isArray(arr)) arr = extractJsonObjects(raw);
+  if (!Array.isArray(arr) || arr.length === 0) return [];
   const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
   return arr.slice(0, 3).map((p) => {
     const o = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
