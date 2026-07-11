@@ -20,7 +20,6 @@ import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { buildBrandOutroClip } from "@/lib/video/brand-outro";
 import { generateImageXaiFirst, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { sanitizeUserError } from "@/lib/ai/user-error";
-import { approvedCastReferences } from "./cast";
 import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName, compositeOverlay } from "./clip-helpers";
 
 const isVideoUrl = (u?: string | null): u is string => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
@@ -74,12 +73,12 @@ function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; d
   };
   // Collect each present cast member's sheet — speakers first (that's who the shot
   // is on), then any silent/background cast, so a multi-person shot keeps everyone's
-  // identity. De-duped; falls back to the film's approved lead(s).
+  // identity. De-duped, and ONLY people actually in this scene: a shot with no cast
+  // lines (an establishing beat) must NOT force the lead in — it renders peopleless.
   const refs: string[] = [];
   const push = (u?: string) => { if (u && !refs.includes(u)) refs.push(u); };
   for (const l of lines.filter((l) => (l.dialogue || "").trim())) push(refFor(l));
   for (const l of lines) push(refFor(l));
-  if (refs.length === 0) approvedCastReferences(film).forEach(push);
   const spoken = lines.filter((l) => (l.dialogue || "").trim());
   const dialogue = spoken.length ? spoken.map((l) => `${l.name} says: "${(l.dialogue || "").trim()}"`).join(" ") : undefined;
   return { refs: refs.slice(0, 3), dialogue };
@@ -350,7 +349,10 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     let firstFrameUrl: string | undefined = scene.referenceImageUrl || undefined;
     let veoRefs: string[] = [];
     if (!firstFrameUrl) {
-      const key = await buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity);
+      // Compose a keyframe when there are people to place OR a continuity world to
+      // establish; otherwise (an old film with neither) fall through to text-to-video.
+      const wantKeyframe = castRefs.length > 0 || !!continuity;
+      const key = wantKeyframe ? await buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity) : null;
       if (key) {
         firstFrameUrl = key;
         p = 22;
