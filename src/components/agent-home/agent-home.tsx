@@ -1465,6 +1465,8 @@ export function AgentHome() {
                 hasStore={hasStore}
                 onClose={() => { setPanelKey(null); setActiveWs(panelReturnWs.current); }}
                 onAsk={(q) => { setPanelKey(null); setActiveWs(panelReturnWs.current); send(q, false, undefined, focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true }); }}
+                onComposerSend={(t, sm, atts) => { setPanelKey(null); setActiveWs(panelReturnWs.current); send(t, sm, undefined, focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { attachments: atts }); }}
+                working={sending}
                 onOpenView={(k, hint) => guardNav(() => openView(k, hint))}
               />
             )}
@@ -1732,13 +1734,16 @@ function CreateThumb({ kind }: { kind?: "design" | "logo" | "video" | "media" | 
   return <div className="absolute inset-0 bg-gradient-to-br from-brand-500/20 to-violet-500/20" />;
 }
 
-function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView }: {
+function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView, onComposerSend, working }: {
   panelKey: string;
   label: string;
   hasStore: boolean | null;
   onClose: () => void;
   onAsk: (q: string) => void;
   onOpenView: (key: string, hint?: string) => void;
+  /** Send a typed request to the agent from the in-hub composer (closes the hub). */
+  onComposerSend: React.ComponentProps<typeof Composer>["onSend"];
+  working: boolean;
 }) {
   const ws = WORKSPACES.find((w) => w.key === panelKey);
   if (!ws) return null;
@@ -1757,7 +1762,15 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
         <div className="min-h-0 flex-1 overflow-auto px-5 py-5 md:px-8 md:py-7">
           <HubThumbStyles />
           <div className="mx-auto max-w-[1120px]">
-            <p className="mb-5 text-[13px] text-muted-foreground">{WS_DESC[panelKey]}</p>
+            {/* Prefer chat? Ask the agent right here — sending drops into the
+                conversation and closes the hub. Or pick a card below. */}
+            <div className="mb-2">
+              <Composer onSend={onComposerSend} sending={working} placeholder={`Ask FlowSmartly to help with ${label.toLowerCase()}…`} />
+            </div>
+            <p className="mb-5 text-center text-[11px] text-muted-foreground">FlowSmartly confirms before anything that costs credits or publishes.</p>
+            <div className="mb-4 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+              <span className="h-px flex-1 bg-border" />or pick a studio<span className="h-px flex-1 bg-border" />
+            </div>
             {/* Full-width hero banner + ONE packed row of the remaining studios.
                 Deterministic aspect-ratios only — no grid row-span / flex-stretch —
                 so nothing is stranded beside or below the hero, and the bottom row
@@ -1814,9 +1827,6 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
               </div>
               );
             })()}
-            <div className="mt-6 flex justify-center">
-              <button onClick={() => onAsk(`Help me with ${label}.`)} className="inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Ask the agent</button>
-            </div>
           </div>
         </div>
       ) : sellNoStore ? (

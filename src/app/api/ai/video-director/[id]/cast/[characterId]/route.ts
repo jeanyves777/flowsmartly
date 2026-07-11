@@ -19,6 +19,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (typeof body?.name === "string") patch.name = body.name;
   if (typeof body?.role === "string") patch.role = body.role;
   if (typeof body?.description === "string") patch.description = body.description;
+  if (typeof body?.wardrobe === "string") patch.wardrobe = body.wardrobe;
 
   const film = await patchFilmCharacter(id, session.userId, characterId, patch);
   if (!film) return NextResponse.json({ success: false, error: { message: "Not found" } }, { status: 404 });

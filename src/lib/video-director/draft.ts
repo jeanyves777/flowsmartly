@@ -7,7 +7,7 @@
 
 import { ai } from "@/lib/ai/client";
 import { getFilm, saveFilm } from "./store";
-import { normalizeScene, type FilmProject, type FilmScene, type SceneEngine } from "./types";
+import { normalizeScene, normalizeContinuity, continuityText, type FilmProject, type FilmScene, type FilmCharacter, type FilmContinuity, type SceneEngine } from "./types";
 import { listAvatarsForUser, listVoicesForUser } from "@/lib/avatar-studio";
 import { heygenClient } from "@/lib/ai/heygen-client";
 
@@ -34,6 +34,43 @@ async function resolveMedia(film: FilmProject): Promise<{ productImg: string | n
     } catch { /* fall back to a normal avatar */ }
   }
   return { productImg, photoAvatar };
+}
+
+/**
+ * Establish the film's CONTINUITY BIBLE (free, one LLM call): the single shared
+ * world — primary location(s), a held time-of-day/colour palette, and each cast
+ * member's LOCKED wardrobe. Woven into every shot + keyframe so scenes stop
+ * drifting into different places, lighting or clothes shot-to-shot.
+ */
+async function establishContinuity(
+  brief: string,
+  style: string | null | undefined,
+  target: number,
+  cast: FilmCharacter[],
+): Promise<FilmContinuity | null> {
+  const castBlock = cast.length
+    ? cast.map((c) => `- ${c.name}${c.wardrobe?.trim() ? ` (MUST wear: ${c.wardrobe.trim()})` : ""}: ${c.description}`).join("\n")
+    : "(no named cast — describe the on-screen people/subjects generically)";
+  try {
+    const json = await ai.generateJSON<FilmContinuity>(
+      `You are the CONTINUITY supervisor for a ${target}s ${style || "cinematic"} film. Brief: "${brief}".\n` +
+        `CAST:\n${castBlock}\n` +
+        `Define the film's CONTINUITY BIBLE so every scene shares ONE consistent world — the same place, the same look, the same clothes:\n` +
+        `- "location": the primary concrete setting(s) where the story happens — specific and vivid (e.g. "a sun-bleached municipal soccer pitch with chain-link fencing and worn wooden bleachers"). If the story genuinely moves, name the 2-3 key locations.\n` +
+        `- "timePalette": the time of day + the consistent lighting and colour palette held across the WHOLE film.\n` +
+        `- "wardrobe": for EACH cast member, the ONE fixed outfit they wear throughout (specific garments + colours). If a cast member already has a required outfit above, use it VERBATIM. Keep each outfit constant unless the story truly demands a change.\n` +
+        `Return JSON: {"location":"...","timePalette":"...","wardrobe":[{"name":"<cast name>","outfit":"..."}]}.`,
+      { maxTokens: 900, temperature: 0.5 },
+    );
+    const c = normalizeContinuity(json);
+    if (!c?.wardrobe) return c;
+    // Link each wardrobe entry back to its cast id (best-effort, by name).
+    const byName = new Map(cast.map((x) => [x.name.toLowerCase(), x.id]));
+    c.wardrobe = c.wardrobe.map((w) => ({ ...w, characterId: w.characterId || byName.get((w.name || "").toLowerCase()) }));
+    return c;
+  } catch {
+    return null;
+  }
 }
 
 export async function draftFilmPipeline(filmId: string, userId: string): Promise<FilmProject | null> {
@@ -117,6 +154,11 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   const useCast = isMovie && castList.length > 0;
   const allowAvatar = !isMovie || !!photoAvatar;
 
+  // Establish the shared world ONCE (free) so every scene keeps the same location,
+  // lighting and wardrobe — then feed it into the shot list so scripts respect it too.
+  film.continuity = await establishContinuity(brief, film.style, target, castList);
+  const continuityBible = continuityText(film.continuity);
+
   type Planned = { engine?: string; title?: string; script?: string; durationSec?: number; cast?: { name?: string; dialogue?: string }[] };
   let planned: Planned[] = [];
   try {
@@ -126,6 +168,7 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
       prompt =
         `You are a SCREENWRITER + director writing ONE continuous ${target}s ${film.style || "cinematic"} short FILM as a shot list. Brief: "${brief}".\n` +
         `CAST — every on-screen character MUST be one of these EXACT people (use their names verbatim):\n${castBlock}\n` +
+        (continuityBible ? `CONTINUITY BIBLE — every scene happens in this ONE shared world; keep the SAME location, lighting and clothes throughout unless the story truly moves:\n${continuityBible}\n` : "") +
         (productImg ? `A product/reference image is attached — you may feature it in a shot or a "design" end card.\n` : "") +
         `Write the WHOLE film as one coherent story before you output — a clear beginning, middle and end — then break it into exactly ${approx} scenes IN ORDER.\n` +
         `STORY CONTINUITY (this is the most important rule):\n` +
@@ -147,6 +190,7 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
       if (hasSource) engines.push('"reel": a scored clip cut from the uploaded long video. script = a short note on which moment to grab.');
       prompt =
         `You are a senior video DIRECTOR planning a ${target}s ${film.filmType.replace("_", " ")} as a sequence of scenes. Brief: "${brief}".\n` +
+        (continuityBible ? `CONTINUITY BIBLE — keep every scene in this ONE shared world (same location, lighting and wardrobe throughout):\n${continuityBible}\n` : "") +
         (photoAvatar ? `The user attached a PHOTO OF THEMSELVES — use "avatar" scenes for a PRESENTER that is them.\n` : "") +
         (productImg ? `A PRODUCT/REFERENCE image is attached — use "ai" shots to show it and a "design" end card featuring it.\n` : "") +
         `Plan exactly ${approx} scenes that build one cohesive story. For EACH scene pick the best engine:\n` +
