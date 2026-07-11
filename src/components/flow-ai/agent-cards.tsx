@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, type ReactNode } from "react";
 import Image from "next/image";
 import { Download, Maximize2, X, ExternalLink, Copy, Check, Volume2, Square, ThumbsUp, ThumbsDown, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { MediaLightbox, mediaDownloadHref } from "@/components/shared/media-lightbox";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import { LogoGlowLoader, DotGrid } from "@/components/shared/logo-glow-loader";
 import { createSpeechPlayer, type SpeechPlayer } from "./use-tts";
@@ -224,56 +225,11 @@ export function FeedbackButtons({
   );
 }
 
-/**
- * Full-screen image lightbox. Shared by TaskCard + MediaCard so any
- * generated image is clickable to view large. Clicking the backdrop or
- * the X closes it. Download stays available on the card itself.
- */
-
-/**
- * Build a same-origin download URL for a generated asset. A cross-origin
- * `<a download>` to S3 just opens the file in a new tab (browsers ignore the
- * download attribute cross-origin); this routes through our proxy which
- * streams it back with Content-Disposition: attachment so it actually saves.
- */
-export function mediaDownloadHref(url: string, name = "flowsmartly-design"): string {
-  return `/api/flow-ai/download?url=${encodeURIComponent(url)}&name=${encodeURIComponent(name)}`;
-}
-
-export function MediaLightbox({ url, onClose }: { url: string; onClose: () => void }) {
-  return (
-    <div
-      className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
-        aria-label="Close"
-      >
-        <X className="h-5 w-5" />
-      </button>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={url}
-        alt="Full size"
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[90vh] max-w-[92vw] object-contain rounded-lg shadow-2xl"
-      />
-      <a
-        href={mediaDownloadHref(url)}
-        download
-        onClick={(e) => e.stopPropagation()}
-        className="absolute bottom-5 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-3 h-9 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm"
-      >
-        <Download className="h-4 w-4" /> Download
-      </a>
-    </div>
-  );
-}
+// The full-screen image lightbox + download-href helper now live in a lightweight
+// shared module (imported above) so other surfaces (e.g. the Video Director cast
+// sheet) can reuse them without pulling in this heavy agent-cards module.
+// Re-exported here so existing importers keep working unchanged.
+export { MediaLightbox, mediaDownloadHref };
 
 /**
  * Shared Flow-AI agent UI bits — tool-call chips, plan-proposal cards,
