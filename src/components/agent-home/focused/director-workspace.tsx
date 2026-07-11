@@ -26,7 +26,7 @@ import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { MediaLightbox } from "@/components/shared/media-lightbox";
 import { BriefSuggest, type BriefProposal } from "./brief-suggest";
 import { cn } from "@/lib/utils/cn";
-import type { FilmProject, FilmScene, FilmOverlay, FilmAsset, SceneEngine, FilmType, FilmAspect, FilmCharacter } from "@/lib/video-director/types";
+import type { FilmProject, FilmScene, FilmOverlay, FilmAsset, SceneEngine, FilmType, FilmAspect, FilmCharacter, SceneCastLine } from "@/lib/video-director/types";
 
 // ------------------------------------------------------------------ engine meta
 const ENGINES: Record<SceneEngine, { label: string; color: string; Icon: ElementType; hint: string }> = {
@@ -560,6 +560,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
       {selScene && (
         <SceneInspector
           scene={selScene}
+          characters={film?.characters || []}
           avatars={avatars} voices={voices}
           onClose={() => setSelId(null)}
           onPatch={patchSel}
@@ -922,12 +923,18 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
 }
 
 // ============================================================ scene inspector
-function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, onGenerateOverlay, onSwapEngine }: {
-  scene: FilmScene; avatars: { id: string; name: string; previewUrl?: string }[]; voices: { id: string; name: string; language?: string }[];
+function SceneInspector({ scene, characters, avatars, voices, onClose, onPatch, onGenerate, onGenerateOverlay, onSwapEngine }: {
+  scene: FilmScene; characters: FilmCharacter[]; avatars: { id: string; name: string; previewUrl?: string }[]; voices: { id: string; name: string; language?: string }[];
   onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onGenerateOverlay: () => void; onSwapEngine: (e: SceneEngine) => void;
 }) {
   const E = ENGINES[scene.engine];
   const [picker, setPicker] = useState<null | "video" | "image" | "bg" | "ov">(null);
+  // Cast-line character picker (which line index is open) + full-size avatar review.
+  const [castPickIdx, setCastPickIdx] = useState<number | null>(null);
+  const [zoom, setZoom] = useState<string | null>(null);
+  const charById = (id?: string) => (id ? characters.find((c) => c.id === id) : undefined);
+  const charByName = (name?: string) => (name ? characters.find((c) => c.name.toLowerCase() === name.toLowerCase()) : undefined);
+  const castImg = (c?: FilmCharacter) => c?.characterSheetUrl || c?.referenceImageUrl || undefined;
   const ov = scene.overlay;
   const patchOv = (p: Partial<FilmOverlay>) => onPatch({ overlay: ov ? { ...ov, ...p } : null });
   const addOverlay = (engine: SceneEngine) => onPatch({ overlay: { engine, corner: "br", scale: 0.3, status: "draft" } });
@@ -950,14 +957,50 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
             {/* Style is set once at the film brief — not per scene. */}
             <label className="mb-1 mt-3 block text-[11px] font-semibold">Cast &amp; dialogue <span className="font-normal text-muted-foreground">— who&rsquo;s in the shot + what they say</span></label>
             <div className="space-y-1.5">
-              {(scene.cast || []).map((l, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <input value={l.name} onChange={(e) => onPatch({ cast: (scene.cast || []).map((x, j) => j === i ? { ...x, name: e.target.value } : x) })} placeholder="Character" className="w-24 shrink-0 rounded-[8px] border border-input bg-background px-2 py-1.5 text-[11.5px] font-semibold outline-none focus:border-brand-500/60" />
-                  <input value={l.dialogue || ""} onChange={(e) => onPatch({ cast: (scene.cast || []).map((x, j) => j === i ? { ...x, dialogue: e.target.value } : x) })} placeholder="their line (empty = silent)" className="min-w-0 flex-1 rounded-[8px] border border-input bg-background px-2 py-1.5 text-[11.5px] outline-none focus:border-brand-500/60" />
-                  <button onClick={() => onPatch({ cast: (scene.cast || []).filter((_, j) => j !== i) })} className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground hover:text-rose-500"><X className="h-3 w-3" /></button>
-                </div>
-              ))}
-              <button onClick={() => onPatch({ cast: [...(scene.cast || []), { name: "", dialogue: "" }] })} className="inline-flex items-center gap-1 rounded-[8px] border border-dashed border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-brand-500"><Plus className="h-3 w-3" /> Add a character line</button>
+              {(scene.cast || []).map((l, i) => {
+                const c = charById(l.characterId) || charByName(l.name);
+                const img = castImg(c);
+                const setLine = (patch: Partial<SceneCastLine>) => onPatch({ cast: (scene.cast || []).map((x, j) => (j === i ? { ...x, ...patch } : x)) });
+                return (
+                  <div key={i}>
+                    <div className="flex items-center gap-1.5">
+                      {img ? (
+                        <button type="button" onClick={() => setZoom(img)} title={`Enlarge ${c?.name || l.name}`} className="group relative h-8 w-8 shrink-0 cursor-zoom-in overflow-hidden rounded-[8px] border border-border">
+                          <Image src={img} alt="" width={32} height={32} className="h-full w-full object-cover" unoptimized />
+                          <span className="pointer-events-none absolute inset-0 hidden place-items-center bg-black/45 text-white group-hover:grid"><Maximize2 className="h-3 w-3" /></span>
+                        </button>
+                      ) : (
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border border-border bg-muted/40 text-muted-foreground"><UserSquare2 className="h-3.5 w-3.5" /></span>
+                      )}
+                      <button type="button" onClick={() => setCastPickIdx(castPickIdx === i ? null : i)} className="flex w-[92px] shrink-0 items-center gap-1 rounded-[8px] border border-input bg-background px-2 py-1.5 text-left hover:border-brand-500/60">
+                        <span className={cn("min-w-0 flex-1 truncate text-[11.5px]", l.name ? "font-semibold" : "italic text-muted-foreground")}>{l.name || "Choose…"}</span>
+                        <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      </button>
+                      <input value={l.dialogue || ""} onChange={(e) => setLine({ dialogue: e.target.value })} placeholder="their line (empty = silent)" className="min-w-0 flex-1 rounded-[8px] border border-input bg-background px-2 py-1.5 text-[11.5px] outline-none focus:border-brand-500/60" />
+                      <button onClick={() => { onPatch({ cast: (scene.cast || []).filter((_, j) => j !== i) }); setCastPickIdx(null); }} className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted-foreground hover:text-rose-500"><X className="h-3 w-3" /></button>
+                    </div>
+                    {castPickIdx === i && (
+                      <div className="ml-[38px] mt-1 rounded-[10px] border border-border bg-background/70 p-1">
+                        <p className="px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Pick from cast</p>
+                        {characters.length === 0 && <p className="px-2 py-1.5 text-[11px] text-muted-foreground">No cast yet — add it in the Cast panel.</p>}
+                        {characters.map((cc) => {
+                          const sel = l.characterId === cc.id || (!!l.name && l.name.toLowerCase() === cc.name.toLowerCase());
+                          const cimg = castImg(cc);
+                          return (
+                            <button key={cc.id} type="button" onClick={() => { setLine({ characterId: cc.id, name: cc.name }); setCastPickIdx(null); }} className={cn("flex w-full items-center gap-2 rounded-[8px] px-1.5 py-1.5 text-left hover:bg-brand-500/10", sel && "bg-brand-500/15")}>
+                              {cimg ? <Image src={cimg} alt="" width={26} height={26} className="h-6 w-6 shrink-0 rounded-[6px] object-cover" unoptimized /> : <span className="grid h-6 w-6 shrink-0 place-items-center rounded-[6px] bg-muted text-muted-foreground"><UserSquare2 className="h-3 w-3" /></span>}
+                              <span className="min-w-0 flex-1"><span className="block truncate text-[11.5px] font-semibold leading-tight">{cc.name}</span>{cc.role && <span className="block truncate text-[9.5px] text-brand-500">{cc.role}</span>}</span>
+                              {sel && <span className="shrink-0 text-[11px] font-bold text-emerald-500">✓</span>}
+                            </button>
+                          );
+                        })}
+                        <button type="button" onClick={() => { const name = window.prompt("Character name:", l.name || ""); if (name !== null) setLine({ characterId: undefined, name: name.trim() }); setCastPickIdx(null); }} className="mt-0.5 flex w-full items-center gap-1.5 rounded-[8px] border-t border-border px-2 py-1.5 text-left text-[11px] text-muted-foreground hover:text-foreground"><Pencil className="h-2.5 w-2.5" /> Type a custom name</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <button onClick={() => { const next = [...(scene.cast || []), { name: "", dialogue: "" }]; onPatch({ cast: next }); setCastPickIdx(next.length - 1); }} className="inline-flex items-center gap-1 rounded-[8px] border border-dashed border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-brand-500"><Plus className="h-3 w-3" /> Add a character line</button>
             </div>
             {(() => {
               // Spoken words must fit the shot's duration — natural speech is
@@ -1108,6 +1151,9 @@ function SceneInspector({ scene, avatars, voices, onClose, onPatch, onGenerate, 
         filterTypes={picker === "image" || picker === "bg" ? ["image"] : ["video"]}
         title={picker === "bg" ? "Choose a background for the avatar" : picker === "ov" ? "Choose an inset clip" : picker === "image" ? "Choose a still image" : "Choose a clip"}
       />
+
+      {/* Review a cast member's sheet full-size. */}
+      {zoom && <MediaLightbox url={zoom} onClose={() => setZoom(null)} />}
     </div>
   );
 }
