@@ -22,7 +22,8 @@ const VEO_MAX_SINGLE_SHOT_SECONDS = 8;
 // xAI Grok renders a single clip up to 15s; longer shots are built by chaining
 // seamless extensions (2–10s each) from the last frame. Cap the total so a shot
 // can't balloon into an unbounded render (each extra segment is its own render).
-const GROK_MAX_SINGLE_SHOT_SECONDS = 15;
+const GROK_MAX_SINGLE_SHOT_SECONDS = 15;   // text-to-video single clip
+const GROK_MAX_IMG2VID_SECONDS = 8;        // image-to-video (reference image) hard-caps ~8.7s → keep 8
 const GROK_MAX_LONGFORM_SECONDS = 30;
 
 export interface VideoGenInput {
@@ -94,12 +95,16 @@ export async function generateVideoForRole(
       if (!grokVideoClient.isAvailable()) continue;
       consideredAny = true;
       try {
-        // Base clip (≤15s). For a longer shot, chain seamless extensions off the
-        // xAI clip URL until we reach the target (or a segment fails — then we keep
-        // what we have rather than losing the whole shot).
+        // Base clip, then chain seamless extensions off the xAI clip URL until we
+        // reach the target (or a segment fails — then we keep what we have rather than
+        // losing the whole shot). CRITICAL: xAI IMAGE-TO-VIDEO (a reference/keyframe
+        // image) caps at ~8.7s and hard-fails "Video is too long" above that — so with
+        // a reference image the BASE is ≤8s and the rest is built from extensions
+        // (which are video-to-video, not image-to-video). Text-to-video allows ≤15s.
         const target = Math.min(GROK_MAX_LONGFORM_SECONDS, duration);
+        const baseMax = input.referenceImageUrl ? GROK_MAX_IMG2VID_SECONDS : GROK_MAX_SINGLE_SHOT_SECONDS;
         const result = await grokVideoClient.generateVideo(input.prompt, {
-          duration: Math.min(GROK_MAX_SINGLE_SHOT_SECONDS, target),
+          duration: Math.min(baseMax, target),
           aspectRatio: input.aspectRatio,
           // Grok tops out at 720p.
           resolution: "720p",
@@ -109,7 +114,7 @@ export async function generateVideoForRole(
         });
         let videoBuffer = result.videoBuffer;
         let sourceUrl = result.videoUrl;
-        let have = Math.min(GROK_MAX_SINGLE_SHOT_SECONDS, target);
+        let have = Math.min(baseMax, target);
         while (have < target && sourceUrl) {
           const need = Math.min(10, target - have);
           if (need < 2) break; // extensions are 2–10s
