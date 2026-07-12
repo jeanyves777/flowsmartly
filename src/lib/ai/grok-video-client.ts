@@ -16,6 +16,22 @@ const XAI_VIDEO_EDITS_URL = "https://api.x.ai/v1/videos/edits";
 const XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos";
 const XAI_VIDEO_PROMPT_LIMIT = 3900;
 
+// xAI enforces ~1 request/second per team for grok-imagine-video (429
+// "resource-exhausted"). Serialize video-generation POSTs ≥1.1s apart so concurrent
+// scene renders (or a base + its extension) don't trip it. Status polls + downloads
+// are NOT gated (they poll a job, not create one).
+let grokGenChain: Promise<unknown> = Promise.resolve();
+let lastGrokGenAt = 0;
+function grokGenRateLimit(): Promise<void> {
+  const p = grokGenChain.then(async () => {
+    const since = Date.now() - lastGrokGenAt;
+    if (since < 1100) await new Promise((r) => setTimeout(r, 1100 - since));
+    lastGrokGenAt = Date.now();
+  });
+  grokGenChain = p.catch(() => {});
+  return p;
+}
+
 type VideoAspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "3:2" | "2:3";
 type VideoResolution = "480p" | "720p";
 
@@ -106,6 +122,7 @@ class GrokVideoClient {
       bodyPayload.image = { type: "image_url", url: imageUrl };
     }
 
+    await grokGenRateLimit(); // ≤1 generation POST/sec (xAI team limit)
     const response = await fetch(XAI_VIDEO_URL, {
       method: "POST",
       headers: {
@@ -279,6 +296,7 @@ class GrokVideoClient {
     // xAI REST: extension body uses a `video` object like image-to-video does for `image`.
     // The Python SDK shim exposes a flat `video_url=` arg but the underlying REST wants:
     //   { video: { type: "video_url", url: <URL> } }
+    await grokGenRateLimit(); // ≤1 generation POST/sec (xAI team limit)
     const response = await fetch(XAI_VIDEO_EDITS_URL, {
       method: "POST",
       headers: {
