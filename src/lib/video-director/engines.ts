@@ -56,10 +56,11 @@ function withVideoGuard(prompt: string, style?: string): string {
   return `${lead}${base}\n\n${VIDEO_ANTI_LEAK}`;
 }
 
-// A single AI shot is a ≤15s clip — it should render in 1-3 min. Bound the
-// in-process wait so a stuck provider can't leave the scene "rendering" forever
-// (the catch then fails + refunds with a friendly timeout message).
-const AI_SCENE_TIMEOUT_MS = 8 * 60 * 1000;
+// A single AI shot is a ≤15s clip, but an image-to-video render (Grok) can take
+// several minutes — its own client waits up to 10 min. Bound the in-process wait
+// ABOVE that so a legitimately slow render isn't killed prematurely, while a truly
+// stuck provider still fails + refunds with a friendly message.
+const AI_SCENE_TIMEOUT_MS = 12 * 60 * 1000;
 function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
   return Promise.race([
     p,
@@ -372,6 +373,10 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
       }
     }
 
+    // Time-based progress so the bar keeps MOVING while a slow provider works,
+    // instead of freezing at a hard cap (the "stuck at 90%" complaint). Eases
+    // smoothly toward ~96% and never quite lands until the ready patch snaps to 100.
+    const videoStart = Date.now();
     const result = await withTimeout(
       generateVideoForRole("video_standard", {
         prompt: withVideoGuard(shotWithDialogue, scene.style),
@@ -380,7 +385,11 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
         referenceImageUrl: firstFrameUrl,
         // Veo-only identity anchor (used when there's no keyframe first frame).
         characterReferenceUrls: veoRefs,
-        onStatus: () => { p = Math.min(90, p + 12); void patchScene(filmId, userId, sceneId, { status: "rendering", progress: p }).catch(() => {}); },
+        onStatus: () => {
+          const elapsed = Date.now() - videoStart;
+          const est = 22 + Math.round((1 - Math.exp(-elapsed / (3 * 60 * 1000))) * 74); // 22 → ~96 asymptote
+          void patchScene(filmId, userId, sceneId, { status: "rendering", progress: Math.min(96, Math.max(p, est)) }).catch(() => {});
+        },
       }),
       AI_SCENE_TIMEOUT_MS,
       "This shot took too long and timed out.",
@@ -404,7 +413,7 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
  * back onto the film. Called on each GET poll so the canvas reflects live status.
  * AI/media/design update themselves in-process, so only external refs need this.
  */
-const AI_SCENE_WATCHDOG_MS = 12 * 60 * 1000; // > the 8-min in-process cap, so only true orphans hit this
+const AI_SCENE_WATCHDOG_MS = 15 * 60 * 1000; // > the 12-min in-process cap, so only true orphans hit this
 
 export async function syncFilmScenes(film: FilmProject, userId: string): Promise<FilmProject> {
   let changed = false;
