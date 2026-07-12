@@ -73,6 +73,24 @@ async function establishContinuity(
   }
 }
 
+/**
+ * Run the storyboard in the BACKGROUND, then stamp the film's draftStatus so the
+ * canvas poll can reflect done/failed. The /draft route kicks this off and returns
+ * immediately, so a long movie storyboard can't hit the request timeout (which
+ * previously left the canvas empty). Never throws.
+ */
+export async function draftFilmAsync(filmId: string, userId: string): Promise<void> {
+  try {
+    const film = await draftFilmPipeline(filmId, userId);
+    const f = await getFilm(filmId, userId);
+    if (f) { f.draftStatus = film && film.scenes.length ? "ready" : "failed"; await saveFilm(filmId, userId, f); }
+  } catch (e) {
+    console.error("[video-director] async draft failed:", e);
+    const f = await getFilm(filmId, userId);
+    if (f) { f.draftStatus = "failed"; await saveFilm(filmId, userId, f); }
+  }
+}
+
 export async function draftFilmPipeline(filmId: string, userId: string): Promise<FilmProject | null> {
   const film = await getFilm(filmId, userId);
   if (!film) return null;
