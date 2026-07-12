@@ -191,16 +191,31 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
 
   // -------- poll while anything is rendering --------
   const anyRendering = scenes.some((s) => isRendering(s.status) || isRendering(s.overlay?.status)) || film?.finalStatus === "rendering";
+  const isDrafting = film?.draftStatus === "drafting";
   useEffect(() => {
-    if (!anyRendering || !film) return;
+    if ((!anyRendering && !isDrafting) || !film) return;
+    const startedAt = Date.now();
+    const filmId = film.id;
     const t = setInterval(async () => {
+      // Give up on a draft that never lands (e.g. the worker died on a deploy) so
+      // the "Directing…" overlay can't spin forever.
+      if (isDrafting && Date.now() - startedAt > 210_000) {
+        setDraftError("The director couldn't storyboard the film. Please try again.");
+        clearInterval(t);
+        return;
+      }
       try {
-        const fj = await fetch(`/api/ai/video-director/${film.id}`).then((r) => r.json());
-        if (fj?.success) setFilm(fj.data.film);
+        const fj = await fetch(`/api/ai/video-director/${filmId}`).then((r) => r.json());
+        if (fj?.success) {
+          setFilm(fj.data.film);
+          const ds = fj.data.film?.draftStatus;
+          if (ds === "failed") setDraftError("The director couldn't storyboard the film. Please try again.");
+          else if (ds === "ready" || (Array.isArray(fj.data.film?.scenes) && fj.data.film.scenes.length)) setDraftError(null);
+        }
       } catch { /* ignore */ }
-    }, 6000);
+    }, isDrafting ? 3000 : 6000);
     return () => clearInterval(t);
-  }, [anyRendering, film?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [anyRendering, isDrafting, film?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // -------- canvas geometry (brief left, scenes free, output right) --------
   const briefPos = { x: 24, y: 70 };
@@ -379,10 +394,11 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
 
   // -------- brief create/update --------
   const draftPipeline = async (filmId: string) => {
+    // Kicks off a BACKGROUND storyboard and returns a film flagged draftStatus:
+    // "drafting" — the poll below then swaps in the scenes when it's done (or
+    // surfaces a failure). This can't time out the way a synchronous draft did.
     const dj = await fetch(`/api/ai/video-director/${filmId}/draft`, { method: "POST" }).then((r) => r.json()).catch(() => null);
-    // Only treat it as done when scenes actually came back — a timed-out/failed
-    // draft must surface an error + retry, never leave a silently empty canvas.
-    if (dj?.success && Array.isArray(dj.data?.film?.scenes) && dj.data.film.scenes.length) {
+    if (dj?.success && dj.data?.film) {
       setFilm(dj.data.film);
       setDraftError(null);
     } else {
@@ -641,8 +657,8 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
         </div>
       )}
 
-      {/* directing (drafting the pipeline) */}
-      {drafting && (
+      {/* directing (drafting the pipeline — local kick-off OR background draftStatus) */}
+      {(drafting || isDrafting) && !draftError && (
         <div className="absolute inset-0 z-[45] grid place-items-center bg-background/70 backdrop-blur-sm">
           <div className="text-center">
             <FlowGeneratingMark size={54} />

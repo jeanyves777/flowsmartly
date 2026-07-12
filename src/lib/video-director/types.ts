@@ -182,6 +182,9 @@ export interface FilmProject {
   /** The film's continuity bible — one shared world (location/palette/wardrobe) across all scenes. */
   continuity?: FilmContinuity | null;
   music?: string | null;
+  /** Storyboarding lifecycle — the draft runs in the BACKGROUND (a long movie
+   *  storyboard can't fit a request timeout), and the canvas polls this. */
+  draftStatus?: "drafting" | "ready" | "failed" | null;
   /** Burn the brand logo onto the final cut (overlay). Default on. */
   brandLogo?: boolean;
   captionsOn?: boolean;
@@ -368,5 +371,6 @@ export function normalizeFilm(raw: Partial<FilmProject> & { id: string }): FilmP
     assets: Array.isArray(raw.assets) ? raw.assets.slice(0, 40) : [],
     characters: Array.isArray(raw.characters) ? raw.characters.filter(Boolean).slice(0, 8).map((c, i) => normalizeCharacter(c, i)) : [],
     continuity: normalizeContinuity(raw.continuity),
+    draftStatus: raw.draftStatus === "drafting" || raw.draftStatus === "ready" || raw.draftStatus === "failed" ? raw.draftStatus : null,
   };
 }
