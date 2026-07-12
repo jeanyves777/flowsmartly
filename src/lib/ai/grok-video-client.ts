@@ -263,11 +263,14 @@ class GrokVideoClient {
       duration?: number;
       timeoutMs?: number;
       onStatus?: (message: string) => void;
+      /** Called with the extension's request_id so the caller can persist it and
+       *  resume THIS segment (not the base clip) after a restart. */
+      onJobId?: (requestId: string) => void | Promise<void>;
     } = {},
   ): Promise<GrokVideoResult> {
     if (!this.apiKey) throw new Error("XAI_API_KEY is not configured");
 
-    const { duration = 6, onStatus, timeoutMs } = options;
+    const { duration = 6, onStatus, onJobId, timeoutMs } = options;
     const extDur = Math.min(10, Math.max(2, Math.round(duration)));
     const safePrompt = clampVideoPrompt(prompt);
 
@@ -301,6 +304,7 @@ class GrokVideoClient {
     if (!requestId) throw new Error("xAI video edit API did not return a request_id");
 
     console.log(`[GrokVideo] Extension job created: ${requestId}`);
+    try { await onJobId?.(requestId); } catch { /* persistence best-effort */ }
     onStatus?.("Extension started — generating seamless continuation...");
 
     const result = await this.pollUntilDone(requestId, timeoutMs, onStatus);

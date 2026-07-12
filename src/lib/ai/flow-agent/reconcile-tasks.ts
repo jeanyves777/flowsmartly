@@ -7,6 +7,7 @@ import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
 import { resumeAvatarRender } from "@/lib/avatar-studio";
+import { resumeStuckDirectorScenes } from "@/lib/video-director/engines";
 
 /**
  * AgentTask recovery — the safety net for Flow-AI background jobs.
@@ -380,6 +381,13 @@ export async function runTaskRecovery(): Promise<RecoveryResult> {
     const stuckRenders = await recoverStuckCartoonRenders();
     result.scanned += stuckRenders.scanned;
     result.failed += stuckRenders.failed;
+
+    // Video Director AI scenes orphaned by a restart: RESUME from the persisted xAI/Veo
+    // job (the provider kept rendering) so a deploy mid-render doesn't lose the shot —
+    // even for films the user has closed.
+    const directorScenes = await resumeStuckDirectorScenes().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += directorScenes.scanned;
+    result.recovered += directorScenes.changed;
 
     if (result.recovered || result.failed) {
       console.log(

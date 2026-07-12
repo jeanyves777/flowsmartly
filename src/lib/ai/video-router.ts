@@ -115,7 +115,12 @@ export async function generateVideoForRole(
           if (need < 2) break; // extensions are 2–10s
           input.onStatus?.(`Extending the shot to ${have + need}s…`);
           try {
-            const ext = await grokVideoClient.extendVideo(sourceUrl, input.prompt, { duration: need, onStatus: input.onStatus });
+            const ext = await grokVideoClient.extendVideo(sourceUrl, input.prompt, {
+              duration: need,
+              onStatus: input.onStatus,
+              // Persist THIS segment's job so a restart resumes the latest extension.
+              onJobId: (jobId) => input.onJobId?.({ provider: "grok", jobId }),
+            });
             if (!ext.videoBuffer?.length) break;
             videoBuffer = ext.videoBuffer; // extendVideo returns the COMBINED clip
             sourceUrl = ext.videoUrl;
