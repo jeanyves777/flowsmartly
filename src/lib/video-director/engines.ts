@@ -11,6 +11,8 @@ import type { FilmProject, FilmScene, FilmOverlay, FilmAspect } from "./types";
 import { startAvatarVideo, getAvatarVideo } from "@/lib/avatar-studio";
 import { emptyAvatarState } from "@/lib/avatar-studio/types";
 import { generateVideoForRole } from "@/lib/ai/video-router";
+import { grokVideoClient } from "@/lib/ai/grok-video-client";
+import { veoClient } from "@/lib/ai/veo-client";
 import { concatenateVideoBuffers } from "@/lib/video/concat-videos";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
@@ -339,7 +341,7 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     let p = 8;
     // Stamp the render start so the watchdog can fail this scene if the worker
     // dies mid-render (e.g. a deploy) and leaves it stuck "rendering".
-    await patchScene(filmId, userId, sceneId, { status: "rendering", progress: p, renderStartedAt: Date.now() }).catch(() => {});
+    await patchScene(filmId, userId, sceneId, { status: "rendering", progress: p, renderStartedAt: Date.now(), renderHeartbeatAt: Date.now() }).catch(() => {});
     // Fold the cast's spoken lines into the shot prompt as AUDIBLE dialogue (Veo
     // does native speech) — not on-screen captions, which the leak guard forbids.
     // The continuity bible keeps the shot in the film's shared world (location/wardrobe).
@@ -387,10 +389,14 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
         referenceImageUrl: firstFrameUrl,
         // Veo-only identity anchor (used when there's no keyframe first frame).
         characterReferenceUrls: veoRefs,
+        // Persist the provider job handle so a restart RESUMES this render (polls the
+        // job, pulls the finished clip) instead of killing it. Updated on each
+        // extension too, so a chained >15s shot resumes to its latest segment.
+        onJobId: (info) => { void patchScene(filmId, userId, sceneId, { refKind: info.provider, refId: info.jobId }).catch(() => {}); },
         onStatus: () => {
           const elapsed = Date.now() - videoStart;
           const est = 22 + Math.round((1 - Math.exp(-elapsed / (3 * 60 * 1000))) * 74); // 22 → ~96 asymptote
-          void patchScene(filmId, userId, sceneId, { status: "rendering", progress: Math.min(96, Math.max(p, est)) }).catch(() => {});
+          void patchScene(filmId, userId, sceneId, { status: "rendering", progress: Math.min(96, Math.max(p, est)), renderHeartbeatAt: Date.now() }).catch(() => {});
         },
       }),
       AI_SCENE_TIMEOUT_MS,
@@ -415,29 +421,81 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
  * back onto the film. Called on each GET poll so the canvas reflects live status.
  * AI/media/design update themselves in-process, so only external refs need this.
  */
-const AI_SCENE_WATCHDOG_MS = 15 * 60 * 1000; // > the 12-min in-process cap, so only true orphans hit this
+// Resume tuning. A live AI render beats a heartbeat every ~15s (onStatus), so no
+// beat for STALE_MS ⇒ the in-process worker died (deploy/restart). We then RESUME
+// from the persisted provider job instead of failing — the provider kept rendering
+// (and billing us). Only give up after RESUME_MAX_MS, or right away if there's no
+// job handle to resume (it died before/at submit, or the keyframe hung).
+const AI_SCENE_STALE_MS = 60_000;        // 4 missed 15s heartbeats ⇒ dead worker
+const AI_SCENE_REPOLL_MS = 20_000;       // once resuming, re-poll the provider every ~20s
+const AI_SCENE_RESUME_MAX_MS = 25 * 60 * 1000; // provider still not done ⇒ give up + refund
+const AI_SCENE_NO_HANDLE_MS = 3 * 60 * 1000;   // dead with no job to resume ⇒ unrecoverable
+
+async function refundAiScene(userId: string, filmId: string, sceneId: string): Promise<void> {
+  const refund = await getDynamicCreditCost(AI_SCENE_COST_KEY).catch(() => 0);
+  if (refund > 0) {
+    await creditService.addCredits({
+      userId, type: TRANSACTION_TYPES.REFUND, amount: refund,
+      referenceType: "director_scene", referenceId: sceneId, description: "Refund: Director AI scene interrupted",
+    }).catch(() => {});
+  }
+}
+
+/**
+ * RESUME (or fail) a Director AI scene whose in-process worker died on a restart.
+ * Polls the persisted provider job: done → pull the finished clip + mark ready;
+ * failed / genuinely-stuck / no-handle → fail + refund; still pending → leave it
+ * rendering (re-checked on a later poll). Mutates the scene in place; returns true
+ * if it changed. Never resumes a LIVE render (fresh heartbeat ⇒ left alone).
+ */
+async function resumeOrphanedAiScene(film: FilmProject, s: FilmScene, userId: string, now: number): Promise<boolean> {
+  const lastBeat = s.renderHeartbeatAt || s.renderStartedAt || 0;
+  if (now - lastBeat < AI_SCENE_STALE_MS) return false; // a live worker is still on it
+  const startedAgo = s.renderStartedAt ? now - s.renderStartedAt : Infinity;
+  const failRefund = async (msg: string) => { s.status = "failed"; s.error = msg; await refundAiScene(userId, film.id, s.id); };
+
+  // No resumable provider handle ⇒ died before/at submit (or the keyframe hung).
+  if (!s.refId || (s.refKind !== "grok" && s.refKind !== "veo3")) {
+    if (startedAgo > AI_SCENE_NO_HANDLE_MS) { await failRefund("This shot was interrupted — please try again."); return true; }
+    return false; // give the submit a little more grace
+  }
+
+  try {
+    const done = async (buf: Buffer) => {
+      const url = await uploadToS3(`director/${film.id}/${s.id}-${uid()}.mp4`, buf, "video/mp4");
+      s.status = "ready"; s.progress = 100; s.videoUrl = url; s.error = null;
+    };
+    if (s.refKind === "grok") {
+      const st = await grokVideoClient.pollOnce(s.refId);
+      if (st.state === "failed") { await failRefund(`This shot couldn't finish${st.error ? ` (${st.error})` : ""} — please try again.`); return true; }
+      if (st.state === "done" && st.url) { await done(await grokVideoClient.fetchVideoBuffer(st.url)); return true; }
+    } else {
+      const st = await veoClient.pollOnceByName(s.refId);
+      if (st.state === "failed") { await failRefund(`This shot couldn't finish${st.error ? ` (${st.error})` : ""} — please try again.`); return true; }
+      if (st.state === "done" && st.uri) { await done(await veoClient.fetchVideoByUri(st.uri)); return true; }
+    }
+    // Still pending (or an unknown Veo poll) — keep waiting, age-bounded.
+    if (startedAgo > AI_SCENE_RESUME_MAX_MS) { await failRefund("This shot took too long — please try again."); return true; }
+    s.renderHeartbeatAt = now - (AI_SCENE_STALE_MS - AI_SCENE_REPOLL_MS); // re-poll in ~20s, not every tick
+    return true;
+  } catch (e) {
+    console.error(`[video-director] scene resume failed for ${s.id}:`, e instanceof Error ? e.message : e);
+    if (startedAgo > AI_SCENE_RESUME_MAX_MS) { await failRefund("This shot couldn't be recovered — please try again."); return true; }
+    return false; // transient provider error — a later poll retries
+  }
+}
 
 export async function syncFilmScenes(film: FilmProject, userId: string): Promise<FilmProject> {
   let changed = false;
 
-  // WATCHDOG: an AI scene stuck "rendering" past the watchdog window means its
-  // in-process worker died (e.g. a deploy) without ever hitting the 8-min
-  // timeout — otherwise it would already be "failed". Fail it + refund so it
-  // stops spinning forever. (The 12-min threshold sits above the 8-min cap, so a
-  // live-but-slow render fails via its own catch first — no double refund.)
+  // An AI scene stuck "rendering" with a stale heartbeat means its in-process worker
+  // died (a deploy pm2-reloads the app). Instead of just failing it, RESUME from the
+  // persisted xAI/Veo job — the provider kept rendering — and only fail if it's truly
+  // gone. This is why a deploy mid-render no longer loses the shot.
   const now = Date.now();
   for (const s of film.scenes) {
-    if (s.engine === "ai" && s.status === "rendering" && s.renderStartedAt && now - s.renderStartedAt > AI_SCENE_WATCHDOG_MS) {
-      s.status = "failed";
-      s.error = "This shot took too long and timed out — please try again.";
-      changed = true;
-      const refund = await getDynamicCreditCost(AI_SCENE_COST_KEY).catch(() => 0);
-      if (refund > 0) {
-        await creditService.addCredits({
-          userId, type: TRANSACTION_TYPES.REFUND, amount: refund,
-          referenceType: "director_scene", referenceId: s.id, description: "Refund: Director AI scene stalled",
-        }).catch(() => {});
-      }
+    if (s.engine === "ai" && s.status === "rendering") {
+      if (await resumeOrphanedAiScene(film, s, userId, now)) changed = true;
     }
   }
 
@@ -458,6 +516,41 @@ export async function syncFilmScenes(film: FilmProject, userId: string): Promise
   }
   if (changed) await saveFilm(film.id, userId, film);
   return film;
+}
+
+/**
+ * Cron entry (recover-tasks, every ~3 min): resume orphaned Director AI scenes even
+ * for films NOT currently open in a browser — syncFilmScenes only runs while the
+ * canvas is being polled. Scans recently-touched director films for a stale
+ * "rendering" AI scene and resumes/fails it from the persisted provider job. Never throws.
+ */
+export async function resumeStuckDirectorScenes(): Promise<{ scanned: number; changed: number }> {
+  const now = Date.now();
+  const cutoff = new Date(now - AI_SCENE_STALE_MS);
+  let changed = 0;
+  const rows = await prisma.design
+    .findMany({
+      where: { type: "director_film", updatedAt: { lt: cutoff } },
+      select: { id: true, userId: true, canvasData: true },
+      orderBy: { updatedAt: "desc" },
+      take: 40,
+    })
+    .catch(() => [] as { id: string; userId: string; canvasData: string | null }[]);
+  for (const row of rows) {
+    // Cheap pre-filter — only parse a film that actually has a rendering AI scene.
+    if (!row.canvasData || !row.canvasData.includes('"rendering"')) continue;
+    const film = await getFilm(row.id, row.userId).catch(() => null);
+    if (!film) continue;
+    let touched = false;
+    for (const s of film.scenes) {
+      if (s.engine === "ai" && s.status === "rendering") {
+        if (await resumeOrphanedAiScene(film, s, row.userId, now)) touched = true;
+      }
+    }
+    if (touched) { await saveFilm(row.id, row.userId, film).catch(() => {}); changed++; }
+  }
+  if (changed) console.log(`[video-director] resumeStuckDirectorScenes: touched ${changed} film(s)`);
+  return { scanned: rows.length, changed };
 }
 
 /**

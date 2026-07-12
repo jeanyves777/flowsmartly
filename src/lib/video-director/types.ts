@@ -63,6 +63,10 @@ export interface FilmScene {
   /** Epoch ms when this scene's render started — the watchdog fails orphaned
    *  "rendering" scenes (e.g. the worker died on a deploy) past a threshold. */
   renderStartedAt?: number;
+  /** Epoch ms of the last progress heartbeat from the live render worker. A row
+   *  with a stale heartbeat = its in-process worker died (deploy/restart); combined
+   *  with a persisted provider job (refKind/refId) the render is RESUMED, not lost. */
+  renderHeartbeatAt?: number;
   videoUrl?: string | null;
   thumbnailUrl?: string | null;
   error?: string | null;
@@ -340,6 +344,7 @@ export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene 
     status,
     progress: typeof raw.progress === "number" ? raw.progress : 0,
     renderStartedAt: typeof raw.renderStartedAt === "number" ? raw.renderStartedAt : undefined,
+    renderHeartbeatAt: typeof raw.renderHeartbeatAt === "number" ? raw.renderHeartbeatAt : undefined,
     videoUrl: raw.videoUrl ?? null,
     thumbnailUrl: raw.thumbnailUrl ?? null,
     error: raw.error ?? null,
