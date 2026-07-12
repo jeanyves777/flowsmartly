@@ -33,7 +33,7 @@ function grokGenRateLimit(): Promise<void> {
 }
 
 type VideoAspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "3:2" | "2:3";
-type VideoResolution = "480p" | "720p";
+type VideoResolution = "480p" | "720p" | "1080p";
 
 export interface GrokVideoResult {
   requestId: string;
@@ -77,8 +77,12 @@ class GrokVideoClient {
       duration?: number;
       aspectRatio?: VideoAspectRatio;
       resolution?: VideoResolution;
-      /** URL of a reference image to animate into video (image-to-video) */
+      /** URL of a reference image to animate into video (image-to-video, ≤8.7s, first-frame lock) */
       imageUrl?: string;
+      /** REFERENCE-to-video: up to 7 images that anchor the subject's appearance + scene
+       *  WITHOUT locking the first frame — natural generated motion, ≤10s. The identity
+       *  path we want (no stiff animated-photo look). Ignored if imageUrl is set. */
+      referenceImageUrls?: string[];
       /** Progress callback used by SSE routes to keep the browser connection alive. */
       onStatus?: (message: string) => void;
       /** Called with the upstream request_id the moment the job is created, so
@@ -93,6 +97,7 @@ class GrokVideoClient {
       aspectRatio = "16:9",
       resolution = "720p",
       imageUrl,
+      referenceImageUrls,
       onStatus,
       onJobId,
       timeoutMs,
@@ -120,6 +125,10 @@ class GrokVideoClient {
     // `image_url` helper field.
     if (imageUrl) {
       bodyPayload.image = { type: "image_url", url: imageUrl };
+    } else if (referenceImageUrls?.length) {
+      // Reference-to-video: anchor appearance/scene without a first-frame lock.
+      // Each entry is an ImageUrl struct; up to 7.
+      bodyPayload.reference_images = referenceImageUrls.slice(0, 7).map((url) => ({ type: "image_url", url }));
     }
 
     await grokGenRateLimit(); // ≤1 generation POST/sec (xAI team limit)
