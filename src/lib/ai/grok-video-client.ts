@@ -23,6 +23,9 @@ export interface GrokVideoResult {
   requestId: string;
   videoBuffer: Buffer;
   duration: number;
+  /** The xAI temporary clip URL — passed straight to extendVideo() to chain a
+   *  seamless continuation without re-uploading (enables >15s shots). */
+  videoUrl?: string;
 }
 
 class GrokVideoClient {
@@ -134,7 +137,7 @@ class GrokVideoClient {
     onStatus?.("Video rendered. Downloading the final MP4...");
     const videoBuffer = await this.downloadVideo(result.url);
 
-    return { requestId, videoBuffer, duration: result.duration };
+    return { requestId, videoBuffer, duration: result.duration, videoUrl: result.url };
   }
 
   /**
@@ -302,7 +305,7 @@ class GrokVideoClient {
 
     const result = await this.pollUntilDone(requestId, timeoutMs, onStatus);
     const videoBuffer = await this.downloadVideo(result.url);
-    return { requestId, videoBuffer, duration: result.duration };
+    return { requestId, videoBuffer, duration: result.duration, videoUrl: result.url };
   }
 
   /**

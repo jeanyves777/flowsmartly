@@ -380,7 +380,9 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     const result = await withTimeout(
       generateVideoForRole("video_standard", {
         prompt: withVideoGuard(shotWithDialogue, scene.style),
-        durationSeconds: Math.min(15, scene.durationSec || 8),
+        // ≤15s renders as one Grok clip; >15s chains seamless extensions (the router
+        // handles it, capped at 30s). A longer shot simply takes longer to render.
+        durationSeconds: Math.min(30, scene.durationSec || 8),
         aspectRatio: aspect,
         referenceImageUrl: firstFrameUrl,
         // Veo-only identity anchor (used when there's no keyframe first frame).
