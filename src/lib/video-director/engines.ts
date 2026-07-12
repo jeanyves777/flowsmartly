@@ -373,9 +373,13 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     let firstFrameUrl: string | undefined = scene.referenceImageUrl || undefined;
     let veoRefs: string[] = [];
     if (!firstFrameUrl) {
-      // Compose a keyframe when there are people to place OR a continuity world to
-      // establish; otherwise (an old film with neither) fall through to text-to-video.
-      const wantKeyframe = castRefs.length > 0 || !!continuity;
+      // HYBRID (identity vs length): only a scene with CAST present gets a keyframe →
+      // image-to-video, which locks the approved faces (base ≤8s + extension for
+      // longer). A scene with NO specific cast renders as a clean single 15s
+      // TEXT-TO-VIDEO clip — no face to anchor, so we skip the keyframe and let the
+      // continuity bible in the prompt carry the location. This is the "fully use the
+      // 15s text-to-video" path where identity isn't at stake.
+      const wantKeyframe = castRefs.length > 0;
       const key = wantKeyframe ? await buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity) : null;
       if (key) {
         firstFrameUrl = key;
