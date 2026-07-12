@@ -7,7 +7,7 @@
 
 import { getFilm, saveFilm, patchScene, patchOverlay } from "./store";
 import { continuityText } from "./types";
-import type { FilmProject, FilmScene, FilmOverlay, FilmAspect } from "./types";
+import type { FilmProject, FilmScene, FilmOverlay, FilmAspect, FilmCharacter } from "./types";
 import { startAvatarVideo, getAvatarVideo } from "@/lib/avatar-studio";
 import { emptyAvatarState } from "@/lib/avatar-studio/types";
 import { generateVideoForRole } from "@/lib/ai/video-router";
@@ -76,8 +76,10 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
 function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; dialogue?: string } {
   const chars = film.characters || [];
   const lines = scene.cast || [];
+  const charFor = (l: { characterId?: string; name?: string }): FilmCharacter | undefined =>
+    chars.find((x) => x.id === l.characterId) || chars.find((x) => x.name.toLowerCase() === (l.name || "").toLowerCase());
   const refFor = (l: { characterId?: string; name?: string }): string | undefined => {
-    const c = chars.find((x) => x.id === l.characterId) || chars.find((x) => x.name.toLowerCase() === (l.name || "").toLowerCase());
+    const c = charFor(l);
     return c?.characterSheetUrl || c?.referenceImageUrl || undefined;
   };
   // Collect each present cast member's sheet — speakers first (that's who the shot
@@ -89,7 +91,18 @@ function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; d
   for (const l of lines.filter((l) => (l.dialogue || "").trim())) push(refFor(l));
   for (const l of lines) push(refFor(l));
   const spoken = lines.filter((l) => (l.dialogue || "").trim());
-  const dialogue = spoken.length ? spoken.map((l) => `${l.name} says: "${(l.dialogue || "").trim()}"`).join(" ") : undefined;
+  // Tag each speaker with a SHORT visual descriptor so the model can tell who's who
+  // on screen and lip-sync the right line to the right person (fixes "the wrong
+  // character says someone else's line" in multi-person shots).
+  const tag = (c?: FilmCharacter): string => {
+    if (!c) return "";
+    const d = (c.wardrobe?.trim() || c.description || "").replace(/\s+/g, " ").trim();
+    if (d) return ` (${d.split(" ").slice(0, 12).join(" ")})`;
+    return c.role ? ` (${c.role})` : "";
+  };
+  const dialogue = spoken.length
+    ? spoken.map((l) => `${l.name}${tag(charFor(l))} says: "${(l.dialogue || "").trim()}"`).join("\n")
+    : undefined;
   return { refs: refs.slice(0, 3), dialogue };
 }
 
@@ -348,7 +361,9 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     const shot = scene.script || scene.title;
     const continuityLine = continuity ? `\n\nCONTINUITY — keep consistent with the rest of the film (same place, lighting and clothes): ${continuity}` : "";
     const shotBody = `${shot}${continuityLine}`;
-    const shotWithDialogue = dialogue ? `${shotBody}\n\nDIALOGUE — spoken aloud on camera, audible and lip-synced (NOT subtitles or on-screen text): ${dialogue}` : shotBody;
+    const shotWithDialogue = dialogue
+      ? `${shotBody}\n\nDIALOGUE — each line is spoken ALOUD and lip-synced by the EXACT named person on screen (identify each speaker by the description in parentheses). Do NOT let anyone speak another person's line, and keep this order. This is spoken audio on camera, NOT subtitles or on-screen text:\n${dialogue}`
+      : shotBody;
 
     // FIRST FRAME: compose a real opening keyframe still so the clip STARTS in the
     // scene (correct location + wardrobe, identity-locked) instead of on the actor's
