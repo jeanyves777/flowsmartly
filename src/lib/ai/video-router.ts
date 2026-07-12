@@ -19,6 +19,11 @@ import { isBlankVideoBuffer } from "@/lib/media/video-quality-guard";
  */
 
 const VEO_MAX_SINGLE_SHOT_SECONDS = 8;
+// xAI Grok renders a single clip up to 15s; longer shots are built by chaining
+// seamless extensions (2–10s each) from the last frame. Cap the total so a shot
+// can't balloon into an unbounded render (each extra segment is its own render).
+const GROK_MAX_SINGLE_SHOT_SECONDS = 15;
+const GROK_MAX_LONGFORM_SECONDS = 30;
 
 export interface VideoGenInput {
   prompt: string;
@@ -89,8 +94,12 @@ export async function generateVideoForRole(
       if (!grokVideoClient.isAvailable()) continue;
       consideredAny = true;
       try {
+        // Base clip (≤15s). For a longer shot, chain seamless extensions off the
+        // xAI clip URL until we reach the target (or a segment fails — then we keep
+        // what we have rather than losing the whole shot).
+        const target = Math.min(GROK_MAX_LONGFORM_SECONDS, duration);
         const result = await grokVideoClient.generateVideo(input.prompt, {
-          duration: Math.min(15, duration),
+          duration: Math.min(GROK_MAX_SINGLE_SHOT_SECONDS, target),
           aspectRatio: input.aspectRatio,
           // Grok tops out at 720p.
           resolution: "720p",
@@ -98,10 +107,28 @@ export async function generateVideoForRole(
           onStatus: input.onStatus,
           onJobId: (jobId) => input.onJobId?.({ provider: "grok", jobId }),
         });
-        if (result.videoBuffer?.length) {
-          const vcheck = await isBlankVideoBuffer(result.videoBuffer);
+        let videoBuffer = result.videoBuffer;
+        let sourceUrl = result.videoUrl;
+        let have = Math.min(GROK_MAX_SINGLE_SHOT_SECONDS, target);
+        while (have < target && sourceUrl) {
+          const need = Math.min(10, target - have);
+          if (need < 2) break; // extensions are 2–10s
+          input.onStatus?.(`Extending the shot to ${have + need}s…`);
+          try {
+            const ext = await grokVideoClient.extendVideo(sourceUrl, input.prompt, { duration: need, onStatus: input.onStatus });
+            if (!ext.videoBuffer?.length) break;
+            videoBuffer = ext.videoBuffer; // extendVideo returns the COMBINED clip
+            sourceUrl = ext.videoUrl;
+            have += need;
+          } catch (e) {
+            console.warn("[VideoRouter] Grok extension failed; using the clip so far:", e instanceof Error ? e.message : e);
+            break;
+          }
+        }
+        if (videoBuffer?.length) {
+          const vcheck = await isBlankVideoBuffer(videoBuffer);
           if (!vcheck.blank) {
-            return { videoBuffer: result.videoBuffer, provider: "grok", model: "grok-imagine-video" };
+            return { videoBuffer, provider: "grok", model: "grok-imagine-video" };
           }
           console.warn(`[VideoRouter] Grok returned a blank/black video (${vcheck.reason}); trying next`);
         }
