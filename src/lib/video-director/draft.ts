@@ -227,9 +227,10 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   if (!brief) return film;
 
   const target = film.targetSeconds || 30;
-  // ~15s per shot (Grok's max clip), so a 5-min movie → ~20 shots. Cap at 24 so a
-  // long film still storyboards fully instead of the old hard cap of 8.
-  const approx = film.sceneCount ? Math.max(1, Math.min(30, film.sceneCount)) : Math.max(2, Math.min(24, Math.round(target / 15)));
+  // Scenes now BREATHE (~14-17s avg with a few longer pivotal beats), so budget the
+  // count against a longer average — fewer, richer scenes read more cinematic than
+  // many choppy cuts. A 5-min film → ~18 shots. Cap at 22 so long films still fill out.
+  const approx = film.sceneCount ? Math.max(1, Math.min(30, film.sceneCount)) : Math.max(3, Math.min(22, Math.round(target / 17)));
   const hasSource = !!film.sourceVideoUrl;
 
   // A MOVIE is built around its approved CAST acting in AI shots — it never uses
@@ -256,13 +257,14 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
         `- The DIALOGUE across all scenes must read as ONE real, logical conversation/screenplay. If a character asks a question, it gets ANSWERED (in the same scene or the very next) — NEVER leave a question hanging or switch topics abruptly. A question with no answer, or a line that ignores the previous line, is a hard failure.\n` +
         `- Keep CONSISTENCY throughout: the same names, relationships, goals, wardrobe and tone; the plot advances logically scene to scene.\n` +
         `- Minimise SILENT scenes: MOST scenes should carry spoken dialogue that moves the story. Only make a scene silent when the silence itself is the point (one deliberate establishing or emotional beat) — never pad with silent 'in shot' characters. Only include a character in a scene if they matter to that beat.\n` +
+        `- CINEMATIC FLOW & COMPOSITION (so the film plays as ONE piece, not disconnected clips): write each scene to ENTER and EXIT in motion — begin with the action already underway and end on a beat that hands off to the next scene (a glance, a step, a line landing) so the cut feels motivated, never abrupt. Give ADJACENT scenes a visual through-line (the same place & light, a matched movement, or an eyeline that carries over). Vary the shot scale for real rhythm — open on an establishing WIDE, use MEDIUM two-shots for dialogue, push to CLOSE-UPS for emotion — and say the framing in the script.\n` +
         `For EACH scene give:\n` +
         `- "engine": "ai" for a shot of the cast acting (the default), or "design" for a branded end card (use only for the final beat).\n` +
         `- "title": 2-4 words.\n` +
-        `- "script": the SHOT — setting, action, camera, mood (what is ON SCREEN). NOT the dialogue.\n` +
+        `- "script": the SHOT — setting, camera FRAMING (wide/medium/close), the action, and mood (what is ON SCREEN). Describe how the shot opens and where it lands. NOT the dialogue.\n` +
         `- "cast": who is on screen and what they SAY — [{"name":"<a cast name from above>","dialogue":"their spoken line — leave empty ONLY for a deliberate silent beat"}]. Lines must continue the conversation from the previous scene.\n` +
-        `- "durationSec": PREFER 8; use up to 15 only when a beat truly needs it. The total spoken dialogue in a scene must FIT its duration — about 2 words per second (an 8s shot ≈ 16 words total, 15s ≈ 30). Keep lines short.\n` +
-        `Open on a hook, build the story with connected beats, resolve it at the end. Return JSON: {"scenes":[{"engine":"ai","title":"...","script":"...","cast":[{"name":"...","dialogue":"..."}],"durationSec":8}, ...]} with exactly ${approx} scenes.`;
+        `- "durationSec": give each beat room to BREATHE — PREFER 12-15s (a full action beat + 2-3 lines), and reserve 16-30s for a PIVOTAL or emotional beat that earns it. Avoid choppy sub-10s cuts that make the film feel chopped up. Dialogue must FIT the duration at ~2 words/sec (12s ≈ 24 words, 15s ≈ 30, 20s ≈ 40). Keep lines natural, not rushed.\n` +
+        `Open on a hook, build the story with connected beats, resolve it at the end. Return JSON: {"scenes":[{"engine":"ai","title":"...","script":"...","cast":[{"name":"...","dialogue":"..."}],"durationSec":14}, ...]} with exactly ${approx} scenes.`;
     } else {
       const engines: string[] = ['"ai": a cinematic AI shot. script = a vivid SHOT PROMPT (what\'s on screen, mood, motion) — no dialogue.'];
       if (allowAvatar) engines.push(`"avatar": the user's talking-avatar${photoAvatar ? " (their own photo)" : " clone"} speaking to camera. script = the SPOKEN words — first person, punchy.`);
@@ -335,7 +337,8 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
         title: (s.title || `Scene ${i + 1}`).slice(0, 60),
         script: (s.script || brief).slice(0, 4000),
         cast: sceneCast,
-        durationSec: typeof s.durationSec === "number" ? Math.max(2, Math.min(15, Math.round(s.durationSec))) : engine === "design" ? 3 : 8,
+        // Movies breathe up to 30s (chained extensions); other kinds stay ≤15s.
+        durationSec: typeof s.durationSec === "number" ? Math.max(2, Math.min(useCast ? 30 : 15, Math.round(s.durationSec))) : engine === "design" ? 3 : useCast ? 14 : 8,
         order: i,
         x: 340 + i * 250,
         y: 80 + (i % 2) * 210,

@@ -169,7 +169,7 @@ async function buildSceneKeyframe(
     return null;
   }
 }
-const XFADE_DUR = 0.5; // seconds of overlap for a scene transition
+const XFADE_DUR = 0.7; // seconds of overlap for a scene transition — a touch longer so cuts blend, not snap
 const playedLenOf = (s: FilmScene) =>
   typeof s.clipStart === "number" && typeof s.clipEnd === "number" && s.clipEnd > s.clipStart ? s.clipEnd - s.clipStart : s.durationSec || 4;
 
