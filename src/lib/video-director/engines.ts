@@ -365,33 +365,23 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
       ? `${shotBody}\n\nDIALOGUE — each line is spoken ALOUD and lip-synced by the EXACT named person on screen (identify each speaker by the description in parentheses). Do NOT let anyone speak another person's line, and keep this order. This is spoken audio on camera, NOT subtitles or on-screen text:\n${dialogue}`
       : shotBody;
 
-    // FIRST FRAME: compose a real opening keyframe still so the clip STARTS in the
-    // scene (correct location + wardrobe, identity-locked) instead of on the actor's
-    // studio turnaround sheet — the old bug where the sheet was fed straight in as
-    // the first frame. An explicit product/reference image on the scene still wins
-    // as the deliberate first frame.
-    let firstFrameUrl: string | undefined = scene.referenceImageUrl || undefined;
-    let veoRefs: string[] = [];
-    if (!firstFrameUrl) {
-      // HYBRID (identity vs length): only a scene with CAST present gets a keyframe →
-      // image-to-video, which locks the approved faces (base ≤8s + extension for
-      // longer). A scene with NO specific cast renders as a clean single 15s
-      // TEXT-TO-VIDEO clip — no face to anchor, so we skip the keyframe and let the
-      // continuity bible in the prompt carry the location. This is the "fully use the
-      // 15s text-to-video" path where identity isn't at stake.
-      const wantKeyframe = castRefs.length > 0;
-      const key = wantKeyframe ? await buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity) : null;
-      if (key) {
-        firstFrameUrl = key;
-        p = 22;
-        // Store it as the scene poster too (the node shows a real storyboard frame).
-        await patchScene(filmId, userId, sceneId, { status: "rendering", progress: p, thumbnailUrl: key }).catch(() => {});
-      } else if (castRefs.length) {
-        // Keyframe failed — do NOT fall back to the turnaround sheet as the first
-        // frame (that IS the bug). Anchor identity via Veo reference images instead;
-        // Grok then renders text-to-video (no portrait start), relying on continuity.
-        veoRefs = castRefs;
-      }
+    // IDENTITY PATH — REFERENCE-to-video: feed the approved cast SHEETS as reference
+    // images so the same faces carry, while the model generates NATURAL motion from
+    // scratch. Replaces the old keyframe → image-to-video approach, which animated a
+    // generated still and looked stiff/posed ("not natural"). An explicit product
+    // reference image on the scene still wins as a deliberate first frame; a scene with
+    // NO cast renders as a clean text-to-video clip.
+    const firstFrameUrl: string | undefined = scene.referenceImageUrl || undefined;
+    let refImages: string[] = [];
+    if (!firstFrameUrl && castRefs.length) {
+      refImages = castRefs;
+      // Keyframe still = a nice node POSTER only — best-effort, does NOT gate the render
+      // (the video starts immediately from the reference images) and is NOT the first
+      // frame. Starting the xAI job right away also means a restart during setup can
+      // resume it (no keyframe-stage gap).
+      void buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity)
+        .then((key) => { if (key) void patchScene(filmId, userId, sceneId, { thumbnailUrl: key }).catch(() => {}); })
+        .catch(() => {});
     }
 
     // Time-based progress so the bar keeps MOVING while a slow provider works,
@@ -401,13 +391,14 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     const result = await withTimeout(
       generateVideoForRole("video_standard", {
         prompt: withVideoGuard(shotWithDialogue, scene.style),
-        // ≤15s renders as one Grok clip; >15s chains seamless extensions (the router
-        // handles it, capped at 30s). A longer shot simply takes longer to render.
+        // ≤10s (reference-to-video) / ≤15s (text-to-video) renders as one clip; longer
+        // chains seamless extensions (the router handles it, capped at 30s).
         durationSeconds: Math.min(30, scene.durationSec || 8),
         aspectRatio: aspect,
+        // (1080p is not available for grok-imagine-video — verified; router defaults to 720p.)
         referenceImageUrl: firstFrameUrl,
-        // Veo-only identity anchor (used when there's no keyframe first frame).
-        characterReferenceUrls: veoRefs,
+        // Cast sheets → reference-to-video on Grok (natural motion + identity) / referenceImages on Veo.
+        characterReferenceUrls: refImages,
         // Persist the provider job handle so a restart RESUMES this render (polls the
         // job, pulls the finished clip) instead of killing it. Updated on each
         // extension too, so a chained >15s shot resumes to its latest segment.

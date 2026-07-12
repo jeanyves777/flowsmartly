@@ -23,7 +23,8 @@ const VEO_MAX_SINGLE_SHOT_SECONDS = 8;
 // seamless extensions (2–10s each) from the last frame. Cap the total so a shot
 // can't balloon into an unbounded render (each extra segment is its own render).
 const GROK_MAX_SINGLE_SHOT_SECONDS = 15;   // text-to-video single clip
-const GROK_MAX_IMG2VID_SECONDS = 8;        // image-to-video (reference image) hard-caps ~8.7s → keep 8
+const GROK_MAX_IMG2VID_SECONDS = 8;        // image-to-video (first-frame image) hard-caps ~8.7s → keep 8
+const GROK_MAX_REF2VID_SECONDS = 10;       // reference-to-video (reference_images) caps at 10s
 const GROK_MAX_LONGFORM_SECONDS = 30;
 
 export interface VideoGenInput {
@@ -102,13 +103,21 @@ export async function generateVideoForRole(
         // a reference image the BASE is ≤8s and the rest is built from extensions
         // (which are video-to-video, not image-to-video). Text-to-video allows ≤15s.
         const target = Math.min(GROK_MAX_LONGFORM_SECONDS, duration);
-        const baseMax = input.referenceImageUrl ? GROK_MAX_IMG2VID_SECONDS : GROK_MAX_SINGLE_SHOT_SECONDS;
+        // Mode + its base cap, best first: REFERENCE-to-video (reference_images anchor the
+        // subject WITHOUT a first-frame lock → natural motion + identity, ≤10s) > image-to-
+        // video (first-frame, ≤8s) > text-to-video (≤15s). Anything longer chains extensions.
+        const useRefImages = !input.referenceImageUrl && !!input.characterReferenceUrls?.length;
+        const baseMax = input.referenceImageUrl
+          ? GROK_MAX_IMG2VID_SECONDS
+          : useRefImages
+            ? GROK_MAX_REF2VID_SECONDS
+            : GROK_MAX_SINGLE_SHOT_SECONDS;
         const result = await grokVideoClient.generateVideo(input.prompt, {
           duration: Math.min(baseMax, target),
           aspectRatio: input.aspectRatio,
-          // Grok tops out at 720p.
-          resolution: "720p",
+          resolution: input.resolution || "720p", // Director can request 1080p
           imageUrl: input.referenceImageUrl ?? undefined,
+          referenceImageUrls: useRefImages ? (input.characterReferenceUrls?.filter(Boolean) as string[]) : undefined,
           onStatus: input.onStatus,
           onJobId: (jobId) => input.onJobId?.({ provider: "grok", jobId }),
         });
