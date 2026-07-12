@@ -46,6 +46,43 @@ function extractScenes(raw: string): PlannedScene[] {
 }
 
 /**
+ * Generate the storyboard with a RETRY. A single transient LLM error (rate limit,
+ * a blip) used to zero out the whole draft; two attempts + logging make it resilient.
+ * Never throws — returns [] if both attempts come back empty.
+ */
+async function storyboardPlanned(prompt: string): Promise<PlannedScene[]> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const raw = await ai.generate(prompt, { maxTokens: 4000, temperature: attempt === 0 ? 0.7 : 0.55 });
+      const scenes = extractScenes(raw).slice(0, 30);
+      if (scenes.length) return scenes;
+      console.warn(`[video-director] storyboard attempt ${attempt + 1} returned 0 scenes`);
+    } catch (e) {
+      console.error(`[video-director] storyboard attempt ${attempt + 1} failed:`, e instanceof Error ? e.message : e);
+    }
+  }
+  return [];
+}
+
+/**
+ * Deterministic multi-scene SKELETON for a movie when the LLM storyboard can't be
+ * produced — so a cast-driven film is never stuck at 0/1 scene. Lays out story
+ * beats across the approved cast; the user edits the scripts + dialogue and
+ * generates. Better than a dead-end retry loop.
+ */
+const STORY_BEATS = ["Opening", "The spark", "First step", "A challenge", "Turning point", "Setback", "The push", "A win", "The climb", "Payoff", "Resolution", "Closing"];
+function castSkeleton(castList: FilmCharacter[], brief: string, approx: number): PlannedScene[] {
+  const n = Math.max(3, Math.min(approx || 6, 12));
+  return Array.from({ length: n }, (_, i) => ({
+    engine: "ai", // every beat is a generatable cast shot (a "design" card would need an image)
+    title: STORY_BEATS[i] || `Scene ${i + 1}`,
+    script: `${STORY_BEATS[i] || `Beat ${i + 1}`} — ${brief}`,
+    durationSec: 8,
+    cast: castList.length ? [{ name: castList[i % castList.length].name, dialogue: "" }] : [],
+  }));
+}
+
+/**
  * Turn the brief's attached media into routing inputs: a product/reference image
  * (anchors AI shots + design cards) and — if the user attached their photo — a
  * HeyGen talking-photo avatar (Avatar IV) so "my photo" literally presents.
@@ -204,14 +241,6 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   const useCast = isMovie && castList.length > 0;
   const allowAvatar = !isMovie || !!photoAvatar;
 
-  // Establish the shared world (location / palette / wardrobe) CONCURRENTLY with the
-  // storyboard. Running it as a SECOND SEQUENTIAL LLM call here added enough latency
-  // to push long movies past the request timeout — the draft never returned and the
-  // canvas came back EMPTY. The bible is stored for RENDER-time use (keyframes + shot
-  // prompts), which is where the visual continuity actually matters; the storyboard
-  // scripts don't need it inline. Awaited below, after the (longer) storyboard call.
-  const continuityPromise = establishContinuity(brief, film.style, target, castList).catch(() => null);
-
   let planned: PlannedScene[] = [];
   try {
     let prompt: string;
@@ -248,20 +277,23 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
         `Open with a scroll-stopping beat and close with a clear call to action. Durations sum to ~${target}s (each 6-15s).\n` +
         `Return JSON: {"scenes":[{"engine":"...","title":"2-4 words","script":"...","durationSec":10}, ...]} with exactly ${approx} scenes.`;
     }
-    // Drafting is async now (no request timeout), so give the storyboard real token
-    // headroom — 2800 truncated long movies into a single fallback scene. Parse with
-    // the truncation-robust extractor so a partial response still yields its scenes.
-    const raw = await ai.generate(prompt, { maxTokens: 4000, temperature: 0.7 });
-    planned = extractScenes(raw).slice(0, 30);
-  } catch {
+    // Drafting is async now (background), so token headroom + a retry are safe.
+    planned = await storyboardPlanned(prompt);
+  } catch (e) {
+    console.error("[video-director] storyboard build failed:", e instanceof Error ? e.message : e);
     planned = [];
   }
+
+  // Establish the shared world AFTER the storyboard (sequential, not parallel — two
+  // simultaneous LLM calls can trip a rate/concurrency limit and zero out the draft).
+  // Async draft means the extra latency is invisible. Stored for render-time keyframes.
+  film.continuity = await establishContinuity(brief, film.style, target, castList).catch(() => null);
+
   if (planned.length === 0) {
-    // A MOVIE storyboard that recovered NOTHING is a real failure (usually a
-    // transient LLM hiccup) — return no scenes so the canvas surfaces a retry
-    // instead of a fake single-scene "movie". Non-movie kinds keep a usable skeleton.
+    // Never dead-end: a movie gets a real multi-scene skeleton to edit; other kinds
+    // get their usual 3-beat starter. (A blank canvas + retry loop helps no one.)
     planned = useCast
-      ? []
+      ? castSkeleton(castList, brief, approx)
       : [
           { engine: "ai", title: "Hook", script: brief, durationSec: 8 },
           { engine: allowAvatar ? "avatar" : "ai", title: "Message", script: brief, durationSec: 12 },
@@ -325,9 +357,6 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   });
 
   film.scenes = scenes;
-  // The continuity bible ran alongside the storyboard — fold it in now (already
-  // resolved, so this adds no latency) for RENDER-time keyframes + shot prompts.
-  film.continuity = await continuityPromise;
   // A music bed + brand logo make the cut feel finished (user can change/remove).
   if (hasMedia && !film.music) { /* music library TBD — leave for the user to add via the output node */ }
   await saveFilm(filmId, userId, film);
