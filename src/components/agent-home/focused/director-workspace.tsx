@@ -19,7 +19,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   Sparkles, X, Film, Clapperboard, UserSquare2, Scissors, Images, Palette, Plus, Paperclip,
-  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon, Shirt, Pencil, Maximize2,
+  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon, Shirt, Pencil, Maximize2, Volume2, VolumeX,
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -765,6 +765,7 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
   const [px, setPx] = useState(30);          // px per second (zoom)
   const [t, setT] = useState(0);             // playhead seconds
   const [playing, setPlaying] = useState(false);
+  const [muted, setMuted] = useState(false); // preview audio (dialogue) on by default
   const [drag, setDrag] = useState<{ id: string; mode: "move" | "l" | "r"; dx: number } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rulerRef = useRef<HTMLDivElement | null>(null);
@@ -782,18 +783,26 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
   const activeUrl = active?.s.videoUrl && isPlayable(active.s.videoUrl) ? active.s.videoUrl : null;
   const activeImg = active && isImageUrl(active.s.videoUrl) ? active.s.videoUrl : null;
 
-  // seek the preview <video> to the playhead's local time (scrub)
+  // seek the preview <video> to the playhead's local time (scrub). While PLAYING we
+  // let the clip run for real (so its audio plays) and only hard-seek when the clip
+  // changes or the user scrubs/pauses — re-seeking every frame would stutter the audio.
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !activeUrl || activeImg) return;
-    if (v.getAttribute("data-src") !== activeUrl) { v.src = activeUrl; v.setAttribute("data-src", activeUrl); }
+    const isNewClip = v.getAttribute("data-src") !== activeUrl;
+    if (isNewClip) { v.src = activeUrl; v.setAttribute("data-src", activeUrl); }
+    if (playing && !isNewClip) return; // let it run for audio
     const local = active ? (active.s.clipStart ?? 0) + (t - active.start) : 0;
-    try { if (Math.abs(v.currentTime - local) > 0.1) v.currentTime = Math.max(0, local); } catch { /* not ready yet */ }
-  }, [activeUrl, activeImg, t, active?.s.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    try { if (Math.abs(v.currentTime - local) > 0.15) v.currentTime = Math.max(0, local); } catch { /* not ready yet */ }
+    if (playing && isNewClip) v.play().catch(() => {}); // continue playback into the next clip
+  }, [activeUrl, activeImg, t, active?.s.id, playing]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // playhead advance (silent scrub-play; the stitched film is the true preview)
+  // playhead advance — the active clip plays WITH AUDIO; the playhead tracks it in
+  // real time (both wall-clock), so you hear the dialogue while reviewing.
   useEffect(() => {
-    if (!playing) { if (rafRef.current) cancelAnimationFrame(rafRef.current); return; }
+    const v = videoRef.current;
+    if (!playing) { v?.pause?.(); if (rafRef.current) cancelAnimationFrame(rafRef.current); return; }
+    if (v && activeUrl && !activeImg) v.play().catch(() => {}); // user gesture → sound allowed
     wallRef.current = performance.now();
     const step = () => {
       const now = performance.now();
@@ -803,7 +812,7 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
     };
     rafRef.current = requestAnimationFrame(step);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [playing, total]);
+  }, [playing, total]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scrubTo = (clientX: number) => {
     const el = rulerRef.current; if (!el) return;
@@ -864,6 +873,7 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
             <div className="ms-auto flex items-center gap-1.5">
               <button onClick={() => setT(0)} className="grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="To start">⏮</button>
               <button onClick={() => setPlaying((p) => !p)} className="grid h-7 w-7 place-items-center rounded-lg bg-foreground text-background" title={playing ? "Pause" : "Play"}>{playing ? <Pause className="h-3.5 w-3.5 fill-current" /> : <Play className="h-3.5 w-3.5 translate-x-px fill-current" />}</button>
+              <button onClick={() => setMuted((m) => !m)} className={cn("grid h-7 w-7 place-items-center rounded-lg border border-border", muted ? "text-muted-foreground hover:text-foreground" : "border-brand-500/50 text-brand-500")} title={muted ? "Unmute dialogue" : "Mute"}>{muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}</button>
               <span className="ml-1 font-mono text-[11px] text-muted-foreground">{fmtT(t)} / {fmtT(total)}</span>
               <button onClick={() => selId && selLaid && onSplit(selId, t - selLaid.start)} disabled={!canSplit} className="ml-1 inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-brand-500 disabled:opacity-40" title="Split the selected clip at the playhead"><Scissors className="h-3 w-3" /> Split</button>
               <span className="ml-1 flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -884,7 +894,7 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
                 <Image src={activeImg} alt="" fill sizes="240px" className="object-contain" unoptimized />
               ) : activeUrl ? (
                 // eslint-disable-next-line jsx-a11y/media-has-caption
-                <video ref={videoRef} muted playsInline className="h-full w-full object-contain" />
+                <video ref={videoRef} muted={muted} playsInline className="h-full w-full object-contain" />
               ) : (
                 <div className="grid h-full w-full place-items-center text-[10px] text-muted-foreground/60">{active ? "not generated" : "empty"}</div>
               )}
