@@ -13,6 +13,38 @@ import { heygenClient } from "@/lib/ai/heygen-client";
 
 const ENGINE_SET = new Set<SceneEngine>(["ai", "avatar", "reel", "media", "design"]);
 
+/** One planned beat from the storyboard LLM (loose shape — coerced downstream). */
+type PlannedScene = { engine?: string; title?: string; script?: string; durationSec?: number; cast?: { name?: string; dialogue?: string }[] };
+
+/**
+ * Parse the storyboard model output into scene objects — ROBUST to truncation.
+ * A long movie's JSON can overrun the token budget and get cut off mid-array; a
+ * strict parse then fails and we fell back to a single "Opening" scene. This first
+ * tries a clean parse, then salvages every COMPLETE {…} element from the scenes
+ * array (string-aware balanced braces), so a truncated response still yields the
+ * scenes that DID come through instead of just one.
+ */
+function extractScenes(raw: string): PlannedScene[] {
+  const text = (raw || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  try {
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) { const o = JSON.parse(m[0]) as { scenes?: unknown }; if (Array.isArray(o?.scenes)) return o.scenes as PlannedScene[]; }
+  } catch { /* truncated / malformed — fall through to salvage */ }
+  // Salvage: scan the scenes array and keep each complete object.
+  const arrStart = text.indexOf("[", text.indexOf('"scenes"') >= 0 ? text.indexOf('"scenes"') : 0);
+  const src = arrStart >= 0 ? text.slice(arrStart + 1) : text;
+  const out: PlannedScene[] = [];
+  let depth = 0, start = -1, inStr = false, esc = false;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inStr) { if (esc) esc = false; else if (ch === "\\") esc = true; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") { if (depth === 0) start = i; depth++; }
+    else if (ch === "}" && depth > 0) { depth--; if (depth === 0 && start >= 0) { try { out.push(JSON.parse(src.slice(start, i + 1)) as PlannedScene); } catch { /* partial tail object */ } start = -1; } }
+  }
+  return out;
+}
+
 /**
  * Turn the brief's attached media into routing inputs: a product/reference image
  * (anchors AI shots + design cards) and — if the user attached their photo — a
@@ -180,8 +212,7 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   // scripts don't need it inline. Awaited below, after the (longer) storyboard call.
   const continuityPromise = establishContinuity(brief, film.style, target, castList).catch(() => null);
 
-  type Planned = { engine?: string; title?: string; script?: string; durationSec?: number; cast?: { name?: string; dialogue?: string }[] };
-  let planned: Planned[] = [];
+  let planned: PlannedScene[] = [];
   try {
     let prompt: string;
     if (useCast) {
@@ -217,14 +248,20 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
         `Open with a scroll-stopping beat and close with a clear call to action. Durations sum to ~${target}s (each 6-15s).\n` +
         `Return JSON: {"scenes":[{"engine":"...","title":"2-4 words","script":"...","durationSec":10}, ...]} with exactly ${approx} scenes.`;
     }
-    const json = await ai.generateJSON<{ scenes: Planned[] }>(prompt, { maxTokens: 2800, temperature: 0.7 });
-    planned = Array.isArray(json?.scenes) ? json.scenes.slice(0, 30) : [];
+    // Drafting is async now (no request timeout), so give the storyboard real token
+    // headroom — 2800 truncated long movies into a single fallback scene. Parse with
+    // the truncation-robust extractor so a partial response still yields its scenes.
+    const raw = await ai.generate(prompt, { maxTokens: 4000, temperature: 0.7 });
+    planned = extractScenes(raw).slice(0, 30);
   } catch {
     planned = [];
   }
   if (planned.length === 0) {
+    // A MOVIE storyboard that recovered NOTHING is a real failure (usually a
+    // transient LLM hiccup) — return no scenes so the canvas surfaces a retry
+    // instead of a fake single-scene "movie". Non-movie kinds keep a usable skeleton.
     planned = useCast
-      ? castList.slice(0, 1).map((c) => ({ engine: "ai", title: "Opening", script: brief, durationSec: 8, cast: [{ name: c.name, dialogue: "" }] }))
+      ? []
       : [
           { engine: "ai", title: "Hook", script: brief, durationSec: 8 },
           { engine: allowAvatar ? "avatar" : "ai", title: "Message", script: brief, durationSec: 12 },
