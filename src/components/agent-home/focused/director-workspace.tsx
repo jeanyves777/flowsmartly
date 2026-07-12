@@ -104,6 +104,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   const [dockCollapsed, setDockCollapsed] = useState(false);
   const [addMenu, setAddMenu] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
   const [avatars, setAvatars] = useState<{ id: string; name: string; previewUrl?: string }[]>([]);
   const [voices, setVoices] = useState<{ id: string; name: string; language?: string }[]>([]);
@@ -379,7 +380,22 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   // -------- brief create/update --------
   const draftPipeline = async (filmId: string) => {
     const dj = await fetch(`/api/ai/video-director/${filmId}/draft`, { method: "POST" }).then((r) => r.json()).catch(() => null);
-    if (dj?.success) setFilm(dj.data.film);
+    // Only treat it as done when scenes actually came back — a timed-out/failed
+    // draft must surface an error + retry, never leave a silently empty canvas.
+    if (dj?.success && Array.isArray(dj.data?.film?.scenes) && dj.data.film.scenes.length) {
+      setFilm(dj.data.film);
+      setDraftError(null);
+    } else {
+      setDraftError(dj?.error?.message || "The director couldn't storyboard the film. Please try again.");
+    }
+  };
+
+  // Retry a failed storyboard from the error banner.
+  const retryDraft = async () => {
+    if (!film) return;
+    setDraftError(null);
+    setDrafting(true);
+    try { await draftPipeline(film.id); } finally { setDrafting(false); }
   };
 
   const submitBrief = async (draft: BriefDraft) => {
@@ -632,6 +648,17 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
             <FlowGeneratingMark size={54} />
             <p className="mt-3 text-[13px] font-semibold">Directing your film…</p>
             <p className="text-[11.5px] text-muted-foreground">Storyboarding scenes across AI, avatar &amp; reel</p>
+          </div>
+        </div>
+      )}
+
+      {/* draft failed (e.g. the storyboard timed out) — never a silent empty canvas */}
+      {draftError && !drafting && (
+        <div className="absolute inset-x-0 top-20 z-[45] mx-auto w-fit max-w-[90%] rounded-2xl border border-rose-500/40 bg-card px-5 py-3.5 text-center shadow-2xl">
+          <p className="text-[12.5px] font-semibold text-rose-500">{draftError}</p>
+          <div className="mt-2 flex items-center justify-center gap-2">
+            <button onClick={() => setDraftError(null)} className="rounded-lg border border-border px-3 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:text-foreground">Dismiss</button>
+            <button onClick={retryDraft} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[11.5px] font-bold text-white"><Sparkles className="h-3.5 w-3.5" /> Try again</button>
           </div>
         </div>
       )}

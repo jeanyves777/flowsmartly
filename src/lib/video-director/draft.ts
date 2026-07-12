@@ -7,7 +7,7 @@
 
 import { ai } from "@/lib/ai/client";
 import { getFilm, saveFilm } from "./store";
-import { normalizeScene, normalizeContinuity, continuityText, type FilmProject, type FilmScene, type FilmCharacter, type FilmContinuity, type SceneEngine } from "./types";
+import { normalizeScene, normalizeContinuity, type FilmProject, type FilmScene, type FilmCharacter, type FilmContinuity, type SceneEngine } from "./types";
 import { listAvatarsForUser, listVoicesForUser } from "@/lib/avatar-studio";
 import { heygenClient } from "@/lib/ai/heygen-client";
 
@@ -154,10 +154,13 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   const useCast = isMovie && castList.length > 0;
   const allowAvatar = !isMovie || !!photoAvatar;
 
-  // Establish the shared world ONCE (free) so every scene keeps the same location,
-  // lighting and wardrobe — then feed it into the shot list so scripts respect it too.
-  film.continuity = await establishContinuity(brief, film.style, target, castList);
-  const continuityBible = continuityText(film.continuity);
+  // Establish the shared world (location / palette / wardrobe) CONCURRENTLY with the
+  // storyboard. Running it as a SECOND SEQUENTIAL LLM call here added enough latency
+  // to push long movies past the request timeout — the draft never returned and the
+  // canvas came back EMPTY. The bible is stored for RENDER-time use (keyframes + shot
+  // prompts), which is where the visual continuity actually matters; the storyboard
+  // scripts don't need it inline. Awaited below, after the (longer) storyboard call.
+  const continuityPromise = establishContinuity(brief, film.style, target, castList).catch(() => null);
 
   type Planned = { engine?: string; title?: string; script?: string; durationSec?: number; cast?: { name?: string; dialogue?: string }[] };
   let planned: Planned[] = [];
@@ -168,7 +171,6 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
       prompt =
         `You are a SCREENWRITER + director writing ONE continuous ${target}s ${film.style || "cinematic"} short FILM as a shot list. Brief: "${brief}".\n` +
         `CAST — every on-screen character MUST be one of these EXACT people (use their names verbatim):\n${castBlock}\n` +
-        (continuityBible ? `CONTINUITY BIBLE — every scene happens in this ONE shared world; keep the SAME location, lighting and clothes throughout unless the story truly moves:\n${continuityBible}\n` : "") +
         (productImg ? `A product/reference image is attached — you may feature it in a shot or a "design" end card.\n` : "") +
         `Write the WHOLE film as one coherent story before you output — a clear beginning, middle and end — then break it into exactly ${approx} scenes IN ORDER.\n` +
         `STORY CONTINUITY (this is the most important rule):\n` +
@@ -190,7 +192,6 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
       if (hasSource) engines.push('"reel": a scored clip cut from the uploaded long video. script = a short note on which moment to grab.');
       prompt =
         `You are a senior video DIRECTOR planning a ${target}s ${film.filmType.replace("_", " ")} as a sequence of scenes. Brief: "${brief}".\n` +
-        (continuityBible ? `CONTINUITY BIBLE — keep every scene in this ONE shared world (same location, lighting and wardrobe throughout):\n${continuityBible}\n` : "") +
         (photoAvatar ? `The user attached a PHOTO OF THEMSELVES — use "avatar" scenes for a PRESENTER that is them.\n` : "") +
         (productImg ? `A PRODUCT/REFERENCE image is attached — use "ai" shots to show it and a "design" end card featuring it.\n` : "") +
         `Plan exactly ${approx} scenes that build one cohesive story. For EACH scene pick the best engine:\n` +
@@ -269,6 +270,9 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   });
 
   film.scenes = scenes;
+  // The continuity bible ran alongside the storyboard — fold it in now (already
+  // resolved, so this adds no latency) for RENDER-time keyframes + shot prompts.
+  film.continuity = await continuityPromise;
   // A music bed + brand logo make the cut feel finished (user can change/remove).
   if (hasMedia && !film.music) { /* music library TBD — leave for the user to add via the output node */ }
   await saveFilm(filmId, userId, film);
