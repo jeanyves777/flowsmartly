@@ -368,7 +368,11 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     const identityLine = usingRefs
       ? `\n\nIDENTITY — keep every person's face, hair, skin tone, build AND their clothing/wardrobe EXACTLY as established: the same individuals throughout, do NOT restyle, change, swap, or remove anyone's outfit.`
       : "";
-    const shotBody = `${shot}${continuityLine}${identityLine}`;
+    // A single generated clip must read as ONE unbroken take — otherwise, the moment the
+    // implied camera angle shifts, the model re-imagines the whole environment (the "3
+    // different backgrounds in one 15s scene" bug). Lock the location + camera for the clip.
+    const singleTakeLine = `\n\nSINGLE CONTINUOUS TAKE — this whole clip is ONE unbroken shot in ONE fixed location. The camera may move GENTLY (a slow push-in, a slight drift or small pan) but must NEVER cut, jump, or switch to a different angle, room or background. The setting, walls, floor, furniture, props and lighting stay EXACTLY the same from the first frame to the last — when the view shifts, it is the SAME place seen slightly differently, never a new scene. No hard cuts, no scene changes, no montage.`;
+    const shotBody = `${shot}${continuityLine}${identityLine}${singleTakeLine}`;
     const shotWithDialogue = dialogue
       ? `${shotBody}\n\nDIALOGUE — each line is spoken ALOUD and lip-synced by the EXACT named person on screen (identify each speaker by the description in parentheses). Do NOT let anyone speak another person's line, and keep this order. This is spoken audio on camera, NOT subtitles or on-screen text:\n${dialogue}`
       : shotBody;
