@@ -373,6 +373,24 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
       ? `${shotBody}\n\nDIALOGUE — each line is spoken ALOUD and lip-synced by the EXACT named person on screen (identify each speaker by the description in parentheses). Do NOT let anyone speak another person's line, and keep this order. This is spoken audio on camera, NOT subtitles or on-screen text:\n${dialogue}`
       : shotBody;
 
+    // Give the dialogue room to be SPOKEN, not rushed. Natural speech is ~2.2 words/sec,
+    // so a line needs at least words/2.2 seconds. A cast (reference-to-video) clip caps at
+    // ~10s; grow this shot toward that cap so a scene planned too short can't swallow half
+    // the line — the exact defect we saw (a 10s clip rushing ~50 words). If the dialogue
+    // still overflows 10s, we can't fix it here (the storyboard should have split it) — log
+    // it so it's visible rather than silently mangled.
+    const REF2VID_MAX_SECONDS = 10;
+    const spokenWords = (dialogue ? dialogue.match(/"([^"]*)"/g) || [] : [])
+      .reduce((n, q) => n + q.replace(/"/g, "").trim().split(/\s+/).filter(Boolean).length, 0);
+    const neededForSpeech = spokenWords ? Math.ceil(spokenWords / 2.2) : 0;
+    if (neededForSpeech > REF2VID_MAX_SECONDS) {
+      console.warn(`[video-director] scene ${sceneId} dialogue overflows: ${spokenWords} words need ~${neededForSpeech}s but the clip caps at ${REF2VID_MAX_SECONDS}s — it will rush. Split this beat across scenes.`);
+    }
+    const plannedSec = scene.durationSec || 8;
+    const dialogueAwareSec = spokenWords
+      ? Math.min(REF2VID_MAX_SECONDS, Math.max(plannedSec, neededForSpeech))
+      : plannedSec;
+
     // IDENTITY PATH — REFERENCE-to-video: feed the approved cast SHEETS as reference
     // images so the same faces carry, while the model generates NATURAL motion from
     // scratch. Replaces the old keyframe → image-to-video approach, which animated a
@@ -399,9 +417,10 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     const result = await withTimeout(
       generateVideoForRole("video_standard", {
         prompt: withVideoGuard(shotWithDialogue, scene.style),
-        // ≤10s (reference-to-video) / ≤15s (text-to-video) renders as one clip; longer
-        // chains seamless extensions (the router handles it, capped at 30s).
-        durationSeconds: Math.min(30, scene.durationSec || 8),
+        // Reference-to-video renders one ≤10s clip; text-to-video one ≤15s clip (the
+        // router caps per mode). durationSeconds is grown to fit the spoken dialogue so
+        // the line isn't rushed, then capped by the router.
+        durationSeconds: dialogueAwareSec,
         aspectRatio: aspect,
         // (1080p is not available for grok-imagine-video — verified; router defaults to 720p.)
         referenceImageUrl: firstFrameUrl,

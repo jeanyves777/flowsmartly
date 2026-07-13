@@ -13,6 +13,17 @@ import { heygenClient } from "@/lib/ai/heygen-client";
 
 const ENGINE_SET = new Set<SceneEngine>(["ai", "avatar", "reel", "media", "design"]);
 
+// A cast shot renders via reference-to-video (identity-anchored), which caps at
+// ~10s per clip — extension chaining is disabled (the edit endpoint caps input
+// at 8.7s and burned the 1-req/sec budget). So a cast scene must be PLANNED at
+// ≤10s: anything longer is a lie the render can't keep, and its dialogue gets
+// rushed/truncated to fit. Films get their length from MORE scenes, not longer
+// clips. Keep this in sync with GROK_MAX_REF2VID_SECONDS in video-router.ts.
+const CAST_SCENE_MAX_SECONDS = 10;
+// Words of dialogue a clip can hold at a natural, unhurried pace (~2.2 words/sec).
+// 10s ≈ 22 words. Used to keep the storyboard from over-writing a shot.
+const DIALOGUE_WORDS_PER_SEC = 2.2;
+
 /** One planned beat from the storyboard LLM (loose shape — coerced downstream). */
 type PlannedScene = { engine?: string; title?: string; script?: string; durationSec?: number; cast?: { name?: string; dialogue?: string }[] };
 
@@ -227,10 +238,11 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   if (!brief) return film;
 
   const target = film.targetSeconds || 30;
-  // Scenes now BREATHE (~14-17s avg with a few longer pivotal beats), so budget the
-  // count against a longer average — fewer, richer scenes read more cinematic than
-  // many choppy cuts. A 5-min film → ~18 shots. Cap at 22 so long films still fill out.
-  const approx = film.sceneCount ? Math.max(1, Math.min(30, film.sceneCount)) : Math.max(3, Math.min(22, Math.round(target / 17)));
+  // Cast shots render at ≤10s each (CAST_SCENE_MAX_SECONDS), so budget the scene
+  // count against a ~11s average (a few shorter design/silent beats pull it down
+  // from 10). A 5-min film → ~27 shots. Undershooting the count makes the film come
+  // out SHORTER than asked AND crams dialogue into too-few clips, so lean generous.
+  const approx = film.sceneCount ? Math.max(1, Math.min(40, film.sceneCount)) : Math.max(3, Math.min(32, Math.round(target / 11)));
   const hasSource = !!film.sourceVideoUrl;
 
   // A MOVIE is built around its approved CAST acting in AI shots — it never uses
@@ -263,8 +275,8 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
         `- "title": 2-4 words.\n` +
         `- "script": the SHOT — setting, camera FRAMING (wide/medium/close), the action, and mood (what is ON SCREEN). Describe how the shot opens and where it lands. NOT the dialogue.\n` +
         `- "cast": who is on screen and what they SAY — [{"name":"<a cast name from above>","dialogue":"their spoken line — leave empty ONLY for a deliberate silent beat"}]. Lines must continue the conversation from the previous scene.\n` +
-        `- "durationSec": give each beat room to BREATHE — PREFER 12-15s (a full action beat + 2-3 lines), and reserve 16-30s for a PIVOTAL or emotional beat that earns it. Avoid choppy sub-10s cuts that make the film feel chopped up. Dialogue must FIT the duration at ~2 words/sec (12s ≈ 24 words, 15s ≈ 30, 20s ≈ 40). Keep lines natural, not rushed.\n` +
-        `Open on a hook, build the story with connected beats, resolve it at the end. Return JSON: {"scenes":[{"engine":"ai","title":"...","script":"...","cast":[{"name":"...","dialogue":"..."}],"durationSec":14}, ...]} with exactly ${approx} scenes.`;
+        `- "durationSec": each cast shot renders up to ${CAST_SCENE_MAX_SECONDS}s, so keep every beat 6-${CAST_SCENE_MAX_SECONDS}s — NEVER longer. Dialogue MUST fit at ~2 words/sec (8s ≈ 16 words, ${CAST_SCENE_MAX_SECONDS}s ≈ ${Math.round(CAST_SCENE_MAX_SECONDS * DIALOGUE_WORDS_PER_SEC)} words). That means AT MOST one line, or a tight two-line exchange (~10 words each), per scene. This is a HARD limit: writing more words than fit makes the actors rush and swallow half the line — a failure. To show a LONGER conversation, SPLIT it across consecutive scenes (each scene continues the exchange from the last), never cram it into one shot.\n` +
+        `Open on a hook, build the story with connected beats, resolve it at the end. Return JSON: {"scenes":[{"engine":"ai","title":"...","script":"...","cast":[{"name":"...","dialogue":"..."}],"durationSec":9}, ...]} with exactly ${approx} scenes.`;
     } else {
       const engines: string[] = ['"ai": a cinematic AI shot. script = a vivid SHOT PROMPT (what\'s on screen, mood, motion) — no dialogue.'];
       if (allowAvatar) engines.push(`"avatar": the user's talking-avatar${photoAvatar ? " (their own photo)" : " clone"} speaking to camera. script = the SPOKEN words — first person, punchy.`);
@@ -337,8 +349,12 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
         title: (s.title || `Scene ${i + 1}`).slice(0, 60),
         script: (s.script || brief).slice(0, 4000),
         cast: sceneCast,
-        // Movies breathe up to 30s (chained extensions); other kinds stay ≤15s.
-        durationSec: typeof s.durationSec === "number" ? Math.max(2, Math.min(useCast ? 30 : 15, Math.round(s.durationSec))) : engine === "design" ? 3 : useCast ? 14 : 8,
+        // Cast shots render at ≤10s (reference-to-video, no extension chaining), so a
+        // cast beat can't be planned longer than the clip it produces — else its dialogue
+        // overflows and rushes. Design/end-card beats stay short; non-cast clips ≤15s.
+        durationSec: typeof s.durationSec === "number"
+          ? Math.max(2, Math.min(useCast ? CAST_SCENE_MAX_SECONDS : 15, Math.round(s.durationSec)))
+          : engine === "design" ? 3 : useCast ? CAST_SCENE_MAX_SECONDS : 8,
         order: i,
         x: 340 + i * 250,
         y: 80 + (i % 2) * 210,
