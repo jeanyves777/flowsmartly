@@ -766,6 +766,7 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
   const [t, setT] = useState(0);             // playhead seconds
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false); // preview audio (dialogue) on by default
+  const [theater, setTheater] = useState(false); // fullscreen preview ("view in full")
   const [drag, setDrag] = useState<{ id: string; mode: "move" | "l" | "r"; dx: number } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rulerRef = useRef<HTMLDivElement | null>(null);
@@ -795,7 +796,17 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
     const local = active ? (active.s.clipStart ?? 0) + (t - active.start) : 0;
     try { if (Math.abs(v.currentTime - local) > 0.15) v.currentTime = Math.max(0, local); } catch { /* not ready yet */ }
     if (playing && isNewClip) v.play().catch(() => {}); // continue playback into the next clip
-  }, [activeUrl, activeImg, t, active?.s.id, playing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeUrl, activeImg, t, active?.s.id, playing, theater]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Esc closes the fullscreen theater; the click that opened it is a user gesture so
+  // the video may play WITH audio. Only the mounted <video> (small OR theater) holds the
+  // single videoRef — the seek effect (theater dep) re-inits it when the mount switches.
+  useEffect(() => {
+    if (!theater) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setTheater(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [theater]);
 
   // playhead advance — the active clip plays WITH AUDIO; the playhead tracks it in
   // real time (both wall-clock), so you hear the dialogue while reviewing.
@@ -887,18 +898,34 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
 
       {!collapsed && (
         <div className="flex min-h-0 flex-1">
-          {/* preview */}
+          {/* preview — click to view full screen (theater) */}
           <div className="flex shrink-0 flex-col items-center justify-center gap-1.5 border-r border-border bg-black/50 p-3">
-            <div className="relative overflow-hidden rounded-lg border border-border bg-black" style={{ width: prevAspect.w, height: prevAspect.h }}>
+            <button
+              type="button"
+              onClick={() => { if (activeUrl || activeImg) { setTheater(true); if (activeUrl) setPlaying(true); } }}
+              disabled={!activeUrl && !activeImg}
+              title="View full screen"
+              aria-label="View preview full screen"
+              className={cn("group relative overflow-hidden rounded-lg border border-border bg-black outline-none focus-visible:ring-2 focus-visible:ring-brand-500", (activeUrl || activeImg) && "cursor-zoom-in")}
+              style={{ width: prevAspect.w, height: prevAspect.h }}
+            >
               {activeImg ? (
                 <Image src={activeImg} alt="" fill sizes="240px" className="object-contain" unoptimized />
               ) : activeUrl ? (
-                // eslint-disable-next-line jsx-a11y/media-has-caption
-                <video ref={videoRef} muted={muted} playsInline className="h-full w-full object-contain" />
+                theater
+                  ? <div className="grid h-full w-full place-items-center px-1 text-center text-[9px] text-muted-foreground/70">▶ playing full screen</div>
+                  // eslint-disable-next-line jsx-a11y/media-has-caption
+                  : <video ref={videoRef} muted={muted} playsInline className="h-full w-full object-contain" />
               ) : (
                 <div className="grid h-full w-full place-items-center text-[10px] text-muted-foreground/60">{active ? "not generated" : "empty"}</div>
               )}
-            </div>
+              {(activeUrl || activeImg) && !theater && (
+                <>
+                  <span className="absolute right-1.5 top-1.5 grid h-[22px] w-[22px] place-items-center rounded-md border border-white/15 bg-black/55 opacity-0 transition group-hover:opacity-100"><Maximize2 className="h-3 w-3 text-white" /></span>
+                  <span className="absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-black/70 to-transparent pb-1.5 pt-4 opacity-0 transition group-hover:opacity-100"><span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-black/60 px-2 py-0.5 text-[9.5px] font-semibold text-white"><Maximize2 className="h-2.5 w-2.5" /> View full</span></span>
+                </>
+              )}
+            </button>
             <span className="max-w-[240px] truncate text-[10px] text-muted-foreground">{active?.s.title || "—"}</span>
           </div>
 
@@ -970,6 +997,52 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
             </div>
           </div>
         </div>
+      )}
+
+      {/* Fullscreen theater — the preview, big. Reuses the same playhead/clip engine;
+          the single videoRef moves to the theater <video> while it's open. */}
+      {theater && createPortal(
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
+          onClick={(e) => { if (e.target === e.currentTarget) setTheater(false); }}>
+          <span className="absolute left-4 top-5 font-mono text-[11px] text-muted-foreground">Esc to close</span>
+          <span className="absolute left-1/2 top-4 max-w-[60vw] -translate-x-1/2 truncate text-center text-[12.5px] text-muted-foreground">{active?.s.title || "—"}</span>
+          <button onClick={() => setTheater(false)} aria-label="Close" className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full border border-border bg-card/80 text-foreground hover:bg-card"><X className="h-4 w-4" /></button>
+
+          <div className="flex w-full max-w-[560px] flex-col gap-3.5" onClick={(e) => e.stopPropagation()}>
+            <div className="relative mx-auto overflow-hidden rounded-2xl border border-border bg-black shadow-2xl"
+              style={{
+                aspectRatio: film.aspect === "16:9" ? "16 / 9" : film.aspect === "1:1" ? "1 / 1" : "9 / 16",
+                maxWidth: "94vw", maxHeight: "78vh",
+                height: film.aspect === "9:16" ? "76vh" : film.aspect === "1:1" ? "min(76vh, 560px)" : "auto",
+                width: film.aspect === "16:9" ? "min(94vw, 760px)" : "auto",
+              }}>
+              {activeImg ? (
+                <Image src={activeImg} alt="" fill sizes="760px" className="object-contain" unoptimized />
+              ) : activeUrl ? (
+                // eslint-disable-next-line jsx-a11y/media-has-caption
+                <video ref={videoRef} muted={muted} playsInline className="h-full w-full object-contain" />
+              ) : (
+                <div className="grid h-full w-full place-items-center text-sm text-white/50">{active ? "not generated" : "empty"}</div>
+              )}
+            </div>
+
+            {/* transport */}
+            <div className="flex items-center gap-3">
+              <button onClick={() => setT(0)} title="To start" className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground">⏮</button>
+              <button onClick={() => setPlaying((p) => !p)} title={playing ? "Pause" : "Play"} className="grid h-11 w-11 place-items-center rounded-full bg-foreground text-background">{playing ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 translate-x-px fill-current" />}</button>
+              <button onClick={() => setMuted((m) => !m)} title={muted ? "Unmute dialogue" : "Mute"} className={cn("grid h-9 w-9 place-items-center rounded-lg border border-border", muted ? "text-muted-foreground hover:text-foreground" : "border-brand-500/50 text-brand-500")}>{muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}</button>
+              <div className="relative h-1.5 flex-1 cursor-pointer rounded-full bg-border"
+                onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); setT(Math.max(0, Math.min(total, ((e.clientX - r.left) / r.width) * total))); }}
+                onPointerMove={(e) => { if (!e.buttons) return; const r = e.currentTarget.getBoundingClientRect(); setT(Math.max(0, Math.min(total, ((e.clientX - r.left) / r.width) * total))); }}>
+                <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${(t / total) * 100}%` }} />
+                <div className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow" style={{ left: `${(t / total) * 100}%` }} />
+                {laid.slice(1).map((l) => <span key={l.s.id} className="pointer-events-none absolute top-0 h-1.5 w-px bg-white/25" style={{ left: `${(l.start / total) * 100}%` }} />)}
+              </div>
+              <span className="font-mono text-[12px] text-muted-foreground">{fmtT(t)} / {fmtT(total)}</span>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
