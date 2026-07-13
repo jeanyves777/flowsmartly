@@ -73,39 +73,52 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
 /** For a movie scene: the identity references for EVERY cast member present
  *  (speakers first, so the primary anchor is who the shot is on) + the spoken
  *  dialogue block, so the AI shot shows the same people saying their lines. */
-function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; dialogue?: string } {
+function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; dialogue?: string; present: string[]; speakerCount: number } {
   const chars = film.characters || [];
   const lines = scene.cast || [];
   const charFor = (l: { characterId?: string; name?: string }): FilmCharacter | undefined =>
     chars.find((x) => x.id === l.characterId) || chars.find((x) => x.name.toLowerCase() === (l.name || "").toLowerCase());
-  // BOTH the clean portrait AND the turnaround sheet per person — more identity + wardrobe
-  // signal for reference-to-video (which anchors appearance from these), reducing the
-  // "clothing changed" drift. Portrait first (cleaner wardrobe read).
-  const refsFor = (l: { characterId?: string; name?: string }): string[] => {
+  // ONE clean PORTRAIT per person for reference-to-video. Feeding the multi-pose
+  // turnaround SHEET as a reference makes the model read the repeated poses as several
+  // people and render the SAME person two or three times (the "duplicated cast" bug) —
+  // a single clean subject per person avoids the clones. Sheet is the fallback only.
+  const imgFor = (l: { characterId?: string; name?: string }): string | undefined => {
     const c = charFor(l);
-    return [c?.referenceImageUrl, c?.characterSheetUrl].filter((u): u is string => !!u);
+    return c?.referenceImageUrl || c?.characterSheetUrl || undefined;
   };
-  // Collect each present cast member's images — speakers first (that's who the shot is
-  // on), then any silent/background cast. De-duped, and ONLY people actually in this
-  // scene: a shot with no cast lines (an establishing beat) must NOT force the lead in.
-  const refs: string[] = [];
-  const push = (u?: string) => { if (u && !refs.includes(u)) refs.push(u); };
-  for (const l of lines.filter((l) => (l.dialogue || "").trim())) refsFor(l).forEach(push);
-  for (const l of lines) refsFor(l).forEach(push);
-  const spoken = lines.filter((l) => (l.dialogue || "").trim());
-  // Tag each speaker with a SHORT visual descriptor so the model can tell who's who
-  // on screen and lip-sync the right line to the right person (fixes "the wrong
-  // character says someone else's line" in multi-person shots).
-  const tag = (c?: FilmCharacter): string => {
+  const shortDesc = (c?: FilmCharacter): string => {
     if (!c) return "";
     const d = (c.wardrobe?.trim() || c.description || "").replace(/\s+/g, " ").trim();
-    if (d) return ` (${d.split(" ").slice(0, 12).join(" ")})`;
-    return c.role ? ` (${c.role})` : "";
+    return d ? d.split(" ").slice(0, 12).join(" ") : (c.role || "");
   };
+  // Who is actually in this shot — speakers first (that's who the shot is on), then any
+  // silent cast — DE-DUPED PER PERSON so the same person can never be listed (or
+  // referenced) twice. A shot with no cast lines (an establishing beat) forces no one in.
+  const seen = new Set<string>();
+  const present: string[] = [];
+  const refs: string[] = [];
+  const addPerson = (l: { characterId?: string; name?: string }) => {
+    const c = charFor(l);
+    const key = c?.id || (l.name || "").toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    const nm = c?.name || l.name || "";
+    const dsc = shortDesc(c);
+    present.push(dsc ? `${nm} (${dsc})` : nm);
+    const u = imgFor(l);
+    if (u) refs.push(u);
+  };
+  for (const l of lines.filter((l) => (l.dialogue || "").trim())) addPerson(l);
+  for (const l of lines) addPerson(l);
+  const spoken = lines.filter((l) => (l.dialogue || "").trim());
+  // Tag each speaker with a SHORT visual descriptor so the model can tell who's who on
+  // screen and lip-sync the right line to the right person (fixes "the wrong character
+  // says someone else's line" in multi-person shots).
+  const tag = (c?: FilmCharacter): string => { const d = shortDesc(c); return d ? ` (${d})` : ""; };
   const dialogue = spoken.length
     ? spoken.map((l) => `${l.name}${tag(charFor(l))} says: "${(l.dialogue || "").trim()}"`).join("\n")
     : undefined;
-  return { refs: refs.slice(0, 7), dialogue }; // reference-to-video accepts up to 7 images
+  return { refs: refs.slice(0, 6), dialogue, present, speakerCount: spoken.length };
 }
 
 /** The continuity bible scoped to the cast actually in THIS scene (so the shot's
@@ -259,9 +272,9 @@ export async function generateSceneRender(filmId: string, userId: string, sceneI
         if (!charge.success) return { ok: false, message: charge.error || "Could not charge credits." };
       }
       await patchScene(filmId, userId, sceneId, { status: "rendering", progress: 6, error: null });
-      const { refs: castRefs, dialogue } = sceneCastData(film, scene);
+      const { refs: castRefs, dialogue, present } = sceneCastData(film, scene);
       const continuity = continuityForScene(film, scene);
-      void renderAiScene(filmId, userId, sceneId, scene, film.aspect, cost, castRefs, dialogue, continuity); // fire-and-forget (VPS is long-lived)
+      void renderAiScene(filmId, userId, sceneId, scene, film.aspect, cost, castRefs, dialogue, continuity, present); // fire-and-forget (VPS is long-lived)
       const f = await getFilm(filmId, userId);
       return { ok: true, film: f ?? undefined };
     }
@@ -351,7 +364,7 @@ async function renderAiOverlay(filmId: string, userId: string, sceneId: string, 
 }
 
 /** Fire-and-forget AI shot render → upload → mark ready. Refunds on failure. Never throws. */
-async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number, castRefs: string[] = [], dialogue?: string, continuity = ""): Promise<void> {
+async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number, castRefs: string[] = [], dialogue?: string, continuity = "", present: string[] = []): Promise<void> {
   try {
     let p = 8;
     // Stamp the render start so the watchdog can fail this scene if the worker
@@ -361,6 +374,17 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     // does native speech) — not on-screen captions, which the leak guard forbids.
     // The continuity bible keeps the shot in the film's shared world (location/wardrobe).
     const shot = scene.script || scene.title;
+    // WHO is on screen — an exact, de-duped roster so the model renders each person ONCE
+    // (kills the "duplicated/cloned cast" bug) and never invents extra speakers or lets a
+    // background face answer the cast (kills the "someone unrelated responds" bug).
+    const stagingLine = present.length
+      ? `\n\nCAST ON SCREEN — exactly ${present.length} ${present.length === 1 ? "person appears" : "people appear"} in this shot: ${present.join("; ")}. Render EACH of them EXACTLY ONCE — never duplicate, clone, mirror or split a person into two. NO other speaking characters; any people in the background are out of focus, silent, and never react to or answer the cast.`
+      : "";
+    // Blocking + eyelines + action attribution — only when 2+ people talk, so nobody
+    // talks to empty space and every gesture (a handshake) has a clear doer and receiver.
+    const blockingLine = present.length >= 2 && dialogue
+      ? `\n\nBLOCKING & EYELINES — stage the speakers in a clear two-shot FACING EACH OTHER; each person LOOKS AT the one they address (never at the camera, never into empty space) and the listener visibly reacts before replying. Every physical action is performed by a NAMED person toward a NAMED person (if hands are shaken, show WHO offers and WHO takes) — no ambiguous or unattributed gestures, no floating hands.`
+      : "";
     const continuityLine = continuity ? `\n\nCONTINUITY — keep consistent with the rest of the film (same place, lighting and clothes): ${continuity}` : "";
     // When we anchor on cast reference images, hard-lock face + WARDROBE so the model
     // doesn't restyle the clothes (the "clothing changed" drift of reference-to-video).
@@ -372,9 +396,9 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     // implied camera angle shifts, the model re-imagines the whole environment (the "3
     // different backgrounds in one 15s scene" bug). Lock the location + camera for the clip.
     const singleTakeLine = `\n\nSINGLE CONTINUOUS TAKE — this whole clip is ONE unbroken shot in ONE fixed location. The camera may move GENTLY (a slow push-in, a slight drift or small pan) but must NEVER cut, jump, or switch to a different angle, room or background. The setting, walls, floor, furniture, props and lighting stay EXACTLY the same from the first frame to the last — when the view shifts, it is the SAME place seen slightly differently, never a new scene. No hard cuts, no scene changes, no montage.`;
-    const shotBody = `${shot}${continuityLine}${identityLine}${singleTakeLine}`;
+    const shotBody = `${shot}${stagingLine}${blockingLine}${continuityLine}${identityLine}${singleTakeLine}`;
     const shotWithDialogue = dialogue
-      ? `${shotBody}\n\nDIALOGUE — each line is spoken ALOUD and lip-synced by the EXACT named person on screen (identify each speaker by the description in parentheses). Do NOT let anyone speak another person's line, and keep this order. This is spoken audio on camera, NOT subtitles or on-screen text:\n${dialogue}`
+      ? `${shotBody}\n\nDIALOGUE — a real spoken exchange between the people on screen. Each line is spoken ALOUD and lip-synced by the EXACT named person (identify each speaker by the description in parentheses), addressing the OTHER named person present — the listener reacts, then replies, a natural back-and-forth. Do NOT let anyone speak another person's line, do NOT add any voice from someone who is not on screen, and keep this order. Fill the shot with this conversation — no long silent pauses or dead air. This is spoken audio on camera, NOT subtitles or on-screen text:\n${dialogue}`
       : shotBody;
 
     // How much clip does the dialogue need? Natural speech is ~2.2 words/sec, so a line
