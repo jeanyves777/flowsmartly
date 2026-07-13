@@ -366,30 +366,64 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     // doesn't restyle the clothes (the "clothing changed" drift of reference-to-video).
     const usingRefs = !scene.referenceImageUrl && castRefs.length > 0;
     const identityLine = usingRefs
-      ? `\n\nIDENTITY — the people on screen are the EXACT individuals in the reference images: keep each person's face, hair, skin tone, build AND their clothing/wardrobe exactly as shown in the references — do NOT restyle, change, swap, or remove anyone's outfit.`
+      ? `\n\nIDENTITY — keep every person's face, hair, skin tone, build AND their clothing/wardrobe EXACTLY as established: the same individuals throughout, do NOT restyle, change, swap, or remove anyone's outfit.`
       : "";
     const shotBody = `${shot}${continuityLine}${identityLine}`;
     const shotWithDialogue = dialogue
       ? `${shotBody}\n\nDIALOGUE — each line is spoken ALOUD and lip-synced by the EXACT named person on screen (identify each speaker by the description in parentheses). Do NOT let anyone speak another person's line, and keep this order. This is spoken audio on camera, NOT subtitles or on-screen text:\n${dialogue}`
       : shotBody;
 
-    // IDENTITY PATH — REFERENCE-to-video: feed the approved cast SHEETS as reference
-    // images so the same faces carry, while the model generates NATURAL motion from
-    // scratch. Replaces the old keyframe → image-to-video approach, which animated a
-    // generated still and looked stiff/posed ("not natural"). An explicit product
-    // reference image on the scene still wins as a deliberate first frame; a scene with
-    // NO cast renders as a clean text-to-video clip.
-    const firstFrameUrl: string | undefined = scene.referenceImageUrl || undefined;
+    // How much clip does the dialogue need? Natural speech is ~2.2 words/sec, so a line
+    // needs at least words/2.2 seconds — we grow the shot to fit so it isn't rushed (the
+    // "10s clip swallowing ~50 words" defect).
+    const REF2VID_MAX_SECONDS = 10;   // reference-to-video (natural motion) clip cap
+    const IMG2VID_MAX_SECONDS = 15;   // scene-keyframe → image-to-video clip cap
+    const spokenWords = (dialogue ? dialogue.match(/"([^"]*)"/g) || [] : [])
+      .reduce((n, q) => n + q.replace(/"/g, "").trim().split(/\s+/).filter(Boolean).length, 0);
+    const neededForSpeech = spokenWords ? Math.ceil(spokenWords / 2.2) : 0;
+    const plannedSec = scene.durationSec || 9;
+
+    // HYBRID render path. Default = REFERENCE-to-video (cast SHEETS anchor identity while
+    // the model generates NATURAL, un-posed motion from scratch), which caps at ~10s. A
+    // PIVOTAL beat — one the storyboard planned >10s, or whose dialogue simply needs >10s —
+    // instead renders from a generated SCENE keyframe → IMAGE-to-video, confirmed to hold
+    // 15s: 50% more room for the exchange, at the cost of a fixed first frame + slightly
+    // more posed motion. An explicit product reference on the scene always wins as a first
+    // frame; a scene with NO cast renders as a clean text-to-video clip.
+    let firstFrameUrl: string | undefined = scene.referenceImageUrl || undefined;
     let refImages: string[] = [];
     if (!firstFrameUrl && castRefs.length) {
-      refImages = castRefs;
-      // Keyframe still = a nice node POSTER only — best-effort, does NOT gate the render
-      // (the video starts immediately from the reference images) and is NOT the first
-      // frame. Starting the xAI job right away also means a restart during setup can
-      // resume it (no keyframe-stage gap).
-      void buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity)
-        .then((key) => { if (key) void patchScene(filmId, userId, sceneId, { thumbnailUrl: key }).catch(() => {}); })
-        .catch(() => {});
+      const wantsPivotal = plannedSec > REF2VID_MAX_SECONDS || neededForSpeech > REF2VID_MAX_SECONDS;
+      if (wantsPivotal) {
+        // Build a real SCENE keyframe (the people IN the scene — NOT a headshot) that
+        // carries cast identity, and use it as the first frame so the clip can run 15s.
+        // AWAITED (unlike the poster path) because it IS the first frame; if it fails we
+        // fall back to the natural 10s reference path rather than block the render.
+        const key = await buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity);
+        if (key) {
+          firstFrameUrl = key;
+          await patchScene(filmId, userId, sceneId, { thumbnailUrl: key }).catch(() => {});
+        } else {
+          refImages = castRefs;
+        }
+      } else {
+        refImages = castRefs;
+        // Keyframe still = a nice node POSTER only — best-effort, does NOT gate the render
+        // (the video starts immediately from the reference images) and is NOT the first
+        // frame. Starting the xAI job right away also means a restart during setup can
+        // resume it (no keyframe-stage gap).
+        void buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity)
+          .then((key) => { if (key) void patchScene(filmId, userId, sceneId, { thumbnailUrl: key }).catch(() => {}); })
+          .catch(() => {});
+      }
+    }
+
+    // Clip ceiling for the chosen mode: image-to-video (a first frame) → 15s;
+    // reference-to-video (cast sheets) → 10s; text-to-video (no anchors) → 15s.
+    const modeMax = firstFrameUrl ? IMG2VID_MAX_SECONDS : refImages.length ? REF2VID_MAX_SECONDS : IMG2VID_MAX_SECONDS;
+    const dialogueAwareSec = Math.min(modeMax, Math.max(plannedSec, neededForSpeech || plannedSec));
+    if (neededForSpeech > modeMax) {
+      console.warn(`[video-director] scene ${sceneId} dialogue overflows: ${spokenWords} words need ~${neededForSpeech}s but this clip caps at ${modeMax}s — it will rush. Split this beat across scenes.`);
     }
 
     // Time-based progress so the bar keeps MOVING while a slow provider works,
@@ -399,9 +433,10 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     const result = await withTimeout(
       generateVideoForRole("video_standard", {
         prompt: withVideoGuard(shotWithDialogue, scene.style),
-        // ≤10s (reference-to-video) / ≤15s (text-to-video) renders as one clip; longer
-        // chains seamless extensions (the router handles it, capped at 30s).
-        durationSeconds: Math.min(30, scene.durationSec || 8),
+        // Reference-to-video renders one ≤10s clip; text-to-video one ≤15s clip (the
+        // router caps per mode). durationSeconds is grown to fit the spoken dialogue so
+        // the line isn't rushed, then capped by the router.
+        durationSeconds: dialogueAwareSec,
         aspectRatio: aspect,
         // (1080p is not available for grok-imagine-video — verified; router defaults to 720p.)
         referenceImageUrl: firstFrameUrl,

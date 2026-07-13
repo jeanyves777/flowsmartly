@@ -10,7 +10,6 @@
  */
 
 import { ai } from "@/lib/ai/client";
-import { prisma } from "@/lib/db/client";
 import { getFilm, saveFilm } from "./store";
 import { normalizeCharacter, type FilmCharacter, type FilmProject } from "./types";
 import { generateImageXaiFirst, editImagesXaiFirst } from "@/lib/ai/image-router";
@@ -19,15 +18,6 @@ import { sanitizeUserError } from "@/lib/ai/user-error";
 
 function rid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-async function brandName(userId: string): Promise<string> {
-  const kit = await prisma.brandKit.findFirst({
-    where: { userId },
-    orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
-    select: { name: true, industry: true },
-  }).catch(() => null);
-  return [kit?.name, kit?.industry].filter(Boolean).join(" · ") || "the brand";
 }
 
 const is3d = (style?: string | null) => style === "3d";
@@ -54,6 +44,7 @@ const CLEAN_ANCHOR_RULES =
   "- The person holds NOTHING and uses NO props: no phone, smartphone, tablet, device, screen, cup, bag or any object in their hands — hands empty and relaxed in a natural, neutral standing pose.\n" +
   "- NO floating graphics, UI, app icons, notification badges, emoji, hearts, sparkles, speech bubbles or motion/glow effects anywhere in the frame.\n" +
   "- NO text, letters, numbers, names, labels, logos, badges, name-tags or printed words ANYWHERE — including on the apron, shirt, clothing or background. NEVER print the character's name on their clothes.\n" +
+  "- Dress the person in the clothing from their Description ONLY — real, story-appropriate clothes. Do NOT add an apron, tabard, smock, uniform, hi-vis vest, lanyard or any branded workwear unless the Description explicitly calls for it. This is a STORY character, not a shop worker or brand mascot.\n" +
   "- Only this ONE person, nothing else in the scene beyond the clothing they wear.";
 
 /** When the user has locked a wardrobe, force it (overrides any clothing in the free-text description). */
@@ -63,7 +54,7 @@ function wardrobeLine(c: FilmCharacter): string {
     : "";
 }
 
-function portraitPrompt(c: FilmCharacter, style: string | null | undefined, brand: string): string {
+function portraitPrompt(c: FilmCharacter, style: string | null | undefined): string {
   return `Single clean CHARACTER PORTRAIT for a ${is3d(style) ? "3D-animated" : "live-action cinematic"} film — the anchor used to lock this person's identity across every shot.
 
 CHARACTER
@@ -79,11 +70,10 @@ FRAMING
 
 HARD RULES
 ${antiStyleNegative(style)}
-${CLEAN_ANCHOR_RULES}
-- Tonal brand context ONLY — do NOT depict the brand's products, app screens, phones, or a logo: ${brand}.`;
+${CLEAN_ANCHOR_RULES}`;
 }
 
-function sheetPrompt(c: FilmCharacter, style: string | null | undefined, brand: string): string {
+function sheetPrompt(c: FilmCharacter, style: string | null | undefined): string {
   return `Character TURNAROUND SHEET — recreate the EXACT person in the provided image (identical face, skin tone, hair, build, wardrobe). This is a turnaround of THAT person, do not invent a new face.
 
 CHARACTER (the SAME person in every pose)
@@ -101,8 +91,7 @@ LAYOUT (ONE landscape image showing the SAME person MULTIPLE times)
 HARD RULES
 ${antiStyleNegative(style)}
 ${CLEAN_ANCHOR_RULES}
-- No measurement lines or grid. Every pose is the SAME single person.
-- Tonal brand context ONLY — do NOT depict the brand's products, app screens, phones, or a logo: ${brand}.`;
+- No measurement lines or grid. Every pose is the SAME single person.`;
 }
 
 /**
@@ -119,12 +108,11 @@ export async function planFilmCast(filmId: string, userId: string): Promise<Film
   // Don't wipe a cast the user has already worked on.
   if ((film.characters || []).some((c) => c.previewStatus === "ready" || c.approved)) return film;
 
-  const brand = await brandName(userId);
   let planned: { name?: string; role?: string; description?: string }[] = [];
   try {
     const json = await ai.generateJSON<{ characters: { name: string; role: string; description: string }[] }>(
       `You are a casting director for a ${film.targetSeconds}s ${film.style || "cinematic"} film. Brief: "${brief}".\n` +
-      `Cast 2-6 REAL HUMAN characters that dramatize this brief (the people actually on screen). Give each an ORIGINAL first+last name (never the brand name), a short ROLE (who they are in the story), and a vivid one-line VISUAL DESCRIPTION of ONLY their physical appearance + wardrobe (age range, face, hair, build, clothing) — detailed enough to render the SAME person every shot. Do NOT mention props, phones, devices, held objects, actions, or the brand's product/app in the description. Brand for tone ONLY — do not put the brand's product into the character: ${brand}.\n` +
+      `Cast 2-6 REAL HUMAN characters that dramatize this brief (the people actually on screen). Give each an ORIGINAL first+last name, a short ROLE (who they are in the story), and a vivid one-line VISUAL DESCRIPTION of ONLY their physical appearance + STORY-APPROPRIATE wardrobe (age range, face, hair, build, clothing). Do NOT mention props, phones, devices, held objects, actions, aprons/uniforms, or any brand/product — these are STORY characters dressed for the story, not brand staff.\n` +
       `Return JSON: {"characters":[{"name":"...","role":"...","description":"..."}, ...]}.`,
       { maxTokens: 1200, temperature: 0.7 },
     );
@@ -190,7 +178,6 @@ export async function generateFilmCharacterPreview(
   const wardrobePatch: Partial<FilmCharacter> = opts.wardrobe !== undefined ? { wardrobe: opts.wardrobe } : {};
   await setChar({ previewStatus: "generating", previewError: null, ...wardrobePatch });
   const c = { ...film.characters![idx], ...wardrobePatch };
-  const brand = await brandName(userId);
 
   try {
     // 1) Portrait = anchor (uploaded image, else generated).
@@ -203,7 +190,7 @@ export async function generateFilmCharacterPreview(
       // Fast + cheap path (Nano Banana / Grok) — the strong photoreal prompt keeps
       // cinematic characters realistic without the slow, pricey gpt-image route.
       const t0 = Date.now();
-      const res = await generateImageXaiFirst(portraitPrompt(c, film.style, brand), 1024, 1280, {
+      const res = await generateImageXaiFirst(portraitPrompt(c, film.style), 1024, 1280, {
         quality: "high",
         transparent: false,
       });
@@ -217,7 +204,7 @@ export async function generateFilmCharacterPreview(
     let sheetUrl: string | null = null;
     try {
       const t1 = Date.now();
-      const sheet = await editImagesXaiFirst(sheetPrompt(c, film.style, brand), [portraitBuffer], 1536, 1024, {
+      const sheet = await editImagesXaiFirst(sheetPrompt(c, film.style), [portraitBuffer], 1536, 1024, {
         intent: "identity",
         quality: "high",
       });
