@@ -552,7 +552,12 @@ async function resumeOrphanedAiScene(film: FilmProject, s: FilmScene, userId: st
   const lastBeat = s.renderHeartbeatAt || s.renderStartedAt || 0;
   if (now - lastBeat < AI_SCENE_STALE_MS) return false; // a live worker is still on it
   const startedAgo = s.renderStartedAt ? now - s.renderStartedAt : Infinity;
-  const failRefund = async (msg: string) => { s.status = "failed"; s.error = msg; await refundAiScene(userId, film.id, s.id); };
+  const wasAlreadyFailed = s.status === "failed";
+  const failRefund = async (msg: string) => {
+    s.status = "failed";
+    s.error = msg;
+    if (!wasAlreadyFailed) await refundAiScene(userId, film.id, s.id);
+  };
 
   // No resumable provider handle ⇒ died before/at submit (or the keyframe hung).
   if (!s.refId || (s.refKind !== "grok" && s.refKind !== "veo3")) {
@@ -594,7 +599,8 @@ export async function syncFilmScenes(film: FilmProject, userId: string): Promise
   // gone. This is why a deploy mid-render no longer loses the shot.
   const now = Date.now();
   for (const s of film.scenes) {
-    if (s.engine === "ai" && s.status === "rendering") {
+    const canResumeFailed = s.status === "failed" && !!s.refId && (s.refKind === "grok" || s.refKind === "veo3");
+    if (s.engine === "ai" && (s.status === "rendering" || canResumeFailed)) {
       if (await resumeOrphanedAiScene(film, s, userId, now)) changed = true;
     }
   }
@@ -637,13 +643,15 @@ export async function resumeStuckDirectorScenes(): Promise<{ scanned: number; ch
     })
     .catch(() => [] as { id: string; userId: string; canvasData: string | null }[]);
   for (const row of rows) {
-    // Cheap pre-filter — only parse a film that actually has a rendering AI scene.
-    if (!row.canvasData || !row.canvasData.includes('"rendering"')) continue;
+    // Cheap pre-filter: parse live renders, plus failed scenes that still have a
+    // provider handle we may be able to pull.
+    if (!row.canvasData || (!row.canvasData.includes('"rendering"') && !(row.canvasData.includes('"failed"') && row.canvasData.includes('"refId"')))) continue;
     const film = await getFilm(row.id, row.userId).catch(() => null);
     if (!film) continue;
     let touched = false;
     for (const s of film.scenes) {
-      if (s.engine === "ai" && s.status === "rendering") {
+      const canResumeFailed = s.status === "failed" && !!s.refId && (s.refKind === "grok" || s.refKind === "veo3");
+      if (s.engine === "ai" && (s.status === "rendering" || canResumeFailed)) {
         if (await resumeOrphanedAiScene(film, s, row.userId, now)) touched = true;
       }
     }
