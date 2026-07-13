@@ -89,7 +89,12 @@ function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; d
   const shortDesc = (c?: FilmCharacter): string => {
     if (!c) return "";
     const d = (c.wardrobe?.trim() || c.description || "").replace(/\s+/g, " ").trim();
-    return d ? d.split(" ").slice(0, 12).join(" ") : (c.role || "");
+    if (!d) return c.role || "";
+    // Trim to ~14 words WITHOUT ending on a dangling connector (…"wearing", …"in") so the
+    // descriptor doesn't read as "Amara (…wearing)" with nothing after it.
+    const words = d.split(" ").slice(0, 14);
+    while (words.length && /^(wearing|in|with|and|a|an|the|of|to|dressed)$/i.test(words[words.length - 1])) words.pop();
+    return words.join(" ");
   };
   // Who is actually in this shot — speakers first (that's who the shot is on), then any
   // silent cast — DE-DUPED PER PERSON so the same person can never be listed (or
@@ -385,7 +390,14 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     const blockingLine = present.length >= 2 && dialogue
       ? `\n\nBLOCKING & EYELINES — stage the speakers in a clear two-shot FACING EACH OTHER; each person LOOKS AT the one they address (never at the camera, never into empty space) and the listener visibly reacts before replying. Every physical action is performed by a NAMED person toward a NAMED person (if hands are shaken, show WHO offers and WHO takes) — no ambiguous or unattributed gestures, no floating hands.`
       : "";
-    const continuityLine = continuity ? `\n\nCONTINUITY — keep consistent with the rest of the film (same place, lighting and clothes): ${continuity}` : "";
+    // The DIALOGUE is the single most important instruction — the EXACT words spoken — so it
+    // goes EARLY (right after who's-on-screen + blocking) and NEVER at the tail, where the
+    // provider's prompt-length clamp could slice it off. That clamp is the real bug behind
+    // "Amara said something completely different": her line was cut at "Th" before it ever
+    // reached the model, so she improvised the rest.
+    const dialogueBlock = dialogue
+      ? `\n\nDIALOGUE — a real spoken exchange between the people on screen. Each line is spoken ALOUD and lip-synced by the EXACT named person (identify each speaker by the description in parentheses), addressing the OTHER named person present — the listener reacts, then replies, a natural back-and-forth. Each person speaks ONLY the exact words in quotes below, in this order — no invented or extra lines, nobody speaking another's line, and no voice from anyone off screen. Fill the shot with this conversation — no long silent pauses or dead air. Spoken audio on camera, NOT subtitles or on-screen text:\n${dialogue}`
+      : "";
     // When we anchor on cast reference images, hard-lock face + WARDROBE so the model
     // doesn't restyle the clothes (the "clothing changed" drift of reference-to-video).
     const usingRefs = !scene.referenceImageUrl && castRefs.length > 0;
@@ -395,11 +407,15 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     // A single generated clip must read as ONE unbroken take — otherwise, the moment the
     // implied camera angle shifts, the model re-imagines the whole environment (the "3
     // different backgrounds in one 15s scene" bug). Lock the location + camera for the clip.
-    const singleTakeLine = `\n\nSINGLE CONTINUOUS TAKE — this whole clip is ONE unbroken shot in ONE fixed location. The camera may move GENTLY (a slow push-in, a slight drift or small pan) but must NEVER cut, jump, or switch to a different angle, room or background. The setting, walls, floor, furniture, props and lighting stay EXACTLY the same from the first frame to the last — when the view shifts, it is the SAME place seen slightly differently, never a new scene. No hard cuts, no scene changes, no montage.`;
-    const shotBody = `${shot}${stagingLine}${blockingLine}${continuityLine}${identityLine}${singleTakeLine}`;
-    const shotWithDialogue = dialogue
-      ? `${shotBody}\n\nDIALOGUE — a real spoken exchange between the people on screen. Each line is spoken ALOUD and lip-synced by the EXACT named person (identify each speaker by the description in parentheses), addressing the OTHER named person present — the listener reacts, then replies, a natural back-and-forth. Do NOT let anyone speak another person's line, do NOT add any voice from someone who is not on screen, and keep this order. Fill the shot with this conversation — no long silent pauses or dead air. This is spoken audio on camera, NOT subtitles or on-screen text:\n${dialogue}`
-      : shotBody;
+    const singleTakeLine = `\n\nSINGLE CONTINUOUS TAKE — one unbroken shot in ONE fixed location. The camera may move GENTLY (a slow push-in or small pan) but must NEVER cut, jump, or switch to a different angle, room or background — the setting, walls, furniture, props and lighting stay EXACTLY the same first frame to last. No hard cuts, no scene changes, no montage.`;
+    // Continuity bible = the film's shared world (location / palette / wardrobe). It's the
+    // LONGEST and least-critical-per-shot block, so cap it and place it LAST — a length clamp
+    // can then only ever trim the tail of THIS, never the dialogue or who's on screen.
+    const contShort = !continuity ? "" : continuity.length <= 520 ? continuity : continuity.slice(0, 520).replace(/\s+\S*$/, "").trim() + "…";
+    const continuityLine = contShort ? `\n\nCONTINUITY — keep the same place, lighting and clothes across the film: ${contShort}` : "";
+    // Priority order: shot → who's on screen → blocking → DIALOGUE → camera → identity →
+    // continuity. The most important instructions are first so a clamp only nibbles the tail.
+    const shotWithDialogue = `${shot}${stagingLine}${blockingLine}${dialogueBlock}${singleTakeLine}${identityLine}${continuityLine}`;
 
     // How much clip does the dialogue need? Natural speech is ~2.2 words/sec, so a line
     // needs at least words/2.2 seconds — we grow the shot to fit so it isn't rushed (the
