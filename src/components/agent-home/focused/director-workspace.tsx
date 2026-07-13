@@ -1325,6 +1325,12 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
   const [wardText, setWardText] = useState("");
   // Full-size image review (click a cast sheet to enlarge).
   const [zoom, setZoom] = useState<string | null>(null);
+  // Reuse-from-library picker: which slot is choosing, + the user's saved cast (across
+  // their other films) so a serial/franchise can reuse the SAME face instead of regenerating.
+  type LibItem = { sourceId: string; name: string; role: string; description: string; portraitUrl: string; sheetUrl: string | null; filmTitle: string };
+  const [pickFor, setPickFor] = useState<string | null>(null);
+  const [library, setLibrary] = useState<LibItem[] | null>(null); // null = not fetched yet
+  const [libLoading, setLibLoading] = useState(false);
   const setBusyFor = (id: string, on: boolean) =>
     setBusy((b) => { const n = new Set(b); if (on) n.add(id); else n.delete(id); return n; });
 
@@ -1369,6 +1375,30 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
       const up = await fetch("/api/upload", { method: "POST", body: fd }).then((r) => r.json());
       if (up?.success && up.data?.url) await genPreview(cid, up.data.url);
     } catch { /* ignore */ }
+    finally { setBusyFor(cid, false); }
+  };
+
+  // Open the "reuse a saved character" picker for a slot (lazy-loads the library once).
+  const openLibrary = async (cid: string) => {
+    setPickFor(cid);
+    if (library !== null || libLoading) return;
+    setLibLoading(true);
+    try {
+      const j = await fetch(`/api/ai/video-director/cast-library?exclude=${film.id}`).then((r) => r.json());
+      setLibrary(j?.success && Array.isArray(j.data?.cast) ? (j.data.cast as LibItem[]) : []);
+    } catch { setLibrary([]); }
+    finally { setLibLoading(false); }
+  };
+  // Copy a saved character (face + wardrobe) onto the slot — instant, no regeneration.
+  const adopt = async (cid: string, sourceId: string) => {
+    setPickFor(null);
+    setBusyFor(cid, true);
+    try {
+      const j = await fetch(`/api/ai/video-director/${film.id}/cast/${cid}/adopt`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sourceId }),
+      }).then((r) => r.json());
+      if (j?.success && j.data?.film) setFilm(j.data.film);
+    } catch { /* the slot keeps its previous state */ }
     finally { setBusyFor(cid, false); }
   };
 
@@ -1430,10 +1460,13 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
                       <span className={cn("min-w-0 flex-1 truncate text-[10px]", c.wardrobe ? "text-foreground" : "italic text-muted-foreground")}>{c.wardrobe || "Auto — from description"}</span>
                       <Pencil className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />
                     </button>
-                    <div className="flex gap-1 border-t border-border p-1.5">
-                      <button disabled={isBusy} onClick={() => genPreview(c.id)} className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold hover:border-brand-500/60 disabled:opacity-50">{hasPreview ? "↻ Redo" : <><Sparkles className="h-2.5 w-2.5" /> Generate</>}</button>
-                      <button disabled={isBusy} onClick={() => { uploadFor.current = c.id; fileRef.current?.click(); }} className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold hover:border-brand-500/60 disabled:opacity-50"><Upload className="h-2.5 w-2.5" /> Upload</button>
-                      <button disabled={isBusy || !hasPreview} onClick={() => approve(c.id, !c.approved)} className={cn("inline-flex flex-1 items-center justify-center rounded-md px-1.5 py-1 text-[10px] font-bold disabled:opacity-40", c.approved ? "bg-emerald-500 text-emerald-950" : "border border-border hover:border-emerald-500/60")}>{c.approved ? "✓" : "Approve"}</button>
+                    <div className="space-y-1 border-t border-border p-1.5">
+                      <div className="flex gap-1">
+                        <button disabled={isBusy} onClick={() => genPreview(c.id)} className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold hover:border-brand-500/60 disabled:opacity-50">{hasPreview ? "↻ Redo" : <><Sparkles className="h-2.5 w-2.5" /> Generate</>}</button>
+                        <button disabled={isBusy} onClick={() => { uploadFor.current = c.id; fileRef.current?.click(); }} className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold hover:border-brand-500/60 disabled:opacity-50"><Upload className="h-2.5 w-2.5" /> Upload</button>
+                        <button disabled={isBusy} onClick={() => openLibrary(c.id)} title="Reuse a character from another film" className="inline-flex flex-1 items-center justify-center gap-1 rounded-md border border-border px-1.5 py-1 text-[10px] font-semibold hover:border-brand-500/60 disabled:opacity-50"><FolderOpen className="h-2.5 w-2.5" /> Reuse</button>
+                      </div>
+                      <button disabled={isBusy || !hasPreview} onClick={() => approve(c.id, !c.approved)} className={cn("inline-flex w-full items-center justify-center rounded-md px-1.5 py-1.5 text-[10px] font-bold disabled:opacity-40", c.approved ? "bg-emerald-500 text-emerald-950" : "border border-border hover:border-emerald-500/60")}>{c.approved ? "✓ Approved" : "Approve"}</button>
                     </div>
                   </div>
                 );
@@ -1485,6 +1518,55 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
           </div>
         );
       })()}
+
+      {/* Reuse a saved character — pick from cast generated in the user's other films
+          (for serial/franchise episodes) so the same face carries, no regeneration. */}
+      {pickFor && (
+        <div className="absolute inset-0 z-50 grid place-items-center p-4">
+          <button aria-label="Close" onClick={() => setPickFor(null)} className="absolute inset-0 bg-black/60" />
+          <div className="relative flex max-h-[80%] w-full max-w-[560px] flex-col rounded-2xl border border-border bg-card shadow-2xl">
+            <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+              <FolderOpen className="h-3.5 w-3.5 text-brand-500" />
+              <span className="text-[12.5px] font-bold">Reuse a saved character</span>
+              <button onClick={() => setPickFor(null)} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+            </div>
+            <p className="px-4 pt-2.5 text-[11px] text-muted-foreground">Pick a character you&apos;ve already made in another film — its exact face &amp; wardrobe fill this slot instantly, so a serial keeps the same cast across episodes.</p>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              {libLoading ? (
+                <div className="grid place-items-center py-12"><FlowLoader size={22} /></div>
+              ) : !library || library.length === 0 ? (
+                <div className="grid place-items-center gap-1 py-12 text-center">
+                  <FolderOpen className="h-6 w-6 text-muted-foreground/40" />
+                  <p className="text-[12.5px] font-semibold">No saved cast yet</p>
+                  <p className="max-w-[360px] text-[11px] text-muted-foreground">Cast you generate and use in your films show up here. Build a film with a cast, and you can reuse those same characters in your next episode.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {library.map((it) => {
+                    const thumb = it.sheetUrl || it.portraitUrl;
+                    return (
+                      <button key={it.sourceId} onClick={() => pickFor && adopt(pickFor, it.sourceId)}
+                        className="group flex flex-col overflow-hidden rounded-xl border border-border bg-background/40 text-left transition hover:border-brand-500/60 hover:ring-1 hover:ring-brand-500/40">
+                        <div className="relative aspect-[3/2] bg-gradient-to-br from-brand-500/10 to-violet-500/10">
+                          {thumb
+                            ? <Image src={thumb} alt={it.name} fill sizes="200px" className={it.sheetUrl ? "object-contain" : "object-cover"} unoptimized />
+                            : <div className="grid h-full w-full place-items-center text-[10px] text-muted-foreground">{it.name}</div>}
+                          <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/30 group-hover:opacity-100"><span className="rounded-full bg-brand-500 px-2.5 py-1 text-[10px] font-bold text-white">Use this</span></span>
+                        </div>
+                        <div className="px-2 pb-2 pt-1.5">
+                          <p className="truncate text-[11.5px] font-bold leading-tight">{it.name}</p>
+                          {it.role && <p className="truncate text-[9.5px] text-brand-500">{it.role}</p>}
+                          <p className="mt-0.5 truncate text-[9px] text-muted-foreground">from {it.filmTitle}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Click a cast sheet to review it full-size. */}
       {zoom && <MediaLightbox url={zoom} onClose={() => setZoom(null)} />}

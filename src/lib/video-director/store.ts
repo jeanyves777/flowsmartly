@@ -103,6 +103,52 @@ export async function listFilms(userId: string, limit = 24) {
   return out;
 }
 
+/**
+ * The user's reusable CAST across all their films — so a serial/franchise can reuse
+ * the SAME characters (same face) in a new episode instead of regenerating them.
+ * Only characters with a generated portrait are included; de-duped by portrait so the
+ * same person picked in many films appears once. Newest film first.
+ */
+export async function listCastLibrary(
+  userId: string,
+  opts: { excludeFilmId?: string; limit?: number } = {},
+): Promise<{
+  sourceId: string; name: string; role: string; description: string; wardrobe: string;
+  portraitUrl: string; sheetUrl: string | null; filmId: string; filmTitle: string; updatedAt: string;
+}[]> {
+  const rows = await prisma.design.findMany({
+    where: { userId, type: TYPE, ...(opts.excludeFilmId ? { id: { not: opts.excludeFilmId } } : {}) },
+    orderBy: { updatedAt: "desc" },
+    take: 50,
+    select: { id: true, canvasData: true, name: true, updatedAt: true },
+  });
+  const out: Awaited<ReturnType<typeof listCastLibrary>> = [];
+  const seenPortrait = new Set<string>();
+  for (const r of rows) {
+    let film: FilmProject;
+    try { film = parseFilm(r.canvasData, r.id); } catch { continue; }
+    for (const c of film.characters || []) {
+      const portrait = c.referenceImageUrl;
+      if (!portrait || seenPortrait.has(portrait)) continue;
+      seenPortrait.add(portrait);
+      out.push({
+        sourceId: `${r.id}:${c.id}`,
+        name: c.name || "Character",
+        role: c.role || "",
+        description: c.description || "",
+        wardrobe: c.wardrobe || "",
+        portraitUrl: portrait,
+        sheetUrl: c.characterSheetUrl || null,
+        filmId: r.id,
+        filmTitle: film.title || r.name || "Untitled film",
+        updatedAt: r.updatedAt.toISOString(),
+      });
+      if (out.length >= (opts.limit ?? 60)) return out;
+    }
+  }
+  return out;
+}
+
 export async function saveFilm(id: string, userId: string, project: FilmProject): Promise<boolean> {
   const owned = await prisma.design.findFirst({ where: { id, userId, type: TYPE }, select: { id: true } });
   if (!owned) return false;
