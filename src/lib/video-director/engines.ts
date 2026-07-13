@@ -487,9 +487,12 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
         // Cast sheets → reference-to-video on Grok (natural motion + identity) / referenceImages on Veo.
         characterReferenceUrls: refImages,
         // Persist the provider job handle so a restart RESUMES this render (polls the
-        // job, pulls the finished clip) instead of killing it. Updated on each
-        // extension too, so a chained >15s shot resumes to its latest segment.
-        onJobId: (info) => { void patchScene(filmId, userId, sceneId, { refKind: info.provider, refId: info.jobId }).catch(() => {}); },
+        // job, pulls the finished clip) instead of killing it. AWAITED (not fire-and-
+        // forget) because the provider client awaits this callback BEFORE it begins its
+        // 2-3 min poll — so the request id is committed to the DB before any long wait.
+        // Fire-and-forget here RACED a restart and dropped the handle, so the resume had
+        // nothing to poll and declared "interrupted" even though Grok finished the video.
+        onJobId: async (info) => { await patchScene(filmId, userId, sceneId, { refKind: info.provider, refId: info.jobId }).catch(() => {}); },
         onStatus: () => {
           const elapsed = Date.now() - videoStart;
           const est = 22 + Math.round((1 - Math.exp(-elapsed / (3 * 60 * 1000))) * 74); // 22 → ~96 asymptote
