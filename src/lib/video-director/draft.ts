@@ -13,15 +13,19 @@ import { heygenClient } from "@/lib/ai/heygen-client";
 
 const ENGINE_SET = new Set<SceneEngine>(["ai", "avatar", "reel", "media", "design"]);
 
-// A cast shot renders via reference-to-video (identity-anchored), which caps at
-// ~10s per clip — extension chaining is disabled (the edit endpoint caps input
-// at 8.7s and burned the 1-req/sec budget). So a cast scene must be PLANNED at
-// ≤10s: anything longer is a lie the render can't keep, and its dialogue gets
-// rushed/truncated to fit. Films get their length from MORE scenes, not longer
-// clips. Keep this in sync with GROK_MAX_REF2VID_SECONDS in video-router.ts.
-const CAST_SCENE_MAX_SECONDS = 10;
+// HYBRID cast render: MOST beats render via reference-to-video (identity from the
+// cast sheets, natural un-posed motion), which caps at ~10s per clip. A FEW pivotal
+// dialogue beats instead render via a generated SCENE keyframe → image-to-video,
+// which real prod renders confirm holds 15s — 50% more room for a longer exchange,
+// at the cost of a fixed first frame + slightly more posed motion. A cast scene is
+// therefore planned at ≤10s by default and ≤15s only when it's a marked pivotal beat;
+// anything the render can't keep just rushes/truncates the dialogue. Films still get
+// most of their length from MORE scenes, not longer clips. Keep in sync with
+// GROK_MAX_REF2VID_SECONDS / GROK_MAX_IMG2VID_SECONDS in video-router.ts.
+const CAST_SCENE_REF_SECONDS = 10;      // natural-motion reference-to-video cap (default beat)
+const CAST_SCENE_PIVOTAL_SECONDS = 15;  // scene-keyframe image-to-video cap (pivotal beat)
 // Words of dialogue a clip can hold at a natural, unhurried pace (~2.2 words/sec).
-// 10s ≈ 22 words. Used to keep the storyboard from over-writing a shot.
+// 10s ≈ 22 words, 15s ≈ 33. Used to keep the storyboard from over-writing a shot.
 const DIALOGUE_WORDS_PER_SEC = 2.2;
 
 /** One planned beat from the storyboard LLM (loose shape — coerced downstream). */
@@ -275,7 +279,7 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
         `- "title": 2-4 words.\n` +
         `- "script": the SHOT — setting, camera FRAMING (wide/medium/close), the action, and mood (what is ON SCREEN). Describe how the shot opens and where it lands. NOT the dialogue.\n` +
         `- "cast": who is on screen and what they SAY — [{"name":"<a cast name from above>","dialogue":"their spoken line — leave empty ONLY for a deliberate silent beat"}]. Lines must continue the conversation from the previous scene.\n` +
-        `- "durationSec": each cast shot renders up to ${CAST_SCENE_MAX_SECONDS}s, so keep every beat 6-${CAST_SCENE_MAX_SECONDS}s — NEVER longer. Dialogue MUST fit at ~2 words/sec (8s ≈ 16 words, ${CAST_SCENE_MAX_SECONDS}s ≈ ${Math.round(CAST_SCENE_MAX_SECONDS * DIALOGUE_WORDS_PER_SEC)} words). That means AT MOST one line, or a tight two-line exchange (~10 words each), per scene. This is a HARD limit: writing more words than fit makes the actors rush and swallow half the line — a failure. To show a LONGER conversation, SPLIT it across consecutive scenes (each scene continues the exchange from the last), never cram it into one shot.\n` +
+        `- "durationSec": keep MOST beats 6-${CAST_SCENE_REF_SECONDS}s for the most natural motion — dialogue MUST fit at ~2 words/sec (8s ≈ 16 words, ${CAST_SCENE_REF_SECONDS}s ≈ ${Math.round(CAST_SCENE_REF_SECONDS * DIALOGUE_WORDS_PER_SEC)} words), i.e. AT MOST one line or a tight two-line exchange (~10 words each). A FEW PIVOTAL emotional beats may run 11-${CAST_SCENE_PIVOTAL_SECONDS}s (≈ ${Math.round(CAST_SCENE_PIVOTAL_SECONDS * DIALOGUE_WORDS_PER_SEC)} words, ~3 short lines) when the moment truly earns it — use these sparingly (at most ~1 in 4 scenes). NEVER exceed ${CAST_SCENE_PIVOTAL_SECONDS}s. This is a HARD limit: writing more words than fit makes the actors rush and swallow half the line — a failure. To show a LONGER conversation, SPLIT it across consecutive scenes (each continues the exchange from the last), never cram it into one shot.\n` +
         `Open on a hook, build the story with connected beats, resolve it at the end. Return JSON: {"scenes":[{"engine":"ai","title":"...","script":"...","cast":[{"name":"...","dialogue":"..."}],"durationSec":9}, ...]} with exactly ${approx} scenes.`;
     } else {
       const engines: string[] = ['"ai": a cinematic AI shot. script = a vivid SHOT PROMPT (what\'s on screen, mood, motion) — no dialogue.'];
@@ -349,12 +353,13 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
         title: (s.title || `Scene ${i + 1}`).slice(0, 60),
         script: (s.script || brief).slice(0, 4000),
         cast: sceneCast,
-        // Cast shots render at ≤10s (reference-to-video, no extension chaining), so a
-        // cast beat can't be planned longer than the clip it produces — else its dialogue
-        // overflows and rushes. Design/end-card beats stay short; non-cast clips ≤15s.
+        // Cast beats plan ≤15s (a pivotal beat renders via a scene keyframe → 15s
+        // image-to-video; a normal beat via reference-to-video → the render caps it at
+        // 10s). A cast beat can't be planned longer than the clip it produces, else its
+        // dialogue overflows and rushes. Design/end-card beats stay short; non-cast ≤15s.
         durationSec: typeof s.durationSec === "number"
-          ? Math.max(2, Math.min(useCast ? CAST_SCENE_MAX_SECONDS : 15, Math.round(s.durationSec)))
-          : engine === "design" ? 3 : useCast ? CAST_SCENE_MAX_SECONDS : 8,
+          ? Math.max(2, Math.min(useCast ? CAST_SCENE_PIVOTAL_SECONDS : 15, Math.round(s.durationSec)))
+          : engine === "design" ? 3 : useCast ? 9 : 8,
         order: i,
         x: 340 + i * 250,
         y: 80 + (i % 2) * 210,

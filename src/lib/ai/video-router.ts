@@ -23,7 +23,7 @@ const VEO_MAX_SINGLE_SHOT_SECONDS = 8;
 // seamless extensions (2–10s each) from the last frame. Cap the total so a shot
 // can't balloon into an unbounded render (each extra segment is its own render).
 const GROK_MAX_SINGLE_SHOT_SECONDS = 15;   // text-to-video single clip
-const GROK_MAX_IMG2VID_SECONDS = 8;        // image-to-video (first-frame image) hard-caps ~8.7s → keep 8
+const GROK_MAX_IMG2VID_SECONDS = 15;       // image-to-video (first-frame image) — real prod render confirmed 15s
 const GROK_MAX_REF2VID_SECONDS = 10;       // reference-to-video (reference_images) caps at 10s
 const GROK_MAX_LONGFORM_SECONDS = 30;
 
