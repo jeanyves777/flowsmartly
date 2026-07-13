@@ -78,18 +78,20 @@ function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; d
   const lines = scene.cast || [];
   const charFor = (l: { characterId?: string; name?: string }): FilmCharacter | undefined =>
     chars.find((x) => x.id === l.characterId) || chars.find((x) => x.name.toLowerCase() === (l.name || "").toLowerCase());
-  const refFor = (l: { characterId?: string; name?: string }): string | undefined => {
+  // BOTH the clean portrait AND the turnaround sheet per person — more identity + wardrobe
+  // signal for reference-to-video (which anchors appearance from these), reducing the
+  // "clothing changed" drift. Portrait first (cleaner wardrobe read).
+  const refsFor = (l: { characterId?: string; name?: string }): string[] => {
     const c = charFor(l);
-    return c?.characterSheetUrl || c?.referenceImageUrl || undefined;
+    return [c?.referenceImageUrl, c?.characterSheetUrl].filter((u): u is string => !!u);
   };
-  // Collect each present cast member's sheet — speakers first (that's who the shot
-  // is on), then any silent/background cast, so a multi-person shot keeps everyone's
-  // identity. De-duped, and ONLY people actually in this scene: a shot with no cast
-  // lines (an establishing beat) must NOT force the lead in — it renders peopleless.
+  // Collect each present cast member's images — speakers first (that's who the shot is
+  // on), then any silent/background cast. De-duped, and ONLY people actually in this
+  // scene: a shot with no cast lines (an establishing beat) must NOT force the lead in.
   const refs: string[] = [];
   const push = (u?: string) => { if (u && !refs.includes(u)) refs.push(u); };
-  for (const l of lines.filter((l) => (l.dialogue || "").trim())) push(refFor(l));
-  for (const l of lines) push(refFor(l));
+  for (const l of lines.filter((l) => (l.dialogue || "").trim())) refsFor(l).forEach(push);
+  for (const l of lines) refsFor(l).forEach(push);
   const spoken = lines.filter((l) => (l.dialogue || "").trim());
   // Tag each speaker with a SHORT visual descriptor so the model can tell who's who
   // on screen and lip-sync the right line to the right person (fixes "the wrong
@@ -103,7 +105,7 @@ function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; d
   const dialogue = spoken.length
     ? spoken.map((l) => `${l.name}${tag(charFor(l))} says: "${(l.dialogue || "").trim()}"`).join("\n")
     : undefined;
-  return { refs: refs.slice(0, 3), dialogue };
+  return { refs: refs.slice(0, 7), dialogue }; // reference-to-video accepts up to 7 images
 }
 
 /** The continuity bible scoped to the cast actually in THIS scene (so the shot's
@@ -360,7 +362,13 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     // The continuity bible keeps the shot in the film's shared world (location/wardrobe).
     const shot = scene.script || scene.title;
     const continuityLine = continuity ? `\n\nCONTINUITY — keep consistent with the rest of the film (same place, lighting and clothes): ${continuity}` : "";
-    const shotBody = `${shot}${continuityLine}`;
+    // When we anchor on cast reference images, hard-lock face + WARDROBE so the model
+    // doesn't restyle the clothes (the "clothing changed" drift of reference-to-video).
+    const usingRefs = !scene.referenceImageUrl && castRefs.length > 0;
+    const identityLine = usingRefs
+      ? `\n\nIDENTITY — the people on screen are the EXACT individuals in the reference images: keep each person's face, hair, skin tone, build AND their clothing/wardrobe exactly as shown in the references — do NOT restyle, change, swap, or remove anyone's outfit.`
+      : "";
+    const shotBody = `${shot}${continuityLine}${identityLine}`;
     const shotWithDialogue = dialogue
       ? `${shotBody}\n\nDIALOGUE — each line is spoken ALOUD and lip-synced by the EXACT named person on screen (identify each speaker by the description in parentheses). Do NOT let anyone speak another person's line, and keep this order. This is spoken audio on camera, NOT subtitles or on-screen text:\n${dialogue}`
       : shotBody;
