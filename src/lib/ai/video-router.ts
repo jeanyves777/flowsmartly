@@ -69,7 +69,9 @@ export async function generateVideoForRole(
         const veoAspect: "16:9" | "9:16" = input.aspectRatio === "16:9" ? "16:9" : "9:16";
         const veoTier = step.veoTier ?? (isPremium ? "quality" : "fast");
         const result = await veoClient.generateVideoBuffer(input.prompt, {
-          durationSeconds: String(Math.min(VEO_MAX_SINGLE_SHOT_SECONDS, duration)) as "4" | "6" | "8",
+          // Veo ONLY accepts 4, 6, or 8 — clamp to the nearest valid (passing 3/5/7/10
+          // returned "durationSeconds out of bound"). Veo is already skipped for >8s.
+          durationSeconds: (duration <= 5 ? "4" : duration <= 7 ? "6" : "8") as "4" | "6" | "8",
           resolution: input.resolution || (isPremium ? "1080p" : "720p"),
           aspectRatio: veoAspect,
           tier: veoTier,
@@ -96,16 +98,12 @@ export async function generateVideoForRole(
       if (!grokVideoClient.isAvailable()) continue;
       consideredAny = true;
       try {
-        // Base clip, then chain seamless extensions off the xAI clip URL until we
-        // reach the target (or a segment fails — then we keep what we have rather than
-        // losing the whole shot). CRITICAL: xAI IMAGE-TO-VIDEO (a reference/keyframe
-        // image) caps at ~8.7s and hard-fails "Video is too long" above that — so with
-        // a reference image the BASE is ≤8s and the rest is built from extensions
-        // (which are video-to-video, not image-to-video). Text-to-video allows ≤15s.
-        const target = Math.min(GROK_MAX_LONGFORM_SECONDS, duration);
-        // Mode + its base cap, best first: REFERENCE-to-video (reference_images anchor the
-        // subject WITHOUT a first-frame lock → natural motion + identity, ≤10s) > image-to-
-        // video (first-frame, ≤8s) > text-to-video (≤15s). Anything longer chains extensions.
+        // ONE clip per mode — NO extension chaining. xAI's edit/extend endpoint caps its
+        // INPUT at 8.7s, so a 10-15s base can't be extended (the old loop just burned the
+        // 1-req/sec budget and failed "Video is too long"). Films get length from MULTIPLE
+        // scenes instead. Mode + cap, best first: REFERENCE-to-video (sheets anchor the
+        // subject WITHOUT a first-frame lock → natural motion + identity, ≤10s) >
+        // image-to-video (first-frame, ≤8s) > text-to-video (≤15s).
         const useRefImages = !input.referenceImageUrl && !!input.characterReferenceUrls?.length;
         const baseMax = input.referenceImageUrl
           ? GROK_MAX_IMG2VID_SECONDS
@@ -113,37 +111,15 @@ export async function generateVideoForRole(
             ? GROK_MAX_REF2VID_SECONDS
             : GROK_MAX_SINGLE_SHOT_SECONDS;
         const result = await grokVideoClient.generateVideo(input.prompt, {
-          duration: Math.min(baseMax, target),
+          duration: Math.min(baseMax, duration),
           aspectRatio: input.aspectRatio,
-          resolution: input.resolution || "720p", // Director can request 1080p
+          resolution: input.resolution || "720p",
           imageUrl: input.referenceImageUrl ?? undefined,
           referenceImageUrls: useRefImages ? (input.characterReferenceUrls?.filter(Boolean) as string[]) : undefined,
           onStatus: input.onStatus,
           onJobId: (jobId) => input.onJobId?.({ provider: "grok", jobId }),
         });
-        let videoBuffer = result.videoBuffer;
-        let sourceUrl = result.videoUrl;
-        let have = Math.min(baseMax, target);
-        while (have < target && sourceUrl) {
-          const need = Math.min(10, target - have);
-          if (need < 2) break; // extensions are 2–10s
-          input.onStatus?.(`Extending the shot to ${have + need}s…`);
-          try {
-            const ext = await grokVideoClient.extendVideo(sourceUrl, input.prompt, {
-              duration: need,
-              onStatus: input.onStatus,
-              // Persist THIS segment's job so a restart resumes the latest extension.
-              onJobId: (jobId) => input.onJobId?.({ provider: "grok", jobId }),
-            });
-            if (!ext.videoBuffer?.length) break;
-            videoBuffer = ext.videoBuffer; // extendVideo returns the COMBINED clip
-            sourceUrl = ext.videoUrl;
-            have += need;
-          } catch (e) {
-            console.warn("[VideoRouter] Grok extension failed; using the clip so far:", e instanceof Error ? e.message : e);
-            break;
-          }
-        }
+        const videoBuffer = result.videoBuffer;
         if (videoBuffer?.length) {
           const vcheck = await isBlankVideoBuffer(videoBuffer);
           if (!vcheck.blank) {

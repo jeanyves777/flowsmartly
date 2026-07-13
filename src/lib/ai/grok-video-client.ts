@@ -17,18 +17,20 @@ const XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos";
 const XAI_VIDEO_PROMPT_LIMIT = 3900;
 
 // xAI enforces ~1 request/second per team for grok-imagine-video (429
-// "resource-exhausted"). Serialize video-generation POSTs ≥1.1s apart so concurrent
-// scene renders (or a base + its extension) don't trip it. Status polls + downloads
-// are NOT gated (they poll a job, not create one).
-let grokGenChain: Promise<unknown> = Promise.resolve();
-let lastGrokGenAt = 0;
-function grokGenRateLimit(): Promise<void> {
-  const p = grokGenChain.then(async () => {
-    const since = Date.now() - lastGrokGenAt;
+// "resource-exhausted") — and that limit counts the STATUS POLLS, not just the
+// generation POSTs. So EVERY request to the video API (create + poll) goes through
+// one global gate spaced ≥1.1s apart. This serializes concurrent scene renders'
+// traffic under 1 req/sec so they stop 429-ing each other. (Downloads from the
+// vidgen bucket are a different host, not gated.)
+let grokReqChain: Promise<unknown> = Promise.resolve();
+let lastGrokReqAt = 0;
+function grokRateLimit(): Promise<void> {
+  const p = grokReqChain.then(async () => {
+    const since = Date.now() - lastGrokReqAt;
     if (since < 1100) await new Promise((r) => setTimeout(r, 1100 - since));
-    lastGrokGenAt = Date.now();
+    lastGrokReqAt = Date.now();
   });
-  grokGenChain = p.catch(() => {});
+  grokReqChain = p.catch(() => {});
   return p;
 }
 
@@ -131,7 +133,7 @@ class GrokVideoClient {
       bodyPayload.reference_images = referenceImageUrls.slice(0, 7).map((url) => ({ type: "image_url", url }));
     }
 
-    await grokGenRateLimit(); // ≤1 generation POST/sec (xAI team limit)
+    await grokRateLimit(); // ≤1 request/sec (create counts toward the same limit as polls)
     const response = await fetch(XAI_VIDEO_URL, {
       method: "POST",
       headers: {
@@ -175,6 +177,7 @@ class GrokVideoClient {
     requestId: string,
   ): Promise<{ state: "pending" | "done" | "failed"; url?: string; duration?: number; error?: string }> {
     if (!this.apiKey) throw new Error("XAI_API_KEY is not configured");
+    await grokRateLimit(); // shares the 1-req/sec budget with live renders
     const response = await fetch(`${XAI_VIDEO_STATUS_URL}/${requestId}`, {
       headers: { Authorization: `Bearer ${this.apiKey}` },
     });
@@ -218,6 +221,7 @@ class GrokVideoClient {
       await new Promise((r) => setTimeout(r, pollInterval));
       attempts++;
 
+      await grokRateLimit(); // a poll counts toward the 1-req/sec limit too
       const response = await fetch(`${XAI_VIDEO_STATUS_URL}/${requestId}`, {
         headers: { Authorization: `Bearer ${this.apiKey}` },
       });
@@ -305,7 +309,7 @@ class GrokVideoClient {
     // xAI REST: extension body uses a `video` object like image-to-video does for `image`.
     // The Python SDK shim exposes a flat `video_url=` arg but the underlying REST wants:
     //   { video: { type: "video_url", url: <URL> } }
-    await grokGenRateLimit(); // ≤1 generation POST/sec (xAI team limit)
+    await grokRateLimit(); // ≤1 request/sec (create counts toward the same limit as polls)
     const response = await fetch(XAI_VIDEO_EDITS_URL, {
       method: "POST",
       headers: {
