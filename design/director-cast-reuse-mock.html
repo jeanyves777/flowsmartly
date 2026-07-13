@@ -1,0 +1,173 @@
+<title>Director — Reuse a saved character</title>
+<style>
+  :root{
+    --ground:#0c0c11; --card:#16161d; --card2:#1c1c25; --border:#2a2a35;
+    --accent:#a78bfa; --accent2:#8b5cf6; --emerald:#10b981;
+    --text:#e7e7ee; --muted:#9a9aa8;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{background:radial-gradient(1100px 560px at 75% -10%,#17131f 0,transparent 60%),var(--ground);
+    color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:26px 18px 60px}
+  h1{font-size:18px;font-weight:700;margin:0 0 6px;letter-spacing:-.01em}
+  .lede{color:var(--muted);font-size:13px;max-width:64ch;margin:0 0 8px}
+  .hint{display:inline-flex;gap:7px;align-items:center;margin:12px 0 18px;padding:7px 11px;border:1px solid var(--border);border-radius:10px;background:var(--card);font-size:12.5px;color:var(--muted)}
+  .hint b{color:var(--accent);font-weight:600}
+
+  /* ---- cast approval shell ---- */
+  .panel{border:1px solid var(--border);border-radius:16px;background:var(--card);overflow:hidden}
+  .panel-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border)}
+  .tag{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);font-size:10.5px;font-weight:700;border-radius:6px;padding:2px 6px}
+  .panel-head .t{font-size:12.5px;font-weight:700}
+  .panel-head .c{margin-left:6px;font-size:11px;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px}
+  @media(max-width:640px){.grid{grid-template-columns:repeat(2,1fr)}}
+
+  .cast{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.02);overflow:hidden}
+  .cast.ok{border-color:color-mix(in srgb,var(--emerald) 45%,transparent)}
+  .cast .pic{position:relative;aspect-ratio:3/2;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
+  .cast .pic .fig{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:4px}
+  .fig .p{width:26%;height:80%;border-radius:8px 8px 0 0;align-self:flex-end}
+  .badge{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.6);color:#fff;font-size:8px;font-weight:700;border-radius:4px;padding:2px 5px}
+  .check{position:absolute;right:6px;top:6px;width:18px;height:18px;border-radius:50%;background:var(--emerald);color:#04231a;display:grid;place-items:center;font-size:11px;font-weight:900}
+  .meta{padding:8px 9px 4px}
+  .meta .nm{font-size:12px;font-weight:700;line-height:1.15}
+  .meta .rl{font-size:10px;color:var(--accent);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .meta .ds{font-size:10px;color:var(--muted);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .ward{margin:6px 9px;display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:9px;background:rgba(255,255,255,.02);padding:6px 8px;font-size:10px;color:var(--muted);cursor:pointer}
+  .ward .lb{font-size:8px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+
+  .foot{border-top:1px solid var(--border);padding:6px;display:flex;flex-direction:column;gap:4px}
+  .row{display:flex;gap:4px}
+  .btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid var(--border);border-radius:7px;padding:5px 4px;font-size:10px;font-weight:600;color:var(--text);background:transparent;cursor:pointer;white-space:nowrap}
+  .btn:hover{border-color:color-mix(in srgb,var(--accent) 55%,transparent)}
+  .btn.reuse{border-color:color-mix(in srgb,var(--accent) 40%,transparent);color:var(--accent)}
+  .btn.approve{width:100%;border:1px solid var(--border);font-weight:800;padding:6px}
+  .btn.approve.done{background:var(--emerald);color:#04231a;border-color:transparent}
+  .btn svg{width:11px;height:11px}
+
+  /* ---- reuse picker overlay ---- */
+  .scrim{position:fixed;inset:0;z-index:40;display:none;place-items:center;padding:16px;background:rgba(6,6,9,.72);backdrop-filter:blur(6px)}
+  .scrim.open{display:grid}
+  .picker{width:min(94vw,560px);max-height:80vh;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .picker-head{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--border)}
+  .picker-head .t{font-size:12.5px;font-weight:700}
+  .picker-head .x{margin-left:auto;width:24px;height:24px;border:1px solid var(--border);border-radius:8px;color:var(--muted);display:grid;place-items:center;background:transparent;cursor:pointer}
+  .picker p.sub{margin:10px 14px 0;font-size:11px;color:var(--muted)}
+  .lib{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px;overflow-y:auto}
+  @media(max-width:560px){.lib{grid-template-columns:repeat(2,1fr)}}
+  .libcard{display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:rgba(255,255,255,.02);cursor:pointer;text-align:left;padding:0;color:inherit;transition:border-color .12s,box-shadow .12s}
+  .libcard:hover{border-color:color-mix(in srgb,var(--accent) 60%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 40%,transparent)}
+  .libcard .pic{position:relative;aspect-ratio:3/2;display:flex;align-items:flex-end;justify-content:center;overflow:hidden}
+  .libcard .use{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,0);opacity:0;transition:.12s}
+  .libcard:hover .use{background:rgba(0,0,0,.32);opacity:1}
+  .use span{background:var(--accent);color:#1a1030;font-size:10px;font-weight:800;border-radius:999px;padding:4px 10px}
+  .libcard .m{padding:6px 8px 8px}
+  .libcard .m .nm{font-size:11.5px;font-weight:700;line-height:1.1}
+  .libcard .m .rl{font-size:9px;color:var(--accent);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .libcard .m .fm{font-size:8.5px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--emerald);color:#04231a;font-size:12px;font-weight:700;padding:8px 14px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1}
+</style>
+
+<div class="wrap">
+  <h1>Reuse a saved character (for serial / franchise films)</h1>
+  <p class="lede">Instead of regenerating a face every episode, each cast slot now has a <b style="color:var(--accent)">Reuse</b> button. It opens a picker of the characters you've already made in your other films — click one and its exact face + wardrobe fill the slot instantly, no regeneration, no credits.</p>
+  <div class="hint">Try it → click <b>⌸ Reuse</b> on the empty "Trader / Buyer" card.</div>
+
+  <div class="panel">
+    <div class="panel-head"><span class="tag">Cast</span><span class="t">Approve your cast</span><span class="c">3 of 4 approved</span></div>
+    <div class="grid" id="cards"></div>
+  </div>
+</div>
+
+<!-- reuse picker -->
+<div class="scrim" id="scrim">
+  <div class="picker" role="dialog" aria-modal="true">
+    <div class="picker-head">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><path d="M4 4h6l2 3h8v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>
+      <span class="t">Reuse a saved character</span>
+      <button class="x" id="close">✕</button>
+    </div>
+    <p class="sub">Pick a character you've already made in another film — its exact face &amp; wardrobe fill this slot instantly, so a serial keeps the same cast across episodes.</p>
+    <div class="lib" id="lib"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // palette pairs for the simple figure placeholders (skin/clothes)
+  const SAVED = [
+    { name:"Marcus Okonkwo", role:"Cacao trader", film:"The Maker's Story", skin:"#6b4a34", cloth:"#e8e2d4" },
+    { name:"Amara Mensah",   role:"Village girl → wife", film:"The Maker's Story", skin:"#7a5236", cloth:"#3a5f8a" },
+    { name:"Kwesi Boateng",  role:"Farmer & mentor", film:"A Penny's Hope", skin:"#5a3d2b", cloth:"#b45a3c" },
+    { name:"Helena Rossi",   role:"City buyer", film:"A Penny's Hope", skin:"#d8b48c", cloth:"#8a8f98" },
+    { name:"Daniel Osei",    role:"Bank officer", film:"First Harvest", skin:"#6b4a34", cloth:"#26324a" },
+    { name:"Ama Serwaa",     role:"Market seller", film:"First Harvest", skin:"#7a5236", cloth:"#c56b2c" },
+  ];
+  // the film's current cast slots
+  const CARDS = [
+    { name:"Marcus Okonkwo", role:"Cacao trader", desc:"Early 20s, lean athletic build, close-cropped black hair, cream linen shirt.", ward:"Auto — from description", skin:"#6b4a34", cloth:"#e8e2d4", ok:true },
+    { name:"Amara Mensah", role:"Village girl", desc:"Early 20s, petite frame, long braided hair, faded indigo wrap and cream blouse.", ward:"Auto — from description", skin:"#7a5236", cloth:"#3a5f8a", ok:true },
+    { name:"Kwesi Boateng", role:"Farmer & mentor", desc:"Mid-50s, sturdy build, grey-streaked hair, rust-coloured tunic.", ward:"Auto — from description", skin:"#5a3d2b", cloth:"#b45a3c", ok:true },
+    { name:"Trader / Buyer", role:"City merchant", desc:"A hard-nosed city buyer who haggles over price.", ward:"Auto — from description", skin:null, cloth:null, ok:false, empty:true },
+  ];
+
+  const $ = id => document.getElementById(id);
+  const fig = (skin, cloth) => skin
+    ? `<div class="fig"><div class="p" style="background:${cloth}"></div></div>
+       <div style="position:absolute;top:14%;left:50%;transform:translateX(-50%);width:26%;aspect-ratio:1;border-radius:50%;background:${skin}"></div>`
+    : `<div style="position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:10px">No preview yet</div>`;
+
+  let openFor = null;
+
+  function renderCards(){
+    $("cards").innerHTML = CARDS.map((c,i)=>`
+      <div class="cast ${c.ok?'ok':''}">
+        <div class="pic" style="background:linear-gradient(160deg,#1b1620,#241c2b)">
+          ${fig(c.skin,c.cloth)}
+          ${c.ok?'<span class="check">✓</span>':''}
+          ${c.skin?'<span class="badge">front · ¾ · profile</span>':''}
+        </div>
+        <div class="meta"><div class="nm">${c.name}</div><div class="rl">${c.role}</div><div class="ds">${c.desc}</div></div>
+        <div class="ward"><span>👕</span><span class="lb">Wardrobe</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic">${c.ward}</span><span>✎</span></div>
+        <div class="foot">
+          <div class="row">
+            <button class="btn">${c.ok?'↻ Redo':'✦ Generate'}</button>
+            <button class="btn">⬆ Upload</button>
+            <button class="btn reuse" onclick="openPicker(${i})">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h6l2 3h8v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg> Reuse
+            </button>
+          </div>
+          <button class="btn approve ${c.ok?'done':''}">${c.ok?'✓ Approved':'Approve'}</button>
+        </div>
+      </div>`).join("");
+  }
+
+  window.openPicker = function(i){
+    openFor = i;
+    $("lib").innerHTML = SAVED.map((s,j)=>`
+      <button class="libcard" onclick="useChar(${j})">
+        <div class="pic" style="background:linear-gradient(160deg,#1b1620,#241c2b)">
+          ${fig(s.skin,s.cloth)}
+          <div class="use"><span>Use this</span></div>
+        </div>
+        <div class="m"><div class="nm">${s.name}</div><div class="rl">${s.role}</div><div class="fm">from ${s.film}</div></div>
+      </button>`).join("");
+    $("scrim").classList.add("open");
+  };
+  window.useChar = function(j){
+    const s = SAVED[j];
+    if(openFor!=null){ Object.assign(CARDS[openFor], { name:s.name, role:s.role, desc:s.role+" — reused from "+s.film+".", skin:s.skin, cloth:s.cloth, ok:false, empty:false, ward:"Auto — from description" }); renderCards(); }
+    close();
+    const t=$("toast"); t.textContent="Filled with "+s.name+" — approve to lock it in."; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2200);
+  };
+  function close(){ $("scrim").classList.remove("open"); }
+  $("close").onclick=close;
+  $("scrim").addEventListener("click",e=>{ if(e.target===$("scrim")) close(); });
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape") close(); });
+
+  renderCards();
+</script>
