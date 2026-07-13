@@ -1119,13 +1119,8 @@ function SceneInspector({ scene, characters, avatars, voices, onClose, onPatch, 
         )}
 
         <label className="mb-1 mt-3 block text-[11px] font-semibold">Duration <span className="font-normal text-muted-foreground">— caps this shot&rsquo;s dialogue</span></label>
-        <PillRow
-          options={scene.engine === "ai" ? ["3", "5", "8", "10", "15", "20", "25", "30"] : ["3", "5", "8", "10", "15"]}
-          labels={scene.engine === "ai" ? ["3s", "5s", "8s", "10s", "15s", "20s", "25s", "30s"] : ["3s", "5s", "8s", "10s", "15s"]}
-          value={String(scene.durationSec ?? 8)}
-          onSelect={(v) => onPatch({ durationSec: Number(v) })}
-        />
-        {scene.engine === "ai" && <p className="mt-1 text-[10px] leading-snug text-muted-foreground">Shorter shots render fastest; longer shots hold more dialogue. Over 15s is stitched from extensions, so it renders noticeably slower.</p>}
+        <PillRow options={["3", "5", "8", "10", "15"]} labels={["3s", "5s", "8s", "10s", "15s"]} value={String(scene.durationSec ?? 8)} onSelect={(v) => onPatch({ durationSec: Number(v) })} />
+        {scene.engine === "ai" && <p className="mt-1 text-[10px] leading-snug text-muted-foreground">Shorter shots render fastest; longer hold more dialogue. Scenes with cast render up to ~10s (a single clean clip) — build a longer film from more scenes.</p>}
 
         <label className="mb-1 mt-3 block text-[11px] font-semibold">Transition · captions</label>
         <div className="flex flex-wrap gap-1.5">
