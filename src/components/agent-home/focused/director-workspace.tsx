@@ -20,6 +20,7 @@ import Image from "next/image";
 import {
   Sparkles, X, Film, Clapperboard, UserSquare2, Scissors, Images, Palette, Plus, Paperclip,
   ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon, Shirt, Pencil, Maximize2, Volume2, VolumeX, RefreshCw, Link2, Box, Trash2, UserPlus,
+  Type, ImagePlus, AudioLines, Layers3, ArrowUp, ArrowDown, MousePointer2,
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -27,7 +28,7 @@ import { MediaLightbox } from "@/components/shared/media-lightbox";
 import { BriefSuggest, type BriefProposal } from "./brief-suggest";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
-import type { CharacterRenderStyle, FilmProject, FilmScene, FilmOverlay, FilmAsset, SceneEngine, FilmType, FilmAspect, FilmCharacter, SceneCastLine } from "@/lib/video-director/types";
+import type { CharacterRenderStyle, FilmComposer, FilmComposerLayer, FilmComposerLayerType, FilmProject, FilmScene, FilmOverlay, FilmAsset, SceneEngine, FilmType, FilmAspect, FilmCharacter, SceneCastLine } from "@/lib/video-director/types";
 
 // ------------------------------------------------------------------ engine meta
 const ENGINES: Record<SceneEngine, { label: string; color: string; Icon: ElementType; hint: string }> = {
@@ -564,9 +565,20 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
     if (!film) return;
     setFilm((f) => f ? { ...f, finalStatus: "rendering", finalProgress: 5 } : f);
     try {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      const saveResponse = await fetch(`/api/ai/video-director/${film.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project: film }),
+      });
+      if (!saveResponse.ok) throw new Error("The latest composer changes could not be saved.");
       const j = await fetch(`/api/ai/video-director/${film.id}/compose`, { method: "POST" }).then((r) => r.json());
       if (j?.success && j.data?.film) setFilm(j.data.film);
-    } catch { /* poll will reflect status */ }
+      else throw new Error(j?.error?.message || "The final stitch could not start.");
+    } catch (error) {
+      setFilm((current) => current ? { ...current, finalStatus: "failed", finalProgress: 0 } : current);
+      toast({ title: "Film stitch could not start", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    }
   };
 
   // -------- brief create/update --------
@@ -792,6 +804,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           collapsed={dockCollapsed} onToggle={() => setDockCollapsed((v) => !v)}
           selId={selId} onSelect={setSelId}
           onPatch={patchSceneById} onReorder={reorderScenes} onSplit={splitSceneAt}
+          onFilmPatch={(patch) => mutate((current) => ({ ...current, ...patch }))}
         />
       )}
 
@@ -1145,18 +1158,19 @@ function SceneNode({ scene, selected, castImg, cast, inspector, onDown, onSelect
 
 // ============================================================ docked timeline
 const THEAD_W = 92;
-function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, onPatch, onReorder, onSplit }: {
+function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, onPatch, onReorder, onSplit, onFilmPatch }: {
   scenes: FilmScene[]; film: FilmProject; collapsed: boolean; onToggle: () => void;
   selId: string | null; onSelect: (id: string) => void;
   onPatch: (id: string, patch: Partial<FilmScene>) => void;
   onReorder: (ids: string[]) => void;
   onSplit: (id: string, atLocalSec: number) => void;
+  onFilmPatch: (patch: Partial<FilmProject>) => void;
 }) {
   const [px, setPx] = useState(30);          // px per second (zoom)
   const [t, setT] = useState(0);             // playhead seconds
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false); // preview audio (dialogue) on by default
-  const [theater, setTheater] = useState(false); // fullscreen preview ("view in full")
+  const [theater, setTheater] = useState(false); // inline composer connected to the timeline
   const [drag, setDrag] = useState<{ id: string; mode: "move" | "l" | "r"; dx: number } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rulerRef = useRef<HTMLDivElement | null>(null);
@@ -1276,6 +1290,7 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
               <button onClick={() => setPlaying((p) => !p)} className="grid h-7 w-7 place-items-center rounded-lg bg-foreground text-background" title={playing ? "Pause" : "Play"}>{playing ? <Pause className="h-3.5 w-3.5 fill-current" /> : <Play className="h-3.5 w-3.5 translate-x-px fill-current" />}</button>
               <button onClick={() => setMuted((m) => !m)} className={cn("grid h-7 w-7 place-items-center rounded-lg border border-border", muted ? "text-muted-foreground hover:text-foreground" : "border-brand-500/50 text-brand-500")} title={muted ? "Unmute dialogue" : "Mute"}>{muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}</button>
               <span className="ml-1 font-mono text-[11px] text-muted-foreground">{fmtT(t)} / {fmtT(total)}</span>
+              <button onClick={() => setTheater(true)} className="ml-1 inline-flex items-center gap-1 rounded-lg border border-brand-500/50 px-2 py-1 text-[11px] font-semibold text-brand-500 hover:bg-brand-500/10" title="Open film composer"><Layers3 className="h-3 w-3" /> Compose</button>
               <button onClick={() => selId && selLaid && onSplit(selId, t - selLaid.start)} disabled={!canSplit} className="ml-1 inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-brand-500 disabled:opacity-40" title="Split the selected clip at the playhead"><Scissors className="h-3 w-3" /> Split</button>
               <span className="ml-1 flex items-center gap-1 text-[11px] text-muted-foreground">
                 <button onClick={() => setPx((z) => Math.max(14, z - 6))} className="grid h-6 w-6 place-items-center rounded border border-border">−</button>
@@ -1288,22 +1303,21 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
 
       {!collapsed && (
         <div className="flex min-h-0 flex-1">
-          {/* preview — click to view full screen (theater) */}
+          {/* preview — opens the film composer directly above this timeline */}
           <div className="flex shrink-0 flex-col items-center justify-center gap-1.5 border-r border-border bg-black/50 p-3">
             <button
               type="button"
-              onClick={() => { if (activeUrl || activeImg) { setTheater(true); if (activeUrl) setPlaying(true); } }}
-              disabled={!activeUrl && !activeImg}
-              title="View full screen"
-              aria-label="View preview full screen"
-              className={cn("group relative overflow-hidden rounded-lg border border-border bg-black outline-none focus-visible:ring-2 focus-visible:ring-brand-500", (activeUrl || activeImg) && "cursor-zoom-in")}
+              onClick={() => { setTheater(true); if (activeUrl) setPlaying(true); }}
+              title="Open film composer"
+              aria-label="Open film composer"
+              className="group relative cursor-pointer overflow-hidden rounded-lg border border-border bg-black outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
               style={{ width: prevAspect.w, height: prevAspect.h }}
             >
               {activeImg ? (
                 <Image src={activeImg} alt="" fill sizes="240px" className="object-contain" unoptimized />
               ) : activeUrl ? (
                 theater
-                  ? <div className="grid h-full w-full place-items-center px-1 text-center text-[9px] text-muted-foreground/70">▶ playing full screen</div>
+                  ? <div className="grid h-full w-full place-items-center px-1 text-center text-[9px] text-muted-foreground/70">composer open</div>
                   // eslint-disable-next-line jsx-a11y/media-has-caption
                   : <video ref={videoRef} muted={muted} playsInline className="h-full w-full object-contain" />
               ) : (
@@ -1311,8 +1325,8 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
               )}
               {(activeUrl || activeImg) && !theater && (
                 <>
-                  <span className="absolute right-1.5 top-1.5 grid h-[22px] w-[22px] place-items-center rounded-md border border-white/15 bg-black/55 opacity-0 transition group-hover:opacity-100"><Maximize2 className="h-3 w-3 text-white" /></span>
-                  <span className="absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-black/70 to-transparent pb-1.5 pt-4 opacity-0 transition group-hover:opacity-100"><span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-black/60 px-2 py-0.5 text-[9.5px] font-semibold text-white"><Maximize2 className="h-2.5 w-2.5" /> View full</span></span>
+                  <span className="absolute right-1.5 top-1.5 grid h-[22px] w-[22px] place-items-center rounded-md border border-white/15 bg-black/55 opacity-0 transition group-hover:opacity-100"><Layers3 className="h-3 w-3 text-white" /></span>
+                  <span className="absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-black/70 to-transparent pb-1.5 pt-4 opacity-0 transition group-hover:opacity-100"><span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-black/60 px-2 py-0.5 text-[9.5px] font-semibold text-white"><Layers3 className="h-2.5 w-2.5" /> Compose</span></span>
                 </>
               )}
             </button>
@@ -1361,6 +1375,9 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
                     const OE = ENGINES[s.overlay!.engine];
                     return <div key={s.id} className="absolute inset-y-2 flex items-center overflow-hidden rounded border border-white/20 px-1.5 text-[9px] font-bold text-black/80" style={{ left: start * px, width: Math.max(20, len * px), background: OE.color }}>⧉ {OE.label}</div>;
                   })}
+                  {(film.composer?.layers || []).filter((layer) => layer.type !== "audio").map((layer) => (
+                    <div key={layer.id} className="absolute inset-y-2 flex items-center overflow-hidden rounded border border-cyan-300/40 bg-cyan-500/65 px-1.5 text-[9px] font-bold text-cyan-950" style={{ left: layer.startSec * px, width: Math.max(20, (layer.endSec - layer.startSec) * px) }}>{layer.type === "text" ? "T" : "◇"} {layer.name}</div>
+                  ))}
                 </div>
               </div>
 
@@ -1369,6 +1386,9 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
                 <div className="sticky left-0 z-[1] flex w-[92px] shrink-0 items-center gap-1.5 border-r border-border bg-card px-2.5 text-[10px] font-semibold text-muted-foreground"><span className="h-2 w-2 rounded-sm bg-[#f472b6]" /> Music</div>
                 <div className="relative flex-1 py-1.5" style={laneMin} onPointerDown={laneScrubStart}>
                   {film.music && <div className="absolute inset-y-1.5 rounded-md bg-pink-500/80" style={{ left: 0, width: cursor * px }} />}
+                  {(film.composer?.layers || []).filter((layer) => layer.type === "audio").map((layer) => (
+                    <div key={layer.id} className="absolute inset-y-2 flex items-center overflow-hidden rounded bg-amber-400/80 px-1.5 text-[8.5px] font-bold text-amber-950" style={{ left: layer.startSec * px, width: Math.max(18, (layer.endSec - layer.startSec) * px) }}>{layer.name}</div>
+                  ))}
                 </div>
               </div>
 
@@ -1376,7 +1396,7 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
               <div className="flex min-h-[40px] border-b border-border">
                 <div className="sticky left-0 z-[1] flex w-[92px] shrink-0 items-center gap-1.5 border-r border-border bg-card px-2.5 text-[10px] font-semibold text-muted-foreground"><span className="h-2 w-2 rounded-sm bg-slate-200" /> Captions</div>
                 <div className="relative flex-1 py-1.5" style={laneMin} onPointerDown={laneScrubStart}>
-                  {laid.filter(({ s }) => s.captionsOn).map(({ s, start, len }) => (
+                  {film.composer?.captions.enabled && laid.filter(({ s }) => s.captionsOn).map(({ s, start, len }) => (
                     <div key={s.id} className="absolute inset-y-2 flex items-center overflow-hidden rounded bg-slate-200 px-1.5 font-mono text-[8.5px] text-slate-800" style={{ left: start * px, width: Math.max(16, len * px) }}>cc</div>
                   ))}
                 </div>
@@ -1389,53 +1409,258 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
         </div>
       )}
 
-      {/* Fullscreen theater — the preview, big. Reuses the same playhead/clip engine;
-          the single videoRef moves to the theater <video> while it's open. */}
-      {theater && createPortal(
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 backdrop-blur-md"
-          onClick={(e) => { if (e.target === e.currentTarget) setTheater(false); }}>
-          <span className="absolute left-4 top-5 font-mono text-[11px] text-muted-foreground">Esc to close</span>
-          <span className="absolute left-1/2 top-4 max-w-[60vw] -translate-x-1/2 truncate text-center text-[12.5px] text-muted-foreground">{active?.s.title || "—"}</span>
-          <button onClick={() => setTheater(false)} aria-label="Close" className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full border border-border bg-card/80 text-foreground hover:bg-card"><X className="h-4 w-4" /></button>
-
-          <div className="flex w-full max-w-[560px] flex-col gap-3.5" onClick={(e) => e.stopPropagation()}>
-            <div className="relative mx-auto overflow-hidden rounded-2xl border border-border bg-black shadow-2xl"
-              style={{
-                aspectRatio: film.aspect === "16:9" ? "16 / 9" : film.aspect === "1:1" ? "1 / 1" : "9 / 16",
-                maxWidth: "94vw", maxHeight: "78vh",
-                height: film.aspect === "9:16" ? "76vh" : film.aspect === "1:1" ? "min(76vh, 560px)" : "auto",
-                width: film.aspect === "16:9" ? "min(94vw, 760px)" : "auto",
-              }}>
-              {activeImg ? (
-                <Image src={activeImg} alt="" fill sizes="760px" className="object-contain" unoptimized />
-              ) : activeUrl ? (
-                // eslint-disable-next-line jsx-a11y/media-has-caption
-                <video ref={videoRef} muted={muted} playsInline className="h-full w-full object-contain" />
-              ) : (
-                <div className="grid h-full w-full place-items-center text-sm text-white/50">{active ? "not generated" : "empty"}</div>
-              )}
-            </div>
-
-            {/* transport */}
-            <div className="flex items-center gap-3">
-              <button onClick={() => setT(0)} title="To start" className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground">⏮</button>
-              <button onClick={() => setPlaying((p) => !p)} title={playing ? "Pause" : "Play"} className="grid h-11 w-11 place-items-center rounded-full bg-foreground text-background">{playing ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 translate-x-px fill-current" />}</button>
-              <button onClick={() => setMuted((m) => !m)} title={muted ? "Unmute dialogue" : "Mute"} className={cn("grid h-9 w-9 place-items-center rounded-lg border border-border", muted ? "text-muted-foreground hover:text-foreground" : "border-brand-500/50 text-brand-500")}>{muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}</button>
-              <div className="relative h-1.5 flex-1 cursor-pointer rounded-full bg-border"
-                onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const r = e.currentTarget.getBoundingClientRect(); setT(Math.max(0, Math.min(total, ((e.clientX - r.left) / r.width) * total))); }}
-                onPointerMove={(e) => { if (!e.buttons) return; const r = e.currentTarget.getBoundingClientRect(); setT(Math.max(0, Math.min(total, ((e.clientX - r.left) / r.width) * total))); }}>
-                <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${(t / total) * 100}%` }} />
-                <div className="absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow" style={{ left: `${(t / total) * 100}%` }} />
-                {laid.slice(1).map((l) => <span key={l.s.id} className="pointer-events-none absolute top-0 h-1.5 w-px bg-white/25" style={{ left: `${(l.start / total) * 100}%` }} />)}
-              </div>
-              <span className="font-mono text-[12px] text-muted-foreground">{fmtT(t)} / {fmtT(total)}</span>
-            </div>
-          </div>
-        </div>,
-        document.body,
+      {theater && (
+        <FilmComposerModal
+          film={film} activeScene={active?.s || null} activeUrl={activeUrl} activeImg={activeImg}
+          videoRef={videoRef} muted={muted} playing={playing} t={t} total={total}
+          onClose={() => setTheater(false)} onTogglePlay={() => setPlaying((value) => !value)}
+          onToggleMute={() => setMuted((value) => !value)} onSeek={setT} onFilmPatch={onFilmPatch}
+        />
       )}
     </div>
   );
+}
+
+// ============================================================ film composer
+const DEFAULT_COMPOSER: FilmComposer = {
+  layers: [],
+  captions: { enabled: true, style: "boxed", font: "sans", fontSize: 42, color: "#ffffff", backgroundColor: "#000000", position: "bottom" },
+  musicVolume: 0.28,
+};
+
+type ComposerTool = FilmComposerLayerType | "captions" | "music" | "layers";
+
+function FilmComposerModal({ film, activeScene, activeUrl, activeImg, videoRef, muted, playing, t, total, onClose, onTogglePlay, onToggleMute, onSeek, onFilmPatch }: {
+  film: FilmProject;
+  activeScene: FilmScene | null;
+  activeUrl: string | null;
+  activeImg: string | null;
+  videoRef: { current: HTMLVideoElement | null };
+  muted: boolean;
+  playing: boolean;
+  t: number;
+  total: number;
+  onClose: () => void;
+  onTogglePlay: () => void;
+  onToggleMute: () => void;
+  onSeek: (value: number) => void;
+  onFilmPatch: (patch: Partial<FilmProject>) => void;
+}) {
+  const { toast } = useToast();
+  const composer = film.composer || DEFAULT_COMPOSER;
+  const [tool, setTool] = useState<ComposerTool>("layers");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [picker, setPicker] = useState<FilmComposerLayerType | "music" | null>(null);
+  const [uploadKind, setUploadKind] = useState<FilmComposerLayerType | "music" | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ id: string; startX: number; startY: number; x: number; y: number } | null>(null);
+  const selected = composer.layers.find((layer) => layer.id === selectedId) || null;
+  const visibleLayers = [...composer.layers]
+    .filter((layer) => layer.type !== "audio" && t >= layer.startSec && t <= layer.endSec)
+    .sort((a, b) => a.zIndex - b.zIndex);
+  const activeCaption = composer.captions.enabled && activeScene?.captionsOn
+    ? (activeScene.cast || []).filter((line) => line.dialogue?.trim()).map((line) => `${line.name}: ${line.dialogue!.trim()}`).join(" ")
+    : "";
+
+  const setComposer = (next: FilmComposer) => onFilmPatch({ composer: next });
+  const updateLayer = (id: string, patch: Partial<FilmComposerLayer>) => {
+    setComposer({ ...composer, layers: composer.layers.map((layer) => layer.id === id ? { ...layer, ...patch } : layer) });
+  };
+  const addLayer = (type: FilmComposerLayerType, sourceUrl?: string, name?: string) => {
+    const id = uid("layer");
+    const zIndex = Math.max(0, ...composer.layers.map((layer) => layer.zIndex)) + 1;
+    const layer: FilmComposerLayer = {
+      id, type, name: name || (type === "text" ? "Text" : type === "logo" ? "Logo" : type === "audio" ? "Audio" : type === "video" ? "Video" : "Image"),
+      sourceUrl: sourceUrl || null, text: type === "text" ? "Your text" : undefined,
+      x: type === "logo" ? 0.75 : 0.1, y: type === "logo" ? 0.06 : 0.12,
+      width: type === "logo" ? 0.18 : type === "text" ? 0.55 : 0.32,
+      opacity: 1, startSec: Math.min(t, Math.max(0, total - 0.1)), endSec: total,
+      zIndex, font: "sans", fontSize: 44, color: "#ffffff", backgroundColor: "#000000", volume: 0.8,
+    };
+    setComposer({ ...composer, layers: [...composer.layers, layer] });
+    setSelectedId(id); setTool(type);
+  };
+  const removeLayer = (id: string) => {
+    setComposer({ ...composer, layers: composer.layers.filter((layer) => layer.id !== id) });
+    setSelectedId(null); setTool("layers");
+  };
+  const moveStack = (id: string, delta: number) => {
+    const ordered = [...composer.layers].sort((a, b) => a.zIndex - b.zIndex);
+    const index = ordered.findIndex((layer) => layer.id === id);
+    const target = Math.max(0, Math.min(ordered.length - 1, index + delta));
+    if (index < 0 || target === index) return;
+    [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+    setComposer({ ...composer, layers: ordered.map((layer, zIndex) => ({ ...layer, zIndex })) });
+  };
+  const chooseTool = (next: ComposerTool) => {
+    setTool(next);
+    if (next === "text") addLayer("text");
+    else if (next === "image" || next === "logo" || next === "video" || next === "audio") setSelectedId(null);
+  };
+  const addPickedMedia = (kind: FilmComposerLayerType, url: string, name?: string) => {
+    if (kind === "audio") addLayer("audio", url, name || "Audio");
+    else addLayer(kind, url, name);
+    setPicker(null);
+  };
+  const openUpload = (kind: FilmComposerLayerType | "music") => {
+    setUploadKind(kind);
+    requestAnimationFrame(() => fileRef.current?.click());
+  };
+  const uploadFile = async (files: FileList | null) => {
+    const kind = uploadKind;
+    setUploadKind(null);
+    if (!kind || !files?.length) return;
+    setUploading(true);
+    try {
+      const fd = new FormData(); fd.append("file", files[0]);
+      const response = await fetch("/api/media", { method: "POST", body: fd });
+      const j = await response.json().catch(() => null);
+      if (!j?.success || !j.data?.file?.url) throw new Error(j?.error?.message || "Upload failed");
+      if (kind === "music") onFilmPatch({ music: j.data.file.url });
+      else addPickedMedia(kind, j.data.file.url, j.data.file.originalName || files[0].name);
+    } catch (error) {
+      toast({ title: "Media upload failed", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
+  };
+  const beginLayerDrag = (event: ReactPointerEvent, layer: FilmComposerLayer) => {
+    event.stopPropagation();
+    setSelectedId(layer.id); setTool(layer.type);
+    dragRef.current = { id: layer.id, startX: event.clientX, startY: event.clientY, x: layer.x, y: layer.y };
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+  };
+  const moveLayer = (event: ReactPointerEvent) => {
+    const drag = dragRef.current, canvas = canvasRef.current;
+    if (!drag || !canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    updateLayer(drag.id, {
+      x: Math.max(0, Math.min(0.95, drag.x + (event.clientX - drag.startX) / rect.width)),
+      y: Math.max(0, Math.min(0.95, drag.y + (event.clientY - drag.startY) / rect.height)),
+    });
+  };
+  const endLayerDrag = () => { dragRef.current = null; };
+  const patchCaptions = (patch: Partial<FilmComposer["captions"]>) => setComposer({ ...composer, captions: { ...composer.captions, ...patch } });
+  const aspectRatio = film.aspect === "16:9" ? "16 / 9" : film.aspect === "1:1" ? "1 / 1" : "9 / 16";
+  const tools: { id: ComposerTool; label: string; Icon: ElementType }[] = [
+    { id: "layers", label: "Layers", Icon: Layers3 }, { id: "text", label: "Text", Icon: Type },
+    { id: "image", label: "Image", Icon: ImagePlus }, { id: "logo", label: "Logo", Icon: Sparkles },
+    { id: "video", label: "Video", Icon: Film }, { id: "captions", label: "Captions", Icon: CaptionsIcon },
+    { id: "music", label: "Music", Icon: Music }, { id: "audio", label: "Audio", Icon: AudioLines },
+  ];
+
+  return (
+    <div className="fixed inset-x-3 bottom-[280px] top-[58px] z-[45] flex overflow-hidden rounded-lg border border-border bg-card shadow-2xl">
+      <div className="flex w-16 shrink-0 flex-col border-r border-border bg-background/70 py-2">
+        {tools.map(({ id, label, Icon }) => (
+          <button key={id} onClick={() => chooseTool(id)} title={label} className={cn("flex h-12 flex-col items-center justify-center gap-0.5 text-[8.5px] font-semibold", tool === id ? "bg-brand-500/12 text-brand-500" : "text-muted-foreground hover:bg-muted hover:text-foreground")}><Icon className="h-4 w-4" />{label}</button>
+        ))}
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border px-3">
+          <MousePointer2 className="h-3.5 w-3.5 text-brand-500" />
+          <span className="truncate text-[11.5px] font-bold">Film composer</span>
+          <span className="truncate text-[10px] text-muted-foreground">{activeScene?.title || "Preview"} · {film.aspect}</span>
+          <span className="ms-auto font-mono text-[10px] text-muted-foreground">{fmtT(t)} / {fmtT(total)}</span>
+          <button onClick={onClose} aria-label="Close composer" className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+        </div>
+
+        <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black/80 p-3">
+          <div ref={canvasRef} onPointerMove={moveLayer} onPointerUp={endLayerDrag} onPointerCancel={endLayerDrag} onClick={() => setSelectedId(null)}
+            className="relative max-h-full max-w-full overflow-hidden bg-black shadow-2xl ring-1 ring-white/10"
+            style={{ aspectRatio, height: film.aspect === "9:16" ? "100%" : film.aspect === "1:1" ? "min(100%, 620px)" : "auto", width: film.aspect === "9:16" ? "auto" : film.aspect === "1:1" ? "min(100%, 620px)" : "min(100%, 980px)" }}>
+            {activeImg ? <Image src={activeImg} alt="" fill sizes="980px" className="object-contain" unoptimized />
+              : activeUrl ? <video ref={videoRef} muted={muted} playsInline className="h-full w-full object-contain" />
+                : <div className="grid h-full w-full place-items-center text-[12px] text-white/45">{activeScene ? "Generate this scene to preview it" : "No scene at the playhead"}</div>}
+
+            {visibleLayers.map((layer) => (
+              <div key={layer.id} onPointerDown={(event) => beginLayerDrag(event, layer)} onClick={(event) => event.stopPropagation()}
+                className={cn("absolute cursor-move select-none", selectedId === layer.id && "outline outline-2 outline-brand-500 outline-offset-2")}
+                style={{ left: `${layer.x * 100}%`, top: `${layer.y * 100}%`, width: `${layer.width * 100}%`, opacity: layer.opacity, zIndex: layer.zIndex + 2 }}>
+                {layer.type === "text" ? (
+                  <div className="whitespace-pre-wrap px-2 py-1 text-center font-semibold leading-tight" style={{ color: layer.color, background: `${layer.backgroundColor || "#000000"}b8`, fontFamily: layer.font === "serif" ? "Georgia, serif" : "Arial, sans-serif", fontSize: `${Math.max(10, Math.min(34, (layer.fontSize || 44) * 0.42))}px` }}>{layer.text}</div>
+                ) : layer.type === "video" && layer.sourceUrl ? (
+                  <video src={layer.sourceUrl} autoPlay loop muted className="block h-auto w-full" />
+                ) : layer.sourceUrl ? (
+                  <Image src={layer.sourceUrl} alt={layer.name} width={480} height={320} className="h-auto w-full object-contain" unoptimized />
+                ) : null}
+              </div>
+            ))}
+
+            {activeCaption && (
+              <div className={cn("pointer-events-none absolute inset-x-[7%] z-[80] text-center font-semibold leading-tight", composer.captions.position === "top" ? "top-[8%]" : composer.captions.position === "middle" ? "top-1/2 -translate-y-1/2" : "bottom-[8%]")}
+                style={{ color: composer.captions.color, fontFamily: composer.captions.font === "serif" ? "Georgia, serif" : "Arial, sans-serif", fontSize: `${Math.max(10, Math.min(30, composer.captions.fontSize * 0.38))}px` }}>
+                <span className={cn("box-decoration-clone px-2 py-1", composer.captions.style === "boxed" && "bg-black/75", composer.captions.style === "cinematic" && "[text-shadow:0_2px_4px_rgba(0,0,0,0.95)]")}>{activeCaption}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex h-11 shrink-0 items-center gap-2 border-t border-border px-3">
+          <button onClick={() => onSeek(0)} title="To start" className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted-foreground">⏮</button>
+          <button onClick={onTogglePlay} title={playing ? "Pause" : "Play"} className="grid h-8 w-8 place-items-center rounded-full bg-foreground text-background">{playing ? <Pause className="h-3.5 w-3.5 fill-current" /> : <Play className="h-3.5 w-3.5 translate-x-px fill-current" />}</button>
+          <button onClick={onToggleMute} title={muted ? "Unmute" : "Mute"} className={cn("grid h-7 w-7 place-items-center rounded-md border border-border", !muted && "text-brand-500")}>{muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}</button>
+          <input type="range" min={0} max={total} step={0.05} value={Math.min(t, total)} onChange={(event) => onSeek(Number(event.target.value))} className="h-1 flex-1 accent-violet-500" />
+          <span className="font-mono text-[10px] text-muted-foreground">{fmtT(t)}</span>
+        </div>
+      </div>
+
+      <div className="flex w-[300px] shrink-0 flex-col border-l border-border bg-background/60">
+        <div className="flex h-10 items-center gap-2 border-b border-border px-3"><span className="text-[11px] font-bold">{selected ? selected.name : tools.find((item) => item.id === tool)?.label || "Properties"}</span>{selected && <span className="ms-auto text-[9px] uppercase text-muted-foreground">{selected.type}</span>}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          {selected ? (
+            <ComposerLayerInspector layer={selected} total={total} onPatch={(patch) => updateLayer(selected.id, patch)} onRemove={() => removeLayer(selected.id)} onMoveStack={(delta) => moveStack(selected.id, delta)} />
+          ) : tool === "captions" ? (
+            <CaptionInspector composer={composer} onPatch={patchCaptions} />
+          ) : tool === "music" ? (
+            <div className="space-y-3">
+              <p className="text-[10px] text-muted-foreground">Music bed across the whole film.</p>
+              <div className="flex gap-2"><button onClick={() => setPicker("music")} className="flex-1 rounded-md border border-border py-2 text-[10.5px] font-bold hover:border-brand-500"><FolderOpen className="mr-1 inline h-3 w-3" /> Library</button><button onClick={() => openUpload("music")} className="flex-1 rounded-md border border-border py-2 text-[10.5px] font-bold hover:border-brand-500"><Upload className="mr-1 inline h-3 w-3" /> Computer</button></div>
+              {film.music && <button onClick={() => onFilmPatch({ music: null })} className="w-full rounded-md border border-rose-500/40 py-1.5 text-[10px] font-bold text-rose-500">Remove music</button>}
+              <RangeField label="Music volume" value={composer.musicVolume} min={0} max={1} step={0.05} onChange={(musicVolume) => setComposer({ ...composer, musicVolume })} />
+            </div>
+          ) : tool === "layers" ? (
+            <div className="space-y-1.5">{composer.layers.length ? [...composer.layers].sort((a, b) => b.zIndex - a.zIndex).map((layer) => <button key={layer.id} onClick={() => { setSelectedId(layer.id); setTool(layer.type); }} className="flex w-full items-center gap-2 rounded-md border border-border px-2 py-2 text-left hover:border-brand-500"><span className="grid h-6 w-6 place-items-center rounded bg-muted text-[9px] font-bold uppercase">{layer.type.slice(0, 2)}</span><span className="min-w-0 flex-1 truncate text-[10.5px] font-semibold">{layer.name}</span><span className="text-[9px] text-muted-foreground">{fmtT(layer.startSec)}</span></button>) : <p className="py-8 text-center text-[10px] text-muted-foreground">Add text, media, or audio from the tool menu.</p>}</div>
+          ) : (
+            <MediaSourceInspector kind={tool as FilmComposerLayerType} uploading={uploading} onLibrary={() => setPicker(tool as FilmComposerLayerType)} onComputer={() => openUpload(tool as FilmComposerLayerType)} />
+          )}
+        </div>
+      </div>
+
+      <input ref={fileRef} type="file" accept={uploadKind === "video" ? "video/*" : uploadKind === "audio" || uploadKind === "music" ? "audio/*" : "image/*"} className="hidden" onChange={(event) => void uploadFile(event.target.files)} />
+      <MediaLibraryPicker open={!!picker} onClose={() => setPicker(null)} title={picker === "music" ? "Choose music" : `Choose ${picker || "media"}`} filterTypes={picker === "music" || picker === "audio" ? ["audio"] : picker === "video" ? ["video"] : ["image", "svg"]} onSelect={(url, file) => {
+        if (picker === "music") { onFilmPatch({ music: url }); setPicker(null); }
+        else if (picker) addPickedMedia(picker, url, file?.originalName);
+      }} />
+    </div>
+  );
+}
+
+function MediaSourceInspector({ kind, uploading, onLibrary, onComputer }: { kind: FilmComposerLayerType; uploading: boolean; onLibrary: () => void; onComputer: () => void }) {
+  return <div className="space-y-3"><p className="text-[10px] leading-snug text-muted-foreground">Add a {kind} layer at the current playhead. It remains selectable and can be positioned, timed, and stacked.</p><button onClick={onLibrary} className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-2 text-[10.5px] font-bold hover:border-brand-500"><FolderOpen className="h-3 w-3" /> Media library</button><button onClick={onComputer} disabled={uploading} className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-2 text-[10.5px] font-bold hover:border-brand-500 disabled:opacity-50">{uploading ? <FlowLoader size={11} /> : <Upload className="h-3 w-3" />} Upload from computer</button></div>;
+}
+
+function RangeField({ label, value, min, max, step, onChange }: { label: string; value: number; min: number; max: number; step: number; onChange: (value: number) => void }) {
+  return <label className="block"><span className="mb-1 flex justify-between text-[9.5px] font-semibold text-muted-foreground"><span>{label}</span><span className="font-mono">{Number(value).toFixed(step < 1 ? 2 : 0)}</span></span><input type="range" value={value} min={min} max={max} step={step} onChange={(event) => onChange(Number(event.target.value))} className="h-1 w-full accent-violet-500" /></label>;
+}
+
+function ComposerLayerInspector({ layer, total, onPatch, onRemove, onMoveStack }: { layer: FilmComposerLayer; total: number; onPatch: (patch: Partial<FilmComposerLayer>) => void; onRemove: () => void; onMoveStack: (delta: number) => void }) {
+  return <div className="space-y-3">
+    <input value={layer.name} onChange={(event) => onPatch({ name: event.target.value })} className="h-8 w-full rounded-md border border-input bg-background px-2 text-[10.5px] font-semibold outline-none focus:border-brand-500" />
+    {layer.type === "text" && <textarea value={layer.text || ""} onChange={(event) => onPatch({ text: event.target.value })} rows={3} className="w-full resize-y rounded-md border border-input bg-background px-2 py-1.5 text-[10.5px] outline-none focus:border-brand-500" />}
+    <div className="grid grid-cols-2 gap-2"><label className="text-[9.5px] font-semibold text-muted-foreground">Start<input type="number" min={0} max={total} step={0.1} value={layer.startSec} onChange={(event) => onPatch({ startSec: Math.min(Number(event.target.value), layer.endSec - 0.1) })} className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 font-mono text-[10px]" /></label><label className="text-[9.5px] font-semibold text-muted-foreground">End<input type="number" min={0.1} max={total} step={0.1} value={Math.min(layer.endSec, total)} onChange={(event) => onPatch({ endSec: Math.max(Number(event.target.value), layer.startSec + 0.1) })} className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 font-mono text-[10px]" /></label></div>
+    {layer.type !== "audio" && <><RangeField label="Horizontal" value={layer.x} min={0} max={0.95} step={0.01} onChange={(x) => onPatch({ x })} /><RangeField label="Vertical" value={layer.y} min={0} max={0.95} step={0.01} onChange={(y) => onPatch({ y })} /><RangeField label="Size" value={layer.width} min={0.05} max={1} step={0.01} onChange={(width) => onPatch({ width })} /><RangeField label="Opacity" value={layer.opacity} min={0} max={1} step={0.05} onChange={(opacity) => onPatch({ opacity })} /></>}
+    {layer.type === "text" && <><select value={layer.font || "sans"} onChange={(event) => onPatch({ font: event.target.value as FilmComposerLayer["font"] })} className="h-8 w-full rounded-md border border-input bg-background px-2 text-[10px]"><option value="sans">Sans</option><option value="serif">Serif</option><option value="display">Display</option></select><RangeField label="Font size" value={layer.fontSize || 44} min={12} max={160} step={1} onChange={(fontSize) => onPatch({ fontSize })} /><div className="grid grid-cols-2 gap-2"><label className="text-[9px] text-muted-foreground">Text color<input type="color" value={layer.color || "#ffffff"} onChange={(event) => onPatch({ color: event.target.value })} className="mt-1 h-8 w-full" /></label><label className="text-[9px] text-muted-foreground">Background<input type="color" value={layer.backgroundColor || "#000000"} onChange={(event) => onPatch({ backgroundColor: event.target.value })} className="mt-1 h-8 w-full" /></label></div></>}
+    {(layer.type === "audio" || layer.type === "video") && <RangeField label="Volume" value={layer.volume ?? 0.8} min={0} max={2} step={0.05} onChange={(volume) => onPatch({ volume })} />}
+    <div className="grid grid-cols-2 gap-1.5"><button onClick={() => onMoveStack(1)} className="inline-flex items-center justify-center gap-1 rounded-md border border-border py-1.5 text-[9.5px] font-bold"><ArrowUp className="h-3 w-3" /> Forward</button><button onClick={() => onMoveStack(-1)} className="inline-flex items-center justify-center gap-1 rounded-md border border-border py-1.5 text-[9.5px] font-bold"><ArrowDown className="h-3 w-3" /> Back</button></div>
+    <button onClick={onRemove} className="inline-flex w-full items-center justify-center gap-1 rounded-md border border-rose-500/40 py-1.5 text-[10px] font-bold text-rose-500"><Trash2 className="h-3 w-3" /> Remove layer</button>
+  </div>;
+}
+
+function CaptionInspector({ composer, onPatch }: { composer: FilmComposer; onPatch: (patch: Partial<FilmComposer["captions"]>) => void }) {
+  const captions = composer.captions;
+  return <div className="space-y-3"><label className="flex items-center justify-between text-[10.5px] font-bold">Generate captions<input type="checkbox" checked={captions.enabled} onChange={(event) => onPatch({ enabled: event.target.checked })} className="h-4 w-4 accent-violet-500" /></label><div className="grid grid-cols-3 gap-1">{(["clean", "boxed", "cinematic"] as const).map((style) => <button key={style} onClick={() => onPatch({ style })} className={cn("rounded-md border px-1 py-1.5 text-[9px] font-bold capitalize", captions.style === style ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground")}>{style}</button>)}</div><select value={captions.font} onChange={(event) => onPatch({ font: event.target.value as FilmComposer["captions"]["font"] })} className="h-8 w-full rounded-md border border-input bg-background px-2 text-[10px]"><option value="sans">Sans</option><option value="serif">Serif</option><option value="display">Display</option></select><RangeField label="Font size" value={captions.fontSize} min={18} max={96} step={1} onChange={(fontSize) => onPatch({ fontSize })} /><div className="grid grid-cols-2 gap-2"><input type="color" title="Caption color" value={captions.color} onChange={(event) => onPatch({ color: event.target.value })} className="h-8 w-full" /><input type="color" title="Caption background" value={captions.backgroundColor} onChange={(event) => onPatch({ backgroundColor: event.target.value })} className="h-8 w-full" /></div><div className="grid grid-cols-3 gap-1">{(["top", "middle", "bottom"] as const).map((position) => <button key={position} onClick={() => onPatch({ position })} className={cn("rounded-md border py-1.5 text-[9px] font-bold capitalize", captions.position === position ? "border-brand-500 text-brand-500" : "border-border text-muted-foreground")}>{position}</button>)}</div></div>;
 }
 
 // ============================================================ scene inspector
