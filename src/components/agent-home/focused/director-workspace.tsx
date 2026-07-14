@@ -20,7 +20,7 @@ import Image from "next/image";
 import {
   Sparkles, X, Film, Clapperboard, UserSquare2, Scissors, Images, Palette, Plus, Paperclip,
   ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon, Shirt, Pencil, Maximize2, Volume2, VolumeX, RefreshCw, Link2, Box, Trash2, UserPlus,
-  Type, ImagePlus, AudioLines, Layers3, ArrowUp, ArrowDown, MousePointer2, Copy, AlignCenter, Mic2,
+  Type, ImagePlus, AudioLines, Layers3, ArrowUp, ArrowDown, MousePointer2, Copy, AlignCenter, Mic2, Headphones, Check, ExternalLink,
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -28,6 +28,8 @@ import { MediaLightbox } from "@/components/shared/media-lightbox";
 import { BriefSuggest, type BriefProposal } from "./brief-suggest";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
+import { ACCENTS, STYLES, VOICE_PRESETS, type VoiceAccent, type VoiceGender, type VoiceStyle } from "@/lib/voice/voice-presets";
 import type { CharacterRenderStyle, FilmComposer, FilmComposerLayer, FilmComposerLayerType, FilmProject, FilmScene, FilmOverlay, FilmAsset, SceneEngine, FilmType, FilmAspect, FilmCharacter, SceneCastLine } from "@/lib/video-director/types";
 
 // ------------------------------------------------------------------ engine meta
@@ -1596,10 +1598,8 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
   const [picker, setPicker] = useState<FilmComposerLayerType | "music" | null>(null);
   const [uploadKind, setUploadKind] = useState<FilmComposerLayerType | "music" | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [generating, setGenerating] = useState<"image" | "audio" | "music" | null>(null);
+  const [generating, setGenerating] = useState<"image" | "music" | null>(null);
   const [imagePrompt, setImagePrompt] = useState("");
-  const [voiceScript, setVoiceScript] = useState("");
-  const [voiceGender, setVoiceGender] = useState("female");
   const [musicPrompt, setMusicPrompt] = useState("");
   const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [frame, setFrame] = useState({ left: 12, right: 12, bottom: 280 });
@@ -1690,19 +1690,6 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
       addLayer("image", data.data.url, "AI image");
       toast({ title: "Image added", description: "The generated image is ready on the canvas." });
     } catch (error) { toast({ title: "Image generation failed", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }); }
-    finally { setGenerating(null); }
-  };
-  const generateVoiceLayer = async () => {
-    if (!voiceScript.trim()) return;
-    setGenerating("audio");
-    try {
-      const response = await fetch("/api/ai/voice-studio/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ script: voiceScript.trim(), gender: voiceGender, accent: "american", style: "conversational", speed: 1 }) });
-      const data = await response.json().catch(() => null);
-      if (!response.ok || !data?.success || !data.data?.audioUrl) throw new Error(data?.error?.message || data?.error || "Voice generation failed");
-      const durationSec = Math.max(0.5, Number(data.data.durationMs || 0) / 1000);
-      addLayer("audio", data.data.audioUrl, "AI voice", Math.min(total, t + durationSec));
-      toast({ title: "Voice added", description: "The generated narration is now on the audio track." });
-    } catch (error) { toast({ title: "Voice generation failed", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }); }
     finally { setGenerating(null); }
   };
   const generateMusic = async () => {
@@ -1919,13 +1906,12 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
               <MediaSourceInspector kind="image" uploading={uploading} onLibrary={() => setPicker("image")} onComputer={() => openUpload("image")} compact />
             </div>
           ) : tool === "audio" ? (
-            <div className="space-y-3">
-              <label className="block text-[10px] font-bold">Generate voice</label>
-              <textarea data-composer-voice-script value={voiceScript} onChange={(event) => setVoiceScript(event.target.value)} rows={5} placeholder="Type the narration or dialogue" className="w-full resize-y rounded-md border border-input bg-background px-2.5 py-2 text-[10.5px] leading-relaxed outline-none focus:border-brand-500" />
-              <div className="grid grid-cols-2 gap-1">{["female", "male"].map((gender) => <button key={gender} onClick={() => setVoiceGender(gender)} className={cn("rounded-md border py-1.5 text-[9.5px] font-bold capitalize", voiceGender === gender ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground")}>{gender}</button>)}</div>
-              <button data-composer-generate-voice onClick={() => void generateVoiceLayer()} disabled={generating === "audio" || !voiceScript.trim()} className="flex w-full items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-brand-500 to-violet-500 py-2 text-[10.5px] font-bold text-white disabled:opacity-50">{generating === "audio" ? <FlowLoader size={11} /> : <Mic2 className="h-3 w-3" />} Generate voice</button>
-              <MediaSourceInspector kind="audio" uploading={uploading} onLibrary={() => setPicker("audio")} onComputer={() => openUpload("audio")} compact />
-            </div>
+            <DirectorVoiceComposerPanel
+              uploading={uploading}
+              onLibrary={() => setPicker("audio")}
+              onComputer={() => openUpload("audio")}
+              onAdd={(url, name, durationSec) => addLayer("audio", url, name, Math.min(total, t + Math.max(0.5, durationSec)))}
+            />
           ) : (
             <MediaSourceInspector kind={tool as FilmComposerLayerType} uploading={uploading} onLibrary={() => setPicker(tool as FilmComposerLayerType)} onComputer={() => openUpload(tool as FilmComposerLayerType)} />
           )}
@@ -1937,6 +1923,180 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
         if (picker === "music") { onFilmPatch({ music: url }); setPicker(null); }
         else if (picker) addPickedMedia(picker, url, file?.originalName);
       }} />
+    </div>
+  );
+}
+
+interface DirectorVoiceProfile {
+  id: string;
+  name: string;
+  type: string;
+  gender: string | null;
+  accent: string | null;
+  style: string | null;
+  sampleUrl: string | null;
+  isDefault: boolean;
+  openaiVoiceId: string | null;
+  elevenLabsVoiceId: string | null;
+}
+
+interface DirectorVoiceHistoryItem {
+  id: string;
+  script: string;
+  audioUrl: string | null;
+  durationMs: number | null;
+  gender: string | null;
+  accent: string | null;
+  style: string | null;
+  isClonedVoice: boolean;
+  createdAt: string;
+  voiceProfile?: { name: string; type: string } | null;
+}
+
+function DirectorVoiceComposerPanel({ uploading, onLibrary, onComputer, onAdd }: {
+  uploading: boolean;
+  onLibrary: () => void;
+  onComputer: () => void;
+  onAdd: (url: string, name: string, durationSec: number) => void;
+}) {
+  const { toast } = useToast();
+  const [tab, setTab] = useState<"create" | "voices" | "history">("create");
+  const [script, setScript] = useState("");
+  const [gender, setGender] = useState<VoiceGender>("female");
+  const [accent, setAccent] = useState<VoiceAccent>("american");
+  const [style, setStyle] = useState<VoiceStyle>("warm");
+  const [speed, setSpeed] = useState(1);
+  const [presetId, setPresetId] = useState<string | null>("warm-female-american");
+  const [profileId, setProfileId] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<DirectorVoiceProfile[]>([]);
+  const [history, setHistory] = useState<DirectorVoiceHistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [preview, setPreview] = useState<{ url: string; label: string } | null>(null);
+
+  const loadLibrary = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [profileData, historyData] = await Promise.all([
+        fetch("/api/ai/voice-studio/profiles").then((response) => response.ok ? response.json() : null).catch(() => null),
+        fetch("/api/ai/voice-studio/history?limit=20").then((response) => response.ok ? response.json() : null).catch(() => null),
+      ]);
+      setProfiles(profileData?.data?.profiles || []);
+      setHistory(historyData?.data?.generations || []);
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { void loadLibrary(); }, [loadLibrary]);
+
+  const selectedProfile = profiles.find((profile) => profile.id === profileId) || null;
+  const selectedPreset = VOICE_PRESETS.find((preset) => preset.id === presetId) || null;
+  const activeName = selectedProfile?.name || selectedPreset?.name || `${accent} ${gender}`;
+  const useClonedVoice = !!selectedProfile && selectedProfile.type === "cloned" && !!(selectedProfile.openaiVoiceId || selectedProfile.elevenLabsVoiceId);
+  const wordCount = script.trim() ? script.trim().split(/\s+/).length : 0;
+
+  const applyPreset = (preset: (typeof VOICE_PRESETS)[number]) => {
+    setPresetId(preset.id); setProfileId(null);
+    setGender(preset.gender); setAccent(preset.accent); setStyle(preset.style);
+  };
+  const selectProfile = (profile: DirectorVoiceProfile) => {
+    setProfileId(profile.id); setPresetId(null);
+    if (profile.gender) setGender(profile.gender as VoiceGender);
+    if (profile.accent) setAccent(profile.accent as VoiceAccent);
+    if (profile.style) setStyle(profile.style as VoiceStyle);
+    setTab("create");
+  };
+  const addHistoryItem = (item: DirectorVoiceHistoryItem) => {
+    if (!item.audioUrl) return;
+    const label = item.voiceProfile?.name || "Previous voiceover";
+    onAdd(item.audioUrl, label, Math.max(0.5, Number(item.durationMs || 0) / 1000));
+    toast({ title: "Voiceover added", description: "The saved Voice Studio recording is now on the audio track." });
+  };
+  const generate = async () => {
+    if (!script.trim() || generating) return;
+    setGenerating(true);
+    try {
+      const response = await fetch("/api/ai/voice-studio/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          script: script.trim(), gender, accent, style, speed,
+          voiceProfileId: selectedProfile?.id || undefined,
+          useClonedVoice,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success || !data.data?.audioUrl) throw new Error(data?.error?.message || data?.error || "Voice generation failed");
+      const durationMs = Number(data.data.durationMs || 0);
+      const item: DirectorVoiceHistoryItem = {
+        id: data.data.generationId || uid("voice"), script: script.trim(), audioUrl: data.data.audioUrl,
+        durationMs, gender, accent, style, isClonedVoice: useClonedVoice, createdAt: new Date().toISOString(),
+        voiceProfile: selectedProfile ? { name: selectedProfile.name, type: selectedProfile.type } : null,
+      };
+      setHistory((current) => [item, ...current.filter((entry) => entry.id !== item.id)]);
+      onAdd(item.audioUrl!, activeName, Math.max(0.5, durationMs / 1000));
+      setPreview({ url: item.audioUrl!, label: activeName });
+      if (data.data.creditsRemaining !== undefined) emitCreditsUpdate(data.data.creditsRemaining);
+      toast({ title: "Voice added", description: `${activeName} is now on the audio track and saved in Voice Studio.` });
+    } catch (error) {
+      toast({ title: "Voice generation failed", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" });
+    } finally { setGenerating(false); }
+  };
+
+  const tabs = [{ id: "create", label: "Create" }, { id: "voices", label: "My voices" }, { id: "history", label: "History" }] as const;
+  return (
+    <div className="space-y-3" data-composer-voice-studio>
+      <div className="grid grid-cols-3 gap-1 rounded-md border border-border bg-card p-1">
+        {tabs.map((item) => <button key={item.id} data-voice-tab={item.id} onClick={() => setTab(item.id)} className={cn("rounded px-1 py-1.5 text-[9.5px] font-bold", tab === item.id ? "bg-brand-500/15 text-brand-500" : "text-muted-foreground hover:text-foreground")}>{item.label}</button>)}
+      </div>
+
+      {loading ? <div className="grid min-h-32 place-items-center"><FlowLoader size={18} /></div> : tab === "create" ? (
+        <div className="space-y-3">
+          <div>
+            <div className="mb-1 flex items-center justify-between"><label className="text-[10px] font-bold">Script</label><span className="text-[9px] text-muted-foreground">{wordCount} words</span></div>
+            <textarea data-composer-voice-script value={script} onChange={(event) => setScript(event.target.value.slice(0, 5000))} rows={5} placeholder="Type the narration or dialogue" className="w-full resize-y rounded-md border border-input bg-background px-2.5 py-2 text-[10.5px] leading-relaxed outline-none focus:border-brand-500" />
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-[9px] font-bold uppercase text-muted-foreground">Quick voices</p>
+            <div className="flex flex-wrap gap-1">{VOICE_PRESETS.map((preset) => <button key={preset.id} onClick={() => applyPreset(preset)} title={preset.description} className={cn("rounded-md border px-2 py-1 text-[9px] font-semibold", presetId === preset.id ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:text-foreground")}>{preset.name}</button>)}</div>
+          </div>
+
+          {selectedProfile && <div className="flex items-center gap-2 rounded-md border border-violet-500/35 bg-violet-500/10 px-2 py-1.5"><AudioLines className="h-3.5 w-3.5 text-violet-400" /><span className="min-w-0 flex-1 truncate text-[10px] font-bold">{selectedProfile.name}</span><span className="text-[8.5px] uppercase text-violet-400">{useClonedVoice ? "Cloned" : "Saved"}</span><button onClick={() => { setProfileId(null); applyPreset(VOICE_PRESETS[1]); }} aria-label="Clear selected voice"><X className="h-3 w-3" /></button></div>}
+
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-[9px] font-semibold text-muted-foreground">Accent<select data-composer-voice-accent value={accent} onChange={(event) => { setAccent(event.target.value as VoiceAccent); setProfileId(null); setPresetId(null); }} className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-[9.5px] text-foreground">{ACCENTS.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+            <label className="text-[9px] font-semibold text-muted-foreground">Style<select data-composer-voice-style value={style} onChange={(event) => { setStyle(event.target.value as VoiceStyle); setProfileId(null); setPresetId(null); }} className="mt-1 h-8 w-full rounded-md border border-input bg-background px-2 text-[9.5px] text-foreground">{STYLES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+          </div>
+          <div className="grid grid-cols-2 gap-2"><div className="grid grid-cols-2 gap-1">{(["female", "male"] as VoiceGender[]).map((item) => <button key={item} onClick={() => { setGender(item); setProfileId(null); setPresetId(null); }} className={cn("rounded-md border py-1.5 text-[9px] font-bold capitalize", gender === item ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground")}>{item}</button>)}</div><label className="text-[9px] font-semibold text-muted-foreground">Speed {speed.toFixed(2)}x<input data-composer-voice-speed type="range" min={0.5} max={2} step={0.25} value={speed} onChange={(event) => setSpeed(Number(event.target.value))} className="mt-1 h-1 w-full accent-brand-500" /></label></div>
+
+          <button data-composer-generate-voice onClick={() => void generate()} disabled={generating || !script.trim()} className="flex w-full items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-brand-500 to-violet-500 py-2 text-[10.5px] font-bold text-white disabled:opacity-50">{generating ? <FlowLoader size={11} /> : <Mic2 className="h-3 w-3" />} Generate with {activeName}</button>
+          {preview && <div className="rounded-md border border-border bg-card p-2"><p className="mb-1 truncate text-[9px] font-semibold text-muted-foreground">Preview · {preview.label}</p><audio controls preload="metadata" src={preview.url} className="h-8 w-full" /></div>}
+          <MediaSourceInspector kind="audio" uploading={uploading} onLibrary={onLibrary} onComputer={onComputer} compact />
+        </div>
+      ) : tab === "voices" ? (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between"><p className="text-[9px] font-bold uppercase text-muted-foreground">Saved and cloned voices</p><a href="/voice-studio" className="inline-flex items-center gap-1 text-[9px] font-bold text-brand-500">Manage <ExternalLink className="h-2.5 w-2.5" /></a></div>
+          {profiles.length === 0 ? <p className="rounded-md border border-dashed border-border p-3 text-center text-[10px] text-muted-foreground">No saved voices yet. Open Voice Studio to save or clone one.</p> : profiles.map((profile) => (
+            <div key={profile.id} data-composer-voice-profile={profile.id} className={cn("rounded-md border p-2", profileId === profile.id ? "border-brand-500 bg-brand-500/5" : "border-border")}>
+              <div className="flex items-center gap-2"><span className={cn("grid h-7 w-7 place-items-center rounded-md", profile.type === "cloned" ? "bg-violet-500/15 text-violet-400" : "bg-muted text-muted-foreground")}>{profile.type === "cloned" ? <AudioLines className="h-3.5 w-3.5" /> : <Headphones className="h-3.5 w-3.5" />}</span><span className="min-w-0 flex-1"><span className="block truncate text-[10.5px] font-bold">{profile.name}</span><span className="block truncate text-[8.5px] capitalize text-muted-foreground">{profile.type} · {profile.accent || "custom"} · {profile.style || "voice"}</span></span>{profile.isDefault && <Check className="h-3 w-3 text-emerald-500" />}<button onClick={() => selectProfile(profile)} className="rounded-md border border-brand-500/40 px-2 py-1 text-[9px] font-bold text-brand-500">Use</button></div>
+              {profile.sampleUrl && <button onClick={() => setPreview({ url: profile.sampleUrl!, label: profile.name })} className="mt-1.5 inline-flex items-center gap-1 text-[9px] font-semibold text-muted-foreground hover:text-foreground"><Play className="h-2.5 w-2.5" /> Preview sample</button>}
+            </div>
+          ))}
+          {preview && <audio controls preload="metadata" src={preview.url} className="h-8 w-full" />}
+          <a href="/voice-studio" className="flex w-full items-center justify-center gap-1.5 rounded-md border border-violet-500/40 py-2 text-[10px] font-bold text-violet-400"><AudioLines className="h-3 w-3" /> Save or clone a new voice</a>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Previous Voice Studio generations</p>
+          {history.length === 0 ? <p className="rounded-md border border-dashed border-border p-3 text-center text-[10px] text-muted-foreground">No previous voiceovers yet.</p> : history.map((item) => (
+            <div key={item.id} data-composer-voice-history={item.id} className="rounded-md border border-border p-2">
+              <p className="line-clamp-2 text-[9.5px] leading-snug">{item.script}</p>
+              <div className="mt-1.5 flex items-center gap-1.5"><span className="min-w-0 flex-1 truncate text-[8.5px] text-muted-foreground">{item.voiceProfile?.name || `${item.accent || "AI"} voice`} · {fmtT(Math.max(0, Number(item.durationMs || 0) / 1000))}</span><button disabled={!item.audioUrl} onClick={() => item.audioUrl && setPreview({ url: item.audioUrl, label: item.voiceProfile?.name || "Voiceover" })} title="Preview" className="grid h-6 w-6 place-items-center rounded border border-border text-muted-foreground disabled:opacity-40"><Play className="h-2.5 w-2.5" /></button><button disabled={!item.audioUrl} onClick={() => addHistoryItem(item)} className="rounded-md bg-brand-500/15 px-2 py-1 text-[9px] font-bold text-brand-500 disabled:opacity-40">Add</button></div>
+            </div>
+          ))}
+          {preview && <div className="sticky bottom-0 rounded-md border border-border bg-card p-2"><p className="mb-1 truncate text-[9px] font-semibold">{preview.label}</p><audio controls autoPlay preload="metadata" src={preview.url} className="h-8 w-full" /></div>}
+        </div>
+      )}
     </div>
   );
 }
