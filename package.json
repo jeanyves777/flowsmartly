@@ -22,7 +22,8 @@
     "test:store-build:keep": "npx tsx scripts/test-store-build.ts --keep",
     "test:reel-build": "npx tsx scripts/test-reel-build.ts",
     "test:reel-build:verbose": "npx tsx scripts/test-reel-build.ts --verbose",
-    "test:reel-render": "npx tsx scripts/test-reel-render.ts"
+    "test:reel-render": "npx tsx scripts/test-reel-render.ts",
+    "test:director-ui": "node scripts/test-director-composer-ui.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.123",
