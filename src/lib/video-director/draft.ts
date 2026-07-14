@@ -142,7 +142,7 @@ async function establishContinuity(
   cast: FilmCharacter[],
 ): Promise<FilmContinuity | null> {
   const castBlock = cast.length
-    ? cast.map((c) => `- ${c.name}${c.wardrobe?.trim() ? ` (MUST wear: ${c.wardrobe.trim()})` : ""}: ${c.description}`).join("\n")
+    ? cast.map((c) => `- ${c.name} [${c.renderStyle === "3d" ? "3D animated" : "cinematic live-action"}]${c.wardrobe?.trim() ? ` (MUST wear: ${c.wardrobe.trim()})` : ""}: ${c.description}`).join("\n")
     : "(no named cast — describe the on-screen people/subjects generically)";
   try {
     const json = await ai.generateJSON<FilmContinuity>(
@@ -271,7 +271,7 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   try {
     let prompt: string;
     if (useCast) {
-      const castBlock = castList.map((c) => `- ${c.name} — ${c.role}: ${c.description}`).join("\n");
+      const castBlock = castList.map((c) => `- ${c.name} [${c.renderStyle === "3d" ? "3D animated" : "cinematic live-action"}] — ${c.role}: ${c.description}`).join("\n");
       prompt =
         `You are a SCREENWRITER + director writing ONE continuous ${target}s ${film.style || "cinematic"} short FILM as a shot list. Brief: "${brief}".\n` +
         `CAST — every character who appears OR speaks MUST be one of these EXACT people (use their names verbatim):\n${castBlock}\n` +

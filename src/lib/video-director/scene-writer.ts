@@ -20,7 +20,7 @@ function sceneSummary(scene?: FilmScene): string {
 }
 
 function castContext(film: FilmProject, scene: FilmScene, previous?: FilmScene): string {
-  const known = new Map<string, { name: string; role?: string; description?: string }>();
+  const known = new Map<string, { name: string; role?: string; description?: string; renderStyle?: "cinematic" | "3d" }>();
   for (const character of film.characters || []) {
     known.set(character.name.toLowerCase(), character);
   }
@@ -29,7 +29,7 @@ function castContext(film: FilmProject, scene: FilmScene, previous?: FilmScene):
   }
   if (!known.size) return "(no named cast; keep subjects consistent with the existing film)";
   return [...known.values()]
-    .map((character) => `- ${character.name}${character.role ? ` (${character.role})` : ""}${character.description ? `: ${character.description}` : ""}`)
+    .map((character) => `- ${character.name} [${character.renderStyle === "3d" ? "3D animated identity" : "cinematic live-action identity"}]${character.role ? ` (${character.role})` : ""}${character.description ? `: ${character.description}` : ""}`)
     .join("\n");
 }
 
