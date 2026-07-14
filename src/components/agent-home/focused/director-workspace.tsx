@@ -14,7 +14,7 @@
  * [[new-design-no-legacy]] [[video-studio-playground]]
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
@@ -115,6 +115,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   const [videoEditSceneId, setVideoEditSceneId] = useState<string | null>(null);
   const [startingVideoEdit, setStartingVideoEdit] = useState(false);
   const [insertAfterSceneId, setInsertAfterSceneId] = useState<string | null>(null);
+  const [sceneWriting, setSceneWriting] = useState<{ sceneId: string; mode: "scene" | "prompt" } | null>(null);
 
   // avatars + voices for per-scene avatar picking (shared with the Avatar Studio catalog)
   useEffect(() => {
@@ -173,9 +174,6 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   }, [scheduleSave]);
 
   const scenes = useMemo(() => (film ? [...film.scenes].sort((a, b) => a.order - b.order) : []), [film]);
-  const selScene = scenes.find((s) => s.id === selId) || null;
-  const selSceneIndex = selScene ? scenes.findIndex((s) => s.id === selScene.id) : -1;
-  const previousSelScene = selSceneIndex > 0 ? scenes[selSceneIndex - 1] : null;
   const videoEditScene = scenes.find((s) => s.id === videoEditSceneId) || null;
   const insertAfterScene = scenes.find((s) => s.id === insertAfterSceneId) || null;
 
@@ -243,6 +241,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
     const avgY = scenes.length ? scenes.reduce((m, s) => m + s.y, 0) / scenes.length : 200;
     return { outPos: { x: maxX + 280, y: Math.round(avgY) } };
   }, [scenes]);
+  const boardWidth = Math.max(2200, layout.outPos.x + 500);
 
   // wire paths (brief → scene0 → … → output), recomputed from live DOM on drag
   const [wirePath, setWirePath] = useState("");
@@ -451,6 +450,38 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
     }
   };
 
+  const writeSceneWithAi = async (id: string, mode: "scene" | "prompt", instruction = "") => {
+    if (!film || sceneWriting) return;
+    setSceneWriting({ sceneId: id, mode });
+    try {
+      // Flush the current inline edits first so the writer sees the latest film,
+      // not the previous autosaved copy.
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      const saveResponse = await fetch(`/api/ai/video-director/${film.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project: film }),
+      });
+      if (!saveResponse.ok) throw new Error("The latest scene edits could not be saved.");
+      const response = await fetch(`/api/ai/video-director/${film.id}/scenes/${id}/write`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, instruction }),
+      });
+      const j = await response.json().catch(() => null);
+      if (!j?.success || !j.data?.film) {
+        toast({ title: "Scene writing failed", description: j?.error?.message || "Please try again.", variant: "destructive" });
+        return;
+      }
+      setFilm(j.data.film);
+      toast({ title: mode === "prompt" ? "Shot prompt improved" : "Scene script added" });
+    } catch {
+      toast({ title: "Scene writing failed", description: "Please try again in a moment.", variant: "destructive" });
+    } finally {
+      setSceneWriting(null);
+    }
+  };
+
   const recoverScene = async (id: string) => {
     if (!film || recoveringSceneId) return;
     setRecoveringSceneId(id);
@@ -642,8 +673,8 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
         className="absolute inset-0 cursor-grab overflow-auto"
         style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
       >
-        <div ref={boardRef} className="relative" style={{ width: 2200, height: 1000 }}>
-          <svg className="pointer-events-none absolute inset-0" width={2200} height={1000} style={{ overflow: "visible" }}>
+        <div ref={boardRef} className="relative" style={{ width: boardWidth, height: 1500 }}>
+          <svg className="pointer-events-none absolute inset-0" width={boardWidth} height={1500} style={{ overflow: "visible" }}>
             <path d={wirePath} fill="none" stroke="#38bdf8" strokeWidth={2} opacity={0.5} />
             {continuationWires.map((wire) => (
               <g key={wire.id}>
@@ -668,7 +699,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
               </div>
 
               {/* scene nodes */}
-              {scenes.map((s) => (
+              {scenes.map((s, sceneIndex) => (
                 <SceneNode
                   key={s.id} scene={s} selected={selId === s.id} castImg={castImgFor(s)} cast={sceneCastList(s)}
                   onDown={(e) => onNodeDown(e, s)}
@@ -680,6 +711,25 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
                   onInsertAfter={() => setInsertAfterSceneId(s.id)}
                   onRemove={() => removeScene(s.id)}
                   onPlay={() => s.videoUrl && setPlay({ url: s.videoUrl, title: s.title })}
+                  inspector={selId === s.id ? (
+                    <SceneInspector
+                      key={`inspector-${s.id}`}
+                      scene={s}
+                      previousScene={sceneIndex > 0 ? scenes[sceneIndex - 1] : null}
+                      characters={film.characters || []}
+                      avatars={avatars} voices={voices}
+                      onClose={() => setSelId(null)}
+                      onPatch={patchSel}
+                      onGenerate={() => generateScene(s.id)}
+                      onRecover={() => recoverScene(s.id)}
+                      recovering={recoveringSceneId === s.id}
+                      onVideoEdit={() => setVideoEditSceneId(s.id)}
+                      onGenerateOverlay={() => generateOverlay(s.id)}
+                      onSwapEngine={(engine) => patchSel({ engine })}
+                      onAiWrite={(mode, instruction) => writeSceneWithAi(s.id, mode, instruction)}
+                      aiWriting={sceneWriting?.sceneId === s.id ? sceneWriting.mode : null}
+                    />
+                  ) : null}
                 />
               ))}
 
@@ -729,24 +779,6 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           collapsed={dockCollapsed} onToggle={() => setDockCollapsed((v) => !v)}
           selId={selId} onSelect={setSelId}
           onPatch={patchSceneById} onReorder={reorderScenes} onSplit={splitSceneAt}
-        />
-      )}
-
-      {/* right inspector */}
-      {selScene && (
-        <SceneInspector
-          scene={selScene}
-          previousScene={previousSelScene}
-          characters={film?.characters || []}
-          avatars={avatars} voices={voices}
-          onClose={() => setSelId(null)}
-          onPatch={patchSel}
-          onGenerate={() => generateScene(selScene.id)}
-          onRecover={() => recoverScene(selScene.id)}
-          recovering={recoveringSceneId === selScene.id}
-          onVideoEdit={() => setVideoEditSceneId(selScene.id)}
-          onGenerateOverlay={() => generateOverlay(selScene.id)}
-          onSwapEngine={(engine) => patchSel({ engine })}
         />
       )}
 
@@ -999,8 +1031,9 @@ function VideoEditSheet({ scene, busy, onClose, onSubmit }: {
 }
 
 // ============================================================ scene node card
-function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerate, onRecover, recovering, onVideoEdit, onInsertAfter, onRemove, onPlay }: {
+function SceneNode({ scene, selected, castImg, cast, inspector, onDown, onSelect, onGenerate, onRecover, recovering, onVideoEdit, onInsertAfter, onRemove, onPlay }: {
   scene: FilmScene; selected: boolean; castImg?: string; cast?: { name: string; dialogue?: string; img?: string }[];
+  inspector?: ReactNode;
   onDown: (e: ReactPointerEvent) => void; onSelect: () => void; onGenerate: () => void; onRecover: () => void; recovering: boolean; onVideoEdit: () => void; onInsertAfter: () => void; onRemove: () => void; onPlay: () => void;
 }) {
   const E = ENGINES[scene.engine];
@@ -1009,11 +1042,11 @@ function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerat
   const editingVideo = isRendering(scene.videoEdit?.status);
   return (
     <div
-      data-node={scene.id}
-      className={cn("absolute", selected ? "z-[4]" : "z-[2]")}
+      className={cn("absolute", selected ? "z-[10]" : "z-[2]")}
       style={{ left: scene.x, top: scene.y, width: NODE_W }}
     >
       <div
+        data-node={scene.id}
         onPointerDown={onDown}
         onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) onSelect(); }}
         className={cn("w-full cursor-grab overflow-hidden rounded-2xl border bg-card shadow-sm transition active:cursor-grabbing", selected ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}
@@ -1083,6 +1116,7 @@ function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerat
         <button onClick={onGenerate} disabled={rendering} className="flex-1 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 py-1.5 text-[10.5px] font-semibold text-white disabled:opacity-60">{rendering ? "…" : ready ? "Regenerate" : "Generate"}</button>
       </div>
       </div>
+      {inspector}
       <button
         type="button"
         onPointerDown={(e) => e.stopPropagation()}
@@ -1392,12 +1426,14 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
 }
 
 // ============================================================ scene inspector
-function SceneInspector({ scene, previousScene, characters, avatars, voices, onClose, onPatch, onGenerate, onRecover, recovering, onVideoEdit, onGenerateOverlay, onSwapEngine }: {
+function SceneInspector({ scene, previousScene, characters, avatars, voices, onClose, onPatch, onGenerate, onRecover, recovering, onVideoEdit, onGenerateOverlay, onSwapEngine, onAiWrite, aiWriting }: {
   scene: FilmScene; previousScene: FilmScene | null; characters: FilmCharacter[]; avatars: { id: string; name: string; previewUrl?: string }[]; voices: { id: string; name: string; language?: string }[];
   onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onRecover: () => void; recovering: boolean; onVideoEdit: () => void; onGenerateOverlay: () => void; onSwapEngine: (e: SceneEngine) => void;
+  onAiWrite: (mode: "scene" | "prompt", instruction?: string) => Promise<void>; aiWriting: "scene" | "prompt" | null;
 }) {
   const E = ENGINES[scene.engine];
   const [picker, setPicker] = useState<null | "video" | "image" | "bg" | "ov">(null);
+  const [aiDirection, setAiDirection] = useState("");
   // Cast-line character picker (which line index is open) + full-size avatar review.
   const [castPickIdx, setCastPickIdx] = useState<number | null>(null);
   const [zoom, setZoom] = useState<string | null>(null);
@@ -1409,16 +1445,23 @@ function SceneInspector({ scene, previousScene, characters, avatars, voices, onC
   const addOverlay = (engine: SceneEngine) => onPatch({ overlay: { engine, corner: "br", scale: 0.3, status: "draft" } });
   const CORNERS: { v: FilmOverlay["corner"]; label: string }[] = [{ v: "tl", label: "◤" }, { v: "tr", label: "◥" }, { v: "bl", label: "◣" }, { v: "br", label: "◢" }];
   return (
-    <div className="absolute inset-y-0 right-0 z-30 flex w-full max-w-[340px] flex-col border-l border-border bg-card shadow-2xl">
+    <div onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()} className="mt-2 flex w-[360px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <span className="rounded px-1.5 py-0.5 text-[9.5px] font-bold" style={{ background: `${E.color}22`, color: E.color }}>{E.label}</span>
         <input value={scene.title} onChange={(e) => onPatch({ title: e.target.value })} className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold outline-none" />
         <button onClick={onClose} className="grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <div className="max-h-[540px] overflow-y-auto px-4 py-3">
         {/* shared script/prompt */}
-        <label className="mb-1 block text-[11px] font-semibold">{scene.engine === "ai" ? "Shot prompt" : scene.engine === "avatar" ? "Script" : scene.engine === "design" ? "Headline" : "Notes"}</label>
+        <div className="mb-1 flex items-center gap-2">
+          <label className="text-[11px] font-semibold">{scene.engine === "ai" ? "Shot prompt" : scene.engine === "avatar" ? "Script" : scene.engine === "design" ? "Headline" : "Notes"}</label>
+          {scene.engine === "ai" && (
+            <button type="button" onClick={() => void onAiWrite("prompt")} disabled={!!aiWriting} title="Improve this shot prompt from the film context" className="ms-auto inline-flex items-center gap-1 rounded-md border border-violet-500/40 px-2 py-1 text-[10px] font-semibold text-violet-500 hover:bg-violet-500/10 disabled:opacity-50">
+              {aiWriting === "prompt" ? <FlowLoader size={11} /> : <Wand2 className="h-3 w-3" />} AI Improve
+            </button>
+          )}
+        </div>
         <textarea value={scene.script || ""} onChange={(e) => onPatch({ script: e.target.value })} rows={3} className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" placeholder={scene.engine === "ai" ? "Describe the shot — subject, motion, mood…" : scene.engine === "avatar" ? "What the avatar says…" : "…"} />
 
         {scene.engine === "ai" && previousScene && previousScene.engine !== "design" && (
@@ -1450,6 +1493,24 @@ function SceneInspector({ scene, previousScene, characters, avatars, voices, onC
                 <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition", scene.continuationMode === "exact" ? "left-[18px]" : "left-0.5")} />
               </button>
             </div>
+          </div>
+        )}
+
+        {scene.engine === "ai" && (
+          <div className="mt-2.5 flex items-center gap-1.5">
+            <input
+              value={aiDirection}
+              onChange={(e) => setAiDirection(e.target.value.slice(0, 2000))}
+              onKeyDown={(e) => { if (e.key === "Enter" && !aiWriting) { e.preventDefault(); void onAiWrite("scene", aiDirection); } }}
+              placeholder="e.g. Make Koffi talk to Amara while selling"
+              className="min-w-0 flex-1 rounded-[9px] border border-input bg-background px-2.5 py-2 text-[11px] outline-none focus:border-violet-500/60"
+            />
+            <button type="button" onClick={() => void onAiWrite("scene", "")} disabled={!!aiWriting} title="Write naturally from the film direction and previous scene" className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[8px] border border-border px-2 text-[10px] font-semibold text-muted-foreground hover:border-violet-500/50 hover:text-violet-500 disabled:opacity-50">
+              {aiWriting === "scene" ? <FlowLoader size={11} /> : <Sparkles className="h-3 w-3" />} AI Auto
+            </button>
+            <button type="button" onClick={() => void onAiWrite("scene", aiDirection)} disabled={!!aiWriting} title="Write the shot and dialogue from this direction" className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[8px] bg-violet-500 px-2.5 text-[10px] font-semibold text-white disabled:opacity-50">
+              {aiWriting === "scene" ? <FlowLoader size={11} tone="white" /> : <Wand2 className="h-3 w-3" />} AI Write
+            </button>
           </div>
         )}
 
