@@ -174,6 +174,8 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
 
   const scenes = useMemo(() => (film ? [...film.scenes].sort((a, b) => a.order - b.order) : []), [film]);
   const selScene = scenes.find((s) => s.id === selId) || null;
+  const selSceneIndex = selScene ? scenes.findIndex((s) => s.id === selScene.id) : -1;
+  const previousSelScene = selSceneIndex > 0 ? scenes[selSceneIndex - 1] : null;
   const videoEditScene = scenes.find((s) => s.id === videoEditSceneId) || null;
   const insertAfterScene = scenes.find((s) => s.id === insertAfterSceneId) || null;
 
@@ -244,6 +246,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
 
   // wire paths (brief → scene0 → … → output), recomputed from live DOM on drag
   const [wirePath, setWirePath] = useState("");
+  const [continuationWires, setContinuationWires] = useState<Array<{ id: string; path: string; labelX: number; labelY: number }>>([]);
   const recomputeWires = useCallback(() => {
     const board = boardRef.current; if (!board) return;
     const get = (id: string) => board.querySelector<HTMLElement>(`[data-node="${id}"]`);
@@ -261,6 +264,22 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
       d += `M${a.x} ${a.y} C${a.x + dx} ${a.y},${b.x - dx} ${b.y},${b.x} ${b.y} `;
     }
     setWirePath(d);
+
+    const exactWires = scenes.flatMap((scene) => {
+      if (scene.continuationMode !== "exact" || !scene.continuationOf) return [];
+      const source = get(scene.continuationOf), target = get(scene.id);
+      if (!source || !target) return [];
+      const start = { x: source.offsetLeft + source.offsetWidth * 0.78, y: source.offsetTop + source.offsetHeight };
+      const end = { x: target.offsetLeft + target.offsetWidth * 0.22, y: target.offsetTop + target.offsetHeight };
+      const bendY = Math.max(start.y, end.y) + 42;
+      return [{
+        id: scene.id,
+        path: `M${start.x} ${start.y} C${start.x} ${bendY},${end.x} ${bendY},${end.x} ${end.y}`,
+        labelX: (start.x + end.x) / 2,
+        labelY: bendY - 2,
+      }];
+    });
+    setContinuationWires(exactWires);
   }, [scenes]);
   useEffect(() => { recomputeWires(); }, [recomputeWires, dockCollapsed, film?.id]);
 
@@ -409,6 +428,19 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
 
   const generateScene = async (id: string) => {
     if (!film) return;
+    const scene = film.scenes.find((candidate) => candidate.id === id);
+    if (scene?.continuationMode === "exact") {
+      const source = film.scenes.find((candidate) => candidate.id === scene.continuationOf);
+      if (!source || source.status !== "ready" || !isPlayable(source.videoUrl)) {
+        toast({
+          title: "Generate the connected scene first",
+          description: source?.status === "rendering" || source?.status === "queued"
+            ? `“${source.title}” is still rendering. This extension will use its finished video.`
+            : "The continuation needs the preceding scene's finished video before xAI can extend it.",
+        });
+        return;
+      }
+    }
     setFilm((f) => f ? { ...f, scenes: f.scenes.map((s) => s.id === id ? { ...s, status: "queued", progress: 5 } : s) } : f);
     try {
       const j = await fetch(`/api/ai/video-director/${film.id}/scenes/${id}/generate`, { method: "POST" }).then((r) => r.json());
@@ -613,6 +645,13 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
         <div ref={boardRef} className="relative" style={{ width: 2200, height: 1000 }}>
           <svg className="pointer-events-none absolute inset-0" width={2200} height={1000} style={{ overflow: "visible" }}>
             <path d={wirePath} fill="none" stroke="#38bdf8" strokeWidth={2} opacity={0.5} />
+            {continuationWires.map((wire) => (
+              <g key={wire.id}>
+                <path d={wire.path} fill="none" stroke="#a78bfa" strokeWidth={2} strokeDasharray="5 4" opacity={0.9} />
+                <rect x={wire.labelX - 31} y={wire.labelY - 10} width={62} height={18} rx={4} className="fill-card stroke-violet-400/70" />
+                <text x={wire.labelX} y={wire.labelY + 3} textAnchor="middle" className="fill-violet-400 text-[9px] font-bold">Extended</text>
+              </g>
+            ))}
           </svg>
 
           {loading ? (
@@ -697,6 +736,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
       {selScene && (
         <SceneInspector
           scene={selScene}
+          previousScene={previousSelScene}
           characters={film?.characters || []}
           avatars={avatars} voices={voices}
           onClose={() => setSelId(null)}
@@ -1352,8 +1392,8 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
 }
 
 // ============================================================ scene inspector
-function SceneInspector({ scene, characters, avatars, voices, onClose, onPatch, onGenerate, onRecover, recovering, onVideoEdit, onGenerateOverlay, onSwapEngine }: {
-  scene: FilmScene; characters: FilmCharacter[]; avatars: { id: string; name: string; previewUrl?: string }[]; voices: { id: string; name: string; language?: string }[];
+function SceneInspector({ scene, previousScene, characters, avatars, voices, onClose, onPatch, onGenerate, onRecover, recovering, onVideoEdit, onGenerateOverlay, onSwapEngine }: {
+  scene: FilmScene; previousScene: FilmScene | null; characters: FilmCharacter[]; avatars: { id: string; name: string; previewUrl?: string }[]; voices: { id: string; name: string; language?: string }[];
   onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onRecover: () => void; recovering: boolean; onVideoEdit: () => void; onGenerateOverlay: () => void; onSwapEngine: (e: SceneEngine) => void;
 }) {
   const E = ENGINES[scene.engine];
@@ -1380,6 +1420,38 @@ function SceneInspector({ scene, characters, avatars, voices, onClose, onPatch, 
         {/* shared script/prompt */}
         <label className="mb-1 block text-[11px] font-semibold">{scene.engine === "ai" ? "Shot prompt" : scene.engine === "avatar" ? "Script" : scene.engine === "design" ? "Headline" : "Notes"}</label>
         <textarea value={scene.script || ""} onChange={(e) => onPatch({ script: e.target.value })} rows={3} className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" placeholder={scene.engine === "ai" ? "Describe the shot — subject, motion, mood…" : scene.engine === "avatar" ? "What the avatar says…" : "…"} />
+
+        {scene.engine === "ai" && previousScene && previousScene.engine !== "design" && (
+          <div className="mt-3 border-y border-border py-2.5">
+            <div className="flex items-center gap-2">
+              <Link2 className="h-3.5 w-3.5 text-violet-400" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold">Continue previous scene</p>
+                <p className="truncate text-[9.5px] text-muted-foreground">Extend “{previousScene.title}” without changing the set</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={scene.continuationMode === "exact"}
+                disabled={isRendering(scene.status)}
+                onClick={() => onPatch(scene.continuationMode === "exact"
+                  ? { continuationMode: undefined, continuationOf: undefined }
+                  : {
+                      continuationMode: "exact",
+                      continuationOf: previousScene.id,
+                      aiProvider: "grok",
+                      durationSec: Math.min(10, Math.max(2, scene.durationSec || 8)),
+                      transitionIn: "cut",
+                      referenceImageUrl: null,
+                    })}
+                title={scene.continuationMode === "exact" ? "Render as a separate shot" : "Extend the preceding scene with xAI"}
+                className={cn("relative h-5 w-9 shrink-0 rounded-full transition disabled:opacity-50", scene.continuationMode === "exact" ? "bg-violet-500" : "bg-muted")}
+              >
+                <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition", scene.continuationMode === "exact" ? "left-[18px]" : "left-0.5")} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {scene.engine === "ai" && (
           <>
