@@ -6,6 +6,7 @@
  */
 
 import { spawn } from "child_process";
+import { existsSync } from "fs";
 import { mkdtemp, writeFile, readFile, rm } from "fs/promises";
 import os from "os";
 import path from "path";
@@ -129,6 +130,131 @@ export async function compositeOverlay(
     }
     args.push("-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-y", out);
     await run(ff, args, 600000);
+    return await readFile(out);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
+export interface TimedMediaLayerSpec {
+  kind: "image" | "video";
+  x: number;
+  y: number;
+  width: number;
+  opacity: number;
+  startSec: number;
+  endSec: number;
+  volume?: number;
+}
+
+/** Composite a freely-positioned image/video layer over the stitched film. */
+export async function compositeTimedMedia(
+  baseBuf: Buffer,
+  mediaBuf: Buffer,
+  frameW: number,
+  frameH: number,
+  spec: TimedMediaLayerSpec,
+): Promise<Buffer> {
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Video assembly is not available on this server.");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-dir-layer-"));
+  try {
+    const base = path.join(dir, "base.mp4"), media = path.join(dir, "media"), out = path.join(dir, "out.mp4");
+    await writeFile(base, baseBuf); await writeFile(media, mediaBuf);
+    const start = Math.max(0, spec.startSec);
+    const end = Math.max(start + 0.1, spec.endSec);
+    const x = Math.round(Math.max(0, Math.min(0.95, spec.x)) * frameW);
+    const y = Math.round(Math.max(0, Math.min(0.95, spec.y)) * frameH);
+    const ow = Math.max(24, Math.round(Math.max(0.05, Math.min(1, spec.width)) * frameW));
+    const opacity = Math.max(0, Math.min(1, spec.opacity));
+    const inputArgs = spec.kind === "image" ? ["-loop", "1", "-i", media] : ["-stream_loop", "-1", "-i", media];
+    const mediaVideo = spec.kind === "video"
+      ? `[1:v]setpts=PTS-STARTPTS+${start}/TB,scale=${ow}:-1:force_original_aspect_ratio=decrease,format=rgba,colorchannelmixer=aa=${opacity}[layer]`
+      : `[1:v]scale=${ow}:-1:force_original_aspect_ratio=decrease,format=rgba,colorchannelmixer=aa=${opacity}[layer]`;
+    const overlay = `${mediaVideo};[0:v][layer]overlay=${x}:${y}:enable='between(t,${start},${end})':eof_action=pass[v]`;
+    const mediaHasAudio = spec.kind === "video" && await hasAudio(media);
+    const args = ["-i", base, ...inputArgs];
+    if (mediaHasAudio) {
+      const delay = Math.round(start * 1000);
+      const duration = Math.max(0.1, end - start);
+      const volume = Math.max(0, Math.min(2, spec.volume ?? 0.8));
+      const audio = `[1:a]atrim=0:${duration},asetpts=PTS-STARTPTS,volume=${volume},adelay=${delay}|${delay}[la];[0:a][la]amix=inputs=2:duration=first:dropout_transition=0[a]`;
+      args.push("-filter_complex", `${overlay};${audio}`, "-map", "[v]", "-map", "[a]");
+    } else {
+      args.push("-filter_complex", overlay, "-map", "[v]", "-map", "0:a?");
+    }
+    args.push("-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", "-y", out);
+    await run(ff, args, 600000);
+    return await readFile(out);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
+export interface TimedTextLayerSpec {
+  text: string;
+  x: number | "center";
+  y: number | "top" | "middle" | "bottom";
+  font: "sans" | "serif" | "display";
+  fontSize: number;
+  color: string;
+  backgroundColor: string;
+  opacity: number;
+  startSec: number;
+  endSec: number;
+  boxed?: boolean;
+  shadow?: boolean;
+}
+
+const ffColor = (value: string, fallback: string) => /^#[0-9a-f]{6}$/i.test(value) ? value.replace("#", "0x") : fallback;
+const filterPath = (value: string) => value.replace(/\\/g, "/").replace(/:/g, "\\:").replace(/'/g, "\\'");
+const composerFont = (font: TimedTextLayerSpec["font"]): { file?: string; family: string } => {
+  const bold = font === "display";
+  const serif = font === "serif";
+  const candidates = process.platform === "win32"
+    ? [serif ? "C:\\Windows\\Fonts\\times.ttf" : bold ? "C:\\Windows\\Fonts\\arialbd.ttf" : "C:\\Windows\\Fonts\\arial.ttf"]
+    : [
+        serif ? "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf" : bold ? "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" : "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        serif ? "/usr/share/fonts/truetype/liberation2/LiberationSerif-Regular.ttf" : bold ? "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf" : "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+      ];
+  return {
+    file: candidates.find((candidate) => existsSync(candidate)),
+    family: serif ? "DejaVu Serif" : bold ? "DejaVu Sans Bold" : "DejaVu Sans",
+  };
+};
+
+/** Burn a timed text/caption layer into the film. Text lives in a temp file so
+ * user punctuation never escapes into the FFmpeg filter graph. */
+export async function compositeTimedText(baseBuf: Buffer, frameW: number, frameH: number, spec: TimedTextLayerSpec): Promise<Buffer> {
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Video assembly is not available on this server.");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-dir-text-"));
+  try {
+    const base = path.join(dir, "base.mp4"), textPath = path.join(dir, "text.txt"), out = path.join(dir, "out.mp4");
+    await writeFile(base, baseBuf); await writeFile(textPath, spec.text, "utf8");
+    const font = composerFont(spec.font);
+    const size = Math.max(12, Math.min(160, Math.round(spec.fontSize)));
+    const x = spec.x === "center" ? "(w-text_w)/2" : String(Math.round(Math.max(0, Math.min(0.95, spec.x)) * frameW));
+    const y = spec.y === "top" ? String(Math.round(frameH * 0.08))
+      : spec.y === "middle" ? "(h-text_h)/2"
+        : spec.y === "bottom" ? "h-text_h-h*0.08" : String(Math.round(Math.max(0, Math.min(0.95, spec.y)) * frameH));
+    const start = Math.max(0, spec.startSec), end = Math.max(start + 0.1, spec.endSec);
+    const box = spec.boxed === false ? "box=0" : `box=1:boxcolor=${ffColor(spec.backgroundColor, "0x000000")}@${Math.max(0, Math.min(1, spec.opacity * 0.72))}:boxborderw=${Math.max(8, Math.round(size * 0.28))}`;
+    const shadow = spec.shadow ? ":shadowcolor=0x000000@0.9:shadowx=3:shadowy=3:borderw=1:bordercolor=0x000000@0.7" : "";
+    const fontOption = font.file ? `fontfile='${filterPath(font.file)}'` : `font='${font.family}'`;
+    const vf = `drawtext=${fontOption}:textfile='${filterPath(textPath)}':fontcolor=${ffColor(spec.color, "0xffffff")}@${Math.max(0, Math.min(1, spec.opacity))}:fontsize=${size}:line_spacing=${Math.round(size * 0.18)}:x=${x}:y=${y}:${box}${shadow}:enable='between(t,${start},${end})'`;
+    await run(ff, ["-i", base, "-vf", vf, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", "-y", out], 600000);
+    return await readFile(out);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
+/** Mix a timed audio layer onto the final film. */
+export async function mixTimedAudio(videoBuf: Buffer, audioBuf: Buffer, startSec: number, endSec: number, volume = 0.8): Promise<Buffer> {
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Video assembly is not available on this server.");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-dir-audio-layer-"));
+  try {
+    const video = path.join(dir, "video.mp4"), audio = path.join(dir, "audio"), out = path.join(dir, "out.mp4");
+    await writeFile(video, videoBuf); await writeFile(audio, audioBuf);
+    const start = Math.max(0, startSec), duration = Math.max(0.1, endSec - start), delay = Math.round(start * 1000);
+    const fc = `[1:a]atrim=0:${duration},asetpts=PTS-STARTPTS,volume=${Math.max(0, Math.min(2, volume))},adelay=${delay}|${delay}[extra];[0:a][extra]amix=inputs=2:duration=first:dropout_transition=0[a]`;
+    await run(ff, ["-i", video, "-stream_loop", "-1", "-i", audio, "-filter_complex", fc, "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", "-y", out], 600000);
     return await readFile(out);
   } finally { await rm(dir, { recursive: true, force: true }); }
 }

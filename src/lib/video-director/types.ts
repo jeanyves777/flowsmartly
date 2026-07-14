@@ -130,6 +130,47 @@ export interface FilmOverlay {
   error?: string | null;
 }
 
+export type FilmComposerLayerType = "text" | "image" | "logo" | "video" | "audio";
+export type FilmComposerFont = "sans" | "serif" | "display";
+
+/** A timed, selectable layer in the film-level composer. Positions and sizes are
+ * normalized to the output frame so one edit works for every aspect ratio. */
+export interface FilmComposerLayer {
+  id: string;
+  type: FilmComposerLayerType;
+  name: string;
+  sourceUrl?: string | null;
+  text?: string;
+  x: number;
+  y: number;
+  width: number;
+  opacity: number;
+  startSec: number;
+  endSec: number;
+  zIndex: number;
+  font?: FilmComposerFont;
+  fontSize?: number;
+  color?: string;
+  backgroundColor?: string;
+  volume?: number;
+}
+
+export interface FilmCaptionStyle {
+  enabled: boolean;
+  style: "clean" | "boxed" | "cinematic";
+  font: FilmComposerFont;
+  fontSize: number;
+  color: string;
+  backgroundColor: string;
+  position: "top" | "middle" | "bottom";
+}
+
+export interface FilmComposer {
+  layers: FilmComposerLayer[];
+  captions: FilmCaptionStyle;
+  musicVolume: number;
+}
+
 /** One character's LOCKED outfit for the whole film (continuity). */
 export interface FilmWardrobe {
   characterId?: string;
@@ -208,6 +249,7 @@ export interface FilmProject {
   characters?: FilmCharacter[];
   /** The film's continuity bible — one shared world (location/palette/wardrobe) across all scenes. */
   continuity?: FilmContinuity | null;
+  composer?: FilmComposer;
   music?: string | null;
   /** Storyboarding lifecycle — the draft runs in the BACKGROUND (a long movie
    *  storyboard can't fit a request timeout), and the canvas polls this. */
@@ -248,6 +290,11 @@ export function emptyFilm(partial?: Partial<FilmProject>): FilmProject {
     scenes: [],
     edges: [],
     assets: [],
+    composer: {
+      layers: [],
+      captions: { enabled: true, style: "boxed", font: "sans", fontSize: 42, color: "#ffffff", backgroundColor: "#000000", position: "bottom" },
+      musicVolume: 0.28,
+    },
     music: null,
     brandLogo: true,
     captionsOn: true,
@@ -261,6 +308,49 @@ const VALID_ENGINES = new Set<SceneEngine>(SCENE_ENGINES);
 const VALID_STATUS = new Set<SceneStatus>(["draft", "queued", "rendering", "ready", "failed"]);
 const VALID_CORNERS = new Set<OverlayCorner>(["tl", "tr", "bl", "br"]);
 const VALID_PREVIEW_STATUS = new Set<CharacterPreviewStatus>(["idle", "generating", "ready", "failed"]);
+const VALID_COMPOSER_LAYER_TYPES = new Set<FilmComposerLayerType>(["text", "image", "logo", "video", "audio"]);
+const VALID_COMPOSER_FONTS = new Set<FilmComposerFont>(["sans", "serif", "display"]);
+
+const clamp = (value: unknown, fallback: number, min: number, max: number) =>
+  typeof value === "number" && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
+
+export function normalizeComposer(raw: Partial<FilmComposer> | null | undefined): FilmComposer {
+  const captionRaw = raw?.captions;
+  const layers = Array.isArray(raw?.layers)
+    ? raw.layers.filter(Boolean).slice(0, 40).map((layer, index): FilmComposerLayer => ({
+        id: String(layer.id || `layer_${index}`).slice(0, 80),
+        type: VALID_COMPOSER_LAYER_TYPES.has(layer.type as FilmComposerLayerType) ? (layer.type as FilmComposerLayerType) : "image",
+        name: String(layer.name || `Layer ${index + 1}`).slice(0, 120),
+        sourceUrl: typeof layer.sourceUrl === "string" ? layer.sourceUrl : null,
+        text: typeof layer.text === "string" ? layer.text.slice(0, 2000) : undefined,
+        x: clamp(layer.x, 0.1, 0, 0.95),
+        y: clamp(layer.y, 0.1, 0, 0.95),
+        width: clamp(layer.width, 0.3, 0.05, 1),
+        opacity: clamp(layer.opacity, 1, 0, 1),
+        startSec: clamp(layer.startSec, 0, 0, 3600),
+        endSec: clamp(layer.endSec, 3600, 0.1, 3600),
+        zIndex: Math.round(clamp(layer.zIndex, index, 0, 100)),
+        font: VALID_COMPOSER_FONTS.has(layer.font as FilmComposerFont) ? layer.font : "sans",
+        fontSize: clamp(layer.fontSize, 44, 12, 160),
+        color: typeof layer.color === "string" ? layer.color.slice(0, 20) : "#ffffff",
+        backgroundColor: typeof layer.backgroundColor === "string" ? layer.backgroundColor.slice(0, 20) : "#000000",
+        volume: clamp(layer.volume, 0.8, 0, 2),
+      }))
+    : [];
+  return {
+    layers,
+    captions: {
+      enabled: captionRaw?.enabled !== false,
+      style: captionRaw?.style === "clean" || captionRaw?.style === "cinematic" ? captionRaw.style : "boxed",
+      font: VALID_COMPOSER_FONTS.has(captionRaw?.font as FilmComposerFont) ? captionRaw!.font : "sans",
+      fontSize: clamp(captionRaw?.fontSize, 42, 18, 96),
+      color: typeof captionRaw?.color === "string" ? captionRaw.color.slice(0, 20) : "#ffffff",
+      backgroundColor: typeof captionRaw?.backgroundColor === "string" ? captionRaw.backgroundColor.slice(0, 20) : "#000000",
+      position: captionRaw?.position === "top" || captionRaw?.position === "middle" ? captionRaw.position : "bottom",
+    },
+    musicVolume: clamp(raw?.musicVolume, 0.28, 0, 1),
+  };
+}
 
 /** Coerce untrusted JSON into a safe FilmCharacter. */
 export function normalizeCharacter(raw: Partial<FilmCharacter>, idx: number): FilmCharacter {
@@ -421,6 +511,7 @@ export function normalizeFilm(raw: Partial<FilmProject> & { id: string }): FilmP
     assets: Array.isArray(raw.assets) ? raw.assets.slice(0, 40) : [],
     characters: Array.isArray(raw.characters) ? raw.characters.filter(Boolean).slice(0, 12).map((c, i) => normalizeCharacter(c, i)) : [],
     continuity: normalizeContinuity(raw.continuity),
+    composer: normalizeComposer(raw.composer),
     draftStatus: raw.draftStatus === "drafting" || raw.draftStatus === "ready" || raw.draftStatus === "failed" ? raw.draftStatus : null,
   };
 }

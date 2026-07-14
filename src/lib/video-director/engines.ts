@@ -22,7 +22,7 @@ import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { buildBrandOutroClip } from "@/lib/video/brand-outro";
 import { generateImageXaiFirst, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { sanitizeUserError } from "@/lib/ai/user-error";
-import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName, compositeOverlay, preserveSourceAudio } from "./clip-helpers";
+import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName, compositeOverlay, compositeTimedMedia, compositeTimedText, mixTimedAudio, preserveSourceAudio } from "./clip-helpers";
 
 const isVideoUrl = (u?: string | null): u is string => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
 const isImageUrl = (u?: string | null): u is string => !!u && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(u);
@@ -1186,11 +1186,79 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
 
     let finalBuffer = built.length === 1 ? built[0].buf : await assembleClips(built);
 
+    // Film-level visual stack from the inline composer. Layers are applied in
+    // z-order after scene assembly so their normalized coordinates match the
+    // final output frame exactly, regardless of source clip dimensions.
+    const composer = film.composer;
+    const visualLayers = [...(composer?.layers || [])]
+      .filter((layer) => layer.type !== "audio")
+      .sort((a, b) => a.zIndex - b.zIndex);
+    for (const layer of visualLayers) {
+      try {
+        if (layer.type === "text" && layer.text?.trim()) {
+          finalBuffer = await compositeTimedText(finalBuffer, w, h, {
+            text: layer.text.trim(), x: layer.x, y: layer.y, font: layer.font || "sans",
+            fontSize: layer.fontSize || 44, color: layer.color || "#ffffff",
+            backgroundColor: layer.backgroundColor || "#000000", opacity: layer.opacity,
+            startSec: layer.startSec, endSec: layer.endSec,
+          });
+        } else if (layer.sourceUrl && (layer.type === "image" || layer.type === "logo" || layer.type === "video")) {
+          const source = await fetch(layer.sourceUrl);
+          if (!source.ok) continue;
+          finalBuffer = await compositeTimedMedia(finalBuffer, Buffer.from(await source.arrayBuffer()), w, h, {
+            kind: layer.type === "video" ? "video" : "image", x: layer.x, y: layer.y,
+            width: layer.width, opacity: layer.opacity, startSec: layer.startSec,
+            endSec: layer.endSec, volume: layer.volume,
+          });
+        }
+      } catch (e) {
+        console.error(`[video-director] composer layer ${layer.id} skipped:`, e instanceof Error ? e.message : e);
+      }
+    }
+
+    // Generated captions use the approved screenplay dialogue and scene timing,
+    // then burn the chosen font/style into the final film.
+    if (composer?.captions.enabled) {
+      let cueStart = 0;
+      for (const scene of ordered) {
+        const duration = playedLenOf(scene);
+        const caption = scene.captionsOn
+          ? (scene.cast || []).filter((line) => line.dialogue?.trim()).map((line) => `${line.name}: ${line.dialogue!.trim()}`).join("\n")
+          : "";
+        if (caption) {
+          try {
+            finalBuffer = await compositeTimedText(finalBuffer, w, h, {
+              text: wrapComposerText(caption, film.aspect === "9:16" ? 28 : 46),
+              x: "center", y: composer.captions.position, font: composer.captions.font,
+              fontSize: composer.captions.fontSize, color: composer.captions.color,
+              backgroundColor: composer.captions.backgroundColor, opacity: 1,
+              startSec: cueStart, endSec: cueStart + duration,
+              boxed: composer.captions.style === "boxed",
+              shadow: composer.captions.style === "cinematic",
+            });
+          } catch (e) {
+            console.error(`[video-director] caption for ${scene.id} skipped:`, e instanceof Error ? e.message : e);
+          }
+        }
+        cueStart += duration;
+      }
+    }
+
+    // Additional uploaded audio tracks are timed independently of the music bed.
+    for (const layer of (composer?.layers || []).filter((candidate) => candidate.type === "audio" && candidate.sourceUrl)) {
+      try {
+        const source = await fetch(layer.sourceUrl!);
+        if (source.ok) finalBuffer = await mixTimedAudio(finalBuffer, Buffer.from(await source.arrayBuffer()), layer.startSec, layer.endSec, layer.volume);
+      } catch (e) {
+        console.error(`[video-director] audio layer ${layer.id} skipped:`, e instanceof Error ? e.message : e);
+      }
+    }
+
     // Music bed — mix the film-level track under everything (best-effort).
     if (film.music && /^https?:\/\//i.test(film.music)) {
       try {
         const mres = await fetch(film.music);
-        if (mres.ok) finalBuffer = await mixMusicUnder(finalBuffer, Buffer.from(await mres.arrayBuffer()));
+        if (mres.ok) finalBuffer = await mixMusicUnder(finalBuffer, Buffer.from(await mres.arrayBuffer()), composer?.musicVolume ?? 0.28);
       } catch (e) {
         console.error(`[video-director] music mix skipped for ${filmId}:`, e instanceof Error ? e.message : e);
       }
@@ -1236,6 +1304,20 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
     const fresh = await getFilm(filmId, userId);
     if (fresh) { fresh.finalStatus = "failed"; await saveFilm(filmId, userId, fresh); }
   }
+}
+
+function wrapComposerText(text: string, maxChars: number): string {
+  return text.split("\n").flatMap((line) => {
+    const words = line.split(/\s+/).filter(Boolean);
+    const rows: string[] = [];
+    let row = "";
+    for (const word of words) {
+      if (row && `${row} ${word}`.length > maxChars) { rows.push(row); row = word; }
+      else row = row ? `${row} ${word}` : word;
+    }
+    if (row) rows.push(row);
+    return rows;
+  }).join("\n");
 }
 
 /**
