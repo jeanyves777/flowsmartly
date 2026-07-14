@@ -19,7 +19,7 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   Sparkles, X, Film, Clapperboard, UserSquare2, Scissors, Images, Palette, Plus, Paperclip,
-  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon, Shirt, Pencil, Maximize2, Volume2, VolumeX, RefreshCw,
+  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon, Shirt, Pencil, Maximize2, Volume2, VolumeX, RefreshCw, Link2,
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -114,6 +114,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   const [recoveringSceneId, setRecoveringSceneId] = useState<string | null>(null);
   const [videoEditSceneId, setVideoEditSceneId] = useState<string | null>(null);
   const [startingVideoEdit, setStartingVideoEdit] = useState(false);
+  const [insertAfterSceneId, setInsertAfterSceneId] = useState<string | null>(null);
 
   // avatars + voices for per-scene avatar picking (shared with the Avatar Studio catalog)
   useEffect(() => {
@@ -174,6 +175,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   const scenes = useMemo(() => (film ? [...film.scenes].sort((a, b) => a.order - b.order) : []), [film]);
   const selScene = scenes.find((s) => s.id === selId) || null;
   const videoEditScene = scenes.find((s) => s.id === videoEditSceneId) || null;
+  const insertAfterScene = scenes.find((s) => s.id === insertAfterSceneId) || null;
 
   // Agent live-bridge: when the director agent acts (direct_film), surface the
   // newest film in the open studio — same "results land in the UI" pattern.
@@ -323,6 +325,37 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
       const s = newScene(engine, order, rightmost + 250, 80 + (order % 2) * 210);
       return { ...f, scenes: [...f.scenes, s] };
     });
+  };
+  const insertSceneAfter = (sourceId: string, input: { mode: "exact" | "new"; engine: SceneEngine; prompt: string; duration: number }) => {
+    const insertedId = uid("sc");
+    mutate((f) => {
+      const ordered = [...f.scenes].sort((a, b) => a.order - b.order);
+      const sourceIndex = ordered.findIndex((s) => s.id === sourceId);
+      if (sourceIndex < 0) return f;
+      const source = ordered[sourceIndex];
+      const spacing = 290;
+      const shifted = ordered.map((s, index) => index > sourceIndex ? { ...s, x: s.x + spacing } : s);
+      const base = { ...newScene(input.mode === "exact" ? "ai" : input.engine, sourceIndex + 1, source.x + spacing, source.y + 28), id: insertedId };
+      const inserted: FilmScene = input.mode === "exact"
+        ? {
+            ...base,
+            title: `${source.title} continues`.slice(0, 120),
+            script: input.prompt.trim(),
+            durationSec: Math.min(10, Math.max(2, Math.round(input.duration))),
+            style: source.style || "cinematic",
+            aiProvider: "grok",
+            cameraMotion: source.cameraMotion,
+            background: source.background,
+            cast: source.cast?.map((line) => ({ ...line, dialogue: "" })),
+            continuationMode: "exact",
+            continuationOf: source.id,
+          }
+        : { ...base, script: input.prompt.trim() || undefined };
+      shifted.splice(sourceIndex + 1, 0, inserted);
+      return { ...f, scenes: shifted.map((s, index) => ({ ...s, order: index })) };
+    });
+    setInsertAfterSceneId(null);
+    setSelId(insertedId);
   };
   const removeScene = (id: string) => {
     setSelId((s) => (s === id ? null : s));
@@ -605,6 +638,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
                   onRecover={() => recoverScene(s.id)}
                   recovering={recoveringSceneId === s.id}
                   onVideoEdit={() => setVideoEditSceneId(s.id)}
+                  onInsertAfter={() => setInsertAfterSceneId(s.id)}
                   onRemove={() => removeScene(s.id)}
                   onPlay={() => s.videoUrl && setPlay({ url: s.videoUrl, title: s.title })}
                 />
@@ -741,6 +775,15 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
         />
       )}
 
+      {insertAfterScene && (
+        <InsertSceneSheet
+          key={insertAfterScene.id}
+          source={insertAfterScene}
+          onClose={() => setInsertAfterSceneId(null)}
+          onInsert={(input) => insertSceneAfter(insertAfterScene.id, input)}
+        />
+      )}
+
       {/* directing (drafting the pipeline — local kick-off OR background draftStatus) */}
       {(drafting || isDrafting) && !draftError && (
         <div className="absolute inset-0 z-[45] grid place-items-center bg-background/70 backdrop-blur-sm">
@@ -762,6 +805,82 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================ insert after scene
+function InsertSceneSheet({ source, onClose, onInsert }: {
+  source: FilmScene;
+  onClose: () => void;
+  onInsert: (input: { mode: "exact" | "new"; engine: SceneEngine; prompt: string; duration: number }) => void;
+}) {
+  const [mode, setMode] = useState<"exact" | "new">("exact");
+  const [engine, setEngine] = useState<SceneEngine>("ai");
+  const [prompt, setPrompt] = useState("");
+  const [duration, setDuration] = useState(6);
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (prompt.trim().length < 3) return;
+    onInsert({ mode, engine, prompt, duration });
+  };
+  return (
+    <div className="absolute inset-0 z-[55] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onClick={onClose}>
+      <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="flex max-h-[92vh] w-full max-w-[580px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-500/15 text-brand-500"><Plus className="h-4 w-4" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-bold">Insert after {source.title}</p>
+            <p className="truncate text-[10.5px] text-muted-foreground">The new node will sit immediately after this scene.</p>
+          </div>
+          <button type="button" onClick={onClose} title="Close" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="min-h-0 overflow-y-auto p-4">
+          <div className="grid grid-cols-2 rounded-lg border border-border bg-background p-1">
+            <button type="button" onClick={() => setMode("exact")} className={cn("inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md px-3 text-[11.5px] font-semibold", mode === "exact" ? "bg-violet-500 text-white shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+              <Link2 className="h-3.5 w-3.5" /> Exact continuation
+            </button>
+            <button type="button" onClick={() => setMode("new")} className={cn("inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md px-3 text-[11.5px] font-semibold", mode === "new" ? "bg-brand-500 text-white shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+              <Clapperboard className="h-3.5 w-3.5" /> New beat
+            </button>
+          </div>
+
+          {mode === "exact" ? (
+            <div className="mt-4">
+              <p className="text-[11px] leading-relaxed text-muted-foreground">xAI continues from this scene&apos;s real final frame, preserving its people, wardrobe, location, camera direction, and style.</p>
+              <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">What happens next?</label>
+              <textarea value={prompt} onChange={(e) => setPrompt(e.target.value.slice(0, 3000))} rows={4} autoFocus placeholder="Example: Amara steps closer to the stall, picks up the shoes, and asks Marcus who made them. Keep the same camera movement and morning market activity." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2.5 text-[12.5px] leading-relaxed outline-none focus:border-violet-500/70" />
+              <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Continuation length</label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {[2, 4, 6, 8, 10].map((seconds) => (
+                  <button key={seconds} type="button" onClick={() => setDuration(seconds)} className={cn("rounded-lg border py-2 text-[11px] font-semibold", duration === seconds ? "border-violet-500 bg-violet-500/15 text-violet-500" : "border-border text-muted-foreground hover:text-foreground")}>{seconds}s</button>
+                ))}
+              </div>
+              {source.status !== "ready" && <p className="mt-2 text-[10.5px] text-amber-500">Add the node now, then generate this preceding scene before rendering its continuation.</p>}
+            </div>
+          ) : (
+            <div className="mt-4">
+              <label className="mb-1.5 block text-[11.5px] font-semibold">Scene type</label>
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                {ENGINE_LIST.map((key) => {
+                  const meta = ENGINES[key];
+                  return <button key={key} type="button" onClick={() => setEngine(key)} className={cn("flex min-h-12 items-center gap-2 rounded-lg border px-2.5 py-2 text-left", engine === key ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/50")}><meta.Icon className="h-4 w-4 shrink-0" style={{ color: meta.color }} /><span className="text-[10.5px] font-semibold">{meta.label}</span></button>;
+                })}
+              </div>
+              <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Direction for the new beat</label>
+              <textarea value={prompt} onChange={(e) => setPrompt(e.target.value.slice(0, 3000))} rows={4} autoFocus placeholder="Describe the new action, setting, dialogue, or transition you want to add here." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2.5 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/70" />
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 border-t border-border px-4 py-3">
+          <button type="button" onClick={onClose} className="rounded-[10px] border border-border px-3.5 py-2 text-[12px] font-semibold text-muted-foreground hover:text-foreground">Cancel</button>
+          <button type="submit" disabled={prompt.trim().length < 3} className="ms-auto inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50">
+            {mode === "exact" ? <Link2 className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />} Insert scene
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -840,9 +959,9 @@ function VideoEditSheet({ scene, busy, onClose, onSubmit }: {
 }
 
 // ============================================================ scene node card
-function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerate, onRecover, recovering, onVideoEdit, onRemove, onPlay }: {
+function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerate, onRecover, recovering, onVideoEdit, onInsertAfter, onRemove, onPlay }: {
   scene: FilmScene; selected: boolean; castImg?: string; cast?: { name: string; dialogue?: string; img?: string }[];
-  onDown: (e: ReactPointerEvent) => void; onSelect: () => void; onGenerate: () => void; onRecover: () => void; recovering: boolean; onVideoEdit: () => void; onRemove: () => void; onPlay: () => void;
+  onDown: (e: ReactPointerEvent) => void; onSelect: () => void; onGenerate: () => void; onRecover: () => void; recovering: boolean; onVideoEdit: () => void; onInsertAfter: () => void; onRemove: () => void; onPlay: () => void;
 }) {
   const E = ENGINES[scene.engine];
   const rendering = isRendering(scene.status);
@@ -851,15 +970,18 @@ function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerat
   return (
     <div
       data-node={scene.id}
-      onPointerDown={onDown}
-      onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) onSelect(); }}
-      className={cn("absolute cursor-grab overflow-hidden rounded-2xl border bg-card shadow-sm transition active:cursor-grabbing", selected ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}
+      className={cn("absolute", selected ? "z-[4]" : "z-[2]")}
       style={{ left: scene.x, top: scene.y, width: NODE_W }}
     >
+      <div
+        onPointerDown={onDown}
+        onClick={(e) => { if (!(e.target as HTMLElement).closest("button")) onSelect(); }}
+        className={cn("w-full cursor-grab overflow-hidden rounded-2xl border bg-card shadow-sm transition active:cursor-grabbing", selected ? "border-brand-500 ring-1 ring-brand-500" : "border-border hover:border-brand-500/50")}
+      >
       <div className="flex items-center gap-1.5 border-b border-border px-2.5 py-1.5">
         <span className="grid h-4 w-4 place-items-center" style={{ color: E.color }}><E.Icon className="h-3.5 w-3.5" /></span>
         <span className="flex-1 truncate text-[11.5px] font-bold">{scene.title}</span>
-        <span className="rounded px-1.5 py-0.5 text-[8.5px] font-bold" style={{ background: `${E.color}26`, color: E.color }}>{E.label}</span>
+        <span className="rounded px-1.5 py-0.5 text-[8.5px] font-bold" style={{ background: `${E.color}26`, color: E.color }}>{scene.continuationMode === "exact" ? "Continuation" : E.label}</span>
         <button onClick={onRemove} title="Remove scene" className="grid h-4 w-4 place-items-center rounded text-muted-foreground hover:text-rose-500"><X className="h-3 w-3" /></button>
       </div>
       <div className="relative m-2 aspect-video overflow-hidden rounded-lg bg-muted">
@@ -920,6 +1042,16 @@ function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerat
         )}
         <button onClick={onGenerate} disabled={rendering} className="flex-1 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 py-1.5 text-[10.5px] font-semibold text-white disabled:opacity-60">{rendering ? "…" : ready ? "Regenerate" : "Generate"}</button>
       </div>
+      </div>
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={onInsertAfter}
+        title="Insert a continuation or new scene after this node"
+        className="absolute -bottom-8 left-1/2 z-[6] grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full border border-dashed border-brand-500/60 bg-card text-brand-500 shadow-md transition hover:border-brand-500 hover:bg-brand-500 hover:text-white"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
