@@ -10,6 +10,7 @@ dotenv.config({ path: ".env" });
 
 const origin = process.env.DIRECTOR_UI_ORIGIN || "http://localhost:3011";
 const screenshotPath = path.join(os.tmpdir(), "director-composer-ui.png");
+const voiceScreenshotPath = path.join(os.tmpdir(), "director-composer-voice-ui.png");
 const prisma = new PrismaClient();
 const user = await prisma.user.findFirst({
   where: { deletedAt: null, onboardingComplete: true },
@@ -96,6 +97,7 @@ const film = {
 };
 let serverFilm = structuredClone(film);
 const savedProjects = [];
+const voiceGenerationRequests = [];
 
 const browser = await puppeteer.launch({
   headless: true,
@@ -145,7 +147,14 @@ try {
       return request.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { url: previewUrl, creditCost: 12 } }) });
     }
     if (pathname === "/api/ai/voice-studio/generate" && method === "POST") {
+      voiceGenerationRequests.push(JSON.parse(request.postData() || "{}"));
       return request.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { audioUrl: "https://example.com/director-voice.mp3", durationMs: 4200, creditsUsed: 10 } }) });
+    }
+    if (pathname === "/api/ai/voice-studio/profiles" && method === "GET") {
+      return request.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { profiles: [{ id: "voice-clone-1", name: "Koffi cloned voice", type: "cloned", gender: "male", accent: "african_american", style: "warm", sampleUrl: "https://example.com/koffi-sample.mp3", isDefault: true, openaiVoiceId: "voice_openai_1", elevenLabsVoiceId: null }] } }) });
+    }
+    if (pathname === "/api/ai/voice-studio/history" && method === "GET") {
+      return request.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { generations: [{ id: "voice-history-1", script: "A previous saved narration.", audioUrl: "https://example.com/previous-voice.mp3", durationMs: 3600, gender: "female", accent: "american", style: "professional", isClonedVoice: false, createdAt: new Date().toISOString(), voiceProfile: { name: "Saved host", type: "preset" } }] } }) });
     }
     if (pathname === `/api/ai/video-director/${film.id}/composer/music` && method === "POST") {
       return request.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { url: "https://example.com/director-music.mp3", durationSec: 30, creditCost: 40 } }) });
@@ -274,9 +283,23 @@ try {
   await page.waitForFunction(() => document.querySelectorAll("[data-composer-layer]").length === 3);
 
   await page.click('button[title="Audio"]');
+  await page.waitForSelector("[data-composer-voice-studio]");
+  await page.click('[data-voice-tab="voices"]');
+  await page.waitForSelector('[data-composer-voice-profile="voice-clone-1"]');
+  await page.evaluate(() => document.querySelector('[data-composer-voice-profile="voice-clone-1"] button')?.click());
   await page.type("[data-composer-voice-script]", "Welcome to the market today.");
+  await page.screenshot({ path: voiceScreenshotPath });
   await page.click("[data-composer-generate-voice]");
-  await page.waitForFunction(() => document.body.innerText.includes("The generated narration is now on the audio track."), { timeout: 5_000 });
+  await page.waitForFunction(() => document.body.innerText.includes("saved in Voice Studio."), { timeout: 5_000 });
+  assert.equal(voiceGenerationRequests.at(-1)?.voiceProfileId, "voice-clone-1", "Voice generation must use the selected saved profile.");
+  assert.equal(voiceGenerationRequests.at(-1)?.useClonedVoice, true, "A cloned Voice Studio profile must use the cloned-voice engine.");
+
+  await page.click('button[title="Audio"]');
+  await page.waitForSelector("[data-composer-voice-studio]");
+  await page.click('[data-voice-tab="history"]');
+  await page.waitForSelector('[data-composer-voice-history="voice-history-1"]');
+  await page.evaluate(() => [...document.querySelectorAll('[data-composer-voice-history="voice-history-1"] button')].find((button) => button.textContent?.trim() === "Add")?.click());
+  await page.waitForFunction(() => document.body.innerText.includes("The saved Voice Studio recording is now on the audio track."), { timeout: 5_000 });
 
   await page.click('button[title="Music"]');
   await page.type("[data-composer-music-prompt]", "Warm cinematic African strings and hand percussion");
@@ -326,7 +349,7 @@ try {
   assert.equal(composer.panel.bottom, composer.timeline.top, "Resized composer must stay connected to the timeline.");
 
   await page.screenshot({ path: screenshotPath });
-  console.log(`Director composer UI passed. Screenshot: ${screenshotPath}`);
+  console.log(`Director composer UI passed. Screenshots: ${screenshotPath}, ${voiceScreenshotPath}`);
 } finally {
   await browser.close();
 }
