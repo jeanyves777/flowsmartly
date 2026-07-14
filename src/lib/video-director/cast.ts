@@ -271,6 +271,39 @@ export async function addFilmCharacter(
   return { film, character };
 }
 
+/** Turn a rough character idea into a stable, generation-ready cast identity. */
+export async function describeFilmCharacter(
+  filmId: string,
+  userId: string,
+  instruction: string,
+  renderStyle: CharacterRenderStyle,
+): Promise<{ name: string; role: string; description: string } | null> {
+  const film = await getFilm(filmId, userId);
+  if (!film) return null;
+  const existingNames = (film.characters || []).map((character) => character.name).join(", ") || "none";
+  const styleDirection = renderStyle === "3d"
+    ? "This is a premium stylized 3D animated identity. Non-human, supernatural, miniature, or floating characters are allowed when requested."
+    : "This is a photoreal live-action cinematic identity. Describe a believable real person.";
+  const result = await ai.generateJSON<{ name?: string; role?: string; description?: string }>(
+    `You are the casting and character art director for a film. Convert the user's rough idea into one reusable character identity that can stay visually consistent across many scenes.\n` +
+      `FILM: ${(film.brief || film.title).slice(0, 5000)}\n` +
+      `USER IDEA: ${instruction.slice(0, 2000)}\n` +
+      `VISUAL TYPE: ${renderStyle === "3d" ? "3D" : "Cinematic"}. ${styleDirection}\n` +
+      `NAMES ALREADY USED (do not repeat): ${existingNames}\n\n` +
+      `Return a concise JSON object with:\n` +
+      `- "name": a memorable unique character name, 1-4 words.\n` +
+      `- "role": a short story function or relationship, not a physical description.\n` +
+      `- "description": one production-ready visual identity sentence covering apparent age/form, face, hair or defining features, body/build, exact wardrobe/materials and colors. Preserve every explicit detail from the user. Describe stable appearance only: no camera, location, pose, dialogue, action, props held in the hands, text, or logos.\n` +
+      `Return only {"name":"...","role":"...","description":"..."}.`,
+    { maxTokens: 650, temperature: 0.55 },
+  );
+  const name = String(result?.name || "").trim().slice(0, 80);
+  const role = String(result?.role || "").trim().slice(0, 120);
+  const description = String(result?.description || "").trim().slice(0, 2000);
+  if (!name || !description) throw new Error("The character description was incomplete. Please try again.");
+  return { name, role: role || "Supporting character", description };
+}
+
 /** Remove a cast member and any dangling scene/continuity references to them. */
 export async function removeFilmCharacter(filmId: string, userId: string, characterId: string): Promise<FilmProject | null> {
   const film = await getFilm(filmId, userId);
