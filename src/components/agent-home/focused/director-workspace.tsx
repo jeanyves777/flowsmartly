@@ -1172,6 +1172,7 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
   const [muted, setMuted] = useState(false); // preview audio (dialogue) on by default
   const [theater, setTheater] = useState(false); // inline composer connected to the timeline
   const [drag, setDrag] = useState<{ id: string; mode: "move" | "l" | "r"; dx: number } | null>(null);
+  const dockRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rulerRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -1279,13 +1280,12 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
   const laneMin = { minWidth: total * px };
 
   return (
-    <div className={cn("absolute inset-x-0 bottom-0 z-20 flex flex-col border-t border-border bg-card/95 backdrop-blur transition-[height]", collapsed ? "h-[38px]" : "h-[280px]")}>
+    <div ref={dockRef} className={cn("absolute inset-x-0 bottom-0 z-20 flex flex-col border-t border-border bg-card/95 backdrop-blur transition-[height]", collapsed ? "h-[38px]" : "h-[280px]")}>
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <button onClick={onToggle} className="flex items-center gap-2"><ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition", collapsed && "-rotate-90")} /><span className="text-[12px] font-bold">Timeline</span></button>
-        <span className="hidden text-[10.5px] text-muted-foreground sm:inline">— drag to reorder · edges to trim · split at the playhead</span>
         {!collapsed && (
           <>
-            <div className="ms-auto flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5">
               <button onClick={() => setT(0)} className="grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground" title="To start">⏮</button>
               <button onClick={() => setPlaying((p) => !p)} className="grid h-7 w-7 place-items-center rounded-lg bg-foreground text-background" title={playing ? "Pause" : "Play"}>{playing ? <Pause className="h-3.5 w-3.5 fill-current" /> : <Play className="h-3.5 w-3.5 translate-x-px fill-current" />}</button>
               <button onClick={() => setMuted((m) => !m)} className={cn("grid h-7 w-7 place-items-center rounded-lg border border-border", muted ? "text-muted-foreground hover:text-foreground" : "border-brand-500/50 text-brand-500")} title={muted ? "Unmute dialogue" : "Mute"}>{muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}</button>
@@ -1299,6 +1299,7 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
             </div>
           </>
         )}
+        <span className="ms-auto hidden text-[10.5px] text-muted-foreground lg:inline">drag to reorder · edges to trim · split at the playhead</span>
       </div>
 
       {!collapsed && (
@@ -1409,13 +1410,15 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
         </div>
       )}
 
-      {theater && (
+      {theater && createPortal(
         <FilmComposerModal
           film={film} activeScene={active?.s || null} activeUrl={activeUrl} activeImg={activeImg}
+          anchorRef={dockRef}
           videoRef={videoRef} muted={muted} playing={playing} t={t} total={total}
           onClose={() => setTheater(false)} onTogglePlay={() => setPlaying((value) => !value)}
           onToggleMute={() => setMuted((value) => !value)} onSeek={setT} onFilmPatch={onFilmPatch}
-        />
+        />,
+        document.body,
       )}
     </div>
   );
@@ -1430,11 +1433,12 @@ const DEFAULT_COMPOSER: FilmComposer = {
 
 type ComposerTool = FilmComposerLayerType | "captions" | "music" | "layers";
 
-function FilmComposerModal({ film, activeScene, activeUrl, activeImg, videoRef, muted, playing, t, total, onClose, onTogglePlay, onToggleMute, onSeek, onFilmPatch }: {
+function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef, videoRef, muted, playing, t, total, onClose, onTogglePlay, onToggleMute, onSeek, onFilmPatch }: {
   film: FilmProject;
   activeScene: FilmScene | null;
   activeUrl: string | null;
   activeImg: string | null;
+  anchorRef: { current: HTMLDivElement | null };
   videoRef: { current: HTMLVideoElement | null };
   muted: boolean;
   playing: boolean;
@@ -1453,6 +1457,7 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, videoRef, 
   const [picker, setPicker] = useState<FilmComposerLayerType | "music" | null>(null);
   const [uploadKind, setUploadKind] = useState<FilmComposerLayerType | "music" | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [frame, setFrame] = useState({ left: 12, right: 12, bottom: 280 });
   const fileRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ id: string; startX: number; startY: number; x: number; y: number } | null>(null);
@@ -1463,6 +1468,21 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, videoRef, 
   const activeCaption = composer.captions.enabled && activeScene?.captionsOn
     ? (activeScene.cast || []).filter((line) => line.dialogue?.trim()).map((line) => `${line.name}: ${line.dialogue!.trim()}`).join(" ")
     : "";
+
+  useEffect(() => {
+    const alignToTimeline = () => {
+      const rect = anchorRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setFrame({
+        left: Math.max(0, Math.round(rect.left)),
+        right: Math.max(0, Math.round(window.innerWidth - rect.right)),
+        bottom: Math.max(0, Math.round(window.innerHeight - rect.top)),
+      });
+    };
+    alignToTimeline();
+    window.addEventListener("resize", alignToTimeline);
+    return () => window.removeEventListener("resize", alignToTimeline);
+  }, [anchorRef]);
 
   const setComposer = (next: FilmComposer) => onFilmPatch({ composer: next });
   const updateLayer = (id: string, patch: Partial<FilmComposerLayer>) => {
@@ -1550,7 +1570,7 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, videoRef, 
   ];
 
   return (
-    <div className="fixed inset-x-3 bottom-[280px] top-[58px] z-[45] flex overflow-hidden rounded-lg border border-border bg-card shadow-2xl">
+    <div className="fixed top-[58px] z-[45] flex overflow-hidden rounded-t-lg border border-border bg-card shadow-2xl" style={frame}>
       <div className="flex w-16 shrink-0 flex-col border-r border-border bg-background/70 py-2">
         {tools.map(({ id, label, Icon }) => (
           <button key={id} onClick={() => chooseTool(id)} title={label} className={cn("flex h-12 flex-col items-center justify-center gap-0.5 text-[8.5px] font-semibold", tool === id ? "bg-brand-500/12 text-brand-500" : "text-muted-foreground hover:bg-muted hover:text-foreground")}><Icon className="h-4 w-4" />{label}</button>
