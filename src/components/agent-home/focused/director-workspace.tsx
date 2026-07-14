@@ -249,10 +249,22 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   const recomputeWires = useCallback(() => {
     const board = boardRef.current; if (!board) return;
     const get = (id: string) => board.querySelector<HTMLElement>(`[data-node="${id}"]`);
+    const boardRect = board.getBoundingClientRect();
+    const bounds = (el: HTMLElement) => {
+      const rect = el.getBoundingClientRect();
+      return {
+        left: rect.left - boardRect.left,
+        top: rect.top - boardRect.top,
+        width: rect.width,
+        height: rect.height,
+      };
+    };
     const anchor = (el: HTMLElement | null, side: "l" | "r") => {
       if (!el) return null;
-      const l = el.offsetLeft, t = el.offsetTop, w = el.offsetWidth, h = el.offsetHeight;
-      return side === "r" ? { x: l + w, y: t + h / 2 } : { x: l, y: t + h / 2 };
+      const rect = bounds(el);
+      return side === "r"
+        ? { x: rect.left + rect.width, y: rect.top + rect.height / 2 }
+        : { x: rect.left, y: rect.top + rect.height / 2 };
     };
     const seq = ["__brief", ...scenes.map((s) => s.id), "__out"];
     let d = "";
@@ -268,8 +280,9 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
       if (scene.continuationMode !== "exact" || !scene.continuationOf) return [];
       const source = get(scene.continuationOf), target = get(scene.id);
       if (!source || !target) return [];
-      const start = { x: source.offsetLeft + source.offsetWidth * 0.78, y: source.offsetTop + source.offsetHeight };
-      const end = { x: target.offsetLeft + target.offsetWidth * 0.22, y: target.offsetTop + target.offsetHeight };
+      const sourceRect = bounds(source), targetRect = bounds(target);
+      const start = { x: sourceRect.left + sourceRect.width * 0.78, y: sourceRect.top + sourceRect.height };
+      const end = { x: targetRect.left + targetRect.width * 0.22, y: targetRect.top + targetRect.height };
       const bendY = Math.max(start.y, end.y) + 42;
       return [{
         id: scene.id,
@@ -673,8 +686,8 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
         className="absolute inset-0 cursor-grab overflow-auto"
         style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
       >
-        <div ref={boardRef} className="relative" style={{ width: boardWidth, height: 1500 }}>
-          <svg className="pointer-events-none absolute inset-0" width={boardWidth} height={1500} style={{ overflow: "visible" }}>
+        <div ref={boardRef} className="relative" style={{ width: boardWidth, height: 1700 }}>
+          <svg className="pointer-events-none absolute inset-0" width={boardWidth} height={1700} style={{ overflow: "visible" }}>
             <path d={wirePath} fill="none" stroke="#38bdf8" strokeWidth={2} opacity={0.5} />
             {continuationWires.map((wire) => (
               <g key={wire.id}>
@@ -1445,14 +1458,14 @@ function SceneInspector({ scene, previousScene, characters, avatars, voices, onC
   const addOverlay = (engine: SceneEngine) => onPatch({ overlay: { engine, corner: "br", scale: 0.3, status: "draft" } });
   const CORNERS: { v: FilmOverlay["corner"]; label: string }[] = [{ v: "tl", label: "◤" }, { v: "tr", label: "◥" }, { v: "bl", label: "◣" }, { v: "br", label: "◢" }];
   return (
-    <div onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()} className="mt-2 flex w-[360px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+    <div onPointerDown={(e) => e.stopPropagation()} onWheel={(e) => e.stopPropagation()} className="mt-2 flex w-[560px] max-w-[calc(100vw-32px)] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <span className="rounded px-1.5 py-0.5 text-[9.5px] font-bold" style={{ background: `${E.color}22`, color: E.color }}>{E.label}</span>
         <input value={scene.title} onChange={(e) => onPatch({ title: e.target.value })} className="min-w-0 flex-1 bg-transparent text-[13px] font-semibold outline-none" />
         <button onClick={onClose} className="grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
       </div>
 
-      <div className="max-h-[540px] overflow-y-auto px-4 py-3">
+      <div className="max-h-[680px] overflow-y-auto px-4 py-3">
         {/* shared script/prompt */}
         <div className="mb-1 flex items-center gap-2">
           <label className="text-[11px] font-semibold">{scene.engine === "ai" ? "Shot prompt" : scene.engine === "avatar" ? "Script" : scene.engine === "design" ? "Headline" : "Notes"}</label>
@@ -1462,7 +1475,7 @@ function SceneInspector({ scene, previousScene, characters, avatars, voices, onC
             </button>
           )}
         </div>
-        <textarea value={scene.script || ""} onChange={(e) => onPatch({ script: e.target.value })} rows={3} className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" placeholder={scene.engine === "ai" ? "Describe the shot — subject, motion, mood…" : scene.engine === "avatar" ? "What the avatar says…" : "…"} />
+        <textarea value={scene.script || ""} onChange={(e) => onPatch({ script: e.target.value })} rows={6} className="min-h-[150px] w-full resize-y rounded-[10px] border border-input bg-background px-3 py-2.5 text-[12.5px] leading-relaxed outline-none focus:border-brand-500/60" placeholder={scene.engine === "ai" ? "Describe the shot — subject, motion, mood…" : scene.engine === "avatar" ? "What the avatar says…" : "…"} />
 
         {scene.engine === "ai" && previousScene && previousScene.engine !== "design" && (
           <div className="mt-3 border-y border-border py-2.5">
@@ -1497,20 +1510,23 @@ function SceneInspector({ scene, previousScene, characters, avatars, voices, onC
         )}
 
         {scene.engine === "ai" && (
-          <div className="mt-2.5 flex items-center gap-1.5">
-            <input
+          <div className="mt-3">
+            <label className="mb-1 block text-[11px] font-semibold">AI direction</label>
+            <textarea
               value={aiDirection}
               onChange={(e) => setAiDirection(e.target.value.slice(0, 2000))}
-              onKeyDown={(e) => { if (e.key === "Enter" && !aiWriting) { e.preventDefault(); void onAiWrite("scene", aiDirection); } }}
               placeholder="e.g. Make Koffi talk to Amara while selling"
-              className="min-w-0 flex-1 rounded-[9px] border border-input bg-background px-2.5 py-2 text-[11px] outline-none focus:border-violet-500/60"
+              rows={3}
+              className="min-h-[84px] w-full resize-y rounded-[9px] border border-input bg-background px-3 py-2.5 text-[12px] leading-relaxed outline-none focus:border-violet-500/60"
             />
-            <button type="button" onClick={() => void onAiWrite("scene", "")} disabled={!!aiWriting} title="Write naturally from the film direction and previous scene" className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[8px] border border-border px-2 text-[10px] font-semibold text-muted-foreground hover:border-violet-500/50 hover:text-violet-500 disabled:opacity-50">
-              {aiWriting === "scene" ? <FlowLoader size={11} /> : <Sparkles className="h-3 w-3" />} AI Auto
-            </button>
-            <button type="button" onClick={() => void onAiWrite("scene", aiDirection)} disabled={!!aiWriting} title="Write the shot and dialogue from this direction" className="inline-flex h-8 shrink-0 items-center gap-1 rounded-[8px] bg-violet-500 px-2.5 text-[10px] font-semibold text-white disabled:opacity-50">
-              {aiWriting === "scene" ? <FlowLoader size={11} tone="white" /> : <Wand2 className="h-3 w-3" />} AI Write
-            </button>
+            <div className="mt-2 flex justify-end gap-2">
+              <button type="button" onClick={() => void onAiWrite("scene", "")} disabled={!!aiWriting} title="Write naturally from the film direction and previous scene" className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-border px-3 text-[11px] font-semibold text-muted-foreground hover:border-violet-500/50 hover:text-violet-500 disabled:opacity-50">
+                {aiWriting === "scene" ? <FlowLoader size={12} /> : <Sparkles className="h-3.5 w-3.5" />} AI Auto
+              </button>
+              <button type="button" onClick={() => void onAiWrite("scene", aiDirection)} disabled={!!aiWriting} title="Write the shot and dialogue from this direction" className="inline-flex h-9 items-center gap-1.5 rounded-[8px] bg-violet-500 px-3.5 text-[11px] font-semibold text-white disabled:opacity-50">
+                {aiWriting === "scene" ? <FlowLoader size={12} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />} AI Write
+              </button>
+            </div>
           </div>
         )}
 
