@@ -19,13 +19,14 @@ import { createPortal } from "react-dom";
 import Image from "next/image";
 import {
   Sparkles, X, Film, Clapperboard, UserSquare2, Scissors, Images, Palette, Plus, Paperclip,
-  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon, Shirt, Pencil, Maximize2, Volume2, VolumeX,
+  ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon, Shirt, Pencil, Maximize2, Volume2, VolumeX, RefreshCw,
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { MediaLightbox } from "@/components/shared/media-lightbox";
 import { BriefSuggest, type BriefProposal } from "./brief-suggest";
 import { cn } from "@/lib/utils/cn";
+import { useToast } from "@/hooks/use-toast";
 import type { FilmProject, FilmScene, FilmOverlay, FilmAsset, SceneEngine, FilmType, FilmAspect, FilmCharacter, SceneCastLine } from "@/lib/video-director/types";
 
 // ------------------------------------------------------------------ engine meta
@@ -95,6 +96,7 @@ function newScene(engine: SceneEngine, order: number, x: number, y: number): Fil
 }
 
 export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void }) {
+  const { toast } = useToast();
   const [film, setFilm] = useState<FilmProject | null>(null);
   const [loading, setLoading] = useState(true);
   const [briefOpen, setBriefOpen] = useState(false);
@@ -109,6 +111,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   const [avatars, setAvatars] = useState<{ id: string; name: string; previewUrl?: string }[]>([]);
   const [voices, setVoices] = useState<{ id: string; name: string; language?: string }[]>([]);
   const [play, setPlay] = useState<{ url: string; title: string } | null>(null);
+  const [recoveringSceneId, setRecoveringSceneId] = useState<string | null>(null);
 
   // avatars + voices for per-scene avatar picking (shared with the Avatar Studio catalog)
   useEffect(() => {
@@ -190,7 +193,13 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   }, [refreshKey]);
 
   // -------- poll while anything is rendering --------
-  const anyRendering = scenes.some((s) => isRendering(s.status) || isRendering(s.overlay?.status)) || film?.finalStatus === "rendering";
+  // A failed AI scene with a saved provider handle may still finish remotely
+  // after our worker was interrupted. Keep polling until it is pulled or the
+  // provider confirms a terminal failure.
+  const anyRecoverableFailed = scenes.some((s) =>
+    s.engine === "ai" && s.status === "failed" && !!s.refId && (s.refKind === "grok" || s.refKind === "veo3"),
+  );
+  const anyRendering = scenes.some((s) => isRendering(s.status) || isRendering(s.overlay?.status)) || anyRecoverableFailed || film?.finalStatus === "rendering";
   const isDrafting = film?.draftStatus === "drafting";
   useEffect(() => {
     if ((!anyRendering && !isDrafting) || !film) return;
@@ -371,6 +380,33 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
     }
   };
 
+  const recoverScene = async (id: string) => {
+    if (!film || recoveringSceneId) return;
+    setRecoveringSceneId(id);
+    try {
+      const response = await fetch(`/api/ai/video-director/${film.id}/scenes/${id}/recover`, { method: "POST" });
+      const j = await response.json().catch(() => null);
+      if (!j?.success) {
+        toast({
+          title: "Could not pull this render",
+          description: j?.error?.message || "The saved provider job could not be checked.",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (j.data?.film) setFilm(j.data.film);
+      toast({
+        title: j.data?.state === "ready" ? "Video recovered" : j.data?.state === "failed" ? "Render did not finish" : "Render checked",
+        description: j.data?.message,
+        variant: j.data?.state === "failed" ? "destructive" : undefined,
+      });
+    } catch {
+      toast({ title: "Could not pull this render", description: "Please try again in a moment.", variant: "destructive" });
+    } finally {
+      setRecoveringSceneId(null);
+    }
+  };
+
   const generateOverlay = async (id: string) => {
     if (!film) return;
     setFilm((f) => f ? { ...f, scenes: f.scenes.map((s) => s.id === id && s.overlay ? { ...s, overlay: { ...s.overlay, status: "queued", progress: 5 } } : s) } : f);
@@ -534,6 +570,8 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
                   onDown={(e) => onNodeDown(e, s)}
                   onSelect={() => setSelId(s.id)}
                   onGenerate={() => generateScene(s.id)}
+                  onRecover={() => recoverScene(s.id)}
+                  recovering={recoveringSceneId === s.id}
                   onRemove={() => removeScene(s.id)}
                   onPlay={() => s.videoUrl && setPlay({ url: s.videoUrl, title: s.title })}
                 />
@@ -597,6 +635,8 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           onClose={() => setSelId(null)}
           onPatch={patchSel}
           onGenerate={() => generateScene(selScene.id)}
+          onRecover={() => recoverScene(selScene.id)}
+          recovering={recoveringSceneId === selScene.id}
           onGenerateOverlay={() => generateOverlay(selScene.id)}
           onSwapEngine={(engine) => patchSel({ engine })}
         />
@@ -683,9 +723,9 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
 }
 
 // ============================================================ scene node card
-function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerate, onRemove, onPlay }: {
+function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerate, onRecover, recovering, onRemove, onPlay }: {
   scene: FilmScene; selected: boolean; castImg?: string; cast?: { name: string; dialogue?: string; img?: string }[];
-  onDown: (e: ReactPointerEvent) => void; onSelect: () => void; onGenerate: () => void; onRemove: () => void; onPlay: () => void;
+  onDown: (e: ReactPointerEvent) => void; onSelect: () => void; onGenerate: () => void; onRecover: () => void; recovering: boolean; onRemove: () => void; onPlay: () => void;
 }) {
   const E = ENGINES[scene.engine];
   const rendering = isRendering(scene.status);
@@ -747,6 +787,11 @@ function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerat
       )}
       <div className="flex gap-1.5 p-2.5">
         <button onClick={onSelect} className="flex-1 rounded-[9px] border border-border py-1.5 text-[10.5px] font-semibold text-foreground hover:border-brand-500/60 hover:text-brand-500">✎ Edit</button>
+        {scene.status === "failed" && scene.engine === "ai" && (
+          <button onClick={onRecover} disabled={recovering} title="Check the saved provider job and pull its finished video" className="inline-flex flex-1 items-center justify-center gap-1 rounded-[9px] border border-brand-500/50 py-1.5 text-[10.5px] font-semibold text-brand-500 hover:bg-brand-500/10 disabled:opacity-60">
+            <RefreshCw className={cn("h-3 w-3", recovering && "animate-spin")} /> {recovering ? "Checking" : "Pull video"}
+          </button>
+        )}
         <button onClick={onGenerate} disabled={rendering} className="flex-1 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 py-1.5 text-[10.5px] font-semibold text-white disabled:opacity-60">{rendering ? "…" : ready ? "Regenerate" : "Generate"}</button>
       </div>
     </div>
@@ -1049,9 +1094,9 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
 }
 
 // ============================================================ scene inspector
-function SceneInspector({ scene, characters, avatars, voices, onClose, onPatch, onGenerate, onGenerateOverlay, onSwapEngine }: {
+function SceneInspector({ scene, characters, avatars, voices, onClose, onPatch, onGenerate, onRecover, recovering, onGenerateOverlay, onSwapEngine }: {
   scene: FilmScene; characters: FilmCharacter[]; avatars: { id: string; name: string; previewUrl?: string }[]; voices: { id: string; name: string; language?: string }[];
-  onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onGenerateOverlay: () => void; onSwapEngine: (e: SceneEngine) => void;
+  onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onRecover: () => void; recovering: boolean; onGenerateOverlay: () => void; onSwapEngine: (e: SceneEngine) => void;
 }) {
   const E = ENGINES[scene.engine];
   const [picker, setPicker] = useState<null | "video" | "image" | "bg" | "ov">(null);
@@ -1265,6 +1310,11 @@ function SceneInspector({ scene, characters, avatars, voices, onClose, onPatch, 
       )}
       <div className="flex items-center gap-2 border-t border-border px-4 py-3">
         <button onClick={onClose} className="rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:text-foreground">Close</button>
+        {scene.status === "failed" && scene.engine === "ai" && (
+          <button onClick={onRecover} disabled={recovering} title="Check the saved provider job and pull its finished video" className="inline-flex items-center gap-1.5 rounded-[10px] border border-brand-500/50 px-3 py-2 text-[12px] font-semibold text-brand-500 hover:bg-brand-500/10 disabled:opacity-60">
+            <RefreshCw className={cn("h-3.5 w-3.5", recovering && "animate-spin")} /> {recovering ? "Checking" : "Pull video"}
+          </button>
+        )}
         <button onClick={onGenerate} disabled={isRendering(scene.status)} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-60">
           {isRendering(scene.status) ? <FlowLoader size={14} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate scene
         </button>
