@@ -115,7 +115,7 @@ export async function listCastLibrary(
   userId: string,
   opts: { excludeFilmId?: string; limit?: number } = {},
 ): Promise<{
-  sourceId: string; name: string; role: string; description: string; wardrobe: string;
+  sourceId: string; name: string; role: string; description: string; renderStyle: "cinematic" | "3d"; wardrobe: string;
   portraitUrl: string; sheetUrl: string | null; filmId: string; filmTitle: string; updatedAt: string;
 }[]> {
   const rows = await prisma.design.findMany({
@@ -138,6 +138,7 @@ export async function listCastLibrary(
         name: c.name || "Character",
         role: c.role || "",
         description: c.description || "",
+        renderStyle: c.renderStyle === "3d" ? "3d" : "cinematic",
         wardrobe: c.wardrobe || "",
         portraitUrl: portrait,
         sheetUrl: c.characterSheetUrl || null,

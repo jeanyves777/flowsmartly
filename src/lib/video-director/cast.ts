@@ -11,7 +11,7 @@
 
 import { ai } from "@/lib/ai/client";
 import { getFilm, saveFilm } from "./store";
-import { normalizeCharacter, type FilmCharacter, type FilmProject } from "./types";
+import { normalizeCharacter, type CharacterRenderStyle, type FilmCharacter, type FilmProject } from "./types";
 import { generateImageXaiFirst, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { sanitizeUserError } from "@/lib/ai/user-error";
@@ -126,7 +126,7 @@ export async function planFilmCast(filmId: string, userId: string): Promise<Film
   }
 
   const characters: FilmCharacter[] = planned.map((p, i) =>
-    normalizeCharacter({ id: rid("ch"), name: p.name, role: p.role, description: p.description, previewStatus: "idle", approved: false }, i),
+    normalizeCharacter({ id: rid("ch"), name: p.name, role: p.role, description: p.description, renderStyle: film.style === "3d" ? "3d" : "cinematic", previewStatus: "idle", approved: false }, i),
   );
   film.characters = characters;
   await saveFilm(filmId, userId, film);
@@ -191,7 +191,7 @@ export async function generateFilmCharacterPreview(
       // Fast + cheap path (Nano Banana / Grok) — the strong photoreal prompt keeps
       // cinematic characters realistic without the slow, pricey gpt-image route.
       const t0 = Date.now();
-      const res = await generateImageXaiFirst(portraitPrompt(c, film.style), 1024, 1280, {
+      const res = await generateImageXaiFirst(portraitPrompt(c, c.renderStyle), 1024, 1280, {
         quality: "high",
         transparent: false,
       });
@@ -205,7 +205,7 @@ export async function generateFilmCharacterPreview(
     let sheetUrl: string | null = null;
     try {
       const t1 = Date.now();
-      const sheet = await editImagesXaiFirst(sheetPrompt(c, film.style), [portraitBuffer], 1536, 1024, {
+      const sheet = await editImagesXaiFirst(sheetPrompt(c, c.renderStyle), [portraitBuffer], 1536, 1024, {
         intent: "identity",
         quality: "high",
       });
@@ -234,9 +234,59 @@ export async function patchFilmCharacter(
   if (!film) return null;
   const i = (film.characters || []).findIndex((c) => c.id === characterId);
   if (i < 0) return film;
+  const styleChanged = !!patch.renderStyle && patch.renderStyle !== film.characters![i].renderStyle;
+  const effectivePatch: Partial<FilmCharacter> = styleChanged
+    ? { ...patch, referenceImageUrl: null, characterSheetUrl: null, previewStatus: "idle", previewError: null }
+    : patch;
   // Any content edit revokes approval — the user must re-approve what they see.
-  const revokes = ("name" in patch || "role" in patch || "description" in patch || "wardrobe" in patch || "referenceImageUrl" in patch || "characterSheetUrl" in patch) && !("approved" in patch);
-  film.characters![i] = normalizeCharacter({ ...film.characters![i], ...patch, ...(revokes ? { approved: false } : {}) }, i);
+  const revokes = ("name" in effectivePatch || "role" in effectivePatch || "description" in effectivePatch || "renderStyle" in effectivePatch || "wardrobe" in effectivePatch || "referenceImageUrl" in effectivePatch || "characterSheetUrl" in effectivePatch) && !("approved" in effectivePatch);
+  film.characters![i] = normalizeCharacter({ ...film.characters![i], ...effectivePatch, ...(revokes ? { approved: false } : {}) }, i);
+  await saveFilm(filmId, userId, film);
+  return film;
+}
+
+/** Add a persistent cast slot after the original film draft. */
+export async function addFilmCharacter(
+  filmId: string,
+  userId: string,
+  input: { name: string; role?: string; description: string; renderStyle?: CharacterRenderStyle },
+): Promise<{ film: FilmProject; character: FilmCharacter } | null> {
+  const film = await getFilm(filmId, userId);
+  if (!film) return null;
+  if ((film.characters || []).length >= 12) throw new Error("A film can have up to 12 cast members.");
+  if ((film.characters || []).some((candidate) => candidate.name.trim().toLowerCase() === input.name.trim().toLowerCase())) {
+    throw new Error("Use a unique name so scene dialogue can identify this character.");
+  }
+  const character = normalizeCharacter({
+    id: rid("ch"),
+    name: input.name,
+    role: input.role || "Supporting character",
+    description: input.description,
+    renderStyle: input.renderStyle,
+    previewStatus: "idle",
+    approved: false,
+  }, film.characters?.length || 0);
+  film.characters = [...(film.characters || []), character];
+  await saveFilm(filmId, userId, film);
+  return { film, character };
+}
+
+/** Remove a cast member and any dangling scene/continuity references to them. */
+export async function removeFilmCharacter(filmId: string, userId: string, characterId: string): Promise<FilmProject | null> {
+  const film = await getFilm(filmId, userId);
+  if (!film) return null;
+  const character = (film.characters || []).find((candidate) => candidate.id === characterId);
+  if (!character) return film;
+  film.characters = (film.characters || []).filter((candidate) => candidate.id !== characterId);
+  film.scenes = film.scenes.map((scene) => ({
+    ...scene,
+    cast: scene.cast?.filter((line) => line.characterId !== characterId && line.name.toLowerCase() !== character.name.toLowerCase()),
+  }));
+  if (film.continuity?.wardrobe) {
+    film.continuity.wardrobe = film.continuity.wardrobe.filter(
+      (entry) => entry.characterId !== characterId && entry.name.toLowerCase() !== character.name.toLowerCase(),
+    );
+  }
   await saveFilm(filmId, userId, film);
   return film;
 }

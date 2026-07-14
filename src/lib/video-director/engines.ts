@@ -50,11 +50,16 @@ const VIDEO_ANTI_LEAK =
 /** Append the anti-leak guard to a shot prompt (once), plus a leading style
  *  directive so an AI shot honours the film's chosen look (live-action vs 3D)
  *  instead of drifting to the model's default CGI. */
-function withVideoGuard(prompt: string, style?: string): string {
+type CastVisualMode = "cinematic" | "3d" | "mixed";
+
+function withVideoGuard(prompt: string, style?: string, castVisualMode?: CastVisualMode): string {
   const base = (prompt || "").trim();
-  const lead = style === "3d"
-    ? "3D-ANIMATED shot — premium Pixar/Disney-grade CGI, stylized characters. "
-    : "PHOTOREAL LIVE-ACTION cinematic shot — real people and real footage shot on a cinema camera; NOT 3D, NOT CGI, NOT animation, NOT a cartoon. ";
+  const mode = castVisualMode || (style === "3d" ? "3d" : "cinematic");
+  const lead = mode === "mixed"
+    ? "MIXED-MEDIA cinematic shot: preserve the real environment and cinematic live-action cast as photoreal, while characters explicitly identified as 3D remain polished stylized 3D figures composited naturally into the same frame. Do not turn the whole scene into animation and do not turn the 3D character into a human. "
+    : mode === "3d"
+      ? "3D-ANIMATED shot — premium Pixar/Disney-grade CGI, stylized characters. "
+      : "PHOTOREAL LIVE-ACTION cinematic shot — real people and real footage shot on a cinema camera; NOT 3D, NOT CGI, NOT animation, NOT a cartoon. ";
   if (!base) return `${lead}\n\n${VIDEO_ANTI_LEAK}`;
   return `${lead}${base}\n\n${VIDEO_ANTI_LEAK}`;
 }
@@ -74,7 +79,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
 /** For a movie scene: the identity references for EVERY cast member present
  *  (speakers first, so the primary anchor is who the shot is on) + the spoken
  *  dialogue block, so the AI shot shows the same people saying their lines. */
-function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; dialogue?: string; present: string[]; speakerCount: number } {
+function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; dialogue?: string; present: string[]; speakerCount: number; visualMode: CastVisualMode } {
   const chars = film.characters || [];
   const lines = scene.cast || [];
   const charFor = (l: { characterId?: string; name?: string }): FilmCharacter | undefined =>
@@ -101,6 +106,7 @@ function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; d
   // silent cast — DE-DUPED PER PERSON so the same person can never be listed (or
   // referenced) twice. A shot with no cast lines (an establishing beat) forces no one in.
   const seen = new Set<string>();
+  const styles = new Set<"cinematic" | "3d">();
   const present: string[] = [];
   const refs: string[] = [];
   const addPerson = (l: { characterId?: string; name?: string }) => {
@@ -110,7 +116,10 @@ function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; d
     seen.add(key);
     const nm = c?.name || l.name || "";
     const dsc = shortDesc(c);
-    present.push(dsc ? `${nm} (${dsc})` : nm);
+    const renderStyle = c?.renderStyle === "3d" ? "3d" : "cinematic";
+    styles.add(renderStyle);
+    const styleTag = renderStyle === "3d" ? "3D animated identity" : "cinematic live-action identity";
+    present.push(dsc ? `${nm} [${styleTag}] (${dsc})` : `${nm} [${styleTag}]`);
     const u = imgFor(l);
     if (u) refs.push(u);
   };
@@ -124,7 +133,10 @@ function sceneCastData(film: FilmProject, scene: FilmScene): { refs: string[]; d
   const dialogue = spoken.length
     ? spoken.map((l) => `${l.name}${tag(charFor(l))} says: "${(l.dialogue || "").trim()}"`).join("\n")
     : undefined;
-  return { refs: refs.slice(0, 6), dialogue, present, speakerCount: spoken.length };
+  const visualMode: CastVisualMode = styles.size > 1
+    ? "mixed"
+    : styles.has("3d") || (styles.size === 0 && scene.style === "3d") ? "3d" : "cinematic";
+  return { refs: refs.slice(0, 6), dialogue, present, speakerCount: spoken.length, visualMode };
 }
 
 /** The continuity bible scoped to the cast actually in THIS scene (so the shot's
@@ -143,11 +155,13 @@ function continuityForScene(film: FilmProject, scene: FilmScene): string {
  *  studio portrait / turnaround sheet), identity-locked from the cast sheets and
  *  bound to the film's continuity, so the animated clip starts IN the scene and
  *  inherits the shared location + wardrobe. */
-function keyframePrompt(scene: FilmScene, continuity: string, hasCast: boolean): string {
-  const is3d = scene.style === "3d";
-  const look = is3d
-    ? "Premium Pixar/Disney-grade 3D-ANIMATED film still — stylized characters, cinematic 3D lighting."
-    : "PHOTOREAL LIVE-ACTION cinematic film still, shot on a professional cinema camera (shallow depth of field, natural film lighting) — a real photograph of a real scene; NOT 3D, NOT CGI, NOT a cartoon.";
+function keyframePrompt(scene: FilmScene, continuity: string, hasCast: boolean, castVisualMode?: CastVisualMode): string {
+  const mode = castVisualMode || (scene.style === "3d" ? "3d" : "cinematic");
+  const look = mode === "mixed"
+    ? "MIXED-MEDIA cinematic film still: a photoreal live-action environment and real human cast, with only the explicitly 3D cast identities rendered as premium stylized 3D figures naturally composited into the scene."
+    : mode === "3d"
+      ? "Premium Pixar/Disney-grade 3D-ANIMATED film still — stylized characters, cinematic 3D lighting."
+      : "PHOTOREAL LIVE-ACTION cinematic film still, shot on a professional cinema camera (shallow depth of field, natural film lighting) — a real photograph of a real scene; NOT 3D, NOT CGI, NOT a cartoon.";
   const shot = (scene.script || scene.title || "").trim();
   const castLine = hasCast
     ? "PEOPLE IN FRAME — recreate the EXACT people from the reference image(s): identical faces, hair, skin tone and build, wearing their established wardrobe. Do NOT invent new faces and do NOT change their clothes.\n"
@@ -175,9 +189,10 @@ async function buildSceneKeyframe(
   aspect: FilmAspect,
   castRefs: string[],
   continuity: string,
+  castVisualMode?: CastVisualMode,
 ): Promise<string | null> {
   const [w, h] = aspect === "9:16" ? [768, 1344] : aspect === "16:9" ? [1344, 768] : [1024, 1024];
-  const prompt = keyframePrompt(scene, continuity, castRefs.length > 0);
+  const prompt = keyframePrompt(scene, continuity, castRefs.length > 0, castVisualMode);
   try {
     let res;
     // Pull up to 2 cast sheets to anchor identity in the still.
@@ -424,7 +439,7 @@ export async function generateSceneRender(filmId: string, userId: string, sceneI
         if (!charge.success) return { ok: false, message: charge.error || "Could not charge credits." };
       }
       await patchScene(filmId, userId, sceneId, { status: "rendering", progress: 6, error: null });
-      const { refs: castRefs, dialogue, present } = sceneCastData(film, scene);
+      const { refs: castRefs, dialogue, present, visualMode } = sceneCastData(film, scene);
       const continuity = continuityForScene(film, scene);
       if (continuationSource && continuationSourceUrl) {
         void renderAiContinuation(
@@ -432,7 +447,7 @@ export async function generateSceneRender(filmId: string, userId: string, sceneI
           film.aspect, cost, dialogue, continuity,
         );
       } else {
-        void renderAiScene(filmId, userId, sceneId, scene, film.aspect, cost, castRefs, dialogue, continuity, present); // fire-and-forget (VPS is long-lived)
+        void renderAiScene(filmId, userId, sceneId, scene, film.aspect, cost, castRefs, dialogue, continuity, present, visualMode); // fire-and-forget (VPS is long-lived)
       }
       const f = await getFilm(filmId, userId);
       return { ok: true, film: f ?? undefined };
@@ -523,7 +538,7 @@ async function renderAiOverlay(filmId: string, userId: string, sceneId: string, 
 }
 
 /** Fire-and-forget AI shot render → upload → mark ready. Refunds on failure. Never throws. */
-async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number, castRefs: string[] = [], dialogue?: string, continuity = "", present: string[] = []): Promise<void> {
+async function renderAiScene(filmId: string, userId: string, sceneId: string, scene: FilmScene, aspect: FilmAspect, cost: number, castRefs: string[] = [], dialogue?: string, continuity = "", present: string[] = [], castVisualMode?: CastVisualMode): Promise<void> {
   try {
     let p = 8;
     // Stamp the render start so the watchdog can fail this scene if the worker
@@ -597,7 +612,7 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
         // carries cast identity, and use it as the first frame so the clip can run 15s.
         // AWAITED (unlike the poster path) because it IS the first frame; if it fails we
         // fall back to the natural 10s reference path rather than block the render.
-        const key = await buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity);
+        const key = await buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity, castVisualMode);
         if (key) {
           firstFrameUrl = key;
           await patchScene(filmId, userId, sceneId, { thumbnailUrl: key }).catch(() => {});
@@ -610,7 +625,7 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
         // (the video starts immediately from the reference images) and is NOT the first
         // frame. Starting the xAI job right away also means a restart during setup can
         // resume it (no keyframe-stage gap).
-        void buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity)
+        void buildSceneKeyframe(filmId, userId, sceneId, scene, aspect, castRefs, continuity, castVisualMode)
           .then((key) => { if (key) void patchScene(filmId, userId, sceneId, { thumbnailUrl: key }).catch(() => {}); })
           .catch(() => {});
       }
@@ -630,7 +645,7 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     const videoStart = Date.now();
     const result = await withTimeout(
       generateVideoForRole("video_standard", {
-        prompt: withVideoGuard(shotWithDialogue, scene.style),
+        prompt: withVideoGuard(shotWithDialogue, scene.style, castVisualMode),
         // Reference-to-video renders one ≤10s clip; text-to-video one ≤15s clip (the
         // router caps per mode). durationSeconds is grown to fit the spoken dialogue so
         // the line isn't rushed, then capped by the router.

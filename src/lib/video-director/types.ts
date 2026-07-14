@@ -151,6 +151,7 @@ export interface FilmContinuity {
 }
 
 export type CharacterPreviewStatus = "idle" | "generating" | "ready" | "failed";
+export type CharacterRenderStyle = "cinematic" | "3d";
 
 /**
  * A cast member the film is built around. Generated (or uploaded) as a clean
@@ -163,6 +164,7 @@ export interface FilmCharacter {
   name: string;
   role: string;
   description: string;                 // visual description used for identity lock
+  renderStyle?: CharacterRenderStyle;  // per-character look; allows mixed live-action + 3D cast
   wardrobe?: string | null;            // LOCKED outfit (user-chosen/preset) — overrides the wardrobe in `description` for the portrait/sheet + every shot
   referenceImageUrl?: string | null;   // clean portrait (anchor)
   characterSheetUrl?: string | null;   // multi-angle turnaround (cross-shot reference)
@@ -267,6 +269,7 @@ export function normalizeCharacter(raw: Partial<FilmCharacter>, idx: number): Fi
     name: String(raw.name || `Character ${idx + 1}`).slice(0, 80),
     role: String(raw.role || "").slice(0, 120),
     description: String(raw.description || "").slice(0, 2000),
+    renderStyle: raw.renderStyle === "3d" ? "3d" : "cinematic",
     wardrobe: typeof raw.wardrobe === "string" ? raw.wardrobe.slice(0, 600) : null,
     referenceImageUrl: raw.referenceImageUrl ?? null,
     characterSheetUrl: raw.characterSheetUrl ?? null,
@@ -416,7 +419,7 @@ export function normalizeFilm(raw: Partial<FilmProject> & { id: string }): FilmP
     scenes,
     edges,
     assets: Array.isArray(raw.assets) ? raw.assets.slice(0, 40) : [],
-    characters: Array.isArray(raw.characters) ? raw.characters.filter(Boolean).slice(0, 8).map((c, i) => normalizeCharacter(c, i)) : [],
+    characters: Array.isArray(raw.characters) ? raw.characters.filter(Boolean).slice(0, 12).map((c, i) => normalizeCharacter(c, i)) : [],
     continuity: normalizeContinuity(raw.continuity),
     draftStatus: raw.draftStatus === "drafting" || raw.draftStatus === "ready" || raw.draftStatus === "failed" ? raw.draftStatus : null,
   };

@@ -35,6 +35,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     name: src.name,
     role: src.role,
     description: src.description,
+    renderStyle: src.renderStyle,
     wardrobe: src.wardrobe,
     referenceImageUrl: src.referenceImageUrl,
     characterSheetUrl: src.characterSheetUrl ?? null,
