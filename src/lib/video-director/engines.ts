@@ -5,9 +5,9 @@
  * stitches the ready clips into one film with the shared concat primitive.
  */
 
-import { getFilm, saveFilm, patchScene, patchOverlay } from "./store";
+import { getFilm, saveFilm, patchScene, patchOverlay, patchVideoEdit } from "./store";
 import { continuityText } from "./types";
-import type { FilmProject, FilmScene, FilmOverlay, FilmAspect, FilmCharacter } from "./types";
+import type { FilmProject, FilmScene, FilmOverlay, FilmAspect, FilmCharacter, FilmVideoEdit } from "./types";
 import { startAvatarVideo, getAvatarVideo } from "@/lib/avatar-studio";
 import { emptyAvatarState } from "@/lib/avatar-studio/types";
 import { generateVideoForRole } from "@/lib/ai/video-router";
@@ -22,11 +22,12 @@ import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { buildBrandOutroClip } from "@/lib/video/brand-outro";
 import { generateImageXaiFirst, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { sanitizeUserError } from "@/lib/ai/user-error";
-import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName, compositeOverlay } from "./clip-helpers";
+import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName, compositeOverlay, preserveSourceAudio } from "./clip-helpers";
 
 const isVideoUrl = (u?: string | null): u is string => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
 const isImageUrl = (u?: string | null): u is string => !!u && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(u);
 const AI_SCENE_COST_KEY = "AI_VIDEO_LITE";
+const MAX_VIDEO_EDIT_SECONDS = 8.7;
 
 /** A short unique token so every (re)render writes a NEW S3 object + URL. A fixed
  *  key gets OVERWRITTEN but keeps the same URL, so the browser/CDN keeps serving
@@ -208,7 +209,101 @@ const XFADE_DUR = 0.7; // seconds of overlap for a scene transition — a touch 
 const playedLenOf = (s: FilmScene) =>
   typeof s.clipStart === "number" && typeof s.clipEnd === "number" && s.clipEnd > s.clipStart ? s.clipEnd - s.clipStart : s.durationSec || 4;
 
+async function restoreEditedClipAudio(editedVideo: Buffer, sourceVideoUrl: string): Promise<Buffer> {
+  try {
+    const response = await fetch(sourceVideoUrl);
+    if (!response.ok) return editedVideo;
+    return await preserveSourceAudio(editedVideo, Buffer.from(await response.arrayBuffer()));
+  } catch (e) {
+    console.warn("[video-director] could not restore source audio after edit:", e instanceof Error ? e.message : e);
+    return editedVideo;
+  }
+}
+
 export interface GenerateResult { ok: boolean; film?: FilmProject; message?: string }
+
+/** Start an xAI edit of a ready AI clip. The current clip remains ready and
+ * playable until the edited MP4 has finished and been saved. */
+export async function startSceneVideoEdit(
+  filmId: string,
+  userId: string,
+  sceneId: string,
+  prompt: string,
+): Promise<GenerateResult> {
+  const film = await getFilm(filmId, userId);
+  if (!film) return { ok: false, message: "Film not found." };
+  const scene = film.scenes.find((s) => s.id === sceneId);
+  if (!scene) return { ok: false, message: "Scene not found." };
+  if (scene.engine !== "ai" || scene.status !== "ready" || !isVideoUrl(scene.videoUrl)) {
+    return { ok: false, message: "Generate this AI scene before editing its video." };
+  }
+  if (scene.videoEdit?.status === "queued" || scene.videoEdit?.status === "rendering") {
+    return { ok: false, message: "This video already has an edit in progress." };
+  }
+  const cleanPrompt = prompt.trim().slice(0, 3900);
+  if (cleanPrompt.length < 3) return { ok: false, message: "Describe the glitch or change to fix." };
+
+  const editDuration = playedLenOf(scene);
+  if (editDuration > MAX_VIDEO_EDIT_SECONDS + 0.01) {
+    return { ok: false, message: `xAI can edit up to ${MAX_VIDEO_EDIT_SECONDS}s at once. Split this scene into shorter clips on the timeline first.` };
+  }
+
+  let sourceVideoUrl = scene.videoUrl;
+  const hasTrim = typeof scene.clipStart === "number" && typeof scene.clipEnd === "number" && scene.clipEnd > scene.clipStart;
+  if (hasTrim) {
+    try {
+      const source = await fetch(scene.videoUrl);
+      if (!source.ok) return { ok: false, message: "The source video could not be opened for editing." };
+      const { w, h } = filmDims(film.aspect);
+      const trimmed = await normalizeClip(Buffer.from(await source.arrayBuffer()), w, h, {
+        preferSourceAudio: true,
+        trim: { start: scene.clipStart as number, end: scene.clipEnd as number },
+      });
+      sourceVideoUrl = await uploadToS3(`director/${film.id}/${scene.id}-edit-source-${uid()}.mp4`, trimmed, "video/mp4");
+    } catch (e) {
+      console.error(`[video-director] edit source prep failed for ${sceneId}:`, e instanceof Error ? e.message : e);
+      return { ok: false, message: "The selected clip could not be prepared for editing." };
+    }
+  }
+  if (!/^https:\/\//i.test(sourceVideoUrl) || !/\.mp4(?:\?|$)/i.test(sourceVideoUrl)) {
+    return { ok: false, message: "xAI editing requires a public MP4 source video." };
+  }
+
+  const cost = await getDynamicCreditCost(AI_SCENE_COST_KEY).catch(() => 0);
+  const block = await checkCreditsAvailable(userId, cost, false, false);
+  if (block) return { ok: false, message: block.message };
+  const editId = uid();
+  if (cost > 0) {
+    const charge = await creditService.deductCredits({
+      userId, type: TRANSACTION_TYPES.USAGE, amount: cost,
+      referenceType: "director_scene", referenceId: `${sceneId}:edit:${editId}`,
+      description: "Video Director — xAI video edit",
+      metadata: { feature: AI_SCENE_COST_KEY, filmId, operation: "video_edit" },
+    });
+    if (!charge.success) return { ok: false, message: charge.error || "Could not charge credits." };
+  }
+
+  const startedAt = Date.now();
+  const videoEdit: FilmVideoEdit = {
+    id: editId,
+    prompt: cleanPrompt,
+    sourceVideoUrl,
+    durationSec: editDuration,
+    cost,
+    status: "queued",
+    progress: 5,
+    startedAt,
+    heartbeatAt: startedAt,
+    error: null,
+  };
+  const queued = await patchScene(filmId, userId, sceneId, { videoEdit });
+  if (!queued) {
+    await refundVideoEdit(userId, sceneId, videoEdit);
+    return { ok: false, message: "The scene changed before the video edit could start." };
+  }
+  void renderSceneVideoEdit(filmId, userId, sceneId, editId);
+  return { ok: true, film: queued };
+}
 
 /**
  * Kick a scene's render on its engine. Avatar → the HeyGen pipeline (charged +
@@ -516,6 +611,57 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
   }
 }
 
+/** Fire-and-forget xAI edit. The scene's current videoUrl is not touched until
+ * the edited result has been downloaded and durably uploaded to our storage. */
+async function renderSceneVideoEdit(filmId: string, userId: string, sceneId: string, editId: string): Promise<void> {
+  const initial = await getFilm(filmId, userId);
+  const scene = initial?.scenes.find((s) => s.id === sceneId);
+  const edit = scene?.videoEdit;
+  if (!scene || !edit || edit.id !== editId) return;
+
+  try {
+    await patchVideoEdit(filmId, userId, sceneId, { status: "rendering", progress: 8, heartbeatAt: Date.now(), error: null });
+    const started = Date.now();
+    const providerPrompt =
+      `Make only this targeted correction to the existing video: ${edit.prompt}\n\n` +
+      "Preserve everything else exactly: the same people and identity, wardrobe, dialogue and audio, timing, camera movement, framing, lighting, background, and duration. Do not add text, captions, logos, new people, new dialogue, or a new shot.";
+    const result = await grokVideoClient.editVideo(edit.sourceVideoUrl, providerPrompt, {
+      timeoutMs: AI_SCENE_TIMEOUT_MS,
+      onJobId: async (requestId) => {
+        await patchVideoEdit(filmId, userId, sceneId, { refId: requestId, status: "rendering", heartbeatAt: Date.now() }).catch(() => {});
+      },
+      onStatus: () => {
+        const elapsed = Date.now() - started;
+        const progress = 18 + Math.round((1 - Math.exp(-elapsed / (3 * 60 * 1000))) * 78);
+        void patchVideoEdit(filmId, userId, sceneId, {
+          status: "rendering",
+          progress: Math.min(96, progress),
+          heartbeatAt: Date.now(),
+        }).catch(() => {});
+      },
+    });
+    const finalBuffer = await restoreEditedClipAudio(result.videoBuffer, edit.sourceVideoUrl);
+    const editedUrl = await uploadToS3(`director/${filmId}/${sceneId}-edit-${uid()}.mp4`, finalBuffer, "video/mp4");
+    const fresh = await getFilm(filmId, userId);
+    const current = fresh?.scenes.find((s) => s.id === sceneId);
+    if (!current?.videoEdit || current.videoEdit.id !== editId) return;
+    await patchScene(filmId, userId, sceneId, {
+      videoUrl: editedUrl,
+      durationSec: edit.durationSec || current.durationSec,
+      clipStart: undefined,
+      clipEnd: undefined,
+      videoEdit: { ...current.videoEdit, status: "ready", progress: 100, refId: undefined, error: null },
+    });
+  } catch (e) {
+    const fresh = await getFilm(filmId, userId).catch(() => null);
+    const current = fresh?.scenes.find((s) => s.id === sceneId)?.videoEdit;
+    if (!current || current.id !== editId) return;
+    await refundVideoEdit(userId, sceneId, current);
+    console.error(`[video-director] xAI edit failed for ${sceneId}:`, e instanceof Error ? e.message : e);
+    await patchVideoEdit(filmId, userId, sceneId, { status: "failed", error: sanitizeUserError(e, "video") }).catch(() => {});
+  }
+}
+
 /**
  * Reconcile scenes whose render lives in another table (avatar → CartoonVideo)
  * back onto the film. Called on each GET poll so the canvas reflects live status.
@@ -537,6 +683,17 @@ async function refundAiScene(userId: string, filmId: string, sceneId: string): P
     await creditService.addCredits({
       userId, type: TRANSACTION_TYPES.REFUND, amount: refund,
       referenceType: "director_scene", referenceId: sceneId, description: "Refund: Director AI scene interrupted",
+    }).catch(() => {});
+  }
+}
+
+async function refundVideoEdit(userId: string, sceneId: string, edit: FilmVideoEdit): Promise<void> {
+  const refund = typeof edit.cost === "number" ? edit.cost : await getDynamicCreditCost(AI_SCENE_COST_KEY).catch(() => 0);
+  if (refund > 0) {
+    await creditService.addCredits({
+      userId, type: TRANSACTION_TYPES.REFUND, amount: refund,
+      referenceType: "director_scene", referenceId: `${sceneId}:edit:${edit.id}`,
+      description: "Refund: Director xAI video edit failed",
     }).catch(() => {});
   }
 }
@@ -607,6 +764,75 @@ async function resumeOrphanedAiScene(
   }
 }
 
+/** Resume a saved xAI edit job independently from the base scene render. */
+async function resumeOrphanedVideoEdit(
+  film: FilmProject,
+  scene: FilmScene,
+  userId: string,
+  now: number,
+): Promise<AiSceneRecoveryState> {
+  const edit = scene.videoEdit;
+  if (!edit || (edit.status !== "queued" && edit.status !== "rendering" && !(edit.status === "failed" && edit.refId))) {
+    return "unchanged";
+  }
+  const lastBeat = edit.heartbeatAt || edit.startedAt || 0;
+  if (now - lastBeat < AI_SCENE_STALE_MS) return "unchanged";
+  const startedAgo = edit.startedAt ? now - edit.startedAt : Infinity;
+  const wasAlreadyFailed = edit.status === "failed";
+  const failRefund = async (message: string, terminalProviderJob = false) => {
+    edit.status = "failed";
+    edit.error = message;
+    if (terminalProviderJob) edit.refId = undefined;
+    if (!wasAlreadyFailed) await refundVideoEdit(userId, scene.id, edit);
+  };
+
+  if (!edit.refId) {
+    if (startedAgo > AI_SCENE_NO_HANDLE_MS) {
+      await failRefund("This video edit was interrupted before xAI returned a job ID.");
+      return "failed";
+    }
+    return "unavailable";
+  }
+
+  try {
+    const status = await grokVideoClient.pollOnce(edit.refId);
+    if (status.state === "failed") {
+      if (/^status (429|5\d\d)$/i.test(status.error || "")) throw new Error(status.error);
+      await failRefund(`xAI could not finish this video edit${status.error ? ` (${status.error})` : ""}.`, true);
+      return "failed";
+    }
+    if (status.state === "done" && status.url) {
+      const buffer = await grokVideoClient.fetchVideoBuffer(status.url);
+      const finalBuffer = await restoreEditedClipAudio(buffer, edit.sourceVideoUrl);
+      const editedUrl = await uploadToS3(`director/${film.id}/${scene.id}-edit-${uid()}.mp4`, finalBuffer, "video/mp4");
+      scene.videoUrl = editedUrl;
+      scene.durationSec = edit.durationSec || scene.durationSec;
+      scene.clipStart = undefined;
+      scene.clipEnd = undefined;
+      edit.status = "ready";
+      edit.progress = 100;
+      edit.refId = undefined;
+      edit.error = null;
+      return "ready";
+    }
+    if (startedAgo > AI_SCENE_RESUME_MAX_MS) {
+      await failRefund("This video edit took too long to finish.", true);
+      return "failed";
+    }
+    edit.status = "rendering";
+    edit.progress = Math.max(12, edit.progress || 0);
+    edit.heartbeatAt = now - (AI_SCENE_STALE_MS - AI_SCENE_REPOLL_MS);
+    return "processing";
+  } catch (e) {
+    console.error(`[video-director] edit resume failed for ${scene.id}:`, e instanceof Error ? e.message : e);
+    if (startedAgo > AI_SCENE_RESUME_MAX_MS) {
+      await failRefund("This video edit could not be recovered.", true);
+      return "failed";
+    }
+    return "unavailable";
+  }
+}
+
 export interface RecoverSceneResult extends GenerateResult {
   state?: Exclude<AiSceneRecoveryState, "unchanged">;
 }
@@ -653,6 +879,10 @@ export async function syncFilmScenes(film: FilmProject, userId: string): Promise
       const state = await resumeOrphanedAiScene(film, s, userId, now);
       if (state !== "unchanged" && state !== "unavailable") changed = true;
     }
+  }
+  for (const s of film.scenes) {
+    const state = await resumeOrphanedVideoEdit(film, s, userId, now);
+    if (state !== "unchanged" && state !== "unavailable") changed = true;
   }
 
   const syncAvatarRef = async (t: { refKind?: string; refId?: string; status: string; progress?: number; videoUrl?: string | null; thumbnailUrl?: string | null; error?: string | null }, failMsg: string): Promise<boolean> => {
@@ -705,6 +935,8 @@ export async function resumeStuckDirectorScenes(): Promise<{ scanned: number; ch
         const state = await resumeOrphanedAiScene(film, s, row.userId, now);
         if (state !== "unchanged" && state !== "unavailable") touched = true;
       }
+      const editState = await resumeOrphanedVideoEdit(film, s, row.userId, now);
+      if (editState !== "unchanged" && editState !== "unavailable") touched = true;
     }
     if (touched) { await saveFilm(row.id, row.userId, film).catch(() => {}); changed++; }
   }
