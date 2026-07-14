@@ -220,6 +220,45 @@ async function restoreEditedClipAudio(editedVideo: Buffer, sourceVideoUrl: strin
   }
 }
 
+async function prepareContinuationSource(film: FilmProject, source: FilmScene): Promise<string> {
+  const sourceDuration = playedLenOf(source);
+  if (sourceDuration < 2 || sourceDuration > 15) {
+    throw new Error("Exact continuation requires a source clip between 2 and 15 seconds.");
+  }
+  if (!isVideoUrl(source.videoUrl) || !/^https:\/\//i.test(source.videoUrl)) {
+    throw new Error("Generate the preceding scene as a public MP4 before extending it.");
+  }
+  const hasTrim = typeof source.clipStart === "number" && typeof source.clipEnd === "number" && source.clipEnd > source.clipStart;
+  if (!hasTrim) return source.videoUrl;
+
+  const response = await fetch(source.videoUrl);
+  if (!response.ok) throw new Error("The preceding scene could not be opened for continuation.");
+  const { w, h } = filmDims(film.aspect);
+  const trimmed = await normalizeClip(Buffer.from(await response.arrayBuffer()), w, h, {
+    preferSourceAudio: true,
+    trim: { start: source.clipStart as number, end: source.clipEnd as number },
+  });
+  return uploadToS3(`director/${film.id}/${source.id}-continuation-source-${uid()}.mp4`, trimmed, "video/mp4");
+}
+
+async function extractContinuationSegment(
+  combined: Buffer,
+  aspect: FilmAspect,
+  extensionSeconds: number,
+  sourceSeconds: number,
+  providerDuration?: number,
+): Promise<Buffer> {
+  const extension = Math.min(10, Math.max(2, Math.round(extensionSeconds)));
+  const total = providerDuration && providerDuration > extension
+    ? providerDuration
+    : sourceSeconds + extension;
+  const { w, h } = filmDims(aspect);
+  return normalizeClip(combined, w, h, {
+    preferSourceAudio: true,
+    trim: { start: Math.max(0, total - extension), end: total },
+  });
+}
+
 export interface GenerateResult { ok: boolean; film?: FilmProject; message?: string }
 
 /** Start an xAI edit of a ready AI clip. The current clip remains ready and
@@ -359,6 +398,19 @@ export async function generateSceneRender(filmId: string, userId: string, sceneI
     }
     case "ai": {
       if (!scene.script?.trim()) return { ok: false, message: "Write the shot prompt first." };
+      let continuationSource: FilmScene | undefined;
+      let continuationSourceUrl: string | undefined;
+      if (scene.continuationMode === "exact") {
+        continuationSource = film.scenes.find((s) => s.id === scene.continuationOf);
+        if (!continuationSource || continuationSource.status !== "ready") {
+          return { ok: false, message: "Generate the preceding scene before creating its exact continuation." };
+        }
+        try {
+          continuationSourceUrl = await prepareContinuationSource(film, continuationSource);
+        } catch (e) {
+          return { ok: false, message: e instanceof Error ? e.message : "The preceding scene could not be prepared." };
+        }
+      }
       // Charge up-front (refunded in renderAiScene on failure), like the avatar path.
       const cost = await getDynamicCreditCost(AI_SCENE_COST_KEY).catch(() => 0);
       const block = await checkCreditsAvailable(userId, cost, false, false);
@@ -374,7 +426,14 @@ export async function generateSceneRender(filmId: string, userId: string, sceneI
       await patchScene(filmId, userId, sceneId, { status: "rendering", progress: 6, error: null });
       const { refs: castRefs, dialogue, present } = sceneCastData(film, scene);
       const continuity = continuityForScene(film, scene);
-      void renderAiScene(filmId, userId, sceneId, scene, film.aspect, cost, castRefs, dialogue, continuity, present); // fire-and-forget (VPS is long-lived)
+      if (continuationSource && continuationSourceUrl) {
+        void renderAiContinuation(
+          filmId, userId, sceneId, scene, continuationSource, continuationSourceUrl,
+          film.aspect, cost, dialogue, continuity,
+        );
+      } else {
+        void renderAiScene(filmId, userId, sceneId, scene, film.aspect, cost, castRefs, dialogue, continuity, present); // fire-and-forget (VPS is long-lived)
+      }
       const f = await getFilm(filmId, userId);
       return { ok: true, film: f ?? undefined };
     }
@@ -611,6 +670,79 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
   }
 }
 
+/** Extend a ready AI scene from its actual last frame, then keep only the new
+ * segment so the continuation remains an independent node on the timeline. */
+async function renderAiContinuation(
+  filmId: string,
+  userId: string,
+  sceneId: string,
+  scene: FilmScene,
+  source: FilmScene,
+  sourceVideoUrl: string,
+  aspect: FilmAspect,
+  cost: number,
+  dialogue?: string,
+  continuity = "",
+): Promise<void> {
+  try {
+    const started = Date.now();
+    await patchScene(filmId, userId, sceneId, {
+      status: "rendering", progress: 8, renderStartedAt: started, renderHeartbeatAt: started, error: null,
+    });
+    const extensionSeconds = Math.min(10, Math.max(2, Math.round(scene.durationSec || 6)));
+    const dialogueLine = dialogue
+      ? `\n\nSpoken dialogue in the continuation, exactly as written and lip-synced by the named speaker:\n${dialogue}`
+      : "";
+    const continuityLine = continuity
+      ? `\n\nKeep the established film continuity: ${continuity.slice(0, 700)}`
+      : "";
+    const prompt =
+      `Continue seamlessly from the source video's final frame. ${scene.script || scene.title}` +
+      dialogueLine + continuityLine +
+      "\n\nThis is the immediate next moment of the same shot. Preserve the exact people, faces, wardrobe, location, props, lighting, camera direction, visual style, and audio character already present. Do not repeat the previous action, restart the scene, cut to a new location, add captions, or introduce unrequested people.";
+
+    const result = await withTimeout(
+      grokVideoClient.extendVideo(sourceVideoUrl, prompt, {
+        duration: extensionSeconds,
+        timeoutMs: AI_SCENE_TIMEOUT_MS,
+        onJobId: async (requestId) => {
+          await patchScene(filmId, userId, sceneId, {
+            refKind: "grok", refId: requestId, status: "rendering", renderHeartbeatAt: Date.now(),
+          }).catch(() => {});
+        },
+        onStatus: () => {
+          const elapsed = Date.now() - started;
+          const progress = 18 + Math.round((1 - Math.exp(-elapsed / (3 * 60 * 1000))) * 78);
+          void patchScene(filmId, userId, sceneId, {
+            status: "rendering", progress: Math.min(96, progress), renderHeartbeatAt: Date.now(),
+          }).catch(() => {});
+        },
+      }),
+      AI_SCENE_TIMEOUT_MS,
+      "This continuation took too long and timed out.",
+    );
+    const segment = await extractContinuationSegment(
+      result.videoBuffer, aspect, extensionSeconds, playedLenOf(source), result.duration,
+    );
+    const url = await uploadToS3(`director/${filmId}/${sceneId}-continuation-${uid()}.mp4`, segment, "video/mp4");
+    await patchScene(filmId, userId, sceneId, {
+      status: "ready", progress: 100, durationSec: extensionSeconds, videoUrl: url, error: null,
+    });
+  } catch (e) {
+    if (cost > 0) {
+      await creditService.addCredits({
+        userId, type: TRANSACTION_TYPES.REFUND, amount: cost,
+        referenceType: "director_scene", referenceId: sceneId,
+        description: "Refund: Director exact continuation failed",
+      }).catch(() => {});
+    }
+    console.error(`[video-director] continuation failed for ${sceneId}:`, e);
+    await patchScene(filmId, userId, sceneId, {
+      status: "failed", error: sanitizeUserError(e, "video"),
+    }).catch(() => {});
+  }
+}
+
 /** Fire-and-forget xAI edit. The scene's current videoUrl is not touched until
  * the edited result has been downloaded and durably uploaded to our storage. */
 async function renderSceneVideoEdit(filmId: string, userId: string, sceneId: string, editId: string): Promise<void> {
@@ -734,8 +866,20 @@ async function resumeOrphanedAiScene(
   }
 
   try {
-    const done = async (buf: Buffer) => {
-      const url = await uploadToS3(`director/${film.id}/${s.id}-${uid()}.mp4`, buf, "video/mp4");
+    const done = async (buf: Buffer, providerDuration?: number) => {
+      let finalBuffer = buf;
+      let keySuffix = "";
+      if (s.continuationMode === "exact") {
+        const extensionSeconds = Math.min(10, Math.max(2, Math.round(s.durationSec || 6)));
+        const source = film.scenes.find((candidate) => candidate.id === s.continuationOf);
+        const sourceSeconds = source
+          ? playedLenOf(source)
+          : Math.max(2, (providerDuration || extensionSeconds + 2) - extensionSeconds);
+        finalBuffer = await extractContinuationSegment(buf, film.aspect, extensionSeconds, sourceSeconds, providerDuration);
+        s.durationSec = extensionSeconds;
+        keySuffix = "-continuation";
+      }
+      const url = await uploadToS3(`director/${film.id}/${s.id}${keySuffix}-${uid()}.mp4`, finalBuffer, "video/mp4");
       s.status = "ready"; s.progress = 100; s.videoUrl = url; s.error = null;
     };
     if (s.refKind === "grok") {
@@ -747,7 +891,7 @@ async function resumeOrphanedAiScene(
         await failRefund(`This shot couldn't finish${st.error ? ` (${st.error})` : ""} — please try again.`, true);
         return "failed";
       }
-      if (st.state === "done" && st.url) { await done(await grokVideoClient.fetchVideoBuffer(st.url)); return "ready"; }
+      if (st.state === "done" && st.url) { await done(await grokVideoClient.fetchVideoBuffer(st.url), st.duration); return "ready"; }
     } else {
       const st = await veoClient.pollOnceByName(s.refId);
       if (st.state === "failed") { await failRefund(`This shot couldn't finish${st.error ? ` (${st.error})` : ""} — please try again.`, true); return "failed"; }

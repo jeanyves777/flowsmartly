@@ -40,6 +40,10 @@ export interface FilmScene {
   style?: string;             // "cinematic" | "3d" | "narrated"
   aiProvider?: string;        // "veo" | "grok"
   cameraMotion?: string;
+  /** An exact continuation is rendered by extending continuationOf's final frame
+   * with xAI. A normal inserted scene leaves both fields unset. */
+  continuationMode?: "exact";
+  continuationOf?: string;
   // avatar clone (HeyGen)
   avatarId?: string; avatarName?: string;
   voiceId?: string; voiceName?: string;
@@ -361,6 +365,8 @@ export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene 
     transitionIn: raw.transitionIn,
     captionsOn: !!raw.captionsOn,
     style: raw.style, aiProvider: raw.aiProvider, cameraMotion: raw.cameraMotion,
+    continuationMode: raw.continuationMode === "exact" ? "exact" : undefined,
+    continuationOf: typeof raw.continuationOf === "string" ? raw.continuationOf.slice(0, 100) : undefined,
     avatarId: raw.avatarId, avatarName: raw.avatarName, voiceId: raw.voiceId, voiceName: raw.voiceName,
     voiceEmotion: raw.voiceEmotion ?? null, voiceSpeed: raw.voiceSpeed ?? null, motionPrompt: raw.motionPrompt ?? null,
     background: raw.background ?? null, quality: raw.quality,

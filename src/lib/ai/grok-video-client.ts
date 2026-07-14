@@ -7,6 +7,7 @@
  * API endpoints:
  *   POST https://api.x.ai/v1/videos/generations — create video
  *   POST https://api.x.ai/v1/videos/edits       — edit an existing video
+ *   POST https://api.x.ai/v1/videos/extensions  — continue an existing video
  *   GET  https://api.x.ai/v1/videos/{request_id} — poll status
  *
  * Model: grok-imagine-video
@@ -14,6 +15,7 @@
 
 const XAI_VIDEO_URL = "https://api.x.ai/v1/videos/generations";
 const XAI_VIDEO_EDITS_URL = "https://api.x.ai/v1/videos/edits";
+const XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions";
 const XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos";
 const XAI_VIDEO_PROMPT_LIMIT = 3900;
 
@@ -350,18 +352,18 @@ class GrokVideoClient {
     } = {},
   ): Promise<GrokVideoResult> {
     if (!this.apiKey) throw new Error("XAI_API_KEY is not configured");
+    if (!/^https:\/\//i.test(sourceVideoUrl)) throw new Error("xAI video extension requires a public HTTPS source video.");
 
     const { duration = 6, onStatus, onJobId, timeoutMs } = options;
     const extDur = Math.min(10, Math.max(2, Math.round(duration)));
     const safePrompt = clampVideoPrompt(prompt);
+    if (!safePrompt) throw new Error("Describe what should happen in the continuation.");
 
     console.log(`[GrokVideo] Extending video by ${extDur}s from: ${sourceVideoUrl.substring(0, 80)}...`);
 
-    // xAI REST: extension body uses a `video` object like image-to-video does for `image`.
-    // The Python SDK shim exposes a flat `video_url=` arg but the underlying REST wants:
-    //   { video: { type: "video_url", url: <URL> } }
+    // xAI's extension endpoint returns one combined clip: source + new segment.
     await grokRateLimit(); // ≤1 request/sec (create counts toward the same limit as polls)
-    const response = await fetch(XAI_VIDEO_EDITS_URL, {
+    const response = await fetch(XAI_VIDEO_EXTENSIONS_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -369,21 +371,20 @@ class GrokVideoClient {
       },
       body: JSON.stringify({
         model: "grok-imagine-video",
-        mode: "extend-video",
-        video: { type: "video_url", url: sourceVideoUrl },
         prompt: safePrompt,
+        video: { url: sourceVideoUrl },
         duration: extDur,
       }),
     });
 
     if (!response.ok) {
       const errBody = await response.text();
-      throw new Error(`xAI video edit API error (${response.status}): ${errBody}`);
+      throw new Error(`xAI video extension API error (${response.status}): ${errBody}`);
     }
 
     const data = await response.json();
     const requestId = data.request_id;
-    if (!requestId) throw new Error("xAI video edit API did not return a request_id");
+    if (!requestId) throw new Error("xAI video extension API did not return a request_id");
 
     console.log(`[GrokVideo] Extension job created: ${requestId}`);
     try { await onJobId?.(requestId); } catch { /* persistence best-effort */ }
