@@ -545,24 +545,35 @@ async function refundAiScene(userId: string, filmId: string, sceneId: string): P
  * RESUME (or fail) a Director AI scene whose in-process worker died on a restart.
  * Polls the persisted provider job: done → pull the finished clip + mark ready;
  * failed / genuinely-stuck / no-handle → fail + refund; still pending → leave it
- * rendering (re-checked on a later poll). Mutates the scene in place; returns true
- * if it changed. Never resumes a LIVE render (fresh heartbeat ⇒ left alone).
+ * rendering (re-checked on a later poll). Mutates the scene in place and returns
+ * the recovery outcome. Never resumes a LIVE render (fresh heartbeat ⇒ left alone).
  */
-async function resumeOrphanedAiScene(film: FilmProject, s: FilmScene, userId: string, now: number): Promise<boolean> {
+type AiSceneRecoveryState = "unchanged" | "processing" | "ready" | "failed" | "unavailable";
+
+async function resumeOrphanedAiScene(
+  film: FilmProject,
+  s: FilmScene,
+  userId: string,
+  now: number,
+  force = false,
+): Promise<AiSceneRecoveryState> {
   const lastBeat = s.renderHeartbeatAt || s.renderStartedAt || 0;
-  if (now - lastBeat < AI_SCENE_STALE_MS) return false; // a live worker is still on it
+  if (!force && now - lastBeat < AI_SCENE_STALE_MS) return "unchanged"; // a live worker is still on it
   const startedAgo = s.renderStartedAt ? now - s.renderStartedAt : Infinity;
   const wasAlreadyFailed = s.status === "failed";
-  const failRefund = async (msg: string) => {
+  const failRefund = async (msg: string, terminalProviderJob = false) => {
     s.status = "failed";
     s.error = msg;
+    // A terminal provider result cannot ever become downloadable. Dropping the
+    // handle stops the open-project poller from checking it forever.
+    if (terminalProviderJob) { s.refKind = undefined; s.refId = undefined; }
     if (!wasAlreadyFailed) await refundAiScene(userId, film.id, s.id);
   };
 
   // No resumable provider handle ⇒ died before/at submit (or the keyframe hung).
   if (!s.refId || (s.refKind !== "grok" && s.refKind !== "veo3")) {
-    if (startedAgo > AI_SCENE_NO_HANDLE_MS) { await failRefund("This shot was interrupted — please try again."); return true; }
-    return false; // give the submit a little more grace
+    if (startedAgo > AI_SCENE_NO_HANDLE_MS) { await failRefund("This shot was interrupted — please try again."); return "failed"; }
+    return "unavailable"; // give the submit a little more grace
   }
 
   try {
@@ -572,22 +583,60 @@ async function resumeOrphanedAiScene(film: FilmProject, s: FilmScene, userId: st
     };
     if (s.refKind === "grok") {
       const st = await grokVideoClient.pollOnce(s.refId);
-      if (st.state === "failed") { await failRefund(`This shot couldn't finish${st.error ? ` (${st.error})` : ""} — please try again.`); return true; }
-      if (st.state === "done" && st.url) { await done(await grokVideoClient.fetchVideoBuffer(st.url)); return true; }
+      if (st.state === "failed") {
+        // Rate limits and provider 5xx responses are temporary status-check
+        // failures, not proof that the saved video job itself failed.
+        if (/^status (429|5\d\d)$/i.test(st.error || "")) throw new Error(st.error);
+        await failRefund(`This shot couldn't finish${st.error ? ` (${st.error})` : ""} — please try again.`, true);
+        return "failed";
+      }
+      if (st.state === "done" && st.url) { await done(await grokVideoClient.fetchVideoBuffer(st.url)); return "ready"; }
     } else {
       const st = await veoClient.pollOnceByName(s.refId);
-      if (st.state === "failed") { await failRefund(`This shot couldn't finish${st.error ? ` (${st.error})` : ""} — please try again.`); return true; }
-      if (st.state === "done" && st.uri) { await done(await veoClient.fetchVideoByUri(st.uri)); return true; }
+      if (st.state === "failed") { await failRefund(`This shot couldn't finish${st.error ? ` (${st.error})` : ""} — please try again.`, true); return "failed"; }
+      if (st.state === "done" && st.uri) { await done(await veoClient.fetchVideoByUri(st.uri)); return "ready"; }
     }
     // Still pending (or an unknown Veo poll) — keep waiting, age-bounded.
-    if (startedAgo > AI_SCENE_RESUME_MAX_MS) { await failRefund("This shot took too long — please try again."); return true; }
+    if (startedAgo > AI_SCENE_RESUME_MAX_MS) { await failRefund("This shot took too long — please try again.", true); return "failed"; }
     s.renderHeartbeatAt = now - (AI_SCENE_STALE_MS - AI_SCENE_REPOLL_MS); // re-poll in ~20s, not every tick
-    return true;
+    return "processing";
   } catch (e) {
     console.error(`[video-director] scene resume failed for ${s.id}:`, e instanceof Error ? e.message : e);
-    if (startedAgo > AI_SCENE_RESUME_MAX_MS) { await failRefund("This shot couldn't be recovered — please try again."); return true; }
-    return false; // transient provider error — a later poll retries
+    if (startedAgo > AI_SCENE_RESUME_MAX_MS) { await failRefund("This shot couldn't be recovered — please try again.", true); return "failed"; }
+    return "unavailable"; // transient provider error — a later poll retries
   }
+}
+
+export interface RecoverSceneResult extends GenerateResult {
+  state?: Exclude<AiSceneRecoveryState, "unchanged">;
+}
+
+/** Force one status check against the scene's saved Grok/Veo job. This never
+ * creates or charges for a new render; it only pulls the existing provider job. */
+export async function recoverSceneRender(filmId: string, userId: string, sceneId: string): Promise<RecoverSceneResult> {
+  const film = await getFilm(filmId, userId);
+  if (!film) return { ok: false, message: "Film not found." };
+  const scene = film.scenes.find((s) => s.id === sceneId);
+  if (!scene) return { ok: false, message: "Scene not found." };
+  if (scene.engine !== "ai") return { ok: false, message: "Only AI scenes have a provider render to pull." };
+  if (!scene.refId || (scene.refKind !== "grok" && scene.refKind !== "veo3")) {
+    return { ok: false, message: "No saved provider request is attached to this render. Generate starts a new render." };
+  }
+
+  const state = await resumeOrphanedAiScene(film, scene, userId, Date.now(), true);
+  if (state !== "unchanged" && state !== "unavailable") await saveFilm(film.id, userId, film);
+  return {
+    ok: true,
+    film,
+    state: state === "unchanged" ? "processing" : state,
+    message: state === "ready"
+      ? "The finished video was pulled into this scene."
+      : state === "failed"
+        ? scene.error || "The provider could not finish this render."
+        : state === "unavailable"
+          ? "The provider could not be reached. Try pulling again in a moment."
+          : "The provider is still rendering this video.",
+  };
 }
 
 export async function syncFilmScenes(film: FilmProject, userId: string): Promise<FilmProject> {
@@ -601,7 +650,8 @@ export async function syncFilmScenes(film: FilmProject, userId: string): Promise
   for (const s of film.scenes) {
     const canResumeFailed = s.status === "failed" && !!s.refId && (s.refKind === "grok" || s.refKind === "veo3");
     if (s.engine === "ai" && (s.status === "rendering" || canResumeFailed)) {
-      if (await resumeOrphanedAiScene(film, s, userId, now)) changed = true;
+      const state = await resumeOrphanedAiScene(film, s, userId, now);
+      if (state !== "unchanged" && state !== "unavailable") changed = true;
     }
   }
 
@@ -652,7 +702,8 @@ export async function resumeStuckDirectorScenes(): Promise<{ scanned: number; ch
     for (const s of film.scenes) {
       const canResumeFailed = s.status === "failed" && !!s.refId && (s.refKind === "grok" || s.refKind === "veo3");
       if (s.engine === "ai" && (s.status === "rendering" || canResumeFailed)) {
-        if (await resumeOrphanedAiScene(film, s, row.userId, now)) touched = true;
+        const state = await resumeOrphanedAiScene(film, s, row.userId, now);
+        if (state !== "unchanged" && state !== "unavailable") touched = true;
       }
     }
     if (touched) { await saveFilm(row.id, row.userId, film).catch(() => {}); changed++; }
