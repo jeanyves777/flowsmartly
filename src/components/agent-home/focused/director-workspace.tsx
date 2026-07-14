@@ -1789,6 +1789,9 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [describing, setDescribing] = useState(false);
+  const [characterIdea, setCharacterIdea] = useState("");
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
   const [newCast, setNewCast] = useState<{ name: string; role: string; description: string; renderStyle: CharacterRenderStyle }>({
     name: "", role: "", description: "", renderStyle: "cinematic",
   });
@@ -1860,6 +1863,33 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
       toast({ title: "Style could not be changed", description: "Please try again.", variant: "destructive" });
     } finally { setBusyFor(c.id, false); }
   };
+  const describeCharacter = async () => {
+    if (!characterIdea.trim()) {
+      toast({ title: "Describe the character first", description: "A short idea is enough for AI Describe.", variant: "destructive" });
+      return;
+    }
+    setDescribing(true);
+    try {
+      const j = await fetch(`/api/ai/video-director/${film.id}/cast/describe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction: characterIdea, renderStyle: newCast.renderStyle }),
+      }).then((response) => response.json());
+      if (j?.success && j.data?.character) {
+        setNewCast((draft) => ({
+          ...draft,
+          name: j.data.character.name || "",
+          role: j.data.character.role || "",
+          description: j.data.character.description || "",
+        }));
+        toast({ title: "Character identity ready", description: "Review the details, then add or generate." });
+      } else {
+        toast({ title: "AI Describe failed", description: j?.error?.message || "Please try again.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "AI Describe failed", description: "Please try again.", variant: "destructive" });
+    } finally { setDescribing(false); }
+  };
   const addCharacter = async (generateNow: boolean) => {
     if (!newCast.name.trim() || !newCast.description.trim()) {
       toast({ title: "Name and appearance needed", description: "Describe the character you want to keep consistent.", variant: "destructive" });
@@ -1877,6 +1907,7 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
       setFilm(j.data.film);
       const characterId = j.data.character.id as string;
       setNewCast({ name: "", role: "", description: "", renderStyle: "cinematic" });
+      setCharacterIdea("");
       setAddOpen(false);
       toast({ title: "Cast member added", description: "This character is now available in every scene." });
       if (generateNow) await genPreview(characterId);
@@ -1885,14 +1916,12 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
     } finally { setAdding(false); }
   };
   const removeCharacter = async (c: FilmCharacter) => {
-    const usedIn = film.scenes.filter((scene) => scene.cast?.some((line) => line.characterId === c.id || line.name.toLowerCase() === c.name.toLowerCase())).length;
-    const detail = usedIn ? ` This also removes ${c.name} from ${usedIn} existing scene${usedIn === 1 ? "" : "s"}.` : "";
-    if (!window.confirm(`Remove ${c.name} from this film?${detail}`)) return;
     setBusyFor(c.id, true);
     try {
       const j = await fetch(`/api/ai/video-director/${film.id}/cast/${c.id}`, { method: "DELETE" }).then((r) => r.json());
       if (j?.success && j.data?.film) {
         setFilm(j.data.film);
+        setRemoveTarget(null);
         toast({ title: "Cast member removed" });
       } else {
         toast({ title: "Cast member could not be removed", description: j?.error?.message || "Please try again.", variant: "destructive" });
@@ -1957,25 +1986,28 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <p className="mb-3 text-[11.5px] text-muted-foreground">Generate a preview (multi-angle sheet) or upload your own photo, then <b className="text-foreground">approve each</b> — approved cast keep the same face across every shot.</p>
           {addOpen && (
-            <div className="mb-4 border-y border-brand-500/30 bg-brand-500/[0.05] px-3 py-3">
-              <div className="mb-2 flex items-center gap-2">
+            <div className="mb-3 rounded-lg border border-brand-500/35 bg-brand-500/[0.04] p-2.5 shadow-sm">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
                 <UserPlus className="h-4 w-4 text-brand-500" />
-                <p className="text-[12.5px] font-bold">Add a reusable character</p>
-                <span className="text-[10.5px] text-muted-foreground">The approved identity becomes available in every scene.</span>
-              </div>
-              <div className="grid gap-2 lg:grid-cols-[minmax(140px,0.7fr)_minmax(180px,0.9fr)_minmax(300px,2fr)_220px]">
-                <input value={newCast.name} onChange={(e) => setNewCast((draft) => ({ ...draft, name: e.target.value }))} placeholder="Name, e.g. Ayo" className="h-9 rounded-lg border border-input bg-background px-2.5 text-[11.5px] outline-none focus:border-brand-500/60" />
-                <input value={newCast.role} onChange={(e) => setNewCast((draft) => ({ ...draft, role: e.target.value }))} placeholder="Role, e.g. Ethereal guide" className="h-9 rounded-lg border border-input bg-background px-2.5 text-[11.5px] outline-none focus:border-brand-500/60" />
-                <textarea value={newCast.description} onChange={(e) => setNewCast((draft) => ({ ...draft, description: e.target.value }))} rows={2} placeholder="Visual appearance and wardrobe. Example: A small luminous angel with translucent wings, gold-trimmed robes and a warm expressive face." className="min-h-9 resize-y rounded-lg border border-input bg-background px-2.5 py-2 text-[11.5px] leading-snug outline-none focus:border-brand-500/60" />
-                <div className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-background p-1">
-                  <button onClick={() => setNewCast((draft) => ({ ...draft, renderStyle: "cinematic" }))} className={cn("inline-flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[10.5px] font-bold", newCast.renderStyle === "cinematic" ? "bg-brand-500 text-white" : "text-muted-foreground hover:bg-muted")}><Film className="h-3 w-3" /> Cinematic</button>
-                  <button onClick={() => setNewCast((draft) => ({ ...draft, renderStyle: "3d" }))} className={cn("inline-flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[10.5px] font-bold", newCast.renderStyle === "3d" ? "bg-violet-500 text-white" : "text-muted-foreground hover:bg-muted")}><Box className="h-3 w-3" /> 3D</button>
+                <p className="text-[12px] font-bold">New cast member</p>
+                <div className="ms-auto grid grid-cols-2 gap-0.5 rounded-md border border-border bg-background p-0.5">
+                  <button onClick={() => setNewCast((draft) => ({ ...draft, renderStyle: "cinematic" }))} className={cn("inline-flex h-7 items-center justify-center gap-1 rounded px-2.5 text-[10px] font-bold", newCast.renderStyle === "cinematic" ? "bg-brand-500 text-white" : "text-muted-foreground hover:bg-muted")}><Film className="h-3 w-3" /> Cinematic</button>
+                  <button onClick={() => setNewCast((draft) => ({ ...draft, renderStyle: "3d" }))} className={cn("inline-flex h-7 items-center justify-center gap-1 rounded px-2.5 text-[10px] font-bold", newCast.renderStyle === "3d" ? "bg-violet-500 text-white" : "text-muted-foreground hover:bg-muted")}><Box className="h-3 w-3" /> 3D</button>
                 </div>
+                <button onClick={() => setAddOpen(false)} aria-label="Close new cast form" className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
               </div>
-              <div className="mt-2 flex justify-end gap-2">
-                <button onClick={() => setAddOpen(false)} disabled={adding} className="rounded-lg border border-border px-3 py-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50">Cancel</button>
-                <button onClick={() => addCharacter(false)} disabled={adding} className="rounded-lg border border-brand-500/50 px-3 py-1.5 text-[11px] font-bold text-brand-500 hover:bg-brand-500/10 disabled:opacity-50">Add only</button>
-                <button onClick={() => addCharacter(true)} disabled={adding} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[11px] font-bold text-white disabled:opacity-50">{adding ? <FlowLoader size={12} /> : <Sparkles className="h-3 w-3" />} Add &amp; generate</button>
+              <div className="relative mb-2">
+                <input value={characterIdea} onChange={(e) => setCharacterIdea(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !describing) void describeCharacter(); }} placeholder="Describe the character: a small 3D angel who appears above Marcus and guides him..." className="h-9 w-full rounded-md border border-brand-500/35 bg-background py-1.5 pl-2.5 pr-28 text-[11.5px] outline-none focus:border-brand-500" />
+                <button onClick={describeCharacter} disabled={describing || !characterIdea.trim()} className="absolute right-1 top-1 inline-flex h-7 items-center gap-1.5 rounded bg-violet-500 px-2.5 text-[10px] font-bold text-white hover:bg-violet-400 disabled:opacity-40">{describing ? <FlowLoader size={11} /> : <Wand2 className="h-3 w-3" />} AI Describe</button>
+              </div>
+              <div className="grid gap-1.5 lg:grid-cols-[minmax(130px,0.65fr)_minmax(170px,0.9fr)_minmax(320px,2.3fr)_auto]">
+                <input value={newCast.name} onChange={(e) => setNewCast((draft) => ({ ...draft, name: e.target.value }))} placeholder="Character name" className="h-9 rounded-md border border-input bg-background px-2.5 text-[11px] outline-none focus:border-brand-500/60" />
+                <input value={newCast.role} onChange={(e) => setNewCast((draft) => ({ ...draft, role: e.target.value }))} placeholder="Story role" className="h-9 rounded-md border border-input bg-background px-2.5 text-[11px] outline-none focus:border-brand-500/60" />
+                <input value={newCast.description} onChange={(e) => setNewCast((draft) => ({ ...draft, description: e.target.value }))} placeholder="Stable visual identity and wardrobe" className="h-9 rounded-md border border-input bg-background px-2.5 text-[11px] outline-none focus:border-brand-500/60" />
+                <div className="flex gap-1.5">
+                  <button onClick={() => addCharacter(false)} disabled={adding || describing} title="Save without generating an image" className="h-9 rounded-md border border-brand-500/50 px-3 text-[10.5px] font-bold text-brand-500 hover:bg-brand-500/10 disabled:opacity-50">Add</button>
+                  <button onClick={() => addCharacter(true)} disabled={adding || describing} className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md bg-gradient-to-r from-brand-500 to-violet-500 px-3 text-[10.5px] font-bold text-white disabled:opacity-50">{adding ? <FlowLoader size={12} /> : <Sparkles className="h-3 w-3" />} Add &amp; generate</button>
+                </div>
               </div>
             </div>
           )}
@@ -1987,6 +2019,7 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
                 const isBusy = busy.has(c.id);
                 const hasPreview = c.previewStatus === "ready" && !!c.referenceImageUrl;
                 const mainImg = c.characterSheetUrl || c.referenceImageUrl;
+                const usedInScenes = film.scenes.filter((scene) => scene.cast?.some((line) => line.characterId === c.id || line.name.toLowerCase() === c.name.toLowerCase())).length;
                 return (
                   <div key={c.id} className={cn("flex flex-col overflow-hidden rounded-xl border bg-background/40", c.approved ? "border-emerald-500/50" : "border-border")}>
                     <div
@@ -2001,7 +2034,20 @@ function CastPanel({ film, setFilm, onBuild, onClose }: {
                         <div className="grid h-full w-full place-items-center text-[10.5px] text-muted-foreground">{isBusy ? <FlowLoader size={20} /> : "No preview yet"}</div>
                       )}
                       {isBusy && mainImg && <div className="absolute inset-0 grid place-items-center bg-black/40"><FlowLoader size={20} /></div>}
-                      <button onClick={(event) => { event.stopPropagation(); void removeCharacter(c); }} disabled={isBusy} title={`Remove ${c.name}`} aria-label={`Remove ${c.name}`} className="absolute left-1 top-1 z-10 grid h-6 w-6 place-items-center rounded-md bg-black/65 text-white/80 hover:bg-rose-500 hover:text-white disabled:opacity-40"><Trash2 className="h-3 w-3" /></button>
+                      <button onClick={(event) => { event.stopPropagation(); setRemoveTarget(c.id); }} disabled={isBusy} title={`Remove ${c.name}`} aria-label={`Remove ${c.name}`} className="absolute left-1 top-1 z-10 grid h-6 w-6 place-items-center rounded-md bg-black/65 text-white/80 hover:bg-rose-500 hover:text-white disabled:opacity-40"><Trash2 className="h-3 w-3" /></button>
+                      {removeTarget === c.id && (
+                        <div onClick={(event) => event.stopPropagation()} className="absolute inset-0 z-20 grid place-items-center bg-background/95 p-3 text-center backdrop-blur-sm">
+                          <div className="w-full max-w-[230px]">
+                            <Trash2 className="mx-auto mb-1.5 h-4 w-4 text-rose-500" />
+                            <p className="text-[11.5px] font-bold">Remove {c.name}?</p>
+                            <p className="mt-0.5 text-[9.5px] leading-snug text-muted-foreground">{usedInScenes ? `Also removes this character from ${usedInScenes} scene${usedInScenes === 1 ? "" : "s"}.` : "This removes the character from this film."}</p>
+                            <div className="mt-2 flex justify-center gap-1.5">
+                              <button onClick={() => setRemoveTarget(null)} className="h-7 rounded-md border border-border px-3 text-[10px] font-bold text-muted-foreground hover:text-foreground">Cancel</button>
+                              <button onClick={() => void removeCharacter(c)} disabled={isBusy} className="inline-flex h-7 items-center gap-1 rounded-md bg-rose-500 px-3 text-[10px] font-bold text-white hover:bg-rose-400 disabled:opacity-50">{isBusy ? <FlowLoader size={10} /> : <Trash2 className="h-2.5 w-2.5" />} Remove</button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       {mainImg && !isBusy && (
                         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/25 group-hover:opacity-100">
                           <span className="inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[9px] font-bold text-white"><Maximize2 className="h-2.5 w-2.5" /> Click to enlarge</span>
