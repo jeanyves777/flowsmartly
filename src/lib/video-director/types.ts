@@ -70,8 +70,25 @@ export interface FilmScene {
   videoUrl?: string | null;
   thumbnailUrl?: string | null;
   error?: string | null;
+  // Independent xAI edit job. The base scene stays ready/playable while this
+  // renders, then videoUrl is atomically replaced only after the edit succeeds.
+  videoEdit?: FilmVideoEdit | null;
   // picture-in-picture overlay composited on top of this scene
   overlay?: FilmOverlay | null;
+}
+
+export interface FilmVideoEdit {
+  id: string;
+  prompt: string;
+  sourceVideoUrl: string;
+  durationSec?: number;
+  cost?: number;
+  status: SceneStatus;
+  progress?: number;
+  refId?: string;
+  startedAt?: number;
+  heartbeatAt?: number;
+  error?: string | null;
 }
 
 /** One character's appearance + spoken line within a scene (a "movie" scene can
@@ -310,6 +327,24 @@ export function normalizeOverlay(raw: Partial<FilmOverlay>): FilmOverlay {
   };
 }
 
+/** Coerce a persisted xAI video-edit job into the Director scene shape. */
+export function normalizeVideoEdit(raw: Partial<FilmVideoEdit>): FilmVideoEdit {
+  const status = VALID_STATUS.has(raw.status as SceneStatus) ? (raw.status as SceneStatus) : "draft";
+  return {
+    id: String(raw.id || `edit_${Date.now().toString(36)}`).slice(0, 80),
+    prompt: typeof raw.prompt === "string" ? raw.prompt.slice(0, 3900) : "",
+    sourceVideoUrl: typeof raw.sourceVideoUrl === "string" ? raw.sourceVideoUrl : "",
+    durationSec: typeof raw.durationSec === "number" ? Math.max(1, Math.min(8.7, raw.durationSec)) : undefined,
+    cost: typeof raw.cost === "number" ? Math.max(0, raw.cost) : undefined,
+    status,
+    progress: typeof raw.progress === "number" ? Math.max(0, Math.min(100, raw.progress)) : 0,
+    refId: typeof raw.refId === "string" ? raw.refId : undefined,
+    startedAt: typeof raw.startedAt === "number" ? raw.startedAt : undefined,
+    heartbeatAt: typeof raw.heartbeatAt === "number" ? raw.heartbeatAt : undefined,
+    error: raw.error ?? null,
+  };
+}
+
 /** Coerce untrusted JSON (from canvasData or an API body) into a safe FilmScene. */
 export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene {
   const engine = VALID_ENGINES.has(raw.engine as SceneEngine) ? (raw.engine as SceneEngine) : "ai";
@@ -348,6 +383,7 @@ export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene 
     videoUrl: raw.videoUrl ?? null,
     thumbnailUrl: raw.thumbnailUrl ?? null,
     error: raw.error ?? null,
+    videoEdit: raw.videoEdit ? normalizeVideoEdit(raw.videoEdit) : null,
     overlay: raw.overlay ? normalizeOverlay(raw.overlay) : null,
   };
 }

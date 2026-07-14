@@ -182,3 +182,26 @@ export async function normalizeClip(
     return await readFile(outPath);
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
+
+/** Keep xAI's edited picture but restore the exact source audio/dialogue. Video
+ * editing is used for visual corrections, so approved speech must not drift. */
+export async function preserveSourceAudio(editedVideo: Buffer, sourceVideo: Buffer): Promise<Buffer> {
+  const ff = findFFmpegPath();
+  if (!ff) return editedVideo;
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-dir-edit-aud-"));
+  try {
+    const edited = path.join(dir, "edited.mp4");
+    const source = path.join(dir, "source.mp4");
+    const out = path.join(dir, "out.mp4");
+    await writeFile(edited, editedVideo);
+    await writeFile(source, sourceVideo);
+    if (!(await hasAudio(source))) return editedVideo;
+    await run(ff, [
+      "-i", edited, "-i", source,
+      "-map", "0:v:0", "-map", "1:a:0",
+      "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
+      "-shortest", "-movflags", "+faststart", "-y", out,
+    ]);
+    return await readFile(out);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}

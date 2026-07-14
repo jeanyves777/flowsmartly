@@ -10,9 +10,11 @@ import {
   normalizeFilm,
   normalizeScene,
   normalizeOverlay,
+  normalizeVideoEdit,
   type FilmProject,
   type FilmScene,
   type FilmOverlay,
+  type FilmVideoEdit,
 } from "./types";
 
 const TYPE = "director_film";
@@ -203,6 +205,22 @@ export async function patchOverlay(
   const idx = film.scenes.findIndex((s) => s.id === sceneId);
   if (idx < 0 || !film.scenes[idx].overlay) return null;
   film.scenes[idx].overlay = normalizeOverlay({ ...film.scenes[idx].overlay, ...patch });
+  await saveFilm(filmId, userId, film);
+  return film;
+}
+
+/** Merge-patch a scene's independent xAI video-edit job. */
+export async function patchVideoEdit(
+  filmId: string,
+  userId: string,
+  sceneId: string,
+  patch: Partial<FilmVideoEdit>,
+): Promise<FilmProject | null> {
+  const film = await getFilm(filmId, userId);
+  if (!film) return null;
+  const idx = film.scenes.findIndex((s) => s.id === sceneId);
+  if (idx < 0 || !film.scenes[idx].videoEdit) return null;
+  film.scenes[idx].videoEdit = normalizeVideoEdit({ ...film.scenes[idx].videoEdit, ...patch });
   await saveFilm(filmId, userId, film);
   return film;
 }

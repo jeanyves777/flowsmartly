@@ -2,10 +2,11 @@
  * xAI Grok Video Generation Client
  *
  * Uses the grok-imagine-video model for AI video generation.
- * Supports text-to-video (up to 15s) with native audio generation.
+ * Supports text-to-video (up to 15s), video editing, and native audio.
  *
  * API endpoints:
  *   POST https://api.x.ai/v1/videos/generations — create video
+ *   POST https://api.x.ai/v1/videos/edits       — edit an existing video
  *   GET  https://api.x.ai/v1/videos/{request_id} — poll status
  *
  * Model: grok-imagine-video
@@ -165,6 +166,56 @@ class GrokVideoClient {
     onStatus?.("Video rendered. Downloading the final MP4...");
     const videoBuffer = await this.downloadVideo(result.url);
 
+    return { requestId, videoBuffer, duration: result.duration, videoUrl: result.url };
+  }
+
+  /** Edit an existing public MP4 with grok-imagine-video. xAI preserves the
+   * source duration/aspect/resolution and currently accepts clips up to 8.7s. */
+  async editVideo(
+    sourceVideoUrl: string,
+    prompt: string,
+    options: {
+      onStatus?: (message: string) => void;
+      onJobId?: (requestId: string) => void | Promise<void>;
+      timeoutMs?: number;
+    } = {},
+  ): Promise<GrokVideoResult> {
+    if (!this.apiKey) throw new Error("XAI_API_KEY is not configured");
+    if (!/^https:\/\//i.test(sourceVideoUrl)) throw new Error("xAI video editing requires a public HTTPS source video.");
+
+    const { onStatus, onJobId, timeoutMs } = options;
+    const safePrompt = clampVideoPrompt(prompt);
+    if (!safePrompt) throw new Error("Describe what should be fixed in the video.");
+
+    await grokRateLimit();
+    const response = await fetch(XAI_VIDEO_EDITS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "grok-imagine-video",
+        prompt: safePrompt,
+        video: { url: sourceVideoUrl },
+      }),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`xAI video edit API error (${response.status}): ${errBody}`);
+    }
+
+    const data = await response.json();
+    const requestId = data.request_id;
+    if (!requestId) throw new Error("xAI video edit API did not return a request_id");
+
+    console.log(`[GrokVideo] Edit job created: ${requestId}`);
+    try { await onJobId?.(requestId); } catch { /* persistence best-effort */ }
+    onStatus?.("Video edit started. Waiting for xAI to finish...");
+    const result = await this.pollUntilDone(requestId, timeoutMs, onStatus);
+    onStatus?.("Video edit rendered. Downloading the final MP4...");
+    const videoBuffer = await this.downloadVideo(result.url);
     return { requestId, videoBuffer, duration: result.duration, videoUrl: result.url };
   }
 

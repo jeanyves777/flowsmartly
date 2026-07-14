@@ -112,6 +112,8 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   const [voices, setVoices] = useState<{ id: string; name: string; language?: string }[]>([]);
   const [play, setPlay] = useState<{ url: string; title: string } | null>(null);
   const [recoveringSceneId, setRecoveringSceneId] = useState<string | null>(null);
+  const [videoEditSceneId, setVideoEditSceneId] = useState<string | null>(null);
+  const [startingVideoEdit, setStartingVideoEdit] = useState(false);
 
   // avatars + voices for per-scene avatar picking (shared with the Avatar Studio catalog)
   useEffect(() => {
@@ -171,6 +173,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
 
   const scenes = useMemo(() => (film ? [...film.scenes].sort((a, b) => a.order - b.order) : []), [film]);
   const selScene = scenes.find((s) => s.id === selId) || null;
+  const videoEditScene = scenes.find((s) => s.id === videoEditSceneId) || null;
 
   // Agent live-bridge: when the director agent acts (direct_film), surface the
   // newest film in the open studio — same "results land in the UI" pattern.
@@ -199,7 +202,10 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   const anyRecoverableFailed = scenes.some((s) =>
     s.engine === "ai" && s.status === "failed" && !!s.refId && (s.refKind === "grok" || s.refKind === "veo3"),
   );
-  const anyRendering = scenes.some((s) => isRendering(s.status) || isRendering(s.overlay?.status)) || anyRecoverableFailed || film?.finalStatus === "rendering";
+  const anyVideoEditActive = scenes.some((s) =>
+    isRendering(s.videoEdit?.status) || (s.videoEdit?.status === "failed" && !!s.videoEdit.refId),
+  );
+  const anyRendering = scenes.some((s) => isRendering(s.status) || isRendering(s.overlay?.status)) || anyRecoverableFailed || anyVideoEditActive || film?.finalStatus === "rendering";
   const isDrafting = film?.draftStatus === "drafting";
   useEffect(() => {
     if ((!anyRendering && !isDrafting) || !film) return;
@@ -407,6 +413,32 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
     }
   };
 
+  const editSceneVideo = async (id: string, prompt: string): Promise<boolean> => {
+    if (!film || startingVideoEdit) return false;
+    setStartingVideoEdit(true);
+    try {
+      const response = await fetch(`/api/ai/video-director/${film.id}/scenes/${id}/edit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const j = await response.json().catch(() => null);
+      if (!j?.success) {
+        toast({ title: "Video edit could not start", description: j?.error?.message || "Please try again.", variant: "destructive" });
+        return false;
+      }
+      if (j.data?.film) setFilm(j.data.film);
+      toast({ title: "Video edit started", description: "The original clip stays available until the edited version is ready." });
+      setVideoEditSceneId(null);
+      return true;
+    } catch {
+      toast({ title: "Video edit could not start", description: "Please try again in a moment.", variant: "destructive" });
+      return false;
+    } finally {
+      setStartingVideoEdit(false);
+    }
+  };
+
   const generateOverlay = async (id: string) => {
     if (!film) return;
     setFilm((f) => f ? { ...f, scenes: f.scenes.map((s) => s.id === id && s.overlay ? { ...s, overlay: { ...s.overlay, status: "queued", progress: 5 } } : s) } : f);
@@ -572,6 +604,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
                   onGenerate={() => generateScene(s.id)}
                   onRecover={() => recoverScene(s.id)}
                   recovering={recoveringSceneId === s.id}
+                  onVideoEdit={() => setVideoEditSceneId(s.id)}
                   onRemove={() => removeScene(s.id)}
                   onPlay={() => s.videoUrl && setPlay({ url: s.videoUrl, title: s.title })}
                 />
@@ -637,6 +670,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           onGenerate={() => generateScene(selScene.id)}
           onRecover={() => recoverScene(selScene.id)}
           recovering={recoveringSceneId === selScene.id}
+          onVideoEdit={() => setVideoEditSceneId(selScene.id)}
           onGenerateOverlay={() => generateOverlay(selScene.id)}
           onSwapEngine={(engine) => patchSel({ engine })}
         />
@@ -697,6 +731,16 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
         </div>
       )}
 
+      {videoEditScene && (
+        <VideoEditSheet
+          key={videoEditScene.id}
+          scene={videoEditScene}
+          busy={startingVideoEdit}
+          onClose={() => !startingVideoEdit && setVideoEditSceneId(null)}
+          onSubmit={(prompt) => editSceneVideo(videoEditScene.id, prompt)}
+        />
+      )}
+
       {/* directing (drafting the pipeline — local kick-off OR background draftStatus) */}
       {(drafting || isDrafting) && !draftError && (
         <div className="absolute inset-0 z-[45] grid place-items-center bg-background/70 backdrop-blur-sm">
@@ -722,14 +766,88 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   );
 }
 
+// ============================================================ xAI video edit
+function VideoEditSheet({ scene, busy, onClose, onSubmit }: {
+  scene: FilmScene;
+  busy: boolean;
+  onClose: () => void;
+  onSubmit: (prompt: string) => Promise<boolean>;
+}) {
+  const [prompt, setPrompt] = useState(scene.videoEdit?.prompt || "");
+  const length = playedLen(scene);
+  const overLimit = length > 8.71;
+  const suggestions = [
+    "Remove flicker and keep the motion smooth and continuous.",
+    "Fix the distorted face while preserving the person's identity.",
+    "Fix the hands and fingers so the anatomy and motion look natural.",
+    "Stabilize the background and remove warping or morphing artifacts.",
+  ];
+  return (
+    <div className="absolute inset-0 z-[55] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onClick={onClose}>
+      <form
+        onSubmit={(e) => { e.preventDefault(); if (!overLimit && prompt.trim() && !busy) void onSubmit(prompt); }}
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[92vh] w-full max-w-[560px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+      >
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-violet-500/15 text-violet-500"><Wand2 className="h-4 w-4" /></span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-bold">Edit video</p>
+            <p className="truncate text-[10.5px] text-muted-foreground">{scene.title} · {length.toFixed(1)}s</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={busy} title="Close" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-50"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="min-h-0 overflow-y-auto p-4">
+          <div className="relative h-[220px] overflow-hidden rounded-lg bg-black">
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video src={scene.videoUrl || undefined} controls className="h-full w-full object-contain" />
+          </div>
+
+          {overLimit ? (
+            <div className="mt-3 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2.5 text-[11.5px] leading-relaxed text-amber-500">
+              xAI edits up to 8.7 seconds at once. This clip is {length.toFixed(1)} seconds; split it into shorter clips on the timeline before editing.
+            </div>
+          ) : (
+            <>
+              <label className="mb-1.5 mt-3 block text-[11.5px] font-semibold">Correction prompt</label>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value.slice(0, 3900))}
+                rows={4}
+                autoFocus
+                placeholder="Describe only what should change, for example: Fix the face distortion at the end while preserving the character, dialogue, camera, and background."
+                className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2.5 text-[12.5px] leading-relaxed outline-none focus:border-violet-500/70"
+              />
+              <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                {suggestions.map((text) => (
+                  <button key={text} type="button" onClick={() => setPrompt(text)} className="min-h-10 rounded-lg border border-border px-2.5 py-2 text-left text-[10.5px] leading-snug text-muted-foreground hover:border-violet-500/50 hover:text-foreground">{text}</button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 border-t border-border px-4 py-3">
+          <button type="button" onClick={onClose} disabled={busy} className="rounded-[10px] border border-border px-3.5 py-2 text-[12px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={busy || overLimit || prompt.trim().length < 3} className="ms-auto inline-flex items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-50">
+            {busy ? <FlowLoader size={14} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />} {busy ? "Starting edit" : "Edit video"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 // ============================================================ scene node card
-function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerate, onRecover, recovering, onRemove, onPlay }: {
+function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerate, onRecover, recovering, onVideoEdit, onRemove, onPlay }: {
   scene: FilmScene; selected: boolean; castImg?: string; cast?: { name: string; dialogue?: string; img?: string }[];
-  onDown: (e: ReactPointerEvent) => void; onSelect: () => void; onGenerate: () => void; onRecover: () => void; recovering: boolean; onRemove: () => void; onPlay: () => void;
+  onDown: (e: ReactPointerEvent) => void; onSelect: () => void; onGenerate: () => void; onRecover: () => void; recovering: boolean; onVideoEdit: () => void; onRemove: () => void; onPlay: () => void;
 }) {
   const E = ENGINES[scene.engine];
   const rendering = isRendering(scene.status);
   const ready = scene.status === "ready" && isPlayable(scene.videoUrl);
+  const editingVideo = isRendering(scene.videoEdit?.status);
   return (
     <div
       data-node={scene.id}
@@ -762,12 +880,15 @@ function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerat
         )}
         <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[9px] text-white">{scene.durationSec ? `0:${String(scene.durationSec).padStart(2, "0")}` : ""}</span>
         {scene.overlay && <span className="absolute right-1 top-1 rounded bg-cyan-500/90 px-1.5 py-0.5 text-[8px] font-bold text-white">⧉ PiP</span>}
+        {editingVideo && <span className="absolute left-1 top-1 rounded-full bg-violet-500/90 px-1.5 py-0.5 text-[8px] font-bold text-white">editing {Math.round(scene.videoEdit?.progress || 0)}%</span>}
         {rendering && <span className="absolute bottom-1 left-1 rounded-full bg-brand-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">{Math.round(scene.progress || 0)}%</span>}
         {scene.status === "ready" && <span className="absolute bottom-1 left-1 rounded-full bg-emerald-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">ready</span>}
         {scene.status === "failed" && <span title={scene.error || undefined} className="absolute bottom-1 left-1 rounded-full bg-rose-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">failed</span>}
       </div>
       {scene.status === "failed" && scene.error
         ? <p className="line-clamp-2 px-2.5 text-[9.5px] text-rose-500">{scene.error}</p>
+        : scene.videoEdit?.status === "failed" && scene.videoEdit.error
+          ? <p className="line-clamp-2 px-2.5 text-[9.5px] text-amber-500">Edit: {scene.videoEdit.error}</p>
         : <p className="line-clamp-1 px-2.5 text-[10px] text-muted-foreground">{scene.script || E.hint}</p>}
       {cast && cast.length > 0 && (
         <div className="mx-2.5 mt-1 max-h-[150px] space-y-1.5 overflow-y-auto rounded-lg border border-border bg-background/50 p-1.5">
@@ -790,6 +911,11 @@ function SceneNode({ scene, selected, castImg, cast, onDown, onSelect, onGenerat
         {scene.status === "failed" && scene.engine === "ai" && (
           <button onClick={onRecover} disabled={recovering} title="Check the saved provider job and pull its finished video" className="inline-flex flex-1 items-center justify-center gap-1 rounded-[9px] border border-brand-500/50 py-1.5 text-[10.5px] font-semibold text-brand-500 hover:bg-brand-500/10 disabled:opacity-60">
             <RefreshCw className={cn("h-3 w-3", recovering && "animate-spin")} /> {recovering ? "Checking" : "Pull video"}
+          </button>
+        )}
+        {ready && scene.engine === "ai" && (
+          <button onClick={onVideoEdit} disabled={editingVideo} title="Edit this clip with a correction prompt" className="inline-flex flex-1 items-center justify-center gap-1 rounded-[9px] border border-violet-500/50 py-1.5 text-[10px] font-semibold text-violet-500 hover:bg-violet-500/10 disabled:opacity-60">
+            {editingVideo ? <FlowLoader size={11} /> : <Wand2 className="h-3 w-3" />} {editingVideo ? `${Math.round(scene.videoEdit?.progress || 0)}%` : "AI Edit"}
           </button>
         )}
         <button onClick={onGenerate} disabled={rendering} className="flex-1 rounded-[9px] bg-gradient-to-r from-brand-500 to-violet-500 py-1.5 text-[10.5px] font-semibold text-white disabled:opacity-60">{rendering ? "…" : ready ? "Regenerate" : "Generate"}</button>
@@ -1094,9 +1220,9 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
 }
 
 // ============================================================ scene inspector
-function SceneInspector({ scene, characters, avatars, voices, onClose, onPatch, onGenerate, onRecover, recovering, onGenerateOverlay, onSwapEngine }: {
+function SceneInspector({ scene, characters, avatars, voices, onClose, onPatch, onGenerate, onRecover, recovering, onVideoEdit, onGenerateOverlay, onSwapEngine }: {
   scene: FilmScene; characters: FilmCharacter[]; avatars: { id: string; name: string; previewUrl?: string }[]; voices: { id: string; name: string; language?: string }[];
-  onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onRecover: () => void; recovering: boolean; onGenerateOverlay: () => void; onSwapEngine: (e: SceneEngine) => void;
+  onClose: () => void; onPatch: (p: Partial<FilmScene>) => void; onGenerate: () => void; onRecover: () => void; recovering: boolean; onVideoEdit: () => void; onGenerateOverlay: () => void; onSwapEngine: (e: SceneEngine) => void;
 }) {
   const E = ENGINES[scene.engine];
   const [picker, setPicker] = useState<null | "video" | "image" | "bg" | "ov">(null);
@@ -1308,11 +1434,22 @@ function SceneInspector({ scene, characters, avatars, voices, onClose, onPatch, 
       {scene.status === "failed" && scene.error && (
         <div className="border-t border-rose-500/30 bg-rose-500/5 px-4 py-2 text-[11px] leading-snug text-rose-500">⚠ {scene.error}</div>
       )}
+      {isRendering(scene.videoEdit?.status) && (
+        <div className="border-t border-violet-500/30 bg-violet-500/5 px-4 py-2 text-[11px] leading-snug text-violet-500">Editing video · {Math.round(scene.videoEdit?.progress || 0)}%</div>
+      )}
+      {scene.videoEdit?.status === "failed" && scene.videoEdit.error && (
+        <div className="border-t border-amber-500/30 bg-amber-500/5 px-4 py-2 text-[11px] leading-snug text-amber-500">Video edit: {scene.videoEdit.error}</div>
+      )}
       <div className="flex items-center gap-2 border-t border-border px-4 py-3">
         <button onClick={onClose} className="rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:text-foreground">Close</button>
         {scene.status === "failed" && scene.engine === "ai" && (
           <button onClick={onRecover} disabled={recovering} title="Check the saved provider job and pull its finished video" className="inline-flex items-center gap-1.5 rounded-[10px] border border-brand-500/50 px-3 py-2 text-[12px] font-semibold text-brand-500 hover:bg-brand-500/10 disabled:opacity-60">
             <RefreshCw className={cn("h-3.5 w-3.5", recovering && "animate-spin")} /> {recovering ? "Checking" : "Pull video"}
+          </button>
+        )}
+        {scene.status === "ready" && scene.engine === "ai" && isPlayable(scene.videoUrl) && (
+          <button onClick={onVideoEdit} disabled={isRendering(scene.videoEdit?.status)} title="Edit this clip with a correction prompt" className="inline-flex items-center gap-1.5 rounded-[10px] border border-violet-500/50 px-3 py-2 text-[12px] font-semibold text-violet-500 hover:bg-violet-500/10 disabled:opacity-60">
+            {isRendering(scene.videoEdit?.status) ? <FlowLoader size={13} /> : <Wand2 className="h-3.5 w-3.5" />} Edit video
           </button>
         )}
         <button onClick={onGenerate} disabled={isRendering(scene.status)} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12px] font-semibold text-white disabled:opacity-60">

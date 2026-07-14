@@ -17,7 +17,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const rendering = (st?: string) => st === "rendering" || st === "queued";
   const recoverableFailed = (s: { status?: string; refKind?: string; refId?: string | null }) =>
     s.status === "failed" && !!s.refId && (s.refKind === "grok" || s.refKind === "veo3");
-  const synced = film.scenes.some((s) => rendering(s.status) || recoverableFailed(s) || rendering(s.overlay?.status))
+  const recoverableEdit = (s: FilmProject["scenes"][number]) =>
+    rendering(s.videoEdit?.status) || (s.videoEdit?.status === "failed" && !!s.videoEdit.refId);
+  const synced = film.scenes.some((s) => rendering(s.status) || recoverableFailed(s) || recoverableEdit(s) || rendering(s.overlay?.status))
     ? await syncFilmScenes(film, session.userId)
     : film;
   const data = await presignAllUrls({ film: synced });
