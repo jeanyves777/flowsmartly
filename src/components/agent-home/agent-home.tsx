@@ -272,6 +272,53 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
   }
 }
 
+// Home agent "hats" (composer switcher) → the surfaceContext that BIASES (not
+// restricts) the agent. Mirrors focusedSurfaceContext, but for the un-focused
+// home. Ignored while a focused surface is open (that context takes precedence).
+function agentModeContext(mode: string | undefined): string | undefined {
+  switch (mode) {
+    case "creation":
+      return "The user has focused the agent into its **Creation** hat — design, logos, websites/stores, and print. Prefer creation tools and framing (create_branded_design, logo generation, build_website / build_store, print projects). You can still handle anything else they explicitly ask.";
+    case "film":
+      return "The user has focused the agent into its **Film** hat — video ads, reels, and talking-avatar videos. Prefer video/reel/avatar tools and framing (generate_video / story-ad, build_reels, create_avatar_video). You can still handle anything else they explicitly ask.";
+    case "marketing":
+      return "The user has focused the agent into its **Marketing** hat — leads, content campaigns, and publishing. Prefer marketing tools and framing (find_local_leads / find_leads, create_content_campaign, schedule_social_post, create_pitch / create_proposal). You can still handle anything else they explicitly ask.";
+    default:
+      return undefined;
+  }
+}
+
+// Per-agent starter chips shown on the home hero — switching the composer's
+// agent swaps these so the selection is visibly meaningful.
+const AGENT_SUGGESTIONS: Record<string, AiSuggestion[]> = {
+  creation: [
+    { label: "Design a branded post", hint: "On-brand graphic for any platform", icon: "palette", prompt: "Design a branded social post for my business." },
+    { label: "Create a logo set", hint: "Primary, mark & wordmark", icon: "sparkles", prompt: "Create a logo set for my brand." },
+    { label: "Design a flyer or menu", hint: "Print-ready in minutes", icon: "palette", prompt: "Design a print-ready flyer for my business." },
+    { label: "Build a landing page", hint: "Copy, sections & theme", icon: "globe", prompt: "Build a landing page for my current offer." },
+  ],
+  film: [
+    { label: "Make a launch video", hint: "Multi-scene AI film", icon: "video", prompt: "Make a short launch video for my business." },
+    { label: "Cut a reel from a link", hint: "Scored 9:16 clips", icon: "video", prompt: "Turn a video link into short vertical reels." },
+    { label: "Record a talking avatar", hint: "Your spokesperson on demand", icon: "video", prompt: "Create a talking-avatar video introducing my business." },
+    { label: "Storyboard an ad", hint: "Scenes, cast & dialogue", icon: "sparkles", prompt: "Storyboard a cinematic video ad for my product." },
+  ],
+  marketing: [
+    { label: "Plan a 2-week campaign", hint: "Concrete posts → approve → publish", icon: "calendar", prompt: "Plan a 2-week content campaign for my business." },
+    { label: "Find local leads", hint: "Scored, enriched contacts", icon: "trending", prompt: "Find local leads for my business." },
+    { label: "Schedule upcoming posts", hint: "Automate your calendar", icon: "calendar", prompt: "Schedule my upcoming social posts for the week." },
+    { label: "Draft a client proposal", hint: "Branded, ready to send", icon: "megaphone", prompt: "Draft a branded proposal for a prospective client." },
+  ],
+};
+
+// The focused "app view" (studio canvas the agent works on) each home agent
+// opens from the Chat ⇄ View toggle. Maps to existing focused surfaces.
+const AGENT_VIEW: Record<string, { surface: string; label: string }> = {
+  creation: { surface: "create", label: "Design Studio" },
+  film: { surface: "director", label: "Video Studio" },
+  marketing: { surface: "campaign", label: "Campaign Studio" },
+};
+
 // Focused surfaces that get their own traceable path (/home/<view>).
 // "grow" and "business" are category CONTAINERS (they open a nav panel, not a
 // real surface) — deliberately excluded so /home/grow and /home/business deep-
@@ -337,6 +384,9 @@ export function AgentHome() {
   // so opening a menu over a focused view and closing it returns you to that view.
   const panelReturnWs = useRef("home");
   const [activeWs, setActiveWs] = useState("home");
+  // The composer's agent "hat" on the home (Creation/Film/Marketing) — biases the
+  // agent via surfaceContext and swaps the starter chips. See agentModeContext.
+  const [agentMode, setAgentMode] = useState("creation");
   const [toast, setToast] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(true); // Lead Studio section menu (toggled from the surface header)
@@ -1416,7 +1466,7 @@ export function AgentHome() {
                 <p className="mb-6 mt-2 text-[14px] leading-relaxed text-muted-foreground sm:text-[15px]">{s.sub}</p>
 
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                  {(suggestions.length ? suggestions : s.fallbackChips.map((label, i) => ({ label, hint: "", icon: ["palette", "calendar", "video", "bag"][i], prompt: label }))).map((sug, i) => {
+                  {(AGENT_SUGGESTIONS[agentMode] ?? (suggestions.length ? suggestions : s.fallbackChips.map((label, i) => ({ label, hint: "", icon: ["palette", "calendar", "video", "bag"][i], prompt: label })))).map((sug, i) => {
                     const Icon = SUG_ICON[sug.icon] ?? FALLBACK_ICONS[i] ?? Sparkles;
                     return (
                       <button key={i} onClick={() => send(sug.prompt)} className="flex items-start gap-3 rounded-[13px] border border-border bg-card p-3.5 text-start transition-all hover:-translate-y-0.5 hover:border-brand-500/60 hover:shadow-lg">
@@ -1446,7 +1496,20 @@ export function AgentHome() {
           {/* composer */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/90 to-transparent px-3 pb-4 pt-3 sm:px-[clamp(16px,4vw,64px)] sm:pb-5">
             <div className="pointer-events-auto mx-auto max-w-[1040px]">
-              <Composer onSend={(t, sm, atts) => send(t, sm, undefined, undefined, { attachments: atts })} sending={sending} placeholder={s.placeholder} />
+              {/* Chat ⇄ View — stay in chat, or open the agent's studio canvas
+                  (the "app view" it works on). View maps to the current agent. */}
+              <div className="mb-2 flex items-center gap-2.5">
+                <div className="inline-flex rounded-full border border-border bg-card p-0.5">
+                  <button type="button" className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1 text-[12px] font-semibold text-white">
+                    <MessageSquare className="h-3.5 w-3.5" /> Chat
+                  </button>
+                  <button type="button" onClick={() => guardNav(() => openView(AGENT_VIEW[agentMode]?.surface ?? "create"))} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground">
+                    <LayoutTemplate className="h-3.5 w-3.5" /> View
+                  </button>
+                </div>
+                <span className="hidden text-[11px] text-muted-foreground sm:inline">Chat keeps results here · View opens the {AGENT_VIEW[agentMode]?.label ?? "studio"}, where the agent works on the canvas.</span>
+              </div>
+              <Composer showAgentSwitcher agentMode={agentMode} onAgentModeChange={setAgentMode} onSend={(t, sm, atts, am) => send(t, sm, undefined, agentModeContext(am ?? agentMode), { attachments: atts })} sending={sending} placeholder={s.placeholder} />
             </div>
             <p className="mx-auto mt-2 hidden max-w-[1040px] text-center text-[11px] text-muted-foreground sm:block">{s.hint}</p>
           </div>
