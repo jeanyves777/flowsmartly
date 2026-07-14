@@ -94,6 +94,8 @@ const film = {
   finalStatus: "draft",
   finalProgress: 0,
 };
+let serverFilm = structuredClone(film);
+const savedProjects = [];
 
 const browser = await puppeteer.launch({
   headless: true,
@@ -127,15 +129,26 @@ try {
       return request.respond({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ success: true, data: { film } }),
+        body: JSON.stringify({ success: true, data: { film: serverFilm } }),
       });
     }
     if (pathname === `/api/ai/video-director/${film.id}` && method === "PATCH") {
+      const payload = JSON.parse(request.postData() || "{}");
+      if (payload.project) { serverFilm = payload.project; savedProjects.push(payload.project); }
       return request.respond({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ success: true, data: { film } }),
+        body: JSON.stringify({ success: true, data: { film: serverFilm } }),
       });
+    }
+    if (pathname === "/api/media/generate-image" && method === "POST") {
+      return request.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { url: previewUrl, creditCost: 12 } }) });
+    }
+    if (pathname === "/api/ai/voice-studio/generate" && method === "POST") {
+      return request.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { audioUrl: "https://example.com/director-voice.mp3", durationMs: 4200, creditsUsed: 10 } }) });
+    }
+    if (pathname === `/api/ai/video-director/${film.id}/composer/music` && method === "POST") {
+      return request.respond({ status: 200, contentType: "application/json", body: JSON.stringify({ success: true, data: { url: "https://example.com/director-music.mp3", durationSec: 30, creditCost: 40 } }) });
     }
     if (
       method === "GET" &&
@@ -224,8 +237,81 @@ try {
   await page.waitForFunction(() => document.body.innerText.includes("Your text"), { timeout: 5_000 });
   assert(await page.$('input[value="Text"]'), "Adding text must open its inline layer inspector.");
 
+  let canvasLayers = await page.$$('[data-composer-layer]');
+  assert.equal(canvasLayers.length, 1, "Adding text must create a selectable canvas object.");
+  await canvasLayers[0].click({ button: "right" });
+  await page.waitForSelector("[data-director-context-menu]");
+  assert(await page.evaluate(() => document.querySelector("[data-director-context-menu]")?.textContent?.includes("Bring to front")), "Right-click must open object stacking actions.");
+  await page.evaluate(() => [...document.querySelectorAll("[data-director-context-menu] button")].find((button) => button.textContent?.includes("Duplicate"))?.click());
+  await page.waitForFunction(() => document.querySelectorAll("[data-composer-layer]").length === 2);
+
+  canvasLayers = await page.$$('[data-composer-layer]');
+  const movingLayer = canvasLayers.at(-1);
+  const moveBefore = await movingLayer.evaluate((element) => ({ left: element.style.left, top: element.style.top }));
+  const movingBox = await movingLayer.boundingBox();
+  assert(movingBox, "Selected canvas object needs a mouse target.");
+  await page.mouse.move(movingBox.x + movingBox.width / 2, movingBox.y + movingBox.height / 2);
+  await page.mouse.down(); await page.mouse.move(movingBox.x + movingBox.width / 2 + 50, movingBox.y + movingBox.height / 2 + 25, { steps: 5 }); await page.mouse.up();
+  const moveAfter = await movingLayer.evaluate((element) => ({ left: element.style.left, top: element.style.top }));
+  assert.notDeepEqual(moveAfter, moveBefore, "Canvas objects must move freely with the mouse.");
+
+  const resizeHandle = await page.$('[data-composer-resize-handle]');
+  const resizeBefore = await movingLayer.evaluate((element) => element.style.width);
+  const handleBox = await resizeHandle.boundingBox();
+  assert(handleBox, "Selected canvas object needs resize handles.");
+  await page.mouse.move(handleBox.x + 4, handleBox.y + 4); await page.mouse.down(); await page.mouse.move(handleBox.x - 45, handleBox.y + 4, { steps: 5 }); await page.mouse.up();
+  const resizeAfter = await movingLayer.evaluate((element) => element.style.width);
+  assert.notEqual(resizeAfter, resizeBefore, "Canvas objects must resize with mouse handles.");
+
+  const keyLeftBefore = await movingLayer.evaluate((element) => element.style.left);
+  await page.keyboard.press("ArrowRight");
+  const keyLeftAfter = await movingLayer.evaluate((element) => element.style.left);
+  assert.notEqual(keyLeftAfter, keyLeftBefore, "Arrow keys must nudge the selected object.");
+
+  await page.click('button[title="Image"]');
+  await page.type("[data-composer-image-prompt]", "A glowing market sign");
+  await page.click("[data-composer-generate-image]");
+  await page.waitForFunction(() => document.querySelectorAll("[data-composer-layer]").length === 3);
+
+  await page.click('button[title="Audio"]');
+  await page.type("[data-composer-voice-script]", "Welcome to the market today.");
+  await page.click("[data-composer-generate-voice]");
+  await page.waitForFunction(() => document.body.innerText.includes("The generated narration is now on the audio track."), { timeout: 5_000 });
+
+  await page.click('button[title="Music"]');
+  await page.type("[data-composer-music-prompt]", "Warm cinematic African strings and hand percussion");
+  await page.click("[data-composer-generate-music]");
+  await page.waitForFunction(() => document.body.innerText.includes("The generated music bed spans the film."), { timeout: 5_000 });
+
   await page.click('button[aria-label="Close composer"]');
   await page.waitForFunction(() => !document.body.innerText.includes("Film composer"), { timeout: 5_000 });
+
+  let timelineLayers = await page.$$('[data-timeline-layer]');
+  let timelineLayer = timelineLayers.at(-1);
+  assert(timelineLayer, "Composer objects must appear on the editable timeline.");
+  const timelineMoveBefore = await timelineLayer.evaluate((element) => element.style.left);
+  const timelineBox = await timelineLayer.boundingBox();
+  assert(timelineBox, "Timeline object needs a mouse target.");
+  await page.mouse.move(timelineBox.x + timelineBox.width / 2, timelineBox.y + timelineBox.height / 2); await page.mouse.down(); await page.mouse.move(timelineBox.x + timelineBox.width / 2 + 35, timelineBox.y + timelineBox.height / 2 - 20, { steps: 5 }); await page.mouse.up();
+  timelineLayers = await page.$$('[data-timeline-layer]');
+  timelineLayer = timelineLayers.at(-1);
+  const timelineMoveAfter = await timelineLayer.evaluate((element) => element.style.left);
+  assert.notEqual(timelineMoveAfter, timelineMoveBefore, "Timeline objects must move horizontally and change stacking with vertical drag.");
+
+  const trimHandle = await timelineLayer.$('[data-layer-trim="right"]');
+  const trimBefore = await timelineLayer.evaluate((element) => element.style.width);
+  const trimBox = await trimHandle.boundingBox();
+  assert(trimBox, "Timeline object needs trim handles.");
+  await page.mouse.move(trimBox.x + 2, trimBox.y + 2); await page.mouse.down(); await page.mouse.move(trimBox.x - 25, trimBox.y + 2, { steps: 4 }); await page.mouse.up();
+  const trimAfter = await timelineLayer.evaluate((element) => element.style.width);
+  assert.notEqual(trimAfter, trimBefore, "Timeline object edges must trim with the mouse.");
+
+  await timelineLayer.click({ button: "right" });
+  await page.waitForSelector("[data-director-context-menu]");
+  assert(await page.evaluate(() => document.querySelector("[data-director-context-menu]")?.textContent?.includes("Split at playhead")), "Timeline right-click must expose split and timing actions.");
+  await page.keyboard.press("Escape");
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  assert(savedProjects.some((project) => project.composer?.layers?.length >= 4 && project.music), "Composer manipulations and generated assets must autosave into the film project.");
 
   await page.setViewport({ width: 1366, height: 768, deviceScaleFactor: 1 });
   await page.evaluate(() => {

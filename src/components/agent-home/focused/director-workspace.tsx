@@ -20,7 +20,7 @@ import Image from "next/image";
 import {
   Sparkles, X, Film, Clapperboard, UserSquare2, Scissors, Images, Palette, Plus, Paperclip,
   ChevronDown, Play, Pause, FolderOpen, Wand2, Upload, Music, Captions as CaptionsIcon, Shirt, Pencil, Maximize2, Volume2, VolumeX, RefreshCw, Link2, Box, Trash2, UserPlus,
-  Type, ImagePlus, AudioLines, Layers3, ArrowUp, ArrowDown, MousePointer2,
+  Type, ImagePlus, AudioLines, Layers3, ArrowUp, ArrowDown, MousePointer2, Copy, AlignCenter, Mic2,
 } from "lucide-react";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
@@ -1158,6 +1158,50 @@ function SceneNode({ scene, selected, castImg, cast, inspector, onDown, onSelect
 
 // ============================================================ docked timeline
 const THEAD_W = 92;
+
+interface EditorMenuItem {
+  label: string;
+  onSelect: () => void;
+  icon?: ElementType;
+  danger?: boolean;
+  disabled?: boolean;
+}
+
+function EditorContextMenu({ x, y, items, onClose }: { x: number; y: number; items: EditorMenuItem[]; onClose: () => void }) {
+  useEffect(() => {
+    const close = () => onClose();
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", key);
+    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", key); };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      role="menu"
+      data-director-context-menu
+      onPointerDown={(event) => event.stopPropagation()}
+      className="fixed z-[100] min-w-[190px] overflow-hidden rounded-lg border border-border bg-card p-1 shadow-2xl"
+      style={{ left: Math.max(8, Math.min(x, window.innerWidth - 206)), top: Math.max(8, Math.min(y, window.innerHeight - items.length * 34 - 16)) }}
+    >
+      {items.map(({ label, onSelect, icon: Icon, danger, disabled }) => (
+        <button
+          key={label}
+          type="button"
+          role="menuitem"
+          disabled={disabled}
+          onClick={() => { onSelect(); onClose(); }}
+          className={cn("flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[10.5px] font-semibold hover:bg-muted disabled:opacity-40", danger && "text-rose-500")}
+        >
+          {Icon ? <Icon className="h-3.5 w-3.5" /> : <span className="h-3.5 w-3.5" />}
+          {label}
+        </button>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
 function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, onPatch, onReorder, onSplit, onFilmPatch }: {
   scenes: FilmScene[]; film: FilmProject; collapsed: boolean; onToggle: () => void;
   selId: string | null; onSelect: (id: string) => void;
@@ -1172,12 +1216,15 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
   const [muted, setMuted] = useState(false); // preview audio (dialogue) on by default
   const [theater, setTheater] = useState(false); // inline composer connected to the timeline
   const [drag, setDrag] = useState<{ id: string; mode: "move" | "l" | "r"; dx: number } | null>(null);
+  const [layerDrag, setLayerDrag] = useState<{ id: string; mode: "move" | "l" | "r"; dx: number; dy: number } | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; kind: "scene" | "layer"; id: string } | null>(null);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const rulerRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const wallRef = useRef(0);
   const startXRef = useRef(0);
+  const startYRef = useRef(0);
   const scrubbing = useRef(false);
 
   // cumulative layout by played length
@@ -1247,9 +1294,37 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
   const laneMove = (e: ReactPointerEvent) => {
     if (scrubbing.current) { scrubTo(e.clientX); return; }
     if (drag) setDrag((d) => (d ? { ...d, dx: e.clientX - startXRef.current } : d));
+    if (layerDrag) setLayerDrag((d) => (d ? { ...d, dx: e.clientX - startXRef.current, dy: e.clientY - startYRef.current } : d));
   };
   const laneUp = () => {
     scrubbing.current = false;
+    if (layerDrag) {
+      const d = layerDrag; setLayerDrag(null);
+      const layers = film.composer?.layers || [];
+      const layer = layers.find((item) => item.id === d.id);
+      if (!layer) return;
+      const duration = Math.max(0.2, layer.endSec - layer.startSec);
+      let startSec = layer.startSec;
+      let endSec = layer.endSec;
+      if (d.mode === "move") {
+        startSec = Math.max(0, Math.min(total - duration, layer.startSec + d.dx / px));
+        endSec = startSec + duration;
+      } else if (d.mode === "l") {
+        startSec = Math.max(0, Math.min(layer.endSec - 0.2, layer.startSec + d.dx / px));
+      } else {
+        endSec = Math.max(layer.startSec + 0.2, Math.min(total, layer.endSec + d.dx / px));
+      }
+      let next = layers.map((item) => item.id === layer.id ? { ...item, startSec, endSec } : item);
+      if (d.mode === "move" && Math.abs(d.dy) >= 16) {
+        const ordered = [...next].sort((a, b) => a.zIndex - b.zIndex);
+        const index = ordered.findIndex((item) => item.id === layer.id);
+        const target = Math.max(0, Math.min(ordered.length - 1, index + (d.dy < 0 ? 1 : -1)));
+        [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+        next = ordered.map((item, zIndex) => ({ ...item, zIndex }));
+      }
+      onFilmPatch({ composer: { ...(film.composer || DEFAULT_COMPOSER), layers: next } });
+      return;
+    }
     if (!drag) return;
     const d = drag; setDrag(null);
     const sc = scenes.find((s) => s.id === d.id); if (!sc) return;
@@ -1272,12 +1347,45 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
     }
   };
 
+  const beginLayer = (event: ReactPointerEvent, id: string, mode: "move" | "l" | "r") => {
+    event.stopPropagation();
+    startXRef.current = event.clientX;
+    startYRef.current = event.clientY;
+    setLayerDrag({ id, mode, dx: 0, dy: 0 });
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+  };
+  const patchLayers = (layers: FilmComposerLayer[]) => onFilmPatch({ composer: { ...(film.composer || DEFAULT_COMPOSER), layers } });
+  const splitLayer = (id: string) => {
+    const layers = film.composer?.layers || [];
+    const layer = layers.find((item) => item.id === id);
+    if (!layer || t <= layer.startSec + 0.2 || t >= layer.endSec - 0.2) return;
+    const right = { ...layer, id: uid("layer"), name: `${layer.name} part 2`, startSec: t, zIndex: layer.zIndex + 1 };
+    patchLayers(layers.map((item) => item.id === id ? { ...item, endSec: t } : item).concat(right));
+  };
+  const duplicateLayer = (id: string) => {
+    const layers = film.composer?.layers || [];
+    const layer = layers.find((item) => item.id === id);
+    if (!layer) return;
+    const duration = layer.endSec - layer.startSec;
+    const startSec = Math.min(Math.max(0, total - duration), layer.startSec + 0.5);
+    patchLayers([...layers, { ...layer, id: uid("layer"), name: `${layer.name} copy`, startSec, endSec: startSec + duration, zIndex: Math.max(0, ...layers.map((item) => item.zIndex)) + 1 }]);
+  };
+  const stackLayer = (id: string, edge: "front" | "back") => {
+    const ordered = [...(film.composer?.layers || [])].sort((a, b) => a.zIndex - b.zIndex);
+    const index = ordered.findIndex((item) => item.id === id);
+    if (index < 0) return;
+    const [layer] = ordered.splice(index, 1);
+    edge === "front" ? ordered.push(layer) : ordered.unshift(layer);
+    patchLayers(ordered.map((item, zIndex) => ({ ...item, zIndex })));
+  };
+
   const selLaid = laid.find((l) => l.s.id === selId);
   const canSplit = !!selLaid && t > selLaid.start + 0.3 && t < selLaid.start + selLaid.len - 0.3;
   const prevAspect = film.aspect === "16:9" ? { w: 232, h: 132 } : film.aspect === "1:1" ? { w: 132, h: 132 } : { w: 78, h: 138 };
 
   const laneScrubStart = (e: ReactPointerEvent) => { scrubbing.current = true; scrubTo(e.clientX); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); };
   const laneMin = { minWidth: total * px };
+  const visualComposerLayers = (film.composer?.layers || []).filter((layer) => layer.type !== "audio").sort((a, b) => a.zIndex - b.zIndex);
 
   return (
     <div ref={dockRef} className={cn("absolute inset-x-0 bottom-0 z-20 flex flex-col border-t border-border bg-card/95 backdrop-blur transition-[height]", collapsed ? "h-[38px]" : "h-[280px]")}>
@@ -1338,7 +1446,7 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
           <div className="relative min-w-0 flex-1 overflow-auto" onPointerMove={laneMove} onPointerUp={laneUp}>
             <div className="relative" style={{ minWidth: THEAD_W + total * px }}>
               {/* ruler */}
-              <div ref={rulerRef} onPointerDown={(e) => { scrubbing.current = true; scrubTo(e.clientX); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }} className="sticky top-0 z-10 flex h-5 cursor-text border-b border-border bg-card" style={{ paddingLeft: THEAD_W }}>
+              <div ref={rulerRef} data-timeline-ruler onPointerDown={(e) => { scrubbing.current = true; scrubTo(e.clientX); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }} className="sticky top-0 z-10 flex h-5 cursor-text border-b border-border bg-card" style={{ paddingLeft: THEAD_W }}>
                 {ticks.map((tk) => <span key={tk} style={{ width: 5 * px }} className="shrink-0 border-l border-border pl-1 pt-0.5 font-mono text-[9px] text-muted-foreground">{fmtT(tk)}</span>)}
               </div>
 
@@ -1354,7 +1462,7 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
                     else if (dd?.mode === "r") width = Math.max(24, width + dd.dx);
                     else if (dd?.mode === "l") { left += dd.dx; width = Math.max(24, width - dd.dx); }
                     return (
-                      <div key={s.id} onPointerDown={(e) => begin(e, s.id, "move")}
+                      <div key={s.id} data-timeline-scene={s.id} onPointerDown={(e) => begin(e, s.id, "move")} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setMenu({ x: event.clientX, y: event.clientY, kind: "scene", id: s.id }); }}
                         className={cn("group absolute inset-y-1.5 flex cursor-grab items-center overflow-hidden rounded-md border text-[9.5px] font-bold text-black/80 active:cursor-grabbing", selId === s.id ? "border-white ring-1 ring-white" : "border-white/20")}
                         style={{ left, width, transform: tf, background: E.color }}>
                         <span className="absolute inset-y-0 left-0 z-10 w-2 cursor-ew-resize bg-black/25 opacity-0 group-hover:opacity-100" onPointerDown={(e) => begin(e, s.id, "l")} />
@@ -1369,16 +1477,21 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
               </div>
 
               {/* Overlay lane (PiP presenters/insets, derived) */}
-              <div className="flex min-h-[40px] border-b border-border">
+              <div className="flex min-h-[68px] border-b border-border">
                 <div className="sticky left-0 z-[1] flex w-[92px] shrink-0 items-center gap-1.5 border-r border-border bg-card px-2.5 text-[10px] font-semibold text-muted-foreground"><span className="h-2 w-2 rounded-sm bg-[#22d3ee]" /> Overlay</div>
                 <div className="relative flex-1 py-1.5" style={laneMin} onPointerDown={laneScrubStart}>
                   {laid.filter(({ s }) => s.overlay).map(({ s, start, len }) => {
                     const OE = ENGINES[s.overlay!.engine];
                     return <div key={s.id} className="absolute inset-y-2 flex items-center overflow-hidden rounded border border-white/20 px-1.5 text-[9px] font-bold text-black/80" style={{ left: start * px, width: Math.max(20, len * px), background: OE.color }}>⧉ {OE.label}</div>;
                   })}
-                  {(film.composer?.layers || []).filter((layer) => layer.type !== "audio").map((layer) => (
-                    <div key={layer.id} className="absolute inset-y-2 flex items-center overflow-hidden rounded border border-cyan-300/40 bg-cyan-500/65 px-1.5 text-[9px] font-bold text-cyan-950" style={{ left: layer.startSec * px, width: Math.max(20, (layer.endSec - layer.startSec) * px) }}>{layer.type === "text" ? "T" : "◇"} {layer.name}</div>
-                  ))}
+                  {visualComposerLayers.map((layer, layerIndex) => {
+                    const dd = layerDrag?.id === layer.id ? layerDrag : null;
+                    let left = layer.startSec * px, width = Math.max(20, (layer.endSec - layer.startSec) * px), transform = "";
+                    if (dd?.mode === "move") transform = `translate(${dd.dx}px, ${Math.max(-22, Math.min(22, dd.dy))}px)`;
+                    else if (dd?.mode === "l") { left += dd.dx; width = Math.max(12, width - dd.dx); }
+                    else if (dd?.mode === "r") width = Math.max(12, width + dd.dx);
+                    return <div key={layer.id} data-timeline-layer={layer.id} onPointerDown={(event) => beginLayer(event, layer.id, "move")} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setMenu({ x: event.clientX, y: event.clientY, kind: "layer", id: layer.id }); }} className="group absolute flex h-5 cursor-grab items-center overflow-hidden rounded border border-cyan-300/40 bg-cyan-500/65 px-2 text-[9px] font-bold text-cyan-950 active:cursor-grabbing" style={{ left, width, top: 3 + (layerIndex % 3) * 20, transform, zIndex: layer.zIndex + 1 }}><span data-layer-trim="left" className="absolute inset-y-0 left-0 w-2 cursor-ew-resize bg-cyan-950/25 opacity-0 group-hover:opacity-100" onPointerDown={(event) => beginLayer(event, layer.id, "l")} /><span className="truncate">{layer.type === "text" ? "T" : "Media"} {layer.name}</span><span data-layer-trim="right" className="absolute inset-y-0 right-0 w-2 cursor-ew-resize bg-cyan-950/25 opacity-0 group-hover:opacity-100" onPointerDown={(event) => beginLayer(event, layer.id, "r")} /></div>;
+                  })}
                 </div>
               </div>
 
@@ -1387,9 +1500,14 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
                 <div className="sticky left-0 z-[1] flex w-[92px] shrink-0 items-center gap-1.5 border-r border-border bg-card px-2.5 text-[10px] font-semibold text-muted-foreground"><span className="h-2 w-2 rounded-sm bg-[#f472b6]" /> Music</div>
                 <div className="relative flex-1 py-1.5" style={laneMin} onPointerDown={laneScrubStart}>
                   {film.music && <div className="absolute inset-y-1.5 rounded-md bg-pink-500/80" style={{ left: 0, width: cursor * px }} />}
-                  {(film.composer?.layers || []).filter((layer) => layer.type === "audio").map((layer) => (
-                    <div key={layer.id} className="absolute inset-y-2 flex items-center overflow-hidden rounded bg-amber-400/80 px-1.5 text-[8.5px] font-bold text-amber-950" style={{ left: layer.startSec * px, width: Math.max(18, (layer.endSec - layer.startSec) * px) }}>{layer.name}</div>
-                  ))}
+                  {(film.composer?.layers || []).filter((layer) => layer.type === "audio").map((layer) => {
+                    const dd = layerDrag?.id === layer.id ? layerDrag : null;
+                    let left = layer.startSec * px, width = Math.max(18, (layer.endSec - layer.startSec) * px), transform = "";
+                    if (dd?.mode === "move") transform = `translateX(${dd.dx}px)`;
+                    else if (dd?.mode === "l") { left += dd.dx; width = Math.max(12, width - dd.dx); }
+                    else if (dd?.mode === "r") width = Math.max(12, width + dd.dx);
+                    return <div key={layer.id} data-timeline-layer={layer.id} onPointerDown={(event) => beginLayer(event, layer.id, "move")} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setMenu({ x: event.clientX, y: event.clientY, kind: "layer", id: layer.id }); }} className="group absolute inset-y-2 flex cursor-grab items-center overflow-hidden rounded bg-amber-400/80 px-2 text-[8.5px] font-bold text-amber-950" style={{ left, width, transform }}><span data-layer-trim="left" className="absolute inset-y-0 left-0 w-2 cursor-ew-resize bg-amber-950/25 opacity-0 group-hover:opacity-100" onPointerDown={(event) => beginLayer(event, layer.id, "l")} /><span className="truncate">{layer.name}</span><span data-layer-trim="right" className="absolute inset-y-0 right-0 w-2 cursor-ew-resize bg-amber-950/25 opacity-0 group-hover:opacity-100" onPointerDown={(event) => beginLayer(event, layer.id, "r")} /></div>;
+                  })}
                 </div>
               </div>
 
@@ -1408,6 +1526,27 @@ function DockedTimeline({ scenes, film, collapsed, onToggle, selId, onSelect, on
             </div>
           </div>
         </div>
+      )}
+
+      {menu && (
+        <EditorContextMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={menu.kind === "layer" ? [
+          { label: "Split at playhead", icon: Scissors, disabled: !((film.composer?.layers || []).some((layer) => layer.id === menu.id && t > layer.startSec + 0.2 && t < layer.endSec - 0.2)), onSelect: () => splitLayer(menu.id) },
+          { label: "Duplicate", icon: Copy, onSelect: () => duplicateLayer(menu.id) },
+          { label: "Start at playhead", onSelect: () => {
+            const layers = film.composer?.layers || []; const layer = layers.find((item) => item.id === menu.id); if (!layer) return;
+            const duration = layer.endSec - layer.startSec; patchLayers(layers.map((item) => item.id === menu.id ? { ...item, startSec: Math.min(t, total - 0.2), endSec: Math.min(total, Math.min(t, total - 0.2) + duration) } : item));
+          } },
+          { label: "Fill film", onSelect: () => patchLayers((film.composer?.layers || []).map((item) => item.id === menu.id ? { ...item, startSec: 0, endSec: total } : item)) },
+          { label: "Bring to front", icon: ArrowUp, onSelect: () => stackLayer(menu.id, "front") },
+          { label: "Send to back", icon: ArrowDown, onSelect: () => stackLayer(menu.id, "back") },
+          { label: "Delete", icon: Trash2, danger: true, onSelect: () => patchLayers((film.composer?.layers || []).filter((item) => item.id !== menu.id)) },
+        ] : [
+          { label: "Select scene", icon: MousePointer2, onSelect: () => onSelect(menu.id) },
+          { label: "Split at playhead", icon: Scissors, disabled: !(laid.some((item) => item.s.id === menu.id && t > item.start + 0.3 && t < item.start + item.len - 0.3)), onSelect: () => { const item = laid.find((entry) => entry.s.id === menu.id); if (item) onSplit(menu.id, t - item.start); } },
+          { label: "Move earlier", icon: ArrowUp, onSelect: () => { const ids = scenes.map((scene) => scene.id); const index = ids.indexOf(menu.id); if (index > 0) { [ids[index - 1], ids[index]] = [ids[index], ids[index - 1]]; onReorder(ids); } } },
+          { label: "Move later", icon: ArrowDown, onSelect: () => { const ids = scenes.map((scene) => scene.id); const index = ids.indexOf(menu.id); if (index >= 0 && index < ids.length - 1) { [ids[index], ids[index + 1]] = [ids[index + 1], ids[index]]; onReorder(ids); } } },
+          { label: "Reset trim", onSelect: () => onPatch(menu.id, { clipStart: undefined, clipEnd: undefined }) },
+        ]} />
       )}
 
       {theater && createPortal(
@@ -1457,10 +1596,20 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
   const [picker, setPicker] = useState<FilmComposerLayerType | "music" | null>(null);
   const [uploadKind, setUploadKind] = useState<FilmComposerLayerType | "music" | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState<"image" | "audio" | "music" | null>(null);
+  const [imagePrompt, setImagePrompt] = useState("");
+  const [voiceScript, setVoiceScript] = useState("");
+  const [voiceGender, setVoiceGender] = useState("female");
+  const [musicPrompt, setMusicPrompt] = useState("");
+  const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const [frame, setFrame] = useState({ left: 12, right: 12, bottom: 280 });
   const fileRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ id: string; startX: number; startY: number; x: number; y: number } | null>(null);
+  const dragRef = useRef<
+    | { mode: "move"; id: string; startX: number; startY: number; x: number; y: number }
+    | { mode: "resize"; id: string; startX: number; x: number; width: number; fontSize: number; west: boolean }
+    | null
+  >(null);
   const selected = composer.layers.find((layer) => layer.id === selectedId) || null;
   const visibleLayers = [...composer.layers]
     .filter((layer) => layer.type !== "audio" && t >= layer.startSec && t <= layer.endSec)
@@ -1488,7 +1637,8 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
   const updateLayer = (id: string, patch: Partial<FilmComposerLayer>) => {
     setComposer({ ...composer, layers: composer.layers.map((layer) => layer.id === id ? { ...layer, ...patch } : layer) });
   };
-  const addLayer = (type: FilmComposerLayerType, sourceUrl?: string, name?: string) => {
+
+  const addLayer = (type: FilmComposerLayerType, sourceUrl?: string, name?: string, endAt?: number) => {
     const id = uid("layer");
     const zIndex = Math.max(0, ...composer.layers.map((layer) => layer.zIndex)) + 1;
     const layer: FilmComposerLayer = {
@@ -1496,7 +1646,7 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
       sourceUrl: sourceUrl || null, text: type === "text" ? "Your text" : undefined,
       x: type === "logo" ? 0.75 : 0.1, y: type === "logo" ? 0.06 : 0.12,
       width: type === "logo" ? 0.18 : type === "text" ? 0.55 : 0.32,
-      opacity: 1, startSec: Math.min(t, Math.max(0, total - 0.1)), endSec: total,
+      opacity: 1, startSec: Math.min(t, Math.max(0, total - 0.1)), endSec: Math.max(Math.min(total, endAt ?? total), Math.min(t, Math.max(0, total - 0.1)) + 0.1),
       zIndex, font: "sans", fontSize: 44, color: "#ffffff", backgroundColor: "#000000", volume: 0.8,
     };
     setComposer({ ...composer, layers: [...composer.layers, layer] });
@@ -1514,10 +1664,63 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
     [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
     setComposer({ ...composer, layers: ordered.map((layer, zIndex) => ({ ...layer, zIndex })) });
   };
+  const moveStackTo = (id: string, edge: "front" | "back") => {
+    const ordered = [...composer.layers].sort((a, b) => a.zIndex - b.zIndex);
+    const index = ordered.findIndex((layer) => layer.id === id);
+    if (index < 0) return;
+    const [layer] = ordered.splice(index, 1);
+    edge === "front" ? ordered.push(layer) : ordered.unshift(layer);
+    setComposer({ ...composer, layers: ordered.map((item, zIndex) => ({ ...item, zIndex })) });
+  };
+  const duplicateLayer = (id: string) => {
+    const source = composer.layers.find((layer) => layer.id === id);
+    if (!source) return;
+    const copy = { ...source, id: uid("layer"), name: `${source.name} copy`, x: Math.min(0.95, source.x + 0.03), y: Math.min(0.95, source.y + 0.03), zIndex: Math.max(0, ...composer.layers.map((layer) => layer.zIndex)) + 1 };
+    setComposer({ ...composer, layers: [...composer.layers, copy] });
+    setSelectedId(copy.id); setTool(copy.type);
+  };
+
+  const generateImageLayer = async () => {
+    if (imagePrompt.trim().length < 3) return;
+    setGenerating("image");
+    try {
+      const response = await fetch("/api/media/generate-image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: imagePrompt.trim() }) });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success || !data.data?.url) throw new Error(data?.error?.message || data?.error || "Image generation failed");
+      addLayer("image", data.data.url, "AI image");
+      toast({ title: "Image added", description: "The generated image is ready on the canvas." });
+    } catch (error) { toast({ title: "Image generation failed", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }); }
+    finally { setGenerating(null); }
+  };
+  const generateVoiceLayer = async () => {
+    if (!voiceScript.trim()) return;
+    setGenerating("audio");
+    try {
+      const response = await fetch("/api/ai/voice-studio/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ script: voiceScript.trim(), gender: voiceGender, accent: "american", style: "conversational", speed: 1 }) });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success || !data.data?.audioUrl) throw new Error(data?.error?.message || data?.error || "Voice generation failed");
+      const durationSec = Math.max(0.5, Number(data.data.durationMs || 0) / 1000);
+      addLayer("audio", data.data.audioUrl, "AI voice", Math.min(total, t + durationSec));
+      toast({ title: "Voice added", description: "The generated narration is now on the audio track." });
+    } catch (error) { toast({ title: "Voice generation failed", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }); }
+    finally { setGenerating(null); }
+  };
+  const generateMusic = async () => {
+    if (musicPrompt.trim().length < 3) return;
+    setGenerating("music");
+    try {
+      const response = await fetch(`/api/ai/video-director/${film.id}/composer/music`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: musicPrompt.trim() }) });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success || !data.data?.url) throw new Error(data?.error?.message || data?.error || "Music generation failed");
+      onFilmPatch({ music: data.data.url });
+      toast({ title: "Music added", description: "The generated music bed spans the film." });
+    } catch (error) { toast({ title: "Music generation failed", description: error instanceof Error ? error.message : "Please try again.", variant: "destructive" }); }
+    finally { setGenerating(null); }
+  };
   const chooseTool = (next: ComposerTool) => {
     setTool(next);
     if (next === "text") addLayer("text");
-    else if (next === "image" || next === "logo" || next === "video" || next === "audio") setSelectedId(null);
+    else setSelectedId(null);
   };
   const addPickedMedia = (kind: FilmComposerLayerType, url: string, name?: string) => {
     if (kind === "audio") addLayer("audio", url, name || "Audio");
@@ -1547,19 +1750,60 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
   const beginLayerDrag = (event: ReactPointerEvent, layer: FilmComposerLayer) => {
     event.stopPropagation();
     setSelectedId(layer.id); setTool(layer.type);
-    dragRef.current = { id: layer.id, startX: event.clientX, startY: event.clientY, x: layer.x, y: layer.y };
+    dragRef.current = { mode: "move", id: layer.id, startX: event.clientX, startY: event.clientY, x: layer.x, y: layer.y };
+    (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
+  };
+  const beginLayerResize = (event: ReactPointerEvent, layer: FilmComposerLayer, west: boolean) => {
+    event.stopPropagation(); event.preventDefault();
+    setSelectedId(layer.id); setTool(layer.type);
+    dragRef.current = { mode: "resize", id: layer.id, startX: event.clientX, x: layer.x, width: layer.width, fontSize: layer.fontSize || 44, west };
     (event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
   };
   const moveLayer = (event: ReactPointerEvent) => {
     const drag = dragRef.current, canvas = canvasRef.current;
     if (!drag || !canvas) return;
     const rect = canvas.getBoundingClientRect();
-    updateLayer(drag.id, {
-      x: Math.max(0, Math.min(0.95, drag.x + (event.clientX - drag.startX) / rect.width)),
-      y: Math.max(0, Math.min(0.95, drag.y + (event.clientY - drag.startY) / rect.height)),
-    });
+    if (drag.mode === "move") {
+      const layer = composer.layers.find((item) => item.id === drag.id);
+      updateLayer(drag.id, {
+        x: Math.max(0, Math.min(1 - (layer?.width || 0.05), drag.x + (event.clientX - drag.startX) / rect.width)),
+        y: Math.max(0, Math.min(0.95, drag.y + (event.clientY - drag.startY) / rect.height)),
+      });
+    } else {
+      const rawDelta = (event.clientX - drag.startX) / rect.width * (drag.west ? -1 : 1);
+      const width = Math.max(0.05, Math.min(1 - (drag.west ? Math.max(0, drag.x - rawDelta) : drag.x), drag.width + rawDelta));
+      const ratio = width / drag.width;
+      updateLayer(drag.id, {
+        width,
+        x: drag.west ? Math.max(0, drag.x + drag.width - width) : drag.x,
+        ...(composer.layers.find((item) => item.id === drag.id)?.type === "text" ? { fontSize: Math.max(12, Math.min(160, drag.fontSize * ratio)) } : {}),
+      });
+    }
   };
   const endLayerDrag = () => { dragRef.current = null; };
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const key = (event: KeyboardEvent) => {
+      const tag = (event.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      const layer = composer.layers.find((item) => item.id === selectedId);
+      if (!layer) return;
+      const step = event.shiftKey ? 0.02 : 0.005;
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+        event.preventDefault();
+        updateLayer(layer.id, {
+          x: Math.max(0, Math.min(1 - layer.width, layer.x + (event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0))),
+          y: Math.max(0, Math.min(0.95, layer.y + (event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0))),
+        });
+      } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "d") { event.preventDefault(); duplicateLayer(layer.id); }
+      else if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); removeLayer(layer.id); }
+      else if (event.key === "]") { event.preventDefault(); moveStack(layer.id, 1); }
+      else if (event.key === "[") { event.preventDefault(); moveStack(layer.id, -1); }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [selectedId, composer]); // eslint-disable-line react-hooks/exhaustive-deps
   const patchCaptions = (patch: Partial<FilmComposer["captions"]>) => setComposer({ ...composer, captions: { ...composer.captions, ...patch } });
   const aspectRatio = film.aspect === "16:9" ? "16 / 9" : film.aspect === "1:1" ? "1 / 1" : "9 / 16";
   const tools: { id: ComposerTool; label: string; Icon: ElementType }[] = [
@@ -1587,7 +1831,7 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
         </div>
 
         <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black/80 p-3">
-          <div ref={canvasRef} onPointerMove={moveLayer} onPointerUp={endLayerDrag} onPointerCancel={endLayerDrag} onClick={() => setSelectedId(null)}
+          <div ref={canvasRef} data-composer-canvas onPointerMove={moveLayer} onPointerUp={endLayerDrag} onPointerCancel={endLayerDrag} onClick={() => setSelectedId(null)}
             className="relative max-h-full max-w-full overflow-hidden bg-black shadow-2xl ring-1 ring-white/10"
             style={{ aspectRatio, height: film.aspect === "9:16" ? "100%" : film.aspect === "1:1" ? "min(100%, 620px)" : "auto", width: film.aspect === "9:16" ? "auto" : film.aspect === "1:1" ? "min(100%, 620px)" : "min(100%, 980px)" }}>
             {activeImg ? <Image src={activeImg} alt="" fill sizes="980px" className="object-contain" unoptimized />
@@ -1595,7 +1839,7 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
                 : <div className="grid h-full w-full place-items-center text-[12px] text-white/45">{activeScene ? "Generate this scene to preview it" : "No scene at the playhead"}</div>}
 
             {visibleLayers.map((layer) => (
-              <div key={layer.id} onPointerDown={(event) => beginLayerDrag(event, layer)} onClick={(event) => event.stopPropagation()}
+              <div key={layer.id} data-composer-layer={layer.id} onPointerDown={(event) => beginLayerDrag(event, layer)} onClick={(event) => event.stopPropagation()} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedId(layer.id); setTool(layer.type); setMenu({ x: event.clientX, y: event.clientY, id: layer.id }); }}
                 className={cn("absolute cursor-move select-none", selectedId === layer.id && "outline outline-2 outline-brand-500 outline-offset-2")}
                 style={{ left: `${layer.x * 100}%`, top: `${layer.y * 100}%`, width: `${layer.width * 100}%`, opacity: layer.opacity, zIndex: layer.zIndex + 2 }}>
                 {layer.type === "text" ? (
@@ -1605,6 +1849,13 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
                 ) : layer.sourceUrl ? (
                   <Image src={layer.sourceUrl} alt={layer.name} width={480} height={320} className="h-auto w-full object-contain" unoptimized />
                 ) : null}
+                {selectedId === layer.id && (
+                  <>
+                    {([true, false] as const).map((west) => ["top-[-6px]", "bottom-[-6px]"].map((vertical) => (
+                      <button key={`${west}-${vertical}`} type="button" aria-label="Resize layer" data-composer-resize-handle onPointerDown={(event) => beginLayerResize(event, layer, west)} className={cn("absolute z-20 h-3 w-3 rounded-sm border border-white bg-brand-500 shadow", west ? "left-[-6px] cursor-nwse-resize" : "right-[-6px] cursor-nesw-resize", vertical)} />
+                    )))}
+                  </>
+                )}
               </div>
             ))}
 
@@ -1616,6 +1867,21 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
             )}
           </div>
         </div>
+
+        {menu && (
+          <EditorContextMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)} items={[
+            { label: "Duplicate", icon: Copy, onSelect: () => duplicateLayer(menu.id) },
+            { label: "Bring to front", icon: ArrowUp, onSelect: () => moveStackTo(menu.id, "front") },
+            { label: "Bring forward", onSelect: () => moveStack(menu.id, 1) },
+            { label: "Send backward", onSelect: () => moveStack(menu.id, -1) },
+            { label: "Send to back", icon: ArrowDown, onSelect: () => moveStackTo(menu.id, "back") },
+            { label: "Center horizontally", icon: AlignCenter, onSelect: () => { const layer = composer.layers.find((item) => item.id === menu.id); if (layer) updateLayer(menu.id, { x: Math.max(0, (1 - layer.width) / 2) }); } },
+            { label: "Center vertically", icon: AlignCenter, onSelect: () => updateLayer(menu.id, { y: 0.45 }) },
+            { label: "Start at playhead", onSelect: () => { const layer = composer.layers.find((item) => item.id === menu.id); if (layer) { const duration = layer.endSec - layer.startSec; updateLayer(menu.id, { startSec: Math.min(t, total - 0.1), endSec: Math.min(total, t + duration) }); } } },
+            { label: "Fill film", onSelect: () => updateLayer(menu.id, { startSec: 0, endSec: total }) },
+            { label: "Delete", icon: Trash2, danger: true, onSelect: () => removeLayer(menu.id) },
+          ]} />
+        )}
 
         <div className="flex h-11 shrink-0 items-center gap-2 border-t border-border px-3">
           <button onClick={() => onSeek(0)} title="To start" className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted-foreground">⏮</button>
@@ -1635,13 +1901,31 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
             <CaptionInspector composer={composer} onPatch={patchCaptions} />
           ) : tool === "music" ? (
             <div className="space-y-3">
-              <p className="text-[10px] text-muted-foreground">Music bed across the whole film.</p>
+              <label className="block text-[10px] font-bold">Generate music</label>
+              <textarea data-composer-music-prompt value={musicPrompt} onChange={(event) => setMusicPrompt(event.target.value)} rows={4} placeholder="Mood, tempo, instruments, and energy" className="w-full resize-y rounded-md border border-input bg-background px-2.5 py-2 text-[10.5px] leading-relaxed outline-none focus:border-brand-500" />
+              <button data-composer-generate-music onClick={() => void generateMusic()} disabled={generating === "music" || musicPrompt.trim().length < 3} className="flex w-full items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-brand-500 to-violet-500 py-2 text-[10.5px] font-bold text-white disabled:opacity-50">{generating === "music" ? <FlowLoader size={11} /> : <Wand2 className="h-3 w-3" />} Generate music</button>
+              <div className="flex items-center gap-2"><span className="h-px flex-1 bg-border" /><span className="text-[8.5px] uppercase text-muted-foreground">or add a track</span><span className="h-px flex-1 bg-border" /></div>
               <div className="flex gap-2"><button onClick={() => setPicker("music")} className="flex-1 rounded-md border border-border py-2 text-[10.5px] font-bold hover:border-brand-500"><FolderOpen className="mr-1 inline h-3 w-3" /> Library</button><button onClick={() => openUpload("music")} className="flex-1 rounded-md border border-border py-2 text-[10.5px] font-bold hover:border-brand-500"><Upload className="mr-1 inline h-3 w-3" /> Computer</button></div>
               {film.music && <button onClick={() => onFilmPatch({ music: null })} className="w-full rounded-md border border-rose-500/40 py-1.5 text-[10px] font-bold text-rose-500">Remove music</button>}
               <RangeField label="Music volume" value={composer.musicVolume} min={0} max={1} step={0.05} onChange={(musicVolume) => setComposer({ ...composer, musicVolume })} />
             </div>
           ) : tool === "layers" ? (
             <div className="space-y-1.5">{composer.layers.length ? [...composer.layers].sort((a, b) => b.zIndex - a.zIndex).map((layer) => <button key={layer.id} onClick={() => { setSelectedId(layer.id); setTool(layer.type); }} className="flex w-full items-center gap-2 rounded-md border border-border px-2 py-2 text-left hover:border-brand-500"><span className="grid h-6 w-6 place-items-center rounded bg-muted text-[9px] font-bold uppercase">{layer.type.slice(0, 2)}</span><span className="min-w-0 flex-1 truncate text-[10.5px] font-semibold">{layer.name}</span><span className="text-[9px] text-muted-foreground">{fmtT(layer.startSec)}</span></button>) : <p className="py-8 text-center text-[10px] text-muted-foreground">Add text, media, or audio from the tool menu.</p>}</div>
+          ) : tool === "image" ? (
+            <div className="space-y-3">
+              <label className="block text-[10px] font-bold">Generate an image</label>
+              <textarea data-composer-image-prompt value={imagePrompt} onChange={(event) => setImagePrompt(event.target.value)} rows={5} placeholder="Describe the image you want in the film" className="w-full resize-y rounded-md border border-input bg-background px-2.5 py-2 text-[10.5px] leading-relaxed outline-none focus:border-brand-500" />
+              <button data-composer-generate-image onClick={() => void generateImageLayer()} disabled={generating === "image" || imagePrompt.trim().length < 3} className="flex w-full items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-brand-500 to-violet-500 py-2 text-[10.5px] font-bold text-white disabled:opacity-50">{generating === "image" ? <FlowLoader size={11} /> : <ImagePlus className="h-3 w-3" />} Generate image</button>
+              <MediaSourceInspector kind="image" uploading={uploading} onLibrary={() => setPicker("image")} onComputer={() => openUpload("image")} compact />
+            </div>
+          ) : tool === "audio" ? (
+            <div className="space-y-3">
+              <label className="block text-[10px] font-bold">Generate voice</label>
+              <textarea data-composer-voice-script value={voiceScript} onChange={(event) => setVoiceScript(event.target.value)} rows={5} placeholder="Type the narration or dialogue" className="w-full resize-y rounded-md border border-input bg-background px-2.5 py-2 text-[10.5px] leading-relaxed outline-none focus:border-brand-500" />
+              <div className="grid grid-cols-2 gap-1">{["female", "male"].map((gender) => <button key={gender} onClick={() => setVoiceGender(gender)} className={cn("rounded-md border py-1.5 text-[9.5px] font-bold capitalize", voiceGender === gender ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground")}>{gender}</button>)}</div>
+              <button data-composer-generate-voice onClick={() => void generateVoiceLayer()} disabled={generating === "audio" || !voiceScript.trim()} className="flex w-full items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-brand-500 to-violet-500 py-2 text-[10.5px] font-bold text-white disabled:opacity-50">{generating === "audio" ? <FlowLoader size={11} /> : <Mic2 className="h-3 w-3" />} Generate voice</button>
+              <MediaSourceInspector kind="audio" uploading={uploading} onLibrary={() => setPicker("audio")} onComputer={() => openUpload("audio")} compact />
+            </div>
           ) : (
             <MediaSourceInspector kind={tool as FilmComposerLayerType} uploading={uploading} onLibrary={() => setPicker(tool as FilmComposerLayerType)} onComputer={() => openUpload(tool as FilmComposerLayerType)} />
           )}
@@ -1657,8 +1941,8 @@ function FilmComposerModal({ film, activeScene, activeUrl, activeImg, anchorRef,
   );
 }
 
-function MediaSourceInspector({ kind, uploading, onLibrary, onComputer }: { kind: FilmComposerLayerType; uploading: boolean; onLibrary: () => void; onComputer: () => void }) {
-  return <div className="space-y-3"><p className="text-[10px] leading-snug text-muted-foreground">Add a {kind} layer at the current playhead. It remains selectable and can be positioned, timed, and stacked.</p><button onClick={onLibrary} className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-2 text-[10.5px] font-bold hover:border-brand-500"><FolderOpen className="h-3 w-3" /> Media library</button><button onClick={onComputer} disabled={uploading} className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-2 text-[10.5px] font-bold hover:border-brand-500 disabled:opacity-50">{uploading ? <FlowLoader size={11} /> : <Upload className="h-3 w-3" />} Upload from computer</button></div>;
+function MediaSourceInspector({ kind, uploading, onLibrary, onComputer, compact = false }: { kind: FilmComposerLayerType; uploading: boolean; onLibrary: () => void; onComputer: () => void; compact?: boolean }) {
+  return <div className="space-y-2">{!compact && <p className="text-[10px] leading-snug text-muted-foreground">Add a {kind} layer at the current playhead. It remains selectable and can be positioned, timed, and stacked.</p>}<div className="flex gap-2"><button onClick={onLibrary} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border py-2 text-[10px] font-bold hover:border-brand-500"><FolderOpen className="h-3 w-3" /> Library</button><button onClick={onComputer} disabled={uploading} className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border py-2 text-[10px] font-bold hover:border-brand-500 disabled:opacity-50">{uploading ? <FlowLoader size={11} /> : <Upload className="h-3 w-3" />} Computer</button></div></div>;
 }
 
 function RangeField({ label, value, min, max, step, onChange }: { label: string; value: number; min: number; max: number; step: number; onChange: (value: number) => void }) {
