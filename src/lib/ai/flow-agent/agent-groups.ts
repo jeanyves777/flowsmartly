@@ -33,8 +33,11 @@ export interface AgentSkill {
   costKey?: CreditCostKey;
   /** Short human cost hint for the card ("from 15 cr", "Free", "your budget"). */
   costHint: string;
-  /** Lucide icon name (UI maps to a component). */
+  /** Lucide icon name (UI maps to a component) — the fallback when there's no thumb. */
   icon: string;
+  /** Optional REAL example thumbnail (public/ path) shown on the menu card instead of
+   *  the icon, so the card sells what the studio actually makes. */
+  thumb?: string;
   keywords?: string[];
 }
 
@@ -78,7 +81,7 @@ export const AGENT_GROUPS: AgentGroup[] = [
     // BACKUP surfaces (still reachable directly) but are off the menu; Avatar is retired
     // temporarily until it has a proper use case.
     skills: [
-      { id: "video", title: "Filmmaking", description: "Multi-scene cinematic AI film.", surface: "director", tools: ["direct_film", "generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 30 cr", icon: "Clapperboard", keywords: ["film", "movie", "video", "ad", "cinematic", "scene"] },
+      { id: "video", title: "Filmmaking", description: "Multi-scene cinematic AI film.", surface: "director", tools: ["direct_film", "generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 30 cr", icon: "Clapperboard", thumb: "/Studio_Menus_Thumnail/Filmmaking.png", keywords: ["film", "movie", "video", "ad", "cinematic", "scene"] },
       { id: "ugc", title: "UGC video", description: "Creator videos with lip-sync.", surface: "ugc", tools: ["generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 8 cr", icon: "Sparkles", keywords: ["ugc", "creator", "testimonial", "unboxing", "lip sync", "tiktok", "reels"] },
       { id: "product-ad", title: "Product ad", description: "Cinematic ad from a product photo.", surface: "productads", tools: ["generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 8 cr", icon: "Megaphone", keywords: ["product", "ad", "commercial", "promo", "tvc", "advert", "perfume"] },
       { id: "try-on", title: "Virtual try-on", description: "Animate a look from a person + an outfit.", surface: "tryon", tools: ["generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 8 cr", icon: "Shirt", keywords: ["try on", "tryon", "fashion", "outfit", "clothing", "apparel", "lookbook"] },
