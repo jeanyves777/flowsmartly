@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Plus, Mic, ArrowUp, Sparkles, ChevronDown, Check, Upload, FolderOpen, ImageUp, X, Palette, Clapperboard, Megaphone, type LucideIcon } from "lucide-react";
+import { Plus, Mic, ArrowUp, Sparkles, ChevronDown, Check, Upload, FolderOpen, ImageUp, X, type LucideIcon } from "lucide-react";
+import { AGENT_GROUPS } from "@/lib/ai/flow-agent/agent-groups";
+import { groupIcon } from "./group-icons";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { useToast } from "@/hooks/use-toast";
@@ -20,14 +22,12 @@ export const COMPOSER_MODES = [
   { key: "super", label: "Super", hint: "premium · +15 cr", desc: "Premium model for complex tasks (+15 credits/turn).", superMode: true },
 ];
 
-// Home agent "hats" — the composer's agent switcher (Creation / Film / Marketing).
-// Purely a UI selection: the parent (agent-home) maps the key to the
-// surfaceContext that biases the agent. Kept separate from the Speed tier above.
-export const AGENT_MODES: { key: string; label: string; desc: string; Icon: LucideIcon }[] = [
-  { key: "creation", label: "Creation", desc: "Design, logos, sites & print.", Icon: Palette },
-  { key: "film", label: "Film", desc: "Video ads, reels & avatars.", Icon: Clapperboard },
-  { key: "marketing", label: "Marketing", desc: "Leads, campaigns & publishing.", Icon: Megaphone },
-];
+// Home agent GROUPS — the composer's agent switcher. Derived from the single
+// source of truth (AGENT_GROUPS): 8 groups covering every studio/skill. Purely
+// a UI selection; the parent (agent-home) maps the key to the surfaceContext
+// that biases the agent. Kept separate from the Speed tier above.
+export const AGENT_MODES: { key: string; label: string; desc: string; Icon: LucideIcon }[] =
+  AGENT_GROUPS.map((g) => ({ key: g.key, label: g.label, desc: g.description, Icon: groupIcon(g.icon) }));
 
 /**
  * The shared agent composer (mode drop-up + attach + textarea + send). Owns its
@@ -61,7 +61,7 @@ export function Composer({
 }) {
   const [draft, setDraft] = useState("");
   const [modeKey, setModeKey] = useState("standard");
-  const [agentModeInternal, setAgentModeInternal] = useState<string>("creation");
+  const [agentModeInternal, setAgentModeInternal] = useState<string>("create");
   const agentModeKey = agentModeProp ?? agentModeInternal;
   const agent = AGENT_MODES.find((a) => a.key === agentModeKey) ?? AGENT_MODES[0];
   const setAgentMode = (m: string) => { setAgentModeInternal(m); onAgentModeChange?.(m); };
