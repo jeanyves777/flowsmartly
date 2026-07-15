@@ -20,18 +20,24 @@ const TRYON_CHANNELS: PublishChannel[] = [
   { id: "facebook", name: "Facebook" }, { id: "linkedin", name: "LinkedIn" }, { id: "x", name: "X" },
 ];
 
-interface TryOnTemplate { id: TryOnTemplateId; title: string; desc: string; prompt: string; aspect: TryOnAspect; tips: string[]; hue: [string, string]; icon: string }
+interface TryOnTemplate {
+  id: TryOnTemplateId; title: string; desc: string; prompt: string; aspect: TryOnAspect; tips: string[]; hue: [string, string]; icon: string;
+  /** A REAL example still of the style (hue/icon are the fallback). */
+  thumb?: string;
+}
+// Folder name has a space, so the paths are URL-encoded.
+const T = "/Studio_Menus_Thumnail/Virtual%20Try-on";
 const TEMPLATES: TryOnTemplate[] = [
-  { id: "walk", icon: "🚶‍♀️", title: "Runway walk", desc: "Walks toward camera, fabric moving.", aspect: "3:4", hue: ["#2a2130", "#4f3f5a"],
+  { id: "walk", icon: "🚶‍♀️", title: "Runway walk", desc: "Walks toward camera, fabric moving.", aspect: "3:4", hue: ["#2a2130", "#4f3f5a"], thumb: `${T}/Virtual%20Try-on1.webp`,
     prompt: "The person walks slowly toward camera in a clean studio with a natural stride and subtle fabric movement.",
     tips: ["Reference 1: a clear, full-body photo of the person.", "Reference 2: the outfit on a plain background.", "Keep the motion simple — a walk reads most natural."] },
-  { id: "turn", icon: "🔄", title: "Turn & reveal", desc: "Slow turn showing the fit from all sides.", aspect: "3:4", hue: ["#1f2e2a", "#3f5f52"],
+  { id: "turn", icon: "🔄", title: "Turn & reveal", desc: "Slow turn showing the fit from all sides.", aspect: "3:4", hue: ["#1f2e2a", "#3f5f52"], thumb: `${T}/Virtual%20Try-on3.webp`,
     prompt: "The person turns slowly on the spot so the outfit reads from the front, side and back, with soft fabric sway as they move.",
     tips: ["Great for showing cut and drape.", "Say which side to start from.", "Slow turns keep the garment stable."] },
-  { id: "detail", icon: "🧵", title: "Fabric detail", desc: "Gentle push-in on texture and drape.", aspect: "3:4", hue: ["#3a2a1c", "#7a5236"],
+  { id: "detail", icon: "🧵", title: "Fabric detail", desc: "Gentle push-in on texture and drape.", aspect: "3:4", hue: ["#3a2a1c", "#7a5236"], thumb: `${T}/Virtual%20Try-on2.webp`,
     prompt: "A slow push-in on the person standing still, catching the light on the fabric texture, stitching and drape; subtle breathing motion only.",
     tips: ["Best for texture-led pieces (knit, silk, denim).", "Ask for the light to rake across the fabric.", "Minimal motion protects the detail."] },
-  { id: "street", icon: "🌆", title: "Street style", desc: "Real-world setting, candid energy.", aspect: "9:16", hue: ["#1e2a3a", "#324a63"],
+  { id: "street", icon: "🌆", title: "Street style", desc: "Real-world setting, candid energy.", aspect: "9:16", hue: ["#1e2a3a", "#324a63"], thumb: `${T}/Virtual%20Try-on.webp`,
     prompt: "The person walks through a soft-focus city street at golden hour with a relaxed, candid stride; the outfit moves naturally as they go.",
     tips: ["Name the setting and time of day.", "9:16 suits social street looks.", "Keep the background soft so the fit leads."] },
   { id: "blank", icon: "➕", title: "Start blank", desc: "Your own person + outfit + direction.", aspect: "3:4", hue: ["#22222c", "#33333f"],
@@ -329,8 +335,14 @@ export function FocusedTryOn({ refreshKey }: { refreshKey?: number; onAsk?: (pro
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Start from a template</p>
               <div className="flex gap-2.5 overflow-x-auto pb-1.5">
                 {TEMPLATES.map((t) => (
-                  <button key={t.id} onClick={() => pickTpl(t.id)} className={cn("w-[138px] shrink-0 overflow-hidden rounded-xl border-2 bg-background/40 text-left transition hover:-translate-y-0.5", dTpl === t.id ? "border-fuchsia-400" : "border-transparent")}>
-                    <div className="grid h-[68px] place-items-center text-[22px]" style={{ background: `linear-gradient(150deg, ${t.hue[0]}, ${t.hue[1]})` }}>{t.icon}</div>
+                  <button key={t.id} onClick={() => pickTpl(t.id)} className={cn("group w-[138px] shrink-0 overflow-hidden rounded-xl border-2 bg-background/40 text-left transition hover:-translate-y-0.5", dTpl === t.id ? "border-fuchsia-400" : "border-transparent")}>
+                    <div className="relative grid h-[68px] place-items-center overflow-hidden text-[22px]" style={{ background: `linear-gradient(150deg, ${t.hue[0]}, ${t.hue[1]})` }}>
+                      {/* A real example still of the style; icon + gradient is the fallback.
+                          `unoptimized` because /_next/image 400s on this deployment. */}
+                      {t.thumb
+                        ? <Image src={t.thumb} alt="" fill sizes="140px" unoptimized className="object-cover transition-transform duration-500 group-hover:scale-[1.06]" />
+                        : t.icon}
+                    </div>
                     <div className="px-2 pb-2 pt-1.5"><p className="truncate text-[11px] font-bold">{t.title}</p><p className="line-clamp-2 text-[9px] leading-snug text-muted-foreground">{t.desc}</p></div>
                   </button>
                 ))}
