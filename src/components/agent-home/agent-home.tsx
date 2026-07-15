@@ -23,6 +23,9 @@ import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import type { ViewEvent } from "@/lib/agent-views/spec";
 import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
+import { AgentIntro } from "./agent-intro";
+import { AGENT_GROUPS, AGENT_GROUP_KEYS, getAgentGroup, agentGroupContext } from "@/lib/ai/flow-agent/agent-groups";
+import { groupIcon } from "./group-icons";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
 import { FocusedDesignStudio, DEFAULT_DESIGN, DESIGN_DRAFT_KEY, designCanvasContext, applyDesignPatch, type DesignDoc, type BrandContact } from "./focused/design-studio";
 import { FocusedPrintStudio } from "./focused/print-studio";
@@ -272,6 +275,24 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
   }
 }
 
+// Home agent "hats" (composer switcher) → the surfaceContext that BIASES (not
+// restricts) the agent. Mirrors focusedSurfaceContext, but for the un-focused
+// home. Ignored while a focused surface is open (that context takes precedence).
+// The focused "app view" (studio the agent works on) each GROUP opens from the
+// Chat ⇄ View toggle — a representative surface + label per group. The
+// surfaceContext bias and the starter cards now come from AGENT_GROUPS
+// (agentGroupContext / the group's skills).
+const AGENT_VIEW: Record<string, { surface: string; label: string }> = {
+  create: { surface: "create", label: "Design Studio" },
+  film: { surface: "director", label: "Video Studio" },
+  publish: { surface: "compose", label: "Compose" },
+  grow: { surface: "campaign", label: "Campaign Studio" },
+  leads: { surface: "leads", label: "Lead Studio" },
+  sell: { surface: "sell", label: "Store Studio" },
+  web: { surface: "web", label: "Website Studio" },
+  business: { surface: "brand", label: "Brand Studio" },
+};
+
 // Focused surfaces that get their own traceable path (/home/<view>).
 // "grow" and "business" are category CONTAINERS (they open a nav panel, not a
 // real surface) — deliberately excluded so /home/grow and /home/business deep-
@@ -337,6 +358,11 @@ export function AgentHome() {
   // so opening a menu over a focused view and closing it returns you to that view.
   const panelReturnWs = useRef("home");
   const [activeWs, setActiveWs] = useState("home");
+  // The composer's agent "hat" on the home (Creation/Film/Marketing) — biases the
+  // agent via surfaceContext and swaps the starter chips. See agentModeContext.
+  const [agentMode, setAgentMode] = useState("create");
+  // First-run "Meet your agent" overlay (shown once; localStorage-gated).
+  const [showIntro, setShowIntro] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(true); // Lead Studio section menu (toggled from the surface header)
@@ -397,6 +423,26 @@ export function AgentHome() {
   }, [agentNewConversation, requestChatAutoscroll]);
 
   useEffect(() => setMounted(true), []);
+
+  // Restore the user's default agent hat, and show the first-run "Meet your
+  // agent" overlay once (localStorage-gated — no DB field needed).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("fs-agent-default");
+      const migrate: Record<string, string> = { creation: "create", marketing: "grow" };
+      const def = raw ? (migrate[raw] ?? raw) : null;
+      if (def && AGENT_GROUP_KEYS.includes(def)) setAgentMode(def);
+      if (!localStorage.getItem("fs-agent-onboarded")) setShowIntro(true);
+    } catch { /* ignore */ }
+  }, []);
+  const finishIntro = useCallback((key: string | null) => {
+    try {
+      localStorage.setItem("fs-agent-onboarded", "1");
+      if (key) localStorage.setItem("fs-agent-default", key);
+    } catch { /* ignore */ }
+    if (key) setAgentMode(key);
+    setShowIntro(false);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -969,6 +1015,7 @@ export function AgentHome() {
 
   return (
     <AgentNavContext.Provider value={navigateInApp}>
+    {showIntro && user && <AgentIntro onDone={finishIntro} />}
     <div
       dir={dir}
       className="flex h-[100dvh] flex-col bg-background text-foreground"
@@ -1415,23 +1462,54 @@ export function AgentHome() {
                 </h1>
                 <p className="mb-6 mt-2 text-[14px] leading-relaxed text-muted-foreground sm:text-[15px]">{s.sub}</p>
 
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                  {(suggestions.length ? suggestions : s.fallbackChips.map((label, i) => ({ label, hint: "", icon: ["palette", "calendar", "video", "bag"][i], prompt: label }))).map((sug, i) => {
-                    const Icon = SUG_ICON[sug.icon] ?? FALLBACK_ICONS[i] ?? Sparkles;
-                    return (
-                      <button key={i} onClick={() => send(sug.prompt)} className="flex items-start gap-3 rounded-[13px] border border-border bg-card p-3.5 text-start transition-all hover:-translate-y-0.5 hover:border-brand-500/60 hover:shadow-lg">
-                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Icon className="h-[18px] w-[18px]" /></span>
-                        <span className="min-w-0">
-                          <span className="block text-[13.5px] font-semibold">{sug.label}</span>
-                          {sug.hint && <span className="mt-0.5 block text-[11.5px] leading-snug text-muted-foreground">{sug.hint}</span>}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {!suggestionsLoaded && !suggestions.length && (
-                  <div className="mt-3"><FlowLoader size={24} withMark label="Personalizing suggestions…" /></div>
-                )}
+                {/* The selected agent GROUP's skills as a card-grid "menu view".
+                    Adaptive columns (4 → 2-col · 5/6 → 3-col); a leftover cell
+                    fills with an "Ask the agent" card. Cards open the studio. */}
+                {(() => {
+                  const grp = getAgentGroup(agentMode) ?? AGENT_GROUPS[0];
+                  const n = grp.skills.length;
+                  const cols = n === 4 ? 2 : 3;
+                  const fills = (cols - (n % cols)) % cols;
+                  const large = cols === 2; // 4-skill groups → fewer, larger cards
+                  const acc = grp.accent;
+                  const focusComposer = () => document.querySelector<HTMLTextAreaElement>(".pointer-events-auto textarea")?.focus();
+                  return (
+                    <>
+                      <div className="mb-3 flex items-center gap-2 text-[12.5px] text-muted-foreground">
+                        <span className="inline-flex h-2 w-2 rounded-full" style={{ background: acc }} />
+                        <b className="text-foreground">{grp.label}</b> · {grp.description}
+                      </div>
+                      <div className={cn("grid grid-cols-1 sm:grid-cols-2", cols === 3 ? "gap-3.5 lg:grid-cols-3" : "gap-4")}>
+                        {grp.skills.map((sk) => {
+                          const Icon = groupIcon(sk.icon);
+                          return (
+                            <button key={sk.id} onClick={() => guardNav(() => openView(sk.surface))} className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-start transition-all hover:-translate-y-1 hover:shadow-xl">
+                              <span className={cn("relative flex items-center justify-center", large ? "aspect-[16/9]" : "aspect-[16/10]")} style={{ background: `linear-gradient(150deg, ${acc}26, ${acc}0a)` }}>
+                                <span className="absolute left-2.5 top-2.5 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">{grp.label}</span>
+                                <Icon className={cn("opacity-90", large ? "h-10 w-10" : "h-7 w-7")} style={{ color: acc }} />
+                              </span>
+                              <span className={large ? "p-5" : "p-3.5"}>
+                                <span className={cn("block font-bold", large ? "text-[17px]" : "text-[14.5px]")}>{sk.title}</span>
+                                <span className={cn("mt-1 block leading-snug text-muted-foreground", large ? "text-[13.5px]" : "min-h-[34px] text-[12.5px]")}>{sk.description}</span>
+                                <span className={cn("inline-block rounded-md border px-2 py-0.5 font-semibold", large ? "mt-3.5 text-[12px]" : "mt-2.5 text-[11px]")} style={{ color: acc, borderColor: `${acc}59`, background: `${acc}14` }}>{sk.costHint}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                        {Array.from({ length: fills }).map((_, i) => (
+                          <button key={`fill-${i}`} onClick={focusComposer} className="flex items-center justify-center rounded-2xl border border-dashed p-6 text-center transition-colors" style={{ borderColor: `${acc}73`, background: `${acc}0f` }}>
+                            <span className="flex flex-col items-center gap-2">
+                              <span className="grid h-11 w-11 place-items-center rounded-2xl" style={{ background: `${acc}2e`, color: acc }}><Sparkles className="h-5 w-5" /></span>
+                              <b className="text-[14.5px]">Something else?</b>
+                              <span className="max-w-[24ch] text-[12.5px] text-muted-foreground">Tell the {grp.label} agent anything — it does the rest.</span>
+                              <span className="text-[12.5px] font-bold" style={{ color: acc }}>Ask the agent →</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  );
+                })()}
               </section>
             ) : (
               <div>
@@ -1446,7 +1524,20 @@ export function AgentHome() {
           {/* composer */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/90 to-transparent px-3 pb-4 pt-3 sm:px-[clamp(16px,4vw,64px)] sm:pb-5">
             <div className="pointer-events-auto mx-auto max-w-[1040px]">
-              <Composer onSend={(t, sm, atts) => send(t, sm, undefined, undefined, { attachments: atts })} sending={sending} placeholder={s.placeholder} />
+              {/* Chat ⇄ View — stay in chat, or open the agent's studio canvas
+                  (the "app view" it works on). View maps to the current agent. */}
+              <div className="mb-2 flex items-center gap-2.5">
+                <div className="inline-flex rounded-full border border-border bg-card p-0.5">
+                  <button type="button" className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1 text-[12px] font-semibold text-white">
+                    <MessageSquare className="h-3.5 w-3.5" /> Chat
+                  </button>
+                  <button type="button" onClick={() => guardNav(() => openView(AGENT_VIEW[agentMode]?.surface ?? "create"))} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground">
+                    <LayoutTemplate className="h-3.5 w-3.5" /> View
+                  </button>
+                </div>
+                <span className="hidden text-[11px] text-muted-foreground sm:inline">Chat keeps results here · View opens the {AGENT_VIEW[agentMode]?.label ?? "studio"}, where the agent works on the canvas.</span>
+              </div>
+              <Composer showAgentSwitcher agentMode={agentMode} onAgentModeChange={setAgentMode} onSend={(t, sm, atts, am) => send(t, sm, undefined, agentGroupContext(am ?? agentMode), { attachments: atts })} sending={sending} placeholder={s.placeholder} />
             </div>
             <p className="mx-auto mt-2 hidden max-w-[1040px] text-center text-[11px] text-muted-foreground sm:block">{s.hint}</p>
           </div>

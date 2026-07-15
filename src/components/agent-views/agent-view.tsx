@@ -8,7 +8,8 @@
  * turns into an agent message or a whitelisted tool call.
  */
 
-import { useState, Component, type ReactNode } from "react";
+import { useState, useEffect, useRef, Component, type ReactNode } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import Image from "next/image";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
@@ -72,10 +73,28 @@ function AgentViewInner({ spec, onEvent, className }: { spec: ViewSpec; onEvent?
   const emit: Emit = (e) => onEvent?.(e);
   const [preview, setPreview] = useState<MediaPreview | null>(null);
   const previewIsVideo = !!preview && (preview.mediaType === "video" || /\.(mp4|webm|mov)(\?|$)/i.test(preview.url));
+  // Live-object behavior: the agent re-emits a view (same requestId) as work
+  // lands — so when the BODY content changes, pop the card open and briefly
+  // highlight it. The user can still collapse it; the next update re-opens it.
+  const hasHeader = !!(spec.title || spec.badge || spec.icon);
+  const [collapsed, setCollapsed] = useState(false);
+  const [pulse, setPulse] = useState(false);
+  const bodySig = JSON.stringify(spec.body);
+  const prevSig = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (prevSig.current !== undefined && prevSig.current !== bodySig) {
+      setCollapsed(false);
+      setPulse(true);
+      const tmr = setTimeout(() => setPulse(false), 900);
+      prevSig.current = bodySig;
+      return () => clearTimeout(tmr);
+    }
+    prevSig.current = bodySig;
+  }, [bodySig]);
   return (
     <>
-    <div className={cn("overflow-hidden rounded-2xl border border-border bg-card shadow-sm", className)}>
-      {(spec.title || spec.badge || spec.icon) && (
+    <div className={cn("overflow-hidden rounded-2xl border bg-card shadow-sm transition-shadow", pulse ? "border-brand-500 ring-2 ring-brand-500/30" : "border-border", className)}>
+      {hasHeader && (
         <div className="flex items-center gap-2.5 border-b border-border px-3.5 py-2.5">
           {spec.icon && <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-lg bg-gradient-to-br from-brand-500/20 to-violet-500/20 px-1 text-center text-[11px] font-bold leading-none text-brand-500">{spec.icon}</span>}
           <div className="min-w-0">
@@ -85,16 +104,23 @@ function AgentViewInner({ spec, onEvent, className }: { spec: ViewSpec; onEvent?
           <div className="ms-auto flex items-center gap-2">
             {spec.badge && <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold", toneChipBg[spec.badge.tone || "brand"])}>{spec.badge.text}</span>}
             {spec.source === "generated" && <span className="inline-flex items-center gap-1 rounded-full bg-pink-500/15 px-2 py-0.5 text-[9.5px] font-bold text-pink-500">✨ generated</span>}
+            <button type="button" onClick={() => setCollapsed((c) => !c)} aria-label={collapsed ? "Expand" : "Collapse"} className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+              {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+            </button>
           </div>
         </div>
       )}
-      <div className="space-y-2.5 px-3.5 py-3">
-        {arr(spec.body).map((b, i) => <Block key={i} block={b} emit={emit} openPreview={setPreview} />)}
-      </div>
-      {spec.footer && spec.footer.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-border px-3.5 py-2.5">
-          {arr(spec.footer).map((b, i) => <Block key={i} block={b} emit={emit} openPreview={setPreview} />)}
-        </div>
+      {!collapsed && (
+        <>
+          <div className="space-y-2.5 px-3.5 py-3">
+            {arr(spec.body).map((b, i) => <Block key={i} block={b} emit={emit} openPreview={setPreview} />)}
+          </div>
+          {spec.footer && spec.footer.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-border px-3.5 py-2.5">
+              {arr(spec.footer).map((b, i) => <Block key={i} block={b} emit={emit} openPreview={setPreview} />)}
+            </div>
+          )}
+        </>
       )}
     </div>
     {preview && (
