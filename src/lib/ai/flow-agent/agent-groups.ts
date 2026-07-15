@@ -64,11 +64,11 @@ export const AGENT_GROUPS: AgentGroup[] = [
     placeholder: "Ask FlowSmartly to design something…",
     context: "The user has focused the agent into its **Create** group — design, logos, print, and media. Prefer creation tools (create_branded_design, logo generation, start_print_project, background removal, generate_image). You can still handle anything else they explicitly ask.",
     skills: [
-      { id: "design", title: "Branded design", description: "On-brand graphic for any platform.", surface: "create", tools: ["create_branded_design"], costKey: "AI_VISUAL_DESIGN", costHint: "from 15 cr", icon: "Image", keywords: ["design", "graphic", "post", "poster", "banner"] },
-      { id: "logo", title: "Logo & identity", description: "Primary, mark & wordmark set.", surface: "logo", tools: ["generate_logo"], costKey: "AI_LOGO_GENERATION", costHint: "60 cr", icon: "Sparkles", keywords: ["logo", "brand mark", "identity"] },
-      { id: "print", title: "Flyer / menu (print)", description: "Print-ready in minutes, bleed-safe.", surface: "print", tools: ["start_print_project", "update_canvas"], costKey: "AI_DESIGN_LAYOUT_IMAGE", costHint: "from 15 cr", icon: "Printer", keywords: ["print", "flyer", "menu", "brochure", "card"] },
-      { id: "bg-remove", title: "Background remover", description: "Cut out any subject cleanly.", surface: "media", tools: ["remove_background"], costKey: "AI_BG_REMOVE", costHint: "1 cr", icon: "Scissors", keywords: ["background", "cutout", "transparent", "remove"] },
-      { id: "media", title: "Media library", description: "Your generated images & videos.", surface: "media", costHint: "Browse", icon: "Images", keywords: ["media", "library", "assets", "images", "videos"] },
+      { id: "design", title: "Branded design", description: "On-brand graphic for any platform.", surface: "create", thumb: "/Studio_Menus_Thumnail/Create/Create2.webp", tools: ["create_branded_design"], costKey: "AI_VISUAL_DESIGN", costHint: "from 15 cr", icon: "Image", keywords: ["design", "graphic", "post", "poster", "banner"] },
+      { id: "logo", title: "Logo & identity", description: "Primary, mark & wordmark set.", surface: "logo", thumb: "/Studio_Menus_Thumnail/Create/Create1.webp", tools: ["generate_logo"], costKey: "AI_LOGO_GENERATION", costHint: "60 cr", icon: "Sparkles", keywords: ["logo", "brand mark", "identity"] },
+      { id: "print", title: "Flyer / menu (print)", description: "Print-ready in minutes, bleed-safe.", surface: "print", thumb: "/Studio_Menus_Thumnail/Create/Create.webp", tools: ["start_print_project", "update_canvas"], costKey: "AI_DESIGN_LAYOUT_IMAGE", costHint: "from 15 cr", icon: "Printer", keywords: ["print", "flyer", "menu", "brochure", "card"] },
+      { id: "bg-remove", title: "Background remover", description: "Cut out any subject cleanly.", surface: "media", thumb: "/Studio_Menus_Thumnail/Create/Create4.webp", tools: ["remove_background"], costKey: "AI_BG_REMOVE", costHint: "1 cr", icon: "Scissors", keywords: ["background", "cutout", "transparent", "remove"] },
+      { id: "media", title: "Media library", description: "Your generated images & videos.", surface: "media", thumb: "/Studio_Menus_Thumnail/Create/Create3.webp", costHint: "Browse", icon: "Images", keywords: ["media", "library", "assets", "images", "videos"] },
     ],
   },
   {
@@ -94,10 +94,10 @@ export const AGENT_GROUPS: AgentGroup[] = [
     placeholder: "Ask FlowSmartly to post something…",
     context: "The user has focused the agent into its **Publish** group — composing, scheduling, and publishing social posts. Prefer schedule_social_post, list_scheduled_posts, and connection/calendar tools. You can still handle anything else they explicitly ask.",
     skills: [
-      { id: "compose", title: "Write a post", description: "Caption + media, now or scheduled.", surface: "compose", tools: ["schedule_social_post", "write_compose_post"], costKey: "AGENT_SCHEDULE_POST", costHint: "from 3 cr", icon: "SquarePen", keywords: ["post", "caption", "write", "compose"] },
-      { id: "calendar", title: "Content calendar", description: "Plan the week across platforms.", surface: "calendar", tools: ["list_scheduled_posts", "get_calendar"], costHint: "Free", icon: "CalendarDays", keywords: ["calendar", "schedule", "week", "plan"] },
-      { id: "connections", title: "Connect accounts", description: "Link Instagram, TikTok, LinkedIn…", surface: "connections", costHint: "Free", icon: "Link2", keywords: ["connect", "accounts", "social", "oauth", "link"] },
-      { id: "publish-now", title: "Publish now", description: "Push a post across all channels.", surface: "publish", tools: ["schedule_social_post"], costHint: "Free", icon: "Rss", keywords: ["publish", "post now", "broadcast"] },
+      { id: "compose", title: "Write a post", description: "Caption + media, now or scheduled.", surface: "compose", thumb: "/Studio_Menus_Thumnail/Menu_%20Publish/publish2.webp", tools: ["schedule_social_post", "write_compose_post"], costKey: "AGENT_SCHEDULE_POST", costHint: "from 3 cr", icon: "SquarePen", keywords: ["post", "caption", "write", "compose"] },
+      { id: "calendar", title: "Content calendar", description: "Plan the week across platforms.", surface: "calendar", thumb: "/Studio_Menus_Thumnail/Menu_%20Publish/publish4.webp", tools: ["list_scheduled_posts", "get_calendar"], costHint: "Free", icon: "CalendarDays", keywords: ["calendar", "schedule", "week", "plan"] },
+      { id: "connections", title: "Connect accounts", description: "Link Instagram, TikTok, LinkedIn…", surface: "connections", thumb: "/Studio_Menus_Thumnail/Menu_%20Publish/publish1.webp", costHint: "Free", icon: "Link2", keywords: ["connect", "accounts", "social", "oauth", "link"] },
+      { id: "publish-now", title: "Publish now", description: "Push a post across all channels.", surface: "publish", thumb: "/Studio_Menus_Thumnail/Menu_%20Publish/publish3.webp", tools: ["schedule_social_post"], costHint: "Free", icon: "Rss", keywords: ["publish", "post now", "broadcast"] },
     ],
   },
   {
