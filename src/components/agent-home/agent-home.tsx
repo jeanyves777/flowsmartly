@@ -23,6 +23,7 @@ import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import type { ViewEvent } from "@/lib/agent-views/spec";
 import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
+import { AgentIntro } from "./agent-intro";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
 import { FocusedDesignStudio, DEFAULT_DESIGN, DESIGN_DRAFT_KEY, designCanvasContext, applyDesignPatch, type DesignDoc, type BrandContact } from "./focused/design-studio";
 import { FocusedPrintStudio } from "./focused/print-studio";
@@ -387,6 +388,8 @@ export function AgentHome() {
   // The composer's agent "hat" on the home (Creation/Film/Marketing) — biases the
   // agent via surfaceContext and swaps the starter chips. See agentModeContext.
   const [agentMode, setAgentMode] = useState("creation");
+  // First-run "Meet your agent" overlay (shown once; localStorage-gated).
+  const [showIntro, setShowIntro] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(true); // Lead Studio section menu (toggled from the surface header)
@@ -447,6 +450,24 @@ export function AgentHome() {
   }, [agentNewConversation, requestChatAutoscroll]);
 
   useEffect(() => setMounted(true), []);
+
+  // Restore the user's default agent hat, and show the first-run "Meet your
+  // agent" overlay once (localStorage-gated — no DB field needed).
+  useEffect(() => {
+    try {
+      const def = localStorage.getItem("fs-agent-default");
+      if (def && ["creation", "film", "marketing"].includes(def)) setAgentMode(def);
+      if (!localStorage.getItem("fs-agent-onboarded")) setShowIntro(true);
+    } catch { /* ignore */ }
+  }, []);
+  const finishIntro = useCallback((key: string | null) => {
+    try {
+      localStorage.setItem("fs-agent-onboarded", "1");
+      if (key) localStorage.setItem("fs-agent-default", key);
+    } catch { /* ignore */ }
+    if (key) setAgentMode(key);
+    setShowIntro(false);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -1019,6 +1040,7 @@ export function AgentHome() {
 
   return (
     <AgentNavContext.Provider value={navigateInApp}>
+    {showIntro && user && <AgentIntro onDone={finishIntro} />}
     <div
       dir={dir}
       className="flex h-[100dvh] flex-col bg-background text-foreground"
