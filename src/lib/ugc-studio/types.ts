@@ -41,7 +41,14 @@ export interface UgcProject {
   // the brief
   template: UgcTemplateId;
   script: string;               // the spoken words (lip-synced)
-  photoUrl?: string | null;     // the creator / reference photo (first frame source)
+  photoUrl?: string | null;     // the creator photo (first frame source)
+  /** OPTIONAL product shot. grok-imagine-video-1.5 is image-to-video (ONE first frame,
+   *  no reference_images), so when a product is given we first COMPOSE a first frame of
+   *  the creator holding/using it (identity-preserving edit), then animate that — which
+   *  keeps the exact scripted lip-sync AND puts the real product on screen. */
+  productImageUrl?: string | null;
+  /** Cached composed first frame (creator + product) so re-takes don't re-compose. */
+  composedFrameUrl?: string | null;
   style: string;                // "Authentic" | "Testimonial" | "Unboxing" | "GRWM"
   aspect: UgcAspect;
   durationSec: number;          // 6 | 8 | 10
@@ -61,6 +68,8 @@ export function emptyUgcProject(partial?: Partial<UgcProject>): UgcProject {
     template: partial?.template || "review",
     script: partial?.script || "",
     photoUrl: partial?.photoUrl ?? null,
+    productImageUrl: partial?.productImageUrl ?? null,
+    composedFrameUrl: partial?.composedFrameUrl ?? null,
     style: partial?.style || "Authentic",
     aspect: partial?.aspect || "9:16",
     durationSec: clampDuration(partial?.durationSec ?? 8),

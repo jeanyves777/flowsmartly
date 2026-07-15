@@ -6,6 +6,7 @@
  * RESUME the render, credit charge up-front + refund on failure. Never throws to callers.
  */
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
+import { editImagesXaiFirst } from "@/lib/ai/image-router";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsAvailable } from "@/lib/credits/costs";
@@ -32,17 +33,65 @@ function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
 function ugcPrompt(project: UgcProject): string {
   const style = project.style || "Authentic";
   const script = (project.script || "").trim();
+  const hasProduct = !!project.productImageUrl;
   return (
     `PHOTOREAL UGC creator video — a real person filmed on a phone camera; NOT 3D, NOT CGI, NOT animation. ` +
     `From the reference image of the person: they speak DIRECTLY to the viewer with natural facial expressions, ` +
     `head movement, subtle gestures and realistic LIP-SYNC. Style: ${style} UGC — casual and relatable, ` +
     `TikTok/Instagram Reels look, natural lighting, high realism, slight film grain, NOT overly polished. ` +
     `Handheld selfie-style framing with slight natural movement.\n` +
+    (hasProduct
+      ? `PRODUCT — they are holding the product shown in the frame and keep it visible to camera throughout, ` +
+        `turning or gesturing with it naturally as they talk. Keep the product EXACTLY as shown: same shape, colour, ` +
+        `materials and label — never redesign it, swap it, or invent text on it. Their hand stays in believable contact with it.\n`
+      : "") +
     `SCRIPT — spoken ALOUD and lip-synced, EXACTLY these words in this order, add nothing and change nothing: ` +
     `"${script}"\n` +
     `Make the lip movements perfectly synchronized with the spoken audio. Natural blinking and micro-expressions. ` +
     `Clean footage: absolutely NO on-screen text, captions, subtitles, watermarks or logos. Photorealistic, ${clampDuration(project.durationSec)} seconds.`
   );
+}
+
+/**
+ * The FIRST FRAME for the render. grok-imagine-video-1.5 is image-to-video: exactly ONE
+ * image, no reference_images. So when the brief has a PRODUCT shot, we compose a single
+ * frame of the creator actually holding/using that product (identity-preserving edit of
+ * both images) and animate THAT — which is how a "product review" ends up with the real
+ * product on screen while keeping 1.5's exact scripted lip-sync. Cached on the project.
+ * Best-effort: if the compose fails we fall back to the plain creator photo.
+ */
+async function firstFrameFor(projectId: string, userId: string, project: UgcProject): Promise<string | null> {
+  if (!project.photoUrl) return null;
+  if (!project.productImageUrl) return project.photoUrl;
+  if (project.composedFrameUrl) return project.composedFrameUrl;
+
+  const [w, h] = project.aspect === "1:1" ? [1024, 1024] : [768, 1344];
+  const prompt =
+    `Combine these two photos into ONE photoreal shot: the PERSON from the first image is holding and showing ` +
+    `the PRODUCT from the second image to the camera, in a casual selfie-style UGC framing. ` +
+    `Keep the person EXACTLY as they are — same face, hair, skin tone, build and clothing. ` +
+    `Keep the product EXACTLY as it is — same shape, colour, materials and label; do NOT redesign it or invent text on it. ` +
+    `Natural lighting, believable hand position and scale, realistic contact between hand and product. ` +
+    `No added text, captions, watermarks or logos.`;
+  try {
+    const buffers: Buffer[] = [];
+    for (const url of [project.photoUrl, project.productImageUrl]) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`fetch ref ${r.status}`);
+      buffers.push(Buffer.from(await r.arrayBuffer()));
+    }
+    const res = await editImagesXaiFirst(prompt, buffers, w, h, { intent: "identity", quality: "high" });
+    if (!res?.base64) throw new Error("no composed frame returned");
+    const ext = res.format === "jpeg" ? "jpg" : res.format;
+    const url = await uploadToS3(`ugc/${projectId}/frame-${uid()}.${ext}`, Buffer.from(res.base64, "base64"), res.format === "jpeg" ? "image/jpeg" : `image/${res.format}`);
+    // cache it so sibling takes + re-takes reuse the same composed frame
+    const fresh = await getUgcProject(projectId, userId);
+    if (fresh) { fresh.composedFrameUrl = url; await saveUgcProject(projectId, userId, fresh); }
+    return url;
+  } catch (e) {
+    console.warn("[ugc-studio] product frame compose failed, using the creator photo:", e instanceof Error ? e.message : e);
+    return project.photoUrl;
+  }
 }
 
 /** Render ONE take (fire-and-forget). Charge happens in startTake; this refunds on failure. */
@@ -51,13 +100,15 @@ async function renderTake(projectId: string, userId: string, takeId: string, pro
   try {
     await patchTake(projectId, userId, takeId, { status: "rendering", progress: 8, renderStartedAt: Date.now(), renderHeartbeatAt: Date.now() });
     const started = Date.now();
+    // ONE first frame: the creator photo, or a composed frame of them holding the product.
+    const frameUrl = await firstFrameFor(projectId, userId, project);
     const result = await withTimeout(
       grokVideoClient.generateVideo(ugcPrompt(project), {
         model: UGC_MODEL,
         duration: clampDuration(project.durationSec),
         aspectRatio: project.aspect,
         resolution: "720p",
-        imageUrl: project.photoUrl || undefined,   // 1.5 = image-to-video (first frame = the creator photo)
+        imageUrl: frameUrl || undefined,   // 1.5 = image-to-video (exactly one first frame)
         timeoutMs: TAKE_TIMEOUT_MS,
         // AWAIT the handle write BEFORE the long poll so a restart can always resume (Director lesson).
         onJobId: async (rid) => { await patchTake(projectId, userId, takeId, { refKind: "grok", refId: rid }).catch(() => {}); },

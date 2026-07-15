@@ -27,13 +27,13 @@ interface Template {
 const TEMPLATES: Template[] = [
   { id: "review", icon: "💬", title: "Product review", desc: "Talks to camera about why they love it.", style: "Authentic", hue: ["#3b2540", "#6b3a5a"],
     script: "Hey guys, I just had to show you this — it's honestly been a game changer. The quality is insane. Just do it, you won't regret it.",
-    tips: ["Photo: a clear, well-lit shot of the creator.", "Keep it 2-3 short sentences (fits 8-10s).", "Conversational — write how a real creator talks."] },
+    tips: ["Photo 1: a clear, well-lit shot of the creator.", "Photo 2: the product — we'll put it in their hands.", "Keep the script 2-3 short sentences (fits 8-10s)."] },
   { id: "testimonial", icon: "⭐", title: "Testimonial", desc: "An honest before/after story.", style: "Testimonial", hue: ["#3a2a1c", "#7a5236"],
     script: "I was skeptical at first, but two weeks in I'm a believer. This actually delivered — I'd recommend it to anyone on the fence.",
     tips: ["Warm, honest tone.", "Name ONE concrete result.", "End on a soft recommendation."] },
   { id: "unboxing", icon: "📦", title: "Unboxing", desc: "Opens the package, reacts.", style: "Unboxing", hue: ["#1e2a3a", "#324a63"],
     script: "Okay it's finally here! Let's open it — oh wow, this packaging is so much nicer than I expected.",
-    tips: ["Photo with the closed package.", "Reactive, in-the-moment lines.", "Short, fast beats."] },
+    tips: ["Photo 1: the creator. Photo 2: the package/product.", "Reactive, in-the-moment lines.", "Short, fast beats."] },
   { id: "grwm", icon: "💄", title: "Get ready with me", desc: "Casual chat, weaves in product.", style: "GRWM", hue: ["#3a1f33", "#7a3a6a"],
     script: "Getting ready with you today! Real quick — this is the one thing I can't skip in my routine anymore.",
     tips: ["Casual selfie framing.", "Weave the product into a routine.", "Low-key, not salesy."] },
@@ -53,6 +53,7 @@ export function FocusedUgc({ refreshKey }: { refreshKey?: number; onAsk?: (promp
   const [briefOpen, setBriefOpen] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
+  const [mediaFor, setMediaFor] = useState<"creator" | "product">("creator");
   const [publishTakeId, setPublishTakeId] = useState<string | null>(null);
   const [count, setCount] = useState(4);
   const [busy, setBusy] = useState(false);
@@ -67,6 +68,8 @@ export function FocusedUgc({ refreshKey }: { refreshKey?: number; onAsk?: (promp
   const [dAspect, setDAspect] = useState<"9:16" | "1:1">("9:16");
   const [dDur, setDDur] = useState(8);
   const [dPhoto, setDPhoto] = useState<string | null>(null);
+  const [dProduct, setDProduct] = useState<string | null>(null);
+  const uploadFor = useRef<"creator" | "product">("creator");
 
   const takes = project?.takes || [];
   const stats = {
@@ -117,6 +120,7 @@ export function FocusedUgc({ refreshKey }: { refreshKey?: number; onAsk?: (promp
     if (!project) return;
     setDScript(project.script || ""); setDTpl(project.template); setDStyle(project.style);
     setDAspect(project.aspect); setDDur(project.durationSec); setDPhoto(project.photoUrl || null);
+    setDProduct(project.productImageUrl || null);
     setBriefOpen(true);
   };
   const pickTpl = (id: UgcTemplateId) => {
@@ -129,7 +133,7 @@ export function FocusedUgc({ refreshKey }: { refreshKey?: number; onAsk?: (promp
     if (!project) return null;
     const j = await fetch(`/api/ai/ugc-studio/${project.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: tplOf(dTpl).title, template: dTpl, script: dScript, photoUrl: dPhoto, style: dStyle, aspect: dAspect, durationSec: dDur }),
+      body: JSON.stringify({ title: tplOf(dTpl).title, template: dTpl, script: dScript, photoUrl: dPhoto, productImageUrl: dProduct, style: dStyle, aspect: dAspect, durationSec: dDur }),
     }).then((r) => r.json()).catch(() => null);
     if (j?.success) { setProject(j.data.project); return j.data.project as UgcProject; }
     return null;
@@ -174,9 +178,10 @@ export function FocusedUgc({ refreshKey }: { refreshKey?: number; onAsk?: (promp
 
   const onUploadFile = async (files: FileList | null) => {
     if (!files?.length) return;
+    const which = uploadFor.current;
     const fd = new FormData(); fd.append("file", files[0]);
     const up = await fetch("/api/upload", { method: "POST", body: fd }).then((r) => r.json()).catch(() => null);
-    if (up?.success && up.data?.url) setDPhoto(up.data.url);
+    if (up?.success && up.data?.url) { if (which === "product") setDProduct(up.data.url); else setDPhoto(up.data.url); }
   };
 
   // drag / resize
@@ -245,10 +250,15 @@ export function FocusedUgc({ refreshKey }: { refreshKey?: number; onAsk?: (promp
                 <span className="ms-auto rounded-full bg-rose-400/12 px-2 py-0.5 text-[9px] font-bold text-rose-400">brief</span>
               </div>
               <div className="px-3 pb-3">
-                <div className="mb-2 flex gap-2">
+                <div className="mb-2 flex gap-1.5">
                   <div className="h-[46px] w-[46px] shrink-0 overflow-hidden rounded-lg border border-border bg-muted">
-                    {project.photoUrl ? <Image src={project.photoUrl} alt="" width={46} height={46} className="h-full w-full object-cover" unoptimized /> : <div className="grid h-full w-full place-items-center text-[8px] text-muted-foreground">no photo</div>}
+                    {project.photoUrl ? <Image src={project.photoUrl} alt="" width={46} height={46} className="h-full w-full object-cover" unoptimized /> : <div className="grid h-full w-full place-items-center text-[8px] text-muted-foreground">creator</div>}
                   </div>
+                  {project.productImageUrl && (
+                    <div className="h-[46px] w-[46px] shrink-0 overflow-hidden rounded-lg border border-border bg-muted" title="Product">
+                      <Image src={project.productImageUrl} alt="" width={46} height={46} className="h-full w-full object-contain" unoptimized />
+                    </div>
+                  )}
                   <p className="line-clamp-3 text-[10.5px] leading-snug">{project.script ? `“${project.script}”` : <span className="text-muted-foreground">Add a photo + script, or pick a template…</span>}</p>
                 </div>
                 <div className="flex flex-wrap gap-1">
@@ -345,15 +355,28 @@ export function FocusedUgc({ refreshKey }: { refreshKey?: number; onAsk?: (promp
 
               <div className="mt-4 flex flex-wrap gap-4">
                 <div>
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Creator photo</p>
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">1 · Creator photo</p>
                   <div className="w-[120px] overflow-hidden rounded-xl border border-border bg-background/40" style={{ aspectRatio: "9/16" }}>
                     {dPhoto ? <Image src={dPhoto} alt="" width={120} height={213} className="h-full w-full object-cover" unoptimized />
                       : <div className="grid h-full w-full place-items-center px-2 text-center text-[10px] text-muted-foreground">No photo yet</div>}
                   </div>
                   <div className="mt-1.5 flex gap-1">
-                    <button onClick={() => fileRef.current?.click()} className="flex-1 rounded-lg border border-border py-1 text-[9.5px] font-semibold hover:border-rose-400/60"><Upload className="mr-0.5 inline h-2.5 w-2.5" /> Upload</button>
-                    <button onClick={() => setMediaOpen(true)} className="flex-1 rounded-lg border border-border py-1 text-[9.5px] font-semibold hover:border-rose-400/60"><Images className="mr-0.5 inline h-2.5 w-2.5" /> Media</button>
+                    <button onClick={() => { uploadFor.current = "creator"; fileRef.current?.click(); }} className="flex-1 rounded-lg border border-border py-1 text-[9.5px] font-semibold hover:border-rose-400/60"><Upload className="mr-0.5 inline h-2.5 w-2.5" /> Upload</button>
+                    <button onClick={() => { setMediaFor("creator"); setMediaOpen(true); }} className="flex-1 rounded-lg border border-border py-1 text-[9.5px] font-semibold hover:border-rose-400/60"><Images className="mr-0.5 inline h-2.5 w-2.5" /> Media</button>
                   </div>
+                </div>
+
+                <div>
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">2 · Product <span className="font-normal normal-case tracking-normal opacity-70">· optional</span></p>
+                  <div className="w-[120px] overflow-hidden rounded-xl border border-border bg-background/40" style={{ aspectRatio: "9/16" }}>
+                    {dProduct ? <Image src={dProduct} alt="" width={120} height={213} className="h-full w-full object-contain" unoptimized />
+                      : <div className="grid h-full w-full place-items-center px-2 text-center text-[10px] text-muted-foreground">What they&apos;re holding</div>}
+                  </div>
+                  <div className="mt-1.5 flex gap-1">
+                    <button onClick={() => { uploadFor.current = "product"; fileRef.current?.click(); }} className="flex-1 rounded-lg border border-border py-1 text-[9.5px] font-semibold hover:border-rose-400/60"><Upload className="mr-0.5 inline h-2.5 w-2.5" /> Upload</button>
+                    <button onClick={() => { setMediaFor("product"); setMediaOpen(true); }} className="flex-1 rounded-lg border border-border py-1 text-[9.5px] font-semibold hover:border-rose-400/60"><Images className="mr-0.5 inline h-2.5 w-2.5" /> Media</button>
+                  </div>
+                  {dProduct && <p className="mt-1 w-[120px] text-[9px] leading-snug text-muted-foreground">We&apos;ll put this in their hands before filming.</p>}
                 </div>
 
                 <div className="min-w-[280px] flex-1">
@@ -398,7 +421,9 @@ export function FocusedUgc({ refreshKey }: { refreshKey?: number; onAsk?: (promp
       )}
 
       {/* media picker for the creator photo */}
-      <MediaLibraryPicker open={mediaOpen} onClose={() => setMediaOpen(false)} onSelect={(url) => { setDPhoto(url); setMediaOpen(false); }} filterTypes={["image"]} title="Pick a creator photo" />
+      <MediaLibraryPicker open={mediaOpen} onClose={() => setMediaOpen(false)}
+        onSelect={(url) => { if (mediaFor === "product") setDProduct(url); else setDPhoto(url); setMediaOpen(false); }}
+        filterTypes={["image"]} title={mediaFor === "product" ? "Pick the product photo" : "Pick a creator photo"} />
 
       {/* publish a take */}
       {publishTakeId && project && (
