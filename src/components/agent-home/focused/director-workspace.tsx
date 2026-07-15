@@ -25,12 +25,19 @@ import {
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { MediaLightbox } from "@/components/shared/media-lightbox";
+import { PublishNode, PublishSheet, type PublishChannel } from "@/components/agent-home/shared/publish-node";
 import { BriefSuggest, type BriefProposal } from "./brief-suggest";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { ACCENTS, STYLES, VOICE_PRESETS, type VoiceAccent, type VoiceGender, type VoiceStyle } from "@/lib/voice/voice-presets";
 import type { CharacterRenderStyle, FilmComposer, FilmComposerLayer, FilmComposerLayerType, FilmProject, FilmScene, FilmOverlay, FilmAsset, SceneEngine, FilmType, FilmAspect, FilmCharacter, SceneCastLine } from "@/lib/video-director/types";
+
+// Channels a finished film can post to (client-side list; server validates in publish.ts).
+const FILM_CHANNELS: PublishChannel[] = [
+  { id: "tiktok", name: "TikTok" }, { id: "instagram", name: "Instagram" }, { id: "youtube", name: "YouTube" },
+  { id: "facebook", name: "Facebook" }, { id: "linkedin", name: "LinkedIn" }, { id: "x", name: "X" },
+];
 
 // ------------------------------------------------------------------ engine meta
 const ENGINES: Record<SceneEngine, { label: string; color: string; Icon: ElementType; hint: string }> = {
@@ -111,6 +118,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
   const [drafting, setDrafting] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [musicPickerOpen, setMusicPickerOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
   const [avatars, setAvatars] = useState<{ id: string; name: string; previewUrl?: string }[]>([]);
   const [voices, setVoices] = useState<{ id: string; name: string; language?: string }[]>([]);
   const [play, setPlay] = useState<{ url: string; title: string } | null>(null);
@@ -777,8 +785,16 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
                 </div>
               </div>
 
+              {/* publish node — post the finished film to connected channels (reusable across playgrounds) */}
+              <PublishNode
+                channels={FILM_CHANNELS}
+                ready={!!film.finalVideoUrl && isPlayable(film.finalVideoUrl)}
+                onOpen={() => (film.finalVideoUrl && isPlayable(film.finalVideoUrl) ? setPublishOpen(true) : composeFinal())}
+                style={{ left: layout.outPos.x + 250, top: layout.outPos.y }}
+              />
+
               {/* add-scene button + menu */}
-              <div className="absolute" style={{ left: layout.outPos.x + 250, top: layout.outPos.y + 20 }}>
+              <div className="absolute" style={{ left: layout.outPos.x + 85, top: layout.outPos.y + 210 }}>
                 <button onClick={() => setAddMenu((v) => !v)} className="grid h-12 w-12 place-items-center rounded-full border border-dashed border-border text-muted-foreground transition hover:border-brand-500 hover:text-brand-500"><Plus className="h-5 w-5" /></button>
                 {addMenu && (
                   <div className="absolute left-0 top-14 z-10 w-44 rounded-xl border border-border bg-card p-1.5 shadow-xl">
@@ -849,6 +865,25 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
         filterTypes={["audio"]}
         title="Choose a music bed"
       />
+
+      {/* publish the finished film to connected channels */}
+      {publishOpen && film && (
+        <PublishSheet
+          title="Publish film"
+          subtitle={film.title || "Your film"}
+          channels={FILM_CHANNELS}
+          defaultCaption={film.title || ""}
+          defaultChannels={["tiktok", "instagram", "youtube"]}
+          onClose={() => setPublishOpen(false)}
+          onPublish={async ({ channels, caption, scheduleAt }) => {
+            const j = await fetch(`/api/ai/video-director/${film.id}/publish`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ channels, caption, scheduleAt }),
+            }).then((r) => r.json());
+            return j?.success ? (j.data?.outcomes || []) : [];
+          }}
+        />
+      )}
 
       {/* video player */}
       {play && (
