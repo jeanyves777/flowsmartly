@@ -32,7 +32,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (typeof body?.title === "string") project.title = body.title.slice(0, 160);
   if (typeof body?.template === "string") project.template = body.template;
   if (typeof body?.script === "string") project.script = body.script.slice(0, 2000);
-  if (typeof body?.photoUrl === "string" || body?.photoUrl === null) project.photoUrl = body.photoUrl;
+  // Changing either photo invalidates the cached composed (creator + product) first frame.
+  if (typeof body?.photoUrl === "string" || body?.photoUrl === null) {
+    if (body.photoUrl !== project.photoUrl) project.composedFrameUrl = null;
+    project.photoUrl = body.photoUrl;
+  }
+  if (typeof body?.productImageUrl === "string" || body?.productImageUrl === null) {
+    if (body.productImageUrl !== project.productImageUrl) project.composedFrameUrl = null;
+    project.productImageUrl = body.productImageUrl;
+  }
   if (typeof body?.style === "string") project.style = body.style.slice(0, 60);
   if (body?.aspect === "9:16" || body?.aspect === "1:1") project.aspect = body.aspect;
   if (typeof body?.durationSec === "number") project.durationSec = clampDuration(body.durationSec);
