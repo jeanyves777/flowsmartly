@@ -1551,9 +1551,10 @@ export function AgentHome() {
                                     skills without one fall back to the icon + accent gradient. */}
                                 {sk.thumb && (
                                   <>
-                                    {/* next/image resizes + serves WebP, so a heavy source PNG
-                                        never ships at full weight to a small card. */}
-                                    <Image src={sk.thumb} alt="" fill sizes="(max-width: 768px) 50vw, 400px"
+                                    {/* `unoptimized` on purpose: the /_next/image optimizer 400s on this
+                                        deployment (even for existing public assets), so every Image here
+                                        bypasses it — the sources are pre-compressed instead. */}
+                                    <Image src={sk.thumb} alt="" fill sizes="(max-width: 768px) 50vw, 400px" unoptimized
                                       className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
                                     <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-black/20" />
                                   </>
