@@ -1,0 +1,192 @@
+<title>UGC Studio — templates inside the brief window</title>
+<style>
+  :root{
+    --ground:#0b0b0f;--card:#15151c;--card2:#1b1b23;--border:#2a2a33;
+    --rose:#fb7185;--rose2:#f43f5e;--pink:#ec4899;--teal:#22d3ee;--emerald:#10b981;
+    --text:#ececf1;--muted:#9a9aa6;
+  }
+  *{box-sizing:border-box}html,body{margin:0;height:100%}
+  body{background:var(--ground);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+  .app{height:100vh;display:flex;flex-direction:column}
+  .top{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--border);background:rgba(11,11,15,.9);z-index:30}
+  .brand{display:flex;align-items:center;gap:10px}.brand .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,var(--rose),var(--pink));color:#fff;font-size:15px}
+  .brand b{font-size:13.5px;font-weight:700;display:block;line-height:1.1}.brand span{font-size:11px;color:var(--muted)}
+  .spacer{flex:1}.stat{font-size:11.5px;color:var(--muted)}.stat b{color:var(--emerald)}
+  .btn{display:inline-flex;align-items:center;gap:6px;border-radius:9px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text)}
+  .btn:hover{border-color:var(--rose)}.btn.rose{border:none;color:#fff;background:linear-gradient(135deg,var(--rose),var(--rose2))}.btn.ghost{color:var(--muted)}
+
+  .canvas{flex:1;position:relative;overflow:auto;background:radial-gradient(circle at 1px 1px,#20202b 1px,transparent 0) 0 0/24px 24px,var(--ground)}
+  .board{position:relative;width:1800px;height:1000px}
+  /* empty-state CTA */
+  .empty{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);text-align:center}
+  .empty h2{font-size:17px;margin:0 0 4px}.empty p{color:var(--muted);font-size:12.5px;margin:0 0 16px}
+  .empty .cta{border:none;border-radius:12px;padding:12px 22px;font-size:14px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--rose),var(--rose2));cursor:pointer}
+
+  .node{position:absolute;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .n-head{display:flex;align-items:center;gap:7px;padding:9px 11px 5px;cursor:grab}.n-head:active{cursor:grabbing}
+  .n-head .ic{width:19px;height:19px;border-radius:6px;display:grid;place-items:center;font-size:10px}.n-head b{font-size:12px;font-weight:700}
+  .n-head .tag{margin-left:auto;font-size:9px;font-weight:700;border-radius:999px;padding:2px 7px}
+  .tag.take{background:rgba(34,211,238,.14);color:var(--teal)}.tag.pub{background:rgba(16,185,129,.14);color:var(--emerald)}
+  .x{width:17px;height:17px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;margin-left:4px}.x:hover{border-color:var(--rose2);color:var(--rose2)}
+  .take{width:236px}
+  .take .thumb{position:relative;margin:2px 11px 0;border-radius:12px;overflow:hidden;aspect-ratio:9/16;background:linear-gradient(160deg,#241823,#3a2233);display:grid;place-items:center}
+  .thumb .play{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.92);color:var(--rose2);display:grid;place-items:center;font-size:19px;cursor:pointer}
+  .thumb.playing{background:#000!important}.thumb.playing .play,.thumb.playing .badge{display:none}
+  .thumb .playing-lbl{position:absolute;bottom:6px;left:6px;font-size:8.5px;color:#fff;background:rgba(0,0,0,.5);border-radius:4px;padding:1px 6px;display:none}
+  .thumb.playing .playing-lbl{display:block}
+  .thumb .dur{position:absolute;right:5px;bottom:5px;background:rgba(0,0,0,.6);color:#fff;font-size:8.5px;font-family:ui-monospace,monospace;border-radius:4px;padding:1px 5px}
+  .thumb .badge{position:absolute;left:5px;bottom:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 6px}
+  .badge.ready{background:var(--emerald);color:#04231a}.badge.rendering{background:rgba(167,139,250,.2);color:#c4b5fd}
+  .thumb .loader{position:absolute;inset:0;display:flex;flex-direction:column;gap:7px;align-items:center;justify-content:center;background:rgba(11,11,15,.8)}
+  .sp{width:22px;height:22px;border-radius:50%;border:2.5px solid #333;border-top-color:var(--rose);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+  .thumb .lbar{width:64%;height:4px;border-radius:999px;background:#2a2a33;overflow:hidden}.thumb .lbar>span{display:block;height:100%;background:linear-gradient(90deg,var(--rose),var(--rose2))}
+  .take .acts{display:flex;gap:4px;padding:8px 11px 11px}
+  .take .a{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:3px;border:1px solid var(--border);border-radius:8px;padding:5px;font-size:9.5px;font-weight:600;cursor:pointer;color:var(--text);background:transparent}
+  .take .a:hover{border-color:var(--rose)}.take .a.prime{border:none;color:#fff;background:linear-gradient(135deg,var(--rose),var(--rose2))}
+  .resize{position:absolute;right:2px;bottom:2px;width:14px;height:14px;cursor:nwse-resize;color:var(--muted);font-size:11px}
+  .pub{width:200px}.pub .chips{display:flex;gap:5px;padding:0 12px 8px}
+  .chip{width:18px;height:18px;border-radius:6px;display:grid;place-items:center;font-size:8.5px;font-weight:900;color:#fff}
+  .c-tiktok{background:#000}.c-ig{background:linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)}.c-yt{background:#dc2626}.c-fb{background:#2563eb}.c-x{background:#000}
+  .hint{position:absolute;left:50%;bottom:70px;transform:translateX(-50%);font-size:11px;color:var(--muted);background:rgba(21,21,28,.85);border:1px solid var(--border);border-radius:999px;padding:6px 13px}
+  /* persistent brief NODE (like Director's Master brief) */
+  .node.briefn{width:250px;border-color:rgba(251,113,133,.35)}
+  .tag.brf{background:rgba(251,113,133,.14);color:var(--rose)}
+  .pills{display:flex;flex-wrap:wrap;gap:4px}
+  .pill{font-size:9px;font-weight:600;background:var(--card2);border:1px solid var(--border);border-radius:999px;padding:2px 7px;color:var(--muted)}
+  .bn-a{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid var(--border);border-radius:9px;padding:6px;font-size:10.5px;font-weight:600;background:transparent;color:var(--text);cursor:pointer}
+  .bn-a:hover{border-color:var(--rose)}.bn-a.prime{border:none;font-weight:700;background:linear-gradient(135deg,var(--rose),var(--rose2));color:#fff}
+
+  /* BRIEF WINDOW — bottom sheet, templates INSIDE */
+  .scrim{position:fixed;inset:0;z-index:40;display:none;background:rgba(6,6,9,.5)}.scrim.on{display:block}
+  .brief{position:fixed;left:12px;right:12px;bottom:12px;z-index:41;display:none;flex-direction:column;max-height:90vh;
+    border:1px solid var(--border);border-radius:18px;background:var(--card);box-shadow:0 -10px 60px rgba(0,0,0,.5);animation:rise .18s ease}
+  .brief.on{display:flex}@keyframes rise{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
+  .b-head{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .b-head .pill{font-size:10px;font-weight:700;color:var(--rose);background:rgba(251,113,133,.12);border-radius:999px;padding:2px 8px}
+  .b-head b{font-size:13.5px}.b-head .close{margin-left:auto;width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer}
+  .b-scroll{overflow:auto;padding:16px}
+  .b-lbl{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 9px}
+
+  /* templates row inside brief */
+  .tpls{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+  .tpl{flex:none;width:138px;border:2px solid transparent;border-radius:12px;overflow:hidden;background:var(--card2);cursor:pointer;transition:transform .12s}
+  .tpl:hover{transform:translateY(-2px)}.tpl.on{border-color:var(--rose)}
+  .tpl .pic{height:74px;display:grid;place-items:center;font-size:22px;color:#fff;position:relative}
+  .tpl .pic .t{position:absolute;left:6px;top:5px;font-size:8px;font-weight:700;background:rgba(0,0,0,.5);border-radius:999px;padding:1px 6px}
+  .tpl .b{padding:6px 8px 8px}.tpl .b h3{margin:0;font-size:11px}.tpl .b p{margin:2px 0 0;font-size:9px;color:var(--muted);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+  .fields{display:flex;gap:16px;margin-top:18px;flex-wrap:wrap}
+  .drop{width:120px;aspect-ratio:9/16;border:1.5px dashed var(--border);border-radius:12px;background:var(--card2);display:grid;place-items:center;text-align:center;font-size:11px;color:var(--muted);cursor:pointer;padding:10px;flex:none}
+  .drop.has{border-style:solid;padding:0;overflow:hidden;background:linear-gradient(135deg,#6b3a5a,#3b2540)}.drop.has .av{width:40px;height:40px;border-radius:50%;background:#d8a}
+  .col{flex:1;min-width:260px}
+  .field{width:100%;border:1px solid var(--border);border-radius:10px;background:var(--card2);color:var(--text);padding:9px 11px;font:12px system-ui;line-height:1.5;resize:none}
+  .field:focus{outline:none;border-color:var(--rose)}
+  .seg{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+  .seg button{border:1px solid var(--border);background:var(--card2);color:var(--muted);font:600 11px system-ui;padding:5px 11px;border-radius:8px;cursor:pointer}
+  .seg button.on{border-color:transparent;background:linear-gradient(135deg,var(--rose),var(--rose2));color:#fff}
+  .make{font-size:11px;color:var(--muted);line-height:1.5;padding-left:16px;margin:8px 0 0}.make li{margin:2px 0}
+  .b-foot{display:flex;align-items:center;gap:12px;border-top:1px solid var(--border);padding:12px 16px}
+  .count{display:flex;border:1px solid var(--border);border-radius:9px;overflow:hidden}.count button{border:none;background:var(--card2);color:var(--text);width:30px;font-size:15px;cursor:pointer}.count b{display:grid;place-items:center;min-width:34px;font-size:13px}
+  .b-foot .go{margin-left:auto;border:none;border-radius:10px;padding:10px 20px;font-size:13px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--rose),var(--rose2));cursor:pointer}
+</style>
+
+<div class="app">
+  <div class="top">
+    <div class="brand"><span class="ic">✦</span><div><b>UGC Studio</b><span>Creator videos with lip-sync</span></div></div>
+    <div class="spacer"></div>
+    <span class="stat"><b id="sReady">0</b> ready · <span id="sRender">0</span> rendering · <span id="sTot">0</span> takes</span>
+    <button class="btn ghost">▦ My videos</button>
+    <button class="btn rose" onclick="openBrief()">✦ New UGC</button>
+  </div>
+
+  <div class="canvas"><div class="board" id="board">
+    <!-- persistent brief node -->
+    <div class="node briefn" id="briefNode" style="left:40px;top:150px">
+      <div class="n-head"><span class="ic" style="background:rgba(251,113,133,.16);color:var(--rose)">✎</span><b>UGC brief</b><span class="tag brf">brief</span></div>
+      <div style="padding:0 12px 12px">
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <div style="width:46px;height:46px;border-radius:9px;flex:none;background:linear-gradient(135deg,#6b3a5a,#3b2540);display:grid;place-items:center"><div style="width:20px;height:20px;border-radius:50%;background:#d8a"></div></div>
+          <p id="bnScript" style="margin:0;font-size:10.5px;color:var(--text);line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden"></p>
+        </div>
+        <div class="pills"><span class="pill" id="bnStyle">Authentic</span><span class="pill">9:16</span><span class="pill">720p</span><span class="pill">8s</span><span class="pill">Lip sync</span></div>
+        <div style="display:flex;gap:6px;margin-top:11px">
+          <button class="bn-a" onclick="openBrief()">✎ Edit brief</button>
+          <button class="bn-a prime" onclick="openBrief()">✦ Generate</button>
+        </div>
+      </div>
+    </div>
+    <div class="node pub" style="left:1360px;top:150px">
+      <div class="n-head"><span class="ic" style="background:rgba(16,185,129,.16);color:var(--emerald)">➤</span><b>Publish</b><span class="tag pub">publish</span></div>
+      <p style="padding:0 12px 6px;margin:0;font-size:10.5px;color:var(--muted)">Drag the takes you love here, or select + post</p>
+      <div class="chips"><span class="chip c-tiktok">T</span><span class="chip c-ig">I</span><span class="chip c-yt">Y</span><span class="chip c-fb">F</span><span class="chip c-x">X</span></div>
+      <p style="padding:0 12px 12px;margin:0;font-size:10px;color:var(--muted)">5 channels · click to post</p>
+    </div>
+    <div class="hint">New UGC → brief (templates inside) → Generate lands your takes here (drag · resize · edit · delete)</div>
+  </div></div>
+</div>
+
+<!-- BRIEF WINDOW -->
+<div class="scrim" id="scrim" onclick="closeBrief()"></div>
+<div class="brief" id="brief">
+  <div class="b-head"><span class="pill">Brief</span><b id="bTitle">New UGC video</b><button class="close" onclick="closeBrief()">✕</button></div>
+  <div class="b-scroll">
+    <p class="b-lbl">Start from a template</p>
+    <div class="tpls" id="tpls"></div>
+
+    <div class="fields">
+      <div>
+        <p class="b-lbl">Creator photo</p>
+        <label class="drop" id="drop" onclick="this.classList.add('has');this.innerHTML='<div class=&quot;av&quot;></div>'">⬆ Upload<br><span style="font-size:10px">or media</span></label>
+      </div>
+      <div class="col">
+        <p class="b-lbl">Script — spoken &amp; lip-synced</p>
+        <textarea class="field" id="script" rows="3"></textarea>
+        <p class="b-lbl" style="margin-top:14px">Aspect · Duration · Quality</p>
+        <div class="seg"><button class="on">9:16</button><button>1:1</button><span style="width:8px"></span><button>6s</button><button class="on">8s</button><button>10s</button><span style="width:8px"></span><button class="on">720p</button></div>
+        <ul class="make" id="make"></ul>
+      </div>
+    </div>
+  </div>
+  <div class="b-foot">
+    <span style="font-size:11.5px;color:var(--muted)">How many takes?</span>
+    <div class="count"><button onclick="bump(-1)">−</button><b id="cnt">4</b><button onclick="bump(1)">+</button></div>
+    <button class="go" onclick="genBatch()">✦ Generate <span id="goN">4</span> takes</button>
+  </div>
+</div>
+
+<script>
+  const TEMPLATES=[
+    {id:"review",icon:"💬",t:"Lip sync",title:"Product review",desc:"Talks to camera about why they love it.",hue:["#3b2540","#6b3a5a"],
+     script:"Hey guys, I just had to show you this — it's honestly been a game changer. The quality is insane. Just do it, you won't regret it.",
+     make:["Photo: a clear, well-lit shot of the creator.","Keep it 2-3 short sentences (fits 8-10s).","Conversational — write how a real creator talks."]},
+    {id:"testi",icon:"⭐",t:"Lip sync",title:"Testimonial",desc:"An honest before/after story.",hue:["#3a2a1c","#7a5236"],
+     script:"I was skeptical at first, but two weeks in I'm a believer. This actually delivered — I'd recommend it to anyone on the fence.",make:["Warm, honest tone.","Name ONE concrete result.","End on a soft recommendation."]},
+    {id:"unbox",icon:"📦",t:"Lip sync",title:"Unboxing",desc:"Opens the package, reacts.",hue:["#1e2a3a","#324a63"],
+     script:"Okay it's finally here! Let's open it — oh wow, this packaging is so much nicer than I expected.",make:["Photo with the closed package.","Reactive, in-the-moment lines.","Short, fast beats."]},
+    {id:"grwm",icon:"💄",t:"Lip sync",title:"Get ready with me",desc:"Casual chat, weaves in product.",hue:["#3a1f33","#7a3a6a"],
+     script:"Getting ready with you today! Real quick — this is the one thing I can't skip in my routine anymore.",make:["Casual selfie framing.","Weave the product into a routine.","Low-key, not salesy."]},
+    {id:"demo",icon:"👋",t:"Lip sync",title:"Feature demo",desc:"Walks up, shows one feature.",hue:["#22303a","#3a5a63"],
+     script:"The thing nobody tells you about this? This one feature. Watch — it just works, first try, every time.",make:["Describe subtle motion.","Focus on ONE feature.","Speak like showing a friend."]},
+    {id:"blank",icon:"➕",t:"Blank",title:"Start blank",desc:"Your own photo + script.",hue:["#22222c","#33333f"],script:"",make:["Add a clear photo of the person.","Write the spoken script.","Pick aspect/duration."]},
+  ];
+  const $=id=>document.getElementById(id);
+  let curTpl="review", count=4;
+  $("tpls").innerHTML=TEMPLATES.map(t=>`<div class="tpl" data-id="${t.id}" onclick="pickTpl('${t.id}')"><div class="pic" style="background:linear-gradient(150deg,${t.hue[0]},${t.hue[1]})"><span class="t">${t.t}</span>${t.icon}</div><div class="b"><h3>${t.title}</h3><p>${t.desc}</p></div></div>`).join("");
+  window.pickTpl=id=>{curTpl=id;const t=TEMPLATES.find(x=>x.id===id);$("bTitle").textContent=t.title==="Start blank"?"New UGC video":t.title;$("script").value=t.script;$("make").innerHTML=t.make.map(m=>`<li>${m}</li>`).join("");document.querySelectorAll('.tpl').forEach(e=>e.classList.toggle('on',e.dataset.id===id));updateBriefNode();};
+  function updateBriefNode(){const t=TEMPLATES.find(x=>x.id===curTpl);const s=($("script").value||t.script||"Add a photo + script, or pick a template…").trim();$("bnScript").textContent="“"+s.slice(0,120)+(s.length>120?"…":"")+"”";$("bnStyle").textContent=t.title==="Start blank"?"UGC":t.title;}
+  window.bump=d=>{count=Math.max(1,Math.min(8,count+d));$("cnt").textContent=count;$("goN").textContent=count;};
+  window.openBrief=()=>{pickTpl(curTpl);$("scrim").classList.add("on");$("brief").classList.add("on");};
+  window.closeBrief=()=>{$("scrim").classList.remove("on");$("brief").classList.remove("on");};
+
+  let takes=[], seq=0;
+  function stats(){const r=takes.filter(t=>t.status==="ready").length,g=takes.filter(t=>t.status==="rendering").length;$("sReady").textContent=r;$("sRender").textContent=g;$("sTot").textContent=takes.length;}
+  function nodeHtml(t){return `<div class="node take" style="left:${t.x}px;top:${t.y}px;width:${t.w}px" data-id="${t.id}"><div class="n-head drag"><span class="ic" style="background:rgba(34,211,238,.16);color:var(--teal)">▶</span><b>Take ${t.n}</b><span class="tag take">${t.status==="ready"?"ready":"lip-sync"}</span><button class="x" onclick="del(${t.id})">✕</button></div><div class="thumb" style="${t.status==='ready'?'background:linear-gradient(160deg,#3b2540,#6b3a5a)':''}">${t.status==="ready"?`<span class="play" onclick="event.stopPropagation();this.closest('.thumb').classList.toggle('playing')">▶</span><span class="dur">0:0${t.dur}</span><span class="badge ready">ready</span><span class="playing-lbl">▶ playing…</span>`:`<div class="loader"><span class="sp"></span><b style="font-size:9px">Filming…</b><div class="lbar"><span style="width:${t.prog}%"></span></div></div><span class="badge rendering">${Math.round(t.prog)}%</span>`}</div><div class="acts">${t.status==="ready"?`<button class="a">✂ Edit</button><button class="a">↻ Redo</button><button class="a prime">➤ Publish</button>`:`<button class="a" style="opacity:.6">rendering…</button>`}</div><div class="resize" onpointerdown="startResize(event,${t.id})">◢</div></div>`;}
+  function paint(){document.querySelectorAll('.node.take').forEach(n=>n.remove());takes.forEach(t=>$("board").insertAdjacentHTML("beforeend",nodeHtml(t)));document.querySelectorAll('.node.take .drag').forEach(h=>h.addEventListener("pointerdown",startDrag));stats();}
+  window.genBatch=()=>{closeBrief();const sx=330,sy=110,gx=270,gy=560;for(let i=0;i<count;i++){const c=i%4,r=Math.floor(i/4);takes.push({id:++seq,n:takes.length+1,x:sx+c*gx,y:sy+r*gy,w:236,status:"rendering",prog:6,dur:8});}paint();takes.filter(t=>t.status==="rendering").forEach(t=>{const iv=setInterval(()=>{t.prog+=6+Math.random()*9;if(t.prog>=100){t.status="ready";t.dur=6+Math.floor(Math.random()*4);clearInterval(iv);}paint();},400+Math.random()*260);});};
+  window.del=id=>{takes=takes.filter(t=>t.id!==id);paint();};
+  let drag=null;function startDrag(e){const node=e.currentTarget.closest(".take");const id=+node.dataset.id,t=takes.find(x=>x.id===id);drag={id,dx:e.clientX-t.x,dy:e.clientY-t.y};node.setPointerCapture(e.pointerId);node.addEventListener("pointermove",onDrag);node.addEventListener("pointerup",()=>{drag=null;node.removeEventListener("pointermove",onDrag);});}
+  function onDrag(e){if(!drag)return;const t=takes.find(x=>x.id===drag.id);t.x=Math.max(0,e.clientX-drag.dx);t.y=Math.max(60,e.clientY-drag.dy);const n=document.querySelector(`.take[data-id="${drag.id}"]`);n.style.left=t.x+"px";n.style.top=t.y+"px";}
+  let rez=null;window.startResize=(e,id)=>{e.stopPropagation();const t=takes.find(x=>x.id===id);rez={id,sx:e.clientX,w:t.w};const n=document.querySelector(`.take[data-id="${id}"]`);n.setPointerCapture(e.pointerId);n.addEventListener("pointermove",onResize);n.addEventListener("pointerup",()=>{rez=null;n.removeEventListener("pointermove",onResize);});};
+  function onResize(e){if(!rez)return;const t=takes.find(x=>x.id===rez.id);t.w=Math.max(160,Math.min(380,rez.w+(e.clientX-rez.sx)));document.querySelector(`.take[data-id="${rez.id}"]`).style.width=t.w+"px";}
+  updateBriefNode();
+</script>

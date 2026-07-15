@@ -72,6 +72,7 @@ import { FocusedWeb, FocusedLanding } from "./focused/web-workspace";
 import { FocusedPortfolio } from "./focused/portfolio-workspace";
 import { FocusedReel } from "./focused/reel-workspace";
 import { FocusedDirector } from "./focused/director-workspace";
+import { FocusedUgc } from "./focused/ugc-workspace";
 import { FocusedOutreach } from "./focused/outreach-workspace";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 
@@ -166,6 +167,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   voice: { label: "Voice studio", subtitle: "Voiceovers, narration & voice cloning", icon: Mic },
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
   director: { label: "Video Studio", subtitle: "Direct AI, avatar & reel into one film", icon: Clapperboard },
+  ugc: { label: "UGC Studio", subtitle: "Creator videos with lip-sync", icon: Sparkles },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
   plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
@@ -1458,6 +1460,8 @@ export function AgentHome() {
                   <AdBuilderCanvas embedded refreshKey={actionCount} canvasRef={videoOpsRef} />
                 ) : focused === "director" ? (
                   <FocusedDirector onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "ugc" ? (
+                  <FocusedUgc onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "avatar" ? (
                   <FocusedAvatar onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (

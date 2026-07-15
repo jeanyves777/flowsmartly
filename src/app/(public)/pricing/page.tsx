@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import { PricingPageContent } from "@/components/pricing/pricing-page-content";
 
 export const metadata: Metadata = {
-  title: "Pricing Plans",
+  title: "Pricing — Credits, not contracts",
   description:
-    "Choose the perfect FlowSmartly plan for your content creation needs. Start free, upgrade anytime.",
+    "Start free. Pay only for the work the agent delivers — designs, posts, ads, stores, and more. Credits, not per-seat fees.",
   openGraph: {
-    title: "FlowSmartly Pricing - AI Content Creation Plans",
+    title: "FlowSmartly Pricing — Credits, not contracts",
     description:
-      "Transparent pricing for AI-powered content creation, social media marketing, and view-to-earn monetization.",
+      "One AI agent across every marketing surface. Start free, top up credits when you need more work done.",
   },
 };
 

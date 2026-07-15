@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Chat ⇄ View — agent works the real canvas (Ad builder) — FlowSmartly</title>
+<style>
+  :root[data-theme="dark"]{
+    --bg:#0b0e14; --bg2:#0d1117; --card:#151b23; --card2:#1a212b; --elev:#1e2732; --hover:#222c38;
+    --border:#232b36; --border2:#2f3a48; --fg:#e6edf3; --muted:#8b98a9; --muted2:#657186;
+    --blue:#3b82f6; --cyan:#38bdf8; --violet:#8b5cf6; --ok:#22c55e; --amber:#f5a524;
+    --grad:linear-gradient(95deg,#38bdf8,#3b82f6); --shadow:0 22px 55px -30px rgba(0,0,0,.85);
+  }
+  :root[data-theme="light"]{
+    --bg:#eef1f6; --bg2:#f6f8fc; --card:#ffffff; --card2:#f4f6fb; --elev:#fff; --hover:#eef2f8;
+    --border:#e3e7f0; --border2:#d6dce8; --fg:#141821; --muted:#5b6577; --muted2:#8a93a4;
+    --blue:#2563eb; --cyan:#0891b2; --violet:#7c3aed; --ok:#16a34a; --amber:#d97706;
+    --grad:linear-gradient(95deg,#0ea5e9,#2563eb); --shadow:0 20px 46px -28px rgba(30,40,80,.28);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;font-size:13.5px;line-height:1.5;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  button{font:inherit;cursor:pointer;color:inherit} h1,h2,h3{margin:0} .muted{color:var(--muted)}
+
+  /* top chrome */
+  .top{height:52px;display:flex;align-items:center;gap:9px;padding:0 13px;border-bottom:1px solid var(--border);background:var(--bg2);flex:none}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14.5px;margin-right:2px}
+  .brand .mk{width:24px;height:24px;border-radius:7px;background:var(--grad);display:grid;place-items:center;color:#fff}
+  .brand .mk svg{width:14px;height:14px} .brand b{color:var(--blue)}
+  .pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid var(--border);background:var(--card);border-radius:8px;font-size:12px;font-weight:600;white-space:nowrap}
+  .pill svg{width:13px;height:13px;color:var(--muted)} .pill .badge{font-size:8.5px;font-weight:800;color:var(--muted2);border:1px solid var(--border2);border-radius:4px;padding:1px 4px;margin-left:1px}
+  .sp{flex:1}
+  .credits .z{color:var(--amber)} .credits b{color:var(--cyan)}
+  .ib{width:30px;height:30px;border:1px solid var(--border);background:var(--card);border-radius:8px;display:grid;place-items:center;color:var(--muted)}
+  .ib svg{width:14px;height:14px} .ava{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#3b82f6)}
+
+  /* ad-builder subheader */
+  .sub{height:52px;display:flex;align-items:center;gap:11px;padding:0 16px;border-bottom:1px solid var(--border);background:var(--bg);flex:none}
+  .sub .si{width:30px;height:30px;border-radius:8px;background:color-mix(in srgb,var(--blue) 22%,transparent);border:1px solid color-mix(in srgb,var(--blue) 40%,transparent);display:grid;place-items:center;color:var(--cyan)}
+  .sub .si svg{width:16px;height:16px}
+  .sub .stitle b{font-size:14px;font-weight:750;display:block} .sub .stitle span{font-size:11.5px;color:var(--muted)}
+  .sub .name{margin-left:16px;font-size:13.5px;font-weight:650}
+  .sub .draft{font-size:10px;font-weight:800;color:var(--amber);border:1px solid color-mix(in srgb,var(--amber) 45%,transparent);border-radius:5px;padding:2px 6px;text-transform:uppercase}
+  .sub .acts{margin-left:auto;display:flex;gap:8px}
+  .sbtn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border:1px solid var(--border);background:var(--card);border-radius:8px;font-size:12.5px;font-weight:600}
+  .sbtn svg{width:13px;height:13px;color:var(--muted)} .sbtn.pri{background:var(--grad);border-color:transparent;color:#fff} .sbtn.pri svg{color:#fff}
+
+  /* split */
+  .body{flex:1;display:grid;grid-template-columns:360px 1fr;overflow:hidden}
+  body.chatonly .body{grid-template-columns:1fr}
+  body.chatonly .canvas{display:none}
+
+  /* left chat */
+  .chatcol{border-right:1px solid var(--border);background:var(--bg2);display:flex;flex-direction:column;overflow:hidden}
+  body.chatonly .chatcol{border-right:0;max-width:820px;margin:0 auto;width:100%;background:var(--bg)}
+  .chead{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--border);font-size:12.5px}
+  .chead .live{width:8px;height:8px;border-radius:50%;background:var(--ok)} .chead b{font-weight:700}
+  .chead .col{margin-left:auto;color:var(--muted);display:flex;align-items:center;gap:4px}
+  .thread{flex:1;overflow:auto;padding:16px 14px;display:flex;flex-direction:column;gap:13px}
+  .thread > *{flex:none}   /* cards keep natural height; the thread scrolls instead of squashing them */
+  .am{display:flex;gap:9px} .am .fav{width:26px;height:26px;border-radius:7px;flex:none;background:var(--grad);display:grid;place-items:center;color:#fff}
+  .am .fav svg{width:14px;height:14px} .am .txt{font-size:13.5px}
+  .am.intro .txt{font-style:italic;color:var(--muted)}
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);border:1px solid var(--border);background:var(--card);border-radius:999px;padding:4px 10px;width:max-content}
+  .card{border:1px solid var(--border);background:var(--card);border-radius:12px;overflow:hidden}
+  .confirm{padding:12px 13px}
+  .confirm .ch{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .confirm .ok{color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 40%,transparent);border-radius:5px;padding:1px 6px;font-size:9.5px}
+  .confirm b{display:block;font-size:14px;margin-top:8px} .confirm .step{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .msgacts{display:flex;gap:14px;color:var(--muted2);font-size:12px;padding-left:35px}
+  .msgacts span{display:flex;align-items:center;gap:5px;cursor:pointer} .msgacts svg{width:13px;height:13px}
+  /* AI image result */
+  .result .rh{display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:12px;font-weight:700;border-bottom:1px solid var(--border)}
+  .result .rh .dot{width:8px;height:8px;border-radius:50%;background:var(--ok)} .result .rh .st{margin-left:auto;font-size:10px;font-weight:800;color:var(--ok);letter-spacing:.03em}
+  .result .rf{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;font-size:11.5px;color:var(--muted);border-top:1px solid var(--border)}
+  .result .rf .dl{display:flex;align-items:center;gap:6px;color:var(--fg)} .result .rf svg{width:13px;height:13px}
+
+  /* dashboard visual */
+  .dash{background:radial-gradient(120% 120% at 80% -10%,#10233b,#0a1020);padding:12px;position:relative}
+  .dash .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .kpi{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:9px;padding:8px 9px;position:relative;overflow:hidden}
+  .kpi .kl{font-size:8px;font-weight:700;letter-spacing:.08em;color:#7fd7ff} .kpi.g .kl{color:#66f2b0} .kpi.p .kl{color:#f79bff}
+  .kpi .kv{font-size:16px;font-weight:850;color:#fff;letter-spacing:-.02em;margin-top:1px} .kpi .kd{font-size:9px;color:#66f2b0;margin-top:1px}
+  .kpi .don{position:absolute;right:6px;top:8px;width:26px;height:26px;border-radius:50%;background:conic-gradient(#38f2c0 60%,#f79bff 60% 82%,#3b82f6 82%)}
+  .dash .chart{margin-top:9px;height:74px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:8px;display:flex;align-items:flex-end;gap:4px;position:relative}
+  .dash .chart .bar{flex:1;background:linear-gradient(180deg,#38f2c0,#1a7f6b);border-radius:3px 3px 0 0;opacity:.85}
+  .dash .chart::after{content:"";position:absolute;left:8px;right:8px;top:26px;height:26px;
+    background:linear-gradient(90deg,transparent,rgba(56,189,248,.5),rgba(247,155,255,.5));clip-path:polygon(0 80%,15% 60%,30% 70%,45% 40%,60% 55%,75% 25%,100% 35%,100% 100%,0 100%);opacity:.5}
+  .dash .clbl{font-size:8px;color:#8fb3d6;margin-top:5px;display:flex;justify-content:space-between}
+
+  /* composer */
+  .cdock{border-top:1px solid var(--border);background:var(--bg2);padding:11px 13px;flex:none}
+  body.chatonly .cdock{max-width:820px;margin:0 auto;width:100%;background:var(--bg)}
+  .cmode{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+  .cmseg{display:inline-flex;background:var(--card);border:1px solid var(--border2);border-radius:999px;padding:3px}
+  .cm{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700;color:var(--muted)}
+  .cm svg{width:13px;height:13px} .cm.on{background:var(--grad);color:#fff}
+  .cmhint{font-size:11px;color:var(--muted2)} @media(max-width:1100px){.cmhint{display:none}}
+  .composer{border:1px solid var(--border2);background:var(--card);border-radius:15px;padding:9px 11px}
+  .composer .mode{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border2);border-radius:999px;padding:4px 10px;font-size:11.5px;color:var(--muted);margin-bottom:8px}
+  .composer .mode svg{width:12px;height:12px;color:var(--cyan)}
+  .composer .row{display:flex;align-items:center;gap:10px;color:var(--muted)}
+  .composer .row .plus{width:32px;height:32px;border-radius:999px;border:1px solid var(--border2);display:grid;place-items:center;flex:none}
+  .composer .row .ph{flex:1;font-size:13.5px;color:var(--muted)}
+  .composer .row svg{width:16px;height:16px}
+
+  /* right canvas */
+  .canvas{overflow:auto;padding:22px;background-image:radial-gradient(var(--border) 1px,transparent 1px);background-size:20px 20px;position:relative}
+  .nodes{display:flex;gap:22px;align-items:flex-start;min-width:max-content}
+  .node{width:300px;background:var(--card);border:1px solid var(--border2);border-radius:14px;overflow:hidden;box-shadow:var(--shadow);transition:.25s}
+  .node .nhead{display:flex;align-items:center;gap:9px;padding:12px 13px}
+  .node .grip{color:var(--muted2);cursor:grab;font-size:15px;line-height:1}
+  .node .nck{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--ok);color:#04120a;transition:.25s}
+  .node .nck svg{width:13px;height:13px}
+  .node.pending .nck{background:transparent;border:2px dashed var(--border2);color:transparent}
+  .node.working .nck{background:transparent;border:2px solid var(--cyan);color:var(--cyan);animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .node .nk{font-size:9.5px;font-weight:800;letter-spacing:.05em;color:var(--muted2);text-transform:uppercase}
+  .node .nt{font-size:14px;font-weight:750}
+  .node .nbody{padding:0 13px 14px;transition:.25s}
+  .node.pending .nbody{opacity:.4}
+  .opt{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid var(--border);background:var(--card2);border-radius:10px;padding:10px 11px;margin-bottom:8px}
+  .opt .oi{width:26px;height:26px;border-radius:7px;background:var(--elev);border:1px solid var(--border2);display:grid;place-items:center;color:var(--muted);flex:none}
+  .opt .oi svg{width:14px;height:14px} .opt b{font-size:12.5px;font-weight:650;display:block} .opt small{font-size:11px;color:var(--muted)}
+  .opt.sel{border-color:var(--cyan);background:color-mix(in srgb,var(--cyan) 10%,var(--card2))} .opt.sel .oi{color:var(--cyan);border-color:color-mix(in srgb,var(--cyan) 45%,transparent)}
+  .lab{font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 6px;display:block}
+  .fld,textarea.fld,select.fld{width:100%;border:1px solid var(--border2);background:var(--bg2);color:var(--fg);border-radius:9px;padding:9px 11px;font:inherit;font-size:12.5px;outline:none}
+  textarea.fld{min-height:52px;resize:none} select.fld{appearance:none}
+  .genbtn{width:100%;margin-top:11px;border:0;border-radius:10px;padding:10px;color:#fff;font-weight:700;font-size:12.5px;background:var(--grad);display:flex;align-items:center;justify-content:center;gap:7px}
+  .nhint{font-size:11px;color:var(--muted2);margin-top:8px}
+  /* creative preview */
+  .prev{border:1px solid var(--border2);border-radius:11px;overflow:hidden;background:var(--card2)}
+  .prev .img{aspect-ratio:16/9;background:linear-gradient(150deg,#10233b,#0a1020);display:grid;place-items:center;color:var(--muted2);position:relative}
+  .prev .img .badge{position:absolute;right:8px;top:8px;font-size:9.5px;font-weight:700;color:#fff;background:rgba(59,130,246,.85);border-radius:6px;padding:2px 7px;display:flex;align-items:center;gap:4px}
+  .prev .img.gen{background:linear-gradient(150deg,#10233b,#0a1020)}
+  .prev .img .spin{width:26px;height:26px;border-radius:50%;border:3px solid rgba(255,255,255,.2);border-top-color:var(--cyan);animation:spin 1s linear infinite}
+  .prev .pbody{padding:11px 12px} .prev .brandline{font-size:9.5px;letter-spacing:.06em;color:var(--muted2)}
+  .prev .ph{font-size:13px;font-weight:750;margin:3px 0 4px} .prev .pp{font-size:11.5px;color:var(--muted);margin:0}
+  .prev .learn{margin-top:9px;border:1px solid var(--border2);background:var(--card);border-radius:8px;padding:6px 11px;font-size:11.5px;font-weight:650}
+  .row2{display:flex;gap:8px;align-items:center} .row2 .fld{flex:1}
+  .rgn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border2);background:var(--card);border-radius:8px;padding:8px 11px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .rgn svg{width:12px;height:12px;color:var(--cyan)}
+  /* placements */
+  .plc{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:10px;padding:9px 11px;margin-bottom:8px}
+  .plc .pl-ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px;flex:none}
+  .plc b{font-size:12.5px;font-weight:650;display:block} .plc .stt{font-size:11px}
+  .plc.on{border-color:color-mix(in srgb,var(--ok) 35%,transparent)} .plc.on .stt{color:var(--ok)} .plc.off .stt{color:var(--muted2)} .plc.off{opacity:.6}
+  .cfoot{position:absolute;right:18px;bottom:14px;font-size:11px;color:var(--muted2);display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:6px 10px}
+  .cfoot svg{width:13px;height:13px}
+
+  /* opening choice card */
+  .choice{display:flex;flex-direction:column;gap:9px;padding:11px}
+  .choicebtn{display:flex;align-items:center;gap:11px;text-align:left;border:1px solid var(--border2);background:var(--card2);border-radius:11px;padding:11px 12px;transition:.15s}
+  .choicebtn:hover{border-color:var(--cyan);transform:translateY(-1px)}
+  .choicebtn .ci{width:32px;height:32px;border-radius:9px;flex:none;display:grid;place-items:center;color:#fff;background:var(--grad)}
+  .choicebtn.ghost .ci{background:var(--elev);border:1px solid var(--border2);color:var(--muted)}
+  .choicebtn .ci svg{width:16px;height:16px}
+  .choicebtn b{display:block;font-size:13px;font-weight:700} .choicebtn small{font-size:11.5px;color:var(--muted)}
+  .chosen{font-size:12.5px;color:var(--ok);display:flex;align-items:flex-start;gap:8px;padding:12px}
+  .chosen svg{width:15px;height:15px;flex:none;margin-top:2px}
+
+  .replay{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:50;display:flex;gap:8px}
+  .replay button{border:1px solid var(--border2);background:var(--elev);border-radius:9px;padding:8px 13px;font-size:12px;font-weight:650;box-shadow:var(--shadow)}
+  .replay button.pri{background:var(--grad);border-color:transparent;color:#fff}
+</style>
+</head>
+<body>
+  <!-- top chrome -->
+  <div class="top">
+    <div class="brand"><span class="mk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h6"/></svg></span>Flow<b>Smartly</b></div>
+    <button class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14"/></svg> FlowSmartly ▾</button>
+    <button class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="10" cy="19" r="2.5"/><path d="M3 12a9 9 0 1 0 9-9"/></svg> Brand Kit</button>
+    <button class="pill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8"/></svg> Classic <span class="badge">LEGACY</span></button>
+    <span class="sp"></span>
+    <div class="pill credits"><span class="z">⚡</span> <b>18,423</b>&nbsp;credits</div>
+    <button class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+    <button class="ib"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v5h5M3 13a9 9 0 1 0 3-7L3 8"/></svg></button>
+    <button class="ib" onclick="toggleTheme()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></button>
+    <div class="ava"></div>
+  </div>
+
+  <!-- ad-builder subheader -->
+  <div class="sub">
+    <span class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-4 18-5-6-6-2z"/></svg></span>
+    <span class="stitle"><b>Ad builder</b><span>Your ad campaigns — spend, reach &amp; ROAS</span></span>
+    <span class="name">Untitled ad campaign</span><span class="draft">Draft</span>
+    <span class="acts">
+      <button class="sbtn pri"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4V2M12 12l-2 6 6-2z"/></svg> Build with AI</button>
+      <button class="sbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> Library · 5</button>
+      <button class="sbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> New</button>
+      <button class="sbtn" onclick="setMode('chat')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg> Exit</button>
+    </span>
+  </div>
+
+  <div class="body">
+    <!-- LEFT: chat where the agent narrates while it works the canvas -->
+    <div class="chatcol">
+      <div class="chead"><span class="live"></span><b>Agent</b>&nbsp;<span class="muted">· ready</span>
+        <span class="col">collapse <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg></span></div>
+      <div class="thread" id="thread">
+        <!-- FIRST agent question: app view or stay in chat -->
+        <div class="am"><span class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M4 7h16M4 12h10M4 17h6"/></svg></span><span class="txt">Before I start — want me to build this in the <b>app view</b> (on the canvas), or <b>stay in chat</b>? You can switch anytime.</span></div>
+        <div class="card choice" id="choiceCard">
+          <button class="choicebtn" onclick="chooseView()"><span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></span><span><b>Open the app view</b><small>I'll build on the canvas — watch each part fill in, live</small></span></button>
+          <button class="choicebtn ghost" onclick="chooseChat()"><span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span><b>Stay in chat</b><small>I'll work inline, right here in the conversation</small></span></button>
+        </div>
+        <div class="am intro"><span class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M4 7h16M4 12h10M4 17h6"/></svg></span><span class="txt">I'll build this ad campaign live on the canvas, generate the creative, and get it ready to launch.</span></div>
+        <span class="chip">⚙ 2 steps ▾</span>
+        <div class="card confirm">
+          <div class="ch">Confirm action <span class="ok">CONFIRMED</span></div>
+          <b>Generate the image</b><div class="step">1. Generate the image</div>
+        </div>
+        <div class="am"><span class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M4 7h16M4 12h10M4 17h6"/></svg></span><span class="txt" id="fillMsg">Canvas filled — headline, description, and CTA are live. I've started generating the ad creative (a dashboard analytics visual) in the background. Once the image is ready, I'll propose the full launch plan with the exact credit cost.</span></div>
+        <div class="msgacts"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg> Copy</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 5v14l11-7z"/></svg> Play</span></div>
+        <div class="card result" id="resultCard">
+          <div class="rh"><span class="dot"></span> AI image <span class="st" id="resultSt">COMPLETED</span></div>
+          <div class="dash" id="dash">
+            <div class="grid3">
+              <div class="kpi"><div class="kl">SPEND</div><div class="kv">$14,872</div><div class="kd">↑ 18.4%</div></div>
+              <div class="kpi p"><div class="kl">REACH</div><div class="kv">2.84M</div><div class="kd" style="color:#f79bff">↑ 31%</div></div>
+              <div class="kpi g"><div class="kl">ROAS</div><div class="kv">4.87x</div><div class="kd">↑ 2.1x</div><span class="don"></span></div>
+            </div>
+            <div class="chart"><span class="bar" style="height:38%"></span><span class="bar" style="height:52%"></span><span class="bar" style="height:44%"></span><span class="bar" style="height:66%"></span><span class="bar" style="height:58%"></span><span class="bar" style="height:78%"></span><span class="bar" style="height:70%"></span><span class="bar" style="height:92%"></span></div>
+            <div class="clbl"><span>Performance Trend</span><span>Last 30 days</span></div>
+          </div>
+          <div class="rf"><span class="dl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg> Download</span><span>Standard Tier</span></div>
+        </div>
+        <div class="am"><span class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M4 7h16M4 12h10M4 17h6"/></svg></span><span class="txt">Your design is ready. Want me to schedule it as a post, make an edit, or export it for launch?</span></div>
+      </div>
+
+      <div class="cdock">
+        <div class="cmode">
+          <div class="cmseg">
+            <button id="mChat" class="cm" onclick="setMode('chat')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat</button>
+            <button id="mView" class="cm on" onclick="setMode('view')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> View</button>
+          </div>
+          <span class="cmhint">View: the agent works on the real canvas · Chat: it works inline in the conversation</span>
+        </div>
+        <div class="composer">
+          <span class="mode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4V2M12 12l-2 6 6-2z"/></svg> Standard · fast &amp; cheap ▾</span>
+          <div class="row"><span class="plus"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="ph">Ask FlowSmartly to do something…</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3"/></svg></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: the real working surface the agent operates on -->
+    <div class="canvas">
+      <div class="nodes">
+        <!-- node 1: source -->
+        <div class="node done" id="nSource">
+          <div class="nhead"><span class="grip">⠿</span><span class="nck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><div class="nk">What you're advertising</div><div class="nt">Source</div></div></div>
+          <div class="nbody">
+            <button class="opt"><span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l1-5h16l1 5M4 9v11h16V9M9 13h6"/></svg></span><span><b>Store product</b><small>Pick &amp; auto-generate</small></span></button>
+            <button class="opt"><span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></span><span><b>Product / link</b><small>Paste a URL</small></span></button>
+            <button class="opt sel"><span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span><span><b>Describe it</b><small>Free brief</small></span></button>
+            <span class="lab">Describe what to advertise</span>
+            <textarea class="fld">Ad builder — Your ad campaigns — spend, reach &amp; ROAS</textarea>
+            <button class="genbtn"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M15 4V2M12 12l-2 6 6-2z"/></svg> Generate the ad with AI</button>
+            <p class="nhint">The agent writes the headline, copy &amp; image from your description and guides you in the chat.</p>
+          </div>
+        </div>
+        <!-- node 2: creative -->
+        <div class="node done" id="nCreative">
+          <div class="nhead"><span class="grip">⠿</span><span class="nck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><div class="nk">Ad creative</div><div class="nt">Creative</div></div></div>
+          <div class="nbody">
+            <div class="prev">
+              <div class="img" id="prevImg"><span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M15 4V2M12 12l-2 6 6-2z"/></svg> AI image</span><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></div>
+              <div class="pbody"><div class="brandline">YOUR-STORE.COM</div><div class="ph">See Your Spend, Reach &amp; ROI in Real Time</div><p class="pp">Track every dollar. Measure every result. Ad builder gives you full visibility into campaign performance.</p><button class="learn">Learn More →</button></div>
+            </div>
+            <span class="lab">Headline</span><input class="fld" value="See Your Spend, Reach & ROI in Real Time">
+            <span class="lab">Description</span><textarea class="fld">Track every dollar. Measure every result. Ad builder gives you full visibility into campaign performance.</textarea>
+            <span class="lab">CTA</span>
+            <div class="row2"><select class="fld"><option>Learn More</option><option>Shop Now</option><option>Sign Up</option></select><button class="rgn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4V2M12 12l-2 6 6-2z"/></svg> Regenerate</button></div>
+          </div>
+        </div>
+        <!-- node 3: goal & placement -->
+        <div class="node done" id="nGoal">
+          <div class="nhead"><span class="grip">⠿</span><span class="nck"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span><div><div class="nk">Goal &amp; placement</div><div class="nt">Goal &amp; placement</div></div></div>
+          <div class="nbody">
+            <span class="lab">Goal</span><select class="fld"><option>Brand awareness</option><option>Traffic</option><option>Conversions</option></select>
+            <span class="lab">Category</span><select class="fld"><option>Retail &amp; e-commerce</option><option>Services</option></select>
+            <span class="lab">Placements (enabled only)</span>
+            <div class="plc on"><span class="pl-ic" style="background:var(--grad)">F</span><span><b>FlowSmartly Feed</b><span class="stt">Live</span></span></div>
+            <div class="plc on"><span class="pl-ic" style="background:#ea4335">G</span><span><b>Google Ads</b><span class="stt">Live</span></span></div>
+            <div class="plc off"><span class="pl-ic" style="background:#1877f2">M</span><span><b>Meta Ads</b><span class="stt">Not connected</span></span></div>
+            <div class="plc off"><span class="pl-ic" style="background:#111">T</span><span><b>TikTok Ads</b><span class="stt">Not connected</span></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="cfoot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7h13M8 12h13M8 17h13M3 7v.01M3 12v.01M3 17v.01"/></svg> drag a node's header to reorder · scroll sideways</div>
+    </div>
+  </div>
+
+  <!-- inline object shown in Chat mode (same campaign, rendered in the conversation) -->
+  <template id="inlineTpl">
+    <div class="card" style="margin-top:2px">
+      <div class="rh" style="display:flex;align-items:center;gap:8px;padding:10px 12px;font-size:12px;font-weight:700;border-bottom:1px solid var(--border)">
+        <span style="width:22px;height:22px;border-radius:6px;background:var(--grad);display:grid;place-items:center;color:#fff"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M3 11l18-8-4 18-5-6-6-2z"/></svg></span>
+        Ad campaign · ready to launch <span style="margin-left:auto;font-size:10px;font-weight:800;color:var(--ok)">3/3 STEPS</span>
+      </div>
+      <div style="padding:11px 12px;display:flex;flex-direction:column;gap:8px;font-size:12.5px">
+        <div style="display:flex;gap:8px;align-items:center"><span style="color:var(--ok)">✓</span> <b>Source</b> <span class="muted">— Describe it (free brief)</span></div>
+        <div style="display:flex;gap:8px;align-items:center"><span style="color:var(--ok)">✓</span> <b>Creative</b> <span class="muted">— “See Your Spend, Reach &amp; ROI in Real Time”</span></div>
+        <div style="display:flex;gap:8px;align-items:center"><span style="color:var(--ok)">✓</span> <b>Goal &amp; placement</b> <span class="muted">— Brand awareness · FlowSmartly Feed, Google Ads</span></div>
+      </div>
+      <div style="padding:9px 12px;border-top:1px solid var(--border);display:flex;gap:8px">
+        <button class="rgn" style="border-radius:8px" onclick="setMode('view')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Open in view</button>
+        <button class="rgn" style="border-radius:8px">Propose launch plan</button>
+      </div>
+    </div>
+  </template>
+
+  <div class="replay">
+    <button class="pri" onclick="replay()">▶ Watch the agent build the view</button>
+  </div>
+
+<script>
+function toggleTheme(){const r=document.documentElement,n=r.getAttribute('data-theme')==='dark'?'light':'dark';r.setAttribute('data-theme',n);}
+
+/* opening choice — the agent's FIRST question */
+function chooseView(){ answerChoice('view'); setMode('view'); }
+function chooseChat(){ answerChoice('chat'); setMode('chat'); }
+function answerChoice(m){
+  const c=document.getElementById('choiceCard'); if(!c) return;
+  c.classList.remove('choice');
+  const line = m==='view'
+    ? "Opening the app view — I'll render everything on the canvas and keep it updated as each request lands."
+    : "Staying in chat — I'll work inline. Say “open the view” anytime and I'll move the current work onto the canvas automatically.";
+  c.innerHTML = `<div class="chosen"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> ${line}</div>`;
+}
+
+/* Chat ⇄ View toggle */
+function setMode(m){
+  document.getElementById('mChat').classList.toggle('on',m==='chat');
+  document.getElementById('mView').classList.toggle('on',m==='view');
+  document.body.classList.toggle('chatonly',m==='chat');
+  // when inline (Chat), drop a compact campaign object into the thread; remove it in View
+  const existing=document.getElementById('inlineObj');
+  if(m==='chat' && !existing){
+    const node=document.getElementById('inlineTpl').content.cloneNode(true);
+    const wrap=document.createElement('div'); wrap.id='inlineObj'; wrap.appendChild(node);
+    const thread=document.getElementById('thread');
+    // place it right after the "Canvas filled" message area (before final agent line)
+    thread.appendChild(wrap); thread.scrollTop=thread.scrollHeight;
+  } else if(m==='view' && existing){ existing.remove(); }
+}
+
+/* Replay: show the agent actually working ON the canvas (nodes fill + creative generates) */
+let timers=[];
+function clearTimers(){ timers.forEach(clearTimeout); timers=[]; }
+function replay(){
+  setMode('view'); clearTimers();
+  const s=document.getElementById('nSource'), c=document.getElementById('nCreative'), g=document.getElementById('nGoal');
+  const img=document.getElementById('prevImg'), rc=document.getElementById('resultCard'), rst=document.getElementById('resultSt'), dash=document.getElementById('dash');
+  [s,c,g].forEach(n=>{n.classList.remove('done');n.classList.add('pending');});
+  // creative preview -> generating spinner; result card -> generating
+  img.innerHTML='<span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M15 4V2M12 12l-2 6 6-2z"/></svg> AI image</span><div class="spin"></div>';
+  rst.textContent='GENERATING…'; rst.style.color='var(--cyan)'; dash.style.filter='blur(6px) brightness(.7)';
+  const step=(fn,ms)=>timers.push(setTimeout(fn,ms));
+  // 1) fill Source
+  step(()=>{ s.classList.remove('pending'); s.classList.add('working'); },500);
+  step(()=>{ s.classList.remove('working'); s.classList.add('done'); },1400);
+  // 2) work Creative (generate)
+  step(()=>{ c.classList.remove('pending'); c.classList.add('working'); },1600);
+  step(()=>{ c.classList.remove('working'); c.classList.add('done'); },3000);
+  // 3) set Goal & placement
+  step(()=>{ g.classList.remove('pending'); g.classList.add('working'); },3200);
+  step(()=>{ g.classList.remove('working'); g.classList.add('done'); },4000);
+  // 4) creative image + result dashboard complete
+  step(()=>{ img.innerHTML='<span class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M15 4V2M12 12l-2 6 6-2z"/></svg> AI image</span><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>';
+    rst.textContent='COMPLETED'; rst.style.color='var(--ok)'; dash.style.filter='none'; },4200);
+}
+</script>
+</body>
+</html>

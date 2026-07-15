@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Chat live work-objects (briefing + live results) — FlowSmartly</title>
+<style>
+  :root[data-theme="dark"]{
+    --bg:#0b0e14; --bg2:#0d1117; --card:#151b23; --card2:#1a212b; --elev:#1e2732; --hover:#222c38;
+    --border:#232b36; --border2:#2f3a48; --fg:#e6edf3; --muted:#8b98a9; --muted2:#657186;
+    --violet:#8b5cf6; --violet2:#a78bfa; --vsoft:rgba(139,92,246,.16); --blue:#3b82f6;
+    --ok:#22c55e; --amber:#f5a524; --shadow:0 20px 50px -28px rgba(0,0,0,.8);
+    --ubub:#243042; --ubub-fg:#e6edf3;
+  }
+  :root[data-theme="light"]{
+    --bg:#ffffff; --bg2:#fafbfe; --card:#ffffff; --card2:#f7f8fc; --elev:#ffffff; --hover:#f2f4fa;
+    --border:#e7e9f1; --border2:#dfe2ec; --fg:#1f2430; --muted:#6b7280; --muted2:#9aa1ae;
+    --violet:#7c3aed; --violet2:#8b5cf6; --vsoft:rgba(124,58,237,.10); --blue:#2563eb;
+    --ok:#16a34a; --amber:#d97706; --shadow:0 18px 44px -26px rgba(30,40,80,.22);
+    --ubub:#eef1f8; --ubub-fg:#1f2430;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--fg);
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;font-size:14px;line-height:1.55;height:100vh;display:flex;flex-direction:column}
+  button{font:inherit;cursor:pointer;color:inherit}
+  h1,h2,h3{margin:0;letter-spacing:-.01em}
+  .muted{color:var(--muted)}
+
+  /* mock control strip */
+  .mockbar{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg2);flex:none}
+  .mockbar .tag{font-size:10.5px;font-weight:800;letter-spacing:.05em;color:var(--muted2);text-transform:uppercase}
+  .mockbar .sp{flex:1}
+  .mbtn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border2);background:var(--card);border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:600;color:var(--fg)}
+  .mbtn:hover{border-color:var(--violet)}
+  .mbtn.pri{background:var(--violet);border-color:var(--violet);color:#fff}
+
+  /* chat frame */
+  .scroll{flex:1;overflow:auto}
+  .chat{max-width:780px;margin:0 auto;padding:18px 20px 30px}
+
+  /* session-objects strip (sticky) */
+  .objbar{position:sticky;top:0;z-index:20;display:flex;gap:8px;align-items:center;padding:10px 0;margin-bottom:6px;
+    background:linear-gradient(180deg,var(--bg) 70%,transparent)}
+  .objbar .lbl{font-size:11px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em;margin-right:2px}
+  .ochip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:var(--card);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:600}
+  .ochip:hover{border-color:var(--violet)}
+  .ochip .oi{width:16px;height:16px;color:var(--violet)} .ochip .oi svg{width:16px;height:16px}
+  .ochip .st{color:var(--muted);font-weight:500}
+  .ochip .live{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+  .ochip.done .live{background:var(--muted2)}
+
+  /* messages */
+  .msg{margin:14px 0}
+  .msg-u{display:flex;justify-content:flex-end}
+  .msg-u .bub{max-width:80%;background:var(--ubub);color:var(--ubub-fg);border-radius:16px 16px 5px 16px;padding:10px 14px;font-size:14px}
+  .skillchip{display:inline-flex;align-items:center;gap:8px;background:var(--vsoft);color:var(--violet);font-weight:700;font-size:12.5px;border-radius:999px;padding:6px 13px;margin:0 auto;width:max-content}
+  .skillchip svg{width:14px;height:14px}
+  .center{display:flex;justify-content:center}
+  .msg-a{font-size:14.5px;color:var(--fg)}
+  .msg-a p{margin:0 0 8px}
+  .msg-meta{display:flex;align-items:center;gap:12px;color:var(--muted2);font-size:12px;margin-top:2px}
+  .msg-meta .ic{display:flex;gap:12px} .msg-meta svg{width:15px;height:15px;cursor:pointer}
+  .msg-meta svg:hover{color:var(--fg)}
+
+  /* ===== the work-object card ===== */
+  .obj{border:1px solid var(--border);background:var(--card);border-radius:14px;overflow:hidden;margin:12px 0;transition:box-shadow .3s,border-color .3s}
+  .obj.pulse{border-color:var(--violet);box-shadow:0 0 0 3px var(--vsoft)}
+  .obj-head{display:flex;align-items:center;gap:11px;padding:13px 14px}
+  .obj-head .hi{width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;color:#fff;background:var(--violet)}
+  .obj-head .hi svg{width:16px;height:16px}
+  .obj-head .ht{min-width:0;flex:1}
+  .obj-head .ht b{display:block;font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .obj-head .ht .sub{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .obj-head .ht .sub .live{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:blink 1.4s infinite}
+  @keyframes blink{50%{opacity:.35}}
+  .obj-head .ctrl{display:flex;gap:4px}
+  .obj-head .ctrl button{width:28px;height:28px;border:0;background:transparent;border-radius:8px;color:var(--muted);display:grid;place-items:center}
+  .obj-head .ctrl button:hover{background:var(--hover);color:var(--fg)}
+  .obj-head .ctrl svg{width:16px;height:16px}
+  .obj-prog{height:4px;background:var(--border);margin:0 14px;border-radius:999px;overflow:hidden}
+  .obj-prog i{display:block;height:100%;background:linear-gradient(90deg,var(--violet),var(--violet2));border-radius:999px;transition:width .5s}
+  .obj-progtxt{font-size:11.5px;color:var(--muted);padding:0 14px;margin-top:6px}
+  .obj-body{padding:14px;border-top:0}
+  .obj.collapsed .obj-body{display:none}
+  .obj.collapsed{padding-bottom:12px}
+
+  /* briefing fields */
+  .field{margin-bottom:16px}
+  .field .q{font-weight:700;font-size:14px;margin-bottom:9px}
+  .field input[type=text],.field textarea{width:100%;border:1px solid var(--border2);background:var(--bg2);color:var(--fg);border-radius:10px;padding:11px 13px;font:inherit;font-size:14px;outline:none}
+  .field textarea{min-height:76px;resize:vertical}
+  .field input:focus,.field textarea:focus{border-color:var(--violet);box-shadow:0 0 0 3px var(--vsoft)}
+  .radios{display:flex;flex-direction:column;gap:4px}
+  .radio{display:flex;align-items:center;gap:11px;padding:9px 6px;border-radius:9px;cursor:pointer;font-size:14px}
+  .radio:hover{background:var(--hover)}
+  .radio .dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--border2);flex:none;display:grid;place-items:center;transition:.15s}
+  .radio.sel .dot{border-color:var(--violet)} .radio.sel .dot::after{content:"";width:9px;height:9px;border-radius:50%;background:var(--violet)}
+  .radio.sel{color:var(--fg)} .radio:not(.sel){color:var(--muted)}
+  .obj-foot{display:flex;justify-content:flex-end;gap:9px;padding:12px 14px;border-top:1px solid var(--border)}
+  .obj.collapsed .obj-foot{display:none}
+  .fbtn{border:1px solid var(--border2);background:var(--card);border-radius:9px;padding:9px 18px;font-size:13.5px;font-weight:650;color:var(--fg)}
+  .fbtn:hover{border-color:var(--muted)}
+  .fbtn.pri{background:var(--violet);border-color:var(--violet);color:#fff}
+
+  /* assessment result (same object morphs) */
+  .assess{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  .ring{--v:72;width:92px;height:92px;border-radius:50%;flex:none;display:grid;place-items:center;position:relative;
+    background:conic-gradient(var(--violet) calc(var(--v)*1%), var(--border) 0)}
+  .ring::before{content:"";position:absolute;inset:8px;border-radius:50%;background:var(--card)}
+  .ring b{position:relative;font-size:24px;font-weight:850} .ring span{position:relative;font-size:10px;color:var(--muted);margin-top:-2px}
+  .assess .verdict b{font-size:15px} .assess .verdict p{margin:3px 0 0;font-size:12.5px;color:var(--muted);max-width:34ch}
+  .dims{margin-top:14px;display:flex;flex-direction:column;gap:11px}
+  .dim{display:grid;grid-template-columns:130px 1fr auto;gap:10px;align-items:center;font-size:12.5px}
+  .dim .bar{height:7px;background:var(--border);border-radius:999px;overflow:hidden} .dim .bar i{display:block;height:100%;background:var(--violet);border-radius:999px}
+  .dim .sc{font-weight:700;font-variant-numeric:tabular-nums}
+
+  /* leads list */
+  .lead{display:flex;align-items:center;gap:11px;padding:9px 4px;border-radius:8px}
+  .lead + .lead{border-top:1px solid var(--border)}
+  .lead.new{animation:slidein .4s ease}
+  @keyframes slidein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .lead .lav{width:30px;height:30px;border-radius:8px;flex:none;display:grid;place-items:center;font-weight:800;font-size:12px;color:#fff;background:linear-gradient(135deg,var(--violet),var(--blue))}
+  .lead .lt{min-width:0;flex:1} .lead .lt b{font-size:13px;font-weight:650;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lead .lt span{font-size:11.5px;color:var(--muted)}
+  .lchip{font-size:10.5px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}
+  .lchip.found{background:color-mix(in srgb,var(--muted) 20%,transparent);color:var(--muted)}
+  .lchip.enr{background:color-mix(in srgb,var(--amber) 20%,transparent);color:var(--amber)}
+  .lchip.done{background:color-mix(in srgb,var(--ok) 20%,transparent);color:var(--ok)}
+  .lscore{font-size:12px;font-weight:800;width:34px;text-align:right;font-variant-numeric:tabular-nums}
+  .lead .det{display:flex;gap:5px;color:var(--muted2)} .lead .det svg{width:13px;height:13px} .lead .det .on{color:var(--ok)}
+  .list{max-height:300px;overflow:auto;margin:-4px}
+  .list{padding:0 4px}
+  .obj-actions{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+  .obj-actions .fbtn{padding:8px 13px;font-size:12.5px}
+  .hint{font-size:11.5px;color:var(--muted2);margin:6px 2px 0;display:flex;align-items:center;gap:6px}
+  .hint svg{width:13px;height:13px;color:var(--violet)}
+
+  /* composer */
+  .dock{flex:none;border-top:1px solid var(--border);background:var(--bg2);padding:12px 20px 16px}
+  .composer{max-width:780px;margin:0 auto;border:1px solid var(--border2);background:var(--card);border-radius:16px;padding:12px 14px}
+  .composer .ph{color:var(--muted);font-size:14px;margin-bottom:10px}
+  .composer .row{display:flex;align-items:center;gap:12px;color:var(--muted)}
+  .composer .row svg{width:18px;height:18px;cursor:pointer} .composer .row .sp{flex:1}
+  .composer .row .send{color:var(--muted2)}
+  .foot{max-width:780px;margin:8px auto 0;text-align:center;font-size:11.5px;color:var(--muted2)}
+
+  /* composer Chat/View mode toggle */
+  .cmode{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+  .cmseg{display:inline-flex;background:var(--bg2);border:1px solid var(--border2);border-radius:999px;padding:3px}
+  .cm{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;border-radius:999px;padding:6px 13px;font-size:12.5px;font-weight:700;color:var(--muted)}
+  .cm svg{width:14px;height:14px}
+  .cm.on{background:var(--violet);color:#fff}
+  .cmhint{font-size:11.5px;color:var(--muted2)}
+  @media(max-width:560px){.cmhint{display:none}}
+
+  /* full-screen object view ("call view") */
+  .viewport{position:fixed;inset:0;z-index:60;background:var(--bg);display:none;flex-direction:column}
+  .viewport.open{display:flex;animation:vin .22s ease}
+  @keyframes vin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .vp-h{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--border);background:var(--bg2)}
+  .vp-h .vi{width:34px;height:34px;border-radius:9px;background:var(--violet);color:#fff;display:grid;place-items:center;flex:none}
+  .vp-h .vi svg{width:18px;height:18px}
+  .vp-h .vt b{font-size:15px;font-weight:750;display:block} .vp-h .vt span{font-size:12px;color:var(--muted)}
+  .vp-h .sp{flex:1}
+  .vp-body{flex:1;overflow:auto;padding:20px}
+  .vp-body .inner{max-width:1080px;margin:0 auto}
+  .vsync{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px;margin-bottom:14px}
+  .vsync svg{width:14px;height:14px;color:var(--violet)}
+  .ltable{width:100%;border-collapse:collapse;font-size:13px;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .ltable th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted2);font-weight:800;padding:11px 14px;border-bottom:1px solid var(--border);background:var(--card2)}
+  .ltable td{padding:11px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
+  .ltable tr:last-child td{border-bottom:0}
+  .ltable tr:hover td{background:var(--hover)}
+  .ltable td b{font-weight:650}
+</style>
+</head>
+<body>
+  <div class="mockbar">
+    <span class="tag">Mockup · live chat objects</span>
+    <span class="sp"></span>
+    <button class="mbtn pri" onclick="simulate()">▶ Simulate results landing</button>
+    <button class="mbtn" onclick="location.reload()">↻ Reset</button>
+    <button class="mbtn" onclick="toggleTheme()">🌗 Theme</button>
+  </div>
+
+  <div class="scroll" id="scroll">
+    <div class="chat">
+      <!-- session objects strip -->
+      <div class="objbar" id="objbar"><span class="lbl">In this session</span></div>
+
+      <!-- 1) briefing flow -->
+      <div class="msg msg-u"><div class="bub">Validate my business idea</div></div>
+      <div class="msg center"><div class="skillchip"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-6z"/></svg> Skill used: Validate my business idea</div></div>
+      <div class="msg msg-a">
+        <p>Let's put your idea through its paces. A few quick questions first:</p>
+        <p>Answer those and I'll give you an honest, structured assessment — not a cheerleading session.</p>
+        <div class="msg-meta">15:02 <span class="ic">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10v11M18 5l-1 5h4l-2 9H7"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 14v-11M6 19l1-5H3l2-9h10"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+        </span></div>
+      </div>
+      <div id="briefMount"></div>
+
+      <!-- 2) leads live object -->
+      <div class="msg msg-u"><div class="bub">Also find 25 dental clinics in Austin and start enriching them.</div></div>
+      <div class="msg msg-a"><p>On it — building the list and enriching each one as I go. Track it live here (it updates in place; I won't re-post a new table each time):</p></div>
+      <div id="leadsMount"></div>
+      <div class="hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5l3 2"/></svg> This card is one object in the session. New results update it and pop it open — the conversation keeps flowing above.</div>
+    </div>
+  </div>
+
+  <div class="dock">
+    <div class="composer">
+      <div class="cmode">
+        <div class="cmseg">
+          <button id="mChat" class="cm on" onclick="setMode('chat')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat</button>
+          <button id="mView" class="cm" onclick="setMode('view')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> View</button>
+        </div>
+        <span class="cmhint">Chat keeps results inline · View opens the full workspace</span>
+      </div>
+      <div class="ph">Continue the conversation…</div>
+      <div class="row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15V5a2 2 0 0 0-2-2H8L3 8v11a2 2 0 0 0 2 2h9"/><path d="M16 16l3 3 3-3M19 19v-8"/></svg>
+        <span class="sp"></span>
+        <svg class="send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>
+      </div>
+    </div>
+    <div class="foot">Agents can make mistakes. Verify important info. Don't share sensitive data.</div>
+  </div>
+
+  <!-- full-screen "View" of an object (leads) -->
+  <div class="viewport" id="viewport">
+    <div class="vp-h">
+      <span class="vi"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.3 3-5 7-5M16 11l2 2 4-4"/></svg></span>
+      <span class="vt"><b id="vp-title">Leads · Dental clinics · Austin</b><span id="vp-sub">Full view · Lead Studio</span></span>
+      <span class="sp"></span>
+      <button class="fbtn" onclick="simulate()">▶ Simulate results</button>
+      <button class="fbtn pri" onclick="setMode('chat')">‹ Back to chat</button>
+    </div>
+    <div class="vp-body"><div class="inner">
+      <div class="vsync"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg> Same object as the chat card — new results update both, live.</div>
+      <div style="overflow-x:auto"><table class="ltable" id="ltable"></table></div>
+    </div></div>
+  </div>
+
+<script>
+function toggleTheme(){const r=document.documentElement,n=r.getAttribute('data-theme')==='dark'?'light':'dark';r.setAttribute('data-theme',n);}
+
+/* ============== generic object helpers ============== */
+function setCollapsed(id,val){ const el=document.getElementById(id); el.classList.toggle('collapsed',val);
+  const chev=el.querySelector('.chev use, .chev'); renderChev(el); syncChips(); }
+function renderChev(el){ const b=el&&el.querySelector('[data-chev] svg'); if(!b) return; const col=el.classList.contains('collapsed');
+  b.innerHTML = col ? '<path d="M6 15l6-6 6 6"/>' : '<path d="M6 9l6 6 6-6"/>'; }
+function toggleObj(id){ const el=document.getElementById(id); el.classList.toggle('collapsed'); renderChev(el); syncChips(); }
+function closeObj(id){ const el=document.getElementById(id); el.classList.add('collapsed'); renderChev(el); syncChips(); }
+function popOpen(id){ const el=document.getElementById(id); if(!el) return; el.classList.remove('collapsed'); renderChev(el);
+  el.classList.add('pulse'); setTimeout(()=>el.classList.remove('pulse'),900); syncChips(); }
+
+/* head markup */
+function headHTML(id,icon,title,subHTML){
+  return `<div class="obj-head">
+    <span class="hi"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icon}</svg></span>
+    <span class="ht"><b id="${id}-title">${title}</b><span class="sub" id="${id}-sub">${subHTML}</span></span>
+    <span class="ctrl">
+      <button onclick="openView('${id}')" title="Open as full view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
+      <button data-chev onclick="toggleObj('${id}')" title="Collapse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
+      <button onclick="closeObj('${id}')" title="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </span></div>`;
+}
+
+/* ============== session-objects chip strip ============== */
+const OBJS = [];  // {id,icon,title,statusFn}
+function registerObj(o){ OBJS.push(o); syncChips(); }
+function syncChips(){
+  const bar=document.getElementById('objbar');
+  bar.querySelectorAll('.ochip').forEach(n=>n.remove());
+  OBJS.forEach(o=>{
+    const el=document.getElementById(o.id); if(!el) return;
+    const done=o.doneFn&&o.doneFn();
+    const chip=document.createElement('button'); chip.className='ochip'+(done?' done':'');
+    chip.onclick=()=>{ popOpen(o.id); document.getElementById(o.id).scrollIntoView({behavior:'smooth',block:'center'}); };
+    chip.innerHTML=`<span class="oi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${o.icon}</svg></span>${o.title} <span class="st">${o.statusFn()}</span> ${done?'':'<span class="live"></span>'}`;
+    bar.appendChild(chip);
+  });
+}
+
+/* ============== 1) BRIEFING object (morphs into result) ============== */
+const IC_wand='<path d="M15 4V2M9.5 9.5 5 5M12 12l-2 6 6-2z"/>';
+const IC_check='<path d="M20 6 9 17l-5-5"/>';
+const STEPS=[
+  { fields:[
+    {type:'text', q:"What's the business idea? Describe it in a sentence or two.", ph:'Your answer…'},
+    {type:'radio', q:"Who's your target customer?", opts:['Consumers (B2C)','Businesses (B2B)','Both'], sel:1},
+  ]},
+  { fields:[
+    {type:'radio', q:'How will it make money?', opts:['One-time sales','Subscription','Marketplace / fees','Advertising'], sel:1},
+    {type:'text', q:'Rough price point?', ph:'e.g. $49 / month'},
+  ]},
+  { fields:[{type:'textarea', q:"What's the biggest risk or unknown right now?", ph:'Be honest — this is where I dig in…'}]},
+  { fields:[{type:'radio', q:'When do you want to launch?', opts:['This month','This quarter','6–12 months','Just exploring'], sel:1}]},
+];
+let briefStep=0, briefDone=false;
+function briefRender(){
+  const total=STEPS.length, pct=briefDone?100:Math.round((briefStep)/total*100);
+  const mount=document.getElementById('briefMount');
+  if(briefDone){ mount.innerHTML = briefResultHTML(); document.getElementById('brief').classList.add('_r'); renderChev(document.getElementById('brief')); syncChips(); return; }
+  const step=STEPS[briefStep];
+  const body = step.fields.map((f,i)=>{
+    if(f.type==='radio'){
+      return `<div class="field"><div class="q">${f.q}</div><div class="radios">${f.opts.map((o,j)=>`
+        <div class="radio ${f.sel===j?'sel':''}" onclick="briefPick(${i},${j})"><span class="dot"></span>${o}</div>`).join('')}</div></div>`;
+    }
+    if(f.type==='textarea') return `<div class="field"><div class="q">${f.q}</div><textarea placeholder="${f.ph}"></textarea></div>`;
+    return `<div class="field"><div class="q">${f.q}</div><input type="text" placeholder="${f.ph}"></div>`;
+  }).join('');
+  mount.innerHTML = `<div class="obj" id="brief">
+    ${headHTML('brief',IC_wand,'Validate my business idea','<span>Question '+(briefStep+1)+' / '+total+'</span>')}
+    <div class="obj-prog"><i style="width:${Math.round((briefStep+1)/total*100)}%"></i></div>
+    <div class="obj-body" style="max-height:330px;overflow:auto">${body}</div>
+    <div class="obj-foot"><button class="fbtn" onclick="briefNext(true)">Skip</button><button class="fbtn pri" onclick="briefNext(false)">${briefStep===total-1?'Finish':'Continue'}</button></div>
+  </div>`;
+  if(!OBJS.find(o=>o.id==='brief')) registerObj({id:'brief',icon:IC_wand,title:'Idea check',statusFn:()=>briefDone?'done':('Q'+(briefStep+1)+'/'+STEPS.length),doneFn:()=>briefDone});
+  renderChev(document.getElementById('brief')); syncChips();
+}
+function briefPick(fi,oi){ STEPS[briefStep].fields[fi].sel=oi; briefRender(); }
+function briefNext(skip){ if(briefStep<STEPS.length-1){ briefStep++; briefRender(); popOpen('brief'); } else { briefDone=true; briefRender(); popOpen('brief'); } }
+function briefResultHTML(){
+  return `<div class="obj" id="brief">
+    ${headHTML('brief',IC_check,'Business idea assessment','<span>Complete · your honest read</span>')}
+    <div class="obj-body">
+      <div class="assess">
+        <div class="ring" style="--v:72"><b>72</b><span>/100</span></div>
+        <div class="verdict"><b>Promising — with real caveats.</b><p>Clear B2B pain and a workable subscription model. Differentiation and go-to-market timing are the two things to de-risk before you build.</p></div>
+      </div>
+      <div class="dims">
+        ${dim('Market demand',82)}${dim('Differentiation',54)}${dim('Monetization',76)}${dim('Timing / readiness',66)}
+      </div>
+      <div class="obj-actions">
+        <button class="fbtn pri" onclick="popOpen('brief')">Open full report</button>
+        <button class="fbtn" onclick="popOpen('brief')">Turn into a business plan</button>
+      </div>
+    </div></div>`;
+}
+function dim(name,v){ return `<div class="dim"><span>${name}</span><span class="bar"><i style="width:${v}%"></i></span><span class="sc">${v}</span></div>`; }
+
+/* ============== 2) LEADS live object ============== */
+const NAMES=[
+  ['Bright Smile Dental','Downtown'],['Austin Family Dentistry','Hyde Park'],['Hill Country Dental','Westlake'],
+  ['Congress Ave Smiles','SoCo'],['Barton Creek Dental','Barton Hills'],['Lakeway Dental Care','Lakeway'],
+  ['Zilker Dental','Zilker'],['Mueller Modern Dentistry','Mueller'],['Cedar Park Dental','Cedar Park'],
+  ['South Lamar Orthodontics','South Lamar'],['Domain Dental Studio','The Domain'],['Riverside Family Dental','Riverside'],
+  ['Tarrytown Dental','Tarrytown'],['East Austin Smiles','East Austin'],['Clarksville Dental','Clarksville'],
+  ['Round Rock Dental Co.','Round Rock'],['Pflugerville Dental','Pflugerville'],['Bee Cave Dentistry','Bee Cave'],
+  ['North Loop Dental','North Loop'],['Travis Heights Dental','Travis Heights'],['Allandale Dental','Allandale'],
+  ['Manor Road Dental','Manor Rd'],['Slaughter Lane Dental','South Austin'],['Anderson Mill Dental','Anderson Mill'],
+  ['Windsor Park Dental','Windsor Park'],
+];
+const TARGET=25;
+let leads=[]; // {name,area,status:'found'|'enr'|'done',score}
+function leadsInit(){
+  document.getElementById('leadsMount').innerHTML = `<div class="obj" id="leads">
+    ${headHTML('leads','<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.3 3-5 7-5M16 11l2 2 4-4"/>','Leads · Dental clinics · Austin','<span class="live"></span><span id="leads-count">Starting…</span>')}
+    <div class="obj-prog"><i id="leads-bar" style="width:0%"></i></div>
+    <div class="obj-body">
+      <div class="list" id="leads-list"></div>
+      <div class="obj-actions"><button class="fbtn pri">Open in Lead Studio</button><button class="fbtn">Export CSV</button><button class="fbtn">Draft outreach</button></div>
+    </div></div>`;
+  registerObj({id:'leads',icon:'<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.3 3-5 7-5M16 11l2 2 4-4"/>',title:'Leads',statusFn:()=>{const d=leads.filter(l=>l.status==='done').length;return d+'/'+TARGET;},doneFn:()=>leads.length>=TARGET&&leads.every(l=>l.status==='done')});
+  renderChev(document.getElementById('leads'));
+  leadsPaint();
+}
+function scoreFor(i){ return 60+((i*7+13)%38); }
+function leadsPaint(){
+  const list=document.getElementById('leads-list');
+  list.innerHTML = leads.map((l,i)=>{
+    const chip = l.status==='done'?'<span class="lchip done">Enriched</span>' : l.status==='enr'?'<span class="lchip enr">Enriching…</span>':'<span class="lchip found">Found</span>';
+    const det = l.status==='done' ? `<span class="det"><svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.2 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.9.6 2.9.7A2 2 0 0 1 22 16.9z"/></svg><svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg></span>` : '<span class="det"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.2 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.9.6 2.9.7A2 2 0 0 1 22 16.9z"/></svg></span>';
+    const sc = l.status==='done'?`<span class="lscore">${l.score}</span>`:'<span class="lscore" style="color:var(--muted2)">—</span>';
+    return `<div class="lead ${l._new?'new':''}"><span class="lav">${l.name[0]}</span><span class="lt"><b>${l.name}</b><span>${l.area} · Austin, TX</span></span>${det}${chip}${sc}</div>`;
+  }).join('');
+  leads.forEach(l=>l._new=false);
+  const done=leads.filter(l=>l.status==='done').length;
+  document.getElementById('leads-count').textContent = leads.length<TARGET ? `${leads.length} found · ${done} enriched · working…` : (done<TARGET?`${TARGET} found · ${done} enriched…`:`${TARGET} found · all enriched ✓`);
+  document.getElementById('leads-bar').style.width = Math.round((done/TARGET)*100)+'%';
+  if(leads.length>=TARGET && done>=TARGET){ document.getElementById('leads-sub').querySelector('.live').style.background='var(--muted2)'; }
+  // keep the full View in sync when it's open (updates both, live)
+  if(document.getElementById('viewport') && document.getElementById('viewport').classList.contains('open')) renderTable();
+  syncChips();
+}
+/* one "batch" of activity: promote some enr->done, found->enr, add new found */
+function leadsTick(){
+  leads.filter(l=>l.status==='enr').slice(0,3).forEach((l,i)=>{ l.status='done'; l.score=scoreFor(leads.indexOf(l)); });
+  leads.filter(l=>l.status==='found').slice(0,3).forEach(l=>l.status='enr');
+  let added=0;
+  while(leads.length<TARGET && added<4){ const n=NAMES[leads.length]; leads.push({name:n[0],area:n[1],status:'found',_new:true}); added++; }
+  leadsPaint(); popOpen('leads');
+}
+function simulate(){ if(!document.getElementById('leads')) return; leadsTick(); }
+
+/* ============== Chat / View mode (button by the composer) ============== */
+let viewMode='chat';
+function setMode(m){
+  viewMode=m;
+  document.getElementById('mChat').classList.toggle('on',m==='chat');
+  document.getElementById('mView').classList.toggle('on',m==='view');
+  if(m==='view') openView('leads'); else closeView();
+}
+function openView(id){
+  // rich full view exists for the leads object; other objects just pop open inline
+  if(id!=='leads'){ popOpen(id); document.getElementById(id).scrollIntoView({behavior:'smooth',block:'center'}); return; }
+  viewMode='view';
+  document.getElementById('mView').classList.add('on');
+  document.getElementById('mChat').classList.remove('on');
+  renderTable();
+  document.getElementById('viewport').classList.add('open');
+}
+function closeView(){ document.getElementById('viewport').classList.remove('open'); }
+function slug(s){ return s.toLowerCase().replace(/[^a-z0-9]+/g,''); }
+function renderTable(){
+  const body = leads.map((l,i)=>{
+    const done=l.status==='done';
+    const phone=done?`(512) 555-0${String(120+i).slice(-3)}`:'—';
+    const email=done?`hello@${slug(l.name)}.com`:'—';
+    const site=done?`${slug(l.name)}.com`:'—';
+    const st=done?'<span class="lchip done">Enriched</span>':l.status==='enr'?'<span class="lchip enr">Enriching…</span>':'<span class="lchip found">Found</span>';
+    const sc=done?`<b>${l.score}</b>`:'<span style="color:var(--muted2)">—</span>';
+    return `<tr><td><b>${l.name}</b></td><td>${l.area}</td><td>${phone}</td><td>${email}</td><td>${site}</td><td>${sc}</td><td>${st}</td></tr>`;
+  }).join('');
+  document.getElementById('ltable').innerHTML =
+    `<thead><tr><th>Business</th><th>Area</th><th>Phone</th><th>Email</th><th>Website</th><th>Score</th><th>Status</th></tr></thead><tbody>${body}</tbody>`;
+  const done=leads.filter(l=>l.status==='done').length;
+  document.getElementById('vp-sub').textContent = `Full view · ${leads.length} found · ${done} enriched`;
+}
+
+/* ============== init ============== */
+briefRender();
+leadsInit();
+/* seed a few leads so the object isn't empty */
+['found','found'].forEach(()=>{});
+leads.push({name:NAMES[0][0],area:NAMES[0][1],status:'enr'},{name:NAMES[1][0],area:NAMES[1][1],status:'enr'},{name:NAMES[2][0],area:NAMES[2][1],status:'found'});
+leadsPaint();
+syncChips();
+</script>
+</body>
+</html>
