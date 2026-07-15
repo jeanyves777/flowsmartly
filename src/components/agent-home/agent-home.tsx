@@ -124,6 +124,7 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   media: "Ask the agent to find or generate media — e.g. “make me a product image”.",
   logo: "Ask the agent to generate a logo for your brand.",
   video: "Ask the agent to create a video — an ad, promo, or reel.",
+  ugc: "Ask the agent for a UGC creator video — e.g. “a testimonial about my serum, 8 seconds”. Add a photo of the creator and the script they should say.",
   reel: "Ask the agent to turn a video into reels — paste a link and it finds the best moments, reframes to 9:16 and captions them.",
   avatar: "Ask the agent to make an avatar video — e.g. “a 30s intro of my avatar for our launch”.",
   delivery: "Ask the agent about deliveries — e.g. “which orders are out for delivery?”.",
@@ -166,7 +167,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   reel: { label: "Reel studio", subtitle: "Link → find moments → clips, right on the canvas", icon: Clapperboard },
   voice: { label: "Voice studio", subtitle: "Voiceovers, narration & voice cloning", icon: Mic },
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
-  director: { label: "Video Studio", subtitle: "Direct AI, avatar & reel into one film", icon: Clapperboard },
+  director: { label: "Filmmaking", subtitle: "Direct a multi-scene cinematic film", icon: Clapperboard },
   ugc: { label: "UGC Studio", subtitle: "Creator videos with lip-sync", icon: Sparkles },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
@@ -190,6 +191,8 @@ function focusedSurfaceContext(focused: string, brandName?: string | null, openR
       return `The user has the **Publish** workspace open (posts, scheduling, content calendar). Default their intent to creating, scheduling, or managing posts.`;
     case "portfolio":
       return `The user has the **Portfolio Studio** open — their Portfolio / Digital Résumé site (a shareable public page, distinct from the Website Studio). OPERATE it for them; don't tell them to open menus. To BUILD one they don't have: build_portfolio — ask business vs personal; for a personal résumé, have them upload their CV and READ it to extract experience/skills/education; pull business content from the Brand Kit. To EDIT: call get_portfolio_content first (current header, sections, style, hero media, access), then edit_portfolio — send a PARTIAL patch; the \`sections\` array is replaced wholesale so include existing items you keep. Pick a STYLE that reads like a portfolio/digital-ad piece (spotlight/cinematic/showcase/editorial/neon/card); spotlight/cinematic/neon support a full-bleed VIDEO hero. To gate access, set access.view or access.download to 'email' (visitors verify a 6-digit code and are saved to Contacts). To go live set status:'PUBLISHED'. For a CUSTOM DOMAIN, do it end-to-end: find_domain (search options + prices from their name/brand), then buy_portfolio_domain to purchase + AUTO-ATTACH the one they pick (charges their saved card on Confirm, registers it, publishes + wires DNS/SSL automatically — they never touch DNS), or connect_portfolio_domain if they already own one. Don't just describe steps — do the work.`;
+    case "ugc":
+      return `The user has the **UGC Studio** OPEN — a single-shot playground that turns a PHOTO of a creator + a SCRIPT into a lip-synced creator video (the person says the exact words). OPERATE it; don't narrate. The brief needs: a creator photo, the spoken script (2-3 short sentences — it must fit 6-10s at ~2 words/sec), a style (Authentic / Testimonial / Unboxing / GRWM), aspect (9:16 or 1:1) and duration. Several TAKES can be generated at once and land on the canvas; the user keeps the ones they like and can publish a take to their channels. Help them write a natural, conversational script that sounds like a real creator — never salesy. Don't reply with a generic menu.`;
     case "reel":
       return `The user has the **Reel Studio** OPEN — a playground that turns a long video into scored 9:16 clips. OPERATE it; don't narrate. To BUILD reels: build_reels — pass the source \`transcript\` (transcribe the video's audio, or use provided captions), a title, and optional settings (clipLength/aspect/count). Clips appear on the canvas sorted by virality score and render to 9:16 after. To EDIT a clip, call get_reel_content first (for clip ids) then edit_clip. To POST/SCHEDULE, use publish_reels with clip ids + channels (tiktok/instagram/youtube/facebook/linkedin/x); omit scheduleAt to post now. Everything stays under the campaign to repost or delete. Don't reply with a generic menu.`;
     case "web":

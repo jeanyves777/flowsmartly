@@ -70,14 +70,16 @@ export const AGENT_GROUPS: AgentGroup[] = [
   },
   {
     key: "film", label: "Film", icon: "Clapperboard", accent: "#ec4899",
-    description: "Video ads, reels, avatars & voice.",
+    description: "Filmmaking, UGC, product ads & voice.",
     placeholder: "Ask FlowSmartly to make a video…",
-    context: "The user has focused the agent into its **Film** group — video ads, reels, talking-avatar videos, and voice. Prefer video/reel/avatar/voice tools (generate_video / story-ad, build_reels, create_avatar_video, voice generation). You can still handle anything else they explicitly ask.",
+    context: "The user has focused the agent into its **Film** group — filmmaking (multi-scene cinematic films), UGC creator videos with lip-sync, and voice. Prefer the film/UGC/voice tools (direct_film, generate_video, voice generation). You can still handle anything else they explicitly ask.",
+    // The video suite is the 4 xAI playgrounds: Filmmaking + UGC + Product ads + Virtual
+    // try-on (the last two land as they're built). Reel + Story-ad stay in the codebase as
+    // BACKUP surfaces (still reachable directly) but are off the menu; Avatar is retired
+    // temporarily until it has a proper use case.
     skills: [
-      { id: "video", title: "Video ad", description: "Multi-scene cinematic AI film.", surface: "director", tools: ["direct_film", "generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 30 cr", icon: "Video", keywords: ["video", "ad", "film", "commercial"] },
-      { id: "reel", title: "Reel from a link", description: "Scored 9:16 clips from any video.", surface: "reel", tools: ["build_reels", "edit_clip", "publish_reels"], costKey: "AGENT_BUILD_REEL", costHint: "from 6 cr", icon: "Film", keywords: ["reel", "shorts", "clips", "9:16", "repurpose"] },
-      { id: "avatar", title: "Talking avatar", description: "Your spokesperson, on demand.", surface: "avatar", tools: ["create_avatar_video", "clone_avatar"], costKey: "AI_AVATAR_VIDEO", costHint: "from 20 cr", icon: "UserSquare2", keywords: ["avatar", "spokesperson", "talking head", "presenter"] },
-      { id: "story-ad", title: "Story-ad film", description: "Cinematic narrated short.", surface: "storyad", tools: ["start_story_ad_campaign"], costKey: "AI_STORY_CAMPAIGN_SCENES", costHint: "multi-scene", icon: "Clapperboard", keywords: ["story", "narrated", "cinematic", "campaign"] },
+      { id: "video", title: "Filmmaking", description: "Multi-scene cinematic AI film.", surface: "director", tools: ["direct_film", "generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 30 cr", icon: "Clapperboard", keywords: ["film", "movie", "video", "ad", "cinematic", "scene"] },
+      { id: "ugc", title: "UGC video", description: "Creator videos with lip-sync.", surface: "ugc", tools: ["generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 8 cr", icon: "Sparkles", keywords: ["ugc", "creator", "testimonial", "unboxing", "lip sync", "tiktok", "reels"] },
       { id: "voice", title: "Voiceover", description: "Narration & TTS in any voice.", surface: "voice", tools: ["generate_voice"], costKey: "AI_VOICE_GENERATION", costHint: "from 5 cr", icon: "Mic", keywords: ["voice", "voiceover", "narration", "tts", "audio"] },
     ],
   },

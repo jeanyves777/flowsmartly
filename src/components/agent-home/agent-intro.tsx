@@ -25,10 +25,10 @@ const AGENTS: { key: string; label: string; blurb: string; Icon: LucideIcon; ite
     ],
   },
   {
-    key: "film", label: "Film", blurb: "Video ads, reels & avatars", Icon: Clapperboard,
+    key: "film", label: "Film", blurb: "Cinematic films & UGC creator videos", Icon: Clapperboard,
     items: [
-      { key: "video", label: "Short videos (8s clips)", unit: 30, def: 6 }, // AI_VIDEO_LITE
-      { key: "avatar", label: "Talking-avatar clips (30s)", unit: 20, def: 2 }, // AI_AVATAR_VIDEO
+      { key: "video", label: "Film scenes (8s shots)", unit: 30, def: 6 }, // AI_VIDEO_LITE
+      { key: "ugc", label: "UGC creator videos (8s)", unit: 8, def: 4 },   // AI_VIDEO_LITE
     ],
   },
   {
