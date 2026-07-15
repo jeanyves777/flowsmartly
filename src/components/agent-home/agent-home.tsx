@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
-  Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard,
+  Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard, Shirt,
   FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, UserSquare2, Monitor, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
@@ -74,6 +74,7 @@ import { FocusedReel } from "./focused/reel-workspace";
 import { FocusedDirector } from "./focused/director-workspace";
 import { FocusedUgc } from "./focused/ugc-workspace";
 import { FocusedProductAds } from "./focused/product-ads-workspace";
+import { FocusedTryOn } from "./focused/try-on-workspace";
 import { FocusedOutreach } from "./focused/outreach-workspace";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 
@@ -125,6 +126,7 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   media: "Ask the agent to find or generate media — e.g. “make me a product image”.",
   logo: "Ask the agent to generate a logo for your brand.",
   video: "Ask the agent to create a video — an ad, promo, or reel.",
+  tryon: "Ask the agent for a virtual try-on — add a photo of the person and a photo of the outfit, and it animates the look.",
   productads: "Ask the agent for a product ad — e.g. “a 10s luxury ad for my perfume”. Add a clean hero photo of the product.",
   ugc: "Ask the agent for a UGC creator video — e.g. “a testimonial about my serum, 8 seconds”. Add a photo of the creator and the script they should say.",
   reel: "Ask the agent to turn a video into reels — paste a link and it finds the best moments, reframes to 9:16 and captions them.",
@@ -172,6 +174,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   director: { label: "Filmmaking", subtitle: "Direct a multi-scene cinematic film", icon: Clapperboard },
   ugc: { label: "UGC Studio", subtitle: "Creator videos with lip-sync", icon: Sparkles },
   productads: { label: "Product Ads", subtitle: "Cinematic ads from a product photo", icon: Megaphone },
+  tryon: { label: "Virtual Try-on", subtitle: "Animate a look from a person + an outfit", icon: Shirt },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
   plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
@@ -194,6 +197,8 @@ function focusedSurfaceContext(focused: string, brandName?: string | null, openR
       return `The user has the **Publish** workspace open (posts, scheduling, content calendar). Default their intent to creating, scheduling, or managing posts.`;
     case "portfolio":
       return `The user has the **Portfolio Studio** open — their Portfolio / Digital Résumé site (a shareable public page, distinct from the Website Studio). OPERATE it for them; don't tell them to open menus. To BUILD one they don't have: build_portfolio — ask business vs personal; for a personal résumé, have them upload their CV and READ it to extract experience/skills/education; pull business content from the Brand Kit. To EDIT: call get_portfolio_content first (current header, sections, style, hero media, access), then edit_portfolio — send a PARTIAL patch; the \`sections\` array is replaced wholesale so include existing items you keep. Pick a STYLE that reads like a portfolio/digital-ad piece (spotlight/cinematic/showcase/editorial/neon/card); spotlight/cinematic/neon support a full-bleed VIDEO hero. To gate access, set access.view or access.download to 'email' (visitors verify a 6-digit code and are saved to Contacts). To go live set status:'PUBLISHED'. For a CUSTOM DOMAIN, do it end-to-end: find_domain (search options + prices from their name/brand), then buy_portfolio_domain to purchase + AUTO-ATTACH the one they pick (charges their saved card on Confirm, registers it, publishes + wires DNS/SSL automatically — they never touch DNS), or connect_portfolio_domain if they already own one. Don't just describe steps — do the work.`;
+    case "tryon":
+      return `The user has the **Virtual Try-on** studio OPEN — a single-shot playground that animates a fashion look from TWO references: (1) a photo of the PERSON and (2) a photo of the OUTFIT. OPERATE it; don't narrate. The brief needs both photos plus the MOTION & SCENE direction (walking toward camera, a slow turn, fabric movement, the setting), aspect (3:4 suits fashion) and duration (≤10s). Several TAKES generate at once; the user keeps the best and can publish one. Coach them: reference 1 = the person to keep, reference 2 = the outfit to put on them; ask for subtle motion and say what must stay unchanged (face, hair, setting). Don't reply with a generic menu.`;
     case "productads":
       return `The user has the **Product Ads** studio OPEN — a single-shot playground that turns a product HERO STILL into a cinematic, timed TVC-style ad. OPERATE it; don't narrate. The brief needs: a clean product photo, the AD DIRECTION (a timed camera sequence — e.g. 0-3s orbit, 3-6s pull back, 6-10s hero end frame — plus lighting and mood), a mood (Luxury/Clean/Bold/Warm), aspect, and duration (≤10s). Several TAKES generate at once; the user keeps the best and can publish one. Help them write the direction in timed beats and name the lighting/colour grade. Never add on-screen text and never change the product itself. Don't reply with a generic menu.`;
     case "ugc":
@@ -1472,6 +1477,8 @@ export function AgentHome() {
                   <FocusedUgc onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "productads" ? (
                   <FocusedProductAds onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "tryon" ? (
+                  <FocusedTryOn onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "avatar" ? (
                   <FocusedAvatar onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (

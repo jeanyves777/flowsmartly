@@ -81,6 +81,7 @@ export const AGENT_GROUPS: AgentGroup[] = [
       { id: "video", title: "Filmmaking", description: "Multi-scene cinematic AI film.", surface: "director", tools: ["direct_film", "generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 30 cr", icon: "Clapperboard", keywords: ["film", "movie", "video", "ad", "cinematic", "scene"] },
       { id: "ugc", title: "UGC video", description: "Creator videos with lip-sync.", surface: "ugc", tools: ["generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 8 cr", icon: "Sparkles", keywords: ["ugc", "creator", "testimonial", "unboxing", "lip sync", "tiktok", "reels"] },
       { id: "product-ad", title: "Product ad", description: "Cinematic ad from a product photo.", surface: "productads", tools: ["generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 8 cr", icon: "Megaphone", keywords: ["product", "ad", "commercial", "promo", "tvc", "advert", "perfume"] },
+      { id: "try-on", title: "Virtual try-on", description: "Animate a look from a person + an outfit.", surface: "tryon", tools: ["generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 8 cr", icon: "Shirt", keywords: ["try on", "tryon", "fashion", "outfit", "clothing", "apparel", "lookbook"] },
       { id: "voice", title: "Voiceover", description: "Narration & TTS in any voice.", surface: "voice", tools: ["generate_voice"], costKey: "AI_VOICE_GENERATION", costHint: "from 5 cr", icon: "Mic", keywords: ["voice", "voiceover", "narration", "tts", "audio"] },
     ],
   },
