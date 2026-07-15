@@ -106,11 +106,11 @@ export const AGENT_GROUPS: AgentGroup[] = [
     placeholder: "Ask FlowSmartly to grow your reach…",
     context: "The user has focused the agent into its **Grow** group — content campaigns, email, SMS/WhatsApp, automations, and paid ads. Prefer create_content_campaign, email/SMS campaign tools, automation and ad-builder tools. You can still handle anything else they explicitly ask.",
     skills: [
-      { id: "campaign", title: "Content campaign", description: "Concrete posts → approve → publish.", surface: "campaign", tools: ["create_content_campaign", "update_post", "regenerate_post_image"], costKey: "AI_POST", costHint: "from 3 cr / post", icon: "CalendarDays", keywords: ["campaign", "content", "batch", "posts"] },
-      { id: "email", title: "Email campaign", description: "Draft, design & send.", surface: "email", tools: ["create_email_campaign", "send_email_campaign"], costKey: "EMAIL_SEND", costHint: "1 cr / email", icon: "Mail", keywords: ["email", "newsletter", "blast", "campaign"] },
-      { id: "messaging", title: "SMS / WhatsApp blast", description: "Reach your subscribers directly.", surface: "sms", tools: ["send_sms_campaign", "configure_whatsapp_agent"], costKey: "SMS_SEND", costHint: "from 3 cr", icon: "MessageSquare", keywords: ["sms", "text", "whatsapp", "blast", "broadcast"] },
-      { id: "automations", title: "Automations", description: "Personalized follow-up sequences.", surface: "automations", tools: ["create_automation"], costKey: "AGENT_CREATE_AUTOMATION", costHint: "5 cr", icon: "Workflow", keywords: ["automation", "sequence", "follow-up", "drip"] },
-      { id: "adbuilder", title: "Ad builder", description: "Build & launch a paid ad.", surface: "adbuilder", tools: ["create_ad_campaign"], costHint: "your budget", icon: "Megaphone", keywords: ["ad", "ads", "boost", "paid", "campaign", "meta", "google"] },
+      { id: "campaign", title: "Content campaign", description: "Concrete posts → approve → publish.", surface: "campaign", thumb: "/Studio_Menus_Thumnail/grow/grow1.webp", tools: ["create_content_campaign", "update_post", "regenerate_post_image"], costKey: "AI_POST", costHint: "from 3 cr / post", icon: "CalendarDays", keywords: ["campaign", "content", "batch", "posts"] },
+      { id: "email", title: "Email campaign", description: "Draft, design & send.", surface: "email", thumb: "/Studio_Menus_Thumnail/grow/grow3.webp", tools: ["create_email_campaign", "send_email_campaign"], costKey: "EMAIL_SEND", costHint: "1 cr / email", icon: "Mail", keywords: ["email", "newsletter", "blast", "campaign"] },
+      { id: "messaging", title: "SMS / WhatsApp blast", description: "Reach your subscribers directly.", surface: "sms", thumb: "/Studio_Menus_Thumnail/grow/grow2.webp", tools: ["send_sms_campaign", "configure_whatsapp_agent"], costKey: "SMS_SEND", costHint: "from 3 cr", icon: "MessageSquare", keywords: ["sms", "text", "whatsapp", "blast", "broadcast"] },
+      { id: "automations", title: "Automations", description: "Personalized follow-up sequences.", surface: "automations", thumb: "/Studio_Menus_Thumnail/grow/grow5.webp", tools: ["create_automation"], costKey: "AGENT_CREATE_AUTOMATION", costHint: "5 cr", icon: "Workflow", keywords: ["automation", "sequence", "follow-up", "drip"] },
+      { id: "adbuilder", title: "Ad builder", description: "Build & launch a paid ad.", surface: "adbuilder", thumb: "/Studio_Menus_Thumnail/grow/grow4.webp", tools: ["create_ad_campaign"], costHint: "your budget", icon: "Megaphone", keywords: ["ad", "ads", "boost", "paid", "campaign", "meta", "google"] },
     ],
   },
   {
@@ -133,11 +133,11 @@ export const AGENT_GROUPS: AgentGroup[] = [
     placeholder: "Ask FlowSmartly to run your store…",
     context: "The user has focused the agent into its **Sell** group — their store, products, orders, customers, and delivery. Prefer build_store, add_product / update_product, fulfill_order, and store/customer tools. You can still handle anything else they explicitly ask.",
     skills: [
-      { id: "store", title: "Build a store", description: "Full storefront, live.", surface: "sell", tools: ["build_store", "edit_store"], costKey: "AI_STORE_GENERATE", costHint: "500 cr", icon: "Store", keywords: ["store", "shop", "storefront", "ecommerce", "build"] },
-      { id: "product", title: "Add a product", description: "List, price & describe.", surface: "sell", tools: ["add_product", "update_product", "delete_product"], costHint: "Free", icon: "ShoppingBag", keywords: ["product", "listing", "price", "catalog"] },
-      { id: "orders", title: "Orders", description: "Fulfill & ship.", surface: "sell", tools: ["fulfill_order"], costHint: "Free", icon: "Package", keywords: ["orders", "fulfill", "ship", "sales"] },
-      { id: "customers", title: "Customers", description: "Segment & re-engage buyers.", surface: "customers", costHint: "Free", icon: "Users", keywords: ["customers", "buyers", "segment", "re-engage"] },
-      { id: "delivery", title: "Delivery", description: "Drivers & fulfillment.", surface: "delivery", costHint: "Free", icon: "Truck", keywords: ["delivery", "drivers", "shipping", "routes"] },
+      { id: "store", title: "Build a store", description: "Full storefront, live.", surface: "sell", thumb: "/Studio_Menus_Thumnail/sell/sell1.webp", tools: ["build_store", "edit_store"], costKey: "AI_STORE_GENERATE", costHint: "500 cr", icon: "Store", keywords: ["store", "shop", "storefront", "ecommerce", "build"] },
+      { id: "product", title: "Add a product", description: "List, price & describe.", surface: "sell", thumb: "/Studio_Menus_Thumnail/sell/sell4.webp", tools: ["add_product", "update_product", "delete_product"], costHint: "Free", icon: "ShoppingBag", keywords: ["product", "listing", "price", "catalog"] },
+      { id: "orders", title: "Orders", description: "Fulfill & ship.", surface: "sell", thumb: "/Studio_Menus_Thumnail/sell/sell2.webp", tools: ["fulfill_order"], costHint: "Free", icon: "Package", keywords: ["orders", "fulfill", "ship", "sales"] },
+      { id: "customers", title: "Customers", description: "Segment & re-engage buyers.", surface: "customers", thumb: "/Studio_Menus_Thumnail/sell/sell3.webp", costHint: "Free", icon: "Users", keywords: ["customers", "buyers", "segment", "re-engage"] },
+      { id: "delivery", title: "Delivery", description: "Drivers & fulfillment.", surface: "delivery", thumb: "/Studio_Menus_Thumnail/sell/sell5.webp", costHint: "Free", icon: "Truck", keywords: ["delivery", "drivers", "shipping", "routes"] },
     ],
   },
   {
