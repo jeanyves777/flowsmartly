@@ -370,6 +370,9 @@ export async function generateSceneRender(filmId: string, userId: string, sceneI
   if (!film) return { ok: false, message: "Film not found." };
   const scene = film.scenes.find((s) => s.id === sceneId);
   if (!scene) return { ok: false, message: "Scene not found." };
+  // Idempotency: never double-charge / double-fire a scene that's already rendering
+  // (matters for the batch drainer, whose kicks can otherwise race).
+  if (scene.status === "rendering") return { ok: true, film };
 
   switch (scene.engine) {
     case "media": {
@@ -464,6 +467,61 @@ export async function generateSceneRender(filmId: string, userId: string, sceneI
     }
   }
   return { ok: false, message: "Unknown engine." };
+}
+
+// ── Batch "Generate all" ──────────────────────────────────────────────────────
+// Films can have 20-30 scenes. Firing them ALL at once would (a) hammer the 1-req/sec
+// xAI gate and (b) have 20+ in-process renders racing to write the same film JSON and
+// clobbering each other. So a batch QUEUES every pending scene and a bounded drainer
+// keeps only a few rendering at a time, refilling as each one finishes — event-driven
+// (a completing render pulls the next) with the reconcile cron as a persistence safety
+// net, so the batch survives the user leaving the page or a deploy restart.
+const MAX_CONCURRENT_DIRECTOR_RENDERS = 4;
+
+/** Statuses that mean "not started / retriable" — a batch should (re)generate these. */
+function sceneAwaitsRender(s: FilmScene): boolean {
+  if (s.status === "ready" || s.status === "rendering" || s.status === "queued") return false;
+  if (s.continuationMode === "exact") return false; // needs the prior scene's FINISHED video — do individually
+  return true; // draft / failed / anything else renderable
+}
+
+/**
+ * Kick up to the concurrency cap of QUEUED scenes into rendering. Re-reads fresh film
+ * state so it's safe to call from a render's completion, the film poll, and the cron.
+ * Returns how many it started this pass.
+ */
+export async function drainDirectorRenders(filmId: string, userId: string, max = MAX_CONCURRENT_DIRECTOR_RENDERS): Promise<number> {
+  const film = await getFilm(filmId, userId);
+  if (!film) return 0;
+  let active = film.scenes.filter((s) => s.status === "rendering").length;
+  const queued = film.scenes.filter((s) => s.status === "queued").sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  let started = 0;
+  for (const s of queued) {
+    if (active >= max) break;
+    const res = await generateSceneRender(filmId, userId, s.id);
+    if (res.ok) { active++; started++; }
+    else if (/credit|insufficient|balance/i.test(res.message || "")) break; // out of credits — leave the rest queued
+    // any other failure: the scene is marked failed by the renderer; keep draining the rest
+  }
+  return started;
+}
+
+/**
+ * BATCH generate — queue every not-yet-ready scene, then start the first few. The
+ * client shows a global loader driven by the scene stats (queued + rendering + ready)
+ * and the drainer refills the pipeline as renders finish.
+ */
+export async function generateAllScenes(filmId: string, userId: string): Promise<{ ok: boolean; queued: number; started: number; message?: string; film?: FilmProject }> {
+  const film = await getFilm(filmId, userId);
+  if (!film) return { ok: false, queued: 0, started: 0, message: "Film not found." };
+  const pending = film.scenes.filter(sceneAwaitsRender);
+  if (!pending.length) return { ok: true, queued: 0, started: 0, film };
+  // Mark them all queued in ONE save so the whole batch shows immediately.
+  for (const s of film.scenes) if (sceneAwaitsRender(s)) { s.status = "queued"; s.progress = 0; s.error = null; }
+  await saveFilm(filmId, userId, film);
+  const started = await drainDirectorRenders(filmId, userId);
+  const fresh = await getFilm(filmId, userId);
+  return { ok: true, queued: pending.length, started, film: fresh ?? film };
 }
 
 /**
@@ -682,6 +740,9 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
     }
     console.error("[video-director] AI scene render failed:", e);
     await patchScene(filmId, userId, sceneId, { status: "failed", error: sanitizeUserError(e, "video") }).catch(() => {});
+  } finally {
+    // This render freed a slot — pull the next QUEUED scene of a batch (if any).
+    void drainDirectorRenders(filmId, userId).catch(() => {});
   }
 }
 
@@ -1060,6 +1121,9 @@ export async function syncFilmScenes(film: FilmProject, userId: string): Promise
     if (s.overlay && (await syncAvatarRef(s.overlay, "Overlay render failed"))) changed = true;
   }
   if (changed) await saveFilm(film.id, userId, film);
+  // Batch safety net: if scenes are QUEUED and a slot is free (e.g. an event-driven
+  // refill was lost to a restart), pull the next one now. Fire-and-forget, fresh read.
+  if (film.scenes.some((s) => s.status === "queued")) void drainDirectorRenders(film.id, userId).catch(() => {});
   return film;
 }
 
@@ -1084,7 +1148,7 @@ export async function resumeStuckDirectorScenes(): Promise<{ scanned: number; ch
   for (const row of rows) {
     // Cheap pre-filter: parse live renders, plus failed scenes that still have a
     // provider handle we may be able to pull.
-    if (!row.canvasData || (!row.canvasData.includes('"rendering"') && !(row.canvasData.includes('"failed"') && row.canvasData.includes('"refId"')))) continue;
+    if (!row.canvasData || (!row.canvasData.includes('"rendering"') && !row.canvasData.includes('"queued"') && !(row.canvasData.includes('"failed"') && row.canvasData.includes('"refId"')))) continue;
     const film = await getFilm(row.id, row.userId).catch(() => null);
     if (!film) continue;
     let touched = false;
@@ -1098,6 +1162,9 @@ export async function resumeStuckDirectorScenes(): Promise<{ scanned: number; ch
       if (editState !== "unchanged" && editState !== "unavailable") touched = true;
     }
     if (touched) { await saveFilm(row.id, row.userId, film).catch(() => {}); changed++; }
+    // Persistence net for the batch: keep a queued film's pipeline flowing even when
+    // no browser is open (e.g. all renders died on a deploy) — pull the next queued scenes.
+    if (film.scenes.some((s) => s.status === "queued")) { await drainDirectorRenders(row.id, row.userId).catch(() => {}); changed++; }
   }
   if (changed) console.log(`[video-director] resumeStuckDirectorScenes: touched ${changed} film(s)`);
   return { scanned: rows.length, changed };

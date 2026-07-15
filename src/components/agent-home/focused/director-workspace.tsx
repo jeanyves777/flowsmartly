@@ -449,6 +449,22 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
     });
   };
 
+  const [batching, setBatching] = useState(false);
+  // Batch-generate every pending scene. The server queues them all and a bounded drainer
+  // renders a few at a time, refilling as each finishes — so it keeps going even if the
+  // user leaves the page (the global loader below just reflects the polled scene stats).
+  const generateAll = async () => {
+    if (!film || batching) return;
+    setBatching(true);
+    setFilm((f) => f ? { ...f, scenes: f.scenes.map((s) => (s.status !== "ready" && !isRendering(s.status) && s.continuationMode !== "exact") ? { ...s, status: "queued", progress: 0, error: null } : s) } : f);
+    try {
+      const j = await fetch(`/api/ai/video-director/${film.id}/generate-all`, { method: "POST" }).then((r) => r.json());
+      if (j?.success && j.data?.film) setFilm(j.data.film);
+      else if (!j?.success) toast({ title: "Couldn't start the batch", description: j?.error?.message || "Please try again." });
+    } catch { /* the poll will reflect the real state */ }
+    finally { setBatching(false); }
+  };
+
   const generateScene = async (id: string) => {
     if (!film) return;
     const scene = film.scenes.find((candidate) => candidate.id === id);
@@ -662,8 +678,12 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
 
   const stats = useMemo(() => {
     const ready = scenes.filter((s) => s.status === "ready").length;
-    const rendering = scenes.filter((s) => isRendering(s.status)).length;
-    return { ready, rendering, total: scenes.length };
+    const rendering = scenes.filter((s) => isRendering(s.status)).length; // rendering + queued (in flight)
+    // Scenes a batch would (re)generate: not ready, not in flight, and not an exact
+    // continuation (those need the prior scene's finished video — generated one by one).
+    const pending = scenes.filter((s) => s.status !== "ready" && !isRendering(s.status) && s.continuationMode !== "exact").length;
+    const batchTotal = ready + rendering + pending; // denominator for the global loader
+    return { ready, rendering, pending, batchTotal, total: scenes.length };
   }, [scenes]);
 
   // Resolve a scene's cast to {name, dialogue, img} using the film's characters,
@@ -694,12 +714,33 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           <span className="hidden items-center gap-1 text-[11.5px] text-muted-foreground sm:inline-flex">
             <span className="text-emerald-500">{stats.ready} ready</span> · <span>{stats.rendering} rendering</span> · <span>{stats.total} scenes</span>
           </span>
+          {film && stats.pending > 0 && (
+            <button onClick={generateAll} disabled={batching} title="Generate every scene that isn't ready yet" className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
+              {batching ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate all ({stats.pending})
+            </button>
+          )}
           {film && film.filmType === "ai_film" && (
             <button onClick={reopenCast} title="Review / re-approve the cast" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold text-foreground hover:border-brand-500/60"><UserSquare2 className="h-3.5 w-3.5" /> Cast</button>
           )}
           <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold text-foreground hover:border-brand-500/60"><FolderOpen className="h-3.5 w-3.5" /> Films</button>
           <button onClick={startNew} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Sparkles className="h-3.5 w-3.5" /> New film</button>
         </div>, headerSlot)}
+
+      {/* Global batch loader — shows while ANY scene is in flight; derived from the polled
+          scene stats, so it re-appears automatically if the user leaves and returns while
+          the batch is still running server-side. */}
+      {stats.rendering > 0 && (
+        <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2">
+          <div className="flex items-center gap-2.5 rounded-full border border-border bg-card/95 px-3.5 py-1.5 shadow-lg backdrop-blur">
+            <FlowLoader size={15} />
+            <span className="text-[11.5px] font-semibold">Rendering {stats.rendering} {stats.rendering === 1 ? "scene" : "scenes"}…</span>
+            <span className="text-[11px] tabular-nums text-muted-foreground">{stats.ready}/{stats.batchTotal} done</span>
+            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-[width] duration-500" style={{ width: `${Math.round((stats.ready / Math.max(1, stats.batchTotal)) * 100)}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* dotted canvas — grab empty space to pan, wheel to move across */}
       <div
