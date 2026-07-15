@@ -13,7 +13,7 @@ import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 import { usePreferredLanguage } from "@/hooks/use-preferred-language";
 import { getHomeStrings, buildGreeting } from "./home-i18n";
-import { WORKSPACES } from "./workspaces";
+import { WORKSPACES, type Workspace } from "./workspaces";
 import { BrandMark, BrandWordmark } from "./brand-mark";
 import { LanguageSwitcher } from "./language-switcher";
 import { useHomeAgent, type ConversationSummary } from "./use-home-agent";
@@ -801,7 +801,11 @@ export function AgentHome() {
   const fLabel = isDesignSurface ? "Design Studio" : isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fMeta ? fMeta.label : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
   const FIcon = isDesignSurface ? Palette : isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fMeta ? fMeta.icon : fws?.icon ?? Sparkles;
   // Consolidated rail: Print → Create, Campaign → Publish, Leads → Outreach.
-  const primaryWorkspaces = WORKSPACES.filter((w) => !["business", "print", "campaign", "leads"].includes(w.key));
+  // Film gets its own rail section, right after Agent (first among the creative
+  // groups). Clicking it opens the Film group's card-grid menu, like the others.
+  const FILM_WS: Workspace = { key: "film", label: "Film", icon: Clapperboard, route: "/home/director", items: [] };
+  const basePrimary = WORKSPACES.filter((w) => !["business", "print", "campaign", "leads"].includes(w.key));
+  const primaryWorkspaces = [basePrimary[0], FILM_WS, ...basePrimary.slice(1)];
   const businessWorkspace = WORKSPACES.find((w) => w.key === "business");
 
   const openWorkspace = (key: string) => {
