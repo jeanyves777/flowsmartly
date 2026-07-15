@@ -1,0 +1,158 @@
+<title>Playground — reusable Publish node</title>
+<style>
+  :root{
+    --ground:#0c0c11; --card:#16161d; --card2:#1c1c25; --border:#2a2a35;
+    --accent:#a78bfa; --violet:#8b5cf6; --emerald:#10b981; --sky:#38bdf8; --rose:#f43f5e; --amber:#f59e0b;
+    --text:#e7e7ee; --muted:#9a9aa8;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{background:radial-gradient(1100px 560px at 75% -10%,#17131f 0,transparent 60%),var(--ground);
+    color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1040px;margin:0 auto;padding:26px 18px 60px}
+  h1{font-size:18px;font-weight:700;margin:0 0 6px;letter-spacing:-.01em}
+  .lede{color:var(--muted);font-size:13px;max-width:66ch;margin:0 0 8px}
+  .hint{display:inline-flex;gap:7px;align-items:center;margin:12px 0 18px;padding:7px 11px;border:1px solid var(--border);border-radius:10px;background:var(--card);font-size:12.5px;color:var(--muted)}
+  .hint b{color:var(--emerald);font-weight:600}
+
+  /* canvas strip */
+  .canvas{position:relative;height:280px;border:1px solid var(--border);border-radius:16px;background:
+    radial-gradient(circle at 1px 1px,#23232e 1px,transparent 0) 0 0/22px 22px, var(--card);overflow:hidden}
+  .node{position:absolute;border-radius:16px;background:linear-gradient(180deg,rgba(139,92,246,.10),var(--card));border:1px solid rgba(139,92,246,.4);width:210px}
+  .node .thumb{aspect-ratio:16/9;border-radius:15px 15px 0 0;display:grid;place-items:center;background:linear-gradient(150deg,rgba(139,92,246,.25),transparent);color:var(--accent)}
+  .node .body{padding:10px}
+  .node .body .t{font-size:12.5px;font-weight:700}
+  .rowbtns{display:flex;gap:6px;margin:6px 0}
+  .rowbtns .b{flex:1;border:1px solid var(--border);border-radius:8px;padding:4px;font-size:10px;color:var(--muted);text-align:center}
+  .stitch{width:100%;border:none;border-radius:9px;padding:7px;font-size:11.5px;font-weight:700;color:#fff;background:linear-gradient(90deg,var(--accent),var(--violet));cursor:pointer}
+  .connector{position:absolute;height:2px;background:linear-gradient(90deg,rgba(139,92,246,.5),rgba(16,185,129,.5));top:96px}
+
+  /* publish node (the reusable component) */
+  .pub{position:absolute;left:300px;top:54px;width:230px;border-radius:16px;overflow:hidden;text-align:left;cursor:pointer;
+    background:linear-gradient(180deg,rgba(16,185,129,.10),var(--card));border:1px solid rgba(16,185,129,.42);transition:border-color .12s}
+  .pub:hover{border-color:rgba(16,185,129,.75)}
+  .pub .h{display:flex;align-items:center;gap:8px;padding:11px}
+  .pub .h .ic{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;background:rgba(16,185,129,.16);color:var(--emerald)}
+  .pub .h b{font-size:13px}
+  .pub .h .pill{margin-left:auto;font-size:10px;font-weight:700;color:var(--emerald);background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);border-radius:999px;padding:2px 8px}
+  .pub .sub{padding:0 11px 8px;font-size:12px;color:var(--muted)}
+  .chips{display:flex;gap:6px;padding:0 11px 8px}
+  .chip{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font-size:9px;font-weight:900;color:#fff}
+  .pub .foot{padding:0 11px 11px;font-size:11px;color:var(--muted)}
+  .plus{position:absolute;left:385px;top:190px;width:44px;height:44px;border-radius:50%;border:1px dashed var(--border);color:var(--muted);display:grid;place-items:center;font-size:20px}
+
+  .c-tiktok{background:#000}.c-instagram{background:linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)}.c-youtube{background:#dc2626}
+  .c-facebook{background:#2563eb}.c-linkedin{background:#0369a1}.c-x{background:#000}
+
+  /* sheet */
+  .scrim{position:fixed;inset:0;z-index:40;display:none;place-items:center;padding:16px;background:rgba(6,6,9,.72);backdrop-filter:blur(6px)}
+  .scrim.open{display:grid}
+  .sheet{width:min(94vw,480px);max-height:86vh;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .sheet-h{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--border)}
+  .sheet-h .ic{width:24px;height:24px;border-radius:8px;background:rgba(16,185,129,.16);color:var(--emerald);display:grid;place-items:center}
+  .sheet-h .t{font-size:12.5px;font-weight:700}
+  .sheet-h .s{font-size:10.5px;color:var(--muted)}
+  .sheet-h .x{margin-left:auto;width:24px;height:24px;border:1px solid var(--border);border-radius:8px;color:var(--muted);background:transparent;cursor:pointer}
+  .sheet-b{flex:1;overflow-y:auto;padding:14px}
+  .lbl{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+  .ch{display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;background:var(--card2);padding:9px 11px;margin-bottom:8px;cursor:pointer;width:100%;text-align:left}
+  .ch:hover{border-color:rgba(16,185,129,.4)}
+  .ch .a{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:13px;font-weight:900;color:#fff}
+  .ch .n{font-size:12.5px;font-weight:700;flex:1}
+  .ch .box{width:20px;height:20px;border-radius:6px;border:2px solid #55556a;display:grid;place-items:center;color:transparent;font-size:12px}
+  .ch.on .box{border-color:var(--emerald);background:var(--emerald);color:#04231a}
+  .ch .pill{font-size:10px;font-weight:800;border-radius:999px;padding:2px 8px}
+  .p-posted{background:rgba(16,185,129,.15);color:var(--emerald)}.p-scheduled{background:rgba(56,189,248,.15);color:var(--sky)}.p-failed{background:rgba(244,63,94,.15);color:var(--rose)}
+  textarea{width:100%;resize:none;border:1px solid var(--border);border-radius:10px;background:var(--card2);color:var(--text);padding:8px 10px;font:12px system-ui;margin-bottom:4px}
+  .seg{display:inline-flex;gap:2px;border:1px solid var(--border);border-radius:9px;background:var(--card2);padding:2px}
+  .seg button{border:none;background:transparent;color:var(--muted);font:600 11.5px system-ui;padding:5px 12px;border-radius:7px;cursor:pointer}
+  .seg button.on{background:#2a2a35;color:var(--text)}
+  .sheet-f{display:flex;gap:10px;align-items:center;border-top:1px solid var(--border);padding:12px 14px}
+  .sheet-f .cancel{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:9px;padding:8px 16px;font:600 12.5px system-ui;cursor:pointer}
+  .sheet-f .go{margin-left:auto;border:none;border-radius:9px;padding:8px 16px;font:800 12.5px system-ui;color:#fff;background:linear-gradient(135deg,var(--emerald),#059669);cursor:pointer}
+</style>
+
+<div class="wrap">
+  <h1>Reusable playground Publish node</h1>
+  <p class="lede">One shared component — the canvas <b style="color:var(--emerald)">Publish</b> node + its sheet — that any studio playground can drop in (Director film, Reel, and future ones). The host passes its channels + a publish callback; the component owns channel selection, post-now/schedule, and honest per-channel results.</p>
+  <div class="hint">Try it → click the <b>Publish</b> node on the canvas.</div>
+
+  <div class="canvas">
+    <div class="connector" style="left:245px;width:60px"></div>
+    <!-- final film node -->
+    <div class="node" style="left:40px;top:40px">
+      <div class="thumb">▶</div>
+      <div class="body">
+        <div class="t">Final film · 2:46</div>
+        <div class="rowbtns"><div class="b">♪ Music ✓</div><div class="b">✦ Logo on</div></div>
+        <button class="stitch">▦ Re-stitch film</button>
+      </div>
+    </div>
+    <!-- reusable publish node -->
+    <button class="pub" id="pubNode" onclick="openSheet()">
+      <div class="h"><span class="ic">➤</span><b>Publish</b><span class="pill">publish</span></div>
+      <div class="sub">Post or schedule to your connected channels</div>
+      <div class="chips">
+        <span class="chip c-tiktok">T</span><span class="chip c-instagram">I</span><span class="chip c-youtube">Y</span>
+        <span class="chip c-facebook">F</span><span class="chip c-linkedin">L</span><span class="chip c-x">X</span>
+      </div>
+      <div class="foot">6 channels · click to post</div>
+    </button>
+    <div class="plus">+</div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="sheet-h">
+      <span class="ic">➤</span>
+      <div><div class="t">Publish film</div><div class="s">In a village a young boy…</div></div>
+      <button class="x" id="close">✕</button>
+    </div>
+    <div class="sheet-b" id="body"></div>
+    <div class="sheet-f" id="foot"></div>
+  </div>
+</div>
+
+<script>
+  const CH = [
+    { id:"tiktok", n:"TikTok", c:"c-tiktok" }, { id:"instagram", n:"Instagram", c:"c-instagram" },
+    { id:"youtube", n:"YouTube", c:"c-youtube" }, { id:"facebook", n:"Facebook", c:"c-facebook" },
+    { id:"linkedin", n:"LinkedIn", c:"c-linkedin" }, { id:"x", n:"X", c:"c-x" },
+  ];
+  const sel = new Set(["tiktok","instagram","youtube"]);
+  let when = "now", results = null;
+  const $ = id => document.getElementById(id);
+
+  function render(){
+    if(results){
+      $("body").innerHTML = `<p class="lbl">Results</p>` + results.map(r=>{
+        const ch = CH.find(c=>c.id===r.id);
+        const cls = r.status==="posted"?"p-posted":r.status==="scheduled"?"p-scheduled":"p-failed";
+        const label = r.status==="posted"?"Posted":r.status==="scheduled"?"Scheduled":"Not connected / failed";
+        return `<div class="ch" style="cursor:default"><span class="a ${ch.c}">${ch.n[0]}</span><span class="n">${ch.n}</span><span class="pill ${cls}">${label}</span></div>`;
+      }).join("");
+      $("foot").innerHTML = `<button class="cancel" onclick="close_()">Done</button>`;
+      return;
+    }
+    $("body").innerHTML =
+      `<p class="lbl">Channels — ${sel.size} selected</p>` +
+      CH.map(c=>`<button class="ch ${sel.has(c.id)?'on':''}" onclick="toggle('${c.id}')"><span class="a ${c.c}">${c.n[0]}</span><span class="n">${c.n}</span><span class="box">✓</span></button>`).join("") +
+      `<p class="lbl" style="margin-top:16px">Caption</p><textarea rows="3">In a village a young boy turns a craft into a future.</textarea>` +
+      `<p class="lbl" style="margin-top:12px">When</p><div class="seg"><button class="${when==='now'?'on':''}" onclick="setWhen('now')">Post now</button><button class="${when==='sched'?'on':''}" onclick="setWhen('sched')">🗓 Schedule</button></div>`;
+    $("foot").innerHTML = `<button class="cancel" onclick="close_()">Cancel</button><button class="go" onclick="publish()">➤ ${when==='now'?'Post now':'Schedule'} to ${sel.size}</button>`;
+  }
+  window.toggle = id => { sel.has(id)?sel.delete(id):sel.add(id); render(); };
+  window.setWhen = w => { when = w; render(); };
+  window.publish = () => {
+    // simulate honest per-channel results: connected → posted, others → failed
+    const connected = new Set(["tiktok","instagram","youtube"]);
+    results = [...sel].map(id => ({ id, status: when==="sched" ? "scheduled" : connected.has(id) ? "posted" : "failed" }));
+    render();
+  };
+  window.openSheet = () => { results = null; render(); $("scrim").classList.add("open"); };
+  window.close_ = () => $("scrim").classList.remove("open");
+  $("close").onclick = close_;
+  $("scrim").addEventListener("click", e => { if(e.target===$("scrim")) close_(); });
+  document.addEventListener("keydown", e => { if(e.key==="Escape") close_(); });
+</script>
