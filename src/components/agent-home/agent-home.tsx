@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
@@ -1545,9 +1546,20 @@ export function AgentHome() {
                           const Icon = groupIcon(sk.icon);
                           return (
                             <button key={sk.id} onClick={() => guardNav(() => openView(sk.surface))} className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-start transition-all hover:-translate-y-1 hover:shadow-xl">
-                              <span className={cn("relative flex items-center justify-center", large ? "aspect-[16/9]" : "aspect-[16/10]")} style={{ background: `linear-gradient(150deg, ${acc}26, ${acc}0a)` }}>
+                              <span className={cn("relative flex items-center justify-center overflow-hidden", large ? "aspect-[16/9]" : "aspect-[16/10]")} style={{ background: `linear-gradient(150deg, ${acc}26, ${acc}0a)` }}>
+                                {/* A real example still sells the studio far better than an icon;
+                                    skills without one fall back to the icon + accent gradient. */}
+                                {sk.thumb && (
+                                  <>
+                                    {/* next/image resizes + serves WebP, so a heavy source PNG
+                                        never ships at full weight to a small card. */}
+                                    <Image src={sk.thumb} alt="" fill sizes="(max-width: 768px) 50vw, 400px"
+                                      className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
+                                    <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-black/20" />
+                                  </>
+                                )}
                                 <span className="absolute left-2.5 top-2.5 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">{grp.label}</span>
-                                <Icon className={cn("opacity-90", large ? "h-10 w-10" : "h-7 w-7")} style={{ color: acc }} />
+                                {!sk.thumb && <Icon className={cn("opacity-90", large ? "h-10 w-10" : "h-7 w-7")} style={{ color: acc }} />}
                               </span>
                               <span className={large ? "p-5" : "p-3.5"}>
                                 <span className={cn("block font-bold", large ? "text-[17px]" : "text-[14.5px]")}>{sk.title}</span>
