@@ -21,21 +21,27 @@ const AD_CHANNELS: PublishChannel[] = [
   { id: "facebook", name: "Facebook" }, { id: "linkedin", name: "LinkedIn" }, { id: "x", name: "X" },
 ];
 
-interface AdTemplate { id: AdTemplateId; title: string; desc: string; prompt: string; mood: string; aspect: AdAspect; tips: string[]; hue: [string, string]; icon: string }
+interface AdTemplate {
+  id: AdTemplateId; title: string; desc: string; prompt: string; mood: string; aspect: AdAspect; tips: string[]; hue: [string, string]; icon: string;
+  /** A REAL example still of what the style makes (hue/icon are the fallback). */
+  thumb?: string;
+}
+// Folder name has a space + underscore, so the paths are URL-encoded.
+const T = "/Studio_Menus_Thumnail/Product%20Ads_%20sub";
 const TEMPLATES: AdTemplate[] = [
-  { id: "luxury", icon: "🧴", title: "Luxury product ad", desc: "High-end TVC — orbit, pull-back, hero end frame.", mood: "Luxury", aspect: "9:16", hue: ["#1f2e2a", "#3f5f52"],
+  { id: "luxury", icon: "🧴", title: "Luxury product ad", desc: "High-end TVC — orbit, pull-back, hero end frame.", mood: "Luxury", aspect: "9:16", hue: ["#1f2e2a", "#3f5f52"], thumb: `${T}/Product%20Ads1.webp`,
     prompt: "0-3s: slow smooth orbit around the product, close on the material and light, gentle lens flares. 3-6s: camera pulls back gracefully as the product rotates; fine mist and sparkling particles drift past. 6-10s: settle into a centred hero composition, soft smoke swirling, the product glowing with a premium aura.",
     tips: ["Start from a clean hero still — readable material, label and light.", "Break the ad into timed beats (orbit → pull-back → hero).", "Name the lighting and colour grade you want."] },
-  { id: "orbit", icon: "💍", title: "Orbit & reveal", desc: "One continuous orbit that reveals the product.", mood: "Clean", aspect: "9:16", hue: ["#22222c", "#3c3c4c"],
+  { id: "orbit", icon: "💍", title: "Orbit & reveal", desc: "One continuous orbit that reveals the product.", mood: "Clean", aspect: "9:16", hue: ["#22222c", "#3c3c4c"], thumb: `${T}/Product%20Ads4.webp`,
     prompt: "A single continuous slow orbit around the product on a clean seamless backdrop, starting tight on the detail and easing out to a full reveal. Crisp key light with a soft rim, subtle reflections tracking across the surface.",
     tips: ["Best on a clean, uncluttered backdrop.", "One move only — let the product carry it.", "Mention the surface (glass, metal, matte) for real reflections."] },
-  { id: "lifestyle", icon: "☀️", title: "Lifestyle", desc: "The product in a warm, real-world moment.", mood: "Warm", aspect: "9:16", hue: ["#3a2a1c", "#7a5236"],
+  { id: "lifestyle", icon: "☀️", title: "Lifestyle", desc: "The product in a warm, real-world moment.", mood: "Warm", aspect: "9:16", hue: ["#3a2a1c", "#7a5236"], thumb: `${T}/Product%20Ads5.webp`,
     prompt: "The product sits in a warm, sunlit real-world setting. The camera drifts in slowly with a gentle handheld feel; soft shadows move as light shifts, dust motes float through the beam. Cosy, aspirational, unhurried.",
     tips: ["Say WHERE it lives (kitchen counter, desk, bathroom shelf).", "Warm natural light reads most authentic.", "Keep the motion gentle — it's a mood, not a demo."] },
-  { id: "flyover", icon: "🏢", title: "Immersive flyover", desc: "Cinematic drone move over a render or space.", mood: "Bold", aspect: "16:9", hue: ["#1e2a3a", "#324a63"],
-    prompt: "A smooth cinematic drone flyover of the scene — begin wide and high, glide forward and descend gently toward the entrance, revealing depth, landscaping and reflections. Golden-hour light, long soft shadows, subtle parallax.",
-    tips: ["Great for architecture / property renders.", "Describe the path: rise, glide, descend, settle.", "16:9 suits flyovers best."] },
-  { id: "character", icon: "✨", title: "Bring it to life", desc: "Animate a still with subtle, believable motion.", mood: "Bold", aspect: "16:9", hue: ["#2e1f3a", "#5a3a6a"],
+  { id: "flyover", icon: "🚁", title: "Immersive flyover", desc: "Cinematic drone sweep over the scene.", mood: "Bold", aspect: "16:9", hue: ["#1e2a3a", "#324a63"], thumb: `${T}/Product%20Ads3.webp`,
+    prompt: "A smooth cinematic drone move over the scene — begin wide and high, glide forward and descend gently toward the product, revealing the landscape, depth and light around it. Golden-hour light, long soft shadows, subtle parallax.",
+    tips: ["Suits anything in a landscape — a car on a road, a property, a resort.", "Describe the path: rise, glide, descend, settle.", "16:9 suits flyovers best."] },
+  { id: "character", icon: "✨", title: "Bring it to life", desc: "Animate a still with subtle, believable motion.", mood: "Bold", aspect: "16:9", hue: ["#2e1f3a", "#5a3a6a"], thumb: `${T}/Product%20Ads2.webp`,
     prompt: "Bring the still to life with subtle, believable motion — gentle atmospheric drift, soft light shifting across the subject, a slow push-in. Keep everything exactly as designed; only the light, air and camera move.",
     tips: ["Ask for subtle motion — big moves break the art.", "Name what must NOT change.", "A slow push-in reads the most cinematic."] },
   { id: "blank", icon: "➕", title: "Start blank", desc: "Your own product still + direction.", mood: "Clean", aspect: "9:16", hue: ["#22222c", "#33333f"],
@@ -313,8 +319,14 @@ export function FocusedProductAds({ refreshKey }: { refreshKey?: number; onAsk?:
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Start from a template</p>
               <div className="flex gap-2.5 overflow-x-auto pb-1.5">
                 {TEMPLATES.map((t) => (
-                  <button key={t.id} onClick={() => pickTpl(t.id)} className={cn("w-[138px] shrink-0 overflow-hidden rounded-xl border-2 bg-background/40 text-left transition hover:-translate-y-0.5", dTpl === t.id ? "border-amber-400" : "border-transparent")}>
-                    <div className="grid h-[68px] place-items-center text-[22px]" style={{ background: `linear-gradient(150deg, ${t.hue[0]}, ${t.hue[1]})` }}>{t.icon}</div>
+                  <button key={t.id} onClick={() => pickTpl(t.id)} className={cn("group w-[138px] shrink-0 overflow-hidden rounded-xl border-2 bg-background/40 text-left transition hover:-translate-y-0.5", dTpl === t.id ? "border-amber-400" : "border-transparent")}>
+                    <div className="relative grid h-[68px] place-items-center overflow-hidden text-[22px]" style={{ background: `linear-gradient(150deg, ${t.hue[0]}, ${t.hue[1]})` }}>
+                      {/* A real example still of the style; icon + gradient is the fallback.
+                          `unoptimized` because /_next/image 400s on this deployment. */}
+                      {t.thumb
+                        ? <Image src={t.thumb} alt="" fill sizes="140px" unoptimized className="object-cover transition-transform duration-500 group-hover:scale-[1.06]" />
+                        : t.icon}
+                    </div>
                     <div className="px-2 pb-2 pt-1.5"><p className="truncate text-[11px] font-bold">{t.title}</p><p className="line-clamp-2 text-[9px] leading-snug text-muted-foreground">{t.desc}</p></div>
                   </button>
                 ))}
