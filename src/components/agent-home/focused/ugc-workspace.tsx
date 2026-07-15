@@ -23,21 +23,25 @@ const UGC_CHANNELS: PublishChannel[] = [
 
 interface Template {
   id: UgcTemplateId; title: string; desc: string; script: string; style: string; tips: string[]; hue: [string, string]; icon: string;
+  /** A REAL example still so you can see what the style makes (the hue/icon are the fallback). */
+  thumb?: string;
 }
+// Folder name has a space, so the paths are URL-encoded.
+const T = "/Studio_Menus_Thumnail/UGC%20subs%20types";
 const TEMPLATES: Template[] = [
-  { id: "review", icon: "💬", title: "Product review", desc: "Talks to camera about why they love it.", style: "Authentic", hue: ["#3b2540", "#6b3a5a"],
+  { id: "review", icon: "💬", title: "Product review", desc: "Talks to camera about why they love it.", style: "Authentic", hue: ["#3b2540", "#6b3a5a"], thumb: `${T}/ugs1.png`,
     script: "Hey guys, I just had to show you this — it's honestly been a game changer. The quality is insane. Just do it, you won't regret it.",
     tips: ["Photo 1: a clear, well-lit shot of the creator.", "Photo 2: the product — we'll put it in their hands.", "Keep the script 2-3 short sentences (fits 8-10s)."] },
-  { id: "testimonial", icon: "⭐", title: "Testimonial", desc: "An honest before/after story.", style: "Testimonial", hue: ["#3a2a1c", "#7a5236"],
+  { id: "testimonial", icon: "⭐", title: "Testimonial", desc: "An honest before/after story.", style: "Testimonial", hue: ["#3a2a1c", "#7a5236"], thumb: `${T}/ugc4.png`,
     script: "I was skeptical at first, but two weeks in I'm a believer. This actually delivered — I'd recommend it to anyone on the fence.",
     tips: ["Warm, honest tone.", "Name ONE concrete result.", "End on a soft recommendation."] },
-  { id: "unboxing", icon: "📦", title: "Unboxing", desc: "Opens the package, reacts.", style: "Unboxing", hue: ["#1e2a3a", "#324a63"],
+  { id: "unboxing", icon: "📦", title: "Unboxing", desc: "Opens the package, reacts.", style: "Unboxing", hue: ["#1e2a3a", "#324a63"], thumb: `${T}/ugc.png`,
     script: "Okay it's finally here! Let's open it — oh wow, this packaging is so much nicer than I expected.",
     tips: ["Photo 1: the creator. Photo 2: the package/product.", "Reactive, in-the-moment lines.", "Short, fast beats."] },
-  { id: "grwm", icon: "💄", title: "Get ready with me", desc: "Casual chat, weaves in product.", style: "GRWM", hue: ["#3a1f33", "#7a3a6a"],
+  { id: "grwm", icon: "💄", title: "Get ready with me", desc: "Casual chat, weaves in product.", style: "GRWM", hue: ["#3a1f33", "#7a3a6a"], thumb: `${T}/ugc3.png`,
     script: "Getting ready with you today! Real quick — this is the one thing I can't skip in my routine anymore.",
     tips: ["Casual selfie framing.", "Weave the product into a routine.", "Low-key, not salesy."] },
-  { id: "demo", icon: "👋", title: "Feature demo", desc: "Walks up, shows one feature.", style: "Authentic", hue: ["#22303a", "#3a5a63"],
+  { id: "demo", icon: "👋", title: "Feature demo", desc: "Walks up, shows one feature.", style: "Authentic", hue: ["#22303a", "#3a5a63"], thumb: `${T}/ugc2.png`,
     script: "The thing nobody tells you about this? This one feature. Watch — it just works, first try, every time.",
     tips: ["Describe subtle motion.", "Focus on ONE feature.", "Speak like showing a friend."] },
   { id: "blank", icon: "➕", title: "Start blank", desc: "Your own photo + script.", style: "Authentic", hue: ["#22222c", "#33333f"],
@@ -346,8 +350,14 @@ export function FocusedUgc({ refreshKey }: { refreshKey?: number; onAsk?: (promp
               <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Start from a template</p>
               <div className="flex gap-2.5 overflow-x-auto pb-1.5">
                 {TEMPLATES.map((t) => (
-                  <button key={t.id} onClick={() => pickTpl(t.id)} className={cn("w-[138px] shrink-0 overflow-hidden rounded-xl border-2 bg-background/40 text-left transition hover:-translate-y-0.5", dTpl === t.id ? "border-rose-400" : "border-transparent")}>
-                    <div className="grid h-[68px] place-items-center text-[22px]" style={{ background: `linear-gradient(150deg, ${t.hue[0]}, ${t.hue[1]})` }}>{t.icon}</div>
+                  <button key={t.id} onClick={() => pickTpl(t.id)} className={cn("group w-[138px] shrink-0 overflow-hidden rounded-xl border-2 bg-background/40 text-left transition hover:-translate-y-0.5", dTpl === t.id ? "border-rose-400" : "border-transparent")}>
+                    <div className="relative grid h-[68px] place-items-center overflow-hidden text-[22px]" style={{ background: `linear-gradient(150deg, ${t.hue[0]}, ${t.hue[1]})` }}>
+                      {/* A real example still shows what the style actually makes; the icon
+                          + gradient stay as the fallback. */}
+                      {t.thumb
+                        ? <Image src={t.thumb} alt="" fill sizes="140px" className="object-cover transition-transform duration-500 group-hover:scale-[1.06]" />
+                        : t.icon}
+                    </div>
                     <div className="px-2 pb-2 pt-1.5"><p className="truncate text-[11px] font-bold">{t.title}</p><p className="line-clamp-2 text-[9px] leading-snug text-muted-foreground">{t.desc}</p></div>
                   </button>
                 ))}
