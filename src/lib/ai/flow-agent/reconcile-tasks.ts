@@ -10,6 +10,7 @@ import { resumeAvatarRender } from "@/lib/avatar-studio";
 import { resumeStuckDirectorScenes } from "@/lib/video-director/engines";
 import { resumeStuckUgcTakes } from "@/lib/ugc-studio/engines";
 import { resumeStuckAdTakes } from "@/lib/product-ads/engines";
+import { resumeStuckTryOnTakes } from "@/lib/try-on/engines";
 
 /**
  * AgentTask recovery — the safety net for Flow-AI background jobs.
@@ -400,6 +401,11 @@ export async function runTaskRecovery(): Promise<RecoveryResult> {
     const adTakes = await resumeStuckAdTakes().catch(() => ({ scanned: 0, changed: 0 }));
     result.scanned += adTakes.scanned;
     result.recovered += adTakes.changed;
+
+    // …and Virtual Try-on takes.
+    const tryOnTakes = await resumeStuckTryOnTakes().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += tryOnTakes.scanned;
+    result.recovered += tryOnTakes.changed;
 
     if (result.recovered || result.failed) {
       console.log(
