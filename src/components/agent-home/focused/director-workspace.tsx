@@ -2962,9 +2962,9 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
   onSubmit: (d: BriefDraft) => void;
   onAsk?: (prompt: string) => void;
 }) {
-  const [tab, setTab] = useState<"video" | "reel" | "avatar">(
-    film?.filmType === "reel" ? "reel" : film?.filmType === "testimonial" ? "avatar" : "video",
-  );
+  // Filmmaking only — the reel/avatar briefs are retired from this studio (their submit
+  // branches below stay as backup). Kept as a union so those branches still type-check.
+  const [tab] = useState<"video" | "reel" | "avatar">("video");
   // VIDEO (AdBuilder) — brief · style · length
   const [vBrief, setVBrief] = useState(film?.filmType === "ai_film" ? film?.brief || "" : "");
   const [vTitle, setVTitle] = useState(film?.filmType === "ai_film" ? film?.title || "" : "");
@@ -3035,13 +3035,13 @@ function BriefSheet({ film, avatars, voices, onClose, onSubmit }: {
           <button onClick={onClose} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
         </div>
 
-        {/* TAB BAR — one tab per studio */}
+        {/* This studio is FILMMAKING only. Reel + Avatar moved out of the brief: reels
+            live in their own (backup) studio and Avatar is retired — UGC/Product ads are
+            their own playgrounds now. The reel/avatar submit branches stay below as backup. */}
         <div className="flex gap-1 border-b border-border px-3">
-          {([{ v: "video", icon: <Film className="h-3.5 w-3.5" />, label: "Movie" }, { v: "reel", icon: <Scissors className="h-3.5 w-3.5" />, label: "Reel" }, { v: "avatar", icon: <UserSquare2 className="h-3.5 w-3.5" />, label: "Avatar" }] as const).map((t) => (
-            <button key={t.v} onClick={() => setTab(t.v)} className={cn("-mb-px inline-flex items-center gap-1.5 border-b-2 px-4 py-2 text-[12.5px] font-bold transition", tab === t.v ? "border-brand-500 text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>
-              {t.icon} {t.label}
-            </button>
-          ))}
+          <span className="-mb-px inline-flex items-center gap-1.5 border-b-2 border-brand-500 px-4 py-2 text-[12.5px] font-bold text-foreground">
+            <Film className="h-3.5 w-3.5" /> Film
+          </span>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-3">
