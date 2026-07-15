@@ -828,6 +828,23 @@ export function AgentHome() {
     setPanelKey(key);
     setDrawerOpen(false);
   };
+  // A rail section now opens the AGENT MENU CHAT for its group — the home
+  // card-grid menu + composer set to that group — NOT the old browse panel.
+  // Rail keys map to agent-group keys (outreach → leads · connections → publish).
+  const RAIL_GROUP: Record<string, string> = { outreach: "leads", connections: "publish" };
+  const openAgentGroup = (key: string) => {
+    const group = RAIL_GROUP[key] ?? key;
+    if (!AGENT_GROUP_KEYS.includes(group)) { openWorkspace(key); return; }
+    guardNav(() => {
+      newConversation();
+      setFocused(null);
+      setPanelKey(null);
+      setHistoryOpen(false);
+      setDrawerOpen(false);
+      setActiveWs(key);
+      setAgentMode(group);
+    });
+  };
   const openFocused = (key: string) => { const target = key === "business" ? "brand" : key === "grow" ? "analytics" : key; setPanelKey(null); setActiveWs(key); setFocused(target); setDrawerOpen(false); if (target === "create") savedDesignRef.current = design; };
   const openBrand = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("brand"); setDrawerOpen(false); };
   const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setSettingsInitialTab(undefined); setActiveWs("business"); setFocused("account"); };
@@ -1158,7 +1175,7 @@ export function AgentHome() {
             const active = activeWs === w.key;
             return (
               <div key={w.key} className="contents">
-                <button onClick={() => openWorkspace(w.key)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                <button onClick={() => openAgentGroup(w.key)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
                   {active && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
                   <Icon className="h-[21px] w-[21px]" />
                   <span>{s.ws[w.key] ?? w.label}</span>
@@ -1168,7 +1185,7 @@ export function AgentHome() {
             );
           })}
           <div className="mt-auto h-px w-11 bg-border" />
-          <button onClick={() => guardNav(openConnections)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", activeWs === "connections" ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+          <button onClick={() => openAgentGroup("connections")} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", activeWs === "connections" ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
             {activeWs === "connections" && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
             <Link2 className="h-[21px] w-[21px]" />
             <span>Social</span>
@@ -1177,7 +1194,7 @@ export function AgentHome() {
             const Icon = businessWorkspace.icon;
             const active = activeWs === businessWorkspace.key;
             return (
-              <button onClick={() => openWorkspace(businessWorkspace.key)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+              <button onClick={() => openAgentGroup(businessWorkspace.key)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
                 {active && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
                 <Icon className="h-[21px] w-[21px]" />
                 <span>{s.ws[businessWorkspace.key] ?? businessWorkspace.label}</span>
@@ -1600,19 +1617,19 @@ export function AgentHome() {
               {primaryWorkspaces.map((w) => {
                 const Icon = w.icon;
                 return (
-                  <button key={w.key} onClick={() => openWorkspace(w.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === w.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
+                  <button key={w.key} onClick={() => openAgentGroup(w.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === w.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
                     <Icon className="h-[18px] w-[18px]" /> {s.ws[w.key] ?? w.label}
                   </button>
                 );
               })}
               <div className="my-1.5 h-px w-full bg-border" />
-              <button onClick={() => guardNav(openConnections)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === "connections" ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
+              <button onClick={() => openAgentGroup("connections")} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === "connections" ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
                 <Link2 className="h-[18px] w-[18px]" /> Social
               </button>
               {businessWorkspace && (() => {
                 const Icon = businessWorkspace.icon;
                 return (
-                  <button key={businessWorkspace.key} onClick={() => openWorkspace(businessWorkspace.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === businessWorkspace.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
+                  <button key={businessWorkspace.key} onClick={() => openAgentGroup(businessWorkspace.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === businessWorkspace.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
                     <Icon className="h-[18px] w-[18px]" /> {s.ws[businessWorkspace.key] ?? businessWorkspace.label}
                   </button>
                 );
