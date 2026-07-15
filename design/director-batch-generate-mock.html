@@ -1,0 +1,108 @@
+<title>Director — Generate all (batch)</title>
+<style>
+  :root{--ground:#0c0c11;--card:#16161d;--card2:#1c1c25;--border:#2a2a35;--accent:#a78bfa;--violet:#8b5cf6;--emerald:#10b981;--amber:#f59e0b;--text:#e7e7ee;--muted:#9a9aa8}
+  *{box-sizing:border-box}html,body{margin:0;min-height:100%}
+  body{background:var(--ground);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1020px;margin:0 auto;padding:22px 18px 60px}
+  h1{font-size:18px;font-weight:700;margin:0 0 6px}.lede{color:var(--muted);font-size:13px;max-width:66ch;margin:0 0 14px}
+  /* header */
+  .hdr{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-bottom:none;border-radius:14px 14px 0 0;background:var(--card);padding:10px 14px}
+  .hdr .title{font-weight:700;font-size:13px}
+  .hdr .stat{font-size:11.5px;color:var(--muted);margin-left:4px}
+  .hdr .stat b{color:var(--emerald);font-weight:600}
+  .spacer{flex:1}
+  .btn{display:inline-flex;align-items:center;gap:6px;border-radius:9px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text)}
+  .btn.gen{border:none;color:#fff;background:linear-gradient(90deg,var(--emerald),#059669)}
+  .btn.gen:disabled{opacity:.6;cursor:default}
+  .btn.new{border:none;color:#fff;background:linear-gradient(90deg,var(--accent),var(--violet))}
+  /* canvas */
+  .canvas{position:relative;border:1px solid var(--border);border-radius:0 0 14px 14px;background:
+    radial-gradient(circle at 1px 1px,#20202b 1px,transparent 0) 0 0/22px 22px,var(--card);min-height:340px;padding:52px 16px 16px;overflow:hidden}
+  /* global loader */
+  .loader{position:absolute;left:50%;top:12px;transform:translateX(-50%);display:none;align-items:center;gap:10px;border:1px solid var(--border);background:rgba(22,22,29,.96);border-radius:999px;padding:7px 14px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .loader.on{display:flex}
+  .sp{width:15px;height:15px;border-radius:50%;border:2px solid #333;border-top-color:var(--accent);animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loader .t{font-size:11.5px;font-weight:700}.loader .d{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .bar{width:96px;height:6px;border-radius:999px;background:#2a2a35;overflow:hidden}.bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--emerald),#059669);transition:width .5s}
+  /* scene grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+  .sc{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--card2)}
+  .sc .pic{aspect-ratio:16/10;display:grid;place-items:center;position:relative;background:linear-gradient(150deg,#241c2b,#191720)}
+  .sc .nm{padding:6px 8px;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pill{position:absolute;left:6px;bottom:6px;font-size:8.5px;font-weight:800;border-radius:999px;padding:2px 7px}
+  .st-draft{background:#33333f;color:var(--muted)}.st-queued{background:rgba(245,158,11,.16);color:var(--amber)}
+  .st-rendering{background:rgba(167,139,250,.16);color:var(--accent)}.st-ready{background:rgba(16,185,129,.16);color:var(--emerald)}
+  .minibar{position:absolute;left:0;right:0;bottom:0;height:3px;background:#2a2a35}.minibar>span{display:block;height:100%;background:var(--accent);width:0;transition:width .4s}
+  .hint{margin-top:14px;font-size:12px;color:var(--muted);display:flex;gap:7px;align-items:center}
+  .hint b{color:var(--emerald)}
+</style>
+
+<div class="wrap">
+  <h1>One click → generate every scene (with a persistent global loader)</h1>
+  <p class="lede">A <b style="color:var(--emerald)">Generate all</b> button renders every scene that isn't ready yet. It doesn't fire 19 renders at once — scenes are <b style="color:var(--amber)">queued</b> and ~4 render at a time, refilling as each finishes. The loader up top reflects the real render stats, so it keeps showing (and the batch keeps running) even if you leave and come back.</p>
+  <div class="hint">Try it → click <b>Generate all</b>. (Reloading this page mid-run resumes the loader, mimicking leaving &amp; returning.)</div>
+
+  <div class="hdr">
+    <span class="title">🎬 In a village a young boy…</span>
+    <span class="stat"><b id="hReady">6</b> ready · <span id="hRender">0</span> rendering · <span id="hTotal">19</span> scenes</span>
+    <div class="spacer"></div>
+    <button class="btn gen" id="genAll">✦ Generate all (<span id="hPending">13</span>)</button>
+    <button class="btn">Cast</button><button class="btn">Films</button><button class="btn new">✦ New film</button>
+  </div>
+  <div class="canvas">
+    <div class="loader" id="loader">
+      <span class="sp"></span>
+      <span class="t">Rendering <span id="lN">0</span> scenes…</span>
+      <span class="d"><span id="lReady">0</span>/<span id="lTotal">0</span> done</span>
+      <span class="bar"><span id="lBar" style="width:0%"></span></span>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+</div>
+
+<script>
+  const TITLES = ["Shoe Maker's Struggle","Amara Arrives","A Penny's Hope","Market Day","Kwesi's Arrival","The Deal","Doubt","First Sale","The Rival","Growing","Setback","Family Talk","The City","Big Buyer","Signed","Expansion","Homecoming","The Promise","Legacy"];
+  // 6 ready to start, rest draft
+  let scenes = TITLES.map((t,i)=>({ t, status: i<6?"ready":"draft", prog:0 }));
+  const MAX = 4;
+  const $ = id => document.getElementById(id);
+  const cnt = s => scenes.filter(x=>x.status===s).length;
+
+  function persist(){ try{ localStorage.setItem("batchMock", JSON.stringify(scenes)); }catch{} }
+  function restore(){ try{ const r=localStorage.getItem("batchMock"); if(r) scenes=JSON.parse(r); }catch{} }
+
+  function render(){
+    const ready=cnt("ready"), rendering=cnt("rendering")+cnt("queued"), pending=cnt("draft");
+    const batchTotal=ready+rendering+pending;
+    $("hReady").textContent=ready; $("hRender").textContent=rendering; $("hTotal").textContent=scenes.length; $("hPending").textContent=pending;
+    $("genAll").style.display = pending>0 ? "inline-flex" : "none";
+    // loader
+    const loaderOn = rendering>0;
+    $("loader").classList.toggle("on", loaderOn);
+    if(loaderOn){ $("lN").textContent=rendering; $("lReady").textContent=ready; $("lTotal").textContent=batchTotal; $("lBar").style.width=Math.round(ready/Math.max(1,batchTotal)*100)+"%"; }
+    // grid
+    $("grid").innerHTML = scenes.map((s,i)=>{
+      const label={draft:"draft",queued:"queued",rendering:"rendering",ready:"ready"}[s.status];
+      const icon = s.status==="ready"?"▶":s.status==="rendering"?"◐":s.status==="queued"?"⏳":"▦";
+      return `<div class="sc"><div class="pic"><span style="font-size:20px;opacity:.6">${icon}</span>
+        <span class="pill st-${s.status}">${label}</span>
+        ${s.status==="rendering"?`<div class="minibar"><span style="width:${Math.round(s.prog)}%"></span></div>`:""}</div>
+        <div class="nm">${s.t}</div></div>`;
+    }).join("");
+    persist();
+  }
+
+  function tick(){
+    // advance rendering scenes
+    let active = cnt("rendering");
+    scenes.forEach(s=>{ if(s.status==="rendering"){ s.prog+=12+Math.floor(Math.random()*10); if(s.prog>=100){ s.status="ready"; s.prog=0; active--; } } });
+    // refill from queue up to MAX
+    for(const s of scenes){ if(active>=MAX) break; if(s.status==="queued"){ s.status="rendering"; s.prog=6; active++; } }
+    render();
+  }
+
+  $("genAll").onclick = ()=>{ scenes.forEach(s=>{ if(s.status==="draft") s.status="queued"; }); render(); };
+  restore(); render();
+  setInterval(tick, 700);
+</script>

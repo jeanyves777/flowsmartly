@@ -4,11 +4,11 @@ import { BookDemoContent } from "@/components/book-demo/book-demo-content";
 export const metadata: Metadata = {
   title: "Book a Demo",
   description:
-    "Book a FlowSmartly demo and see how content, commerce, local listings, compliance, and managed agents fit your growth workflow.",
+    "See the FlowSmartly agent run your marketing — designs, posts, ads, store, and outreach — in a walkthrough tailored to your team.",
   openGraph: {
     title: "Book a FlowSmartly Demo",
     description:
-      "Tell us what you want to grow and we will tailor a FlowSmartly walkthrough around your team.",
+      "Watch one AI agent operate every marketing surface. Tell us your goals and we will tailor the walkthrough.",
   },
 };
 

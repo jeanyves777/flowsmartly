@@ -23,12 +23,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { illustrationImages } from "@/components/marketing/public-page-visuals";
 
 const productOptions = [
-  "AI content studio",
-  "FlowShop e-commerce",
-  "ListSmartly local presence",
-  "SMS and email marketing",
-  "Agent marketplace",
-  "Pricing and credits",
+  "Create — designs & video",
+  "Publish — social calendar",
+  "Grow — ads & campaigns",
+  "Sell — AI storefront",
+  "Outreach — email & SMS",
+  "Leads — find & follow up",
+  "Full agent walkthrough",
+  "Pricing & credits",
 ];
 
 const companySizes = [

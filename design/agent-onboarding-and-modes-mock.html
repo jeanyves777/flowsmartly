@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent onboarding + agent-mode composer — FlowSmartly</title>
+<style>
+  :root[data-theme="dark"]{
+    --bg:#0b0d10; --bg2:#0f1216; --card:#14171d; --card2:#1a1e25; --border:#262b33; --border2:#333a45;
+    --fg:#eef1f6; --muted:#9aa4b6; --muted2:#6b7486; --brand:#0ea5e9; --violet:#8b5cf6;
+    --grad:linear-gradient(100deg,#0ea5e9,#8b5cf6); --shadow:0 30px 70px -34px rgba(0,0,0,.85);
+    --glow:rgba(14,165,233,.14);
+  }
+  :root[data-theme="light"]{
+    --bg:#eef1f7; --bg2:#f6f8fc; --card:#ffffff; --card2:#f5f7fc; --border:#e3e7f0; --border2:#d6dbe8;
+    --fg:#141821; --muted:#5b6478; --muted2:#8b93a6; --brand:#0284c7; --violet:#7c3aed;
+    --grad:linear-gradient(100deg,#0ea5e9,#8b5cf6); --shadow:0 24px 54px -30px rgba(20,30,60,.35);
+    --glow:rgba(14,165,233,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{background:var(--bg);color:var(--fg);
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.5}
+  /* ambient glow */
+  body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:
+    radial-gradient(600px 320px at 15% -6%,var(--glow),transparent 70%),
+    radial-gradient(560px 300px at 96% 4%,rgba(139,92,246,.12),transparent 70%)}
+  .app{position:relative;z-index:1}
+  button{font:inherit;cursor:pointer}
+  h1,h2,h3{margin:0;letter-spacing:-.02em}
+  .muted{color:var(--muted)} .muted2{color:var(--muted2)}
+
+  /* ---------- top bar ---------- */
+  .top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:14px;
+    padding:12px 20px;background:color-mix(in srgb,var(--bg) 82%,transparent);
+    backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:-.02em;font-size:15px}
+  .logo .mk{width:24px;height:24px;border-radius:8px;background:var(--grad);
+    display:grid;place-items:center;box-shadow:0 6px 18px -6px var(--brand)}
+  .logo .mk svg{width:14px;height:14px;color:#fff}
+  .seg{margin-left:6px;display:inline-flex;background:var(--card);border:1px solid var(--border);
+    border-radius:999px;padding:3px}
+  .seg button{border:0;background:transparent;color:var(--muted);border-radius:999px;
+    padding:6px 14px;font-size:12.5px;font-weight:600}
+  .seg button.on{background:var(--grad);color:#fff}
+  .spacer{flex:1}
+  .icon-btn{width:34px;height:34px;border-radius:9px;border:1px solid var(--border);
+    background:var(--card);color:var(--muted);display:grid;place-items:center}
+  .icon-btn:hover{color:var(--fg)}
+
+  .view{display:none} .view.on{display:block}
+
+  /* ============================================================= ONBOARDING */
+  .wrap{max-width:1180px;margin:0 auto;padding:34px 20px 80px}
+  .onb{display:grid;grid-template-columns:1fr;gap:26px}
+  @media(min-width:1000px){ .onb{grid-template-columns:1fr 372px;align-items:start} }
+
+  .kicker{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--brand);
+    background:color-mix(in srgb,var(--brand) 12%,transparent);border:1px solid color-mix(in srgb,var(--brand) 26%,transparent);
+    border-radius:999px;padding:5px 11px}
+  .h-title{font-size:34px;font-weight:800;margin:14px 0 8px;line-height:1.08}
+  .h-title .g{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .h-sub{color:var(--muted);font-size:15px;max-width:60ch;margin-bottom:26px}
+
+  .block{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:20px;margin-bottom:18px}
+  .block-h{display:flex;align-items:center;gap:11px;margin-bottom:16px}
+  .step-no{width:26px;height:26px;border-radius:8px;background:var(--card2);border:1px solid var(--border2);
+    display:grid;place-items:center;font-size:12.5px;font-weight:800;color:var(--brand)}
+  .block-h h3{font-size:16px;font-weight:750}
+  .block-h p{margin:1px 0 0;font-size:12.5px}
+
+  /* agent identity */
+  .id-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  .avatars{display:flex;gap:10px}
+  .av{width:52px;height:52px;border-radius:15px;border:2px solid transparent;position:relative;cursor:pointer;
+    display:grid;place-items:center;color:#fff;font-weight:800;font-size:18px;transition:.15s;flex:none}
+  .av.sel{border-color:#fff;box-shadow:0 0 0 3px var(--brand)}
+  .av span{position:relative;z-index:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
+  .a0{background:linear-gradient(135deg,#0ea5e9,#8b5cf6)} .a1{background:linear-gradient(135deg,#ec4899,#8b5cf6)}
+  .a2{background:linear-gradient(135deg,#14b8a6,#0ea5e9)} .a3{background:linear-gradient(135deg,#f59e0b,#ec4899)}
+  .name-field{flex:1;min-width:220px}
+  .name-field label{display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:6px}
+  .name-field input{width:100%;background:var(--bg2);border:1px solid var(--border2);color:var(--fg);
+    border-radius:11px;padding:11px 13px;font-size:15px;font-weight:600;outline:none}
+  .name-field input:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--glow)}
+
+  /* abilities */
+  .cat{margin-bottom:16px} .cat:last-child{margin-bottom:0}
+  .cat-h{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+  .cat-dot{width:9px;height:9px;border-radius:3px}
+  .cat-h b{font-size:12.5px;font-weight:750;letter-spacing:.01em}
+  .cat-h .tag{margin-left:auto;font-size:10.5px;color:var(--muted2)}
+  .pills{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  @media(min-width:640px){ .pills{grid-template-columns:1fr 1fr 1fr} }
+  .pill{display:flex;flex-direction:column;gap:3px;text-align:left;background:var(--card2);
+    border:1px solid var(--border);border-radius:13px;padding:11px 12px;transition:.14s;position:relative}
+  .pill:hover{border-color:var(--border2);transform:translateY(-1px)}
+  .pill .pt{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:650}
+  .pill .chk{width:16px;height:16px;border-radius:5px;border:1.5px solid var(--border2);flex:none;
+    display:grid;place-items:center;color:#fff;transition:.14s}
+  .pill .chk svg{width:10px;height:10px;opacity:0}
+  .pill .cost{font-size:11px;color:var(--muted)}
+  .pill.on{border-color:color-mix(in srgb,var(--acc) 60%,transparent);background:color-mix(in srgb,var(--acc) 12%,var(--card2))}
+  .pill.on .chk{background:var(--acc);border-color:var(--acc)}
+  .pill.on .chk svg{opacity:1}
+  .pill.on .cost{color:var(--fg)}
+
+  /* volume sliders */
+  .vol-empty{font-size:13px;color:var(--muted);padding:6px 2px}
+  .vol{display:flex;align-items:center;gap:13px;padding:9px 2px}
+  .vol + .vol{border-top:1px solid var(--border)}
+  .vol .vlabel{width:150px;flex:none;font-size:13px;font-weight:600}
+  .vol .vlabel small{display:block;font-weight:500;font-size:11px;color:var(--muted)}
+  .vol input[type=range]{flex:1;accent-color:var(--brand);height:4px}
+  .vol .vval{width:74px;text-align:right;flex:none;font-size:13px;font-weight:700}
+  .vol .vval small{color:var(--muted);font-weight:500}
+
+  /* ---------- right rail ---------- */
+  .rail{position:sticky;top:78px;display:flex;flex-direction:column;gap:16px}
+  .credo{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:20px;position:relative;overflow:hidden}
+  .credo::after{content:"";position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;
+    background:radial-gradient(circle,var(--glow),transparent 70%)}
+  .credo h3{font-size:19px;font-weight:800;margin-bottom:8px}
+  .credo p{font-size:13px;color:var(--muted);margin:0}
+  .credo .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+  .credo .chips span{font-size:11px;font-weight:600;color:var(--fg);background:var(--card2);
+    border:1px solid var(--border);border-radius:999px;padding:4px 9px}
+
+  .est{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:20px}
+  .est .lbl{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+  .est .big{display:flex;align-items:baseline;gap:8px;margin:8px 0 2px}
+  .est .num{font-size:40px;font-weight:850;letter-spacing:-.03em;line-height:1;
+    background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .est .unit{font-size:14px;font-weight:650;color:var(--muted)}
+  .est .dollar{font-size:12.5px;color:var(--muted);margin-bottom:14px}
+  .breakdown{border-top:1px solid var(--border);padding-top:12px;display:flex;flex-direction:column;gap:7px;max-height:180px;overflow:auto}
+  .bd{display:flex;align-items:center;font-size:12.5px}
+  .bd .bdd{width:8px;height:8px;border-radius:3px;margin-right:8px;flex:none}
+  .bd .bn{flex:1;color:var(--fg)} .bd .bx{color:var(--muted);margin:0 8px;font-variant-numeric:tabular-nums}
+  .bd .bc{font-weight:700;font-variant-numeric:tabular-nums}
+  .bd.none{color:var(--muted);justify-content:center;padding:6px 0}
+  .free{display:flex;align-items:center;gap:8px;margin-top:14px;padding:11px 12px;border-radius:12px;
+    background:color-mix(in srgb,#14b8a6 12%,var(--card2));border:1px solid color-mix(in srgb,#14b8a6 30%,transparent);font-size:12.5px}
+  .free b{color:#14b8a6}
+  .cta{width:100%;margin-top:14px;border:0;border-radius:13px;padding:13px;color:#fff;font-weight:750;font-size:14.5px;
+    background:var(--grad);box-shadow:0 14px 30px -12px var(--brand);display:flex;align-items:center;justify-content:center;gap:8px}
+  .cta:hover{filter:brightness(1.06)}
+  .foot-note{font-size:11.5px;color:var(--muted2);text-align:center;margin-top:10px}
+
+  /* ============================================================= CHAT */
+  .chat-wrap{max-width:760px;margin:0 auto;padding:64px 20px 40px;min-height:70vh;
+    display:flex;flex-direction:column;justify-content:center}
+  .greet{text-align:center;margin-bottom:26px}
+  .greet .ava{width:56px;height:56px;border-radius:17px;margin:0 auto 14px;display:grid;place-items:center;
+    color:#fff;font-weight:800;font-size:22px;background:linear-gradient(135deg,#0ea5e9,#8b5cf6)}
+  .greet h2{font-size:26px;font-weight:800}
+  .greet p{color:var(--muted);font-size:14.5px;margin-top:6px}
+
+  /* composer */
+  .composer{position:relative;border:1px solid var(--border);background:var(--card);border-radius:24px;box-shadow:var(--shadow)}
+  .comp-top{padding:12px 12px 0;position:relative}
+  .mode-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--acc);
+    background:color-mix(in srgb,var(--acc) 12%,transparent);color:var(--acc);
+    border-radius:999px;padding:6px 11px;font-size:12.5px;font-weight:650}
+  .mode-btn .mi{width:20px;height:20px;border-radius:6px;background:var(--acc);display:grid;place-items:center;color:#fff}
+  .mode-btn .mi svg{width:12px;height:12px}
+  .mode-btn .cv{color:var(--muted)}
+  .mode-btn .cur{color:var(--fg);font-weight:750}
+  .dropup{position:absolute;left:12px;bottom:calc(100% + 8px);width:320px;background:var(--card);
+    border:1px solid var(--border2);border-radius:16px;padding:7px;box-shadow:var(--shadow);display:none;z-index:20}
+  .dropup.open{display:block}
+  .du-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:7px 9px 5px}
+  .du-item{display:flex;gap:11px;align-items:flex-start;width:100%;background:transparent;border:0;text-align:left;
+    padding:10px;border-radius:11px;color:var(--fg)}
+  .du-item:hover{background:var(--card2)}
+  .du-item.sel{background:color-mix(in srgb,var(--iacc) 12%,transparent)}
+  .du-ic{width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;color:#fff}
+  .du-tx b{display:block;font-size:13.5px;font-weight:700}
+  .du-tx small{display:block;font-size:11.5px;color:var(--muted);margin-top:1px}
+  .du-tx .ex{font-size:11px;color:var(--muted2);margin-top:4px}
+  .du-check{margin-left:auto;color:var(--iacc);opacity:0} .du-item.sel .du-check{opacity:1}
+
+  .comp-body{display:flex;align-items:flex-end;gap:10px;padding:10px 12px 12px}
+  .plus{width:38px;height:38px;border-radius:999px;border:1px solid var(--border2);background:transparent;
+    color:var(--muted);display:grid;place-items:center;flex:none}
+  .comp-body textarea{flex:1;resize:none;border:0;background:transparent;color:var(--fg);font:inherit;font-size:15px;
+    outline:none;padding:8px 2px;max-height:120px}
+  .send{width:38px;height:38px;border-radius:999px;border:0;flex:none;color:#fff;display:grid;place-items:center;
+    background:var(--acc)}
+  .send.grad{background:var(--grad)}
+
+  .sugs{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;margin-top:18px}
+  .sug{border:1px solid var(--border);background:var(--card);color:var(--fg);border-radius:12px;padding:9px 13px;
+    font-size:13px;display:flex;align-items:center;gap:9px;transition:.14s}
+  .sug:hover{border-color:var(--acc);transform:translateY(-1px)}
+  .sug .sc{font-size:11px;font-weight:700;color:var(--acc);background:color-mix(in srgb,var(--acc) 13%,transparent);
+    border-radius:999px;padding:2px 8px}
+
+  /* cost-preview confirm (the "exact cost before it runs" moment) */
+  .preview{margin-top:20px;border:1px solid var(--acc);border-radius:16px;overflow:hidden;display:none;
+    background:color-mix(in srgb,var(--acc) 7%,var(--card))}
+  .preview.show{display:block;animation:pop .18s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .pv-h{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid color-mix(in srgb,var(--acc) 26%,transparent)}
+  .pv-h .pv-ic{width:26px;height:26px;border-radius:8px;background:var(--acc);color:#fff;display:grid;place-items:center;flex:none}
+  .pv-h b{font-size:13.5px;font-weight:700} .pv-h .pv-mode{margin-left:auto;font-size:11px;color:var(--muted)}
+  .pv-body{padding:12px 14px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .pv-cost{display:flex;align-items:baseline;gap:6px}
+  .pv-cost .pc{font-size:26px;font-weight:850;letter-spacing:-.02em;color:var(--acc)}
+  .pv-cost small{font-size:12px;color:var(--muted)}
+  .pv-sub{font-size:12px;color:var(--muted);flex:1;min-width:160px}
+  .pv-actions{display:flex;gap:8px;margin-left:auto}
+  .pv-run{border:0;border-radius:10px;padding:9px 16px;color:#fff;font-weight:700;font-size:13px;background:var(--acc)}
+  .pv-cancel{border:1px solid var(--border2);background:transparent;color:var(--muted);border-radius:10px;padding:9px 13px;font-size:13px}
+
+  .note{max-width:1180px;margin:6px auto 0;padding:0 20px;font-size:11.5px;color:var(--muted2)}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ---------------- top bar ---------------- -->
+  <div class="top">
+    <div class="logo"><span class="mk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h6"/></svg></span> FlowSmartly</div>
+    <div class="seg">
+      <button id="tab-onb" class="on" onclick="setView('onb')">Onboarding</button>
+      <button id="tab-chat" onclick="setView('chat')">Chat</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="icon-btn" onclick="toggleTheme()" title="Toggle theme" id="themebtn">🌙</button>
+  </div>
+
+  <!-- ======================================= ONBOARDING VIEW ======================================= -->
+  <div id="view-onb" class="view on">
+    <div class="wrap">
+      <div class="kicker">✦ Step 1 of 1 · Set up your agent</div>
+      <h1 class="h-title">Build your agent.<br><span class="g">It works. You pay for the work.</span></h1>
+      <p class="h-sub">Give your agent a name and switch on the abilities you need. We'll show your estimated monthly cost as you go — no guessing, no surprises.</p>
+
+      <div class="onb">
+        <!-- LEFT column -->
+        <div>
+          <!-- identity -->
+          <div class="block">
+            <div class="block-h"><span class="step-no">1</span><div><h3>Name your agent</h3><p class="muted">This is who you'll talk to in chat.</p></div></div>
+            <div class="id-row">
+              <div class="avatars" id="avatars">
+                <button class="av a0 sel" data-i="0" onclick="pickAv(0,'N')"><span>N</span></button>
+                <button class="av a1" data-i="1" onclick="pickAv(1,'A')"><span>A</span></button>
+                <button class="av a2" data-i="2" onclick="pickAv(2,'F')"><span>F</span></button>
+                <button class="av a3" data-i="3" onclick="pickAv(3,'S')"><span>S</span></button>
+              </div>
+              <div class="name-field">
+                <label>Agent name</label>
+                <input id="agentName" value="Nova" oninput="onName()" maxlength="18" />
+              </div>
+            </div>
+          </div>
+
+          <!-- abilities -->
+          <div class="block">
+            <div class="block-h"><span class="step-no">2</span><div><h3>Give it abilities</h3><p class="muted">Turn on what you need. Each shows its price per action.</p></div></div>
+            <div id="cats"></div>
+          </div>
+
+          <!-- expected volume -->
+          <div class="block">
+            <div class="block-h"><span class="step-no">3</span><div><h3>Your expected month</h3><p class="muted">Roughly how much work per month? Drag to estimate — change anytime.</p></div></div>
+            <div id="vols"><div class="vol-empty">Turn on an ability above to estimate your monthly usage.</div></div>
+          </div>
+        </div>
+
+        <!-- RIGHT rail -->
+        <div class="rail">
+          <div class="credo">
+            <h3>Credits. Not contracts.</h3>
+            <p>Start free and only pay for the work the agent does. No per-seat fees, no lock-in — and every action shows its <b style="color:var(--fg)">exact cost before it runs</b>.</p>
+            <div class="chips"><span>✓ No per-seat fees</span><span>✓ No lock-in</span><span>✓ Cancel anytime</span></div>
+          </div>
+
+          <div class="est">
+            <div class="lbl">Estimated average / month</div>
+            <div class="big"><span class="num" id="estNum">0</span><span class="unit">credits / mo</span></div>
+            <div class="dollar" id="estDollar">≈ $0 / month · pay-as-you-go</div>
+            <div class="breakdown" id="breakdown"><div class="bd none">No abilities on yet</div></div>
+            <div class="free">🎁 You start with <b>&nbsp;200 free credits</b>&nbsp;— enough to try every ability.</div>
+            <button class="cta" onclick="setView('chat')">Create my agent <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+            <div class="foot-note">You won't be charged now. Credits are only spent when the agent runs an action.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note">Mockup · illustrative credit prices &amp; $ rate. Estimator is live — toggle abilities and drag the sliders.</div>
+  </div>
+
+  <!-- ======================================= CHAT VIEW ======================================= -->
+  <div id="view-chat" class="view">
+    <div class="chat-wrap">
+      <div class="greet">
+        <div class="ava" id="chatAva">N</div>
+        <h2 id="chatGreet">What should Nova make today?</h2>
+        <p id="chatMode">Focused on <b>Creation</b> · design, logos &amp; sites</p>
+      </div>
+
+      <div class="composer" id="composer">
+        <div class="comp-top">
+          <button class="mode-btn" id="modeBtn" onclick="toggleDropup(event)">
+            <span class="mi" id="modeIc"></span>
+            <span class="cv">Agent</span> · <span class="cur" id="modeCur">Creation</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="dropup" id="dropup"></div>
+        </div>
+        <div class="comp-body">
+          <button class="plus"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+          <textarea id="ta" rows="1" placeholder="Describe a design to create…"></textarea>
+          <button class="send grad" onclick="runSuggestion(currentSampleAction())"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+        </div>
+      </div>
+
+      <div class="sugs" id="sugs"></div>
+
+      <!-- cost preview: the "exact cost before it runs" moment -->
+      <div class="preview" id="preview">
+        <div class="pv-h">
+          <span class="pv-ic" id="pvIc"></span>
+          <b id="pvTitle">Create a launch video</b>
+          <span class="pv-mode" id="pvMode">Film agent</span>
+        </div>
+        <div class="pv-body">
+          <div class="pv-cost"><span class="pc" id="pvCost">45</span><small>credits</small></div>
+          <div class="pv-sub" id="pvSub">Runs now · deducted only when it completes · balance 200 → <b id="pvAfter">155</b></div>
+          <div class="pv-actions">
+            <button class="pv-cancel" onclick="hidePreview()">Cancel</button>
+            <button class="pv-run" onclick="hidePreview()">Run · <span id="pvRunCost">45</span> cr</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="note">The dropdown that used to say “Standard / Super” now switches the agent: <b>Creation · Film · Marketing</b>. Picking any action shows its exact cost before it runs.</div>
+  </div>
+</div>
+
+<script>
+/* ---------------- data model ---------------- */
+const RATE = 10; // credits per $1 (illustrative)
+const AV_GRAD = [
+  'linear-gradient(135deg,#0ea5e9,#8b5cf6)','linear-gradient(135deg,#ec4899,#8b5cf6)',
+  'linear-gradient(135deg,#14b8a6,#0ea5e9)','linear-gradient(135deg,#f59e0b,#ec4899)'];
+
+const CATS = [
+  { key:'creation', name:'Creation', acc:'#8b5cf6', tag:'design · brand · web',
+    abilities:[
+      {id:'design', name:'Branded design', cost:4, unit:'design', per:20},
+      {id:'logo',   name:'Logo & identity', cost:6, unit:'logo', per:4},
+      {id:'website',name:'Website & store', cost:20, unit:'site', per:2},
+    ]},
+  { key:'film', name:'Film', acc:'#ec4899', tag:'video · reels · avatars',
+    abilities:[
+      {id:'video',  name:'Video ad', cost:45, unit:'video', per:6},
+      {id:'reel',   name:'Reel / short', cost:30, unit:'reel', per:8},
+      {id:'avatar', name:'Talking avatar', cost:50, unit:'avatar', per:3},
+    ]},
+  { key:'marketing', name:'Marketing', acc:'#14b8a6', tag:'leads · campaigns · pitches',
+    abilities:[
+      {id:'campaign',name:'Content campaign', cost:3, unit:'post', per:40},
+      {id:'leads',   name:'Lead finder', cost:5, unit:'25 leads', per:20},
+      {id:'pitch',   name:'Proposal / pitch', cost:8, unit:'proposal', per:10},
+    ]},
+];
+const ABILITY = {}; CATS.forEach(c=>c.abilities.forEach(a=>ABILITY[a.id]={...a,acc:c.acc,cat:c.name}));
+
+const MODES = [
+  { key:'creation', name:'Creation', acc:'#8b5cf6', desc:'design, logos & sites',
+    icon:'<path d="M15 4V2M15 22v-2M8 12H2M22 12h-6M9.5 9.5 5 5M19 19l-4.5-4.5M12 12l-2 6 6-2z"/>',
+    ph:'Describe a design to create…', greet:'make',
+    sugs:[{t:'Design a summer sale flyer', id:'design'},{t:'Create a logo set', id:'logo'},{t:'Build a landing page', id:'website'}],
+    sample:{title:'Design a summer sale flyer', id:'design'} },
+  { key:'film', name:'Film', acc:'#ec4899', desc:'video ads, reels & avatars',
+    icon:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h20M8 4v4M16 4v4M10 12l4 2.5-4 2.5z"/>',
+    ph:'Describe a video to produce…', greet:'film',
+    sugs:[{t:'Make a 15s launch video', id:'video'},{t:'Cut a reel from my URL', id:'reel'},{t:'Record a talking avatar', id:'avatar'}],
+    sample:{title:'Make a 15s launch video', id:'video'} },
+  { key:'marketing', name:'Marketing', acc:'#14b8a6', desc:'leads, campaigns & pitches',
+    icon:'<path d="M3 11l18-8-4 18-5-6-6-2zM9 15v5l3-3"/>',
+    ph:'Describe a campaign or who to reach…', greet:'grow',
+    sugs:[{t:'Plan a 2-week campaign', id:'campaign'},{t:'Find 50 local leads', id:'leads'},{t:'Draft a client proposal', id:'pitch'}],
+    sample:{title:'Plan a 2-week campaign', id:'campaign'} },
+];
+
+/* ---------------- state ---------------- */
+const state = { av:0, avLetter:'N', name:'Nova', on:new Set(), vol:{}, mode:'creation', dropOpen:false };
+
+/* ---------------- theme / view ---------------- */
+function toggleTheme(){
+  const r=document.documentElement, next=r.getAttribute('data-theme')==='dark'?'light':'dark';
+  r.setAttribute('data-theme',next); document.getElementById('themebtn').textContent = next==='dark'?'🌙':'☀️';
+}
+function setView(v){
+  document.getElementById('view-onb').classList.toggle('on', v==='onb');
+  document.getElementById('view-chat').classList.toggle('on', v==='chat');
+  document.getElementById('tab-onb').classList.toggle('on', v==='onb');
+  document.getElementById('tab-chat').classList.toggle('on', v==='chat');
+  if(v==='chat') syncChat();
+  window.scrollTo(0,0);
+}
+
+/* ---------------- identity ---------------- */
+function pickAv(i,letter){
+  state.av=i; state.avLetter=letter;
+  document.querySelectorAll('#avatars .av').forEach(el=>el.classList.toggle('sel', +el.dataset.i===i));
+}
+function onName(){ state.name = document.getElementById('agentName').value.trim() || 'your agent'; }
+
+/* ---------------- abilities UI ---------------- */
+function renderCats(){
+  const wrap=document.getElementById('cats'); wrap.innerHTML='';
+  CATS.forEach(cat=>{
+    const div=document.createElement('div'); div.className='cat';
+    div.innerHTML = `<div class="cat-h"><span class="cat-dot" style="background:${cat.acc}"></span><b>${cat.name}</b><span class="tag">${cat.tag}</span></div>
+      <div class="pills">${cat.abilities.map(a=>`
+        <button class="pill" style="--acc:${cat.acc}" data-id="${a.id}" onclick="toggleAbility('${a.id}')">
+          <span class="pt"><span class="chk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>${a.name}</span>
+          <span class="cost">${a.cost} cr / ${a.unit}</span>
+        </button>`).join('')}</div>`;
+    wrap.appendChild(div);
+  });
+}
+function toggleAbility(id){
+  if(state.on.has(id)){ state.on.delete(id); delete state.vol[id]; }
+  else { state.on.add(id); state.vol[id]=ABILITY[id].per; }
+  document.querySelector(`.pill[data-id="${id}"]`).classList.toggle('on', state.on.has(id));
+  renderVols(); recompute();
+}
+function renderVols(){
+  const box=document.getElementById('vols');
+  const ids=[...state.on];
+  if(!ids.length){ box.innerHTML='<div class="vol-empty">Turn on an ability above to estimate your monthly usage.</div>'; return; }
+  box.innerHTML = ids.map(id=>{
+    const a=ABILITY[id], v=state.vol[id], max=a.per*4;
+    return `<div class="vol">
+      <div class="vlabel">${a.name}<small>${a.cat}</small></div>
+      <input type="range" min="0" max="${max}" value="${v}" oninput="setVol('${id}',this.value)">
+      <div class="vval"><span id="vv-${id}">${v}</span> <small>/mo</small></div>
+    </div>`;
+  }).join('');
+}
+function setVol(id,val){ state.vol[id]=+val; document.getElementById('vv-'+id).textContent=val; recompute(); }
+
+/* ---------------- estimate ---------------- */
+function recompute(){
+  let total=0; const rows=[];
+  [...state.on].forEach(id=>{
+    const a=ABILITY[id], v=state.vol[id]||0, sub=a.cost*v;
+    total+=sub; rows.push({a,v,sub});
+  });
+  document.getElementById('estNum').textContent = total.toLocaleString();
+  document.getElementById('estDollar').textContent = `≈ $${Math.round(total/RATE).toLocaleString()} / month · pay-as-you-go`;
+  const bd=document.getElementById('breakdown');
+  rows.sort((x,y)=>y.sub-x.sub);
+  bd.innerHTML = rows.length ? rows.map(r=>`
+    <div class="bd"><span class="bdd" style="background:${r.a.acc}"></span>
+      <span class="bn">${r.a.name}</span>
+      <span class="bx">${r.v} × ${r.a.cost}</span>
+      <span class="bc">${r.sub.toLocaleString()}</span></div>`).join('')
+    : '<div class="bd none">No abilities on yet — pick a few above</div>';
+}
+
+/* ---------------- chat / agent modes ---------------- */
+function curMode(){ return MODES.find(m=>m.key===state.mode); }
+function renderDropup(){
+  const du=document.getElementById('dropup');
+  du.innerHTML = `<div class="du-lbl">Agent</div>` + MODES.map(m=>`
+    <button class="du-item ${m.key===state.mode?'sel':''}" style="--iacc:${m.acc}" onclick="pickMode('${m.key}')">
+      <span class="du-ic" style="background:${m.acc}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${m.icon}</svg></span>
+      <span class="du-tx"><b>${m.name}</b><small>${m.desc}</small><span class="ex">e.g. “${m.sugs[0].t}”</span></span>
+      <svg class="du-check" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+    </button>`).join('');
+}
+function toggleDropup(e){ e.stopPropagation(); state.dropOpen=!state.dropOpen; document.getElementById('dropup').classList.toggle('open',state.dropOpen); }
+function pickMode(k){ state.mode=k; state.dropOpen=false; document.getElementById('dropup').classList.remove('open'); syncChat(); }
+document.addEventListener('click',()=>{ if(state.dropOpen){ state.dropOpen=false; document.getElementById('dropup').classList.remove('open'); }});
+
+function iconSvg(m,stroke){ return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${stroke||'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${m.icon}</svg>`; }
+function syncChat(){
+  const m=curMode();
+  document.getElementById('composer').style.setProperty('--acc', m.acc);
+  document.getElementById('modeBtn').style.setProperty('--acc', m.acc);
+  document.getElementById('modeCur').textContent = m.name;
+  document.getElementById('modeIc').innerHTML = iconSvg(m,'#fff');
+  document.getElementById('ta').placeholder = m.ph;
+  document.getElementById('chatGreet').textContent = `What should ${state.name} ${m.greet} today?`;
+  document.getElementById('chatMode').innerHTML = `Focused on <b>${m.name}</b> · ${m.desc}`;
+  const ava=document.getElementById('chatAva'); ava.textContent=state.avLetter; ava.style.background=AV_GRAD[state.av];
+  // suggestions
+  document.getElementById('sugs').innerHTML = m.sugs.map(s=>`
+    <button class="sug" style="--acc:${m.acc}" onclick='runSuggestion(${JSON.stringify(s)})'>
+      ${s.t} <span class="sc">${ABILITY[s.id].cost} cr</span></button>`).join('');
+  renderDropup(); hidePreview();
+  // send button uses mode accent when a draft exists — keep gradient for demo
+}
+function currentSampleAction(){ return curMode().sample; }
+
+/* cost preview — the "exact cost before it runs" moment */
+function runSuggestion(s){
+  const a=ABILITY[s.id], m=curMode();
+  document.getElementById('preview').style.setProperty('--acc', m.acc);
+  document.getElementById('pvIc').innerHTML = iconSvg(m,'#fff');
+  document.getElementById('pvTitle').textContent = s.t || s.title;
+  document.getElementById('pvMode').textContent = m.name+' agent';
+  document.getElementById('pvCost').textContent = a.cost;
+  document.getElementById('pvRunCost').textContent = a.cost;
+  document.getElementById('pvAfter').textContent = (200-a.cost);
+  document.getElementById('pvSub').innerHTML = `Runs now · deducted only when it completes · balance 200 → <b>${200-a.cost}</b>`;
+  const pv=document.getElementById('preview'); pv.classList.add('show'); pv.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function hidePreview(){ document.getElementById('preview').classList.remove('show'); }
+
+/* ---------------- init ---------------- */
+renderCats(); renderVols(); recompute(); renderDropup();
+// pre-select a starter set so the estimate isn't empty on load
+['design','video','campaign'].forEach(id=>toggleAbility(id));
+</script>
+</body>
+</html>

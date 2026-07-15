@@ -13,7 +13,7 @@ import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 import { usePreferredLanguage } from "@/hooks/use-preferred-language";
 import { getHomeStrings, buildGreeting } from "./home-i18n";
-import { WORKSPACES } from "./workspaces";
+import { WORKSPACES, type Workspace } from "./workspaces";
 import { BrandMark, BrandWordmark } from "./brand-mark";
 import { LanguageSwitcher } from "./language-switcher";
 import { useHomeAgent, type ConversationSummary } from "./use-home-agent";
@@ -72,6 +72,7 @@ import { FocusedWeb, FocusedLanding } from "./focused/web-workspace";
 import { FocusedPortfolio } from "./focused/portfolio-workspace";
 import { FocusedReel } from "./focused/reel-workspace";
 import { FocusedDirector } from "./focused/director-workspace";
+import { FocusedUgc } from "./focused/ugc-workspace";
 import { FocusedOutreach } from "./focused/outreach-workspace";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 
@@ -166,6 +167,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   voice: { label: "Voice studio", subtitle: "Voiceovers, narration & voice cloning", icon: Mic },
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
   director: { label: "Video Studio", subtitle: "Direct AI, avatar & reel into one film", icon: Clapperboard },
+  ugc: { label: "UGC Studio", subtitle: "Creator videos with lip-sync", icon: Sparkles },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
   plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
@@ -801,7 +803,11 @@ export function AgentHome() {
   const fLabel = isDesignSurface ? "Design Studio" : isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fMeta ? fMeta.label : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
   const FIcon = isDesignSurface ? Palette : isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fMeta ? fMeta.icon : fws?.icon ?? Sparkles;
   // Consolidated rail: Print → Create, Campaign → Publish, Leads → Outreach.
-  const primaryWorkspaces = WORKSPACES.filter((w) => !["business", "print", "campaign", "leads"].includes(w.key));
+  // Film gets its own rail section, right after Agent (first among the creative
+  // groups). Clicking it opens the Film group's card-grid menu, like the others.
+  const FILM_WS: Workspace = { key: "film", label: "Film", icon: Clapperboard, route: "/home/director", items: [] };
+  const basePrimary = WORKSPACES.filter((w) => !["business", "print", "campaign", "leads"].includes(w.key));
+  const primaryWorkspaces = [basePrimary[0], FILM_WS, ...basePrimary.slice(1)];
   const businessWorkspace = WORKSPACES.find((w) => w.key === "business");
 
   const openWorkspace = (key: string) => {
@@ -1454,6 +1460,8 @@ export function AgentHome() {
                   <AdBuilderCanvas embedded refreshKey={actionCount} canvasRef={videoOpsRef} />
                 ) : focused === "director" ? (
                   <FocusedDirector onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "ugc" ? (
+                  <FocusedUgc onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "avatar" ? (
                   <FocusedAvatar onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (
