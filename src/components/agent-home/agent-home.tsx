@@ -73,6 +73,7 @@ import { FocusedPortfolio } from "./focused/portfolio-workspace";
 import { FocusedReel } from "./focused/reel-workspace";
 import { FocusedDirector } from "./focused/director-workspace";
 import { FocusedUgc } from "./focused/ugc-workspace";
+import { FocusedProductAds } from "./focused/product-ads-workspace";
 import { FocusedOutreach } from "./focused/outreach-workspace";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 
@@ -124,6 +125,7 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   media: "Ask the agent to find or generate media — e.g. “make me a product image”.",
   logo: "Ask the agent to generate a logo for your brand.",
   video: "Ask the agent to create a video — an ad, promo, or reel.",
+  productads: "Ask the agent for a product ad — e.g. “a 10s luxury ad for my perfume”. Add a clean hero photo of the product.",
   ugc: "Ask the agent for a UGC creator video — e.g. “a testimonial about my serum, 8 seconds”. Add a photo of the creator and the script they should say.",
   reel: "Ask the agent to turn a video into reels — paste a link and it finds the best moments, reframes to 9:16 and captions them.",
   avatar: "Ask the agent to make an avatar video — e.g. “a 30s intro of my avatar for our launch”.",
@@ -169,6 +171,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
   director: { label: "Filmmaking", subtitle: "Direct a multi-scene cinematic film", icon: Clapperboard },
   ugc: { label: "UGC Studio", subtitle: "Creator videos with lip-sync", icon: Sparkles },
+  productads: { label: "Product Ads", subtitle: "Cinematic ads from a product photo", icon: Megaphone },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
   plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
@@ -191,6 +194,8 @@ function focusedSurfaceContext(focused: string, brandName?: string | null, openR
       return `The user has the **Publish** workspace open (posts, scheduling, content calendar). Default their intent to creating, scheduling, or managing posts.`;
     case "portfolio":
       return `The user has the **Portfolio Studio** open — their Portfolio / Digital Résumé site (a shareable public page, distinct from the Website Studio). OPERATE it for them; don't tell them to open menus. To BUILD one they don't have: build_portfolio — ask business vs personal; for a personal résumé, have them upload their CV and READ it to extract experience/skills/education; pull business content from the Brand Kit. To EDIT: call get_portfolio_content first (current header, sections, style, hero media, access), then edit_portfolio — send a PARTIAL patch; the \`sections\` array is replaced wholesale so include existing items you keep. Pick a STYLE that reads like a portfolio/digital-ad piece (spotlight/cinematic/showcase/editorial/neon/card); spotlight/cinematic/neon support a full-bleed VIDEO hero. To gate access, set access.view or access.download to 'email' (visitors verify a 6-digit code and are saved to Contacts). To go live set status:'PUBLISHED'. For a CUSTOM DOMAIN, do it end-to-end: find_domain (search options + prices from their name/brand), then buy_portfolio_domain to purchase + AUTO-ATTACH the one they pick (charges their saved card on Confirm, registers it, publishes + wires DNS/SSL automatically — they never touch DNS), or connect_portfolio_domain if they already own one. Don't just describe steps — do the work.`;
+    case "productads":
+      return `The user has the **Product Ads** studio OPEN — a single-shot playground that turns a product HERO STILL into a cinematic, timed TVC-style ad. OPERATE it; don't narrate. The brief needs: a clean product photo, the AD DIRECTION (a timed camera sequence — e.g. 0-3s orbit, 3-6s pull back, 6-10s hero end frame — plus lighting and mood), a mood (Luxury/Clean/Bold/Warm), aspect, and duration (≤10s). Several TAKES generate at once; the user keeps the best and can publish one. Help them write the direction in timed beats and name the lighting/colour grade. Never add on-screen text and never change the product itself. Don't reply with a generic menu.`;
     case "ugc":
       return `The user has the **UGC Studio** OPEN — a single-shot playground that turns a PHOTO of a creator + a SCRIPT into a lip-synced creator video (the person says the exact words). OPERATE it; don't narrate. The brief needs: a creator photo, the spoken script (2-3 short sentences — it must fit 6-10s at ~2 words/sec), a style (Authentic / Testimonial / Unboxing / GRWM), aspect (9:16 or 1:1) and duration. Several TAKES can be generated at once and land on the canvas; the user keeps the ones they like and can publish a take to their channels. Help them write a natural, conversational script that sounds like a real creator — never salesy. Don't reply with a generic menu.`;
     case "reel":
@@ -1465,6 +1470,8 @@ export function AgentHome() {
                   <FocusedDirector onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "ugc" ? (
                   <FocusedUgc onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "productads" ? (
+                  <FocusedProductAds onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "avatar" ? (
                   <FocusedAvatar onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (

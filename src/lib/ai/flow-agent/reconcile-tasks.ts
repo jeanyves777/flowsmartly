@@ -9,6 +9,7 @@ import { creditService } from "@/lib/credits";
 import { resumeAvatarRender } from "@/lib/avatar-studio";
 import { resumeStuckDirectorScenes } from "@/lib/video-director/engines";
 import { resumeStuckUgcTakes } from "@/lib/ugc-studio/engines";
+import { resumeStuckAdTakes } from "@/lib/product-ads/engines";
 
 /**
  * AgentTask recovery — the safety net for Flow-AI background jobs.
@@ -394,6 +395,11 @@ export async function runTaskRecovery(): Promise<RecoveryResult> {
     const ugcTakes = await resumeStuckUgcTakes().catch(() => ({ scanned: 0, changed: 0 }));
     result.scanned += ugcTakes.scanned;
     result.recovered += ugcTakes.changed;
+
+    // …and Product Ads takes.
+    const adTakes = await resumeStuckAdTakes().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += adTakes.scanned;
+    result.recovered += adTakes.changed;
 
     if (result.recovered || result.failed) {
       console.log(
