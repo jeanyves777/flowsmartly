@@ -1559,7 +1559,7 @@ export function AgentHome() {
                                     <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-black/20" />
                                   </>
                                 )}
-                                <span className="absolute left-2.5 top-2.5 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">{grp.label}</span>
+                                <span className="absolute left-2.5 top-2.5 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">{sk.title}</span>
                                 {!sk.thumb && <Icon className={cn("opacity-90", large ? "h-10 w-10" : "h-7 w-7")} style={{ color: acc }} />}
                               </span>
                               <span className={large ? "p-5" : "p-3.5"}>
