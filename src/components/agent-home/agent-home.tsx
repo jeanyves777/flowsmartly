@@ -1479,10 +1479,29 @@ export function AgentHome() {
                 </h1>
                 <p className="mb-6 mt-2 text-[14px] leading-relaxed text-muted-foreground sm:text-[15px]">{s.sub}</p>
 
-                {/* The selected agent GROUP's skills as a card-grid "menu view".
-                    Adaptive columns (4 → 2-col · 5/6 → 3-col); a leftover cell
-                    fills with an "Ask the agent" card. Cards open the studio. */}
-                {(() => {
+                {/* Agent home (activeWs === "home") shows quick custom-prompt
+                    chips; a GROUP section shows that group's card-grid menu. */}
+                {activeWs === "home" ? (
+                  <>
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                      {(suggestions.length ? suggestions : s.fallbackChips.map((label, i) => ({ label, hint: "", icon: ["palette", "calendar", "video", "bag"][i], prompt: label }))).map((sug, i) => {
+                        const Icon = SUG_ICON[sug.icon] ?? FALLBACK_ICONS[i] ?? Sparkles;
+                        return (
+                          <button key={i} onClick={() => send(sug.prompt)} className="flex items-start gap-3 rounded-[13px] border border-border bg-card p-3.5 text-start transition-all hover:-translate-y-0.5 hover:border-brand-500/60 hover:shadow-lg">
+                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Icon className="h-[18px] w-[18px]" /></span>
+                            <span className="min-w-0">
+                              <span className="block text-[13.5px] font-semibold">{sug.label}</span>
+                              {sug.hint && <span className="mt-0.5 block text-[11.5px] leading-snug text-muted-foreground">{sug.hint}</span>}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {!suggestionsLoaded && !suggestions.length && (
+                      <div className="mt-3"><FlowLoader size={24} withMark label="Personalizing suggestions…" /></div>
+                    )}
+                  </>
+                ) : (() => {
                   const grp = getAgentGroup(agentMode) ?? AGENT_GROUPS[0];
                   const n = grp.skills.length;
                   const cols = n === 4 ? 2 : 3;
@@ -1554,7 +1573,7 @@ export function AgentHome() {
                 </div>
                 <span className="hidden text-[11px] text-muted-foreground sm:inline">Chat keeps results here · View opens the {AGENT_VIEW[agentMode]?.label ?? "studio"}, where the agent works on the canvas.</span>
               </div>
-              <Composer showAgentSwitcher agentMode={agentMode} onAgentModeChange={setAgentMode} onSend={(t, sm, atts, am) => send(t, sm, undefined, agentGroupContext(am ?? agentMode), { attachments: atts })} sending={sending} placeholder={s.placeholder} />
+              <Composer showAgentSwitcher agentMode={agentMode} onAgentModeChange={(m) => { setAgentMode(m); setActiveWs(m); }} onSend={(t, sm, atts, am) => send(t, sm, undefined, agentGroupContext(am ?? agentMode), { attachments: atts })} sending={sending} placeholder={s.placeholder} />
             </div>
             <p className="mx-auto mt-2 hidden max-w-[1040px] text-center text-[11px] text-muted-foreground sm:block">{s.hint}</p>
           </div>
