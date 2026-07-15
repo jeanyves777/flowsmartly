@@ -79,6 +79,9 @@ class GrokVideoClient {
   async generateVideo(
     prompt: string,
     options: {
+      /** Which xAI video model. Default "grok-imagine-video" (ref/img-to-video). Use
+       *  "grok-imagine-video-1.5" for image-to-video with EXACT scripted lip-sync (UGC). */
+      model?: string;
       duration?: number;
       aspectRatio?: VideoAspectRatio;
       resolution?: VideoResolution;
@@ -98,6 +101,7 @@ class GrokVideoClient {
     } = {}
   ): Promise<GrokVideoResult> {
     const {
+      model = "grok-imagine-video",
       duration = 8,
       aspectRatio = "16:9",
       resolution = "720p",
@@ -118,7 +122,7 @@ class GrokVideoClient {
     console.log(`[GrokVideo] Prompt (${safePrompt.length} chars): ${safePrompt.substring(0, 100)}...`);
 
     const bodyPayload: Record<string, unknown> = {
-      model: "grok-imagine-video",
+      model,
       prompt: safePrompt,
       duration,
       aspect_ratio: aspectRatio,

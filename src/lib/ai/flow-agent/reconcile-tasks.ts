@@ -8,6 +8,7 @@ import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
 import { resumeAvatarRender } from "@/lib/avatar-studio";
 import { resumeStuckDirectorScenes } from "@/lib/video-director/engines";
+import { resumeStuckUgcTakes } from "@/lib/ugc-studio/engines";
 
 /**
  * AgentTask recovery — the safety net for Flow-AI background jobs.
@@ -388,6 +389,11 @@ export async function runTaskRecovery(): Promise<RecoveryResult> {
     const directorScenes = await resumeStuckDirectorScenes().catch(() => ({ scanned: 0, changed: 0 }));
     result.scanned += directorScenes.scanned;
     result.recovered += directorScenes.changed;
+
+    // Same for UGC Studio takes (batch renders that survive a page-leave / deploy restart).
+    const ugcTakes = await resumeStuckUgcTakes().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += ugcTakes.scanned;
+    result.recovered += ugcTakes.changed;
 
     if (result.recovered || result.failed) {
       console.log(
