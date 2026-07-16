@@ -107,6 +107,23 @@
 
   .hint{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);font-size:11px;color:var(--muted);background:rgba(21,21,28,.85);border:1px solid var(--border);border-radius:999px;padding:6px 13px;z-index:20}
 
+  /* cast chips + the drafted prompt on every scene */
+  .cast-row{display:flex;flex-wrap:wrap;gap:4px;margin:7px 11px 0}
+  .cc{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;border:1px solid var(--border);background:var(--card2);border-radius:999px;padding:2px 7px 2px 2px;color:var(--text)}
+  .cc i{width:13px;height:13px;border-radius:50%;display:grid;place-items:center;font-size:7px;font-style:normal;font-weight:900;color:#fff}
+  .cc.none{padding:2px 7px;color:#5f5f6b;border-style:dashed;font-weight:600}
+  .prompt{display:flex;align-items:flex-start;gap:5px;margin:6px 11px 0;padding:6px 7px;border-radius:9px;background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.22)}
+  .pl-l{font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--violet);flex:none;margin-top:1px}
+  .pt{flex:1;font-size:9px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .pe{flex:none;width:16px;height:16px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:9px;cursor:pointer}
+  .pe:hover{border-color:var(--violet);color:var(--violet)}
+  /* cast node */
+  .node.castn{width:238px;border-color:rgba(251,191,36,.35)}
+  .cast-grid{display:flex;gap:8px;padding:6px 11px 0}
+  .cm{flex:1;border-radius:10px;background:var(--card2);border:1px solid var(--border);padding:8px;text-align:center}
+  .cm .sheet{width:100%;aspect-ratio:1;border-radius:8px;display:grid;place-items:center;font-size:15px;font-weight:900;color:#fff;margin-bottom:5px}
+  .cm b{font-size:10px;display:block}.cm span{font-size:8px;color:var(--muted)}
+
   /* per-scene controls (Director-grade: direct it after the draft) */
   .ctl{margin:8px 11px 0;padding:8px 9px;border-radius:10px;background:var(--card2);border:1px solid var(--border);display:flex;flex-direction:column;gap:7px}
   .ctl-row{display:flex;align-items:center;gap:7px}
@@ -344,6 +361,18 @@
       </p>
     </div>
 
+    <!-- CAST (narrated video only) -->
+    <div class="sec vo" id="castSec">
+      <p class="b-lbl">Cast <span class="tip">— recurring subjects, read from your script</span></p>
+      <div class="voices" id="castList"></div>
+      <p class="note">
+        <b>Why cast a narration?</b> The same person turns up across many images and video scenes. Each subject is anchored
+        by a turnaround sheet and fed into every shot that features them — the same pipeline the Filmmaking studio already uses —
+        so Ama looks like Ama in shot 2 and shot 9. They're <b>depicted, never speakers</b>: your narration is one continuous
+        voice across the whole story, so nothing here has to lip-sync.
+      </p>
+    </div>
+
     <!-- CONFIG -->
     <div class="sec">
       <p class="b-lbl">Config</p>
@@ -419,13 +448,34 @@ const LIB_VOICES = [
   {n:"Kwame",  m:"Male · African · Rich",     c:"linear-gradient(135deg,#fbbf24,#b45309)", i:"K"},
   {n:"Lena",   m:"Female · French · Soft",    c:"linear-gradient(135deg,#c084fc,#6d28d9)", i:"L"},
 ];
+// Recurring subjects. The narration is ONE voice across the whole story, so cast are
+// DEPICTED, never speakers — which is why nothing here has to lip-sync. Each is anchored
+// by a turnaround sheet (same pipeline the Director already uses) so the same person
+// looks identical in every image and every video scene.
+const CAST = [
+  {id:"c1", n:"Ama", d:"Cocoa farmer, 40s, indigo headwrap, weathered hands.", c:"linear-gradient(135deg,#f59e0b,#b45309)", i:"A", in:[1,3,4]},
+  {id:"c2", n:"Kwesi", d:"Her son, 20s, green football shirt, quick smile.",   c:"linear-gradient(135deg,#34d399,#047857)", i:"K", in:[4,5]},
+];
+
 // "video" = a REAL AI-generated video, or one the user uploads. Never stock.
+// `p` is the DRAFTED prompt — every scene's prompt is written up front from the brief so
+// the whole flow is consistent, then each one stays editable.
 const SCENES = [
-  {k:"still", ic:"🖼", kind:"Image · push-in", src:"AI", line:"Every year, <b>40% of the food we grow</b> never reaches a plate.", dur:"0:06"},
-  {k:"clip",  ic:"🎬", kind:"Video · generated", src:"AI", line:"Not because we can't grow enough — but because of <b>the twelve hours after harvest</b>.", dur:"0:05"},
-  {k:"still", ic:"🖼", kind:"Image · push-in", src:"AI", line:"Heat. Distance. A truck that didn't come.", dur:"0:05"},
-  {k:"char",  ic:"🗣", kind:"Character · to camera", src:"AI", line:"“We used to lose half the crop before market day.”", dur:"0:07"},
-  {k:"clip",  ic:"🎬", kind:"Video · yours", src:"Upload", line:"This is the story of the farmers <b>rewriting those twelve hours</b>.", dur:"0:06"},
+  {k:"still", ic:"🖼", kind:"Image · push-in", src:"AI", cast:[], dur:"0:06",
+   line:"Every year, <b>40% of the food we grow</b> never reaches a plate.",
+   p:"Wide aerial, cocoa smallholding at first light, mist in the valley, warm low sun, documentary photography, shallow haze, 35mm."},
+  {k:"clip",  ic:"🎬", kind:"Video · generated", src:"AI", cast:["c1"], dur:"0:05",
+   line:"Not because we can't grow enough — but because of <b>the twelve hours after harvest</b>.",
+   p:"AMA walks a row of drying pods, hands brushing them, slow dolly follow, late afternoon, dust in the light."},
+  {k:"still", ic:"🖼", kind:"Image · push-in", src:"AI", cast:[], dur:"0:05",
+   line:"Heat. Distance. A truck that didn't come.",
+   p:"Empty red-dirt road to the horizon, heat shimmer, single tyre track, harsh midday, desaturated."},
+  {k:"clip",  ic:"🎬", kind:"Video · generated", src:"AI", cast:["c1","c2"], dur:"0:07",
+   line:"So they built the cold room themselves — twelve hours became three days.",
+   p:"AMA and KWESI lift crates into a small solar cold room, working together, handheld, practical light, breath visible."},
+  {k:"clip",  ic:"🎬", kind:"Video · yours", src:"Upload", cast:["c2"], dur:"0:06",
+   line:"This is the story of the farmers <b>rewriting those twelve hours</b>.",
+   p:"— your uploaded clip —"},
 ];
 
 /* ---------------- brief ---------------- */
@@ -504,6 +554,31 @@ function miniWaves(){
   });
 }
 
+function addCastNode(x,y){
+  const n = document.createElement('div');
+  n.className='node castn'; n.style.left=x+'px'; n.style.top=y+'px'; n.dataset.node='__cast';
+  n.innerHTML = `
+    <div class="n-head"><div class="ic" style="background:rgba(251,191,36,.15);color:var(--amber)">👥</div>
+      <b>Cast</b><span class="tag fin">anchored</span></div>
+    <div class="cast-grid">${CAST.map(c=>`
+      <div class="cm">
+        <div class="sheet" style="background:${c.c}">${c.i}</div>
+        <b>${c.n}</b><span>in ${c.in.length} shots</span>
+      </div>`).join('')}</div>
+    <div class="acts">
+      <button class="a prime" onclick="alert('Review the cast: portrait + turnaround sheet per subject, re-roll a look, rename, or add someone the script missed.')">👥 Review cast</button>
+      <button class="a" onclick="alert('Reuse a subject already saved in your cast library — for a series that keeps the same people.')">📁 Reuse</button>
+    </div>`;
+  document.getElementById('board').appendChild(n);
+  drag(n);
+  return n;
+}
+function editPrompt(b){
+  const wrap = b.closest('.prompt');
+  const cur = wrap.querySelector('.pt').textContent;
+  const next = prompt('Drafted prompt for this shot — edit and only this shot re-renders.\n\nCast named here stay anchored to their sheet.', cur);
+  if(next && next.trim()){ wrap.querySelector('.pt').textContent = next.trim(); regenVisual(b.closest('.node').querySelector('.acts .a:nth-child(2)')); }
+}
 function addTakeNode(i, x, y){
   const id = 'n'+(++seq);
   const n = document.createElement('div');
@@ -546,6 +621,15 @@ function addSceneNode(s, i, x, y){
       <div class="loader"><div class="sp"></div><div class="lbar"><span style="width:10%"></span></div></div>
     </div>
     <div class="line">${s.line}</div>
+    <div class="cast-row">${(s.cast||[]).map(id=>{
+      const c = CAST.find(x=>x.id===id); if(!c) return '';
+      return `<span class="cc" title="${c.n} — anchored to the cast sheet, so they look the same in every shot"><i style="background:${c.c}">${c.i}</i>${c.n}</span>`;
+    }).join('') || '<span class="cc none">no cast in this shot</span>'}</div>
+    <div class="prompt" title="The drafted prompt for this shot — edit it and only this shot re-renders">
+      <span class="pl-l">Prompt</span>
+      <span class="pt">${s.p}</span>
+      <button class="pe" onclick="editPrompt(this)">✎</button>
+    </div>
     <div class="ctl">
       <div class="ctl-row">
         <span class="ctl-l">Type</span>
@@ -618,7 +702,9 @@ function addPublishNode(x,y){
 function wires(){
   const svg = document.getElementById('wires');
   const board = document.getElementById('board').getBoundingClientRect();
-  const ids = ['__brief', ...nodes.map(n=>n.dataset.node), '__out', '__publish'];
+  // brief → cast → scenes → film → publish (publish IS wired — it's the last link)
+  const ids = ['__brief', ...(document.querySelector('[data-node="__cast"]') ? ['__cast'] : []),
+               ...nodes.map(n=>n.dataset.node), '__out', '__publish'];
   let d = '';
   for(let i=0;i<ids.length-1;i++){
     const a = document.querySelector(`[data-node="${ids[i]}"]`), b = document.querySelector(`[data-node="${ids[i+1]}"]`);
@@ -636,12 +722,16 @@ function wires(){
 function generate(){
   closeBrief();
   document.getElementById('empty').style.display='none';
-  document.querySelectorAll('.node.take,.node.fin,.node.pub,.ins').forEach(n=>n.remove());
+  document.querySelectorAll('.node.take,.node.fin,.node.pub,.node.castn,.ins').forEach(n=>n.remove());
   nodes = [];
   briefNode();
 
+  // Cast is drafted from the script BEFORE any visual, so every shot that features a
+  // subject renders against the same anchored sheet.
+  if(mode==='film') addCastNode(28, 470);
+
   const list = mode==='film' ? SCENES : Array.from({length:takes},(_,i)=>i);
-  const startX = 330, gapX = 278, colY = [96, 430];
+  const startX = mode==='film' ? 316 : 330, gapX = 296, colY = [96, 470];
   list.forEach((s,i)=>{
     const x = startX + Math.floor(i/2)*gapX, y = colY[i%2];
     nodes.push(mode==='film' ? addSceneNode(s,i,x,y) : addTakeNode(i,x,y));
@@ -831,6 +921,18 @@ document.getElementById('voicesLib').innerHTML = LIB_VOICES.map((v,i)=>`
     <div class="mini" data-mini></div>
     <button class="pl" onclick="event.stopPropagation();playSample(this)">▶ Sample</button>
   </div>`).join('');
+document.getElementById('castList').innerHTML = CAST.map(c=>`
+  <div class="voice mine on" style="cursor:default">
+    <div class="vh"><div class="av" style="background:${c.c}">${c.i}</div>
+      <div><h3>${c.n}</h3><div class="meta">in ${c.in.length} shots</div></div></div>
+    <p style="margin:7px 0 0;font-size:9px;color:var(--muted);line-height:1.35">${c.d}</p>
+    <button class="pl" onclick="alert('Turnaround sheet + portrait — re-roll the look, or rename.')">👥 Sheet</button>
+  </div>`).join('') + `
+  <div class="clonecard" onclick="alert('Add a subject the script did not name — or reuse one from your cast library.')">
+    <div class="rec" style="background:rgba(167,139,250,.15);color:var(--violet)">+</div>
+    <b>Add subject</b><span>or reuse from library</span>
+  </div>`;
+
 function pick(el, group, name){
   document.getElementById(group).querySelectorAll('.tpl').forEach(t=>t.classList.remove('on'));
   el.classList.add('on');
