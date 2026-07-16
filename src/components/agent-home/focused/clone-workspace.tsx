@@ -21,12 +21,12 @@ import type { CloneProject, CloneIdentity, CloneShot, CloneAspect, CloneQuality 
 const CT = "/Studio_Menus_Thumnail/Clone_Yourself";
 const SCENES: { id: string; n: string; d: string; thumb?: string }[] = [
   { id: "podcast", n: "Podcast studio", d: "Mic in front, warm acoustic panels.", thumb: `${CT}/clone-01.webp` },
-  { id: "office", n: "Modern office", d: "Desk, soft daylight, clean brand look.", thumb: `${CT}/clone-16.webp` },
+  { id: "office", n: "Modern office", d: "Desk, soft daylight, clean brand look.", thumb: `${CT}/clone-08.webp` },
   { id: "studio", n: "Studio portrait", d: "Seamless backdrop, headshot lighting.", thumb: `${CT}/clone-02.webp` },
-  { id: "outdoor", n: "Outdoor", d: "City or nature, natural light.", thumb: `${CT}/clone-05.webp` },
+  { id: "outdoor", n: "Outdoor", d: "City or nature, natural light.", thumb: `${CT}/clone-11.webp` },
   { id: "webinar", n: "Webinar / stage", d: "Screen + spotlight, presenting.", thumb: `${CT}/clone-09.webp` },
   { id: "duo", n: "You × You", d: "Two of you in one scene — interview yourself.", thumb: `${CT}/clone-main.webp` },
-  { id: "bgonly", n: "Background only", d: "Just the scene, no you — use it live." },
+  { id: "bgonly", n: "Background only", d: "Just the scene, no you — use it live.", thumb: `${CT}/clone-10.webp` },
 ];
 const SCENE_PROMPT: Record<string, string> = {
   podcast: "In a modern podcast studio, looking directly at the camera with a microphone in front, warm cinematic lighting.",
@@ -37,8 +37,23 @@ const SCENE_PROMPT: Record<string, string> = {
   duo: "TWO of the exact same person in one podcast scene, sitting across a table interviewing each other — same face on both, both looking natural.",
   bgonly: "A modern podcast studio scene — warm acoustic panels, soft key light, a table and mic stand.",
 };
-const OUTFITS = ["Keep current", "Suit & tie", "Smart casual", "Knit sweater", "Long-sleeve shirt", "T-shirt", "Blazer, no tie"];
-const POSES = ["Looking at camera", "Three-quarter", "Seated at desk", "Standing, arms crossed", "Mid-gesture, talking", "Head & shoulders"];
+const OUTFITS: { n: string; thumb: string }[] = [
+  { n: "Keep current", thumb: `${CT}/clone-06.webp` },
+  { n: "Suit & tie", thumb: `${CT}/clone-13.webp` },
+  { n: "Smart casual", thumb: `${CT}/clone-14.webp` },
+  { n: "Knit sweater", thumb: `${CT}/clone-02.webp` },
+  { n: "Long-sleeve shirt", thumb: `${CT}/clone-03.webp` },
+  { n: "T-shirt", thumb: `${CT}/clone-04.webp` },
+  { n: "Blazer, no tie", thumb: `${CT}/clone-05.webp` },
+];
+const POSES: { n: string; thumb: string }[] = [
+  { n: "Looking at camera", thumb: `${CT}/clone-12.webp` },
+  { n: "Three-quarter", thumb: `${CT}/clone-05.webp` },
+  { n: "Seated at desk", thumb: `${CT}/clone-08.webp` },
+  { n: "Standing, arms crossed", thumb: `${CT}/clone-15.webp` },
+  { n: "Mid-gesture, talking", thumb: `${CT}/clone-16.webp` },
+  { n: "Head & shoulders", thumb: `${CT}/clone-17.webp` },
+];
 
 const isUrl = (u?: string | null): u is string => !!u && /^https?:\/\//i.test(u);
 
@@ -307,8 +322,8 @@ function ShotCard({ shot, index, style, scene, onRedo, onEditPrompt, onDelete, o
       </button>
       {shot.kind === "person" && (
         <div className="mx-3 mt-1.5 flex flex-wrap gap-1">
-          <button onClick={() => pick("Outfit", OUTFITS)} className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[9px] font-semibold hover:border-brand-500 hover:text-brand-500"><Shirt className="h-2.5 w-2.5" /> Outfit</button>
-          <button onClick={() => pick("Pose", POSES)} className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[9px] font-semibold hover:border-brand-500 hover:text-brand-500"><PersonStanding className="h-2.5 w-2.5" /> Pose</button>
+          <button onClick={() => pick("Outfit", OUTFITS.map((o) => o.n))} className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[9px] font-semibold hover:border-brand-500 hover:text-brand-500"><Shirt className="h-2.5 w-2.5" /> Outfit</button>
+          <button onClick={() => pick("Pose", POSES.map((o) => o.n))} className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[9px] font-semibold hover:border-brand-500 hover:text-brand-500"><PersonStanding className="h-2.5 w-2.5" /> Pose</button>
           <button onClick={() => pick("Scene", SCENES.map((x) => x.n))} className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[9px] font-semibold hover:border-brand-500 hover:text-brand-500">🎬 Scene</button>
           <button onClick={onBgOnly} className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[9px] font-semibold hover:border-amber-500 hover:text-amber-500">🪟 Just background</button>
         </div>
@@ -409,11 +424,19 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">What are we making?</p>
           <div className="flex gap-2.5">
-            {([["photo", ImageIcon, "Photoshoot", "You in any scene, outfit & pose — as images."],
-               ["actor", Clapperboard, "Actor clone", "A reusable you — send it into UGC or a Film to make videos."]] as const).map(([t, Icon, label, hint]) => (
-              <button key={t} onClick={() => setType(t)} className={cn("flex max-w-[320px] flex-1 items-center gap-2.5 rounded-xl border-2 p-3 text-left transition", type === t ? "border-brand-500 bg-brand-500/5" : "border-border bg-muted/30 hover:-translate-y-0.5")}>
-                <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-gradient-to-br from-brand-500 to-violet-700 text-white"><Icon className="h-4 w-4" /></span>
-                <span><b className="block text-[12.5px]">{label}</b><span className="text-[10px] leading-snug text-muted-foreground">{hint}</span></span>
+            {([["photo", ImageIcon, "Photoshoot", "You in any scene, outfit & pose — as images.", `${CT}/clone-07.webp`],
+               ["actor", Clapperboard, "Actor clone", "A reusable you — send it into UGC or a Film to make videos.", `${CT}/clone-main.webp`]] as const).map(([t, Icon, label, hint, thumb]) => (
+              <button key={t} onClick={() => setType(t)} className={cn("flex max-w-[320px] flex-1 flex-col overflow-hidden rounded-xl border-2 text-left transition", type === t ? "border-brand-500" : "border-border hover:-translate-y-0.5")}>
+                <span className="relative block aspect-[16/7] w-full overflow-hidden bg-muted">
+                  <img src={thumb} alt="" className="h-full w-full object-cover" />
+                  <span className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                  <span className="absolute left-2 top-2 grid h-7 w-7 place-items-center rounded-lg bg-black/45 text-white backdrop-blur"><Icon className="h-3.5 w-3.5" /></span>
+                  {type === t && <span className="absolute right-2 top-2 rounded-full bg-brand-500 px-2 py-0.5 text-[9px] font-bold text-white">Selected</span>}
+                </span>
+                <span className={cn("block p-2.5", type === t ? "bg-brand-500/5" : "bg-muted/30")}>
+                  <b className="block text-[12.5px]">{label}</b>
+                  <span className="text-[10px] leading-snug text-muted-foreground">{hint}</span>
+                </span>
               </button>
             ))}
           </div>
@@ -475,14 +498,34 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
           </div>
 
           {/* outfit + pose */}
-          <div className="mt-5 flex flex-wrap gap-7">
-            <div>
-              <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Outfit</p>
-              <div className="flex flex-wrap gap-1.5">{OUTFITS.map((o) => <button key={o} onClick={() => setOutfit(o)} className={cn("rounded-full border px-3 py-1.5 text-[10.5px] font-bold", outfit === o ? "border-brand-500 text-brand-500 bg-brand-500/8" : "border-border text-muted-foreground")}>{o}</button>)}</div>
+          <div className="mt-5">
+            <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Outfit</p>
+            <div className="flex gap-2 overflow-x-auto pb-1.5">
+              {OUTFITS.map((o) => (
+                <button key={o.n} onClick={() => setOutfit(o.n)} className={cn("w-[92px] flex-none overflow-hidden rounded-lg border-2 text-center transition", outfit === o.n ? "border-brand-500" : "border-transparent hover:-translate-y-0.5")}>
+                  <span className="relative block aspect-square w-full overflow-hidden bg-muted">
+                    <img src={o.thumb} alt="" className="h-full w-full object-cover" />
+                    <span className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
+                    {outfit === o.n && <span className="absolute right-1 top-1 rounded-full bg-brand-500 px-1 py-0.5 text-[7px] font-bold text-white">✓</span>}
+                  </span>
+                  <span className={cn("block px-1 py-1 text-[9px] font-bold leading-tight", outfit === o.n ? "text-brand-500" : "text-muted-foreground")}>{o.n}</span>
+                </button>
+              ))}
             </div>
-            <div>
-              <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Pose &amp; framing</p>
-              <div className="flex flex-wrap gap-1.5">{POSES.map((o) => <button key={o} onClick={() => setPose(o)} className={cn("rounded-full border px-3 py-1.5 text-[10.5px] font-bold", pose === o ? "border-brand-500 text-brand-500 bg-brand-500/8" : "border-border text-muted-foreground")}>{o}</button>)}</div>
+          </div>
+          <div className="mt-5">
+            <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Pose &amp; framing</p>
+            <div className="flex gap-2 overflow-x-auto pb-1.5">
+              {POSES.map((o) => (
+                <button key={o.n} onClick={() => setPose(o.n)} className={cn("w-[100px] flex-none overflow-hidden rounded-lg border-2 text-center transition", pose === o.n ? "border-brand-500" : "border-transparent hover:-translate-y-0.5")}>
+                  <span className="relative block aspect-[4/3] w-full overflow-hidden bg-muted">
+                    <img src={o.thumb} alt="" className="h-full w-full object-cover" />
+                    <span className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
+                    {pose === o.n && <span className="absolute right-1 top-1 rounded-full bg-brand-500 px-1 py-0.5 text-[7px] font-bold text-white">✓</span>}
+                  </span>
+                  <span className={cn("block px-1 py-1 text-[9px] font-bold leading-tight", pose === o.n ? "text-brand-500" : "text-muted-foreground")}>{o.n}</span>
+                </button>
+              ))}
             </div>
           </div>
 
