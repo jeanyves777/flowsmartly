@@ -11,20 +11,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Sparkles, FolderOpen, Users, RefreshCw, Upload, X, Image as ImageIcon,
-  Shirt, PersonStanding, Clapperboard, Download, Wand2, Film, Camera,
+  Shirt, PersonStanding, Clapperboard, Download, Wand2, Film, Camera, Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import type { CloneProject, CloneIdentity, CloneShot, CloneAspect, CloneQuality } from "@/lib/clone-studio/types";
 
-const SCENES: { id: string; n: string; d: string }[] = [
-  { id: "podcast", n: "Podcast studio", d: "Mic in front, warm acoustic panels." },
-  { id: "office", n: "Modern office", d: "Desk, soft daylight, clean brand look." },
-  { id: "studio", n: "Studio portrait", d: "Seamless backdrop, headshot lighting." },
-  { id: "outdoor", n: "Outdoor", d: "City or nature, natural light." },
-  { id: "webinar", n: "Webinar / stage", d: "Screen + spotlight, presenting." },
-  { id: "duo", n: "You × You", d: "Two of you in one scene — interview yourself." },
+const CT = "/Studio_Menus_Thumnail/Clone_Yourself";
+const SCENES: { id: string; n: string; d: string; thumb?: string }[] = [
+  { id: "podcast", n: "Podcast studio", d: "Mic in front, warm acoustic panels.", thumb: `${CT}/clone-01.webp` },
+  { id: "office", n: "Modern office", d: "Desk, soft daylight, clean brand look.", thumb: `${CT}/clone-16.webp` },
+  { id: "studio", n: "Studio portrait", d: "Seamless backdrop, headshot lighting.", thumb: `${CT}/clone-02.webp` },
+  { id: "outdoor", n: "Outdoor", d: "City or nature, natural light.", thumb: `${CT}/clone-05.webp` },
+  { id: "webinar", n: "Webinar / stage", d: "Screen + spotlight, presenting.", thumb: `${CT}/clone-09.webp` },
+  { id: "duo", n: "You × You", d: "Two of you in one scene — interview yourself.", thumb: `${CT}/clone-main.webp` },
   { id: "bgonly", n: "Background only", d: "Just the scene, no you — use it live." },
 ];
 const SCENE_PROMPT: Record<string, string> = {
@@ -50,7 +51,15 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
   const [clonesOpen, setClonesOpen] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
   const [batching, setBatching] = useState(false);
+  // Brief mode: a plain "New" starts a SEPARATE project; the canvas "+" / identity
+  // "New shot" APPENDS to the current one (like the Director's New-film vs +).
+  const [briefAdd, setBriefAdd] = useState(false);
+  const [briefSeed, setBriefSeed] = useState<CloneIdentity | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
+
+  const openNew = () => { setBriefAdd(false); setBriefSeed(null); setBriefOpen(true); };
+  const openAdd = () => { setBriefAdd(true); setBriefSeed(activeClone); setBriefOpen(true); };
+  const openAddClone = () => { setBriefAdd(true); setBriefSeed(null); setBriefOpen(true); };
 
   const shots = useMemo(() => project?.shots || [], [project]);
   const activeClone = useMemo(() => project?.clones.find((c) => c.id === project.activeCloneId) || null, [project]);
@@ -169,7 +178,7 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
             <button onClick={() => setClonesOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60"><Users className="h-3.5 w-3.5" /> Clones</button>
           )}
           <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60"><FolderOpen className="h-3.5 w-3.5" /> Library</button>
-          <button onClick={() => setBriefOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-600 px-3 py-1.5 text-[12px] font-semibold text-white"><Sparkles className="h-3.5 w-3.5" /> New shot</button>
+          <button onClick={openNew} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-600 px-3 py-1.5 text-[12px] font-semibold text-white"><Sparkles className="h-3.5 w-3.5" /> New</button>
         </div>, headerSlot)}
 
       {stats.rendering > 0 && (
@@ -191,7 +200,7 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
               <h2 className="text-[18px] font-bold">Lock your look, then become anything</h2>
               <p className="mx-auto mb-4 mt-1 text-[12.5px] text-muted-foreground">Upload a photo or two of yourself — the studio keeps <b>you</b> in any scene, outfit or pose. Make several clones and reuse them in UGC &amp; Film.</p>
               <div className="flex items-center justify-center gap-2.5">
-                <button onClick={() => setBriefOpen(true)} className="rounded-xl bg-gradient-to-r from-brand-500 to-violet-600 px-5 py-3 text-[14px] font-extrabold text-white">✨ Upload &amp; start</button>
+                <button onClick={openNew} className="rounded-xl bg-gradient-to-r from-brand-500 to-violet-600 px-5 py-3 text-[14px] font-extrabold text-white">✨ Upload &amp; start</button>
                 <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-border px-4 py-3 text-[13px] font-semibold hover:border-brand-500/60"><FolderOpen className="h-4 w-4" /> My clones</button>
               </div>
             </div>
@@ -217,7 +226,7 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
                 <p className="px-3 pt-2 text-[10px] leading-snug text-muted-foreground">Identity locked from <b className="text-brand-500">{activeClone.photoUrls.length} photo{activeClone.photoUrls.length !== 1 ? "s" : ""}</b>. Every shot keeps this face &amp; build.</p>
                 <div className="flex gap-1.5 px-3 pb-2 pt-2">
                   <button onClick={() => setClonesOpen(true)} className="flex-1 rounded-lg border border-border py-1.5 text-[10.5px] font-semibold hover:border-brand-500">Switch clone</button>
-                  <button onClick={() => setBriefOpen(true)} className="flex-1 rounded-lg bg-gradient-to-r from-brand-500 to-violet-600 py-1.5 text-[10.5px] font-bold text-white">New shot</button>
+                  <button onClick={openAdd} className="flex-1 rounded-lg bg-gradient-to-r from-brand-500 to-violet-600 py-1.5 text-[10.5px] font-bold text-white">New shot</button>
                 </div>
                 {/* actor handoff */}
                 <div className="flex gap-1.5 px-3 pb-3">
@@ -231,20 +240,29 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
                   onRedo={() => renderShot(s.id)} onEditPrompt={() => editPrompt(s)} onDelete={() => deleteShot(s.id)}
                   onVariant={(label, tweak) => variant(s, label, tweak)} onBgOnly={() => bgOnly(s)} scene={SCENES.find((x) => x.id === s.scene)?.n || s.scene} />
               ))}
+
+              {/* add-a-shot to THIS session, like the Director's canvas + */}
+              {shots.length > 0 && (
+                <button onClick={openAdd} title="Add a shot to this session"
+                  className="absolute grid h-11 w-11 place-items-center rounded-full border border-dashed border-border text-muted-foreground transition hover:border-brand-500 hover:text-brand-500"
+                  style={{ left: shotPos(shots.length).left, top: 240 }}>
+                  <Plus className="h-5 w-5" />
+                </button>
+              )}
             </>
           )}
         </div>
       </div>
 
       {briefOpen && (
-        <BriefSheet project={project} activeClone={activeClone}
+        <BriefSheet project={project} addMode={briefAdd} seedClone={briefSeed}
           onClose={() => setBriefOpen(false)}
           onDone={(p) => { setProject(p); setBriefOpen(false); }} />
       )}
       {clonesOpen && project && (
         <ClonesDrawer project={project} onClose={() => setClonesOpen(false)}
           onPick={async (cid) => { const p = { ...project, activeCloneId: cid }; setProject(p); await save(p); setClonesOpen(false); }}
-          onNew={() => { setClonesOpen(false); setBriefOpen(true); }} />
+          onNew={() => { setClonesOpen(false); openAddClone(); }} />
       )}
       {libOpen && <LibrarySheet onClose={() => setLibOpen(false)} onPick={async (id) => { const j = await fetch(`/api/ai/clone-studio/project/${id}`).then((r) => r.json()); if (j?.success) { setProject(j.data.project); setLibOpen(false); } }} />}
     </div>
@@ -305,21 +323,25 @@ function ShotCard({ shot, index, style, scene, onRedo, onEditPrompt, onDelete, o
 
 // ─────────────────────────────── brief
 
-function BriefSheet({ project, activeClone, onClose, onDone }: {
-  project: CloneProject | null; activeClone: CloneIdentity | null;
+function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
+  project: CloneProject | null;
+  /** true = append to the open project (canvas "+"); false = start a NEW project. */
+  addMode: boolean;
+  /** A clone to preload (add-to-current); null = fresh upload / new project. */
+  seedClone: CloneIdentity | null;
   onClose: () => void; onDone: (p: CloneProject) => void;
 }) {
   const { toast } = useToast();
   const [type, setType] = useState<"photo" | "actor">("photo");
-  const [name, setName] = useState(activeClone?.name || "Me");
-  const [photos, setPhotos] = useState<string[]>(activeClone?.photoUrls || []);
+  const [name, setName] = useState(seedClone?.name || "Me");
+  const [photos, setPhotos] = useState<string[]>(seedClone?.photoUrls || []);
   const [prompt, setPrompt] = useState(SCENE_PROMPT.podcast);
   const [scene, setScene] = useState("podcast");
   const [outfit, setOutfit] = useState("Keep current");
   const [pose, setPose] = useState("Looking at camera");
   const [aspect, setAspect] = useState<CloneAspect>("1:1");
   const [quality, setQuality] = useState<CloneQuality>("standard");
-  const [vars, setVars] = useState(2);
+  const [vars, setVars] = useState(1);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -342,7 +364,7 @@ function BriefSheet({ project, activeClone, onClose, onDone }: {
     if (photos.length === 0) { toast({ title: "Upload a photo of yourself first", description: "That's what locks your identity." }); return; }
     setBusy(true);
     try {
-      const cloneId = activeClone?.id || `clone_${Math.random().toString(36).slice(2, 8)}`;
+      const cloneId = seedClone?.id || `clone_${Math.random().toString(36).slice(2, 8)}`;
       const clone: CloneIdentity = { id: cloneId, name: name.trim() || "Me", photoUrls: photos };
       const mkShot = (i: number) => ({
         id: `shot_${Math.random().toString(36).slice(2, 8)}_${i}`, order: 0,
@@ -351,8 +373,10 @@ function BriefSheet({ project, activeClone, onClose, onDone }: {
       });
       const newShots = Array.from({ length: vars }, (_, i) => mkShot(i));
 
-      let pid = project?.id;
-      if (project) {
+      // Add-mode APPENDS to the open project; otherwise every brief is its OWN new
+      // project (saved separately) so the canvas doesn't cluster into one giant pile.
+      let pid = addMode ? project?.id : undefined;
+      if (addMode && project) {
         const clones = project.clones.some((c) => c.id === cloneId) ? project.clones.map((c) => (c.id === cloneId ? clone : c)) : [...project.clones, clone];
         const p = { ...project, clones, activeCloneId: cloneId, shots: [...project.shots, ...newShots] };
         await fetch(`/api/ai/clone-studio/project/${project.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project: p }) });
@@ -382,7 +406,7 @@ function BriefSheet({ project, activeClone, onClose, onDone }: {
           <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
         </div>
 
-        <div className="overflow-auto p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">What are we making?</p>
           <div className="flex gap-2.5">
             {([["photo", ImageIcon, "Photoshoot", "You in any scene, outfit & pose — as images."],
@@ -432,8 +456,19 @@ function BriefSheet({ project, activeClone, onClose, onDone }: {
             <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Scene</p>
             <div className="flex gap-2 overflow-x-auto pb-1.5">
               {SCENES.map((s) => (
-                <button key={s.id} onClick={() => pickScene(s.id)} className={cn("w-[142px] flex-none rounded-xl border-2 p-2.5 text-left", scene === s.id ? "border-brand-500 bg-brand-500/5" : "border-transparent bg-muted/30 hover:-translate-y-0.5")}>
-                  <b className="block text-[11px]">{s.n}</b><span className="line-clamp-2 text-[9px] leading-snug text-muted-foreground">{s.d}</span>
+                <button key={s.id} onClick={() => pickScene(s.id)} className={cn("w-[150px] flex-none overflow-hidden rounded-xl border-2 text-left transition", scene === s.id ? "border-brand-500" : "border-transparent hover:-translate-y-0.5")}>
+                  {s.thumb ? (
+                    <span className="relative block aspect-[16/10] w-full overflow-hidden bg-muted">
+                      <img src={s.thumb} alt="" className="h-full w-full object-cover" />
+                      <span className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
+                      {scene === s.id && <span className="absolute right-1.5 top-1.5 rounded-full bg-brand-500 px-1.5 py-0.5 text-[8px] font-bold text-white">✓</span>}
+                    </span>
+                  ) : (
+                    <span className="grid aspect-[16/10] w-full place-items-center bg-muted/40 text-[18px]">🪟</span>
+                  )}
+                  <span className={cn("block p-2.5", scene === s.id ? "bg-brand-500/5" : "bg-muted/30")}>
+                    <b className="block text-[11px]">{s.n}</b><span className="line-clamp-2 text-[9px] leading-snug text-muted-foreground">{s.d}</span>
+                  </span>
                 </button>
               ))}
             </div>
