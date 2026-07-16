@@ -7,7 +7,7 @@ import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
 import { resumeAvatarRender } from "@/lib/avatar-studio";
-import { resumeStuckDirectorScenes } from "@/lib/video-director/engines";
+import { resumeStuckDirectorScenes, resumeStuckDirectorFinals } from "@/lib/video-director/engines";
 import { resumeStuckUgcTakes } from "@/lib/ugc-studio/engines";
 import { resumeStuckAdTakes } from "@/lib/product-ads/engines";
 import { resumeStuckTryOnTakes } from "@/lib/try-on/engines";
@@ -391,6 +391,12 @@ export async function runTaskRecovery(): Promise<RecoveryResult> {
     const directorScenes = await resumeStuckDirectorScenes().catch(() => ({ scanned: 0, changed: 0 }));
     result.scanned += directorScenes.scanned;
     result.recovered += directorScenes.changed;
+
+    // …and the final stitch itself. It holds no provider job, so an orphaned stitch
+    // has to be re-run — otherwise "Stitch film" spins forever with nothing to heal it.
+    const directorFinals = await resumeStuckDirectorFinals().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += directorFinals.scanned;
+    result.recovered += directorFinals.changed;
 
     // Same for UGC Studio takes (batch renders that survive a page-leave / deploy restart).
     const ugcTakes = await resumeStuckUgcTakes().catch(() => ({ scanned: 0, changed: 0 }));

@@ -20,19 +20,22 @@ export function channelColor(id: string): string {
   } as Record<string, string>)[id] || "bg-slate-600";
 }
 
-/** The canvas node. Positioned by the host via `style` (absolute left/top). */
-export function PublishNode({ channels, ready, onOpen, style, className }: {
+/** The canvas node. Positioned by the host via `style` (absolute left/top).
+ *  `nodeId` tags it so a host that draws wires can anchor one to this node. */
+export function PublishNode({ channels, ready, onOpen, style, className, nodeId }: {
   channels: PublishChannel[];
   ready: boolean;
   onOpen: () => void;
   style?: React.CSSProperties;
   className?: string;
+  nodeId?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onOpen}
       style={style}
+      data-node={nodeId}
       className={cn(
         "absolute w-[230px] overflow-hidden rounded-2xl border bg-gradient-to-b from-emerald-500/10 to-card text-left shadow-sm transition",
         ready ? "border-emerald-500/40 hover:border-emerald-500/70" : "border-border opacity-90 hover:border-emerald-500/40",

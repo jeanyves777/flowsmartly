@@ -175,6 +175,22 @@ export async function deleteFilm(id: string, userId: string): Promise<boolean> {
 }
 
 /**
+ * Merge-patch the film-level stitch fields. Re-reads first so a heartbeat can't
+ * clobber scene updates landing while the (long) stitch runs.
+ */
+export async function patchFilmFinal(
+  filmId: string,
+  userId: string,
+  patch: Partial<Pick<FilmProject, "finalStatus" | "finalProgress" | "finalVideoUrl" | "finalHeartbeatAt" | "finalTries">>,
+): Promise<FilmProject | null> {
+  const film = await getFilm(filmId, userId);
+  if (!film) return null;
+  Object.assign(film, patch);
+  await saveFilm(filmId, userId, film);
+  return film;
+}
+
+/**
  * Merge-patch a single scene (used by generation kicks + status polling). Returns
  * the updated film, or null if the film/scene is gone. Re-reads before writing so
  * concurrent scene updates don't clobber each other's fields.
