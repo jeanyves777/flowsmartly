@@ -29,8 +29,11 @@ export const NARRATION_STYLES = ["documentary", "explainer", "commercial", "audi
 export type NarrationStyle = (typeof NARRATION_STYLES)[number];
 
 export interface NarrationVoice {
-  /** A cloned VoiceProfile id. When set it wins over the preset knobs below. */
+  /** A cloned VoiceProfile id. When set it wins over everything below. */
   profileId?: string | null;
+  /** A raw ElevenLabs voice id (a library voice the user picked but hasn't saved as a
+   *  profile). Used directly so library voices work without a DB write. */
+  elevenLabsVoiceId?: string | null;
   label: string;
   gender: string;
   accent: string;

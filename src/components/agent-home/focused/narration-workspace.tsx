@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import {
   Mic, Sparkles, FolderOpen, Film, Play, Pause, Image as ImageIcon, Clapperboard,
   Users, RefreshCw, Upload, Pencil, Trash2, Plus, X, Music, Captions, Wand2,
+  Check, Square, Library,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
@@ -51,8 +52,16 @@ const TREATMENTS: { id: VisualTreatment; label: string; hint: string }[] = [
 interface VoiceProfile {
   id: string; name: string; type: string;
   gender?: string | null; accent?: string | null; style?: string | null;
-  openaiVoiceId?: string | null; elevenLabsVoiceId?: string | null;
+  openaiVoiceId?: string | null; elevenLabsVoiceId?: string | null; sampleUrl?: string | null;
 }
+interface LibVoice {
+  voiceId: string; name: string; category: string;
+  description?: string | null; previewUrl?: string | null; labels?: Record<string, string>;
+}
+/** What the narrator picker resolves to: a saved clone, or a raw library voice. */
+type SelVoice =
+  | { kind: "profile"; id: string; label: string; gender?: string | null; accent?: string | null; style?: string | null }
+  | { kind: "eleven"; voiceId: string; label: string };
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 const isUrl = (u?: string | null): u is string => !!u && /^https?:\/\//i.test(u);
@@ -649,6 +658,209 @@ function ShotCard({ shot, index, project, style, onRender, onRewrite, onEditProm
 
 // ─────────────────────────────── brief sheet
 
+// ─────────────────────────────── voice browser
+
+/**
+ * The narrator picker: browse & PREVIEW the library voices (pulled live from
+ * ElevenLabs), or clone your own from a recording / upload right here and use it
+ * on the spot. The selection flows up to the brief.
+ */
+function VoiceBrowser({ selected, onSelect }: { selected: SelVoice | null; onSelect: (v: SelVoice) => void }) {
+  const { toast } = useToast();
+  const [tab, setTab] = useState<"mine" | "library">(selected?.kind === "eleven" ? "library" : "mine");
+  const [profiles, setProfiles] = useState<VoiceProfile[]>([]);
+  const [libVoices, setLibVoices] = useState<LibVoice[]>([]);
+  const [libEnabled, setLibEnabled] = useState(true);
+  const [loadingLib, setLoadingLib] = useState(false);
+  const [playing, setPlaying] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // clone-on-the-spot
+  const [cloneOpen, setCloneOpen] = useState(false);
+  const [cloneName, setCloneName] = useState("");
+  const [cloneBlob, setCloneBlob] = useState<Blob | null>(null);
+  const [cloneKind, setCloneKind] = useState<string | null>(null); // "recorded" | filename
+  const [recording, setRecording] = useState(false);
+  const [cloning, setCloning] = useState(false);
+  const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const loadProfiles = useCallback(async () => {
+    const j = await fetch("/api/ai/voice-studio/profiles").then((r) => r.json()).catch(() => null);
+    if (j?.data?.profiles) setProfiles(j.data.profiles);
+  }, []);
+  useEffect(() => { void loadProfiles(); }, [loadProfiles]);
+  useEffect(() => {
+    setLoadingLib(true);
+    fetch("/api/ai/elevenlabs/voices").then((r) => r.json()).then((j) => {
+      if (j?.success && j.data) { setLibEnabled(j.data.enabled !== false); setLibVoices(j.data.voices || []); }
+      else setLibEnabled(false);
+    }).catch(() => setLibEnabled(false)).finally(() => setLoadingLib(false));
+  }, []);
+
+  const cloned = profiles.filter((p) => p.type === "cloned" && (p.openaiVoiceId || p.elevenLabsVoiceId));
+
+  const preview = (key: string, url?: string | null) => {
+    if (!url) { toast({ title: "No preview available for this voice" }); return; }
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    if (playing === key) { setPlaying(null); return; }
+    const a = new Audio(url); audioRef.current = a;
+    a.onended = () => setPlaying(null);
+    void a.play().catch(() => { setPlaying(null); toast({ title: "Couldn't play that preview" }); });
+    setPlaying(key);
+  };
+  useEffect(() => () => { audioRef.current?.pause(); }, []);
+
+  const startRec = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
+      rec.onstop = () => {
+        setCloneBlob(new Blob(chunksRef.current, { type: "audio/webm" }));
+        setCloneKind("recorded");
+        stream.getTracks().forEach((t) => t.stop());
+      };
+      recRef.current = rec; rec.start(); setRecording(true);
+    } catch {
+      toast({ title: "Microphone blocked", description: "Allow mic access, or upload a sample instead.", variant: "destructive" });
+    }
+  };
+  const stopRec = () => { recRef.current?.stop(); setRecording(false); };
+
+  const doClone = async () => {
+    if (!cloneBlob || !cloneName.trim()) return;
+    setCloning(true);
+    try {
+      const fd = new FormData();
+      fd.append("name", cloneName.trim());
+      const file = cloneBlob instanceof File ? cloneBlob : new File([cloneBlob], "sample.webm", { type: cloneBlob.type || "audio/webm" });
+      fd.append("file", file);
+      const j = await fetch("/api/ai/voice-studio/clone", { method: "POST", body: fd }).then((r) => r.json());
+      if (j?.success && j.data?.profile) {
+        await loadProfiles();
+        const p = j.data.profile as VoiceProfile;
+        onSelect({ kind: "profile", id: p.id, label: p.name, gender: p.gender, accent: p.accent, style: p.style });
+        setCloneOpen(false); setCloneBlob(null); setCloneKind(null); setCloneName(""); setTab("mine");
+        toast({ title: `“${p.name}” is ready`, description: "Preview it below — it'll narrate everything." });
+      } else {
+        toast({ title: "Clone failed", description: j?.error || "Try a clearer 30–60s sample.", variant: "destructive" });
+      }
+    } finally { setCloning(false); }
+  };
+
+  const isSel = (v: SelVoice) =>
+    !!selected && ((selected.kind === "profile" && v.kind === "profile" && selected.id === v.id)
+      || (selected.kind === "eleven" && v.kind === "eleven" && selected.voiceId === v.voiceId));
+
+  const card = (opts: { key: string; sel: boolean; onPick: () => void; initials: string; title: string; meta: string; grad: string; previewUrl?: string | null; tag?: string }) => (
+    <div key={opts.key}
+      className={cn("w-[168px] flex-none rounded-xl border-2 p-2.5 transition", opts.sel ? "border-violet-500 bg-violet-500/5" : "border-transparent bg-muted/30 hover:-translate-y-0.5")}>
+      <button onClick={opts.onPick} className="flex w-full items-center gap-2 text-left">
+        <span className={cn("grid h-8 w-8 flex-none place-items-center rounded-full text-[11px] font-black text-white", opts.grad)}>{opts.initials}</span>
+        <span className="min-w-0 flex-1">
+          <b className="block truncate text-[11.5px]">{opts.title}</b>
+          <span className="block truncate text-[9px] text-muted-foreground">{opts.meta}</span>
+        </span>
+        {opts.sel && <Check className="h-3.5 w-3.5 flex-none text-violet-500" />}
+      </button>
+      <div className="mt-2 flex items-center gap-1.5">
+        <button onClick={() => preview(opts.key, opts.previewUrl)}
+          className="inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border py-1 text-[9.5px] font-semibold hover:border-violet-500 disabled:opacity-40"
+          disabled={!opts.previewUrl}>
+          {playing === opts.key ? <><Pause className="h-2.5 w-2.5" /> Playing</> : <><Play className="h-2.5 w-2.5" /> Preview</>}
+        </button>
+        {opts.tag && <span className="rounded-full bg-muted px-1.5 py-0.5 text-[8px] font-bold text-muted-foreground">{opts.tag}</span>}
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="mb-2.5 flex items-center gap-2">
+        <div className="flex rounded-lg border border-border p-0.5">
+          <button onClick={() => setTab("mine")} className={cn("rounded-md px-3 py-1 text-[10.5px] font-bold", tab === "mine" ? "bg-violet-500/15 text-violet-500" : "text-muted-foreground")}>My voices</button>
+          <button onClick={() => setTab("library")} className={cn("inline-flex items-center gap-1 rounded-md px-3 py-1 text-[10.5px] font-bold", tab === "library" ? "bg-violet-500/15 text-violet-500" : "text-muted-foreground")}><Library className="h-3 w-3" /> Library {libVoices.length > 0 && `(${libVoices.length})`}</button>
+        </div>
+        <div className="flex-1" />
+        <button onClick={() => setCloneOpen((v) => !v)} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 px-3 py-1.5 text-[11px] font-bold text-white">
+          <Mic className="h-3 w-3" /> Clone my voice
+        </button>
+      </div>
+
+      {/* clone-on-the-spot panel */}
+      {cloneOpen && (
+        <div className="mb-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3">
+          <p className="mb-2 text-[10.5px] font-bold text-amber-500">Clone your voice — record ~30–60s, or upload a clean sample.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {!recording ? (
+              <button onClick={startRec} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[11px] font-semibold hover:border-rose-500">
+                <span className="grid h-4 w-4 place-items-center rounded-full bg-rose-500/15 text-rose-500"><span className="h-2 w-2 rounded-full bg-rose-500" /></span> Record
+              </button>
+            ) : (
+              <button onClick={stopRec} className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500 bg-rose-500/10 px-3 py-1.5 text-[11px] font-semibold text-rose-500">
+                <Square className="h-3 w-3 fill-current" /> Stop <span className="ml-0.5 h-2 w-2 animate-pulse rounded-full bg-rose-500" />
+              </button>
+            )}
+            <button onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[11px] font-semibold hover:border-violet-500">
+              <Upload className="h-3 w-3" /> Upload
+            </button>
+            <input ref={fileRef} type="file" accept="audio/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setCloneBlob(f); setCloneKind(f.name); } }} />
+            {cloneKind && !recording && (
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold text-emerald-500">
+                <Check className="h-3 w-3" /> {cloneKind === "recorded" ? "Recording ready" : cloneKind}
+                {cloneBlob && <button onClick={() => preview("clone-sample", URL.createObjectURL(cloneBlob))} className="ml-1 underline">preview</button>}
+              </span>
+            )}
+          </div>
+          <div className="mt-2.5 flex items-center gap-2">
+            <input value={cloneName} onChange={(e) => setCloneName(e.target.value)} placeholder="Name this voice (e.g. “My voice”)"
+              className="flex-1 rounded-lg border border-border bg-card px-3 py-1.5 text-[12px] outline-none focus:border-violet-500" />
+            <button onClick={doClone} disabled={!cloneBlob || !cloneName.trim() || cloning}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-50">
+              {cloning ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Clone voice
+            </button>
+          </div>
+          <p className="mt-1.5 text-[9.5px] text-muted-foreground">Cloning charges credits. Your voice then narrates any film or voiceover here.</p>
+        </div>
+      )}
+
+      {/* voice grid */}
+      <div className="flex gap-2 overflow-x-auto pb-1.5">
+        {tab === "mine" && (
+          cloned.length > 0 ? cloned.map((p) => card({
+            key: `p-${p.id}`, sel: isSel({ kind: "profile", id: p.id, label: p.name }),
+            onPick: () => onSelect({ kind: "profile", id: p.id, label: p.name, gender: p.gender, accent: p.accent, style: p.style }),
+            initials: p.name.slice(0, 2).toUpperCase(), title: p.name, meta: "Cloned · yours",
+            grad: "bg-gradient-to-br from-amber-400 to-amber-600", previewUrl: p.sampleUrl, tag: "Clone",
+          })) : (
+            <button onClick={() => setCloneOpen(true)} className="flex w-[260px] flex-none flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-amber-500/40 p-4 text-center">
+              <Mic className="h-5 w-5 text-amber-500" />
+              <b className="text-[11px]">No cloned voice yet</b>
+              <span className="text-[9.5px] text-muted-foreground">Record or upload a sample above — it clones on the spot and narrates everything here.</span>
+            </button>
+          )
+        )}
+        {tab === "library" && (
+          !libEnabled ? (
+            <span className="flex w-full items-center gap-2 rounded-xl border border-dashed border-border p-4 text-[10.5px] text-muted-foreground"><Library className="h-4 w-4" /> Library voices are unavailable right now — clone your own instead.</span>
+          ) : loadingLib ? (
+            <span className="flex items-center gap-2 p-4 text-[11px] text-muted-foreground"><FlowLoader size={14} /> Loading library voices…</span>
+          ) : libVoices.map((v) => card({
+            key: `l-${v.voiceId}`, sel: isSel({ kind: "eleven", voiceId: v.voiceId, label: v.name }),
+            onPick: () => onSelect({ kind: "eleven", voiceId: v.voiceId, label: v.name }),
+            initials: v.name.slice(0, 2).toUpperCase(), title: v.name,
+            meta: [v.labels?.gender, v.labels?.accent, v.labels?.description].filter(Boolean).join(" · ") || v.category,
+            grad: "bg-gradient-to-br from-violet-400 to-violet-700", previewUrl: v.previewUrl,
+          }))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BriefSheet({ project, onClose, onDone, setLoading }: {
   project: NarrationProject | null;
   onClose: () => void;
@@ -663,18 +875,13 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
   const [aspect, setAspect] = useState<NarrationAspect>(project?.aspect || "16:9");
   const [style, setStyle] = useState<NarrationStyle>(project?.narrationStyle || "documentary");
   const [takeCount, setTakeCount] = useState(project?.takeCount || 2);
-  const [profiles, setProfiles] = useState<VoiceProfile[]>([]);
-  const [voiceId, setVoiceId] = useState<string | null>(project?.voice.profileId || null);
+  const [selVoice, setSelVoice] = useState<SelVoice | null>(
+    project?.voice.profileId ? { kind: "profile", id: project.voice.profileId, label: project.voice.label }
+      : project?.voice.elevenLabsVoiceId ? { kind: "eleven", voiceId: project.voice.elevenLabsVoiceId, label: project.voice.label }
+        : null,
+  );
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/ai/voice-studio/profiles").then((r) => r.json()).then((j) => {
-      if (j?.data?.profiles) setProfiles(j.data.profiles);
-    }).catch(() => {});
-  }, []);
-
-  const cloned = profiles.filter((p) => p.type === "cloned" && (p.openaiVoiceId || p.elevenLabsVoiceId));
-  const presets = profiles.filter((p) => p.type !== "cloned");
   const words = (mode === "voiceover" ? script : brief).trim().split(/\s+/).filter(Boolean).length;
   const secs = Math.round(words / 2.4);
 
@@ -683,13 +890,13 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
     if (!text) { toast({ title: mode === "voiceover" ? "Write the script first." : "Tell it what to narrate." }); return; }
     setBusy(true); setLoading(true);
     try {
-      const chosen = [...cloned, ...presets].find((p) => p.id === voiceId);
       const voice = {
-        profileId: chosen && cloned.some((c) => c.id === chosen.id) ? chosen.id : null,
-        label: chosen?.name || "Narrator",
-        gender: chosen?.gender || "female",
-        accent: chosen?.accent || "american",
-        style: chosen?.style || "narrative",
+        profileId: selVoice?.kind === "profile" ? selVoice.id : null,
+        elevenLabsVoiceId: selVoice?.kind === "eleven" ? selVoice.voiceId : null,
+        label: selVoice?.label || "Narrator",
+        gender: (selVoice?.kind === "profile" ? selVoice.gender : null) || "female",
+        accent: (selVoice?.kind === "profile" ? selVoice.accent : null) || "american",
+        style: (selVoice?.kind === "profile" ? selVoice.style : null) || "narrative",
         speed: 1,
       };
       const body = { title: (text.slice(0, 60) || "Narration"), brief: text, script: mode === "voiceover" ? script : "", mode, treatment, aspect, narrationStyle: style, takeCount, voice };
@@ -716,9 +923,11 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
   };
 
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
-      <div className="fixed inset-x-3 bottom-3 z-40 flex max-h-[90vh] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+    // Opens INSIDE the studio view (absolute within the workspace's relative root),
+    // like every other studio brief — not a fixed full-screen overlay that hides the app.
+    <div className="absolute inset-0 z-40">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/50" />
+      <div className="absolute inset-x-3 bottom-3 top-10 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-500">BRIEF</span>
           <b className="text-[13.5px]">{mode === "film" ? "Narrated video" : "Voiceover"}</b>
@@ -764,36 +973,9 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
 
           <div className="mt-5">
             <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">
-              Narrator <span className="font-semibold normal-case tracking-normal text-muted-foreground/70">— your cloned voice, or one from the library</span>
+              Narrator <span className="font-semibold normal-case tracking-normal text-muted-foreground/70">— clone your own, or pick & preview one from the library</span>
             </p>
-            <div className="flex gap-2 overflow-x-auto pb-1.5">
-              {cloned.map((p) => (
-                <button key={p.id} onClick={() => setVoiceId(p.id)}
-                  className={cn("w-[150px] flex-none rounded-xl border-2 border-dashed p-2.5 text-left", voiceId === p.id ? "border-violet-500 bg-violet-500/5" : "border-amber-500/40 bg-muted/30")}>
-                  <span className="flex items-center gap-2">
-                    <span className="grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-[11px] font-black text-white">{p.name.slice(0, 2).toUpperCase()}</span>
-                    <span className="min-w-0"><b className="block truncate text-[11.5px]">{p.name}</b><span className="text-[9px] text-muted-foreground">Cloned</span></span>
-                  </span>
-                </button>
-              ))}
-              {presets.slice(0, 6).map((p) => (
-                <button key={p.id} onClick={() => setVoiceId(p.id)}
-                  className={cn("w-[150px] flex-none rounded-xl border-2 p-2.5 text-left", voiceId === p.id ? "border-violet-500 bg-violet-500/5" : "border-transparent bg-muted/30")}>
-                  <span className="flex items-center gap-2">
-                    <span className="grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br from-violet-400 to-violet-700 text-[11px] font-black text-white">{p.name.slice(0, 1)}</span>
-                    <span className="min-w-0"><b className="block truncate text-[11.5px]">{p.name}</b>
-                      <span className="truncate text-[9px] text-muted-foreground">{[p.gender, p.accent].filter(Boolean).join(" · ") || "Library"}</span></span>
-                  </span>
-                </button>
-              ))}
-              {cloned.length === 0 && (
-                <span className="flex w-[190px] flex-none flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border p-2.5 text-center text-[9.5px] text-muted-foreground">
-                  <Mic className="h-4 w-4 text-amber-500" />
-                  <b className="text-[10.5px] text-foreground">No cloned voice yet</b>
-                  <span>Clone one in Voices, then it narrates everything here.</span>
-                </span>
-              )}
-            </div>
+            <VoiceBrowser selected={selVoice} onSelect={setSelVoice} />
           </div>
 
           <div className="mt-5">
@@ -865,7 +1047,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
           </button>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -878,9 +1060,9 @@ function CastSheet({ project, shots, onClose, onBuild, onPatch }: {
   onPatch: (id: string, patch: Record<string, unknown>) => void;
 }) {
   return (
-    <>
-      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
-      <div className="fixed inset-x-3 bottom-3 z-40 flex max-h-[90vh] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+    <div className="absolute inset-0 z-40">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/50" />
+      <div className="absolute inset-x-3 bottom-3 top-10 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-500">CAST</span>
           <b className="text-[13.5px]">Recurring subjects</b>
@@ -919,7 +1101,7 @@ function CastSheet({ project, shots, onClose, onBuild, onPatch }: {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
