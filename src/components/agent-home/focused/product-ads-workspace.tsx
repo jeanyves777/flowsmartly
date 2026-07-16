@@ -59,7 +59,7 @@ export function FocusedProductAds({ refreshKey }: { refreshKey?: number; onAsk?:
   const [libOpen, setLibOpen] = useState(false);
   const [mediaOpen, setMediaOpen] = useState(false);
   const [publishTakeId, setPublishTakeId] = useState<string | null>(null);
-  const [count, setCount] = useState(4);
+  const [count, setCount] = useState(1);
   const [busy, setBusy] = useState(false);
   const [projects, setProjects] = useState<{ id: string; title: string; takeCount: number; readyCount: number }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);

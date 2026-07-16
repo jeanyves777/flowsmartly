@@ -903,7 +903,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
   const [treatment, setTreatment] = useState<VisualTreatment>(project?.treatment || "mixed");
   const [aspect, setAspect] = useState<NarrationAspect>(project?.aspect || "16:9");
   const [style, setStyle] = useState<NarrationStyle>(project?.narrationStyle || "documentary");
-  const [takeCount, setTakeCount] = useState(project?.takeCount || 2);
+  const [takeCount, setTakeCount] = useState(project?.takeCount || 1);
   const [selVoice, setSelVoice] = useState<SelVoice | null>(
     project?.voice.profileId ? { kind: "profile", id: project.voice.profileId, label: project.voice.label }
       : project?.voice.elevenLabsVoiceId ? { kind: "eleven", voiceId: project.voice.elevenLabsVoiceId, label: project.voice.label }
@@ -963,7 +963,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
           <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
         </div>
 
-        <div className="overflow-auto p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">What are we making?</p>
           <div className="flex gap-2.5">
             {([["voiceover", Mic, "Voiceover", "Audio only. The script read as takes you can use anywhere.", `${V}/voice2.webp`],
@@ -1105,7 +1105,7 @@ function CastSheet({ project, shots, onClose, onBuild, onPatch }: {
           <b className="text-[13.5px]">Recurring subjects</b>
           <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
         </div>
-        <div className="overflow-auto p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <p className="mb-3 rounded-lg border-l-2 border-amber-500/40 bg-amber-500/5 p-2.5 text-[10.5px] leading-relaxed text-muted-foreground">
             Each subject is anchored by a turnaround sheet and fed into every shot they appear in, so the same person looks the same
             throughout. They are <b>depicted, never speakers</b> — your narration is one continuous voice across the whole story.

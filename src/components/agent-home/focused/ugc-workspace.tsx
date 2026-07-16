@@ -59,7 +59,7 @@ export function FocusedUgc({ refreshKey }: { refreshKey?: number; onAsk?: (promp
   const [mediaOpen, setMediaOpen] = useState(false);
   const [mediaFor, setMediaFor] = useState<"creator" | "product">("creator");
   const [publishTakeId, setPublishTakeId] = useState<string | null>(null);
-  const [count, setCount] = useState(4);
+  const [count, setCount] = useState(1);
   const [busy, setBusy] = useState(false);
   const [projects, setProjects] = useState<{ id: string; title: string; takeCount: number; readyCount: number; thumbnailUrl: string | null }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);

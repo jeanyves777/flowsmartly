@@ -54,7 +54,7 @@ export function FocusedTryOn({ refreshKey }: { refreshKey?: number; onAsk?: (pro
   const [libOpen, setLibOpen] = useState(false);
   const [mediaFor, setMediaFor] = useState<null | "person" | "outfit">(null);
   const [publishTakeId, setPublishTakeId] = useState<string | null>(null);
-  const [count, setCount] = useState(4);
+  const [count, setCount] = useState(1);
   const [busy, setBusy] = useState(false);
   const [projects, setProjects] = useState<{ id: string; title: string; takeCount: number; readyCount: number }[]>([]);
   const uploadFor = useRef<"person" | "outfit">("person");
