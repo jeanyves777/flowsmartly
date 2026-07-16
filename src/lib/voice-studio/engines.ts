@@ -89,6 +89,13 @@ export async function narrate(
     return { buffer, durationMs: Math.round(((words / 150) * 60 * 1000) / speed) };
   }
 
+  // A library ElevenLabs voice the user picked but didn't save as a profile.
+  if (voice.elevenLabsVoiceId) {
+    const buffer = await generateWithElevenLabs({ text: clean, voiceId: voice.elevenLabsVoiceId });
+    const words = (clean.match(/\S+/g) || []).length;
+    return { buffer, durationMs: Math.round(((words / 150) * 60 * 1000) / speed) };
+  }
+
   const res = await generateVoice({
     text: clean,
     gender: voice.gender as never,

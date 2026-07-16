@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { presignAllUrls } from "@/lib/utils/s3-client";
 
 /**
  * GET /api/ai/voice-studio/profiles — List user's voice profiles
@@ -24,7 +25,8 @@ export async function GET() {
       ],
     });
 
-    return NextResponse.json({ success: true, data: { profiles } });
+    // Presign so a cloned voice's sampleUrl is playable in the narrator preview.
+    return NextResponse.json({ success: true, data: await presignAllUrls({ profiles }) });
   } catch (error) {
     console.error("[VoiceStudio] List profiles error:", error);
     return NextResponse.json(
