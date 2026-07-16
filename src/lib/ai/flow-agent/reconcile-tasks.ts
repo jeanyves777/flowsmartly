@@ -9,6 +9,7 @@ import { creditService } from "@/lib/credits";
 import { resumeAvatarRender } from "@/lib/avatar-studio";
 import { resumeStuckDirectorScenes, resumeStuckDirectorFinals } from "@/lib/video-director/engines";
 import { resumeStuckNarrations } from "@/lib/voice-studio/engines";
+import { resumeStuckCloneShots } from "@/lib/clone-studio/engines";
 import { resumeStuckUgcTakes } from "@/lib/ugc-studio/engines";
 import { resumeStuckAdTakes } from "@/lib/product-ads/engines";
 import { resumeStuckTryOnTakes } from "@/lib/try-on/engines";
@@ -408,6 +409,11 @@ export async function runTaskRecovery(): Promise<RecoveryResult> {
     const adTakes = await resumeStuckAdTakes().catch(() => ({ scanned: 0, changed: 0 }));
     result.scanned += adTakes.scanned;
     result.recovered += adTakes.changed;
+
+    // …and Clone Studio image shots (no provider job — a dead one re-runs).
+    const cloneShots = await resumeStuckCloneShots().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += cloneShots.scanned;
+    result.recovered += cloneShots.changed;
 
     // …and Voice Studio narrations (shots pull their xAI job; a dead stitch re-runs).
     const narrations = await resumeStuckNarrations().catch(() => ({ scanned: 0, changed: 0 }));

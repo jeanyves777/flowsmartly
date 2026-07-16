@@ -1,0 +1,504 @@
+<title>Clone Studio — your identity, any scene, any outfit</title>
+<style>
+  :root{
+    --ground:#0b0b0f;--card:#15151c;--card2:#1b1b23;--border:#2a2a33;
+    --brand:#6366f1;--violet:#a78bfa;--violet2:#7c3aed;--amber:#fbbf24;--teal:#22d3ee;--emerald:#10b981;--rose:#fb7185;
+    --text:#ececf1;--muted:#9a9aa6;
+  }
+  *{box-sizing:border-box}html,body{margin:0;height:100%}
+  body{background:var(--ground);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+  .app{height:100vh;display:flex;flex-direction:column}
+  .top{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--border);background:rgba(11,11,15,.9);z-index:30}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--violet2));color:#fff;font-size:15px}
+  .brand b{font-size:13.5px;font-weight:700;display:block;line-height:1.1}.brand span{font-size:11px;color:var(--muted)}
+  .spacer{flex:1}.stat{font-size:11.5px;color:var(--muted)}.stat b{color:var(--emerald)}
+  .btn{display:inline-flex;align-items:center;gap:6px;border-radius:9px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text)}
+  .btn:hover{border-color:var(--brand)}
+  .btn.pri{border:none;color:#fff;background:linear-gradient(135deg,var(--brand),var(--violet2))}
+  .btn.gen{border:none;color:#fff;background:linear-gradient(135deg,var(--brand),var(--violet))}
+
+  /* clone switcher in top bar */
+  .clonesel{display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:999px;padding:4px 5px 4px 8px;cursor:pointer;background:var(--card)}
+  .clonesel:hover{border-color:var(--brand)}
+  .clonesel .av{width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,var(--brand),var(--violet2));display:grid;place-items:center;font-size:9px;font-weight:900;color:#fff;overflow:hidden}
+  .clonesel .av img{width:100%;height:100%;object-fit:cover}
+  .clonesel b{font-size:11.5px}.clonesel .cv{font-size:14px;color:var(--muted)}
+
+  .canvas{flex:1;position:relative;overflow:auto;background:radial-gradient(circle at 1px 1px,#20202b 1px,transparent 0) 0 0/24px 24px,var(--ground)}
+  .board{position:relative;width:2200px;height:1050px}
+  svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+
+  .empty{position:absolute;left:44%;top:38%;transform:translate(-50%,-50%);text-align:center;width:420px}
+  .empty h2{font-size:18px;margin:0 0 4px}.empty p{color:var(--muted);font-size:12.5px;margin:0 0 16px}
+  .empty .cta{border:none;border-radius:12px;padding:12px 22px;font-size:14px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--brand),var(--violet2));cursor:pointer}
+
+  .node{position:absolute;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .n-head{display:flex;align-items:center;gap:7px;padding:9px 11px 5px;cursor:grab}.n-head:active{cursor:grabbing}
+  .n-head .ic{width:19px;height:19px;border-radius:6px;display:grid;place-items:center;font-size:10px}.n-head b{font-size:12px;font-weight:700}
+  .n-head .tag{margin-left:auto;font-size:9px;font-weight:700;border-radius:999px;padding:2px 7px}
+  .tag.id{background:rgba(99,102,241,.15);color:var(--violet)}
+  .tag.shot{background:rgba(34,211,238,.14);color:var(--teal)}
+  .tag.bg{background:rgba(251,191,36,.14);color:var(--amber)}
+  .x{width:17px;height:17px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;margin-left:4px}
+  .x:hover{border-color:var(--rose);color:var(--rose)}
+
+  /* IDENTITY node (persistent look-lock) */
+  .node.idn{width:240px;border-color:rgba(99,102,241,.4)}
+  .id-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:6px 11px 0}
+  .id-ph{aspect-ratio:1;border-radius:9px;overflow:hidden;background:linear-gradient(135deg,#2a2440,#3a2f52);display:grid;place-items:center;position:relative}
+  .id-ph img{width:100%;height:100%;object-fit:cover}
+  .id-ph .lk{position:absolute;right:3px;bottom:3px;font-size:8px;background:rgba(0,0,0,.6);border-radius:4px;padding:1px 4px;color:#fff}
+  .id-ph.add{border:1.5px dashed var(--border);background:var(--card2);cursor:pointer;color:var(--muted);font-size:18px}
+  .id-ph.add:hover{border-color:var(--brand);color:var(--brand)}
+  .id-meta{padding:8px 11px 0;font-size:10px;color:var(--muted);line-height:1.4}
+  .id-meta b{color:var(--emerald)}
+  .idn .acts{display:flex;gap:5px;padding:9px 11px 11px}
+  .idn .a{flex:1}
+
+  /* generated shot card */
+  .shot{width:258px}
+  .shot .pic{position:relative;margin:2px 11px 0;border-radius:12px;overflow:hidden;aspect-ratio:1;background:linear-gradient(160deg,#20202b,#2a2440);display:grid;place-items:center}
+  .shot.wide .pic{aspect-ratio:16/9}
+  .shot.tall .pic{aspect-ratio:9/16}
+  .pic img{width:100%;height:100%;object-fit:cover}
+  .pic .kind{position:absolute;left:5px;top:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 7px;background:rgba(0,0,0,.55);color:#fff}
+  .pic .src{position:absolute;right:5px;top:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 7px;background:rgba(99,102,241,.9);color:#fff}
+  .pic .badge{position:absolute;left:5px;bottom:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 6px}
+  .badge.ready{background:var(--emerald);color:#04231a}.badge.rendering{background:rgba(167,139,250,.25);color:#c4b5fd}
+  .pic .loader{position:absolute;inset:0;display:flex;flex-direction:column;gap:7px;align-items:center;justify-content:center;background:rgba(11,11,15,.82)}
+  .sp{width:22px;height:22px;border-radius:50%;border:2.5px solid #333;border-top-color:var(--brand);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+  .lbar{width:64%;height:4px;border-radius:999px;background:#2a2a33;overflow:hidden}.lbar>span{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--violet))}
+  .prompt{display:flex;align-items:flex-start;gap:5px;margin:8px 11px 0;padding:6px 7px;border-radius:9px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.22)}
+  .pl-l{font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--violet);flex:none;margin-top:1px}
+  .pt{flex:1;font-size:9px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .pe{flex:none;width:16px;height:16px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:9px;cursor:pointer}
+  .pe:hover{border-color:var(--brand);color:var(--brand)}
+
+  /* per-shot manipulation chips */
+  .manip{display:flex;flex-wrap:wrap;gap:4px;margin:8px 11px 0}
+  .chip{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--border);background:var(--card2);border-radius:8px;padding:4px 8px;font-size:9.5px;font-weight:600;cursor:pointer;color:var(--text)}
+  .chip:hover{border-color:var(--brand);color:var(--brand)}
+  .chip.warm:hover{border-color:var(--amber);color:var(--amber)}
+  .acts{display:flex;gap:4px;padding:9px 11px 11px}
+  .a{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:3px;border:1px solid var(--border);border-radius:8px;padding:5px;font-size:9.5px;font-weight:600;cursor:pointer;color:var(--text);background:transparent}
+  .a:hover{border-color:var(--brand)}.a.prime{border:none;color:#fff;background:linear-gradient(135deg,var(--brand),var(--violet2))}
+  .resize{position:absolute;right:2px;bottom:2px;width:14px;height:14px;cursor:nwse-resize;color:var(--muted);font-size:11px}
+
+  .addbtn{position:absolute;width:40px;height:40px;border-radius:50%;border:1px dashed var(--border);background:transparent;color:var(--muted);font-size:18px;cursor:pointer;display:grid;place-items:center}
+  .addbtn:hover{border-color:var(--brand);color:var(--brand)}
+
+  .gload{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:25;display:none;align-items:center;gap:10px;border:1px solid var(--border);background:rgba(21,21,28,.96);border-radius:999px;padding:7px 14px;box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(8px)}
+  .gload.on{display:flex}.gload b{font-size:11.5px}.gload .n{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .gbar{width:96px;height:6px;border-radius:999px;background:#2a2a33;overflow:hidden}.gbar>span{display:block;height:100%;background:linear-gradient(90deg,var(--brand),var(--violet))}
+  .hint{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);font-size:11px;color:var(--muted);background:rgba(21,21,28,.85);border:1px solid var(--border);border-radius:999px;padding:6px 13px;z-index:20}
+
+  /* ---- BRIEF SHEET (in-view: absolute) ---- */
+  .scrim{position:absolute;inset:0;z-index:40;display:none;background:rgba(6,6,9,.55)}.scrim.on{display:block}
+  .brief{position:absolute;inset-inline:12px;bottom:12px;top:40px;z-index:41;display:none;flex-direction:column;
+    border:1px solid var(--border);border-radius:18px;background:var(--card);box-shadow:0 -10px 60px rgba(0,0,0,.5)}
+  .brief.on{display:flex}
+  .b-head{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .b-head .p{font-size:10px;font-weight:700;color:var(--violet);background:rgba(99,102,241,.12);border-radius:999px;padding:2px 8px}
+  .b-head b{font-size:13.5px}
+  .b-head .close{margin-left:auto;width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer}
+  .b-scroll{overflow:auto;padding:16px}
+  .b-lbl{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 9px}
+  .b-lbl .tip{font-weight:600;letter-spacing:0;text-transform:none;color:#6b6b78}
+  .sec{margin-top:20px}
+
+  /* identity upload */
+  .idup{display:flex;gap:10px;flex-wrap:wrap}
+  .drop{width:96px;height:120px;border:1.5px dashed var(--border);border-radius:12px;background:var(--card2);display:grid;place-items:center;text-align:center;font-size:10.5px;color:var(--muted);cursor:pointer;padding:8px;position:relative;overflow:hidden}
+  .drop:hover{border-color:var(--brand);color:var(--brand)}
+  .drop.has{border-style:solid;padding:0}.drop.has img{width:100%;height:100%;object-fit:cover}
+  .drop .rm{position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:5px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;display:grid;place-items:center;cursor:pointer}
+  .idnote{font-size:10px;color:#6b6b78;line-height:1.45;margin:9px 0 0;padding:8px 10px;border-left:2px solid rgba(99,102,241,.4);background:rgba(99,102,241,.05);border-radius:0 8px 8px 0}
+
+  .script{width:100%;min-height:70px;resize:vertical;border-radius:12px;border:1px solid var(--border);background:var(--card2);color:var(--text);padding:11px 12px;font:12.5px/1.6 inherit}
+  .script:focus{outline:none;border-color:var(--brand)}
+
+  .tpls{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+  .tpl{flex:none;width:132px;border:2px solid transparent;border-radius:12px;overflow:hidden;background:var(--card2);cursor:pointer;transition:transform .12s}
+  .tpl:hover{transform:translateY(-2px)}.tpl.on{border-color:var(--brand)}
+  .tpl .pic2{height:76px;display:grid;place-items:center;font-size:22px;color:#fff;position:relative}
+  .tpl .b{padding:6px 8px 8px}.tpl .b h3{margin:0;font-size:11px}.tpl .b p{margin:2px 0 0;font-size:9px;color:var(--muted);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+  .pills{display:flex;flex-wrap:wrap;gap:6px}
+  .pill{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:999px;padding:5px 11px;font-size:10.5px;font-weight:700;cursor:pointer}
+  .pill.on{border-color:var(--brand);color:var(--brand);background:rgba(99,102,241,.08)}
+
+  .cfg{display:flex;gap:22px;flex-wrap:wrap}
+  .seg{display:flex;gap:5px}
+  .sg{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:8px;padding:5px 10px;font-size:10.5px;font-weight:700;cursor:pointer}
+  .sg.on{border-color:var(--brand);color:var(--brand);background:rgba(99,102,241,.08)}
+  .rng{width:150px;accent-color:var(--brand)}
+  .b-foot{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border);background:var(--card)}
+  .b-foot .cost{font-size:11px;color:var(--muted)}.b-foot .cost b{color:var(--amber)}
+  .suggest{display:flex;align-items:center;gap:10px;border:1px solid rgba(99,102,241,.3);background:linear-gradient(135deg,rgba(99,102,241,.07),rgba(167,139,250,.05));border-radius:12px;padding:11px 12px;margin-bottom:16px}
+  .suggest .si{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:rgba(99,102,241,.15);color:var(--violet);font-size:14px;flex:none}
+  .suggest b{font-size:12px}.suggest p{margin:1px 0 0;font-size:10.5px;color:var(--muted)}
+  /* type toggle */
+  .tmode{flex:1;max-width:320px;display:flex;gap:10px;align-items:center;border:2px solid var(--border);border-radius:14px;padding:11px 12px;background:var(--card2);cursor:pointer;transition:transform .12s}
+  .tmode:hover{transform:translateY(-2px)}.tmode.on{border-color:var(--brand);background:rgba(99,102,241,.06)}
+  .tmode .ti{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:16px;flex:none;background:linear-gradient(135deg,var(--brand),var(--violet2));color:#fff}
+  .tmode h3{margin:0;font-size:12.5px}.tmode p{margin:2px 0 0;font-size:10px;color:var(--muted);line-height:1.35}
+  /* actor "use" bar on the identity node */
+  .usebar{display:flex;gap:5px;padding:0 11px 11px}
+  .usebar .u{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;border:none;border-radius:9px;padding:7px;font-size:10.5px;font-weight:700;cursor:pointer;color:#fff}
+  .u.ugc{background:linear-gradient(135deg,var(--rose),#e11d48)}.u.film{background:linear-gradient(135deg,var(--brand),var(--violet2))}
+
+  /* clones drawer */
+  .drawer{position:absolute;inset-block:0;right:0;width:300px;z-index:50;background:var(--card);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .2s;display:flex;flex-direction:column}
+  .drawer.on{transform:none}
+  .d-head{display:flex;align-items:center;gap:8px;padding:13px 15px;border-bottom:1px solid var(--border)}
+  .d-head b{font-size:13.5px}.d-head .close{margin-left:auto;width:24px;height:24px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer}
+  .d-body{overflow:auto;padding:12px;display:flex;flex-direction:column;gap:9px}
+  .clone{display:flex;gap:10px;align-items:center;border:1px solid var(--border);border-radius:12px;padding:9px;cursor:pointer}
+  .clone:hover{border-color:var(--brand)}.clone.on{border-color:var(--brand);background:rgba(99,102,241,.06)}
+  .clone .av{width:44px;height:52px;border-radius:9px;overflow:hidden;background:linear-gradient(135deg,#2a2440,#3a2f52);flex:none}
+  .clone .av img{width:100%;height:100%;object-fit:cover}
+  .clone b{font-size:12px;display:block}.clone span{font-size:9.5px;color:var(--muted)}
+  .newclone{border:1.5px dashed var(--border);border-radius:12px;padding:12px;text-align:center;color:var(--muted);cursor:pointer;font-size:11px;font-weight:600}
+  .newclone:hover{border-color:var(--brand);color:var(--brand)}
+</style>
+
+<div class="app">
+  <div class="top">
+    <div class="brand"><div class="ic">🧬</div><div><b>Clone Studio</b><span>Your identity, any scene, any outfit</span></div></div>
+    <div class="clonesel" onclick="openClones()">
+      <span class="av" id="topAv">JY</span><b id="topName">Me — business</b><span class="cv">▾</span>
+    </div>
+    <div class="spacer"></div>
+    <span class="stat" id="stat"><b>0</b> ready · 0 rendering · 3 shots</span>
+    <button class="btn" onclick="openClones()">👥 Clones</button>
+    <button class="btn" onclick="alert('Library — every look you generated')">📁 Library</button>
+    <button class="btn pri" onclick="openBrief()">✨ New shot</button>
+  </div>
+
+  <div class="canvas" id="canvas">
+    <div class="board" id="board">
+      <svg class="wires" id="wires"></svg>
+      <div class="gload" id="gload"><div class="sp" style="width:15px;height:15px;border-width:2px"></div><b id="gtxt">Generating…</b><span class="n" id="gn">0/0</span><div class="gbar"><span id="gfill" style="width:0%"></span></div></div>
+
+      <div class="empty" id="empty">
+        <h2>Lock your look, then become anything</h2>
+        <p>Upload a photo or two of yourself — the studio locks your identity, then puts you in any scene, outfit or pose. Make several clones and reuse them.</p>
+        <button class="cta" onclick="openBrief()">✨ Upload &amp; start</button>
+      </div>
+
+      <div class="hint">Drag nodes freely · resize from the corner · every look lands on the canvas</div>
+    </div>
+  </div>
+</div>
+
+<!-- CLONES DRAWER -->
+<div class="drawer" id="drawer">
+  <div class="d-head"><b>Your clones</b><button class="close" onclick="closeClones()">✕</button></div>
+  <div class="d-body" id="cloneList"></div>
+</div>
+
+<!-- BRIEF -->
+<div class="scrim" id="scrim" onclick="closeBrief()"></div>
+<div class="brief" id="brief">
+  <div class="b-head"><span class="p">BRIEF</span><b id="bTitle">New shot</b><button class="close" onclick="closeBrief()">✕</button></div>
+  <div class="b-scroll">
+    <!-- TYPE: photoshoot (images) vs actor (reusable in UGC/Film video) -->
+    <p class="b-lbl">What are we making?</p>
+    <div style="display:flex;gap:10px;margin-bottom:4px">
+      <div class="tmode on" data-t="photo" onclick="setType('photo')">
+        <div class="ti">🖼</div><div><h3>Photoshoot</h3><p>You in any scene, outfit &amp; pose — as images.</p></div>
+      </div>
+      <div class="tmode" data-t="actor" onclick="setType('actor')">
+        <div class="ti" style="background:linear-gradient(135deg,var(--teal),#0e7490)">🎬</div><div><h3>Actor clone</h3><p>A reusable you — send it into UGC or a Film to make videos.</p></div>
+      </div>
+    </div>
+
+    <div class="suggest">
+      <span class="si">✨</span>
+      <div style="flex:1"><b>Not sure what to make?</b><p>Let the agent suggest studio shots from your brand — pick one and it fills the brief.</p></div>
+      <button class="btn pri" onclick="alert('Suggests: podcast host shot · LinkedIn headshot · webinar background · team intro')">Suggest ideas</button>
+    </div>
+
+    <!-- IDENTITY LOCK -->
+    <p class="b-lbl">Your look <span class="tip">— upload 1–4 photos of yourself; this locks your identity</span></p>
+    <div class="idup" id="idup"></div>
+    <p class="idnote"><b>Identity look-lock.</b> The more angles you add, the more faithfully the studio keeps <b>you</b> — same face, same build — across every outfit, pose and scene. Saved as a reusable clone.</p>
+    <p class="idnote" id="actorNote" style="display:none;border-left-color:rgba(34,211,238,.5);background:rgba(34,211,238,.05)"><b>Actor clone.</b> This builds a clean, locked hero look you can then send into the <b>UGC</b> or <b>Film</b> studio to make talking videos of yourself — the same face in every scene. Use the “Use in UGC / Film” buttons on the clone.</p>
+
+    <!-- WHAT -->
+    <div class="sec">
+      <p class="b-lbl">What do you want <span class="tip">— scene, pose, framing… “in a podcast studio, mic in front, looking at camera”</span></p>
+      <textarea class="script" id="script">In a modern podcast studio, looking directly at the camera with a microphone in front of me, warm cinematic lighting.</textarea>
+    </div>
+
+    <!-- SCENE PRESETS -->
+    <div class="sec">
+      <p class="b-lbl">Scene</p>
+      <div class="tpls" id="scenes"></div>
+    </div>
+
+    <!-- OUTFIT + POSE -->
+    <div class="sec" style="display:flex;gap:26px;flex-wrap:wrap">
+      <div>
+        <p class="b-lbl">Outfit</p>
+        <div class="pills" id="outfits"></div>
+      </div>
+      <div>
+        <p class="b-lbl">Pose &amp; framing</p>
+        <div class="pills" id="poses"></div>
+      </div>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="sec">
+      <p class="b-lbl">Config</p>
+      <div class="cfg">
+        <div>
+          <p class="b-lbl" style="margin-bottom:6px">Aspect</p>
+          <div class="seg">
+            <button class="sg" onclick="seg(this,'aspect','9:16')">9:16</button>
+            <button class="sg on" onclick="seg(this,'aspect','1:1')">1:1</button>
+            <button class="sg" onclick="seg(this,'aspect','16:9')">16:9</button>
+          </div>
+        </div>
+        <div>
+          <p class="b-lbl" style="margin-bottom:6px">Variations <span class="tip" id="varN">2</span></p>
+          <input class="rng" type="range" min="1" max="4" value="2" oninput="document.getElementById('varN').textContent=this.value;vars=+this.value">
+        </div>
+        <div>
+          <p class="b-lbl" style="margin-bottom:6px">Quality</p>
+          <div class="seg">
+            <button class="sg on" onclick="seg(this,'q','standard')">Standard</button>
+            <button class="sg" onclick="seg(this,'q','premium')">Premium</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="b-foot">
+    <span class="cost">Estimated <b id="cost">30 cr</b></span>
+    <div class="spacer"></div>
+    <button class="btn" onclick="closeBrief()">Cancel</button>
+    <button class="btn gen" onclick="generate()">✨ Generate</button>
+  </div>
+</div>
+
+<script>
+/* ---------- state ---------- */
+let vars = 2, seq = 0, briefPlaced = false;
+let activeClone = 0;
+const clones = [
+  { name:"Me — business", av:"JY", photos:["https://picsum.photos/seed/id1/200/260","https://picsum.photos/seed/id2/200/260"] },
+];
+const SCENES = [
+  {id:"podcast", n:"Podcast studio", d:"Mic in front, warm acoustic panels.", g:"linear-gradient(135deg,#3b2f52,#1a1030)", e:"🎙"},
+  {id:"office",  n:"Modern office",  d:"Desk, soft daylight, clean brand look.", g:"linear-gradient(135deg,#334155,#0f172a)", e:"🏢"},
+  {id:"studio",  n:"Studio portrait",d:"Seamless backdrop, headshot lighting.", g:"linear-gradient(135deg,#6366f1,#4338ca)", e:"📸"},
+  {id:"outdoor", n:"Outdoor",        d:"City or nature, natural light.", g:"linear-gradient(135deg,#059669,#065f46)", e:"🌤"},
+  {id:"webinar", n:"Webinar / stage",d:"Screen + spotlight, presenting.", g:"linear-gradient(135deg,#be185d,#831843)", e:"🖥"},
+  {id:"duo",     n:"You × You",      d:"Two of you in one scene — interview yourself.", g:"linear-gradient(135deg,#0e7490,#155e75)", e:"👥"},
+  {id:"bgonly",  n:"Background only", d:"Just the scene, no you — use it live.", g:"linear-gradient(135deg,#b45309,#78350f)", e:"🪟"},
+];
+const OUTFITS = ["Keep current","Suit & tie","Smart casual","Knit sweater","Long-sleeve shirt","T-shirt","Blazer, no tie"];
+const POSES  = ["Looking at camera","Three-quarter","Seated at desk","Standing, arms crossed","Mid-gesture, talking","Head & shoulders"];
+let scene = "podcast", outfit = "Keep current", pose = "Looking at camera", aspect = "1:1", q = "standard", type = "photo";
+
+function setType(t){
+  type = t;
+  document.querySelectorAll('.tmode').forEach(x=>x.classList.toggle('on', x.dataset.t===t));
+  document.getElementById('bTitle').textContent = t==='actor' ? 'New actor clone' : 'New shot';
+  // Actor type nudges the config toward a clean, video-ready hero shot.
+  document.getElementById('actorNote').style.display = t==='actor' ? '' : 'none';
+}
+
+/* ---------- brief ---------- */
+function openBrief(){ buildIdUp(); document.getElementById('brief').classList.add('on'); document.getElementById('scrim').classList.add('on'); estimate(); }
+function closeBrief(){ document.getElementById('brief').classList.remove('on'); document.getElementById('scrim').classList.remove('on'); }
+function seg(b,k,v){ [...b.parentElement.children].forEach(x=>x.classList.remove('on')); b.classList.add('on'); if(k==='aspect')aspect=v; if(k==='q'){q=v; estimate();} }
+function estimate(){
+  const base = q==='premium' ? 25 : 15;
+  document.getElementById('cost').textContent = (base*vars) + ' cr';
+}
+
+/* identity upload (simulated) */
+function buildIdUp(){
+  const wrap = document.getElementById('idup');
+  const ph = clones[activeClone].photos;
+  wrap.innerHTML = ph.map((src,i)=>`
+    <div class="drop has"><img src="${src}"><span class="rm" onclick="rmPhoto(${i})">✕</span></div>`).join('')
+    + (ph.length<4 ? `<div class="drop" onclick="addPhoto()"><div>＋<br>Add photo<br><span style="font-size:9px">JPG/PNG</span></div></div>` : '');
+}
+function addPhoto(){ clones[activeClone].photos.push(`https://picsum.photos/seed/up${Date.now()%999}/200/260`); buildIdUp(); }
+function rmPhoto(i){ clones[activeClone].photos.splice(i,1); buildIdUp(); }
+
+/* ---------- clones drawer ---------- */
+function openClones(){ buildClones(); document.getElementById('drawer').classList.add('on'); }
+function closeClones(){ document.getElementById('drawer').classList.remove('on'); }
+function buildClones(){
+  document.getElementById('cloneList').innerHTML = clones.map((c,i)=>`
+    <div class="clone ${i===activeClone?'on':''}" onclick="pickClone(${i})">
+      <div class="av"><img src="${c.photos[0]}"></div>
+      <div style="flex:1"><b>${c.name}</b><span>${c.photos.length} photo${c.photos.length>1?'s':''} · look locked</span></div>
+      ${i===activeClone?'<span style="color:var(--brand);font-size:12px">✓</span>':''}
+    </div>`).join('')
+    + `<div class="newclone" onclick="newClone()">＋ New clone — upload photos of anyone</div>`;
+}
+function pickClone(i){ activeClone=i; document.getElementById('topName').textContent=clones[i].name; document.getElementById('topAv').innerHTML=`<img src="${clones[i].photos[0]}">`; buildClones(); buildIdUp(); }
+function newClone(){
+  const name = prompt("Name this clone (e.g. “Me — casual”, “Sarah — host”)","Me — casual");
+  if(!name) return;
+  clones.push({ name, av:name.slice(0,2).toUpperCase(), photos:[`https://picsum.photos/seed/nc${Date.now()%999}/200/260`] });
+  activeClone = clones.length-1;
+  pickClone(activeClone);
+}
+
+/* ---------- canvas ---------- */
+function idNode(){
+  if(briefPlaced){ syncId(); return; }
+  briefPlaced = true;
+  const n = document.createElement('div');
+  n.className='node idn'; n.style.left='26px'; n.style.top='80px'; n.dataset.node='__id';
+  n.innerHTML = `
+    <div class="n-head"><div class="ic" style="background:rgba(99,102,241,.15);color:var(--violet)">🧬</div>
+      <b id="idName">${clones[activeClone].name}</b><span class="tag id">look lock</span></div>
+    <div class="id-grid" id="idGrid"></div>
+    <div class="id-meta">Identity locked from <b id="idCount">${clones[activeClone].photos.length} photos</b>. Every shot keeps this face &amp; build.</div>
+    <div class="acts"><button class="a" onclick="openClones()">Switch clone</button><button class="a prime" onclick="openBrief()">New shot</button></div>
+    <div class="usebar">
+      <button class="u ugc" onclick="alert('Sends this clone into the UGC studio as the on-camera creator — make talking videos of you.')">🎬 Use in UGC</button>
+      <button class="u film" onclick="alert('Adds this clone as a cast member in a Film — a reusable you across scenes.')">🎞 Use in Film</button>
+    </div>`;
+  document.getElementById('board').appendChild(n);
+  drag(n); syncId();
+}
+function syncId(){
+  const g = document.getElementById('idGrid'); if(!g) return;
+  g.innerHTML = clones[activeClone].photos.slice(0,4).map((s,i)=>`<div class="id-ph"><img src="${s}">${i===0?'<span class="lk">anchor</span>':''}</div>`).join('');
+  document.getElementById('idName').textContent = clones[activeClone].name;
+  document.getElementById('idCount').textContent = clones[activeClone].photos.length + ' photos';
+}
+
+const SAMPLE = i => `https://picsum.photos/seed/shot${i}/500/500`;
+function shotNode(i, x, y, opts){
+  const id = 'n'+(++seq);
+  const ar = aspect==='16:9'?'wide':aspect==='9:16'?'tall':'';
+  const isBg = opts && opts.bg;
+  const n = document.createElement('div');
+  n.className='node shot '+ar; n.style.left=x+'px'; n.style.top=y+'px'; n.dataset.node=id;
+  n.innerHTML = `
+    <div class="n-head"><div class="ic" style="background:${isBg?'rgba(251,191,36,.15)':'rgba(34,211,238,.15)'};color:${isBg?'var(--amber)':'var(--teal)'}">${isBg?'🪟':'🧑'}</div>
+      <b>${isBg?'Background':'Shot '+(i+1)}</b><span class="tag ${isBg?'bg':'shot'}">${isBg?'scene only':'you'}</span>
+      <button class="x" onclick="this.closest('.node').remove();stats()">✕</button></div>
+    <div class="pic">
+      <span class="kind">${isBg?'🪟 Scene':'🧑 '+ (SCENES.find(s=>s.id===scene)||{}).n}</span>
+      ${isBg?'':'<span class="src">✨ You · locked</span>'}
+      <span class="badge rendering">rendering</span>
+      <div class="loader"><div class="sp"></div><div class="lbar"><span style="width:8%"></span></div></div>
+    </div>
+    <div class="prompt"><span class="pl-l">Prompt</span><span class="pt">${(opts&&opts.p)||document.getElementById('script').value.trim()}</span><button class="pe" onclick="alert('Edit this prompt — regenerates just this shot, keeping your identity')">✎</button></div>
+    ${isBg?'':`<div class="manip">
+      <span class="chip" onclick="variant(this,'Outfit')">👔 Outfit</span>
+      <span class="chip" onclick="variant(this,'Pose')">🧍 Pose</span>
+      <span class="chip" onclick="variant(this,'Scene')">🎬 Scene</span>
+      <span class="chip" onclick="variant(this,'Expression')">😀 Expression</span>
+      <span class="chip warm" onclick="bgOnly(this)">🪟 Just background</span>
+    </div>`}
+    <div class="acts">
+      <button class="a" onclick="regen(this)">↻ Redo</button>
+      <button class="a" onclick="alert('Upscale to full resolution')">⬆ HD</button>
+      <button class="a" onclick="alert('Download / save to Library')">⤓</button>
+      ${isBg?'':'<button class="a prime" onclick="alert(\'Use this look: set as clone avatar, or send to a video/narration\')">Use</button>'}
+    </div>
+    <div class="resize">◢</div>`;
+  document.getElementById('board').appendChild(n);
+  drag(n); resize(n);
+  runLoader(n, opts && opts.instant);
+  return n;
+}
+function runLoader(n, instant){
+  const bar = n.querySelector('.lbar>span');
+  let p = 8;
+  const finish = () => {
+    const ld = n.querySelector('.loader'); if(ld) ld.remove();
+    const b = n.querySelector('.badge'); if(b){ b.className='badge ready'; b.textContent='ready'; }
+    const pic = n.querySelector('.pic'); if(pic && !pic.querySelector('img')){ const im=document.createElement('img'); im.src=SAMPLE(seq+Math.floor(Math.random()*99)); pic.insertBefore(im, pic.firstChild); }
+    stats();
+  };
+  if(instant){ finish(); return; }
+  const t = setInterval(()=>{ p += 9+Math.random()*16; if(bar)bar.style.width=Math.min(96,p)+'%'; if(p>=100){ clearInterval(t); finish(); } }, 300);
+}
+function variant(el, kind){
+  const opt = kind==='Outfit' ? OUTFITS : kind==='Pose' ? POSES : kind==='Scene' ? SCENES.map(s=>s.n) : ["Smiling","Neutral","Talking","Confident"];
+  const pick = prompt(`Change ${kind.toLowerCase()} — a new shot with your identity kept:\n\n${opt.join(' · ')}`, opt[1]||opt[0]);
+  if(!pick) return;
+  const src = el.closest('.node'); const x=parseFloat(src.style.left)+24, y=parseFloat(src.style.top)+34;
+  document.getElementById('empty').style.display='none';
+  gload(1);
+  shotNode(seq, x, y, { p: `${document.getElementById('script').value.trim()} — ${kind}: ${pick} (identity kept).` });
+}
+function bgOnly(el){
+  const src = el.closest('.node'); const x=parseFloat(src.style.left)+24, y=parseFloat(src.style.top)+34;
+  gload(1);
+  shotNode(seq, x, y, { bg:true, p: `The exact same scene and lighting, but EMPTY — no person, no microphone. A clean background plate to use behind a real webcam.` });
+}
+function regen(b){ const n=b.closest('.node'); const pic=n.querySelector('.pic'); const img=pic.querySelector('img'); if(img)img.remove(); const bd=n.querySelector('.badge'); bd.className='badge rendering'; bd.textContent='rendering'; let ld=pic.querySelector('.loader'); if(!ld){ld=document.createElement('div');ld.className='loader';ld.innerHTML='<div class="sp"></div><div class="lbar"><span style="width:8%"></span></div>';pic.appendChild(ld);} runLoader(n); }
+
+/* ---------- generate ---------- */
+function gload(total){
+  const g=document.getElementById('gload'); g.classList.add('on');
+  document.getElementById('gtxt').textContent='Generating…';
+  let done=0; document.getElementById('gn').textContent=`0/${total}`;
+  const iv=setInterval(()=>{
+    const ready = document.querySelectorAll('.badge.ready').length;
+    document.getElementById('gn').textContent=`${Math.min(ready,total)}/${total}`;
+    document.getElementById('gfill').style.width=(Math.min(ready,total)/total*100)+'%';
+    if(document.querySelectorAll('.badge.rendering').length===0){ clearInterval(iv); setTimeout(()=>g.classList.remove('on'),600); }
+  },400);
+}
+function generate(){
+  closeBrief();
+  document.getElementById('empty').style.display='none';
+  idNode();
+  const startX = 300, gapX = 286, colY=[92,470];
+  for(let i=0;i<vars;i++){ shotNode(seq, startX+Math.floor(i/2)*gapX, colY[i%2], {}); }
+  const lastX = startX + Math.floor((vars-1)/2)*gapX;
+  const add = document.createElement('button'); add.className='addbtn'; add.textContent='+';
+  add.style.left=(lastX+gapX)+'px'; add.style.top='240px'; add.title='New shot'; add.onclick=openBrief;
+  document.getElementById('board').appendChild(add);
+  gload(vars); stats(); wires();
+}
+function stats(){
+  const all=document.querySelectorAll('.node.shot').length;
+  const ready=document.querySelectorAll('.badge.ready').length;
+  const rend=document.querySelectorAll('.badge.rendering').length;
+  document.getElementById('stat').innerHTML=`<b>${ready}</b> ready · ${rend} rendering · ${all} shots`;
+  wires();
+}
+function wires(){
+  const svg=document.getElementById('wires'); const board=document.getElementById('board').getBoundingClientRect();
+  const id=document.querySelector('[data-node="__id"]'); if(!id){ svg.innerHTML=''; return; }
+  const shots=[...document.querySelectorAll('.node.shot')];
+  const ra=id.getBoundingClientRect(); const ax=ra.right-board.left, ay=ra.top-board.top+ra.height/2;
+  let d='';
+  shots.forEach(s=>{ const rb=s.getBoundingClientRect(); const bx=rb.left-board.left, by=rb.top-board.top+rb.height/2; const dx=Math.max(30,(bx-ax)/2); d+=`M${ax} ${ay} C${ax+dx} ${ay},${bx-dx} ${by},${bx} ${by} `; });
+  svg.innerHTML=`<path d="${d}" fill="none" stroke="#6366f1" stroke-width="2" opacity=".35"/>`;
+}
+
+/* ---------- drag / resize ---------- */
+function drag(n){ const h=n.querySelector('.n-head'); if(!h)return; h.onpointerdown=e=>{ if(e.target.closest('button'))return; const sx=e.clientX,sy=e.clientY,ox=parseFloat(n.style.left),oy=parseFloat(n.style.top); const mv=ev=>{n.style.left=(ox+ev.clientX-sx)+'px';n.style.top=(oy+ev.clientY-sy)+'px';wires();}; const up=()=>{document.removeEventListener('pointermove',mv);document.removeEventListener('pointerup',up);}; document.addEventListener('pointermove',mv);document.addEventListener('pointerup',up); }; }
+function resize(n){ const r=n.querySelector('.resize'); if(!r)return; r.onpointerdown=e=>{ e.stopPropagation(); const sx=e.clientX,ow=n.offsetWidth; const mv=ev=>{n.style.width=Math.max(200,Math.min(460,ow+ev.clientX-sx))+'px';wires();}; const up=()=>{document.removeEventListener('pointermove',mv);document.removeEventListener('pointerup',up);}; document.addEventListener('pointermove',mv);document.addEventListener('pointerup',up); }; }
+
+/* ---------- build pickers ---------- */
+document.getElementById('scenes').innerHTML = SCENES.map((s,i)=>`
+  <div class="tpl ${s.id==='podcast'?'on':''}" onclick="pickScene(this,'${s.id}')">
+    <div class="pic2" style="background:${s.g}">${s.e}</div>
+    <div class="b"><h3>${s.n}</h3><p>${s.d}</p></div>
+  </div>`).join('');
+document.getElementById('outfits').innerHTML = OUTFITS.map((o,i)=>`<button class="pill ${i===0?'on':''}" onclick="pickPill(this,'outfits','${o}')">${o}</button>`).join('');
+document.getElementById('poses').innerHTML = POSES.map((o,i)=>`<button class="pill ${i===0?'on':''}" onclick="pickPill(this,'poses','${o}')">${o}</button>`).join('');
+function pickScene(el,id){ document.getElementById('scenes').querySelectorAll('.tpl').forEach(t=>t.classList.remove('on')); el.classList.add('on'); scene=id; }
+function pickPill(el,group,val){ document.getElementById(group).querySelectorAll('.pill').forEach(p=>p.classList.remove('on')); el.classList.add('on'); if(group==='outfits')outfit=val; else pose=val; }
+
+buildIdUp(); estimate();
+</script>
