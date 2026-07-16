@@ -724,7 +724,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
             <span className="text-emerald-500">{stats.ready} ready</span> · <span>{stats.rendering} rendering</span> · <span>{stats.total} scenes</span>
           </span>
           {film && stats.pending > 0 && (
-            <button onClick={generateAll} disabled={batching} title="Generate every scene that isn't ready yet" className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
+            <button onClick={generateAll} disabled={batching} title="Generate every scene that isn't ready yet" className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
               {batching ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate all ({stats.pending})
             </button>
           )}
@@ -745,7 +745,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
             <span className="text-[11.5px] font-semibold">Rendering {stats.rendering} {stats.rendering === 1 ? "scene" : "scenes"}…</span>
             <span className="text-[11px] tabular-nums text-muted-foreground">{stats.ready}/{stats.batchTotal} done</span>
             <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-[width] duration-500" style={{ width: `${Math.round((stats.ready / Math.max(1, stats.batchTotal)) * 100)}%` }} />
+              <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500 transition-[width] duration-500" style={{ width: `${Math.round((stats.ready / Math.max(1, stats.batchTotal)) * 100)}%` }} />
             </div>
           </div>
         </div>

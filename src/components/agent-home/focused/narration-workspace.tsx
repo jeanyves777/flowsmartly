@@ -33,13 +33,14 @@ const CHANNELS: PublishChannel[] = [
   { id: "linkedin", name: "LinkedIn" }, { id: "x", name: "X" },
 ];
 
-const STYLES: { id: NarrationStyle; label: string; hint: string }[] = [
-  { id: "documentary", label: "Documentary", hint: "Measured, cinematic, authoritative." },
-  { id: "explainer", label: "Explainer", hint: "Clear and friendly. Teaches fast." },
-  { id: "commercial", label: "Commercial", hint: "Punchy and warm — sells without shouting." },
-  { id: "audiobook", label: "Audiobook", hint: "Intimate, unhurried, story-first." },
-  { id: "news", label: "News read", hint: "Crisp, neutral, on the beat." },
-  { id: "meditation", label: "Meditation", hint: "Soft, slow, lots of air." },
+const V = "/Studio_Menus_Thumnail/voice";
+const STYLES: { id: NarrationStyle; label: string; hint: string; thumb: string }[] = [
+  { id: "documentary", label: "Documentary", hint: "Measured, cinematic, authoritative.", thumb: `${V}/voice6.webp` },
+  { id: "explainer", label: "Explainer", hint: "Clear and friendly. Teaches fast.", thumb: `${V}/voice7.webp` },
+  { id: "commercial", label: "Commercial", hint: "Punchy and warm — sells without shouting.", thumb: `${V}/voice3.webp` },
+  { id: "audiobook", label: "Audiobook", hint: "Intimate, unhurried, story-first.", thumb: `${V}/voice4.webp` },
+  { id: "news", label: "News read", hint: "Crisp, neutral, on the beat.", thumb: `${V}/voice5.webp` },
+  { id: "meditation", label: "Meditation", hint: "Soft, slow, lots of air.", thumb: `${V}/voice8.webp` },
 ];
 
 const TREATMENTS: { id: VisualTreatment; label: string; hint: string }[] = [
@@ -234,7 +235,7 @@ export function FocusedNarration() {
             </span>
           )}
           {isFilm && stats.pending > 0 && (
-            <button onClick={generateAll} disabled={batching} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60">
+            <button onClick={generateAll} disabled={batching} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60">
               {batching ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate all ({stats.pending})
             </button>
           )}
@@ -263,7 +264,7 @@ export function FocusedNarration() {
               <>
                 <span className="text-[11px] tabular-nums text-muted-foreground">{stats.ready}/{stats.total} done</span>
                 <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-[width] duration-500"
+                  <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500 transition-[width] duration-500"
                     style={{ width: `${Math.round((stats.ready / Math.max(1, stats.total)) * 100)}%` }} />
                 </div>
               </>
@@ -727,12 +728,20 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
         <div className="overflow-auto p-4">
           <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">What are we making?</p>
           <div className="flex gap-2.5">
-            {([["voiceover", Mic, "Voiceover", "Audio only. The script read as takes you can use anywhere."],
-               ["film", Film, "Narrated video", "Images and video, narrated end to end."]] as const).map(([m, Icon, label, hint]) => (
+            {([["voiceover", Mic, "Voiceover", "Audio only. The script read as takes you can use anywhere.", `${V}/voice2.webp`],
+               ["film", Film, "Narrated video", "Images and video, narrated end to end.", `${V}/voice1.webp`]] as const).map(([m, Icon, label, hint, thumb]) => (
               <button key={m} onClick={() => setMode(m)}
-                className={cn("flex max-w-[300px] flex-1 items-center gap-2.5 rounded-xl border-2 p-3 text-left transition", mode === m ? "border-violet-500 bg-violet-500/5" : "border-border bg-muted/30 hover:-translate-y-0.5")}>
-                <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-violet-700 text-white"><Icon className="h-4 w-4" /></span>
-                <span><b className="block text-[12.5px]">{label}</b><span className="text-[10px] leading-snug text-muted-foreground">{hint}</span></span>
+                className={cn("flex max-w-[320px] flex-1 flex-col overflow-hidden rounded-xl border-2 text-left transition", mode === m ? "border-violet-500" : "border-border hover:-translate-y-0.5")}>
+                <span className="relative block aspect-[16/7] w-full overflow-hidden bg-muted">
+                  <img src={thumb} alt="" className="h-full w-full object-cover" />
+                  <span className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                  <span className="absolute left-2 top-2 grid h-7 w-7 place-items-center rounded-lg bg-black/45 text-white backdrop-blur"><Icon className="h-3.5 w-3.5" /></span>
+                  {mode === m && <span className="absolute right-2 top-2 rounded-full bg-violet-500 px-2 py-0.5 text-[9px] font-bold text-white">Selected</span>}
+                </span>
+                <span className={cn("block p-2.5", mode === m ? "bg-violet-500/5" : "bg-muted/30")}>
+                  <b className="block text-[12.5px]">{label}</b>
+                  <span className="text-[10px] leading-snug text-muted-foreground">{hint}</span>
+                </span>
               </button>
             ))}
           </div>
@@ -792,9 +801,16 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
             <div className="flex gap-2 overflow-x-auto pb-1.5">
               {STYLES.map((s) => (
                 <button key={s.id} onClick={() => setStyle(s.id)}
-                  className={cn("w-[142px] flex-none rounded-xl border-2 p-2.5 text-left", style === s.id ? "border-violet-500 bg-violet-500/5" : "border-transparent bg-muted/30")}>
-                  <b className="block text-[11px]">{s.label}</b>
-                  <span className="line-clamp-2 text-[9px] leading-snug text-muted-foreground">{s.hint}</span>
+                  className={cn("w-[150px] flex-none overflow-hidden rounded-xl border-2 text-left transition", style === s.id ? "border-violet-500" : "border-transparent hover:-translate-y-0.5")}>
+                  <span className="relative block aspect-[16/9] w-full overflow-hidden bg-muted">
+                    <img src={s.thumb} alt="" className="h-full w-full object-cover" />
+                    <span className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
+                    {style === s.id && <span className="absolute right-1.5 top-1.5 rounded-full bg-violet-500 px-1.5 py-0.5 text-[8px] font-bold text-white">✓</span>}
+                  </span>
+                  <span className={cn("block p-2.5", style === s.id ? "bg-violet-500/5" : "bg-muted/30")}>
+                    <b className="block text-[11px]">{s.label}</b>
+                    <span className="line-clamp-2 text-[9px] leading-snug text-muted-foreground">{s.hint}</span>
+                  </span>
                 </button>
               ))}
             </div>
@@ -844,7 +860,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
           </span>
           <div className="flex-1" />
           <button onClick={onClose} className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold">Cancel</button>
-          <button onClick={go} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60">
+          <button onClick={go} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60">
             {busy ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate
           </button>
         </div>
