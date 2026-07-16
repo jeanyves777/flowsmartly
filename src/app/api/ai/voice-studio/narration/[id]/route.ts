@@ -13,7 +13,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const project = await getNarration(id, session.userId);
   if (!project) return NextResponse.json({ success: false, error: { message: "Not found" } }, { status: 404 });
 
-  const live = project.shots.some((s) => s.status === "rendering" || s.status === "queued") || project.finalStatus === "rendering";
+  // Reconcile on open: live renders, a stitch, OR a stuck draft (a deploy-orphaned
+  // "drafting" is re-run here so the canvas can't spin on it forever).
+  const live = project.draftStatus === "drafting"
+    || project.finalStatus === "rendering"
+    || project.shots.some((s) => s.status === "rendering" || s.status === "queued");
   const synced = live ? await syncNarration(project, session.userId) : project;
   return NextResponse.json({ success: true, data: await presignAllUrls({ project: synced }) });
 }
