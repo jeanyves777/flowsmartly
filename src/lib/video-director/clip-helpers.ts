@@ -67,6 +67,66 @@ export async function imageToClip(imgBuffer: Buffer, durationSec: number, w: num
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
 
+export type KenBurns = "in" | "out" | "left" | "right" | "none";
+
+/**
+ * A still → an N-second clip with a slow Ken Burns move. This is what keeps an
+ * image-driven narration from looking like a slideshow.
+ *
+ * zoompan runs on an upscaled frame: it steps zoom PER OUTPUT FRAME, so zooming a
+ * source-sized input makes the pan jitter between whole source pixels. Rendering the
+ * move at 2x and scaling down keeps it smooth.
+ */
+export async function imageToKenBurnsClip(
+  imgBuffer: Buffer,
+  durationSec: number,
+  w: number,
+  h: number,
+  move: KenBurns = "in",
+): Promise<Buffer> {
+  if (move === "none") return imageToClip(imgBuffer, durationSec, w, h);
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Video assembly is not available on this server.");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-dir-kb-"));
+  try {
+    const inPath = path.join(dir, "img");
+    const outPath = path.join(dir, "out.mp4");
+    await writeFile(inPath, imgBuffer);
+    const dur = Math.max(1, Math.min(30, Math.round(durationSec || 5)));
+    const fps = 30;
+    const frames = dur * fps;
+    const bigW = w * 2, bigH = h * 2;
+    const Z = 1.18; // total travel — beyond ~1.2 it reads as a lurch, not a drift
+
+    // zoompan wants zoom as an expression over `on` (output frame number).
+    const zIn = `min(1+(${Z - 1})*on/${frames},${Z})`;
+    const zOut = `max(${Z}-(${Z - 1})*on/${frames},1)`;
+    let zoom = zIn, x = "iw/2-(iw/zoom/2)", y = "ih/2-(ih/zoom/2)";
+    if (move === "out") zoom = zOut;
+    if (move === "left" || move === "right") {
+      zoom = String(Z); // hold the zoom and travel across instead
+      const t = `on/${frames}`;
+      x = move === "left"
+        ? `(iw-iw/zoom)*(1-${t})`
+        : `(iw-iw/zoom)*${t}`;
+    }
+    const vf = [
+      `scale=${bigW}:${bigH}:force_original_aspect_ratio=increase`,
+      `crop=${bigW}:${bigH}`,
+      `zoompan=z='${zoom}':x='${x}':y='${y}':d=${frames}:s=${bigW}x${bigH}:fps=${fps}`,
+      `scale=${w}:${h}`,
+      "setsar=1",
+      "format=yuv420p",
+    ].join(",");
+    await run(ff, ["-loop", "1", "-i", inPath, ...ANULL, "-t", String(dur),
+      "-vf", vf, "-map", "0:v:0", "-map", "1:a:0", "-shortest", ...ENC, outPath]);
+    return await readFile(outPath);
+  } catch {
+    // Motion is a nicety — never lose the shot over it.
+    return imageToClip(imgBuffer, durationSec, w, h);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
 /** Map a Director transition name to an ffmpeg xfade transition. */
 export function xfadeName(t?: string): string {
   switch (t) {
@@ -255,6 +315,106 @@ export async function mixTimedAudio(videoBuf: Buffer, audioBuf: Buffer, startSec
     const start = Math.max(0, startSec), duration = Math.max(0.1, endSec - start), delay = Math.round(start * 1000);
     const fc = `[1:a]atrim=0:${duration},asetpts=PTS-STARTPTS,volume=${Math.max(0, Math.min(2, volume))},adelay=${delay}|${delay}[extra];[0:a][extra]amix=inputs=2:duration=first:dropout_transition=0[a]`;
     await run(ff, ["-i", video, "-stream_loop", "-1", "-i", audio, "-filter_complex", fc, "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", "-y", out], 600000);
+    return await readFile(out);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
+/** N seconds of silence — the placeholder for a beat that carries no read. */
+export async function silentAudio(seconds: number): Promise<Buffer> {
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Audio assembly is not available on this server.");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-sil-"));
+  try {
+    const out = path.join(dir, "sil.m4a");
+    const dur = Math.max(0.2, Math.round(seconds * 10) / 10);
+    await run(ff, [...ANULL, "-t", String(dur), "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2", "-y", out]);
+    return await readFile(out);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
+/**
+ * Force a clip to EXACTLY `seconds` at film dims: trimmed if long, last frame held
+ * if short. Narrated films depend on this — the narration track is laid out from the
+ * shots' holds, so a clip that runs even half a second off would drift the voice out
+ * of sync with the picture for the rest of the film.
+ */
+export async function fitClipTo(vidBuffer: Buffer, w: number, h: number, seconds: number): Promise<Buffer> {
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Video assembly is not available on this server.");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-fit-"));
+  try {
+    const inPath = path.join(dir, "in.mp4"), out = path.join(dir, "out.mp4");
+    await writeFile(inPath, vidBuffer);
+    const dur = Math.max(0.5, Math.round(seconds * 10) / 10);
+    // tpad clones the final frame to reach `dur`; the trailing trim caps a long clip.
+    // apad does the same for audio so the muxer can't shorten the result.
+    const vf = `${VF(w, h)},tpad=stop_mode=clone:stop_duration=${dur},trim=0:${dur},setpts=PTS-STARTPTS`;
+    const af = `apad=whole_dur=${dur},atrim=0:${dur},asetpts=PTS-STARTPTS`;
+    await run(ff, ["-i", inPath, ...ANULL, "-filter_complex",
+      `[0:v]${vf}[v];[0:a]${af}[a0];[1:a]atrim=0:${dur}[sil];[a0][sil]amix=inputs=2:duration=first:dropout_transition=0[a]`,
+      "-map", "[v]", "-map", "[a]", "-t", String(dur), ...ENC, out], 600000);
+    return await readFile(out);
+  } catch {
+    // No audio stream to filter? Re-run treating the source as silent.
+    const dir2 = await mkdtemp(path.join(os.tmpdir(), "fs-fit2-"));
+    try {
+      const inPath = path.join(dir2, "in.mp4"), out = path.join(dir2, "out.mp4");
+      await writeFile(inPath, vidBuffer);
+      const dur = Math.max(0.5, Math.round(seconds * 10) / 10);
+      await run(ff, ["-i", inPath, ...ANULL,
+        "-vf", `${VF(w, h)},tpad=stop_mode=clone:stop_duration=${dur},trim=0:${dur},setpts=PTS-STARTPTS`,
+        "-map", "0:v:0", "-map", "1:a:0", "-t", String(dur), ...ENC, out], 600000);
+      return await readFile(out);
+    } finally { await rm(dir2, { recursive: true, force: true }); }
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
+/**
+ * Build ONE continuous narration track from per-shot segments, each padded with
+ * silence to exactly its shot's hold. Because the shots are cut (never cross-faded)
+ * their durations are additive, so padding each segment to its hold is what keeps
+ * the voice locked to the picture for the whole film — no forced alignment needed.
+ */
+export async function buildNarrationTrack(segments: { buf: Buffer; holdSec: number }[]): Promise<Buffer> {
+  if (segments.length === 0) throw new Error("No narration to lay down.");
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Audio assembly is not available on this server.");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-narr-"));
+  try {
+    const out = path.join(dir, "narration.m4a");
+    const args: string[] = [];
+    const parts: string[] = [];
+    for (let i = 0; i < segments.length; i++) {
+      const p = path.join(dir, `seg${i}`);
+      await writeFile(p, segments[i].buf);
+      args.push("-i", p);
+      // apad to the exact hold, then atrim so a long read can't push the film out of sync.
+      const hold = Math.max(0.5, segments[i].holdSec);
+      parts.push(`[${i}:a]aresample=44100,apad=whole_dur=${hold},atrim=0:${hold},asetpts=PTS-STARTPTS[s${i}]`);
+    }
+    const fc = `${parts.join(";")};${segments.map((_, i) => `[s${i}]`).join("")}concat=n=${segments.length}:v=0:a=1[a]`;
+    await run(ff, [...args, "-filter_complex", fc, "-map", "[a]", "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2", "-y", out], 600000);
+    return await readFile(out);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
+/**
+ * Lay the narration over a finished cut. Whatever audio the shots carry (a
+ * generated video's own ambience) is ducked far under so the narrator stays the
+ * voice of the film; the picture's length always wins.
+ */
+export async function narrateOver(videoBuf: Buffer, narrationBuf: Buffer, ambience = 0.1): Promise<Buffer> {
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Video assembly is not available on this server.");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-vo-"));
+  try {
+    const v = path.join(dir, "v.mp4"), a = path.join(dir, "vo"), out = path.join(dir, "out.mp4");
+    await writeFile(v, videoBuf); await writeFile(a, narrationBuf);
+    // duration=first ⇒ the video's own track governs length, so a short/long read
+    // can never truncate or stretch the picture.
+    const fc = `[0:a]volume=${Math.max(0, Math.min(1, ambience))}[amb];[1:a]aresample=44100,volume=1.0[vo];[amb][vo]amix=inputs=2:duration=first:dropout_transition=0[a]`;
+    await run(ff, ["-i", v, "-i", a, "-filter_complex", fc, "-map", "0:v", "-map", "[a]",
+      "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", "-y", out], 600000);
     return await readFile(out);
   } finally { await rm(dir, { recursive: true, force: true }); }
 }

@@ -149,6 +149,47 @@ async function uploadCastImage(base64: string, format: string, filmId: string, c
 }
 
 /**
+ * Build a character's identity anchor: a clean portrait, plus a multi-angle
+ * turnaround sheet derived from it (identity-preserving image-to-image). Feed the
+ * sheet into every shot that features them and the same person shows up each time.
+ *
+ * Studio-agnostic on purpose — the Voice Studio's narrated films have exactly the
+ * same "same subject across many shots" problem, so both callers share this rather
+ * than growing a second, drifting copy of the anchor rules.
+ */
+export async function buildCastAnchor(
+  c: FilmCharacter,
+  scopeId: string,
+  opts: { baseImageUrl?: string | null } = {},
+): Promise<{ referenceImageUrl: string; characterSheetUrl: string | null }> {
+  let portraitUrl: string;
+  let portraitBuffer: Buffer;
+  if (opts.baseImageUrl) {
+    portraitBuffer = await toBuffer(opts.baseImageUrl);
+    portraitUrl = opts.baseImageUrl;
+  } else {
+    const t0 = Date.now();
+    const res = await generateImageXaiFirst(portraitPrompt(c, c.renderStyle), 1024, 1280, { quality: "high", transparent: false });
+    console.log(`[cast] portrait "${c.name}": ${res.provider}/${res.model} in ${Date.now() - t0}ms`);
+    if (!res.base64) throw new Error("no image returned");
+    portraitBuffer = Buffer.from(res.base64, "base64");
+    portraitUrl = await uploadCastImage(res.base64, res.format, scopeId, c, "portrait");
+  }
+
+  // Best-effort: a portrait-only anchor still holds identity reasonably well.
+  let characterSheetUrl: string | null = null;
+  try {
+    const t1 = Date.now();
+    const sheet = await editImagesXaiFirst(sheetPrompt(c, c.renderStyle), [portraitBuffer], 1536, 1024, { intent: "identity", quality: "high" });
+    console.log(`[cast] sheet "${c.name}": ${sheet.provider}/${sheet.model} in ${Date.now() - t1}ms`);
+    if (sheet.base64) characterSheetUrl = await uploadCastImage(sheet.base64, sheet.format, scopeId, c, "sheet");
+  } catch (err) {
+    console.warn("[cast] character sheet failed; portrait-only anchor:", err);
+  }
+  return { referenceImageUrl: portraitUrl, characterSheetUrl };
+}
+
+/**
  * Generate a character's portrait + turnaround sheet (charged by the caller).
  * When `baseImageUrl` is given (the user uploaded/picked a photo) the portrait IS
  * that image and only the sheet is derived from it. Saves onto the film. Never
@@ -181,41 +222,10 @@ export async function generateFilmCharacterPreview(
   const c = { ...film.characters![idx], ...wardrobePatch };
 
   try {
-    // 1) Portrait = anchor (uploaded image, else generated).
-    let portraitUrl: string;
-    let portraitBuffer: Buffer;
-    if (opts.baseImageUrl) {
-      portraitBuffer = await toBuffer(opts.baseImageUrl);
-      portraitUrl = opts.baseImageUrl;
-    } else {
-      // Fast + cheap path (Nano Banana / Grok) — the strong photoreal prompt keeps
-      // cinematic characters realistic without the slow, pricey gpt-image route.
-      const t0 = Date.now();
-      const res = await generateImageXaiFirst(portraitPrompt(c, c.renderStyle), 1024, 1280, {
-        quality: "high",
-        transparent: false,
-      });
-      console.log(`[video-director] cast portrait "${c.name}": ${res.provider}/${res.model} in ${Date.now() - t0}ms`);
-      if (!res.base64) throw new Error("no image returned");
-      portraitBuffer = Buffer.from(res.base64, "base64");
-      portraitUrl = await uploadCastImage(res.base64, res.format, filmId, c, "portrait");
-    }
-
-    // 2) Turnaround sheet derived from the portrait (identity-preserving). Best-effort.
-    let sheetUrl: string | null = null;
-    try {
-      const t1 = Date.now();
-      const sheet = await editImagesXaiFirst(sheetPrompt(c, c.renderStyle), [portraitBuffer], 1536, 1024, {
-        intent: "identity",
-        quality: "high",
-      });
-      console.log(`[video-director] cast sheet "${c.name}": ${sheet.provider}/${sheet.model} in ${Date.now() - t1}ms`);
-      if (sheet.base64) sheetUrl = await uploadCastImage(sheet.base64, sheet.format, filmId, c, "sheet");
-    } catch (err) {
-      console.warn("[video-director] character sheet failed; portrait-only anchor:", err);
-    }
-
-    await setChar({ referenceImageUrl: portraitUrl, characterSheetUrl: sheetUrl, previewStatus: "ready", previewError: null, approved: false });
+    // Portrait anchor + turnaround sheet — shared with the Voice Studio's narrated
+    // films, which have the same cross-shot identity problem.
+    const { referenceImageUrl, characterSheetUrl } = await buildCastAnchor(c, filmId, { baseImageUrl: opts.baseImageUrl });
+    await setChar({ referenceImageUrl, characterSheetUrl, previewStatus: "ready", previewError: null, approved: false });
   } catch (err) {
     console.error("[video-director] character preview failed:", err);
     await setChar({ previewStatus: "failed", previewError: sanitizeUserError(err, "image") });
