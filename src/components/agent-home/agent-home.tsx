@@ -59,6 +59,7 @@ import { FocusedReferrals } from "./focused/referrals-workspace";
 import { FocusedMedia } from "./focused/media-workspace";
 import { FocusedLogo } from "./focused/logo-workspace";
 import { FocusedVoice } from "./focused/voice-workspace";
+import { FocusedNarration } from "./focused/narration-workspace";
 import { FocusedVideo } from "./focused/video-workspace";
 import { FocusedAvatar } from "./focused/avatar-workspace";
 import { FocusedDelivery } from "./focused/delivery-workspace";
@@ -170,7 +171,8 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   logo: { label: "Logo studio", subtitle: "Your generated logos", icon: Palette },
   video: { label: "Video studio", subtitle: "Brief → estimate → build, right on the canvas", icon: Clapperboard },
   reel: { label: "Reel studio", subtitle: "Link → find moments → clips, right on the canvas", icon: Clapperboard },
-  voice: { label: "Voice studio", subtitle: "Voiceovers, narration & voice cloning", icon: Mic },
+  voice: { label: "Voice studio", subtitle: "A voiceover, or a narrated video", icon: Mic },
+  voices: { label: "Voices & cloning", subtitle: "Clone your voice, manage the rest", icon: Mic },
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
   director: { label: "Filmmaking", subtitle: "Direct a multi-scene cinematic film", icon: Clapperboard },
   ugc: { label: "UGC Studio", subtitle: "Creator videos with lip-sync", icon: Sparkles },
@@ -313,7 +315,7 @@ const AGENT_VIEW: Record<string, { surface: string; label: string }> = {
 // "grow" and "business" are category CONTAINERS (they open a nav panel, not a
 // real surface) — deliberately excluded so /home/grow and /home/business deep-
 // link cleanly to Home instead of a "coming soon" placeholder.
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "director", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "voices", "video", "director", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
@@ -1469,6 +1471,8 @@ export function AgentHome() {
                 ) : focused === "logo" ? (
                   <FocusedLogo onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "voice" ? (
+                  <FocusedNarration />
+                ) : focused === "voices" ? (
                   <FocusedVoice onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "video" ? (
                   <AdBuilderCanvas embedded refreshKey={actionCount} canvasRef={videoOpsRef} />
