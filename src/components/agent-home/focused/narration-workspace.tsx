@@ -446,7 +446,12 @@ export function FocusedNarration() {
                 nodeId="__publish"
                 channels={CHANNELS}
                 ready={isUrl(project.finalVideoUrl)}
-                onOpen={() => (isUrl(project.finalVideoUrl) ? setPublishOpen(true) : compose())}
+                onOpen={() => {
+                  // Publish only publishes — it never stitches. Stitching stays the
+                  // Final-film node's job; Publish just needs a finished film.
+                  if (isUrl(project.finalVideoUrl)) setPublishOpen(true);
+                  else toast({ title: "Stitch the film first", description: "Publish opens once the film is stitched — use the Final film node." });
+                }}
                 style={{ left: layout.pubX, top: 240 }}
               />
             </>
