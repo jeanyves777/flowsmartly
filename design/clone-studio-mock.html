@@ -138,6 +138,15 @@
   .suggest{display:flex;align-items:center;gap:10px;border:1px solid rgba(99,102,241,.3);background:linear-gradient(135deg,rgba(99,102,241,.07),rgba(167,139,250,.05));border-radius:12px;padding:11px 12px;margin-bottom:16px}
   .suggest .si{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:rgba(99,102,241,.15);color:var(--violet);font-size:14px;flex:none}
   .suggest b{font-size:12px}.suggest p{margin:1px 0 0;font-size:10.5px;color:var(--muted)}
+  /* type toggle */
+  .tmode{flex:1;max-width:320px;display:flex;gap:10px;align-items:center;border:2px solid var(--border);border-radius:14px;padding:11px 12px;background:var(--card2);cursor:pointer;transition:transform .12s}
+  .tmode:hover{transform:translateY(-2px)}.tmode.on{border-color:var(--brand);background:rgba(99,102,241,.06)}
+  .tmode .ti{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:16px;flex:none;background:linear-gradient(135deg,var(--brand),var(--violet2));color:#fff}
+  .tmode h3{margin:0;font-size:12.5px}.tmode p{margin:2px 0 0;font-size:10px;color:var(--muted);line-height:1.35}
+  /* actor "use" bar on the identity node */
+  .usebar{display:flex;gap:5px;padding:0 11px 11px}
+  .usebar .u{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;border:none;border-radius:9px;padding:7px;font-size:10.5px;font-weight:700;cursor:pointer;color:#fff}
+  .u.ugc{background:linear-gradient(135deg,var(--rose),#e11d48)}.u.film{background:linear-gradient(135deg,var(--brand),var(--violet2))}
 
   /* clones drawer */
   .drawer{position:absolute;inset-block:0;right:0;width:300px;z-index:50;background:var(--card);border-left:1px solid var(--border);transform:translateX(100%);transition:transform .2s;display:flex;flex-direction:column}
@@ -194,6 +203,17 @@
 <div class="brief" id="brief">
   <div class="b-head"><span class="p">BRIEF</span><b id="bTitle">New shot</b><button class="close" onclick="closeBrief()">✕</button></div>
   <div class="b-scroll">
+    <!-- TYPE: photoshoot (images) vs actor (reusable in UGC/Film video) -->
+    <p class="b-lbl">What are we making?</p>
+    <div style="display:flex;gap:10px;margin-bottom:4px">
+      <div class="tmode on" data-t="photo" onclick="setType('photo')">
+        <div class="ti">🖼</div><div><h3>Photoshoot</h3><p>You in any scene, outfit &amp; pose — as images.</p></div>
+      </div>
+      <div class="tmode" data-t="actor" onclick="setType('actor')">
+        <div class="ti" style="background:linear-gradient(135deg,var(--teal),#0e7490)">🎬</div><div><h3>Actor clone</h3><p>A reusable you — send it into UGC or a Film to make videos.</p></div>
+      </div>
+    </div>
+
     <div class="suggest">
       <span class="si">✨</span>
       <div style="flex:1"><b>Not sure what to make?</b><p>Let the agent suggest studio shots from your brand — pick one and it fills the brief.</p></div>
@@ -204,6 +224,7 @@
     <p class="b-lbl">Your look <span class="tip">— upload 1–4 photos of yourself; this locks your identity</span></p>
     <div class="idup" id="idup"></div>
     <p class="idnote"><b>Identity look-lock.</b> The more angles you add, the more faithfully the studio keeps <b>you</b> — same face, same build — across every outfit, pose and scene. Saved as a reusable clone.</p>
+    <p class="idnote" id="actorNote" style="display:none;border-left-color:rgba(34,211,238,.5);background:rgba(34,211,238,.05)"><b>Actor clone.</b> This builds a clean, locked hero look you can then send into the <b>UGC</b> or <b>Film</b> studio to make talking videos of yourself — the same face in every scene. Use the “Use in UGC / Film” buttons on the clone.</p>
 
     <!-- WHAT -->
     <div class="sec">
@@ -276,11 +297,20 @@ const SCENES = [
   {id:"studio",  n:"Studio portrait",d:"Seamless backdrop, headshot lighting.", g:"linear-gradient(135deg,#6366f1,#4338ca)", e:"📸"},
   {id:"outdoor", n:"Outdoor",        d:"City or nature, natural light.", g:"linear-gradient(135deg,#059669,#065f46)", e:"🌤"},
   {id:"webinar", n:"Webinar / stage",d:"Screen + spotlight, presenting.", g:"linear-gradient(135deg,#be185d,#831843)", e:"🖥"},
+  {id:"duo",     n:"You × You",      d:"Two of you in one scene — interview yourself.", g:"linear-gradient(135deg,#0e7490,#155e75)", e:"👥"},
   {id:"bgonly",  n:"Background only", d:"Just the scene, no you — use it live.", g:"linear-gradient(135deg,#b45309,#78350f)", e:"🪟"},
 ];
 const OUTFITS = ["Keep current","Suit & tie","Smart casual","Knit sweater","Long-sleeve shirt","T-shirt","Blazer, no tie"];
 const POSES  = ["Looking at camera","Three-quarter","Seated at desk","Standing, arms crossed","Mid-gesture, talking","Head & shoulders"];
-let scene = "podcast", outfit = "Keep current", pose = "Looking at camera", aspect = "1:1", q = "standard";
+let scene = "podcast", outfit = "Keep current", pose = "Looking at camera", aspect = "1:1", q = "standard", type = "photo";
+
+function setType(t){
+  type = t;
+  document.querySelectorAll('.tmode').forEach(x=>x.classList.toggle('on', x.dataset.t===t));
+  document.getElementById('bTitle').textContent = t==='actor' ? 'New actor clone' : 'New shot';
+  // Actor type nudges the config toward a clean, video-ready hero shot.
+  document.getElementById('actorNote').style.display = t==='actor' ? '' : 'none';
+}
 
 /* ---------- brief ---------- */
 function openBrief(){ buildIdUp(); document.getElementById('brief').classList.add('on'); document.getElementById('scrim').classList.add('on'); estimate(); }
@@ -334,7 +364,11 @@ function idNode(){
       <b id="idName">${clones[activeClone].name}</b><span class="tag id">look lock</span></div>
     <div class="id-grid" id="idGrid"></div>
     <div class="id-meta">Identity locked from <b id="idCount">${clones[activeClone].photos.length} photos</b>. Every shot keeps this face &amp; build.</div>
-    <div class="acts"><button class="a" onclick="openClones()">Switch clone</button><button class="a prime" onclick="openBrief()">New shot</button></div>`;
+    <div class="acts"><button class="a" onclick="openClones()">Switch clone</button><button class="a prime" onclick="openBrief()">New shot</button></div>
+    <div class="usebar">
+      <button class="u ugc" onclick="alert('Sends this clone into the UGC studio as the on-camera creator — make talking videos of you.')">🎬 Use in UGC</button>
+      <button class="u film" onclick="alert('Adds this clone as a cast member in a Film — a reusable you across scenes.')">🎞 Use in Film</button>
+    </div>`;
   document.getElementById('board').appendChild(n);
   drag(n); syncId();
 }
