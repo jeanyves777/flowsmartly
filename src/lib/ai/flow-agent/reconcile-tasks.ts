@@ -8,6 +8,7 @@ import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
 import { resumeAvatarRender } from "@/lib/avatar-studio";
 import { resumeStuckDirectorScenes, resumeStuckDirectorFinals } from "@/lib/video-director/engines";
+import { resumeStuckNarrations } from "@/lib/voice-studio/engines";
 import { resumeStuckUgcTakes } from "@/lib/ugc-studio/engines";
 import { resumeStuckAdTakes } from "@/lib/product-ads/engines";
 import { resumeStuckTryOnTakes } from "@/lib/try-on/engines";
@@ -407,6 +408,11 @@ export async function runTaskRecovery(): Promise<RecoveryResult> {
     const adTakes = await resumeStuckAdTakes().catch(() => ({ scanned: 0, changed: 0 }));
     result.scanned += adTakes.scanned;
     result.recovered += adTakes.changed;
+
+    // …and Voice Studio narrations (shots pull their xAI job; a dead stitch re-runs).
+    const narrations = await resumeStuckNarrations().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += narrations.scanned;
+    result.recovered += narrations.changed;
 
     // …and Virtual Try-on takes.
     const tryOnTakes = await resumeStuckTryOnTakes().catch(() => ({ scanned: 0, changed: 0 }));

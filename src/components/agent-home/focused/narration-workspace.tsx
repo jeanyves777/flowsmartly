@@ -1,0 +1,935 @@
+"use client";
+/**
+ * Voice Studio — the NARRATION playground.
+ *
+ * Same shell as the other studios (brief node → wired canvas → publish), with the
+ * Filmmaking studio's post-draft control: every shot keeps its drafted prompt, its
+ * beat of narration, its type, hold and camera move, and re-renders on its own.
+ *
+ * One brief, two outputs: a voiceover (takes), or a narrated film (shots). The voice
+ * is one constant read across the whole story, so cast are depicted, never speakers.
+ * [[voice-studio]]
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  Mic, Sparkles, FolderOpen, Film, Play, Pause, Image as ImageIcon, Clapperboard,
+  Users, RefreshCw, Upload, Pencil, Trash2, Plus, X, Music, Captions, Wand2,
+} from "lucide-react";
+import { cn } from "@/lib/utils/cn";
+import { useToast } from "@/hooks/use-toast";
+import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
+import { PublishNode, PublishSheet, type PublishChannel } from "@/components/agent-home/shared/publish-node";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import type {
+  NarrationProject, NarrationShot, NarrationMode, VisualTreatment,
+  NarrationAspect, NarrationStyle, ShotKind,
+} from "@/lib/voice-studio/types";
+import type { FilmCharacter } from "@/lib/video-director/types";
+
+const CHANNELS: PublishChannel[] = [
+  { id: "tiktok", name: "TikTok" }, { id: "instagram", name: "Instagram" },
+  { id: "youtube", name: "YouTube" }, { id: "facebook", name: "Facebook" },
+  { id: "linkedin", name: "LinkedIn" }, { id: "x", name: "X" },
+];
+
+const STYLES: { id: NarrationStyle; label: string; hint: string }[] = [
+  { id: "documentary", label: "Documentary", hint: "Measured, cinematic, authoritative." },
+  { id: "explainer", label: "Explainer", hint: "Clear and friendly. Teaches fast." },
+  { id: "commercial", label: "Commercial", hint: "Punchy and warm — sells without shouting." },
+  { id: "audiobook", label: "Audiobook", hint: "Intimate, unhurried, story-first." },
+  { id: "news", label: "News read", hint: "Crisp, neutral, on the beat." },
+  { id: "meditation", label: "Meditation", hint: "Soft, slow, lots of air." },
+];
+
+const TREATMENTS: { id: VisualTreatment; label: string; hint: string }[] = [
+  { id: "images", label: "Image story", hint: "Every shot an image, on a slow push-in. Holds any length." },
+  { id: "mixed", label: "Images + video", hint: "Images carry it; real generated video hits the moments." },
+];
+
+interface VoiceProfile {
+  id: string; name: string; type: string;
+  gender?: string | null; accent?: string | null; style?: string | null;
+  openaiVoiceId?: string | null; elevenLabsVoiceId?: string | null;
+}
+
+const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+const isUrl = (u?: string | null): u is string => !!u && /^https?:\/\//i.test(u);
+
+export function FocusedNarration() {
+  const { toast } = useToast();
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
+  const [project, setProject] = useState<NarrationProject | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [libOpen, setLibOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [castOpen, setCastOpen] = useState(false);
+  const [picker, setPicker] = useState<{ shotId: string; kind: ShotKind } | "music" | null>(null);
+  const [playing, setPlaying] = useState<string | null>(null);
+  const [batching, setBatching] = useState(false);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const shots = useMemo(() => project?.shots || [], [project]);
+  const stats = useMemo(() => ({
+    ready: shots.filter((s) => s.status === "ready").length,
+    rendering: shots.filter((s) => s.status === "rendering" || s.status === "queued").length,
+    total: shots.length,
+    pending: shots.filter((s) => s.status !== "ready" && s.status !== "rendering").length,
+    length: shots.reduce((n, s) => n + (s.holdSec || 0), 0),
+  }), [shots]);
+
+  const takesRendering = (project?.takes || []).some((t) => t.status === "rendering" || t.status === "queued");
+  const live = stats.rendering > 0 || takesRendering || project?.finalStatus === "rendering";
+  const drafting = project?.draftStatus === "drafting";
+
+  // ── poll while anything is in flight (and on open, so a deploy-orphaned render heals)
+  useEffect(() => {
+    if ((!live && !drafting) || !project) return;
+    const id = project.id;
+    const t = setInterval(async () => {
+      try {
+        const j = await fetch(`/api/ai/voice-studio/narration/${id}`).then((r) => r.json());
+        if (j?.success) setProject(j.data.project);
+      } catch { /* keep polling */ }
+    }, drafting ? 3000 : 6000);
+    return () => clearInterval(t);
+  }, [live, drafting, project?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const mutate = (fn: (p: NarrationProject) => NarrationProject) => {
+    setProject((p) => (p ? fn(p) : p));
+  };
+  const save = useCallback(async (p: NarrationProject) => {
+    await fetch(`/api/ai/voice-studio/narration/${p.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project: p }),
+    }).catch(() => {});
+  }, []);
+
+  // ── actions
+  const generateAll = async () => {
+    if (!project) return;
+    setBatching(true);
+    try {
+      const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/generate-all`, { method: "POST" }).then((r) => r.json());
+      if (j?.success) { setProject(j.data.project); if (j.data.message) toast({ title: j.data.message }); }
+      else toast({ title: "Could not start", description: j?.error?.message, variant: "destructive" });
+    } finally { setBatching(false); }
+  };
+  const renderShot = async (shotId: string) => {
+    if (!project) return;
+    const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/shots/${shotId}/generate`, { method: "POST" }).then((r) => r.json());
+    if (j?.success) setProject(j.data.project);
+    else toast({ title: "Could not render that shot", description: j?.error?.message, variant: "destructive" });
+  };
+  const rewriteLine = async (shotId: string) => {
+    if (!project) return;
+    const instruction = window.prompt("How should this beat change?\n(e.g. “shorter and punchier”, “name the village”)");
+    if (!instruction?.trim()) return;
+    const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/shots/${shotId}/line`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ instruction }),
+    }).then((r) => r.json());
+    if (j?.success) setProject(j.data.project);
+  };
+  const editPrompt = async (shot: NarrationShot) => {
+    if (!project) return;
+    const next = window.prompt("The drafted prompt for this shot — edit and it re-renders just this one.", shot.prompt);
+    if (next === null || !next.trim() || next.trim() === shot.prompt) return;
+    const p = { ...project, shots: project.shots.map((s) => (s.id === shot.id ? { ...s, prompt: next.trim() } : s)) };
+    setProject(p); await save(p); await renderShot(shot.id);
+  };
+  const patchShotLocal = async (shotId: string, patch: Partial<NarrationShot>) => {
+    if (!project) return;
+    const p = { ...project, shots: project.shots.map((s) => (s.id === shotId ? { ...s, ...patch } : s)) };
+    setProject(p); await save(p);
+  };
+  const compose = async () => {
+    if (!project) return;
+    mutate((p) => ({ ...p, finalStatus: "rendering", finalProgress: 5 }));
+    const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/compose`, { method: "POST" }).then((r) => r.json());
+    if (j?.success) setProject(j.data.project);
+    else {
+      mutate((p) => ({ ...p, finalStatus: "failed", finalProgress: 0 }));
+      toast({ title: "Could not stitch", description: j?.error?.message, variant: "destructive" });
+    }
+  };
+  const makeTakes = async () => {
+    if (!project) return;
+    const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/takes`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ script: project.script, takeCount: project.takeCount }),
+    }).then((r) => r.json());
+    if (j?.success) setProject(j.data.project);
+    else toast({ title: "Could not start", description: j?.error?.message, variant: "destructive" });
+  };
+  const buildCast = async (characterId: string) => {
+    if (!project) return;
+    mutate((p) => ({ ...p, characters: p.characters.map((c) => (c.id === characterId ? { ...c, previewStatus: "generating" } : c)) }));
+    const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/cast/${characterId}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    }).then((r) => r.json());
+    if (j?.success) setProject(j.data.project);
+  };
+
+  const playAudio = (url: string, key: string) => {
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    if (playing === key) { setPlaying(null); return; }
+    const a = new Audio(url);
+    audioRef.current = a;
+    a.onended = () => setPlaying(null);
+    void a.play().catch(() => setPlaying(null));
+    setPlaying(key);
+  };
+  useEffect(() => () => { audioRef.current?.pause(); }, []);
+
+  // ── canvas geometry: brief → cast → shots (2 rows) → final → publish
+  const layout = useMemo(() => {
+    const colX = (i: number) => 330 + Math.floor(i / 2) * 292;
+    const rowY = (i: number) => (i % 2 ? 448 : 74);
+    const lastX = shots.length ? colX(shots.length - 1) : 330;
+    return { colX, rowY, outX: lastX + 300, pubX: lastX + 300 + 262 };
+  }, [shots.length]);
+
+  const [wire, setWire] = useState("");
+  const recomputeWires = useCallback(() => {
+    const board = boardRef.current;
+    if (!board) return;
+    const rect = board.getBoundingClientRect();
+    const at = (id: string, side: "l" | "r") => {
+      const el = board.querySelector<HTMLElement>(`[data-node="${id}"]`);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: (side === "r" ? r.right : r.left) - rect.left, y: r.top - rect.top + r.height / 2 };
+    };
+    const seq = ["__brief", ...(project?.characters.length ? ["__cast"] : []), ...shots.map((s) => s.id), "__out", "__publish"];
+    let d = "";
+    for (let i = 0; i < seq.length - 1; i++) {
+      const a = at(seq[i], "r"), b = at(seq[i + 1], "l");
+      if (!a || !b) continue;
+      const dx = Math.max(40, (b.x - a.x) / 2);
+      d += `M${a.x} ${a.y} C${a.x + dx} ${a.y},${b.x - dx} ${b.y},${b.x} ${b.y} `;
+    }
+    setWire(d);
+  }, [shots, project?.characters.length]);
+  useEffect(() => { recomputeWires(); }, [recomputeWires, project?.id, project?.finalVideoUrl]);
+
+  const isFilm = project?.mode === "film";
+
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      {headerSlot && project && createPortal(
+        <div className="flex items-center gap-2">
+          <input
+            value={project.title}
+            onChange={(e) => { const p = { ...project, title: e.target.value.slice(0, 160) }; setProject(p); void save(p); }}
+            className="hidden w-[150px] truncate rounded-lg border border-transparent bg-transparent px-2 py-1 text-[12.5px] font-bold hover:border-border focus:border-brand-500/60 focus:bg-card focus:outline-none md:block"
+            placeholder="Untitled narration"
+          />
+          {isFilm && (
+            <span className="hidden items-center gap-1 text-[11.5px] text-muted-foreground sm:inline-flex">
+              <span className="text-emerald-500">{stats.ready} ready</span> · <span>{stats.rendering} rendering</span> · <span>{fmt(stats.length)}</span>
+            </span>
+          )}
+          {isFilm && stats.pending > 0 && (
+            <button onClick={generateAll} disabled={batching} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60">
+              {batching ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate all ({stats.pending})
+            </button>
+          )}
+          {isFilm && project.characters.length > 0 && (
+            <button onClick={() => setCastOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-violet-500/60">
+              <Users className="h-3.5 w-3.5" /> Cast
+            </button>
+          )}
+          <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-violet-500/60">
+            <FolderOpen className="h-3.5 w-3.5" /> Narrations
+          </button>
+          <button onClick={() => { setProject(null); setBriefOpen(true); }} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-violet-600 px-3 py-1.5 text-[12px] font-semibold text-white">
+            <Sparkles className="h-3.5 w-3.5" /> New
+          </button>
+        </div>, headerSlot)}
+
+      {/* global loader — derived from polled state, so it returns if you leave and come back */}
+      {(stats.rendering > 0 || takesRendering) && (
+        <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2">
+          <div className="flex items-center gap-2.5 rounded-full border border-border bg-card/95 px-3.5 py-1.5 shadow-lg backdrop-blur">
+            <FlowLoader size={15} />
+            <span className="text-[11.5px] font-semibold">
+              {takesRendering ? "Narrating…" : `Rendering ${stats.rendering} ${stats.rendering === 1 ? "shot" : "shots"}…`}
+            </span>
+            {!takesRendering && (
+              <>
+                <span className="text-[11px] tabular-nums text-muted-foreground">{stats.ready}/{stats.total} done</span>
+                <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-[width] duration-500"
+                    style={{ width: `${Math.round((stats.ready / Math.max(1, stats.total)) * 100)}%` }} />
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="absolute inset-0 overflow-auto" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
+        <div ref={boardRef} className="relative" style={{ width: Math.max(2000, layout.pubX + 380), height: 1000 }}>
+          <svg className="pointer-events-none absolute inset-0 h-full w-full" style={{ overflow: "visible" }}>
+            <path d={wire} fill="none" stroke="#a78bfa" strokeWidth={2} opacity={0.45} />
+          </svg>
+
+          {!project && !loading && (
+            <div className="absolute left-1/3 top-1/3 -translate-x-1/2 text-center">
+              <h2 className="text-[17px] font-bold">Tell it what to narrate</h2>
+              <p className="mx-auto mb-4 mt-1 max-w-[36ch] text-[12.5px] text-muted-foreground">
+                A voiceover in your own cloned voice — or a narrated video, told in images and video.
+              </p>
+              <button onClick={() => setBriefOpen(true)} className="rounded-xl bg-gradient-to-r from-violet-500 to-violet-600 px-5 py-3 text-[14px] font-extrabold text-white">
+                ✨ Start a narration
+              </button>
+            </div>
+          )}
+
+          {drafting && (
+            <div className="absolute left-1/3 top-1/3 -translate-x-1/2 text-center">
+              <FlowGeneratingMark size={44} />
+              <p className="mt-3 text-[13px] font-semibold">Writing the script, casting it, drafting every shot…</p>
+              <p className="text-[11.5px] text-muted-foreground">This runs in the background — it keeps going if you leave.</p>
+            </div>
+          )}
+          {project?.draftStatus === "failed" && (
+            <div className="absolute left-1/3 top-1/3 -translate-x-1/2 text-center">
+              <p className="text-[13px] font-semibold text-rose-500">{project.draftError || "That didn't storyboard."}</p>
+              <button onClick={() => setBriefOpen(true)} className="mt-2 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold">Edit the brief</button>
+            </div>
+          )}
+
+          {project && project.draftStatus !== "drafting" && (
+            <>
+              {/* brief */}
+              <div data-node="__brief" className="absolute w-[252px] overflow-hidden rounded-2xl border border-violet-500/35 bg-card shadow-sm" style={{ left: 24, top: 74 }}>
+                <div className="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
+                  <span className="grid h-5 w-5 place-items-center rounded-md bg-violet-500/15 text-violet-500"><Pencil className="h-3 w-3" /></span>
+                  <b className="text-[12px]">Brief</b>
+                  <span className="ml-auto rounded-full bg-violet-500/15 px-2 py-0.5 text-[9px] font-bold text-violet-500">brief</span>
+                </div>
+                <div className="flex flex-wrap gap-1 px-3">
+                  {[project.voice.label, STYLES.find((s) => s.id === project.narrationStyle)?.label,
+                    isFilm ? TREATMENTS.find((t) => t.id === project.treatment)?.label : `${project.takeCount} take${project.takeCount > 1 ? "s" : ""}`,
+                    isFilm ? project.aspect : null].filter(Boolean).map((b) => (
+                    <span key={String(b)} className="rounded-full border border-violet-500/40 px-1.5 py-0.5 text-[9px] font-semibold text-violet-500">{b}</span>
+                  ))}
+                </div>
+                <p className="mx-3 mt-2 max-h-[56px] overflow-hidden rounded-lg border border-border bg-muted/40 p-2 text-[10.5px] leading-snug text-muted-foreground">
+                  {project.script || project.brief}
+                </p>
+                <div className="flex gap-1.5 p-3">
+                  <button onClick={() => setBriefOpen(true)} className="flex-1 rounded-lg border border-border py-1.5 text-[10.5px] font-semibold hover:border-violet-500">Edit</button>
+                  <button onClick={isFilm ? generateAll : makeTakes} className="flex-1 rounded-lg bg-gradient-to-r from-violet-500 to-violet-600 py-1.5 text-[10.5px] font-bold text-white">
+                    Generate
+                  </button>
+                </div>
+              </div>
+
+              {/* cast — anchored before any shot renders */}
+              {isFilm && project.characters.length > 0 && (
+                <div data-node="__cast" className="absolute w-[238px] overflow-hidden rounded-2xl border border-amber-500/35 bg-card shadow-sm" style={{ left: 24, top: 470 }}>
+                  <div className="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
+                    <span className="grid h-5 w-5 place-items-center rounded-md bg-amber-500/15 text-amber-500"><Users className="h-3 w-3" /></span>
+                    <b className="text-[12px]">Cast</b>
+                    <span className="ml-auto rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold text-amber-500">
+                      {project.characters.every((c) => c.referenceImageUrl) ? "anchored" : "needs art"}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 px-3">
+                    {project.characters.slice(0, 3).map((c) => (
+                      <button key={c.id} onClick={() => setCastOpen(true)} className="flex-1 rounded-lg border border-border bg-muted/40 p-1.5 text-center">
+                        <span className="mb-1 grid aspect-square w-full place-items-center overflow-hidden rounded-md bg-gradient-to-br from-amber-500/30 to-violet-500/20 text-[13px] font-black text-white">
+                          {c.previewStatus === "generating" ? <FlowLoader size={14} />
+                            : isUrl(c.referenceImageUrl) ? <img src={c.referenceImageUrl} alt="" className="h-full w-full object-cover" />
+                            : c.name.slice(0, 1)}
+                        </span>
+                        <b className="block truncate text-[9.5px]">{c.name}</b>
+                        <span className="text-[8px] text-muted-foreground">
+                          in {shots.filter((s) => s.cast.includes(c.id)).length} shots
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="p-3">
+                    <button onClick={() => setCastOpen(true)} className="w-full rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 py-1.5 text-[10.5px] font-bold text-white">
+                      <Users className="mr-1 inline h-3 w-3" /> Review cast
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* shots */}
+              {isFilm && shots.map((s, i) => (
+                <ShotCard
+                  key={s.id} shot={s} index={i} project={project}
+                  style={{ left: layout.colX(i), top: layout.rowY(i) }}
+                  onRender={() => renderShot(s.id)}
+                  onRewrite={() => rewriteLine(s.id)}
+                  onEditPrompt={() => editPrompt(s)}
+                  onPatch={(patch) => patchShotLocal(s.id, patch)}
+                  onMine={() => setPicker({ shotId: s.id, kind: s.kind })}
+                  onDelete={async () => {
+                    const p = { ...project, shots: project.shots.filter((x) => x.id !== s.id).map((x, n) => ({ ...x, order: n })) };
+                    setProject(p); await save(p);
+                  }}
+                />
+              ))}
+
+              {/* voiceover takes */}
+              {!isFilm && (project.takes || []).map((t, i) => (
+                <div key={t.id} className="absolute w-[248px] overflow-hidden rounded-2xl border border-border bg-card shadow-sm" style={{ left: layout.colX(i), top: layout.rowY(i) }}>
+                  <div className="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
+                    <span className="grid h-5 w-5 place-items-center rounded-md bg-cyan-500/15 text-cyan-500"><Mic className="h-3 w-3" /></span>
+                    <b className="text-[12px]">Take {i + 1}</b>
+                    <span className="ml-auto rounded-full bg-cyan-500/15 px-2 py-0.5 text-[9px] font-bold text-cyan-500">voiceover</span>
+                  </div>
+                  <div className="mx-3 flex h-[46px] items-center gap-[2px] overflow-hidden rounded-lg border border-border bg-muted/40 px-2">
+                    {t.status === "ready" ? Array.from({ length: 42 }, (_, n) => (
+                      <i key={n} className={cn("flex-1 rounded-sm bg-gradient-to-b from-violet-400 to-violet-600 opacity-75", playing === t.id && "animate-pulse")}
+                        style={{ height: `${20 + Math.abs(Math.sin(n * 0.7) * 70)}%`, minWidth: 2 }} />
+                    )) : t.status === "failed" ? <span className="w-full text-center text-[10px] text-rose-500">{t.error || "Failed"}</span>
+                      : <span className="flex w-full items-center justify-center gap-2"><FlowLoader size={14} /><span className="text-[10px] text-muted-foreground">reading…</span></span>}
+                  </div>
+                  <p className="mx-3 mt-2 text-[10px] text-muted-foreground">{project.voice.label} · {STYLES.find((s) => s.id === project.narrationStyle)?.label}</p>
+                  <div className="flex gap-1 p-3">
+                    <button disabled={!isUrl(t.audioUrl)} onClick={() => isUrl(t.audioUrl) && playAudio(t.audioUrl, t.id)}
+                      className="flex-1 rounded-lg bg-gradient-to-r from-violet-500 to-violet-600 py-1.5 text-[9.5px] font-bold text-white disabled:opacity-40">
+                      {playing === t.id ? <Pause className="mx-auto h-3 w-3" /> : <Play className="mx-auto h-3 w-3" />}
+                    </button>
+                    <button onClick={makeTakes} className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-violet-500"><RefreshCw className="mx-auto h-3 w-3" /></button>
+                    <a href={isUrl(t.audioUrl) ? t.audioUrl : undefined} download className="flex-1 rounded-lg border border-border py-1.5 text-center text-[9.5px] font-semibold hover:border-violet-500">⤓</a>
+                  </div>
+                </div>
+              ))}
+
+              {/* final */}
+              <div data-node="__out" className="absolute w-[214px] overflow-hidden rounded-2xl border border-amber-500/40 bg-gradient-to-b from-amber-500/10 to-card shadow-sm" style={{ left: layout.outX, top: 240 }}>
+                <div className="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
+                  <span className="grid h-5 w-5 place-items-center rounded-md bg-amber-500/15 text-amber-500"><Film className="h-3 w-3" /></span>
+                  <b className="text-[12px]">{isFilm ? "Narrated film" : "Final read"}</b>
+                </div>
+                <button onClick={() => isUrl(project.finalVideoUrl) && window.open(project.finalVideoUrl, "_blank")}
+                  className="relative grid aspect-video w-full place-items-center bg-gradient-to-br from-violet-500/20 to-background text-violet-400">
+                  {isUrl(project.finalVideoUrl)
+                    ? <span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-violet-600 shadow-lg"><Play className="h-5 w-5 translate-x-0.5 fill-current" /></span>
+                    : project.finalStatus === "rendering" ? <FlowGeneratingMark size={38} />
+                    : <Clapperboard className="h-6 w-6" />}
+                </button>
+                <div className="p-2.5">
+                  <p className="text-[12px] font-bold">{isFilm ? `Film · ${fmt(stats.length)}` : "Voiceover"}</p>
+                  <div className="mb-2 mt-1.5 flex gap-1.5">
+                    <button onClick={() => setPicker("music")} className={cn("inline-flex flex-1 items-center justify-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold", project.music ? "border-violet-500/50 text-violet-500" : "border-border text-muted-foreground")}>
+                      <Music className="h-3 w-3" /> {project.music ? "Music ✓" : "Music"}
+                    </button>
+                    <button onClick={() => { const p = { ...project, captionsOn: !project.captionsOn }; setProject(p); void save(p); }}
+                      className={cn("inline-flex flex-1 items-center justify-center gap-1 rounded-md border px-2 py-1 text-[10px] font-semibold", project.captionsOn ? "border-violet-500/50 text-violet-500" : "border-border text-muted-foreground")}>
+                      <Captions className="h-3 w-3" /> Subs
+                    </button>
+                  </div>
+                  {isFilm && (
+                    <button onClick={compose} disabled={stats.ready === 0 || project.finalStatus === "rendering"}
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] bg-gradient-to-r from-violet-500 to-amber-500 px-2 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-50">
+                      {project.finalStatus === "rendering" ? <FlowLoader size={13} tone="white" /> : <Film className="h-3.5 w-3.5" />}
+                      {project.finalVideoUrl ? "Re-stitch" : "Stitch film"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <PublishNode
+                nodeId="__publish"
+                channels={CHANNELS}
+                ready={isUrl(project.finalVideoUrl)}
+                onOpen={() => (isUrl(project.finalVideoUrl) ? setPublishOpen(true) : compose())}
+                style={{ left: layout.pubX, top: 240 }}
+              />
+            </>
+          )}
+        </div>
+      </div>
+
+      {briefOpen && (
+        <BriefSheet
+          project={project}
+          onClose={() => setBriefOpen(false)}
+          onDone={(p) => { setProject(p); setBriefOpen(false); }}
+          setLoading={setLoading}
+        />
+      )}
+
+      {castOpen && project && (
+        <CastSheet
+          project={project}
+          shots={shots}
+          onClose={() => setCastOpen(false)}
+          onBuild={buildCast}
+          onPatch={async (cid, patch) => {
+            const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/cast/${cid}`, {
+              method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+            }).then((r) => r.json());
+            if (j?.success) setProject(j.data.project);
+          }}
+        />
+      )}
+
+      {libOpen && <LibrarySheet onClose={() => setLibOpen(false)} onPick={async (id) => {
+        const j = await fetch(`/api/ai/voice-studio/narration/${id}`).then((r) => r.json());
+        if (j?.success) { setProject(j.data.project); setLibOpen(false); }
+      }} />}
+
+      {publishOpen && project && (
+        <PublishSheet
+          title="Publish this narration"
+          subtitle={project.title}
+          channels={CHANNELS}
+          defaultCaption={project.title}
+          onClose={() => setPublishOpen(false)}
+          onPublish={async ({ channels, caption, scheduleAt }) => {
+            const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/publish`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ channels, caption, scheduleAt }),
+            }).then((r) => r.json());
+            return j?.data?.results || [];
+          }}
+        />
+      )}
+
+      <MediaLibraryPicker
+        open={!!picker}
+        onClose={() => setPicker(null)}
+        title={picker === "music" ? "Choose music" : "Use your own"}
+        filterTypes={picker === "music" ? ["audio"] : picker && typeof picker === "object" && picker.kind === "video" ? ["video"] : ["image"]}
+        onSelect={async (url: string) => {
+          if (!project) return;
+          if (picker === "music") {
+            const p = { ...project, music: url }; setProject(p); await save(p);
+          } else if (picker && typeof picker === "object") {
+            const isVid = /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url);
+            await patchShotLocal(picker.shotId, {
+              source: "upload", status: "ready", progress: 100,
+              ...(isVid ? { videoUrl: url, imageUrl: null, kind: "video" as ShotKind } : { imageUrl: url, videoUrl: null, kind: "image" as ShotKind }),
+            });
+          }
+          setPicker(null);
+        }}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────── shot card
+
+function ShotCard({ shot, index, project, style, onRender, onRewrite, onEditPrompt, onPatch, onMine, onDelete }: {
+  shot: NarrationShot; index: number; project: NarrationProject; style: React.CSSProperties;
+  onRender: () => void; onRewrite: () => void; onEditPrompt: () => void;
+  onPatch: (p: Partial<NarrationShot>) => void; onMine: () => void; onDelete: () => void;
+}) {
+  const [playing, setPlaying] = useState(false);
+  const busy = shot.status === "rendering" || shot.status === "queued";
+  const cast = shot.cast.map((id) => project.characters.find((c) => c.id === id)).filter(Boolean) as FilmCharacter[];
+
+  return (
+    <div className="absolute w-[262px] overflow-hidden rounded-2xl border border-border bg-card shadow-sm" style={style} data-node={shot.id}>
+      <div className="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
+        <span className="grid h-5 w-5 place-items-center rounded-md bg-violet-500/15 text-violet-500">
+          {shot.kind === "image" ? <ImageIcon className="h-3 w-3" /> : <Clapperboard className="h-3 w-3" />}
+        </span>
+        <b className="text-[12px]">Shot {index + 1}</b>
+        <span className="ml-auto rounded-full bg-violet-500/15 px-2 py-0.5 text-[9px] font-bold text-violet-500">{shot.kind}</span>
+        <button onClick={onDelete} className="grid h-[17px] w-[17px] place-items-center rounded border border-border text-muted-foreground hover:border-rose-500 hover:text-rose-500"><X className="h-2.5 w-2.5" /></button>
+      </div>
+
+      <div className="relative mx-3 grid aspect-video place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-slate-700/40 to-violet-900/30">
+        {isUrl(shot.videoUrl) && playing ? (
+          <video src={shot.videoUrl} className="h-full w-full object-cover" autoPlay controls onEnded={() => setPlaying(false)} />
+        ) : (
+          <>
+            {isUrl(shot.imageUrl) && <img src={shot.imageUrl} alt="" className="h-full w-full object-cover" />}
+            {isUrl(shot.videoUrl) && !playing && <video src={shot.videoUrl} className="h-full w-full object-cover" muted preload="metadata" />}
+            {(isUrl(shot.imageUrl) || isUrl(shot.videoUrl)) && !busy && (
+              <button onClick={() => isUrl(shot.videoUrl) && setPlaying(true)}
+                className="absolute inset-0 grid place-items-center bg-black/10 opacity-0 transition hover:opacity-100">
+                {isUrl(shot.videoUrl) && <span className="grid h-10 w-10 place-items-center rounded-full bg-white/90 text-violet-600"><Play className="h-4 w-4 translate-x-0.5 fill-current" /></span>}
+              </button>
+            )}
+            <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[8px] font-extrabold text-white">
+              {shot.kind === "image" ? "🖼 Image" : "🎬 Video"} · {shot.source === "upload" ? "yours" : "AI"}
+            </span>
+            <span className="absolute bottom-1.5 right-1.5 rounded bg-black/60 px-1.5 py-0.5 font-mono text-[8.5px] text-white">{shot.holdSec.toFixed(1)}s</span>
+            {shot.status === "ready" && <span className="absolute bottom-1.5 left-1.5 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[8px] font-extrabold text-emerald-950">ready</span>}
+            {shot.status === "failed" && <span className="absolute inset-x-2 bottom-1.5 truncate rounded bg-rose-500/90 px-1.5 py-0.5 text-center text-[8.5px] font-bold text-white">{shot.error || "Failed"}</span>}
+            {busy && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/80">
+                <FlowLoader size={20} />
+                <div className="h-1 w-2/3 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full bg-gradient-to-r from-violet-500 to-violet-600 transition-[width]" style={{ width: `${Math.max(8, shot.progress || 8)}%` }} />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* the beat this shot carries */}
+      <p className="mx-3 mt-2 line-clamp-2 text-[10px] leading-snug text-muted-foreground">{shot.line}</p>
+
+      {/* who's in it — anchored to their sheet */}
+      {cast.length > 0 && (
+        <div className="mx-3 mt-1.5 flex flex-wrap gap-1">
+          {cast.map((c) => (
+            <span key={c.id} title={`${c.name} — anchored, so they look the same in every shot`}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 py-0.5 pl-0.5 pr-1.5 text-[9px] font-bold">
+              <i className="grid h-3 w-3 place-items-center overflow-hidden rounded-full bg-amber-500 text-[6px] not-italic text-white">
+                {isUrl(c.referenceImageUrl) ? <img src={c.referenceImageUrl} alt="" className="h-full w-full object-cover" /> : c.name.slice(0, 1)}
+              </i>
+              {c.name}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* the drafted prompt — editable, and only this shot re-renders */}
+      <button onClick={onEditPrompt} title="The drafted prompt for this shot"
+        className="mx-3 mt-1.5 flex w-[calc(100%-24px)] items-start gap-1.5 rounded-lg border border-violet-500/20 bg-violet-500/5 p-1.5 text-left">
+        <span className="text-[8px] font-extrabold uppercase tracking-wide text-violet-500">Prompt</span>
+        <span className="line-clamp-2 flex-1 text-[9px] leading-snug text-muted-foreground">{shot.prompt}</span>
+        <Pencil className="h-2.5 w-2.5 flex-none text-muted-foreground" />
+      </button>
+
+      {/* direct it after the draft */}
+      <div className="mx-3 mt-1.5 space-y-1.5 rounded-lg border border-border bg-muted/30 p-2">
+        <div className="flex items-center gap-1.5">
+          <span className="w-[26px] text-[8px] font-extrabold uppercase text-muted-foreground">Type</span>
+          {(["image", "video"] as ShotKind[]).map((k) => (
+            <button key={k} onClick={() => onPatch({ kind: k })}
+              className={cn("flex-1 rounded-md border py-0.5 text-[9px] font-bold", shot.kind === k ? "border-violet-500 text-violet-500" : "border-border text-muted-foreground")}>
+              {k === "image" ? "🖼" : "🎬"} {k}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-[26px] text-[8px] font-extrabold uppercase text-muted-foreground">Hold</span>
+          <input type="range" min={2.5} max={15} step={0.5} value={shot.holdSec}
+            onChange={(e) => onPatch({ holdSec: Number(e.target.value) })} className="h-1 flex-1 accent-violet-500" />
+          <span className="w-7 text-right text-[9px] tabular-nums text-muted-foreground">{shot.holdSec.toFixed(1)}s</span>
+        </div>
+        {shot.kind === "image" && (
+          <div className="flex items-center gap-1.5">
+            <span className="w-[26px] text-[8px] font-extrabold uppercase text-muted-foreground">Move</span>
+            {(["in", "out", "left", "right"] as const).map((m) => (
+              <button key={m} onClick={() => onPatch({ move: m })}
+                className={cn("flex-1 rounded-md border py-0.5 text-[9px] font-bold", shot.move === m ? "border-violet-500 text-violet-500" : "border-border text-muted-foreground")}>{m}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-1 p-3">
+        <button onClick={onRewrite} className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-violet-500"><Wand2 className="mx-auto h-3 w-3" /></button>
+        <button onClick={onRender} disabled={busy} className="flex-1 rounded-lg bg-gradient-to-r from-violet-500 to-violet-600 py-1.5 text-[9.5px] font-bold text-white disabled:opacity-40">
+          {busy ? <FlowLoader size={11} tone="white" /> : <RefreshCw className="mx-auto h-3 w-3" />}
+        </button>
+        <button onClick={onMine} title="Use your own image or video" className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-violet-500"><Upload className="mx-auto h-3 w-3" /></button>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────── brief sheet
+
+function BriefSheet({ project, onClose, onDone, setLoading }: {
+  project: NarrationProject | null;
+  onClose: () => void;
+  onDone: (p: NarrationProject) => void;
+  setLoading: (b: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const [mode, setMode] = useState<NarrationMode>(project?.mode || "film");
+  const [brief, setBrief] = useState(project?.brief || "");
+  const [script, setScript] = useState(project?.script || "");
+  const [treatment, setTreatment] = useState<VisualTreatment>(project?.treatment || "mixed");
+  const [aspect, setAspect] = useState<NarrationAspect>(project?.aspect || "16:9");
+  const [style, setStyle] = useState<NarrationStyle>(project?.narrationStyle || "documentary");
+  const [takeCount, setTakeCount] = useState(project?.takeCount || 2);
+  const [profiles, setProfiles] = useState<VoiceProfile[]>([]);
+  const [voiceId, setVoiceId] = useState<string | null>(project?.voice.profileId || null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/ai/voice-studio/profiles").then((r) => r.json()).then((j) => {
+      if (j?.data?.profiles) setProfiles(j.data.profiles);
+    }).catch(() => {});
+  }, []);
+
+  const cloned = profiles.filter((p) => p.type === "cloned" && (p.openaiVoiceId || p.elevenLabsVoiceId));
+  const presets = profiles.filter((p) => p.type !== "cloned");
+  const words = (mode === "voiceover" ? script : brief).trim().split(/\s+/).filter(Boolean).length;
+  const secs = Math.round(words / 2.4);
+
+  const go = async () => {
+    const text = mode === "voiceover" ? script.trim() : brief.trim();
+    if (!text) { toast({ title: mode === "voiceover" ? "Write the script first." : "Tell it what to narrate." }); return; }
+    setBusy(true); setLoading(true);
+    try {
+      const chosen = [...cloned, ...presets].find((p) => p.id === voiceId);
+      const voice = {
+        profileId: chosen && cloned.some((c) => c.id === chosen.id) ? chosen.id : null,
+        label: chosen?.name || "Narrator",
+        gender: chosen?.gender || "female",
+        accent: chosen?.accent || "american",
+        style: chosen?.style || "narrative",
+        speed: 1,
+      };
+      const body = { title: (text.slice(0, 60) || "Narration"), brief: text, script: mode === "voiceover" ? script : "", mode, treatment, aspect, narrationStyle: style, takeCount, voice };
+      if (project) {
+        // Editing an existing brief re-drafts it in place.
+        const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/draft`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+        }).then((r) => r.json());
+        if (j?.success) onDone(j.data.project); else toast({ title: "Could not update", variant: "destructive" });
+      } else {
+        const j = await fetch("/api/ai/voice-studio/narration", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+        }).then((r) => r.json());
+        if (!j?.success) { toast({ title: "Could not start", variant: "destructive" }); return; }
+        onDone(j.data.project);
+        if (mode === "voiceover") {
+          await fetch(`/api/ai/voice-studio/narration/${j.data.project.id}/takes`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ script, takeCount }),
+          }).catch(() => {});
+        }
+      }
+    } finally { setBusy(false); setLoading(false); }
+  };
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-x-3 bottom-3 z-40 flex max-h-[90vh] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-500">BRIEF</span>
+          <b className="text-[13.5px]">{mode === "film" ? "Narrated video" : "Voiceover"}</b>
+          <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
+        </div>
+
+        <div className="overflow-auto p-4">
+          <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">What are we making?</p>
+          <div className="flex gap-2.5">
+            {([["voiceover", Mic, "Voiceover", "Audio only. The script read as takes you can use anywhere."],
+               ["film", Film, "Narrated video", "Images and video, narrated end to end."]] as const).map(([m, Icon, label, hint]) => (
+              <button key={m} onClick={() => setMode(m)}
+                className={cn("flex max-w-[300px] flex-1 items-center gap-2.5 rounded-xl border-2 p-3 text-left transition", mode === m ? "border-violet-500 bg-violet-500/5" : "border-border bg-muted/30 hover:-translate-y-0.5")}>
+                <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-gradient-to-br from-violet-500 to-violet-700 text-white"><Icon className="h-4 w-4" /></span>
+                <span><b className="block text-[12.5px]">{label}</b><span className="text-[10px] leading-snug text-muted-foreground">{hint}</span></span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-5">
+            <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">
+              {mode === "film" ? "What should it narrate?" : "Script"}
+              <span className="ml-2 font-semibold normal-case tracking-normal text-muted-foreground/70">
+                {mode === "film" ? "— it writes the script, casts it and drafts every shot" : "— what the narrator reads, word for word"}
+              </span>
+            </p>
+            <textarea
+              value={mode === "film" ? brief : script}
+              onChange={(e) => (mode === "film" ? setBrief(e.target.value) : setScript(e.target.value))}
+              placeholder={mode === "film" ? "The twelve hours after harvest — why 40% of what we grow never reaches a plate, and the farmers rewriting that." : "Paste or write what the narrator says…"}
+              className="min-h-[92px] w-full resize-y rounded-xl border border-border bg-muted/30 p-3 text-[12.5px] leading-relaxed outline-none focus:border-violet-500"
+            />
+            {mode === "voiceover" && <p className="mt-1.5 text-right text-[10.5px] text-muted-foreground">≈ <b className="text-amber-500">{fmt(secs)}</b> · {words} words</p>}
+          </div>
+
+          <div className="mt-5">
+            <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">
+              Narrator <span className="font-semibold normal-case tracking-normal text-muted-foreground/70">— your cloned voice, or one from the library</span>
+            </p>
+            <div className="flex gap-2 overflow-x-auto pb-1.5">
+              {cloned.map((p) => (
+                <button key={p.id} onClick={() => setVoiceId(p.id)}
+                  className={cn("w-[150px] flex-none rounded-xl border-2 border-dashed p-2.5 text-left", voiceId === p.id ? "border-violet-500 bg-violet-500/5" : "border-amber-500/40 bg-muted/30")}>
+                  <span className="flex items-center gap-2">
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-[11px] font-black text-white">{p.name.slice(0, 2).toUpperCase()}</span>
+                    <span className="min-w-0"><b className="block truncate text-[11.5px]">{p.name}</b><span className="text-[9px] text-muted-foreground">Cloned</span></span>
+                  </span>
+                </button>
+              ))}
+              {presets.slice(0, 6).map((p) => (
+                <button key={p.id} onClick={() => setVoiceId(p.id)}
+                  className={cn("w-[150px] flex-none rounded-xl border-2 p-2.5 text-left", voiceId === p.id ? "border-violet-500 bg-violet-500/5" : "border-transparent bg-muted/30")}>
+                  <span className="flex items-center gap-2">
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br from-violet-400 to-violet-700 text-[11px] font-black text-white">{p.name.slice(0, 1)}</span>
+                    <span className="min-w-0"><b className="block truncate text-[11.5px]">{p.name}</b>
+                      <span className="truncate text-[9px] text-muted-foreground">{[p.gender, p.accent].filter(Boolean).join(" · ") || "Library"}</span></span>
+                  </span>
+                </button>
+              ))}
+              {cloned.length === 0 && (
+                <span className="flex w-[190px] flex-none flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border p-2.5 text-center text-[9.5px] text-muted-foreground">
+                  <Mic className="h-4 w-4 text-amber-500" />
+                  <b className="text-[10.5px] text-foreground">No cloned voice yet</b>
+                  <span>Clone one in Voices, then it narrates everything here.</span>
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Narration style</p>
+            <div className="flex gap-2 overflow-x-auto pb-1.5">
+              {STYLES.map((s) => (
+                <button key={s.id} onClick={() => setStyle(s.id)}
+                  className={cn("w-[142px] flex-none rounded-xl border-2 p-2.5 text-left", style === s.id ? "border-violet-500 bg-violet-500/5" : "border-transparent bg-muted/30")}>
+                  <b className="block text-[11px]">{s.label}</b>
+                  <span className="line-clamp-2 text-[9px] leading-snug text-muted-foreground">{s.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {mode === "film" && (
+            <div className="mt-5">
+              <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">
+                Visuals <span className="font-semibold normal-case tracking-normal text-muted-foreground/70">— every image and video is generated, or your own upload</span>
+              </p>
+              <div className="flex gap-2">
+                {TREATMENTS.map((t) => (
+                  <button key={t.id} onClick={() => setTreatment(t.id)}
+                    className={cn("max-w-[300px] flex-1 rounded-xl border-2 p-2.5 text-left", treatment === t.id ? "border-violet-500 bg-violet-500/5" : "border-transparent bg-muted/30")}>
+                    <b className="block text-[11.5px]">{t.label}</b>
+                    <span className="text-[9.5px] leading-snug text-muted-foreground">{t.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-5 flex flex-wrap gap-6">
+            {mode === "film" && (
+              <div>
+                <p className="mb-1.5 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Aspect</p>
+                <div className="flex gap-1.5">
+                  {(["9:16", "1:1", "16:9"] as NarrationAspect[]).map((a) => (
+                    <button key={a} onClick={() => setAspect(a)}
+                      className={cn("rounded-lg border px-2.5 py-1 text-[10.5px] font-bold", aspect === a ? "border-violet-500 text-violet-500" : "border-border text-muted-foreground")}>{a}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {mode === "voiceover" && (
+              <div>
+                <p className="mb-1.5 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Takes · {takeCount}</p>
+                <input type="range" min={1} max={4} value={takeCount} onChange={(e) => setTakeCount(Number(e.target.value))} className="w-[150px] accent-violet-500" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 border-t border-border px-4 py-3">
+          <span className="text-[11px] text-muted-foreground">
+            {mode === "film" ? "Charged per shot as it renders" : `≈ ${takeCount * 5} cr`}
+          </span>
+          <div className="flex-1" />
+          <button onClick={onClose} className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold">Cancel</button>
+          <button onClick={go} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60">
+            {busy ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─────────────────────────────── cast sheet
+
+function CastSheet({ project, shots, onClose, onBuild, onPatch }: {
+  project: NarrationProject; shots: NarrationShot[];
+  onClose: () => void;
+  onBuild: (id: string) => void;
+  onPatch: (id: string, patch: Record<string, unknown>) => void;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-x-3 bottom-3 z-40 flex max-h-[90vh] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-500">CAST</span>
+          <b className="text-[13.5px]">Recurring subjects</b>
+          <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
+        </div>
+        <div className="overflow-auto p-4">
+          <p className="mb-3 rounded-lg border-l-2 border-amber-500/40 bg-amber-500/5 p-2.5 text-[10.5px] leading-relaxed text-muted-foreground">
+            Each subject is anchored by a turnaround sheet and fed into every shot they appear in, so the same person looks the same
+            throughout. They are <b>depicted, never speakers</b> — your narration is one continuous voice across the whole story.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {project.characters.map((c) => (
+              <div key={c.id} className="w-[190px] rounded-xl border border-border bg-muted/30 p-2.5">
+                <div className="mb-2 grid aspect-square w-full place-items-center overflow-hidden rounded-lg bg-gradient-to-br from-amber-500/25 to-violet-500/20">
+                  {c.previewStatus === "generating" ? <FlowLoader size={20} />
+                    : isUrl(c.characterSheetUrl) ? <img src={c.characterSheetUrl} alt="" className="h-full w-full object-cover" />
+                    : isUrl(c.referenceImageUrl) ? <img src={c.referenceImageUrl} alt="" className="h-full w-full object-cover" />
+                    : <span className="text-[10px] text-muted-foreground">No art yet</span>}
+                </div>
+                <b className="block text-[12px]">{c.name}</b>
+                <span className="block text-[9.5px] text-muted-foreground">{c.role} · in {shots.filter((s) => s.cast.includes(c.id)).length} shots</span>
+                <p className="mt-1 line-clamp-2 text-[9.5px] leading-snug text-muted-foreground">{c.description}</p>
+                {c.previewError && <p className="mt-1 text-[9.5px] text-rose-500">{c.previewError}</p>}
+                <div className="mt-2 flex gap-1.5">
+                  <button onClick={() => onBuild(c.id)} disabled={c.previewStatus === "generating"}
+                    className="flex-1 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 py-1 text-[9.5px] font-bold text-white disabled:opacity-50">
+                    {c.referenceImageUrl ? "Re-roll" : "Build"}
+                  </button>
+                  <button onClick={() => onPatch(c.id, { approved: !c.approved })}
+                    className={cn("flex-1 rounded-lg border py-1 text-[9.5px] font-bold", c.approved ? "border-emerald-500 text-emerald-500" : "border-border text-muted-foreground")}>
+                    {c.approved ? "Approved" : "Approve"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─────────────────────────────── library
+
+function LibrarySheet({ onClose, onPick }: { onClose: () => void; onPick: (id: string) => void }) {
+  const [items, setItems] = useState<{ id: string; title: string; mode: string; shotCount: number; readyCount: number; finalVideoUrl: string | null; updatedAt: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/ai/voice-studio/narration").then((r) => r.json()).then((j) => setItems(j?.data?.items || [])).catch(() => {});
+  }, []);
+  return (
+    <>
+      <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose} />
+      <div className="fixed inset-y-0 right-0 z-50 w-[340px] overflow-auto border-l border-border bg-card p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <b className="text-[13.5px]">Narrations</b>
+          <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
+        </div>
+        {items.length === 0 && <p className="text-[11.5px] text-muted-foreground">Nothing yet.</p>}
+        <div className="space-y-2">
+          {items.map((it) => (
+            <button key={it.id} onClick={() => onPick(it.id)} className="w-full rounded-xl border border-border p-2.5 text-left hover:border-violet-500/60">
+              <b className="block truncate text-[12px]">{it.title}</b>
+              <span className="text-[10px] text-muted-foreground">
+                {it.mode === "film" ? `${it.readyCount}/${it.shotCount} shots` : "voiceover"} · {new Date(it.updatedAt).toLocaleDateString()}
+                {it.finalVideoUrl ? " · stitched" : ""}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
