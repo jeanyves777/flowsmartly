@@ -277,7 +277,9 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
         ? { x: rect.left + rect.width, y: rect.top + rect.height / 2 }
         : { x: rect.left, y: rect.top + rect.height / 2 };
     };
-    const seq = ["__brief", ...scenes.map((s) => s.id), "__out"];
+    // …→ final film → publish: the publish node is the last link in the pipeline, so
+    // the wire has to carry through to it rather than stopping at the stitch.
+    const seq = ["__brief", ...scenes.map((s) => s.id), "__out", "__publish"];
     let d = "";
     for (let i = 0; i < seq.length - 1; i++) {
       const a = anchor(get(seq[i]), "r"), b = anchor(get(seq[i + 1]), "l");
@@ -828,6 +830,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
 
               {/* publish node — post the finished film to connected channels (reusable across playgrounds) */}
               <PublishNode
+                nodeId="__publish"
                 channels={FILM_CHANNELS}
                 ready={!!film.finalVideoUrl && isPlayable(film.finalVideoUrl)}
                 onOpen={() => (film.finalVideoUrl && isPlayable(film.finalVideoUrl) ? setPublishOpen(true) : composeFinal())}

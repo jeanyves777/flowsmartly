@@ -5,7 +5,7 @@
  * stitches the ready clips into one film with the shared concat primitive.
  */
 
-import { getFilm, saveFilm, patchScene, patchOverlay, patchVideoEdit } from "./store";
+import { getFilm, saveFilm, patchScene, patchOverlay, patchVideoEdit, patchFilmFinal } from "./store";
 import { continuityText } from "./types";
 import type { FilmProject, FilmScene, FilmOverlay, FilmAspect, FilmCharacter, FilmVideoEdit } from "./types";
 import { startAvatarVideo, getAvatarVideo } from "@/lib/avatar-studio";
@@ -885,6 +885,11 @@ const AI_SCENE_REPOLL_MS = 20_000;       // once resuming, re-poll the provider 
 const AI_SCENE_RESUME_MAX_MS = 25 * 60 * 1000; // provider still not done ⇒ give up + refund
 const AI_SCENE_NO_HANDLE_MS = 3 * 60 * 1000;   // dead with no job to resume ⇒ unrecoverable
 
+// Final stitch (local ffmpeg, no provider job to pull — a dead one must be re-run).
+const FINAL_BEAT_MS = 20_000;            // heartbeat while stitching
+const FINAL_STALE_MS = 90_000;           // 4+ missed beats ⇒ the stitch died
+const FINAL_MAX_TRIES = 3;               // always dies ⇒ fail honestly, don't loop
+
 async function refundAiScene(userId: string, filmId: string, sceneId: string): Promise<void> {
   const refund = await getDynamicCreditCost(AI_SCENE_COST_KEY).catch(() => 0);
   if (refund > 0) {
@@ -1105,6 +1110,24 @@ export async function syncFilmScenes(film: FilmProject, userId: string): Promise
     if (state !== "unchanged" && state !== "unavailable") changed = true;
   }
 
+  // Same for a final stitch orphaned by a restart: re-run it on open rather than
+  // leave the user staring at a spinner until the recovery cron comes around.
+  // Counting attempts is left to the recovery cron, which read-modify-writes it
+  // cleanly: incrementing here would race the kicked stitch's own first heartbeat
+  // and could silently drop the increment. The cron still fails the film after
+  // FINAL_MAX_TRIES, so a stitch that always dies can't be resumed forever.
+  if (film.finalStatus === "rendering" && now - (film.finalHeartbeatAt || 0) >= FINAL_STALE_MS) {
+    if ((film.finalTries || 0) >= FINAL_MAX_TRIES) {
+      film.finalStatus = "failed";
+      film.finalProgress = 0;
+    } else {
+      film.finalHeartbeatAt = now; // claim it, so the cron doesn't double-kick
+      console.log(`[video-director] resuming orphaned stitch for ${film.id} on open`);
+      void composeFilm(film.id, userId);
+    }
+    changed = true;
+  }
+
   const syncAvatarRef = async (t: { refKind?: string; refId?: string; status: string; progress?: number; videoUrl?: string | null; thumbnailUrl?: string | null; error?: string | null }, failMsg: string): Promise<boolean> => {
     if (t.refKind !== "avatar_video" || !t.refId || (t.status !== "rendering" && t.status !== "queued")) return false;
     const av = await getAvatarVideo(t.refId, userId).catch(() => null);
@@ -1212,7 +1235,14 @@ async function buildDirectorOutro(logoSource: string, aspect: FilmAspect, brand:
 }
 
 export async function composeFilm(filmId: string, userId: string): Promise<void> {
+  // Beat while we work. ffmpeg gives us no progress to poll and the stitch holds no
+  // provider handle to pull, so the heartbeat is the ONLY way to tell "still going"
+  // from "died on a deploy" — without it a killed stitch spins in the UI forever.
+  const beat = setInterval(() => {
+    void patchFilmFinal(filmId, userId, { finalHeartbeatAt: Date.now() }).catch(() => {});
+  }, FINAL_BEAT_MS);
   try {
+    await patchFilmFinal(filmId, userId, { finalHeartbeatAt: Date.now() }).catch(() => {});
     const film = await getFilm(filmId, userId);
     if (!film) return;
     const { w, h } = filmDims(film.aspect);
@@ -1365,12 +1395,55 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
     const fresh = await getFilm(filmId, userId);
     if (!fresh) return;
     fresh.finalVideoUrl = url; fresh.finalStatus = "ready"; fresh.finalProgress = 100;
+    fresh.finalHeartbeatAt = Date.now(); fresh.finalTries = 0;
     await saveFilm(filmId, userId, fresh);
   } catch (e) {
     console.error(`[video-director] compose failed for ${filmId}:`, e instanceof Error ? e.message : e);
     const fresh = await getFilm(filmId, userId);
-    if (fresh) { fresh.finalStatus = "failed"; await saveFilm(filmId, userId, fresh); }
+    if (fresh) { fresh.finalStatus = "failed"; fresh.finalProgress = 0; await saveFilm(filmId, userId, fresh); }
+  } finally {
+    clearInterval(beat);
   }
+}
+
+/**
+ * Resume final stitches orphaned by a restart. Unlike a scene render there's no
+ * provider job to pull — the work is local ffmpeg — so a dead stitch has to be
+ * re-run. A film whose heartbeat is quiet is provably not being worked on; bounded
+ * tries keep a stitch that always dies (bad source, OOM) from looping forever.
+ */
+export async function resumeStuckDirectorFinals(): Promise<{ scanned: number; changed: number }> {
+  const now = Date.now();
+  let changed = 0;
+  const rows = await prisma.design
+    .findMany({
+      where: { type: "director_film", updatedAt: { lt: new Date(now - FINAL_STALE_MS) } },
+      select: { id: true, userId: true, canvasData: true },
+      orderBy: { updatedAt: "desc" },
+      take: 40,
+    })
+    .catch(() => [] as { id: string; userId: string; canvasData: string | null }[]);
+  for (const row of rows) {
+    if (!row.canvasData?.includes('"finalStatus":"rendering"')) continue;
+    const film = await getFilm(row.id, row.userId).catch(() => null);
+    if (!film || film.finalStatus !== "rendering") continue;
+    // A beat inside the window means a worker is still stitching — leave it alone.
+    if (now - (film.finalHeartbeatAt || 0) < FINAL_STALE_MS) continue;
+
+    const tries = (film.finalTries || 0) + 1;
+    if (tries > FINAL_MAX_TRIES) {
+      await patchFilmFinal(row.id, row.userId, { finalStatus: "failed", finalProgress: 0 }).catch(() => {});
+      console.error(`[video-director] stitch for ${row.id} failed ${FINAL_MAX_TRIES}x — giving up`);
+      changed++;
+      continue;
+    }
+    await patchFilmFinal(row.id, row.userId, { finalTries: tries, finalHeartbeatAt: now }).catch(() => {});
+    console.log(`[video-director] resuming orphaned stitch for ${row.id} (try ${tries})`);
+    void composeFilm(row.id, row.userId);
+    changed++;
+  }
+  if (changed) console.log(`[video-director] resumeStuckDirectorFinals: touched ${changed} film(s)`);
+  return { scanned: rows.length, changed };
 }
 
 function wrapComposerText(text: string, maxChars: number): string {

@@ -261,6 +261,13 @@ export interface FilmProject {
   finalThumbnailUrl?: string | null;
   finalStatus?: SceneStatus;
   finalProgress?: number;
+  /** Epoch ms, beaten while the stitch runs. A "rendering" film whose heartbeat has
+   *  gone quiet was orphaned (deploy/crash) and is safe to resume — without this a
+   *  dead stitch spins in the UI forever. */
+  finalHeartbeatAt?: number;
+  /** Resume attempts for the stitch, so a stitch that always dies fails honestly
+   *  instead of the cron restarting it forever. */
+  finalTries?: number;
   createdAt?: string;
   updatedAt?: string;
 }
