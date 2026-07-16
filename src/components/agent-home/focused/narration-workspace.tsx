@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { PublishNode, PublishSheet, type PublishChannel } from "@/components/agent-home/shared/publish-node";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { BriefSuggest } from "./brief-suggest";
 import type {
   NarrationProject, NarrationShot, NarrationMode, VisualTreatment,
   NarrationAspect, NarrationStyle, ShotKind,
@@ -956,6 +957,14 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
           </div>
 
           <div className="mt-5">
+            {/* Idea helper — same as the Filmmaking brief: the agent proposes a real
+                story from your brand; pick one and it fills the field below. */}
+            <div className="mb-2.5">
+              <BriefSuggest kind="film" onApply={(p) => {
+                const text = typeof p.brief === "string" ? p.brief : "";
+                if (text) { if (mode === "film") setBrief(text); else setScript(text); }
+              }} />
+            </div>
             <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">
               {mode === "film" ? "What should it narrate?" : "Script"}
               <span className="ml-2 font-semibold normal-case tracking-normal text-muted-foreground/70">
