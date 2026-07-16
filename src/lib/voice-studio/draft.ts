@@ -42,6 +42,9 @@ export async function draftNarration(id: string, userId: string): Promise<void> 
   try {
     const p = await getNarration(id, userId);
     if (!p) return;
+    // Stamp the start so a draft orphaned by a deploy/crash can be detected as stale
+    // and re-run, instead of spinning on "Writing the script…" forever.
+    await patchDraft(id, userId, { draftStatus: "drafting", draftStartedAt: Date.now() });
     const brief = (p.brief || p.title || "").trim();
     if (!brief) {
       await patchDraft(id, userId, { draftStatus: "failed", draftError: "Tell the studio what to narrate first." });

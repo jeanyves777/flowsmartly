@@ -98,6 +98,11 @@ export interface NarrationProject {
   /** Background drafting (script + cast + every shot prompt) — the canvas polls this. */
   draftStatus?: "drafting" | "ready" | "failed" | null;
   draftError?: string | null;
+  /** Epoch ms the draft kicked. A "drafting" project whose start has gone stale was
+   *  orphaned (deploy/crash killed the worker) and is safe to re-run — without this a
+   *  dead draft spins on "Writing the script…" forever. */
+  draftStartedAt?: number;
+  draftTries?: number;
   finalVideoUrl?: string | null;
   finalStatus?: ShotStatus;
   finalProgress?: number;

@@ -13,6 +13,7 @@
 import {
   getNarration, saveNarration, patchShot, patchTake, patchNarrationFinal,
 } from "./store";
+import { draftNarration } from "./draft";
 import {
   narrationDims, holdForLine, MAX_HOLD_SEC,
   type NarrationProject, type NarrationShot, type NarrationVoice,
@@ -44,6 +45,8 @@ const MAX_CONCURRENT_SHOTS = 3;
 const GROK_REF_MAX_SEC = 10;
 
 const SHOT_STALE_MS = 90_000;
+const DRAFT_STALE_MS = 120_000;   // a "drafting" older than this ⇒ its worker died
+const DRAFT_MAX_TRIES = 2;        // then fail honestly rather than loop
 const FINAL_BEAT_MS = 20_000;
 const FINAL_STALE_MS = 90_000;
 const FINAL_MAX_TRIES = 3;
@@ -447,6 +450,24 @@ export async function syncNarration(p: NarrationProject, userId: string): Promis
   const now = Date.now();
   let changed = false;
 
+  // A draft orphaned by a deploy/crash: the storyboard worker died, so "drafting"
+  // sticks forever with nothing to heal it. Re-run it (drafting is free), or fail
+  // honestly after a couple of tries so the UI can't spin indefinitely.
+  if (p.draftStatus === "drafting" && now - (p.draftStartedAt || 0) >= DRAFT_STALE_MS) {
+    if ((p.draftTries || 0) >= DRAFT_MAX_TRIES) {
+      p.draftStatus = "failed";
+      p.draftError = "The studio couldn't storyboard that. Edit the brief and try again.";
+      await saveNarration(p.id, userId, p).catch(() => {});
+    } else {
+      p.draftTries = (p.draftTries || 0) + 1;
+      p.draftStartedAt = now;
+      await saveNarration(p.id, userId, p).catch(() => {});
+      console.log(`[voice-studio] resuming orphaned draft for ${p.id} on open (try ${p.draftTries})`);
+      void draftNarration(p.id, userId);
+    }
+    return p; // nothing else to reconcile until the draft lands
+  }
+
   for (const s of p.shots) {
     if (s.status !== "rendering") continue;
     if (now - (s.renderHeartbeatAt || 0) < SHOT_STALE_MS) continue;
@@ -500,9 +521,12 @@ export async function resumeStuckNarrations(): Promise<{ scanned: number; change
 
   for (const row of rows) {
     if (!row.canvasData) continue;
-    if (!row.canvasData.includes('"rendering"') && !row.canvasData.includes('"queued"')) continue;
+    if (!row.canvasData.includes('"rendering"') && !row.canvasData.includes('"queued"') && !row.canvasData.includes('"drafting"')) continue;
     const p = await getNarration(row.id, row.userId).catch(() => null);
     if (!p) continue;
+
+    // A stuck draft: syncNarration re-runs or fails it (bounded).
+    if (p.draftStatus === "drafting") { await syncNarration(p, row.userId).catch(() => {}); changed++; continue; }
 
     if (p.finalStatus === "rendering" && now - (p.finalHeartbeatAt || 0) >= FINAL_STALE_MS) {
       const tries = (p.finalTries || 0) + 1;

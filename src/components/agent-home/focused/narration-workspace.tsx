@@ -96,6 +96,14 @@ export function FocusedNarration() {
   const live = stats.rendering > 0 || takesRendering || project?.finalStatus === "rendering";
   const drafting = project?.draftStatus === "drafting";
 
+  // Surface an escape hint if a draft runs long (the server auto-recovers a stalled one).
+  const [slowDraft, setSlowDraft] = useState(false);
+  useEffect(() => {
+    if (!drafting) { setSlowDraft(false); return; }
+    const t = setTimeout(() => setSlowDraft(true), 45_000);
+    return () => clearTimeout(t);
+  }, [drafting]);
+
   // ── poll while anything is in flight (and on open, so a deploy-orphaned render heals)
   useEffect(() => {
     if ((!live && !drafting) || !project) return;
@@ -231,15 +239,20 @@ export function FocusedNarration() {
 
   return (
     <div className="relative h-full w-full overflow-hidden">
-      {headerSlot && project && createPortal(
+      {headerSlot && createPortal(
+        // Narrations + New are ALWAYS present (even with no project open), so a
+        // returning user can always get back to their library. Project-specific
+        // controls only show when a narration is open.
         <div className="flex items-center gap-2">
+          {project && (
           <input
             value={project.title}
             onChange={(e) => { const p = { ...project, title: e.target.value.slice(0, 160) }; setProject(p); void save(p); }}
             className="hidden w-[150px] truncate rounded-lg border border-transparent bg-transparent px-2 py-1 text-[12.5px] font-bold hover:border-border focus:border-brand-500/60 focus:bg-card focus:outline-none md:block"
             placeholder="Untitled narration"
           />
-          {isFilm && (
+          )}
+          {project && isFilm && (
             <span className="hidden items-center gap-1 text-[11.5px] text-muted-foreground sm:inline-flex">
               <span className="text-emerald-500">{stats.ready} ready</span> · <span>{stats.rendering} rendering</span> · <span>{fmt(stats.length)}</span>
             </span>
@@ -295,17 +308,32 @@ export function FocusedNarration() {
               <p className="mx-auto mb-4 mt-1 max-w-[36ch] text-[12.5px] text-muted-foreground">
                 A voiceover in your own cloned voice — or a narrated video, told in images and video.
               </p>
-              <button onClick={() => setBriefOpen(true)} className="rounded-xl bg-gradient-to-r from-violet-500 to-violet-600 px-5 py-3 text-[14px] font-extrabold text-white">
-                ✨ Start a narration
-              </button>
+              <div className="flex items-center justify-center gap-2.5">
+                <button onClick={() => setBriefOpen(true)} className="rounded-xl bg-gradient-to-r from-violet-500 to-violet-600 px-5 py-3 text-[14px] font-extrabold text-white">
+                  ✨ Start a narration
+                </button>
+                <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-border px-4 py-3 text-[13px] font-semibold hover:border-violet-500/60">
+                  <FolderOpen className="h-4 w-4" /> My narrations
+                </button>
+              </div>
             </div>
           )}
 
           {drafting && (
-            <div className="absolute left-1/3 top-1/3 -translate-x-1/2 text-center">
+            <div className="absolute left-1/2 top-1/3 -translate-x-1/2 text-center">
               <FlowGeneratingMark size={44} />
               <p className="mt-3 text-[13px] font-semibold">Writing the script, casting it, drafting every shot…</p>
               <p className="text-[11.5px] text-muted-foreground">This runs in the background — it keeps going if you leave.</p>
+              {slowDraft && (
+                <p className="mx-auto mt-2 max-w-[38ch] text-[11px] text-amber-500">
+                  Taking longer than usual. It auto-recovers if a render was interrupted — or edit the brief and try again.
+                </p>
+              )}
+              {/* never trap the user on this screen */}
+              <div className="mt-4 flex items-center justify-center gap-2">
+                <button onClick={() => setBriefOpen(true)} className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-violet-500/60">Edit brief</button>
+                <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-violet-500/60"><FolderOpen className="h-3.5 w-3.5" /> Narrations</button>
+              </div>
             </div>
           )}
           {project?.draftStatus === "failed" && (
