@@ -147,10 +147,10 @@ export const AGENT_GROUPS: AgentGroup[] = [
     placeholder: "Ask FlowSmartly to build your site…",
     context: "The user has focused the agent into its **Web** group — websites, landing pages, portfolios, and domains. Prefer build_website / edit_website, landing-page generation, build_portfolio, and domain tools (find_domain / connect). You can still handle anything else they explicitly ask.",
     skills: [
-      { id: "website", title: "Build a website", description: "Full multi-page site, live.", surface: "web", tools: ["build_website", "edit_website", "update_website"], costKey: "AI_WEBSITE_GENERATE", costHint: "500 cr", icon: "Globe", keywords: ["website", "site", "build", "web"] },
-      { id: "landing", title: "Landing page", description: "High-converting campaign page.", surface: "landing", costKey: "AI_LANDING_PAGE", costHint: "20 cr", icon: "LayoutTemplate", keywords: ["landing page", "campaign page", "offer page"] },
-      { id: "portfolio", title: "Portfolio / résumé", description: "Shareable public page.", surface: "portfolio", tools: ["build_portfolio", "edit_portfolio"], costHint: "Free", icon: "Briefcase", keywords: ["portfolio", "resume", "cv", "personal site"] },
-      { id: "domains", title: "Domains", description: "Buy, connect & manage.", surface: "domains", tools: ["find_domain", "buy_portfolio_domain", "connect_portfolio_domain"], costHint: "buy or connect", icon: "Link2", keywords: ["domain", "dns", "url", "custom domain"] },
+      { id: "website", title: "Build a website", description: "Full multi-page site, live.", surface: "web", thumb: "/Studio_Menus_Thumnail/web/web2.webp", tools: ["build_website", "edit_website", "update_website"], costKey: "AI_WEBSITE_GENERATE", costHint: "500 cr", icon: "Globe", keywords: ["website", "site", "build", "web"] },
+      { id: "landing", title: "Landing page", description: "High-converting campaign page.", surface: "landing", thumb: "/Studio_Menus_Thumnail/web/web1.webp", costKey: "AI_LANDING_PAGE", costHint: "20 cr", icon: "LayoutTemplate", keywords: ["landing page", "campaign page", "offer page"] },
+      { id: "portfolio", title: "Portfolio / résumé", description: "Shareable public page.", surface: "portfolio", thumb: "/Studio_Menus_Thumnail/web/web4.webp", tools: ["build_portfolio", "edit_portfolio"], costHint: "Free", icon: "Briefcase", keywords: ["portfolio", "resume", "cv", "personal site"] },
+      { id: "domains", title: "Domains", description: "Buy, connect & manage.", surface: "domains", thumb: "/Studio_Menus_Thumnail/web/web3.webp", tools: ["find_domain", "buy_portfolio_domain", "connect_portfolio_domain"], costHint: "buy or connect", icon: "Link2", keywords: ["domain", "dns", "url", "custom domain"] },
     ],
   },
   {

@@ -245,13 +245,18 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
     return () => clearInterval(t);
   }, [anyRendering, isDrafting, film?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // -------- canvas geometry (brief left, scenes free, output right) --------
+  // -------- canvas geometry (brief left, cast next, scenes free, output right) --------
   const briefPos = { x: 24, y: 70 };
+  // For AI films the cast node sits inline right after the brief, so the output node
+  // must start to the RIGHT of it even before any scene exists.
+  const castPos = { x: briefPos.x + 250, y: briefPos.y };
+  const showCastNode = film?.filmType === "ai_film";
   const layout = useMemo(() => {
-    const maxX = scenes.reduce((m, s) => Math.max(m, s.x), briefPos.x + 260);
-    const avgY = scenes.length ? scenes.reduce((m, s) => m + s.y, 0) / scenes.length : 200;
+    const seed = showCastNode ? castPos.x + 230 : briefPos.x + 260;
+    const maxX = scenes.reduce((m, s) => Math.max(m, s.x), seed);
+    const avgY = scenes.length ? scenes.reduce((m, s) => m + s.y, 0) / scenes.length : 120;
     return { outPos: { x: maxX + 280, y: Math.round(avgY) } };
-  }, [scenes]);
+  }, [scenes, showCastNode]); // eslint-disable-line react-hooks/exhaustive-deps
   const boardWidth = Math.max(2200, layout.outPos.x + 500);
 
   // wire paths (brief → scene0 → … → output), recomputed from live DOM on drag
@@ -277,9 +282,11 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
         ? { x: rect.left + rect.width, y: rect.top + rect.height / 2 }
         : { x: rect.left, y: rect.top + rect.height / 2 };
     };
-    // …→ final film → publish: the publish node is the last link in the pipeline, so
-    // the wire has to carry through to it rather than stopping at the stitch.
-    const seq = ["__brief", ...scenes.map((s) => s.id), "__out", "__publish"];
+    // brief → (cast) → scenes → final film → publish. The cast node sits in the flow
+    // for AI films so the user can SEE they're at the cast stage instead of getting
+    // lost after briefing. The publish node is the last link and must stay wired.
+    const hasCast = film?.filmType === "ai_film";
+    const seq = ["__brief", ...(hasCast ? ["__cast"] : []), ...scenes.map((s) => s.id), "__out", "__publish"];
     let d = "";
     for (let i = 0; i < seq.length - 1; i++) {
       const a = anchor(get(seq[i]), "r"), b = anchor(get(seq[i + 1]), "l");
@@ -717,7 +724,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
             <span className="text-emerald-500">{stats.ready} ready</span> · <span>{stats.rendering} rendering</span> · <span>{stats.total} scenes</span>
           </span>
           {film && stats.pending > 0 && (
-            <button onClick={generateAll} disabled={batching} title="Generate every scene that isn't ready yet" className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
+            <button onClick={generateAll} disabled={batching} title="Generate every scene that isn't ready yet" className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
               {batching ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate all ({stats.pending})
             </button>
           )}
@@ -738,7 +745,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
             <span className="text-[11.5px] font-semibold">Rendering {stats.rendering} {stats.rendering === 1 ? "scene" : "scenes"}…</span>
             <span className="text-[11px] tabular-nums text-muted-foreground">{stats.ready}/{stats.batchTotal} done</span>
             <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-[width] duration-500" style={{ width: `${Math.round((stats.ready / Math.max(1, stats.batchTotal)) * 100)}%` }} />
+              <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500 transition-[width] duration-500" style={{ width: `${Math.round((stats.ready / Math.max(1, stats.batchTotal)) * 100)}%` }} />
             </div>
           </div>
         </div>
@@ -775,6 +782,39 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
                   {!!film.assets?.length && <div className="mt-2 flex flex-wrap gap-1">{film.assets.slice(0, 4).map((a) => <span key={a.id} className="rounded border border-border bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">{a.kind === "video" ? "🎞" : "🖼"} {(a.name || a.role || "asset").slice(0, 12)}</span>)}</div>}
                 </button>
               </div>
+
+              {/* cast node — after the brief, so a user who's already briefed and is
+                  casting doesn't lose their place and start over. Opens the cast modal. */}
+              {showCastNode && (
+                <div data-node="__cast" className="absolute w-[214px] overflow-hidden rounded-2xl border border-amber-500/40 bg-gradient-to-b from-amber-500/10 to-card shadow-sm" style={{ left: castPos.x, top: castPos.y }}>
+                  <button onClick={reopenCast} className="block w-full p-3 text-left">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-[12px] font-bold">
+                      <UserSquare2 className="h-3.5 w-3.5 text-amber-500" /> Cast
+                      <span className="ml-auto rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-500">
+                        {(film.characters || []).length === 0 ? "tap to cast"
+                          : (film.characters || []).every((c) => c.approved) ? "approved" : "review"}
+                      </span>
+                    </div>
+                    {(film.characters || []).length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground">The people in your film — cast them once, then they stay consistent across every shot.</p>
+                    ) : (
+                      <>
+                        <div className="mb-1.5 flex -space-x-2">
+                          {(film.characters || []).slice(0, 5).map((c) => (
+                            <span key={c.id} title={c.name} className="grid h-8 w-8 place-items-center overflow-hidden rounded-full border-2 border-card bg-gradient-to-br from-amber-500/40 to-brand-500/30 text-[10px] font-black text-white">
+                              {c.referenceImageUrl || c.characterSheetUrl
+                                ? <img src={c.referenceImageUrl || c.characterSheetUrl || ""} alt="" className="h-full w-full object-cover" />
+                                : (c.name || "?").slice(0, 1)}
+                            </span>
+                          ))}
+                          {(film.characters || []).length > 5 && <span className="grid h-8 w-8 place-items-center rounded-full border-2 border-card bg-muted text-[9px] font-bold text-muted-foreground">+{(film.characters || []).length - 5}</span>}
+                        </div>
+                        <p className="text-[10.5px] text-muted-foreground">{(film.characters || []).length} in the cast · tap to review</p>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
 
               {/* scene nodes */}
               {scenes.map((s, sceneIndex) => (
@@ -833,7 +873,12 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
                 nodeId="__publish"
                 channels={FILM_CHANNELS}
                 ready={!!film.finalVideoUrl && isPlayable(film.finalVideoUrl)}
-                onOpen={() => (film.finalVideoUrl && isPlayable(film.finalVideoUrl) ? setPublishOpen(true) : composeFinal())}
+                onOpen={() => {
+                  // Publish only PUBLISHES — it never stitches. It just needs a finished
+                  // film; stitching stays the Final-film node's job.
+                  if (film.finalVideoUrl && isPlayable(film.finalVideoUrl)) setPublishOpen(true);
+                  else toast({ title: "Stitch the film first", description: "Publish opens once the film is stitched — use the Final film node." });
+                }}
                 style={{ left: layout.outPos.x + 250, top: layout.outPos.y }}
               />
 

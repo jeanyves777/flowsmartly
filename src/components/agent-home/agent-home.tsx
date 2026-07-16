@@ -818,12 +818,15 @@ export function AgentHome() {
   const isDesignSurface = focused === "create" || focused === "print";
   const fLabel = isDesignSurface ? "Design Studio" : isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fMeta ? fMeta.label : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
   const FIcon = isDesignSurface ? Palette : isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fMeta ? fMeta.icon : fws?.icon ?? Sparkles;
-  // Consolidated rail: Print → Create, Campaign → Publish, Leads → Outreach.
-  // Film gets its own rail section, right after Agent (first among the creative
-  // groups). Clicking it opens the Film group's card-grid menu, like the others.
+  // Consolidated rail: Print → Create, Campaign → Publish.
+  // Film and Leads are the two hero PRODUCTS — they get their own rail sections
+  // right after Agent, ahead of the tool groups. Each opens its group's card-grid
+  // menu. Leads absorbs the old "Outreach" section (Find leads, pitches, reviews,
+  // forms, contacts all live in the Leads group), so Outreach is dropped from the rail.
   const FILM_WS: Workspace = { key: "film", label: "Film", icon: Clapperboard, route: "/home/director", items: [] };
-  const basePrimary = WORKSPACES.filter((w) => !["business", "print", "campaign", "leads"].includes(w.key));
-  const primaryWorkspaces = [basePrimary[0], FILM_WS, ...basePrimary.slice(1)];
+  const LEADS_WS: Workspace = { key: "leads", label: "Leads", icon: Search, route: "/home/leads", items: [] };
+  const basePrimary = WORKSPACES.filter((w) => !["business", "print", "campaign", "leads", "outreach"].includes(w.key));
+  const primaryWorkspaces = [basePrimary[0], FILM_WS, LEADS_WS, ...basePrimary.slice(1)];
   const businessWorkspace = WORKSPACES.find((w) => w.key === "business");
 
   const openWorkspace = (key: string) => {
@@ -1207,11 +1210,6 @@ export function AgentHome() {
             );
           })}
           <div className="mt-auto h-px w-11 bg-border" />
-          <button onClick={() => openAgentGroup("connections")} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", activeWs === "connections" ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
-            {activeWs === "connections" && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
-            <Link2 className="h-[21px] w-[21px]" />
-            <span>Social</span>
-          </button>
           {businessWorkspace && (() => {
             const Icon = businessWorkspace.icon;
             const active = activeWs === businessWorkspace.key;
@@ -1684,9 +1682,6 @@ export function AgentHome() {
                 );
               })}
               <div className="my-1.5 h-px w-full bg-border" />
-              <button onClick={() => openAgentGroup("connections")} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === "connections" ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
-                <Link2 className="h-[18px] w-[18px]" /> Social
-              </button>
               {businessWorkspace && (() => {
                 const Icon = businessWorkspace.icon;
                 return (
