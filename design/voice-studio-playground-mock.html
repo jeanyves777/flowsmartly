@@ -58,6 +58,8 @@
   .thumb .play{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.92);color:var(--violet2);display:grid;place-items:center;font-size:17px;cursor:pointer;z-index:2}
   .thumb .dur{position:absolute;right:5px;bottom:5px;background:rgba(0,0,0,.6);color:#fff;font-size:8.5px;font-family:ui-monospace,monospace;border-radius:4px;padding:1px 5px}
   .thumb .kind{position:absolute;left:5px;top:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 7px;background:rgba(0,0,0,.55);color:#fff;display:flex;gap:4px;align-items:center}
+  .thumb .src{position:absolute;right:5px;top:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 7px;background:rgba(167,139,250,.9);color:#1a1030;z-index:2}
+  .thumb .src.up{background:rgba(251,191,36,.92);color:#2b1d00}
   .thumb .badge{position:absolute;left:5px;bottom:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 6px}
   .badge.ready{background:var(--emerald);color:#04231a}
   .badge.rendering{background:rgba(167,139,250,.25);color:#c4b5fd}
@@ -406,8 +408,8 @@ const STYLES = [
   {id:"calm", n:"Meditation",  d:"Soft, slow, lots of air.",            g:"linear-gradient(135deg,#34d399,#059669)", e:"🌙"},
 ];
 const VISUALS = [
-  {id:"stills",n:"Image story",        d:"All stills, each on a slow push-in. Cheapest, and holds any length.", g:"linear-gradient(135deg,#3b82f6,#1e3a8a)", e:"🖼", t:"All images"},
-  {id:"mixed", n:"Images + clips",     d:"Stills carry the story, short live clips hit the moments.",           g:"linear-gradient(135deg,#22d3ee,#0e7490)", e:"🎬", t:"Mixed"},
+  {id:"stills",n:"Image story",        d:"All images — AI-generated or your own — each on a slow push-in. Holds any length.", g:"linear-gradient(135deg,#3b82f6,#1e3a8a)", e:"🖼", t:"All images"},
+  {id:"mixed", n:"Images + video",     d:"Images carry the story; real AI-generated video (or your uploads) hits the moments.", g:"linear-gradient(135deg,#22d3ee,#0e7490)", e:"🎬", t:"Mixed"},
   {id:"char",  n:"Character on camera",d:"A presenter delivers lines to camera between the visuals.",           g:"linear-gradient(135deg,#f472b6,#be185d)", e:"🗣", t:"Talking"},
 ];
 const LIB_VOICES = [
@@ -417,12 +419,13 @@ const LIB_VOICES = [
   {n:"Kwame",  m:"Male · African · Rich",     c:"linear-gradient(135deg,#fbbf24,#b45309)", i:"K"},
   {n:"Lena",   m:"Female · French · Soft",    c:"linear-gradient(135deg,#c084fc,#6d28d9)", i:"L"},
 ];
+// "video" = a REAL AI-generated video, or one the user uploads. Never stock.
 const SCENES = [
-  {k:"still", ic:"🖼", kind:"Still · push-in", line:"Every year, <b>40% of the food we grow</b> never reaches a plate.", dur:"0:06"},
-  {k:"clip",  ic:"🎬", kind:"Clip · live",     line:"Not because we can't grow enough — but because of <b>the twelve hours after harvest</b>.", dur:"0:05"},
-  {k:"still", ic:"🖼", kind:"Still · push-in", line:"Heat. Distance. A truck that didn't come.", dur:"0:05"},
-  {k:"char",  ic:"🗣", kind:"Character · to camera", line:"“We used to lose half the crop before market day.”", dur:"0:07"},
-  {k:"clip",  ic:"🎬", kind:"Clip · live",     line:"This is the story of the farmers <b>rewriting those twelve hours</b>.", dur:"0:06"},
+  {k:"still", ic:"🖼", kind:"Image · push-in", src:"AI", line:"Every year, <b>40% of the food we grow</b> never reaches a plate.", dur:"0:06"},
+  {k:"clip",  ic:"🎬", kind:"Video · generated", src:"AI", line:"Not because we can't grow enough — but because of <b>the twelve hours after harvest</b>.", dur:"0:05"},
+  {k:"still", ic:"🖼", kind:"Image · push-in", src:"AI", line:"Heat. Distance. A truck that didn't come.", dur:"0:05"},
+  {k:"char",  ic:"🗣", kind:"Character · to camera", src:"AI", line:"“We used to lose half the crop before market day.”", dur:"0:07"},
+  {k:"clip",  ic:"🎬", kind:"Video · yours", src:"Upload", line:"This is the story of the farmers <b>rewriting those twelve hours</b>.", dur:"0:06"},
 ];
 
 /* ---------------- brief ---------------- */
@@ -537,6 +540,7 @@ function addSceneNode(s, i, x, y){
       ${s.k==='still'?'<div class="kb"></div>':''}
       <div class="play" onclick="alert('Plays this scene inline')">▶</div>
       <span class="kind">${s.ic} ${s.kind}</span>
+      <span class="src ${s.src==='Upload'?'up':''}">${s.src==='Upload'?'⤒ Yours':'✨ AI'}</span>
       <span class="badge rendering">rendering</span>
       <span class="dur">${s.dur}</span>
       <div class="loader"><div class="sp"></div><div class="lbar"><span style="width:10%"></span></div></div>
@@ -567,8 +571,8 @@ function addSceneNode(s, i, x, y){
     </div>
     <div class="acts">
       <button class="a" onclick="alert('Edit the narration line for this scene — re-narrates just this beat in the same voice.')">✎ Line</button>
-      <button class="a" onclick="alert('Regenerate the visual (new still / new clip)')">↻ Redo</button>
-      <button class="a" onclick="alert('Swap in your own image or clip — upload, or pick from the media library')">⤒ Mine</button>
+      <button class="a" onclick="regenVisual(this)">↻ Redo</button>
+      <button class="a" onclick="useMine(this)">⤒ Mine</button>
     </div>
     <div class="resize">◢</div>`;
   document.getElementById('board').appendChild(n);
@@ -718,6 +722,38 @@ function tl(){
   document.getElementById('dockT').textContent = `${m}:${String(s).padStart(2,'0')} · ${cards.length} scenes`;
   dock.classList.remove('hid');
 }
+/* Every visual is either AI-generated or the user's own file — the badge says which. */
+function useMine(b){
+  const n = b.closest('.node');
+  const kind = n.querySelector('.tag.take').textContent;
+  if(!confirm(`Swap in your own ${kind==='clip'?'video':'image'} — upload, or pick from the media library.\n\nOK = simulate picking your own file.`)) return;
+  const s = n.querySelector('.src');
+  s.className = 'src up'; s.textContent = '⤒ Yours';
+  n.querySelector('.kind').textContent = kind==='clip' ? '🎬 Video · yours' : '🖼 Image · yours';
+  const ld = n.querySelector('.loader'); if(ld) ld.remove();
+  const bd = n.querySelector('.badge'); if(bd){ bd.className='badge ready'; bd.textContent='ready'; }
+  stats();
+}
+function regenVisual(b){
+  const n = b.closest('.node');
+  const kind = n.querySelector('.tag.take').textContent;
+  const s = n.querySelector('.src');
+  s.className = 'src'; s.textContent = '✨ AI';
+  n.querySelector('.kind').textContent = {still:'🖼 Image · push-in', clip:'🎬 Video · generated', char:'🗣 Character · to camera'}[kind];
+  const bd = n.querySelector('.badge'); if(bd){ bd.className='badge rendering'; bd.textContent='rendering'; }
+  let ld = n.querySelector('.loader');
+  if(!ld){
+    ld = document.createElement('div');
+    ld.className='loader'; ld.innerHTML = '<div class="sp"></div><div class="lbar"><span style="width:8%"></span></div>';
+    n.querySelector('.thumb').appendChild(ld);
+  }
+  let p = 8; const bar = ld.querySelector('.lbar>span');
+  const t = setInterval(()=>{
+    p += 10 + Math.random()*16;
+    bar.style.width = Math.min(96,p)+'%';
+    if(p>=100){ clearInterval(t); ld.remove(); bd.className='badge ready'; bd.textContent='ready'; stats(); }
+  }, 260);
+}
 function setHold(input){
   const v = +input.value;
   const n = input.closest('.node');
@@ -735,8 +771,10 @@ function segType(b, kind){
   const kb = th.querySelector('.kb');
   if(kind==='still' && !kb){ const d=document.createElement('div'); d.className='kb'; th.prepend(d); }
   if(kind!=='still' && kb) kb.remove();
-  const label = {still:'🖼 Still · push-in', clip:'🎬 Clip · live', char:'🗣 Character · to camera'}[kind];
-  n.querySelector('.kind').textContent = label;
+  const own = n.querySelector('.src')?.classList.contains('up');
+  n.querySelector('.kind').textContent = own
+    ? (kind==='clip' ? '🎬 Video · yours' : '🖼 Image · yours')
+    : {still:'🖼 Image · push-in', clip:'🎬 Video · generated', char:'🗣 Character · to camera'}[kind];
   n.querySelector('.n-head .ic').textContent = {still:'🖼',clip:'🎬',char:'🗣'}[kind];
   tl();
 }
