@@ -192,10 +192,23 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
     const p = { ...project, shots: [...project.shots, ns] };
     setProject(p); await save(p); await renderShot(id);
   };
+  // The background plate reproduces THIS shot's actual scene, empty of people.
+  // The old prompt just said "the exact same scene, but EMPTY" with no scene text —
+  // and a background renders text-only (no reference), so the model had nothing to
+  // work from and defaulted to a generic desk. Feed it the source scene, drop the
+  // podcast-specific "microphone", and wire the node to its source shot.
   const bgOnly = async (shot: CloneShot) => {
     if (!project) return;
     const id = `shot_${Math.random().toString(36).slice(2, 8)}`;
-    const ns: CloneShot = { ...shot, id, order: project.shots.length, kind: "background", cloneId: null, status: "queued", imageUrl: null, error: null, prompt: `The exact same scene and lighting, but EMPTY — no person, no microphone. A clean background plate to use behind a real webcam.` };
+    const sceneText = (shot.prompt.trim() || SCENE_PROMPT[shot.scene] || "the same setting").replace(/\s+/g, " ");
+    const ns: CloneShot = {
+      ...shot, id, order: project.shots.length, kind: "background",
+      cloneId: null, sourceShotId: shot.id,
+      // Sit just below its source so the wire reads as "this shot's background".
+      x: shot.x, y: (shot.y ?? shotPos(shot.order).top) + 430,
+      status: "queued", imageUrl: null, error: null,
+      prompt: `${sceneText}\n\nBACKGROUND PLATE — the EXACT same location, framing, lighting and colours as that scene, but COMPLETELY EMPTY: nobody in the frame, no person at all. A clean background you can stand in front of on a real webcam.`,
+    };
     const p = { ...project, shots: [...project.shots, ns] };
     setProject(p); await save(p); await renderShot(id);
   };
@@ -213,16 +226,22 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
   const recompute = useCallback(() => {
     const board = boardRef.current; if (!board) return;
     const rect = board.getBoundingClientRect();
-    const id = board.querySelector<HTMLElement>('[data-node="__id"]'); if (!id) { setWire(""); return; }
-    const ra = id.getBoundingClientRect();
-    const ax = ra.right - rect.left, ay = ra.top - rect.top + ra.height / 2;
+    const idNode = board.querySelector<HTMLElement>('[data-node="__id"]');
+    const nodes = Array.from(board.querySelectorAll<HTMLElement>('[data-shot]'));
+    const byId = new Map(nodes.map((n) => [n.getAttribute("data-shot"), n]));
+    const rightMid = (el: HTMLElement) => { const r = el.getBoundingClientRect(); return { x: r.right - rect.left, y: r.top - rect.top + r.height / 2 }; };
+    const leftMid = (el: HTMLElement) => { const r = el.getBoundingClientRect(); return { x: r.left - rect.left, y: r.top - rect.top + r.height / 2 }; };
     let d = "";
-    board.querySelectorAll<HTMLElement>('[data-shot]').forEach((s) => {
-      const rb = s.getBoundingClientRect();
-      const bx = rb.left - rect.left, by = rb.top - rect.top + rb.height / 2;
-      const dx = Math.max(30, (bx - ax) / 2);
-      d += `M${ax} ${ay} C${ax + dx} ${ay},${bx - dx} ${by},${bx} ${by} `;
-    });
+    for (const n of nodes) {
+      // A background plate wires to the SHOT it came from; every other node to the
+      // identity. (Falls back to the identity if that source shot was deleted.)
+      const src = n.getAttribute("data-src");
+      const fromEl = (src && byId.get(src)) || idNode;
+      if (!fromEl) continue;
+      const a = rightMid(fromEl), b = leftMid(n);
+      const dx = Math.max(30, (b.x - a.x) / 2);
+      d += `M${a.x} ${a.y} C${a.x + dx} ${a.y},${b.x - dx} ${b.y},${b.x} ${b.y} `;
+    }
     setWire(d);
   }, []);
   useEffect(() => { recompute(); }, [recompute, shots, project?.activeCloneId]);
@@ -396,7 +415,7 @@ function ShotCard({ shot, index, style, scene, onRedo, onEditPrompt, onDelete, o
   };
 
   return (
-    <div ref={cardRef} className="absolute overflow-hidden rounded-2xl border border-border bg-card shadow-sm" style={style} data-shot>
+    <div ref={cardRef} className="absolute overflow-hidden rounded-2xl border border-border bg-card shadow-sm" style={style} data-shot={shot.id} data-src={shot.sourceShotId || undefined}>
       <div onPointerDown={startDrag} className="flex cursor-grab items-center gap-2 px-3 pb-1.5 pt-2.5 active:cursor-grabbing">
         <span className={cn("grid h-5 w-5 place-items-center rounded-md", shot.kind === "background" ? "bg-amber-500/15 text-amber-500" : "bg-cyan-500/15 text-cyan-500")}>{shot.kind === "background" ? <ImageIcon className="h-3 w-3" /> : <Camera className="h-3 w-3" />}</span>
         <b className="text-[12px]">{shot.kind === "background" ? "Background" : `Shot ${index + 1}`}</b>

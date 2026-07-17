@@ -31,6 +31,9 @@ export interface CloneShot {
   order: number;
   /** Which identity this shot depicts (null for a background-only plate). */
   cloneId: string | null;
+  /** For a background plate: the shot it was pulled from — its scene is reproduced
+   *  empty, and the node wires to that shot rather than to the identity/brief. */
+  sourceShotId?: string | null;
   kind: ShotKind;
   /** The drafted/edited visual prompt actually sent to the image model. */
   prompt: string;
@@ -100,6 +103,7 @@ export function normalizeShot(raw: Partial<CloneShot>, i: number): CloneShot {
     id: raw.id || rid("shot"),
     order: typeof raw.order === "number" ? raw.order : i,
     cloneId: raw.cloneId ?? null,
+    sourceShotId: raw.sourceShotId ?? null,
     kind: raw.kind === "background" ? "background" : "person",
     prompt: String(raw.prompt || "").slice(0, 3000),
     scene: String(raw.scene || "studio").slice(0, 60),
