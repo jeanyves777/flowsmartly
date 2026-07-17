@@ -70,6 +70,7 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
   const [briefOpen, setBriefOpen] = useState(false);
   const [backOpen, setBackOpen] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
+  const [voicePickerOpen, setVoicePickerOpen] = useState(false);
 
   const boardRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -257,7 +258,7 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
           ) : (
             <>
               <BriefNode agent={agent} onOpen={() => setBriefOpen(true)} onMove={recomputeWires} />
-              <VoiceNode agent={agent} onOpen={() => setBriefOpen(true)} onMove={recomputeWires} />
+              <VoiceNode agent={agent} onOpen={() => setVoicePickerOpen(true)} onMove={recomputeWires} />
 
               {skills.map((s, i) => (
                 <SkillNode key={s.id} skill={s} index={i} agent={agent}
@@ -327,6 +328,14 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
           onPick={async (id) => { setAgentsOpen(false); await loadAgent(id); }}
           onNew={() => { setAgentsOpen(false); setBriefOpen(true); }}
           onClose={() => setAgentsOpen(false)} />
+      )}
+
+      {voicePickerOpen && agent && (
+        <VoicePickerModal
+          voiceId={agent.voiceId}
+          onClose={() => setVoicePickerOpen(false)}
+          onPick={(v) => { void save({ voiceId: v.voiceId, voiceLabel: v.name }); }}
+        />
       )}
 
       {promptNode}
@@ -428,23 +437,26 @@ function BriefNode({ agent, onOpen, onMove }: { agent: VoiceAgentDraft; onOpen: 
 
 function VoiceNode({ agent, onOpen, onMove }: { agent: VoiceAgentDraft; onOpen: () => void; onMove: () => void }) {
   const { ref, start } = useNodeDrag(onMove);
-  const [playing, setPlaying] = useState(false);
+  const { busy, play } = useVoicePreview();
   const label = agent.voiceLabel || "Eve";
   const initials = label.slice(0, 2).toUpperCase();
+  const playing = busy === agent.voiceId;
   return (
     <div ref={ref} data-node="__voice" style={{ left: 316, top: 88 }}
       className="absolute w-[224px] overflow-hidden rounded-2xl border border-amber-500/40 bg-gradient-to-b from-amber-500/10 to-card shadow-sm">
       <NodeHead icon={<Mic className="h-3 w-3" />} tone="bg-amber-500/15 text-amber-500"
         title="Voice" tag="VOICE" tagTone="bg-amber-500/15 text-amber-500" onPointerDown={start} />
-      <div className="mx-3 flex items-center gap-2.5 rounded-xl border border-border bg-muted/40 p-2.5">
+      <button onClick={onOpen}
+        className="mx-3 flex w-[calc(100%-24px)] items-center gap-2.5 rounded-xl border border-border bg-muted/40 p-2.5 text-left hover:border-amber-500">
         <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-[11px] font-black text-white">
           {initials}
         </span>
-        <span className="min-w-0">
+        <span className="min-w-0 flex-1">
           <b className="block truncate text-[11.5px]">{label}</b>
-          <span className="text-[9.5px] text-muted-foreground">Answers as this voice</span>
+          <span className="text-[9.5px] text-muted-foreground">Tap to change voice</span>
         </span>
-      </div>
+        <Pencil className="h-3 w-3 flex-none text-muted-foreground" />
+      </button>
       <div className="mx-3 mt-2 flex h-[34px] items-center gap-[2px] overflow-hidden rounded-lg border border-border bg-muted/40 px-2">
         {Array.from({ length: 42 }, (_, n) => (
           <i key={n}
@@ -453,13 +465,42 @@ function VoiceNode({ agent, onOpen, onMove }: { agent: VoiceAgentDraft; onOpen: 
         ))}
       </div>
       <div className="flex gap-1 p-3">
-        <button onClick={() => { setPlaying(true); setTimeout(() => setPlaying(false), 2000); }}
-          className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-amber-500">
-          <PlayCircle className="mx-auto h-3 w-3" />
+        <button onClick={() => play(agent.voiceId, "Thanks for calling — how can I help you today?")}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-amber-500">
+          {playing ? <Volume2 className="h-3 w-3 animate-pulse text-amber-500" /> : <PlayCircle className="h-3 w-3" />} Preview
         </button>
-        <button onClick={onOpen} className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-amber-500">
-          <RefreshCw className="mx-auto h-3 w-3" />
+        <button onClick={onOpen}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 py-1.5 text-[9.5px] font-bold text-white">
+          <Mic className="h-3 w-3" /> Change
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** A standalone voice picker — opened from the canvas Voice node, saves on pick. */
+function VoicePickerModal({ voiceId, onClose, onPick }: {
+  voiceId: string;
+  onClose: () => void;
+  onPick: (v: VoiceChoice) => void;
+}) {
+  const [current, setCurrent] = useState(voiceId);
+  return (
+    <div className="absolute inset-0 z-40">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/50" />
+      <div className="absolute inset-x-3 bottom-3 top-14 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-8 sm:bottom-8">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <span className="grid h-6 w-6 place-items-center rounded-lg bg-amber-500/15 text-amber-500"><Mic className="h-3.5 w-3.5" /></span>
+          <b className="text-[13.5px]">Choose the voice</b>
+          <span className="text-[11px] text-muted-foreground">— tap a voice to use it, ▶ to preview</span>
+          <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <VoicePicker voiceId={current} onPick={(v) => { setCurrent(v.voiceId); onPick(v); }} />
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+          <button onClick={onClose} className="rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-1.5 text-[12px] font-bold text-white">Done</button>
+        </div>
       </div>
     </div>
   );
