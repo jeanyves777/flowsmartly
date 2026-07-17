@@ -2,11 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
 import Image from "next/image";
-import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users, Palette } from "lucide-react";
+import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users, Palette, LayoutGrid, FolderTree, BarChart3, Settings, Landmark } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { StoreCallToAction } from "./store-cta";
 import { StoreStudio } from "./store-studio";
 import { ProductEditor } from "./product-editor";
+import { StoreOverview } from "./store-overview";
+import { StoreCategories } from "./store-categories";
+import { StoreShipping } from "./store-shipping";
+import { StorePayments } from "./store-payments";
+import { StoreAnalytics } from "./store-analytics";
+import { StoreSettings } from "./store-settings";
 import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
@@ -49,7 +55,7 @@ const NEXT_STATUS: Record<string, { label: string; to: string }> = {
 // Statuses a seller can cancel from (matches server-side allowedTransitions → CANCELLED).
 const CANCELLABLE = new Set(["PENDING", "CONFIRMED", "PROCESSING"]);
 
-type Section = "products" | "orders";
+type Section = "overview" | "products" | "orders" | "categories" | "shipping" | "payments" | "analytics" | "settings";
 
 const ORDER_STATUS_FILTERS = ["PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"];
 const PAYMENT_STATUS_FILTERS = ["pending", "paid", "failed", "refunded"];
@@ -96,7 +102,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<OrderStats>({});
   const [loading, setLoading] = useState(true);
-  const [section, setSection] = useState<Section>("products");
+  const [section, setSection] = useState<Section>("overview");
   const [studioOpen, setStudioOpen] = useState(false);
 
   // Product editor drawer: "new" (add), a product id (edit), or null (closed).
@@ -360,9 +366,15 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
   const draftCount = products.filter((p) => (p.status || "").toUpperCase() === "DRAFT").length;
   const orderCount = stats.totalOrders ?? store?.orderCount ?? 0;
 
-  const nav: { id: Section; label: string; icon: ElementType; count: number }[] = [
+  const nav: { id: Section; label: string; icon: ElementType; count?: number }[] = [
+    { id: "overview", label: "Overview", icon: LayoutGrid },
     { id: "products", label: "Products", icon: Package, count: productCount },
     { id: "orders", label: "Orders", icon: ShoppingBag, count: orderCount },
+    { id: "categories", label: "Categories", icon: FolderTree },
+    { id: "shipping", label: "Shipping", icon: Truck },
+    { id: "payments", label: "Payments & payouts", icon: Landmark },
+    { id: "analytics", label: "Analytics", icon: BarChart3 },
+    { id: "settings", label: "Settings", icon: Settings },
   ];
 
   return (
@@ -421,7 +433,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
                 >
                   <n.icon className="h-4 w-4 shrink-0" />
                   <span className="flex-1 text-start">{n.label}</span>
-                  {n.count > 0 && (
+                  {(n.count ?? 0) > 0 && (
                     <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
                   )}
                 </button>
@@ -440,7 +452,19 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
 
         {/* RIGHT: the selected section, full width */}
         <div className="min-w-0 flex-1 space-y-4">
-        {section === "products" ? (
+        {section === "overview" ? (
+          <StoreOverview currency={cur} orders={orders} products={products} stats={stats} onSection={(s) => setSection(s as Section)} />
+        ) : section === "categories" ? (
+          <StoreCategories />
+        ) : section === "shipping" ? (
+          <StoreShipping currency={cur} />
+        ) : section === "payments" ? (
+          <StorePayments currency={cur} />
+        ) : section === "analytics" ? (
+          <StoreAnalytics currency={cur} />
+        ) : section === "settings" ? (
+          <StoreSettings />
+        ) : section === "products" ? (
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h3 className="text-[13px] font-bold">Products</h3>

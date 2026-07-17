@@ -11,7 +11,9 @@ const updateSettingsSchema = z.object({
   logoUrl: z.string().max(500).optional().nullable(),
   bannerUrl: z.string().max(500).optional().nullable(),
   industry: z.string().max(100).optional().nullable(),
+  region: z.string().max(50).optional().nullable(),
   currency: z.string().max(10).optional(),
+  isActive: z.boolean().optional(),
   theme: z.record(z.unknown()).optional(),
   settings: z.record(z.unknown()).optional(),
 });
@@ -68,6 +70,8 @@ export async function PATCH(request: NextRequest) {
     if (data.logoUrl !== undefined) updateData.logoUrl = data.logoUrl;
     if (data.bannerUrl !== undefined) updateData.bannerUrl = data.bannerUrl;
     if (data.industry !== undefined) updateData.industry = data.industry;
+    if (data.region !== undefined) updateData.region = data.region;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
     if (data.currency !== undefined) {
       if (!isValidCurrency(data.currency)) {
         return NextResponse.json(
