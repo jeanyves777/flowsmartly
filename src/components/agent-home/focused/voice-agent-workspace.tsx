@@ -24,9 +24,10 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import {
   ANSWER_MODES, DAYS, DEFAULT_HOURS, OUTCOME_LABEL, PRESETS, PRESET_BY_KEY,
-  SKILL_BY_KEY, SKILL_CATALOG, fmtDuration, fmtNumber, skillFromDef, skillPos,
-  type AgentCall, type AgentNumber, type AgentSkill, type AnswerMode, type DayKey,
-  type Hours, type KnowledgeItem, type VoiceAgentDraft,
+  SKILL_BY_KEY, SKILL_CATALOG, brandToBusinessBlurb, fmtDuration, fmtNumber,
+  greetingFor, skillFromDef, skillPos,
+  type AgentCall, type AgentNumber, type AgentSkill, type AnswerMode, type BrandLite,
+  type DayKey, type Hours, type KnowledgeItem, type VoiceAgentDraft,
 } from "@/lib/voice-agent/types";
 
 const DOTS = "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)";
@@ -719,6 +720,8 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
   const [preset, setPreset] = useState(agent?.preset || "recep");
   const [business, setBusiness] = useState(agent?.business || "");
   const [greeting, setGreeting] = useState(agent?.greeting || "");
+  const [brand, setBrand] = useState<BrandLite | null>(null);
+  const [prefilled, setPrefilled] = useState(false);
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>(agent?.knowledge || []);
   const [skillKeys, setSkillKeys] = useState<string[]>(
     agent?.skills.map((s) => s.key) || PRESET_BY_KEY.recep.skills,
@@ -746,11 +749,48 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The account already knows who the business is — never make them type it
+  // again. Prefills only what's still blank, so it can't clobber typed input
+  // or an existing agent's saved brief.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/brand")
+      .then((r) => r.json())
+      .then((j) => {
+        if (!alive || !j?.success) return;
+        const bk = j.data?.brandKit as BrandLite | null;
+        if (!bk?.name) return;
+        setBrand(bk);
+
+        // Decide from the values captured at mount, NOT from inside a state
+        // updater — an updater's body runs during the next render, so a flag
+        // flipped in there always reads back stale right here.
+        const blurb = brandToBusinessBlurb(bk);
+        const site = bk.website ? String(bk.website) : "";
+        const fillBusiness = !business.trim() && Boolean(blurb);
+        const fillGreeting = !greeting.trim();
+        // Their own site is the one link worth reading by default.
+        const fillSite = Boolean(site) && !knowledge.some((x) => x.url === site);
+
+        if (fillBusiness) setBusiness(blurb);
+        if (fillGreeting) setGreeting(greetingFor(preset, bk.name));
+        if (fillSite) {
+          setKnowledge((k) => [
+            ...k,
+            { kind: "url", label: site.replace(/^https?:\/\//, "").slice(0, 40), url: site },
+          ]);
+        }
+        if (fillBusiness || fillGreeting || fillSite) setPrefilled(true);
+      })
+      .catch(() => { /* the brief just starts blank */ });
+    return () => { alive = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Picking a preset reseeds the skills, unless the user has already tuned them.
   const pickPreset = (key: string) => {
     setPreset(key);
     setSkillKeys(PRESET_BY_KEY[key]?.skills || []);
-    if (!greeting.trim()) setGreeting(PRESET_BY_KEY[key]?.greeting.replace("{business}", "us") || "");
+    if (!greeting.trim()) setGreeting(greetingFor(key, brand?.name));
   };
 
   const addKnowledge = async () => {
@@ -839,6 +879,12 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
 
           <div className="mt-5">
             <SectionLabel hint="the agent reads this before every call">Tell it about your business</SectionLabel>
+            {prefilled && (
+              <p className="mb-2 inline-flex items-center gap-1.5 rounded-md border border-brand-500/25 bg-brand-500/5 px-2 py-1 text-[10px] font-semibold text-brand-400">
+                <Sparkles className="h-3 w-3" />
+                Filled in from your Brand Kit — edit anything
+              </p>
+            )}
             <textarea value={business} onChange={(e) => setBusiness(e.target.value)}
               placeholder="What you do, where you are, who's who, anything a caller might ask…"
               className="min-h-[74px] w-full resize-y rounded-xl border border-border bg-muted/40 p-3 text-[12.5px] leading-relaxed outline-none focus:border-brand-500" />
