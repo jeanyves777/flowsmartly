@@ -58,7 +58,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const b = (await request.json().catch(() => ({}))) as {
-    op?: "add" | "remove" | "clear" | "bg";
+    op?: "add" | "update" | "remove" | "clear" | "bg";
     item?: BoardItem;
     itemId?: string;
     bg?: "blank" | "grid" | "dark";
@@ -74,6 +74,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       doc.items.push(item);
       if (doc.items.length > MAX_ITEMS) doc.items.splice(0, doc.items.length - MAX_ITEMS);
       broadcast(id, { type: "board:add", item });
+      break;
+    }
+    case "update": {
+      // move / edit an existing mark (drag or double-click-edit). Same authorship
+      // rule as remove: your own, or a host's anyone.
+      if (!b.item?.id) return err("No item");
+      const idx = doc.items.findIndex((i) => i.id === b.item!.id);
+      if (idx < 0) return NextResponse.json({ success: true }); // gone
+      const prev = doc.items[idx];
+      if (prev.by !== me.id && !canControlRoom({ role: me.role as ParticipantRole })) {
+        return err("That isn't yours to change", 403);
+      }
+      // keep the original author + type; take the client's new geometry/text
+      const next = { ...b.item, by: prev.by, t: prev.t } as BoardItem;
+      doc.items[idx] = next;
+      broadcast(id, { type: "board:update", item: next });
       break;
     }
     case "remove": {

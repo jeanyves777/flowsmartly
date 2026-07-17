@@ -40,7 +40,11 @@ interface Props {
   onAdd: (item: BoardItem) => void;
   /** the eraser deletes whole marks it touches (tldraw-style object erase) */
   onRemove: (itemId: string) => void;
+  /** move / edit an existing mark (drag with the Select tool, or double-click text) */
+  onUpdate: (item: BoardItem) => void;
   onPing: (x: number, y: number, laser: boolean) => void;
+  /** hide every drawn mark with one click (a presenter view toggle) */
+  hideItems?: boolean;
   /** the deck/doc/screen sitting behind the ink, if any */
   backdrop?: React.ReactNode;
   className?: string;
@@ -77,15 +81,16 @@ function toPath(points: number[][]): string {
   return d.join(" ");
 }
 
-export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, cursors, onAdd, onRemove, onPing, backdrop, className }: Props) {
+export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, cursors, onAdd, onRemove, onUpdate, onPing, hideItems, backdrop, className }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [live, setLive] = useState<BoardPoint[] | null>(null);
   const liveRef = useRef<BoardPoint[] | null>(null);
   const shapeFrom = useRef<BoardPoint | null>(null);
   const [shapeTo, setShapeTo] = useState<BoardPoint | null>(null);
-  // inline text entry (replaces the native window.prompt): type on the board
-  const [editing, setEditing] = useState<{ x: number; y: number; note: boolean; value: string } | null>(null);
+  // inline text entry (replaces the native window.prompt): type on the board.
+  // `id` set = editing an existing mark (double-click); unset = a new one.
+  const [editing, setEditing] = useState<{ x: number; y: number; note: boolean; value: string; id?: string; color?: string } | null>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
   // The text/note editor opens on pointer-UP, not down: opening on down let the
   // same click's pointerup blur (and empty-commit) it instantly. This holds the
@@ -98,6 +103,10 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
   // laser pointer — a local glowing dot (we also ping others). Held while pressed.
   const lasering = useRef(false);
   const [laserAt, setLaserAt] = useState<{ x: number; y: number } | null>(null);
+  // Select tool: click to pick a mark, drag to move it, double-click text to edit.
+  const [selId, setSelId] = useState<string | null>(null);
+  const drag = useRef<{ id: string; startX: number; startY: number; orig: BoardItem } | null>(null);
+  const [dragItem, setDragItem] = useState<BoardItem | null>(null); // local override while dragging
 
   // Focus the editor once it opens (autoFocus alone races the pointer sequence).
   useEffect(() => {
@@ -165,11 +174,66 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
     [box.w, box.h, doc.items, onRemove],
   );
 
+  // ---- select / drag helpers ----
+  /** A mark's pixel bounding box (for hit-testing + the selection outline). */
+  const boundsOf = useCallback(
+    (it: BoardItem): { x: number; y: number; w: number; h: number } => {
+      if (it.t === "stroke") {
+        const xs = it.pts.map((p) => p.x * box.w), ys = it.pts.map((p) => p.y * box.h);
+        const x = Math.min(...xs), y = Math.min(...ys);
+        return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+      }
+      if (it.t === "shape") {
+        const x = Math.min(it.from.x, it.to.x) * box.w, y = Math.min(it.from.y, it.to.y) * box.h;
+        return { x, y, w: Math.abs(it.to.x - it.from.x) * box.w, h: Math.abs(it.to.y - it.from.y) * box.h };
+      }
+      if (it.t === "text") {
+        const fs = Math.max(11, it.size * box.h);
+        return { x: it.at.x * box.w, y: it.at.y * box.h, w: Math.min(0.38 * box.w, Math.max(fs, it.text.length * fs * 0.55)), h: fs * 1.6 };
+      }
+      return { x: it.at.x * box.w, y: it.at.y * box.h, w: it.w * box.w, h: it.h * box.h };
+    },
+    [box.w, box.h],
+  );
+
+  /** Topmost mark under a point (last drawn wins), with a small pad. */
+  const hitTest = useCallback(
+    (pt: BoardPoint): BoardItem | null => {
+      const ex = pt.x * box.w, ey = pt.y * box.h, pad = 8;
+      const its = doc.items ?? [];
+      for (let i = its.length - 1; i >= 0; i--) {
+        const b = boundsOf(its[i]);
+        if (ex >= b.x - pad && ex <= b.x + b.w + pad && ey >= b.y - pad && ey <= b.y + b.h + pad) return its[i];
+      }
+      return null;
+    },
+    [box.w, box.h, doc.items, boundsOf],
+  );
+
+  /** Shift a mark by a fractional delta (drag). Clamped so a mark can never fly
+   *  off the board — e.g. if the board is briefly mis-measured during layout. */
+  const shiftItem = (it: BoardItem, dx: number, dy: number): BoardItem => {
+    const c = (v: number) => Math.max(-0.05, Math.min(1.05, v));
+    if (it.t === "stroke") return { ...it, pts: it.pts.map((p) => ({ ...p, x: c(p.x + dx), y: c(p.y + dy) })) };
+    if (it.t === "shape") return { ...it, from: { ...it.from, x: c(it.from.x + dx), y: c(it.from.y + dy) }, to: { ...it.to, x: c(it.to.x + dx), y: c(it.to.y + dy) } };
+    return { ...it, at: { ...it.at, x: c(it.at.x + dx), y: c(it.at.y + dy) } };
+  };
+
   // ---- pointer ----
   const lastPing = useRef(0);
   const onDown = (e: ReactPointerEvent) => {
-    if (tool === "sel") return;
-    const pt = toFrac(e.nativeEvent);
+    const pt0 = toFrac(e.nativeEvent);
+    if (tool === "sel") {
+      if (!canDraw) return;
+      const hit = hitTest(pt0);
+      setSelId(hit?.id ?? null);
+      if (hit) {
+        drag.current = { id: hit.id, startX: pt0.x, startY: pt0.y, orig: hit };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      }
+      return;
+    }
+    const pt = pt0;
 
     if (tool === "laser") {
       lasering.current = true;
@@ -215,6 +279,11 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
       onPing(pt.x, pt.y, lasering.current);
     }
 
+    if (drag.current) {
+      const d = drag.current;
+      setDragItem(shiftItem(d.orig, pt.x - d.startX, pt.y - d.startY));
+      return;
+    }
     if (lasering.current) {
       setLaserAt({ x: pt.x, y: pt.y });
       return;
@@ -234,6 +303,15 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
   };
 
   const onUp = () => {
+    if (drag.current) {
+      const moved = dragItem;
+      const d = drag.current;
+      drag.current = null;
+      setDragItem(null);
+      // only persist if it actually moved
+      if (moved && (moved !== d.orig)) onUpdate(moved);
+      return;
+    }
     if (lasering.current) {
       lasering.current = false;
       setLaserAt(null);
@@ -277,20 +355,40 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
   };
 
   const commitText = () => {
-    const v = editing?.value.trim();
-    if (editing && v) {
+    const e = editing;
+    setEditing(null);
+    if (!e) return;
+    const v = e.value.trim();
+    if (e.id) {
+      // editing an existing mark: empty text deletes it, else update the text
+      const orig = (doc.items ?? []).find((i) => i.id === e.id);
+      if (!orig || orig.t !== "text") return;
+      if (!v) { onRemove(e.id); return; }
+      onUpdate({ ...orig, text: v.slice(0, 400) });
+      return;
+    }
+    if (v) {
       onAdd({
         id: uid("t"),
         t: "text",
         by: "",
-        at: { x: editing.x, y: editing.y },
+        at: { x: e.x, y: e.y },
         text: v.slice(0, 400),
-        color: editing.note ? "#111827" : color,
+        color: e.note ? "#111827" : color,
         size: 0.035,
-        ...(editing.note ? { note: "#fde68a" } : {}),
+        ...(e.note ? { note: "#fde68a" } : {}),
       });
     }
-    setEditing(null);
+  };
+
+  // double-click a text/note to edit it in place
+  const onDoubleClick = (ev: React.MouseEvent) => {
+    if (!canDraw) return;
+    const pt = toFrac({ clientX: ev.clientX, clientY: ev.clientY });
+    const hit = hitTest(pt);
+    if (hit && hit.t === "text") {
+      setEditing({ x: hit.at.x, y: hit.at.y, note: !!hit.note, value: hit.text, id: hit.id, color: hit.color });
+    }
   };
 
   // ---- render ----
@@ -351,7 +449,13 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
     [box.w, box.h],
   );
 
-  const items = useMemo(() => doc.items ?? [], [doc.items]);
+  // Items to render: hide-all wins; otherwise substitute the live drag preview.
+  const items = useMemo(() => {
+    if (hideItems) return [] as BoardItem[];
+    const src = doc.items ?? [];
+    return dragItem ? src.map((i) => (i.id === dragItem.id ? dragItem : i)) : src;
+  }, [doc.items, hideItems, dragItem]);
+  const selected = useMemo(() => (selId ? items.find((i) => i.id === selId) ?? null : null), [selId, items]);
   const ready = box.w > 0 && box.h > 0;
 
   return (
@@ -362,18 +466,17 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
         doc.bg === "dark" ? "bg-[#12141a]" : "bg-[#f8f8f5]",
         className,
       )}
-      style={
-        doc.bg === "grid"
-          ? {
-              backgroundImage: "radial-gradient(circle at 1px 1px,#d8d8d0 1px,transparent 0)",
-              backgroundSize: "22px 22px",
-            }
-          : undefined
-      }
+      style={{
+        cursor: tool === "sel" ? (drag.current ? "grabbing" : "default") : undefined,
+        ...(doc.bg === "grid"
+          ? { backgroundImage: "radial-gradient(circle at 1px 1px,#d8d8d0 1px,transparent 0)", backgroundSize: "22px 22px" }
+          : {}),
+      }}
       onPointerDown={onDown}
       onPointerMove={onMove}
       onPointerUp={onUp}
       onPointerLeave={onUp}
+      onDoubleClick={onDoubleClick}
     >
       {backdrop ? <div className="pointer-events-none absolute inset-0 z-[1]">{backdrop}</div> : null}
 
@@ -420,6 +523,11 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
               <circle cx={laserAt.x * box.w} cy={laserAt.y * box.h} r={4} fill="#ef4444" />
             </g>
           ) : null}
+          {/* selection outline (Select tool) */}
+          {tool === "sel" && selected ? (() => {
+            const b = boundsOf(selected);
+            return <rect x={b.x - 5} y={b.y - 5} width={b.w + 10} height={b.h + 10} rx={5} fill="none" stroke="#6366f1" strokeWidth={1.4} strokeDasharray="5 4" />;
+          })() : null}
         </svg>
       ) : null}
 

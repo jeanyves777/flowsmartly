@@ -13,7 +13,7 @@ import {
   MousePointer2, Pencil, Highlighter, Eraser, Square, Type, StickyNote, Flashlight,
   Undo2, Trash2, Presentation, PenLine, FileText, Monitor, Video, Hand, Mic, MicOff,
   VideoOff, Circle, Users, LogOut, Paperclip, ChevronLeft, ChevronRight, Star, X,
-  Minus, MoveUpRight, Triangle, Diamond, ChevronDown, PanelLeftClose, PanelLeftOpen, UserPlus,
+  Minus, MoveUpRight, Triangle, Diamond, ChevronDown, PanelLeftClose, PanelLeftOpen, UserPlus, Eye, EyeOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
@@ -87,6 +87,7 @@ interface Props {
   connected: boolean;
   onAdd: (item: BoardItem) => void;
   onRemove: (itemId: string) => void;
+  onUpdate: (item: BoardItem) => void;
   onPing: (x: number, y: number, laser: boolean) => void;
   onUndo: () => void;
   onClear: () => void;
@@ -98,7 +99,7 @@ interface Props {
   onEnd: () => void;
 }
 
-export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onPing, onUndo, onClear, act, patch, onLeave, onManage, onEnd }: Props) {
+export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onUpdate, onPing, onUndo, onClear, act, patch, onLeave, onManage, onEnd }: Props) {
   const [tool, setTool] = useState<BoardTool>("pen");
   const [ink, setInk] = useState(INKS[0]);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rect");
@@ -106,6 +107,7 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onP
   const [showTools, setShowTools] = useState(true); // hide the pen rail e.g. while presenting slides
   const [showRoster, setShowRoster] = useState(true); // the Participants button toggles this
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [hideItems, setHideItems] = useState(false); // hide/show ALL board marks with one click
 
   // Camera/mic/screen. Optional: with no media server configured this reports
   // enabled:false and the room runs as a whiteboard session.
@@ -286,9 +288,20 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onP
           <button
             onClick={() => setShowTools((v) => !v)}
             title={showTools ? "Hide the drawing tools" : "Show the drawing tools"}
-            className="me-1 grid h-[30px] w-[30px] place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:border-brand-500 hover:text-foreground"
+            className="grid h-[30px] w-[30px] place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:border-brand-500 hover:text-foreground"
           >
             {showTools ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+          </button>
+          {/* hide / show ALL marks on the board with one click */}
+          <button
+            onClick={() => setHideItems((v) => !v)}
+            title={hideItems ? "Show everything on the board" : "Hide everything on the board"}
+            className={cn(
+              "me-1 grid h-[30px] w-[30px] place-items-center rounded-lg border transition",
+              hideItems ? "border-brand-500 bg-brand-500/15 text-brand-400" : "border-border bg-card text-muted-foreground hover:border-brand-500 hover:text-foreground",
+            )}
+          >
+            {hideItems ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>
           {SOURCES.map(({ id, Icon, label }) => (
             <button
@@ -330,12 +343,17 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onP
           </span>
         </div>
 
-        <div className="relative grid flex-1 place-items-center overflow-hidden bg-[#0e0e13] p-3.5">
-          <div className="relative aspect-video w-full max-w-[980px] shadow-2xl">
+        {/* column-flex, NOT grid-place-items-center: place-items-center sizes the
+            child to its content, so an empty aspect-video board collapses to ~18px
+            and breaks all coordinate math. flex-col + stretch gives a definite width. */}
+        <div className="relative flex flex-1 flex-col justify-center overflow-hidden bg-[#0e0e13] p-3.5">
+          <div className="relative mx-auto aspect-video max-h-full w-full max-w-[980px] shadow-2xl">
             <TrainingBoard
               doc={session.boardDoc}
               tool={tool}
               shapeKind={shapeKind}
+              hideItems={hideItems}
+              onUpdate={onUpdate}
               color={ink}
               canDraw={iCanDraw}
               cursors={cursors}
