@@ -162,11 +162,11 @@ export const AGENT_GROUPS: AgentGroup[] = [
     placeholder: "Ask FlowSmartly about your business…",
     context: "The user has focused the agent into its **Business** group — brand kit, analytics, business plan, credits/billing, and team. Prefer get/update_brand_identity, analytics reads, business-plan generation, credit tools, and team tools. You can still handle anything else they explicitly ask.",
     skills: [
-      { id: "brand", title: "Brand kit", description: "Powers every AI output.", surface: "brand", tools: ["get_brand_identity", "update_brand_identity"], costHint: "Free", icon: "Palette", keywords: ["brand", "identity", "voice", "colors", "kit"] },
-      { id: "analytics", title: "Analytics", description: "Performance, usage & activity.", surface: "analytics", costHint: "Free", icon: "BarChart3", keywords: ["analytics", "performance", "insights", "usage"] },
-      { id: "business-plan", title: "Business plan", description: "13-section AI plan + charts.", surface: "analytics", tools: ["create_business_plan"], costKey: "AI_BUSINESS_PLAN", costHint: "120 cr", icon: "Brain", keywords: ["business plan", "strategy", "plan"] },
-      { id: "credits", title: "Credits & billing", description: "Balance, top-ups & history.", surface: "credits", tools: ["buy_credits", "get_credits_history"], costHint: "—", icon: "CreditCard", keywords: ["credits", "billing", "top up", "balance", "buy"] },
-      { id: "team", title: "Team", description: "Invite teammates & set roles.", surface: "teams", costHint: "Free", icon: "UsersRound", keywords: ["team", "members", "invite", "roles", "seats"] },
+      { id: "brand", title: "Brand kit", description: "Powers every AI output.", surface: "brand", thumb: "/Studio_Menus_Thumnail/Business/brand-kit.webp", tools: ["get_brand_identity", "update_brand_identity"], costHint: "Free", icon: "Palette", keywords: ["brand", "identity", "voice", "colors", "kit"] },
+      { id: "analytics", title: "Analytics", description: "Performance, usage & activity.", surface: "analytics", thumb: "/Studio_Menus_Thumnail/Business/analytics.webp", costHint: "Free", icon: "BarChart3", keywords: ["analytics", "performance", "insights", "usage"] },
+      { id: "business-plan", title: "Business plan", description: "13-section AI plan + charts.", surface: "analytics", thumb: "/Studio_Menus_Thumnail/Business/business-plan.webp", tools: ["create_business_plan"], costKey: "AI_BUSINESS_PLAN", costHint: "120 cr", icon: "Brain", keywords: ["business plan", "strategy", "plan"] },
+      { id: "credits", title: "Credits & billing", description: "Balance, top-ups & history.", surface: "credits", thumb: "/Studio_Menus_Thumnail/Business/credits.webp", tools: ["buy_credits", "get_credits_history"], costHint: "—", icon: "CreditCard", keywords: ["credits", "billing", "top up", "balance", "buy"] },
+      { id: "team", title: "Team", description: "Invite teammates & set roles.", surface: "teams", thumb: "/Studio_Menus_Thumnail/Business/team.webp", costHint: "Free", icon: "UsersRound", keywords: ["team", "members", "invite", "roles", "seats"] },
     ],
   },
 ];
