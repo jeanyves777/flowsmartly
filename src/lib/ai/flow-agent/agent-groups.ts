@@ -86,11 +86,19 @@ export const AGENT_GROUPS: AgentGroup[] = [
       { id: "product-ad", title: "Product ad", description: "Cinematic ad from a product photo.", surface: "productads", tools: ["generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 8 cr", icon: "Megaphone", thumb: "/Studio_Menus_Thumnail/product_ad_main.webp", keywords: ["product", "ad", "commercial", "promo", "tvc", "advert", "perfume"] },
       { id: "try-on", title: "Virtual try-on", description: "Animate a look from a person + an outfit.", surface: "tryon", tools: ["generate_video"], costKey: "AI_VIDEO_LITE", costHint: "from 8 cr", icon: "Shirt", thumb: "/Studio_Menus_Thumnail/try-on_main.webp", keywords: ["try on", "tryon", "fashion", "outfit", "clothing", "apparel", "lookbook"] },
       { id: "voice", title: "Voice & narration", description: "A voiceover, or a narrated video.", surface: "voice", tools: ["generate_voice"], costKey: "AI_VOICE_GENERATION", costHint: "from 5 cr", icon: "Mic", thumb: "/Studio_Menus_Thumnail/voice_studio.webp", keywords: ["voice", "voiceover", "narration", "narrated", "tts", "audio", "story"] },
-      { id: "voiceagent", title: "Voice agent", description: "An agent that answers your phone.", surface: "voiceagent", costKey: "VOICE_AGENT_MINUTE", costHint: "9 cr / min", icon: "Phone", thumb: "/Studio_Menus_Thumnail/voice_studio.webp", keywords: ["voice agent", "phone", "receptionist", "answer calls", "call", "booking", "reception", "phone number"] },
       { id: "clone", title: "Clone yourself", description: "Your face in any scene, outfit or pose.", surface: "clone", thumb: "/Studio_Menus_Thumnail/Clone_Yourself/clone-main.webp", costKey: "AI_VISUAL_DESIGN", costHint: "from 15 cr", icon: "Camera", keywords: ["clone", "yourself", "identity", "headshot", "avatar", "photoshoot", "actor", "podcast"] },
       // "Voices & cloning" is retired from the menu for now — voice cloning already
       // lives in the Voice & narration studio. The surface stays reachable off-menu so
       // we can bring the standalone menu back later.
+    ],
+  },
+  {
+    key: "callagent", label: "Call agent", icon: "PhoneCall", accent: "#0ea5e9",
+    description: "An agent that answers your phone.",
+    placeholder: "Ask FlowSmartly about your call agent…",
+    context: "The user has focused the agent into its **Call agent** group — the voice agent that answers their business phone. Prefer the voice-agent surface. It has a brief (what it does, the business, its greeting), a voice, skills (book / answer / qualify a lead / take a message / transfer / check an order), a phone number, and a live switch. You can still handle anything else they explicitly ask.",
+    skills: [
+      { id: "voiceagent", title: "Voice agent", description: "Answers, books & logs every call.", surface: "voiceagent", costKey: "VOICE_AGENT_MINUTE", costHint: "9 cr / min", icon: "PhoneCall", thumb: "/Studio_Menus_Thumnail/voice_studio.webp", keywords: ["voice agent", "call agent", "phone", "receptionist", "answer calls", "call", "booking", "reception", "phone number", "voicemail"] },
     ],
   },
   {
