@@ -139,6 +139,11 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
     setProject(p); await save(p);
   };
   // Persist a dragged / resized shot (called once on pointer-up, not per move).
+  const patchShotLocal = async (shotId: string, patch: Partial<CloneShot>) => {
+    if (!project) return;
+    const p = { ...project, shots: project.shots.map((s) => (s.id === shotId ? { ...s, ...patch } : s)) };
+    setProject(p); await save(p);
+  };
   const moveShot = (shotId: string, x: number, y: number) => { void patchShotLocal(shotId, { x, y }); };
   const resizeShot = (shotId: string, w: number) => { void patchShotLocal(shotId, { w }); };
   // Drag the identity node (position is session-local).

@@ -872,6 +872,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
               <PublishNode
                 nodeId="__publish"
                 channels={FILM_CHANNELS}
+                mediaKind="video"
                 ready={!!film.finalVideoUrl && isPlayable(film.finalVideoUrl)}
                 onOpen={() => {
                   // Publish only PUBLISHES — it never stitches. It just needs a finished
@@ -961,6 +962,7 @@ export function FocusedDirector({ refreshKey, onAsk }: { refreshKey?: number; on
           title="Publish film"
           subtitle={film.title || "Your film"}
           channels={FILM_CHANNELS}
+          mediaKind="video"
           defaultCaption={film.title || ""}
           defaultChannels={["tiktok", "instagram", "youtube"]}
           onClose={() => setPublishOpen(false)}

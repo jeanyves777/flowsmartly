@@ -494,6 +494,7 @@ export function FocusedNarration() {
               <PublishNode
                 nodeId="__publish"
                 channels={CHANNELS}
+                mediaKind="video"
                 ready={isUrl(project.finalVideoUrl)}
                 onOpen={() => {
                   // Publish only publishes — it never stitches. Stitching stays the
@@ -542,6 +543,7 @@ export function FocusedNarration() {
           title="Publish this narration"
           subtitle={project.title}
           channels={CHANNELS}
+          mediaKind="video"
           defaultCaption={project.title}
           onClose={() => setPublishOpen(false)}
           onPublish={async ({ channels, caption, scheduleAt }) => {

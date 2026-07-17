@@ -7,8 +7,10 @@
  * Renders are grok-imagine-video-1.5 image-to-video from the product still.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
-import { Sparkles, X, Upload, Images, Pencil, RotateCcw, FolderOpen, Play, Megaphone } from "lucide-react";
+import { Sparkles, X, Upload, Images, Pencil, RotateCcw, FolderOpen, Play } from "lucide-react";
+import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { PublishNode, PublishSheet, type PublishChannel } from "@/components/agent-home/shared/publish-node";
@@ -78,6 +80,39 @@ export function FocusedProductAds({ refreshKey }: { refreshKey?: number; onAsk?:
     rendering: takes.filter((t) => isRendering(t.status)).length,
     total: takes.length,
   };
+
+  // Portal the studio's controls into the ONE shell header (no duplicate title bar).
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
+
+  // Connection wires: brief → each take → publish, measured from the DOM so they
+  // track dragging / resizing (same idiom as the Director & Clone canvases).
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const pan = useCanvasPan(scrollRef);
+  const [wire, setWire] = useState("");
+  const recomputeWires = useCallback(() => {
+    const board = boardRef.current; if (!board) { return; }
+    const rect = board.getBoundingClientRect();
+    const seg = (a: HTMLElement, b: HTMLElement) => {
+      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+      const ax = ra.right - rect.left, ay = ra.top - rect.top + ra.height / 2;
+      const bx = rb.left - rect.left, by = rb.top - rect.top + rb.height / 2;
+      const dx = Math.max(30, (bx - ax) / 2);
+      return `M${ax} ${ay} C${ax + dx} ${ay},${bx - dx} ${by},${bx} ${by} `;
+    };
+    const brief = board.querySelector<HTMLElement>('[data-wire="brief"]');
+    const pub = board.querySelector<HTMLElement>('[data-node="__publish"]');
+    const takeEls = Array.from(board.querySelectorAll<HTMLElement>('[data-wire="take"]'));
+    let d = "";
+    for (const t of takeEls) {
+      if (brief) d += seg(brief, t);
+      if (pub) d += seg(t, pub);
+    }
+    if (!takeEls.length && brief && pub) d += seg(brief, pub);
+    setWire(d);
+  }, []);
+  useEffect(() => { recomputeWires(); }, [recomputeWires, takes, project?.id]);
 
   const loadProject = useCallback(async (id: string) => {
     const j = await fetch(`/api/ai/product-ads/${id}`).then((r) => r.json()).catch(() => null);
@@ -202,23 +237,18 @@ export function FocusedProductAds({ refreshKey }: { refreshKey?: number; onAsk?:
 
   return (
     <div className="relative h-full w-full overflow-hidden" onPointerMove={onMove} onPointerUp={onUp}>
-      <div className="absolute inset-x-0 top-0 z-20 flex items-center gap-2 border-b border-border bg-card/90 px-4 py-2.5 backdrop-blur">
-        <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-white"><Megaphone className="h-3.5 w-3.5" /></span>
-        <div className="min-w-0">
-          <p className="truncate text-[13px] font-bold leading-tight">Product Ads</p>
-          <p className="truncate text-[10.5px] text-muted-foreground">Cinematic ads from a product photo</p>
-        </div>
-        <span className="ms-3 hidden text-[11.5px] text-muted-foreground sm:inline">
-          <span className="text-emerald-500">{stats.ready} ready</span> · {stats.rendering} rendering · {stats.total} takes
-        </span>
-        <div className="ms-auto flex gap-2">
+      {/* controls live in the ONE shell header — no duplicate title bar */}
+      {headerSlot && createPortal(
+        <div className="flex items-center gap-2">
+          <span className="hidden items-center gap-1 text-[11.5px] text-muted-foreground sm:inline-flex">
+            <span className="text-emerald-500">{stats.ready} ready</span> · <span>{stats.rendering} rendering</span> · <span>{stats.total} takes</span>
+          </span>
           <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-amber-400/60"><FolderOpen className="h-3.5 w-3.5" /> My ads</button>
           <button onClick={openBrief} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-400 to-orange-500 px-3 py-1.5 text-[12px] font-semibold text-white"><Sparkles className="h-3.5 w-3.5" /> New ad</button>
-        </div>
-      </div>
+        </div>, headerSlot)}
 
       {stats.rendering > 0 && (
-        <div className="absolute left-1/2 top-14 z-30 -translate-x-1/2">
+        <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2">
           <div className="flex items-center gap-2.5 rounded-full border border-border bg-card/95 px-3.5 py-1.5 shadow-lg backdrop-blur">
             <FlowLoader size={15} />
             <span className="text-[11.5px] font-semibold">Shooting {stats.rendering} {stats.rendering === 1 ? "take" : "takes"}…</span>
@@ -230,10 +260,11 @@ export function FocusedProductAds({ refreshKey }: { refreshKey?: number; onAsk?:
         </div>
       )}
 
-      <div className="absolute inset-0 top-[52px] overflow-auto" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, hsl(var(--border)) 1px, transparent 0)", backgroundSize: "24px 24px" }}>
-        <div className="relative" style={{ width: 1900, height: 1200 }}>
+      <div ref={scrollRef} onPointerDown={pan} className="absolute inset-0 cursor-grab overflow-auto" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, hsl(var(--border)) 1px, transparent 0)", backgroundSize: "24px 24px" }}>
+        <div ref={boardRef} className="relative" style={{ width: 1900, height: 1200 }}>
+          <svg className="pointer-events-none absolute inset-0 h-full w-full" style={{ overflow: "visible" }}><path d={wire} fill="none" stroke="#f59e0b" strokeWidth={2} opacity={0.4} /></svg>
           {project && (
-            <div className="absolute w-[250px] overflow-hidden rounded-2xl border border-amber-400/40 bg-card shadow-sm" style={{ left: 40, top: 60 }}>
+            <div data-wire="brief" data-nopan className="absolute w-[250px] overflow-hidden rounded-2xl border border-amber-400/40 bg-card shadow-sm" style={{ left: 40, top: 60 }}>
               <div className="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
                 <span className="grid h-5 w-5 place-items-center rounded-md bg-amber-400/15 text-amber-400"><Pencil className="h-3 w-3" /></span>
                 <b className="text-[12px]">Ad brief</b>
@@ -260,7 +291,7 @@ export function FocusedProductAds({ refreshKey }: { refreshKey?: number; onAsk?:
           )}
 
           {takes.map((t) => (
-            <div key={t.id} className="absolute overflow-hidden rounded-2xl border border-border bg-card shadow-lg" style={{ left: t.x, top: t.y, width: t.w }}>
+            <div key={t.id} data-wire="take" data-nopan className="absolute overflow-hidden rounded-2xl border border-border bg-card shadow-lg" style={{ left: t.x, top: t.y, width: t.w }}>
               <div className="flex cursor-grab items-center gap-2 px-3 pb-1.5 pt-2.5 active:cursor-grabbing"
                 onPointerDown={(e) => { drag.current = { id: t.id, dx: e.clientX - t.x, dy: e.clientY - t.y }; (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }}>
                 <span className="grid h-5 w-5 place-items-center rounded-md bg-amber-400/15 text-amber-400"><Play className="h-3 w-3" /></span>
@@ -293,7 +324,7 @@ export function FocusedProductAds({ refreshKey }: { refreshKey?: number; onAsk?:
             </div>
           ))}
 
-          <PublishNode channels={AD_CHANNELS} ready={stats.ready > 0}
+          <PublishNode nodeId="__publish" channels={AD_CHANNELS} mediaKind="video" ready={stats.ready > 0}
             onOpen={() => {
               const first = takes.find((t) => t.status === "ready");
               if (first) setPublishTakeId(first.id);
@@ -390,7 +421,7 @@ export function FocusedProductAds({ refreshKey }: { refreshKey?: number; onAsk?:
 
       {publishTakeId && project && (
         <PublishSheet
-          title="Publish ad" subtitle={project.title} channels={AD_CHANNELS}
+          title="Publish ad" subtitle={project.title} channels={AD_CHANNELS} mediaKind="video"
           defaultCaption={project.title} defaultChannels={["tiktok", "instagram", "youtube"]}
           onClose={() => setPublishTakeId(null)}
           onPublish={async ({ channels, caption, scheduleAt }) => {
