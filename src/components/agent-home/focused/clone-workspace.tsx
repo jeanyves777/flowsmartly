@@ -61,34 +61,6 @@ const POSES: { n: string; thumb: string }[] = [
 
 const isUrl = (u?: string | null): u is string => !!u && /^https?:\/\//i.test(u);
 
-/** In-app text prompt (replaces the native window.prompt). Returns a promise. */
-function useTextPrompt() {
-  const [st, setSt] = useState<{ title: string; value: string; multiline: boolean; resolve: (v: string | null) => void } | null>(null);
-  const ask = useCallback((title: string, defaultValue = "", multiline = false) =>
-    new Promise<string | null>((resolve) => setSt({ title, value: defaultValue, multiline, resolve })), []);
-  const done = (v: string | null) => { setSt((s) => { s?.resolve(v); return null; }); };
-  const promptNode = st ? (
-    <div className="fixed inset-0 z-[90] grid place-items-center bg-black/60 p-4" onMouseDown={() => done(null)}>
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
-        <p className="mb-2.5 text-[13px] font-bold">{st.title}</p>
-        {st.multiline ? (
-          <textarea autoFocus value={st.value} onChange={(e) => setSt((s) => (s ? { ...s, value: e.target.value } : s))}
-            className="min-h-[90px] w-full resize-y rounded-lg border border-border bg-muted/30 p-2.5 text-[12.5px] leading-relaxed outline-none focus:border-brand-500" />
-        ) : (
-          <input autoFocus value={st.value} onChange={(e) => setSt((s) => (s ? { ...s, value: e.target.value } : s))}
-            onKeyDown={(e) => { if (e.key === "Enter") done((e.target as HTMLInputElement).value); }}
-            className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
-        )}
-        <div className="mt-3 flex justify-end gap-2">
-          <button onClick={() => done(null)} className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold">Cancel</button>
-          <button onClick={() => done(st.value)} className="rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white">OK</button>
-        </div>
-      </div>
-    </div>
-  ) : null;
-  return { ask, promptNode };
-}
-
 export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => void }) {
   const { toast } = useToast();
   const { ask, promptNode } = useTextPrompt();
@@ -167,6 +139,11 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
     setProject(p); await save(p);
   };
   // Persist a dragged / resized shot (called once on pointer-up, not per move).
+  const patchShotLocal = async (shotId: string, patch: Partial<CloneShot>) => {
+    if (!project) return;
+    const p = { ...project, shots: project.shots.map((s) => (s.id === shotId ? { ...s, ...patch } : s)) };
+    setProject(p); await save(p);
+  };
   const moveShot = (shotId: string, x: number, y: number) => { void patchShotLocal(shotId, { x, y }); };
   const resizeShot = (shotId: string, w: number) => { void patchShotLocal(shotId, { w }); };
   // Drag the identity node (position is session-local).
