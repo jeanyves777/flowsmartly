@@ -61,6 +61,7 @@ export const WORKSPACES: Workspace[] = [
     items: [
       // Consolidated creative hub — Video folds in Reel + Avatar; Design folds in
       // Print. No more separate Reel/Avatar entries or a Print rail section.
+      { label: "Voice Agent", route: "/home/voiceagent", viewKey: "voiceagent", desc: "An agent that answers your phone — books, takes messages, logs every call.", thumb: "voice" },
       { label: "Video Studio", route: "/home/director", viewKey: "director", desc: "Direct a full film — AI shots, avatar & reel clips — into one movie.", thumb: "video", includes: ["AI film", "Reel clips", "Avatar"], hero: true },
       { label: "Design Studio", route: "/studio", viewKey: "create", desc: "Graphics, posts, ads & print — one canvas for screen and print-ready output.", thumb: "design", includes: ["Graphics & ads", "Print"] },
       { label: "Logo Generator", route: "/logo-generator", viewKey: "logo", desc: "Generate, refine & export a logo system for your brand.", thumb: "logo" },
