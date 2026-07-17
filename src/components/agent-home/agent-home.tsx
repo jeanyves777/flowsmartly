@@ -7,7 +7,7 @@ import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard, Shirt,
-  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, UserSquare2, Monitor, type LucideIcon,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, UserSquare2, Monitor, PhoneCall, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -176,6 +176,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   voice: { label: "Voice studio", subtitle: "A voiceover, or a narrated video", icon: Mic },
   voices: { label: "Voices & cloning", subtitle: "Clone your voice, manage the rest", icon: Mic },
   clone: { label: "Clone yourself", subtitle: "Your face in any scene, outfit or pose", icon: UserSquare2 },
+  voiceagent: { label: "Voice Agent", subtitle: "An agent that answers your phone — books, takes messages, logs every call", icon: PhoneCall },
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
   director: { label: "Filmmaking", subtitle: "Direct a multi-scene cinematic film", icon: Clapperboard },
   ugc: { label: "UGC Studio", subtitle: "Creator videos with lip-sync", icon: Sparkles },
