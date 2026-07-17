@@ -12,7 +12,7 @@ import {
   Image, Sparkles, Printer, Scissors, Images, Video, Film, UserSquare2, Mic,
   SquarePen, CalendarDays, Link2, Rss, Mail, MessageSquare, Workflow, Megaphone,
   Search, Target, FileText, Star, ClipboardList, UsersRound, Store, Package, Truck,
-  LayoutTemplate, Briefcase, BarChart3, Brain, CreditCard, Camera, type LucideIcon,
+  LayoutTemplate, Briefcase, BarChart3, Brain, CreditCard, Camera, PhoneCall, type LucideIcon,
 } from "lucide-react";
 
 export const GROUP_ICON: Record<string, LucideIcon> = {
@@ -20,7 +20,7 @@ export const GROUP_ICON: Record<string, LucideIcon> = {
   Image, Sparkles, Printer, Scissors, Images, Video, Film, UserSquare2, Mic,
   SquarePen, CalendarDays, Link2, Rss, Mail, MessageSquare, Workflow, Megaphone,
   Search, Target, FileText, Star, ClipboardList, UsersRound, Store, Package, Truck,
-  LayoutTemplate, Briefcase, BarChart3, Brain, CreditCard, Camera,
+  LayoutTemplate, Briefcase, BarChart3, Brain, CreditCard, Camera, PhoneCall,
 };
 
 /** Resolve an icon name to a component, falling back to Sparkles. */
