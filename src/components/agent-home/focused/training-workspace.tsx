@@ -77,8 +77,18 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
     (async () => {
       const list = await loadList();
       if (!alive) return;
-      if (list[0]) setSessionId(list[0].id);
-      else setBriefOpen(true);
+      // A join link lands on /home/training?session=<id> — open THAT room, live.
+      const wanted = new URLSearchParams(window.location.search).get("session");
+      if (wanted) {
+        setSessionId(wanted);
+        setMode("live");
+        // tidy the URL so a refresh doesn't re-force live mode
+        window.history.replaceState({}, "", "/home/training");
+      } else if (list[0]) {
+        setSessionId(list[0].id);
+      } else {
+        setBriefOpen(true);
+      }
       setLoading(false);
     })();
     return () => { alive = false; };
@@ -352,6 +362,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
             cursors={room.cursors}
             connected={room.connected}
             onAdd={(i) => void room.addItem(i)}
+            onRemove={(id) => void room.removeItem(id)}
             onPing={room.ping}
             onUndo={undo}
             onClear={() => void room.clearBoard()}
@@ -359,6 +370,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
             patch={async (b) => { const e = await room.patch(b); fail(e); return e; }}
             onLeave={() => setMode("plan")}
             onManage={() => setMode("office")}
+            onEnd={endLive}
           />
         ) : (
           <div className="absolute inset-0 grid place-items-center">
