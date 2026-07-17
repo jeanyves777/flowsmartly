@@ -182,3 +182,133 @@ export async function referCall(
 export function realtimeCallUrl(callId: string): string {
   return `wss://api.x.ai/v1/realtime?call_id=${encodeURIComponent(callId)}`;
 }
+
+// ── Voices ──
+
+export interface VoiceOption {
+  voiceId: string;
+  name: string;
+  gender?: string;
+  language?: string;
+  kind: "builtin" | "cloned";
+}
+
+/** Built-in voices + the team's cloned voices, merged. */
+export async function listVoices(): Promise<
+  { ok: true; voices: VoiceOption[] } | { ok: false; error: string }
+> {
+  const [builtin, custom] = await Promise.all([
+    call<{ voices?: Array<{ voice_id: string; name: string; gender?: string; language?: string }> }>(
+      "/v1/tts/voices",
+    ),
+    call<{ voices?: Array<{ voice_id: string; name: string; gender?: string; language?: string }> }>(
+      "/v1/custom-voices",
+    ),
+  ]);
+
+  if (!builtin.ok) return { ok: false, error: builtin.error };
+
+  const map = (
+    v: { voice_id: string; name: string; gender?: string; language?: string },
+    kind: "builtin" | "cloned",
+  ): VoiceOption => ({
+    voiceId: v.voice_id,
+    name: v.name,
+    gender: v.gender,
+    language: v.language,
+    kind,
+  });
+
+  const voices = [
+    ...(custom.ok ? (custom.data.voices || []).map((v) => map(v, "cloned")) : []),
+    ...(builtin.data.voices || []).map((v) => map(v, "builtin")),
+  ];
+  return { ok: true, voices };
+}
+
+/**
+ * Clone a voice from a reference clip (≤120s). Returns a voice id usable
+ * everywhere a built-in voice id is. Console gives 30 free; the API create is
+ * Enterprise-gated, so this surfaces that limit as a clear message rather than a
+ * raw 403.
+ */
+export async function cloneVoice(params: {
+  audio: Buffer;
+  filename: string;
+  contentType: string;
+  name: string;
+  language?: string;
+  gender?: string;
+}): Promise<{ ok: true; voiceId: string; name: string } | { ok: false; error: string; gated?: boolean }> {
+  const k = key();
+  if (!k) return { ok: false, error: "Voice cloning isn't configured yet." };
+
+  try {
+    const form = new FormData();
+    form.append("file", new Blob([new Uint8Array(params.audio)], { type: params.contentType }), params.filename);
+    form.append("name", params.name);
+    if (params.language) form.append("language", params.language);
+    if (params.gender) form.append("gender", params.gender);
+
+    const res = await fetch(`${BASE}/v1/custom-voices`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${k}` }, // no Content-Type — let fetch set the boundary
+      body: form,
+    });
+    const text = await res.text();
+    const body = text ? (safeJson(text) as { voice_id?: string; name?: string; error?: string; code?: string } | null) : null;
+
+    if (!res.ok) {
+      const raw = body?.error || body?.code || text.slice(0, 200) || `HTTP ${res.status}`;
+      // Create is Enterprise-gated; the console path (30 free) still works.
+      const gated = res.status === 403 || /enterprise|not enabled|permission/i.test(raw);
+      return { ok: false, error: raw, gated };
+    }
+    if (!body?.voice_id) return { ok: false, error: "Cloning didn't return a voice." };
+    return { ok: true, voiceId: body.voice_id, name: body.name || params.name };
+  } catch (e) {
+    console.error("[xai-phone] cloneVoice failed:", e);
+    return { ok: false, error: "Could not reach the voice service." };
+  }
+}
+
+export async function deleteClonedVoice(
+  voiceId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const r = await call(`/v1/custom-voices/${encodeURIComponent(voiceId)}`, { method: "DELETE" });
+  return r.ok ? { ok: true } : { ok: false, error: r.error };
+}
+
+/** Speak a short line so the user can hear a voice before choosing it. */
+export async function ttsPreview(
+  voiceId: string,
+  text: string,
+): Promise<{ ok: true; audio: Buffer; contentType: string } | { ok: false; error: string }> {
+  const k = key();
+  if (!k) return { ok: false, error: "Voice preview isn't configured yet." };
+
+  try {
+    const res = await fetch(`${BASE}/v1/tts`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${k}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ text, voice_id: voiceId, language: "en" }),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      return { ok: false, error: t.slice(0, 200) || `HTTP ${res.status}` };
+    }
+
+    // /v1/tts returns base64 audio in JSON, OR raw audio bytes — handle both.
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      const j = (await res.json()) as { audio?: string; content_type?: string };
+      if (!j.audio) return { ok: false, error: "No audio returned." };
+      return { ok: true, audio: Buffer.from(j.audio, "base64"), contentType: j.content_type || "audio/mpeg" };
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    return { ok: true, audio: buf, contentType: ct || "audio/mpeg" };
+  } catch (e) {
+    console.error("[xai-phone] ttsPreview failed:", e);
+    return { ok: false, error: "Could not reach the voice service." };
+  }
+}

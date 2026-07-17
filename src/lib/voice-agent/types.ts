@@ -10,11 +10,57 @@
  * same tools the chat agent uses, not a second brain.
  */
 
-// ── Voice (mirrors the narration studio's SelVoice so VoiceBrowser is reusable) ──
+// ── Voice ──
 
-export type AgentVoice =
-  | { kind: "profile"; id: string; label: string; gender?: string; accent?: string; style?: string }
-  | { kind: "eleven"; voiceId: string; label: string };
+export interface VoiceChoice {
+  voiceId: string;   // provider voice id ("eve", "carina", …) or a cloned id
+  name: string;      // display only
+  gender?: string;
+  kind?: "builtin" | "cloned";
+}
+
+export const DEFAULT_VOICE: VoiceChoice = { voiceId: "eve", name: "Eve", gender: "female", kind: "builtin" };
+
+/** Everything about how the agent sounds and listens — maps 1:1 to the call. */
+export interface SpeechSettings {
+  speakingSpeed: number;   // 0.7–1.5
+  languageHint: string;    // BCP-47 or "auto"
+  keyterms: string[];
+  pronunciations: Record<string, string>;
+  reasoningEffort: "high" | "none";
+  allowInterrupt: boolean;
+  idleTimeoutMs: number;   // 0 = never nudge
+  vadThreshold: number;    // 0.1–0.9
+  vadSilenceMs: number;    // 0–10000
+}
+
+export const DEFAULT_SPEECH: SpeechSettings = {
+  speakingSpeed: 1.0,
+  languageHint: "auto",
+  keyterms: [],
+  pronunciations: {},
+  reasoningEffort: "high",
+  allowInterrupt: true,
+  idleTimeoutMs: 0,
+  vadThreshold: 0.85,
+  vadSilenceMs: 500,
+};
+
+export const LANGUAGE_HINTS: { code: string; label: string }[] = [
+  { code: "auto", label: "Auto-detect" },
+  { code: "en", label: "English" },
+  { code: "es-MX", label: "Spanish (Mexico)" },
+  { code: "es-ES", label: "Spanish (Spain)" },
+  { code: "fr", label: "French" },
+  { code: "de", label: "German" },
+  { code: "pt-BR", label: "Portuguese (Brazil)" },
+  { code: "it", label: "Italian" },
+  { code: "ar-SA", label: "Arabic" },
+  { code: "hi", label: "Hindi" },
+  { code: "zh", label: "Chinese" },
+  { code: "ja", label: "Japanese" },
+  { code: "ko", label: "Korean" },
+];
 
 // ── Skills ──
 
@@ -341,7 +387,17 @@ export interface VoiceAgentDraft {
   business: string;
   greeting: string;
   knowledge: KnowledgeItem[];
-  voice: AgentVoice | null;
+  voiceId: string;
+  voiceLabel: string;
+  speakingSpeed: number;
+  languageHint: string;
+  keyterms: string[];
+  pronunciations: Record<string, string>;
+  reasoningEffort: "high" | "none";
+  allowInterrupt: boolean;
+  idleTimeoutMs: number;
+  vadThreshold: number;
+  vadSilenceMs: number;
   skills: AgentSkill[];
   answerMode: AnswerMode;
   hours: Hours;

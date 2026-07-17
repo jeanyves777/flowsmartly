@@ -5996,9 +5996,25 @@ model VoiceAgent {
   greeting  String @default("")
   knowledge String @default("[]") // JSON: [{kind:"file"|"url", label, url}]
 
-  // Voice. Mirrors the narration studio's SelVoice shape so VoiceBrowser is reusable:
-  // {kind:"profile"|"eleven", id?, voiceId?, label}
-  voice String @default("{}") // JSON
+  // Voice + speech. voiceId is a provider voice id ("eve", "carina", …) or a
+  // cloned voice id; voiceLabel is only for display so the UI needn't refetch.
+  voiceId    String @default("eve")
+  voiceLabel String @default("Eve")
+
+  // How it sounds and listens. These map 1:1 onto the realtime session, so the
+  // UI is editing the call itself rather than a copy that drifts.
+  speakingSpeed   Float   @default(1.0) // 0.7–1.5
+  languageHint    String  @default("auto") // BCP-47, or "auto"
+  keyterms        String  @default("[]") // JSON string[] — bias ASR to brand/product names
+  pronunciations  String  @default("{}") // JSON {"Lumiere":"Loo-mee-air"} — audio only, transcript unchanged
+  reasoningEffort String  @default("high") // high | none — "none" is faster, blunter
+  allowInterrupt  Boolean @default(true) // caller can talk over the agent
+  // Nudge a silent caller. 0 = never (the provider's default).
+  idleTimeoutMs   Int     @default(0)
+  // Server VAD. Higher threshold = needs louder speech; longer silence = lets
+  // people pause without being cut off.
+  vadThreshold    Float   @default(0.85) // 0.1–0.9
+  vadSilenceMs    Int     @default(500) // 0–10000
 
   // Skills — the canvas nodes. JSON array of:
   // {id, kind, enabled, trigger, rules, opts:{}, x?, y?, w?}

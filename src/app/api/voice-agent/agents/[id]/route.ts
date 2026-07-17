@@ -27,7 +27,8 @@ function hydrate(row: Record<string, unknown>) {
   return {
     ...row,
     knowledge: parse(row.knowledge, []),
-    voice: parse<unknown>(row.voice, null) || null,
+    keyterms: parse<string[]>(row.keyterms, []),
+    pronunciations: parse<Record<string, string>>(row.pronunciations, {}),
     skills: parse<AgentSkill[]>(row.skills, []),
     hours: parse(row.hours, DEFAULT_HOURS),
   };
@@ -108,16 +109,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const data: Record<string, unknown> = {};
 
     // Scalars — only what was sent, so an autosave can't blank a field it omits.
-    const str = ["name", "business", "greeting", "answerMode", "timezone", "escalateTo", "noAnswerAction"];
+    const str = ["name", "business", "greeting", "answerMode", "timezone", "escalateTo", "noAnswerAction",
+      "voiceId", "voiceLabel", "languageHint", "reasoningEffort"];
     for (const k of str) if (typeof body[k] === "string") data[k] = body[k];
 
     const bools = [
       "escalateOnUpset", "escalateOnUnsure", "escalateOnAsk", "warnAt80", "autoTopUp",
-      "recordCalls", "announceRecording", "blockSpam", "discloseAi",
+      "recordCalls", "announceRecording", "blockSpam", "discloseAi", "allowInterrupt",
     ];
     for (const k of bools) if (typeof body[k] === "boolean") data[k] = body[k];
 
-    const nums = ["ringFirstSec", "spendCapCredits", "retainDays"];
+    const nums = ["ringFirstSec", "spendCapCredits", "retainDays",
+      "speakingSpeed", "idleTimeoutMs", "vadThreshold", "vadSilenceMs"];
     for (const k of nums) if (typeof body[k] === "number") data[k] = body[k];
 
     // JSON blobs.
@@ -125,6 +128,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.voice !== undefined) data.voice = JSON.stringify(body.voice || {});
     if (body.skills !== undefined) data.skills = JSON.stringify(body.skills);
     if (body.hours !== undefined) data.hours = JSON.stringify(body.hours);
+    if (body.keyterms !== undefined) data.keyterms = JSON.stringify(body.keyterms);
+    if (body.pronunciations !== undefined) data.pronunciations = JSON.stringify(body.pronunciations);
 
     // Reassign the line. Nothing to wire here any more — the provider owns the
     // trunk and routes by number, so this is just which line this agent answers.

@@ -14,7 +14,8 @@ import { createPortal } from "react-dom";
 import {
   Sparkles, X, Phone, Mic, Zap, ClipboardList, Plus, Pencil, Power, PhoneCall,
   Search, Coins, ListChecks, Settings, Hash, PauseCircle, PlayCircle, Trash2,
-  ChevronRight, AlertTriangle, FileText, Link2, RefreshCw,
+  ChevronRight, AlertTriangle, FileText, Link2, RefreshCw, Check, Loader2,
+  Volume2, Upload, Square,
 } from "lucide-react";
 
 import { useTextPrompt } from "@/components/agent-home/shared/text-prompt";
@@ -23,11 +24,11 @@ import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import {
-  ANSWER_MODES, DAYS, DEFAULT_HOURS, OUTCOME_LABEL, PRESETS, PRESET_BY_KEY,
-  SKILL_BY_KEY, SKILL_CATALOG, brandToBusinessBlurb, fmtDuration, fmtNumber,
-  greetingFor, skillFromDef, skillPos,
+  ANSWER_MODES, DAYS, DEFAULT_HOURS, DEFAULT_VOICE, LANGUAGE_HINTS, OUTCOME_LABEL,
+  PRESETS, PRESET_BY_KEY, SKILL_BY_KEY, SKILL_CATALOG, brandToBusinessBlurb,
+  fmtDuration, fmtNumber, greetingFor, skillFromDef, skillPos,
   type AgentCall, type AgentNumber, type AgentSkill, type AnswerMode, type BrandLite,
-  type DayKey, type Hours, type KnowledgeItem, type VoiceAgentDraft,
+  type DayKey, type Hours, type KnowledgeItem, type VoiceAgentDraft, type VoiceChoice,
 } from "@/lib/voice-agent/types";
 
 const DOTS = "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)";
@@ -426,7 +427,7 @@ function BriefNode({ agent, onOpen, onMove }: { agent: VoiceAgentDraft; onOpen: 
 function VoiceNode({ agent, onOpen, onMove }: { agent: VoiceAgentDraft; onOpen: () => void; onMove: () => void }) {
   const { ref, start } = useNodeDrag(onMove);
   const [playing, setPlaying] = useState(false);
-  const label = agent.voice?.label || "Not picked yet";
+  const label = agent.voiceLabel || "Eve";
   const initials = label.slice(0, 2).toUpperCase();
   return (
     <div ref={ref} data-node="__voice" style={{ left: 316, top: 88 }}
@@ -439,9 +440,7 @@ function VoiceNode({ agent, onOpen, onMove }: { agent: VoiceAgentDraft; onOpen: 
         </span>
         <span className="min-w-0">
           <b className="block truncate text-[11.5px]">{label}</b>
-          <span className="text-[9.5px] text-muted-foreground">
-            {agent.voice ? "Answers as this voice" : "Pick one in the brief"}
-          </span>
+          <span className="text-[9.5px] text-muted-foreground">Answers as this voice</span>
         </span>
       </div>
       <div className="mx-3 mt-2 flex h-[34px] items-center gap-[2px] overflow-hidden rounded-lg border border-border bg-muted/40 px-2">
@@ -612,7 +611,7 @@ function LineNode({ agent, x, onOpen, onMove }: {
           <>
             <b className="block font-mono text-[15px] font-extrabold">{fmtNumber(n.e164)}</b>
             <span className="text-[9.5px] text-muted-foreground">
-              {n.source === "FORWARDED" ? "Forwarded" : n.source === "SMS_LINKED" ? "Shared with texts" : "Dedicated"}
+              {n.source === "SMS_LINKED" ? "Shared with texts" : "Dedicated"}
               {n.region ? ` · ${n.region}` : ""}
             </span>
             <div className={cn(
@@ -720,6 +719,8 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
   const [preset, setPreset] = useState(agent?.preset || "recep");
   const [business, setBusiness] = useState(agent?.business || "");
   const [greeting, setGreeting] = useState(agent?.greeting || "");
+  const [voiceId, setVoiceId] = useState(agent?.voiceId || DEFAULT_VOICE.voiceId);
+  const [voiceLabel, setVoiceLabel] = useState(agent?.voiceLabel || DEFAULT_VOICE.name);
   const [brand, setBrand] = useState<BrandLite | null>(null);
   const [prefilled, setPrefilled] = useState(false);
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>(agent?.knowledge || []);
@@ -732,7 +733,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
   // Numbers.
   const [numbers, setNumbers] = useState<AgentNumber[]>([]);
   const [linkable, setLinkable] = useState<{ e164: string; twilioSid: string } | null>(null);
-  const [numMode, setNumMode] = useState<"have" | "new" | "forward">("new");
+  const [numMode, setNumMode] = useState<"have" | "new">("new");
   const [numberId, setNumberId] = useState<string | null>(agent?.phoneNumberId || null);
 
   useEffect(() => {
@@ -808,7 +809,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
     try {
       if (editing && agent) {
         await onPatch({
-          preset, business, greeting, knowledge, answerMode,
+          preset, business, greeting, knowledge, answerMode, voiceId, voiceLabel,
           skills: skillKeys
             .map((k) => SKILL_BY_KEY[k])
             .filter(Boolean)
@@ -822,7 +823,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          preset, business, greeting, knowledge, skillKeys, answerMode,
+          preset, business, greeting, knowledge, skillKeys, answerMode, voiceId, voiceLabel,
           phoneNumberId: numberId,
           name: PRESET_BY_KEY[preset]?.title,
         }),
@@ -914,6 +915,14 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
             <input value={greeting} onChange={(e) => setGreeting(e.target.value)}
               placeholder="Thanks for calling — how can I help?"
               className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
+          </div>
+
+          <div className="mt-5">
+            <SectionLabel hint="how the agent sounds — clone your own on the canvas">Voice</SectionLabel>
+            <VoicePicker
+              voiceId={voiceId}
+              onPick={(v) => { setVoiceId(v.voiceId); setVoiceLabel(v.name); }}
+            />
           </div>
 
           <div className="mt-5">
@@ -1012,8 +1021,8 @@ type Available = {
 function NumberPicker({ numbers, linkable, mode, onMode, numberId, onNumberId, onRefresh, ask }: {
   numbers: AgentNumber[];
   linkable: { e164: string; twilioSid: string } | null;
-  mode: "have" | "new" | "forward";
-  onMode: (m: "have" | "new" | "forward") => void;
+  mode: "have" | "new";
+  onMode: (m: "have" | "new") => void;
   numberId: string | null;
   onNumberId: (id: string | null) => void;
   onRefresh: () => Promise<void>;
@@ -1092,24 +1101,6 @@ function NumberPicker({ numbers, linkable, mode, onMode, numberId, onNumberId, o
     onNumberId(j.number.id);
   };
 
-  const forward = async () => {
-    const e164 = await ask("What's your business number? Include the country code.", "+1");
-    if (!e164) return;
-    const j = await fetch("/api/voice-agent/numbers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: "forward", phoneNumber: e164.trim() }),
-    }).then((r) => r.json());
-    if (!j?.success) {
-      toast({ title: j?.error?.message || "Could not add that number", variant: "destructive" });
-      return;
-    }
-    toast({ title: "Number added", description: "Forward your line to it and the agent will answer." });
-    await onRefresh();
-    onNumberId(j.number.id);
-    onMode("have");
-  };
-
   return (
     <>
       <div className="flex flex-wrap gap-2.5">
@@ -1143,19 +1134,6 @@ function NumberPicker({ numbers, linkable, mode, onMode, numberId, onNumberId, o
             Pick an area code, pick a number, live in about a minute.
           </span>
         </button>
-        <button onClick={() => { onMode("forward"); void forward(); }}
-          className={cn(
-            "min-w-[210px] flex-1 rounded-xl border-2 p-3 text-left",
-            mode === "forward" ? "border-brand-500 bg-brand-500/5" : "border-transparent bg-muted/30",
-          )}>
-          <b className="flex items-center gap-1.5 text-[11.5px]">
-            <Link2 className="h-3.5 w-3.5" /> Forward my existing line
-            <span className="ml-auto text-[10px] font-extrabold text-emerald-500">Free</span>
-          </b>
-          <span className="mt-1 block text-[9.5px] leading-snug text-muted-foreground">
-            Keep the number on your cards — forward it here and the agent answers.
-          </span>
-        </button>
       </div>
 
       {mode === "have" && (
@@ -1170,7 +1148,7 @@ function NumberPicker({ numbers, linkable, mode, onMode, numberId, onNumberId, o
               <span className="min-w-0 flex-1">
                 <b className="block font-mono text-[12px]">{fmtNumber(n.e164)}</b>
                 <span className="text-[9.5px] text-muted-foreground">
-                  {n.source === "SMS_LINKED" ? "Shared with your texts" : n.source === "FORWARDED" ? "Forwarded" : "Dedicated"}
+                  {n.source === "SMS_LINKED" ? "Shared with your texts" : "Dedicated"}
                   {n.region ? ` · ${n.region}` : ""}
                 </span>
               </span>
@@ -1267,6 +1245,9 @@ function NumberPicker({ numbers, linkable, mode, onMode, numberId, onNumberId, o
       <p className="mt-2 rounded-r-lg border-l-2 border-brand-500/40 bg-brand-500/5 py-2 pl-2.5 pr-3 text-[10px] leading-relaxed text-muted-foreground">
         The number is yours for as long as you keep it — cancel any time from the back office and you
         aren&apos;t charged again. Only calls the agent actually answers cost minutes.
+        <br />
+        Already have a business number? Keep it on your cards and forward it to this line at your
+        phone company — callers never see the change.
       </p>
     </>
   );
@@ -1740,7 +1721,6 @@ function NumberTab({ agent, onPatch, onRefresh }: {
                 <span className="text-[9.5px] text-muted-foreground">
                   {n.agent ? `${n.agent.name} answers it` : "No agent answering it yet"}
                   {n.source === "SMS_LINKED" && " · shared with your texts"}
-                  {n.source === "FORWARDED" && " · forwarded"}
                   {n.cancelAtPeriodEnd && " · cancels at the end of the month"}
                 </span>
               </span>
@@ -1809,5 +1789,394 @@ function AgentsDrawer({ agents, activeId, onPick, onNew, onClose }: {
         </button>
       </div>
     </>
+  );
+}
+
+// ── voice picker ───────────────────────────────────────────────────────────
+
+/** Preview a voice by streaming a short line from the provider. Cached per voice. */
+function useVoicePreview() {
+  const [busy, setBusy] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const cache = useRef<Map<string, string>>(new Map());
+
+  const stop = () => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setBusy(null);
+  };
+
+  const play = async (voiceId: string, line: string) => {
+    stop();
+    setBusy(voiceId);
+    try {
+      let url = cache.current.get(voiceId);
+      if (!url) {
+        const res = await fetch("/api/voice-agent/voices/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ voiceId, text: line }),
+        });
+        if (!res.ok) throw new Error("preview failed");
+        const blob = await res.blob();
+        url = URL.createObjectURL(blob);
+        cache.current.set(voiceId, url);
+      }
+      const a = new Audio(url);
+      audioRef.current = a;
+      a.onended = () => setBusy(null);
+      await a.play();
+    } catch {
+      setBusy(null);
+    }
+  };
+
+  useEffect(() => stop, []);
+  return { busy, play, stop };
+}
+
+function VoicePicker({ voiceId, onPick }: { voiceId: string; onPick: (v: VoiceChoice) => void }) {
+  const { toast } = useToast();
+  const [voices, setVoices] = useState<VoiceChoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [cloneOpen, setCloneOpen] = useState(false);
+  const { busy, play } = useVoicePreview();
+
+  const load = useCallback(async () => {
+    try {
+      const j = await fetch("/api/voice-agent/voices").then((r) => r.json());
+      if (j?.success) setVoices(j.voices);
+    } catch {
+      /* keep whatever is shown */
+    }
+    setLoading(false);
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const shown = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return t ? voices.filter((v) => v.name.toLowerCase().includes(t) || v.gender?.toLowerCase() === t) : voices;
+  }, [voices, q]);
+
+  const GREETING = "Thanks for calling — how can I help you today?";
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 p-3 text-[11.5px] text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading voices…
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="mb-2 flex items-center gap-2">
+        <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5">
+          <Search className="h-3 w-3 text-muted-foreground" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search voices — try “female”"
+            className="w-full bg-transparent py-1.5 text-[11.5px] outline-none"
+          />
+        </div>
+        <button
+          onClick={() => setCloneOpen(true)}
+          className="inline-flex flex-none items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/5 px-2.5 py-1.5 text-[11.5px] font-semibold text-amber-600 hover:border-amber-500"
+        >
+          <Mic className="h-3.5 w-3.5" /> Clone a voice
+        </button>
+      </div>
+
+      <div className="grid max-h-[220px] gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+        {shown.map((v) => {
+          const on = v.voiceId === voiceId;
+          return (
+            <div
+              key={v.voiceId}
+              className={cn(
+                "flex items-center gap-2 rounded-xl border p-2 transition",
+                on ? "border-brand-500 bg-brand-500/5" : "border-border bg-muted/30 hover:border-brand-500/40",
+              )}
+            >
+              <button onClick={() => onPick(v)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                <span
+                  className={cn(
+                    "grid h-7 w-7 flex-none place-items-center rounded-full text-[10px] font-black text-white",
+                    v.gender === "female"
+                      ? "bg-gradient-to-br from-rose-400 to-violet-500"
+                      : "bg-gradient-to-br from-brand-500 to-cyan-500",
+                  )}
+                >
+                  {v.name.slice(0, 2).toUpperCase()}
+                </span>
+                <span className="min-w-0">
+                  <b className="block truncate text-[11.5px]">{v.name}</b>
+                  <span className="text-[9px] text-muted-foreground">
+                    {v.kind === "cloned" ? "Your clone" : v.gender || "voice"}
+                  </span>
+                </span>
+              </button>
+              <button
+                onClick={() => play(v.voiceId, GREETING)}
+                title="Preview"
+                className="grid h-6 w-6 flex-none place-items-center rounded-md border border-border text-muted-foreground hover:border-brand-500 hover:text-brand-500"
+              >
+                {busy === v.voiceId ? (
+                  <Volume2 className="h-3 w-3 animate-pulse text-brand-500" />
+                ) : (
+                  <PlayCircle className="h-3 w-3" />
+                )}
+              </button>
+              {on && <Check className="h-3.5 w-3.5 flex-none text-brand-500" />}
+            </div>
+          );
+        })}
+      </div>
+
+      {cloneOpen && (
+        <CloneVoiceModal
+          onClose={() => setCloneOpen(false)}
+          onCloned={async (v) => {
+            setCloneOpen(false);
+            await load();
+            onPick(v);
+            toast({ title: `“${v.name}” is ready`, description: "It is in your voice library too." });
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ── clone modal: import from library, or record / upload a new clip ─────────
+
+function CloneVoiceModal({
+  onClose,
+  onCloned,
+}: {
+  onClose: () => void;
+  onCloned: (v: VoiceChoice) => void | Promise<void>;
+}) {
+  const { toast } = useToast();
+  const [tab, setTab] = useState<"import" | "new">("import");
+  const [mine, setMine] = useState<{ profileId: string; voiceId: string; name: string; gender?: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [name, setName] = useState("");
+  const [gender, setGender] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const j = await fetch("/api/voice-agent/voices/clone").then((r) => r.json());
+        if (j?.success) {
+          setMine(j.voices);
+          if (!j.voices.length) setTab("new");
+        }
+      } catch {
+        setTab("new");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const record = async () => {
+    if (recording) {
+      recRef.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => chunksRef.current.push(e.data);
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        setFile(new File([blob], "recording.webm", { type: "audio/webm" }));
+        setRecording(false);
+      };
+      recRef.current = rec;
+      rec.start();
+      setRecording(true);
+    } catch {
+      toast({ title: "Couldn't reach your microphone", variant: "destructive" });
+    }
+  };
+
+  const clone = async () => {
+    if (!name.trim()) {
+      toast({ title: "Give the voice a name" });
+      return;
+    }
+    if (!file) {
+      toast({ title: "Record or upload a clip first" });
+      return;
+    }
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("name", name.trim());
+      if (gender) form.append("gender", gender);
+      const j = await fetch("/api/voice-agent/voices/clone", { method: "POST", body: form }).then((r) => r.json());
+      if (!j?.success) {
+        toast({ title: j?.error?.message || "Could not clone that voice", variant: "destructive" });
+        return;
+      }
+      await onCloned({ voiceId: j.voice.voiceId, name: j.voice.name, gender: j.voice.gender, kind: "cloned" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[90] grid place-items-center bg-black/60 p-4" onMouseDown={onClose}>
+      <div
+        className="w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-2xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-500/15 text-amber-500">
+            <Mic className="h-3.5 w-3.5" />
+          </span>
+          <b className="text-[13.5px]">Voice for your agent</b>
+          <button
+            onClick={onClose}
+            className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+
+        <div className="mb-3 flex gap-1 rounded-lg border border-border p-0.5">
+          {(
+            [
+              ["import", "Import from library"],
+              ["new", "Clone a new one"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={cn(
+                "flex-1 rounded-md py-1.5 text-[11.5px] font-semibold",
+                tab === k ? "bg-brand-500 text-white" : "text-muted-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "import" ? (
+          loading ? (
+            <div className="flex items-center gap-2 py-6 text-[11.5px] text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading your voices…
+            </div>
+          ) : mine.length === 0 ? (
+            <p className="py-6 text-center text-[11.5px] text-muted-foreground">
+              No cloned voices yet. Clone one on the other tab.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {mine.map((v) => (
+                <button
+                  key={v.profileId}
+                  onClick={() => onCloned({ voiceId: v.voiceId, name: v.name, gender: v.gender, kind: "cloned" })}
+                  className="flex w-full items-center gap-2.5 rounded-xl border border-border p-2.5 text-left hover:border-brand-500/60"
+                >
+                  <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-[11px] font-black text-white">
+                    {v.name.slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-[12px]">{v.name}</b>
+                    <span className="text-[9.5px] text-muted-foreground">Your cloned voice</span>
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          )
+        ) : (
+          <div className="space-y-3">
+            <p className="rounded-lg border border-border bg-muted/30 p-2.5 text-[10.5px] leading-relaxed text-muted-foreground">
+              Record or upload a clear clip of the voice — 20 to 60 seconds is ideal. Use your own voice, or anyone who
+              has agreed to it.
+            </p>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Name this voice (e.g. Amina)"
+              className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500"
+            />
+            <div className="flex gap-2">
+              {(["", "female", "male"] as const).map((g) => (
+                <button
+                  key={g || "any"}
+                  onClick={() => setGender(g)}
+                  className={cn(
+                    "flex-1 rounded-lg border py-1.5 text-[11px] font-semibold capitalize",
+                    gender === g ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground",
+                  )}
+                >
+                  {g || "Any"}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={record}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2 text-[11.5px] font-semibold",
+                  recording ? "border-rose-500 bg-rose-500/10 text-rose-500" : "border-border hover:border-brand-500",
+                )}
+              >
+                {recording ? (
+                  <>
+                    <Square className="h-3.5 w-3.5" /> Stop
+                  </>
+                ) : (
+                  <>
+                    <Mic className="h-3.5 w-3.5" /> Record
+                  </>
+                )}
+              </button>
+              <label className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-[11.5px] font-semibold hover:border-brand-500">
+                <Upload className="h-3.5 w-3.5" /> Upload
+                <input
+                  type="file"
+                  accept="audio/*"
+                  className="hidden"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                />
+              </label>
+            </div>
+            {file && (
+              <p className="flex items-center gap-1.5 text-[10.5px] text-emerald-600">
+                <Check className="h-3 w-3" /> {file.name} ready ({Math.round(file.size / 1024)} KB)
+              </p>
+            )}
+            <button
+              onClick={clone}
+              disabled={busy || !file || !name.trim()}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 py-2 text-[12.5px] font-bold text-white disabled:opacity-50"
+            >
+              {busy ? <FlowLoader size={14} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />}
+              Clone this voice
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
