@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
 import Image from "next/image";
-import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Trash2, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users, Palette } from "lucide-react";
+import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users, Palette } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
-import { MediaUploader } from "@/components/shared/media-uploader";
 import { StoreCallToAction } from "./store-cta";
 import { StoreStudio } from "./store-studio";
+import { ProductEditor } from "./product-editor";
 import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils/cn";
  */
 
 interface StoreData { id: string; name: string; slug: string; currency?: string; region?: string; isActive?: boolean; productCount?: number; orderCount?: number; totalRevenueCents?: number; }
-interface Product { id: string; name: string; priceCents?: number; currency?: string; status?: string; quantity?: number; description?: string | null; category?: string | null; categoryName?: string | null; images?: { url: string }[]; }
+interface Product { id: string; name: string; priceCents?: number; comparePriceCents?: number | null; currency?: string; status?: string; quantity?: number; trackInventory?: boolean; lowStockThreshold?: number; labels?: string[]; variantCount?: number; description?: string | null; category?: string | null; categoryName?: string | null; images?: { url: string }[]; }
 interface OrderItem { productId?: string; variantId?: string; name?: string; quantity?: number; priceCents?: number; imageUrl?: string; }
 interface ShippingAddress { name?: string; line1?: string; line2?: string; city?: string; state?: string; zip?: string; country?: string; phone?: string; }
 interface Order {
@@ -38,8 +38,6 @@ interface Order {
 interface OrderStats { totalOrders?: number; totalRevenueCents?: number; pendingCount?: number; deliveredCount?: number; }
 
 const FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
-type Form = { name: string; price: string; description: string; category: string; status: "ACTIVE" | "DRAFT" | "ARCHIVED"; quantity: string; image: string };
-const EMPTY_FORM: Form = { name: "", price: "", description: "", category: "", status: "ACTIVE", quantity: "", image: "" };
 
 // Next status the seller can move an order to (mirrors the order state machine).
 const NEXT_STATUS: Record<string, { label: string; to: string }> = {
@@ -57,6 +55,20 @@ const ORDER_STATUS_FILTERS = ["PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "
 const PAYMENT_STATUS_FILTERS = ["pending", "paid", "failed", "refunded"];
 // Categories the store can list under (mirrors PRODUCT_CATEGORIES). Kept local so this surface owns its own copy.
 const CATEGORY_OPTIONS = ["clothing", "electronics", "food", "health", "home", "jewelry", "sports", "toys", "digital", "services", "art", "books", "automotive", "pets", "other"];
+
+// Badge color per product label (mirrors the API labels enum).
+const LABEL_TONE: Record<string, string> = {
+  sale: "bg-rose-500", new: "bg-emerald-500", bestseller: "bg-violet-500",
+  featured: "bg-amber-500", limited: "bg-teal-500", discount: "bg-brand-500",
+};
+
+// Stock pill for a product card — only when inventory is tracked.
+function stockPill(p: Product): { text: string; cls: string } | null {
+  if (!p.trackInventory || p.quantity == null) return null;
+  if (p.quantity <= 0) return { text: "Out", cls: "bg-rose-500 text-white" };
+  if (p.quantity <= (p.lowStockThreshold ?? 5)) return { text: `Low · ${p.quantity}`, cls: "bg-amber-500 text-amber-950" };
+  return { text: String(p.quantity), cls: "bg-background/80 text-muted-foreground" };
+}
 
 function statusTone(status?: string): string {
   const s = (status || "").toUpperCase();
@@ -87,19 +99,15 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
   const [section, setSection] = useState<Section>("products");
   const [studioOpen, setStudioOpen] = useState(false);
 
-  // Product form: "new" (add), a product id (edit), or null (closed).
+  // Product editor drawer: "new" (add), a product id (edit), or null (closed).
   const [editing, setEditing] = useState<"new" | string | null>(null);
-  const [form, setForm] = useState<Form>(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
   const [busyOrder, setBusyOrder] = useState<string | null>(null);
+  const [bulkActivating, setBulkActivating] = useState(false);
 
   // Product search / filters.
   const [pSearch, setPSearch] = useState("");
   const [pStatus, setPStatus] = useState("");
   const [pCategory, setPCategory] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null); // product id pending delete confirm
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Order search / filters.
   const [oSearch, setOSearch] = useState("");
@@ -167,70 +175,18 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
   // Clear the "agent is working" card once the store actually lands (hasStore flips true).
   useEffect(() => { if (armed && hasStore) setArmed(false); }, [hasStore, armed]);
 
-  const openAdd = () => { setForm(EMPTY_FORM); setError(""); setEditing("new"); setSection("products"); };
-  const openEdit = (p: Product) => {
-    setForm({
-      name: p.name ?? "", price: p.priceCents ? String((p.priceCents / 100)) : "", description: p.description ?? "",
-      category: p.category ?? "", status: (() => { const s = p.status?.toUpperCase(); return s === "DRAFT" ? "DRAFT" : s === "ARCHIVED" ? "ARCHIVED" : "ACTIVE"; })(), quantity: p.quantity != null ? String(p.quantity) : "",
-      image: p.images?.[0]?.url ?? "",
-    });
-    setError(""); setEditing(p.id); setConfirmDelete(null);
-  };
-  const set = (k: keyof Form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  // A click opens the rich editor drawer — never a chat prompt.
+  const openAdd = () => { setEditing("new"); setSection("products"); };
+  const openEdit = (p: Product) => setEditing(p.id);
 
-  const save = async () => {
-    const name = form.name.trim();
-    const price = Number(form.price);
-    if (!name) { setError("Give the product a name."); return; }
-    if (!Number.isFinite(price) || price <= 0) { setError("Set a price greater than 0."); return; }
-    setSaving(true); setError("");
+  // Flip every DRAFT product to ACTIVE in one call.
+  const bulkActivate = async () => {
+    setBulkActivating(true);
     try {
-      const qty = Number(form.quantity);
-      const body: Record<string, unknown> = {
-        name,
-        priceCents: Math.round(price * 100),
-        description: form.description.trim() || undefined,
-        category: form.category.trim() || undefined,
-        status: form.status,
-        images: form.image ? [{ url: form.image, alt: name, position: 0 }] : undefined,
-      };
-      if (Number.isFinite(qty) && qty > 0) { body.quantity = Math.floor(qty); body.trackInventory = true; }
-      const isEdit = editing && editing !== "new";
-      const r = await fetch(isEdit ? `/api/ecommerce/products/${editing}` : "/api/ecommerce/products", {
-        method: isEdit ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const j = await r.json();
-      if (r.ok && j?.success !== false) {
-        setEditing(null); setForm(EMPTY_FORM);
-        await loadData();
-      } else {
-        setError(j?.error?.message || "Could not save the product.");
-      }
-    } catch {
-      setError("Could not save the product.");
+      const r = await fetch("/api/ecommerce/products/bulk-activate", { method: "POST" });
+      if (r.ok) await loadData();
     } finally {
-      setSaving(false);
-    }
-  };
-
-  const deleteProduct = async (id: string) => {
-    setDeletingId(id); setError("");
-    try {
-      const r = await fetch(`/api/ecommerce/products/${id}`, { method: "DELETE" });
-      const j = await r.json().catch(() => null);
-      if (r.ok && j?.success !== false) {
-        setConfirmDelete(null);
-        if (editing === id) setEditing(null);
-        await loadData();
-      } else {
-        setError(j?.error?.message || "Could not delete the product.");
-      }
-    } catch {
-      setError("Could not delete the product.");
-    } finally {
-      setDeletingId(null);
+      setBulkActivating(false);
     }
   };
 
@@ -401,6 +357,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
     && (detail.status || "").toUpperCase() !== "REFUNDED";
 
   const productCount = store?.productCount ?? products.length;
+  const draftCount = products.filter((p) => (p.status || "").toUpperCase() === "DRAFT").length;
   const orderCount = stats.totalOrders ?? store?.orderCount ?? 0;
 
   const nav: { id: Section; label: string; icon: ElementType; count: number }[] = [
@@ -487,9 +444,17 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <h3 className="text-[13px] font-bold">Products</h3>
-            <button onClick={openAdd} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
-              <Plus className="h-3.5 w-3.5" /> Add product
-            </button>
+            {productCount > 0 && <span className="text-[11px] text-muted-foreground">{productCount} total</span>}
+            <div className="ms-auto flex items-center gap-2">
+              {draftCount > 0 && (
+                <button onClick={bulkActivate} disabled={bulkActivating} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 disabled:opacity-60">
+                  {bulkActivating ? <FlowLoader size={13} /> : <CheckCircle2 className="h-3.5 w-3.5" />} Activate {draftCount} draft{draftCount === 1 ? "" : "s"}
+                </button>
+              )}
+              <button onClick={openAdd} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
+                <Plus className="h-3.5 w-3.5" /> Add product
+              </button>
+            </div>
           </div>
 
           {/* search + filters */}
@@ -513,68 +478,36 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
             )}
           </div>
 
-          {/* inline add/edit form — a click opens this, not a chat prompt */}
-          {editing && (
-            <div className="mb-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3.5">
-              <p className="mb-2.5 text-[12.5px] font-semibold">{editing === "new" ? "New product" : "Edit product"}</p>
-              <div className="grid gap-2.5 sm:grid-cols-2">
-                <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Name *</span><input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Blue Mug" className={FIELD} /></label>
-                <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Price ({cur}) *</span><input value={form.price} onChange={(e) => set("price", e.target.value)} placeholder="20" inputMode="decimal" className={FIELD} /></label>
-              </div>
-              <label className="mt-2.5 block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Description</span><textarea rows={2} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="What it is, who it's for." className={cn(FIELD, "resize-none")} /></label>
-              <div className="mt-2.5 grid gap-2.5 sm:grid-cols-3">
-                <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Category</span>
-                  <select value={form.category} onChange={(e) => set("category", e.target.value)} className={FIELD}>
-                    <option value="">None</option>
-                    {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                  </select>
-                </label>
-                <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Stock</span><input value={form.quantity} onChange={(e) => set("quantity", e.target.value)} placeholder="(optional)" inputMode="numeric" className={FIELD} /></label>
-                <label className="block"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Status</span>
-                  <select value={form.status} onChange={(e) => set("status", e.target.value as Form["status"])} className={FIELD}><option value="ACTIVE">Active (listed)</option><option value="DRAFT">Draft</option>{form.status === "ARCHIVED" && <option value="ARCHIVED">Archived</option>}</select>
-                </label>
-              </div>
-              <div className="mt-2.5"><span className="mb-1 block text-[11px] font-medium text-muted-foreground">Image</span><MediaUploader value={form.image ? [form.image] : []} onChange={(u) => set("image", u[0] ?? "")} variant="large" placeholder="Product image" showButtons /></div>
-              {error && <p className="mt-2 text-[12px] text-rose-500">{error}</p>}
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">
-                  {saving ? <FlowLoader size={15} tone="white" /> : <Check className="h-3.5 w-3.5" />} {editing === "new" ? "Add product" : "Save changes"}
-                </button>
-                <button onClick={() => { setEditing(null); setError(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /> Cancel</button>
-                {/* Delete — only on edit, with an inline two-step confirm (destructive). */}
-                {editing !== "new" && (
-                  confirmDelete === editing ? (
-                    <div className="ms-auto inline-flex items-center gap-2 rounded-[10px] border border-rose-500/40 bg-rose-500/5 px-2.5 py-1.5">
-                      <span className="text-[11.5px] font-semibold text-rose-500">Delete this product?</span>
-                      <button onClick={() => deleteProduct(editing)} disabled={deletingId === editing} className="inline-flex items-center gap-1 rounded-[8px] bg-rose-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60">
-                        {deletingId === editing ? <FlowLoader size={12} tone="white" /> : <Trash2 className="h-3 w-3" />} Delete
-                      </button>
-                      <button onClick={() => setConfirmDelete(null)} className="text-[11.5px] font-semibold text-muted-foreground hover:text-foreground">Keep</button>
-                    </div>
-                  ) : (
-                    <button onClick={() => setConfirmDelete(editing)} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-rose-500/30 px-3 py-2 text-[12.5px] font-semibold text-rose-500 hover:bg-rose-500/5"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
-                  )
-                )}
-              </div>
-            </div>
-          )}
-
           {products.length ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {products.map((p) => (
-                <button key={p.id} onClick={() => openEdit(p)} className="group overflow-hidden rounded-xl border border-border bg-muted/30 text-left transition hover:border-brand-500/60">
-                  <div className="relative grid aspect-square place-items-center bg-background">
-                    {p.images?.[0]?.url ? <Image src={p.images[0].url} alt="" width={160} height={160} className="h-full w-full object-cover" unoptimized /> : <ImageIcon className="h-6 w-6 text-muted-foreground" />}
-                    <span className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-md bg-background/80 text-muted-foreground opacity-0 transition group-hover:opacity-100"><Pencil className="h-3.5 w-3.5" /></span>
-                  </div>
-                  <div className="p-2.5">
-                    <p className="truncate text-[12.5px] font-medium">{p.name}</p>
-                    <p className="mt-0.5 text-[12px] text-brand-500">{money(p.priceCents, p.currency || cur)}{p.status?.toUpperCase() === "DRAFT" ? " · draft" : ""}</p>
-                  </div>
-                </button>
-              ))}
+              {products.map((p) => {
+                const stock = stockPill(p);
+                return (
+                  <button key={p.id} onClick={() => openEdit(p)} className="group overflow-hidden rounded-xl border border-border bg-muted/30 text-left transition hover:border-brand-500/60">
+                    <div className="relative grid aspect-square place-items-center bg-background">
+                      {p.images?.[0]?.url ? <Image src={p.images[0].url} alt="" width={160} height={160} className="h-full w-full object-cover" unoptimized /> : <ImageIcon className="h-6 w-6 text-muted-foreground" />}
+                      {(p.labels?.length ?? 0) > 0 && (
+                        <div className="absolute left-1.5 top-1.5 flex flex-wrap gap-1">
+                          {p.labels!.slice(0, 2).map((l) => <span key={l} className={cn("rounded-full px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wide text-white", LABEL_TONE[l] || "bg-brand-500")}>{l}</span>)}
+                        </div>
+                      )}
+                      {stock && <span className={cn("absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[8.5px] font-bold", stock.cls)}>{stock.text}</span>}
+                      <span className="absolute bottom-1.5 right-1.5 grid h-6 w-6 place-items-center rounded-md bg-background/80 text-muted-foreground opacity-0 transition group-hover:opacity-100"><Pencil className="h-3.5 w-3.5" /></span>
+                    </div>
+                    <div className="p-2.5">
+                      <p className="truncate text-[12.5px] font-medium">{p.name}</p>
+                      <p className="mt-0.5 text-[12px]">
+                        <span className="font-semibold text-brand-500">{money(p.priceCents, p.currency || cur)}</span>
+                        {p.comparePriceCents ? <s className="ms-1.5 text-muted-foreground">{money(p.comparePriceCents, p.currency || cur)}</s> : null}
+                        {p.status?.toUpperCase() === "DRAFT" ? <span className="text-muted-foreground"> · draft</span> : null}
+                      </p>
+                      {(p.variantCount ?? 0) > 0 && <p className="mt-0.5 text-[10.5px] text-muted-foreground">{p.variantCount} variant{p.variantCount === 1 ? "" : "s"}</p>}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-          ) : !editing ? (
+          ) : (
             <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
               <p className="text-[13px] font-medium">{hasProductFilters ? "No products match those filters" : "No products yet"}</p>
               <p className="mt-1 text-[12px] text-muted-foreground">{hasProductFilters ? "Try clearing search, status, or category." : "Add your first product — set a name, price, and image."}</p>
@@ -584,7 +517,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
                 <button onClick={openAdd} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Plus className="h-4 w-4" /> Add a product</button>
               )}
             </div>
-          ) : null}
+          )}
         </section>
         ) : (
         <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
@@ -794,6 +727,17 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
         )}
         </div>
       </div>
+
+      {/* Rich product editor drawer — opened by a card click or "Add product". */}
+      {editing && (
+        <ProductEditor
+          productId={editing}
+          currency={cur}
+          categoryOptions={CATEGORY_OPTIONS}
+          onClose={() => setEditing(null)}
+          onSaved={loadData}
+        />
+      )}
     </div>
   );
 }

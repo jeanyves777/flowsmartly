@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { getStoreDir, buildStoreV3, deployStoreV3 } from "@/lib/store-builder/store-site-builder";
 import { downloadImageToStoreDir } from "@/lib/store-builder/image-search";
 import { runSectionUpdateAgent } from "@/lib/ai/section-update-agent";
+import { isValidCurrency } from "@/lib/store/currency";
 
 /**
  * Shared store-editing engine. The editor API routes (update-data, site-data,
@@ -133,10 +134,27 @@ export async function applyStoreDataUpdate(params: { store: StoreRef; patch: Sto
   const { storeInfo, heroConfig, navLinks, footerLinks, faq, products, categories } = patch;
   let data = readFileSync(dataPath, "utf-8");
   const storeBasePath = `/stores/${store.slug}`;
+  // Store-column updates to flush at the end (currency/region are authoritative in
+  // the DB — products/orders/checkout read them there, not from data.ts).
+  const dbUpdate: Record<string, unknown> = {};
 
   if (storeInfo) {
     for (const field of ["name", "tagline", "description", "about", "mission", "address", "ctaText", "ctaUrl"]) {
       if (storeInfo[field] !== undefined) data = replaceField(data, field, storeInfo[field]);
+    }
+    // Currency & region: write into the storefront data AND the authoritative Store
+    // columns. These were shown in the studio but silently dropped on Save.
+    if (storeInfo.currency !== undefined) {
+      const cur = String(storeInfo.currency).toUpperCase();
+      if (isValidCurrency(cur)) {
+        data = replaceField(data, "currency", cur);
+        dbUpdate.currency = cur;
+      }
+    }
+    if (storeInfo.region !== undefined) {
+      const region = String(storeInfo.region);
+      data = replaceField(data, "region", region);
+      dbUpdate.region = region;
     }
     const imageFieldMap: Record<string, "brand" | "hero"> = { logoUrl: "brand", bannerUrl: "hero", favicon: "brand" };
     let resolvedBannerUrl: string | null = null;
@@ -261,8 +279,8 @@ export async function applyStoreDataUpdate(params: { store: StoreRef; patch: Sto
     }
   }
 
-  // Invalidate the cached parse.
-  await prisma.store.update({ where: { id: store.id }, data: { siteData: "{}" } }).catch(() => {});
+  // Invalidate the cached parse (+ flush any authoritative column updates).
+  await prisma.store.update({ where: { id: store.id }, data: { siteData: "{}", ...dbUpdate } }).catch(() => {});
   return { ok: true };
 }
 
