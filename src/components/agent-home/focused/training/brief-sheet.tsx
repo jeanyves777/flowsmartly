@@ -133,8 +133,10 @@ export function BriefSheet({ open, busy, onClose, onBuild }: Props) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-auto p-4">
-          <div className="mx-auto grid max-w-[1080px] gap-5 lg:grid-cols-[1.35fr_1fr]">
+        <div className="flex-1 overflow-auto p-4 sm:p-5">
+          {/* Fill the workspace — no centered narrow column. The right rail is
+              width-capped so the brief text gets the room to breathe. */}
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(360px,440px)]">
             {/* ---- left: the brief ---- */}
             <div>
               <Field label="What are you training, and who's in the room?">

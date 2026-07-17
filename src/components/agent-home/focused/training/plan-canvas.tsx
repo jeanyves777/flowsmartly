@@ -39,6 +39,7 @@ interface Props {
   session: TrainingSessionDTO;
   estimate: { total: number; room: number } | null;
   onEditBrief: () => void;
+  onAddMaterial: () => void;
   onAddSegment: (kind: SegmentKind) => void;
   onRemoveSegment: (id: string) => void;
   onPatchSegments: (segs: { id: string; x?: number; y?: number; durationMins?: number }[]) => void;
@@ -49,7 +50,7 @@ interface Props {
 }
 
 export function PlanCanvas({
-  session, estimate, onEditBrief, onAddSegment, onRemoveSegment, onPatchSegments,
+  session, estimate, onEditBrief, onAddMaterial, onAddSegment, onRemoveSegment, onPatchSegments,
   onGoLive, onManage, onInvite, busy,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -256,7 +257,7 @@ export function PlanCanvas({
                 <span className="line-clamp-2 text-[9px] leading-snug text-muted-foreground">{s.note}</span>
               </div>
               <div className="mx-3 mt-2 flex flex-wrap gap-1">
-                <button onClick={onEditBrief} className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[9.5px] font-semibold hover:border-brand-500 hover:text-brand-400">
+                <button onClick={onAddMaterial} className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[9.5px] font-semibold hover:border-brand-500 hover:text-brand-400">
                   <Paperclip className="h-2.5 w-2.5" /> Material
                 </button>
                 <button onClick={() => cycleDur(s)} className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2 py-1 text-[9.5px] font-semibold hover:border-amber-500 hover:text-amber-400">

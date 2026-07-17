@@ -11,7 +11,7 @@
  * …/[id]/participants, …/[id]/board, …/[id]/live, …/[id]/invites, …/[id]/materials.
  * The room streams over …/[id]/stream (SSE). [[training-studio]]
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { GraduationCap, FolderOpen, Sparkles, Radio, LayoutGrid, SlidersHorizontal, Users } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -47,6 +47,8 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [estimate, setEstimate] = useState<{ total: number; room: number } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
 
@@ -216,6 +218,47 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
     }
   };
 
+  // Add a material: browser → S3 (presigned PUT) → attach to the room. Same
+  // path media/upload-url uses everywhere else; the bytes never touch our box.
+  const onPickMaterial = () => {
+    if (!sessionId) { toast({ title: "Build a room first" }); return; }
+    fileRef.current?.click();
+  };
+  const onMaterialChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // let the same file be picked again after a failure
+    if (!file || !sessionId) return;
+    setUploading(true);
+    try {
+      const pres = await fetch("/api/media/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: file.name, contentType: file.type, size: file.size }),
+      }).then((r) => r.json());
+      if (!pres?.success) { toast({ title: pres?.error?.message || "That file type isn't supported", variant: "destructive" }); return; }
+
+      const { uploadUrl, file: mf } = pres.data;
+      if (uploadUrl) {
+        const put = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+        if (!put.ok) { toast({ title: "Upload failed — try again", variant: "destructive" }); return; }
+      }
+
+      const kind = file.type.startsWith("video/") ? "video" : file.type.startsWith("image/") ? "image" : "doc";
+      const j = await fetch(`/api/ai/training/${sessionId}/materials`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: file.name, kind, url: mf.url, sizeBytes: file.size, mediaFileId: mf.id }),
+      }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't attach the file", variant: "destructive" }); return; }
+      if (j.data?.session) room.setSession(j.data.session as TrainingSessionDTO);
+      toast({ title: `${file.name} added — push it to the board any time` });
+    } catch {
+      toast({ title: "Upload failed — try again", variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const stats = useMemo(() => {
     if (!session) return "";
     const inRoom = session.participants.filter((p) => p.state === "ADMITTED").length;
@@ -271,7 +314,10 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
   }
 
   return (
-    <div className="absolute inset-0">
+    // relative + h-full — like every other studio. An `absolute inset-0` root
+    // escapes the FocusedView canvas cell and covers the chat; this keeps the
+    // surface (and the brief sheet inside it) inside the workspace column.
+    <div className="relative h-full w-full overflow-hidden">
       {header}
 
       {sessionId && !session ? (
@@ -301,6 +347,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           estimate={estimate}
           busy={busy}
           onEditBrief={() => setBriefOpen(true)}
+          onAddMaterial={onPickMaterial}
           onAddSegment={(k: SegmentKind) => void segAct("POST", { kind: k })}
           onRemoveSegment={(id) => void segAct("DELETE", undefined, `?segmentId=${id}`)}
           onPatchSegments={(segs) => void segAct("PATCH", { segments: segs })}
@@ -336,11 +383,21 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           estimate={estimate}
           act={async (a, p) => { const e = await room.act(a, p); fail(e); return e; }}
           patch={async (b) => { const e = await room.patch(b); fail(e); return e; }}
-          onAddMaterial={() => toast({ title: "Drop a file on the board — coming with the next slice" })}
+          onAddMaterial={onPickMaterial}
+          uploading={uploading}
           onPushMaterial={(id) => void room.patch({ stageSource: "doc", stageKey: id, stagePage: 1 }).then(() => setMode("live"))}
           onEnd={endLive}
         />
       )}
+
+      {/* hidden picker for Add material — images, video, or a PDF/deck */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*,video/mp4,video/webm,video/quicktime,application/pdf"
+        className="hidden"
+        onChange={onMaterialChosen}
+      />
 
       <BriefSheet open={briefOpen} busy={busy} onClose={() => setBriefOpen(false)} onBuild={build} />
 
