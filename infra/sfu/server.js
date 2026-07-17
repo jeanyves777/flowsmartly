@@ -148,43 +148,55 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({ server, path: "/rtc" });
 
-wss.on("connection", async (ws, req) => {
+wss.on("connection", (ws, req) => {
   let peer = null;
   let room = null;
+  let roomId = null;
 
   // ---- auth: the token is the ONLY thing we trust ----
-  try {
-    const url = new URL(req.url, "http://x");
-    const token = url.searchParams.get("token");
-    if (!token) throw new Error("no token");
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(SECRET), {
-      issuer: "flowsmartly",
-      audience: "sfu",
-    });
-    room = await getRoom(String(payload.sessionId));
-    peer = {
-      id: String(payload.participantId),
-      // The app decides who may share; we enforce what it decided. A client
-      // that forges a screen produce gets refused here, not just in the UI.
-      canShare: payload.canShare === true,
-      ws,
-      transports: new Map(),
-      producers: new Map(),
-      consumers: new Map(),
-    };
-    // A reconnect (or a second tab) replaces the old peer rather than duplicating it.
-    const old = room.peers.get(peer.id);
-    if (old) closePeer(room, old, String(payload.sessionId));
-    room.peers.set(peer.id, peer);
-  } catch (e) {
-    send(ws, { type: "error", error: "Not allowed in this room" });
-    ws.close(4401, "unauthorized");
-    return;
-  }
-
-  const roomId = [...rooms.entries()].find(([, r]) => r === room)?.[0];
+  //
+  // NOTE the shape here. This handler is deliberately NOT async, and `ready` is
+  // awaited INSIDE the listeners below rather than before attaching them.
+  // Verifying a token and creating a router are both async, and `ws` does not
+  // buffer messages for a listener attached later — so a client that sends on
+  // 'open' (ours does) would beat the listener and have its first request
+  // silently dropped. Attaching synchronously and awaiting per-message is what
+  // makes the first getCapabilities reliable.
+  const ready = (async () => {
+    try {
+      const url = new URL(req.url, "http://x");
+      const token = url.searchParams.get("token");
+      if (!token) throw new Error("no token");
+      const { payload } = await jwtVerify(token, new TextEncoder().encode(SECRET), {
+        issuer: "flowsmartly",
+        audience: "sfu",
+      });
+      roomId = String(payload.sessionId);
+      room = await getRoom(roomId);
+      peer = {
+        id: String(payload.participantId),
+        // The app decides who may share; we enforce what it decided. A client
+        // that forges a screen produce gets refused here, not just in the UI.
+        canShare: payload.canShare === true,
+        ws,
+        transports: new Map(),
+        producers: new Map(),
+        consumers: new Map(),
+      };
+      // A reconnect (or a second tab) replaces the old peer rather than duplicating it.
+      const old = room.peers.get(peer.id);
+      if (old) closePeer(room, old);
+      room.peers.set(peer.id, peer);
+      return true;
+    } catch {
+      send(ws, { type: "error", error: "Not allowed in this room" });
+      ws.close(4401, "unauthorized");
+      return false;
+    }
+  })();
 
   ws.on("message", async (raw) => {
+    if (!(await ready)) return;
     let msg;
     try {
       msg = JSON.parse(raw.toString());
@@ -313,9 +325,11 @@ wss.on("connection", async (ws, req) => {
     }
   });
 
-  ws.on("close", () => {
+  ws.on("close", async () => {
+    // Same reason as above: a socket can close before auth settles.
+    if (!(await ready)) return;
     if (!peer || !room) return;
-    closePeer(room, peer, roomId);
+    closePeer(room, peer);
     broadcast(room, peer.id, { type: "peerClosed", peerId: peer.id });
     room.peers.delete(peer.id);
     if (roomId) closeRoomIfEmpty(roomId);
