@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { useTextPrompt } from "@/components/agent-home/shared/text-prompt";
+import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
 import type { CloneProject, CloneIdentity, CloneShot, CloneAspect, CloneQuality } from "@/lib/clone-studio/types";
 
 const CT = "/Studio_Menus_Thumnail/Clone_Yourself";
@@ -59,34 +61,6 @@ const POSES: { n: string; thumb: string }[] = [
 
 const isUrl = (u?: string | null): u is string => !!u && /^https?:\/\//i.test(u);
 
-/** In-app text prompt (replaces the native window.prompt). Returns a promise. */
-function useTextPrompt() {
-  const [st, setSt] = useState<{ title: string; value: string; multiline: boolean; resolve: (v: string | null) => void } | null>(null);
-  const ask = useCallback((title: string, defaultValue = "", multiline = false) =>
-    new Promise<string | null>((resolve) => setSt({ title, value: defaultValue, multiline, resolve })), []);
-  const done = (v: string | null) => { setSt((s) => { s?.resolve(v); return null; }); };
-  const promptNode = st ? (
-    <div className="fixed inset-0 z-[90] grid place-items-center bg-black/60 p-4" onMouseDown={() => done(null)}>
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
-        <p className="mb-2.5 text-[13px] font-bold">{st.title}</p>
-        {st.multiline ? (
-          <textarea autoFocus value={st.value} onChange={(e) => setSt((s) => (s ? { ...s, value: e.target.value } : s))}
-            className="min-h-[90px] w-full resize-y rounded-lg border border-border bg-muted/30 p-2.5 text-[12.5px] leading-relaxed outline-none focus:border-brand-500" />
-        ) : (
-          <input autoFocus value={st.value} onChange={(e) => setSt((s) => (s ? { ...s, value: e.target.value } : s))}
-            onKeyDown={(e) => { if (e.key === "Enter") done((e.target as HTMLInputElement).value); }}
-            className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
-        )}
-        <div className="mt-3 flex justify-end gap-2">
-          <button onClick={() => done(null)} className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold">Cancel</button>
-          <button onClick={() => done(st.value)} className="rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white">OK</button>
-        </div>
-      </div>
-    </div>
-  ) : null;
-  return { ask, promptNode };
-}
-
 export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => void }) {
   const { toast } = useToast();
   const { ask, promptNode } = useTextPrompt();
@@ -104,6 +78,8 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
   const [preview, setPreview] = useState<string | null>(null);
   const [idPos, setIdPos] = useState({ x: 26, y: 84 });
   const boardRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pan = useCanvasPan(scrollRef);
 
   const openNew = () => { setBriefAdd(false); setBriefSeed(null); setBriefOpen(true); };
   const openAdd = () => { setBriefAdd(true); setBriefSeed(activeClone); setBriefOpen(true); };
@@ -250,7 +226,7 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
         </div>
       )}
 
-      <div className="absolute inset-0 overflow-auto" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
+      <div ref={scrollRef} onPointerDown={pan} className="absolute inset-0 cursor-grab overflow-auto" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
         <div ref={boardRef} className="relative" style={{ width: 2200, height: 1050 }}>
           <svg className="pointer-events-none absolute inset-0 h-full w-full" style={{ overflow: "visible" }}><path d={wire} fill="none" stroke="#6366f1" strokeWidth={2} opacity={0.35} /></svg>
 

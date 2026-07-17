@@ -22,6 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { PublishNode, PublishSheet, type PublishChannel } from "@/components/agent-home/shared/publish-node";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { useTextPrompt } from "@/components/agent-home/shared/text-prompt";
+import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
 import { BriefSuggest } from "./brief-suggest";
 import type {
   NarrationProject, NarrationShot, NarrationMode, VisualTreatment,
@@ -69,6 +71,8 @@ const isUrl = (u?: string | null): u is string => !!u && /^https?:\/\//i.test(u)
 
 export function FocusedNarration() {
   const { toast } = useToast();
+  const { ask, promptNode } = useTextPrompt();
+  const [preview, setPreview] = useState<string | null>(null);
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
   const [project, setProject] = useState<NarrationProject | null>(null);
@@ -81,6 +85,8 @@ export function FocusedNarration() {
   const [playing, setPlaying] = useState<string | null>(null);
   const [batching, setBatching] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pan = useCanvasPan(scrollRef);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const shots = useMemo(() => project?.shots || [], [project]);
@@ -145,7 +151,7 @@ export function FocusedNarration() {
   };
   const rewriteLine = async (shotId: string) => {
     if (!project) return;
-    const instruction = window.prompt("How should this beat change?\n(e.g. “shorter and punchier”, “name the village”)");
+    const instruction = await ask("How should this beat change? (e.g. “shorter and punchier”, “name the village”)");
     if (!instruction?.trim()) return;
     const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/shots/${shotId}/line`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -155,7 +161,7 @@ export function FocusedNarration() {
   };
   const editPrompt = async (shot: NarrationShot) => {
     if (!project) return;
-    const next = window.prompt("The drafted prompt for this shot — edit and it re-renders just this one.", shot.prompt);
+    const next = await ask("Edit the drafted prompt for this shot — it re-renders just this one.", shot.prompt, true);
     if (next === null || !next.trim() || next.trim() === shot.prompt) return;
     const p = { ...project, shots: project.shots.map((s) => (s.id === shot.id ? { ...s, prompt: next.trim() } : s)) };
     setProject(p); await save(p); await renderShot(shot.id);
@@ -296,7 +302,7 @@ export function FocusedNarration() {
         </div>
       )}
 
-      <div className="absolute inset-0 overflow-auto" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
+      <div ref={scrollRef} onPointerDown={pan} className="absolute inset-0 cursor-grab overflow-auto" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
         <div ref={boardRef} className="relative" style={{ width: Math.max(2000, layout.pubX + 380), height: 1000 }}>
           <svg className="pointer-events-none absolute inset-0 h-full w-full" style={{ overflow: "visible" }}>
             <path d={wire} fill="none" stroke="#a78bfa" strokeWidth={2} opacity={0.45} />
@@ -403,15 +409,19 @@ export function FocusedNarration() {
                 </div>
               )}
 
-              {/* shots */}
+              {/* shots — free-positioned once dragged, else auto-laid-out in two rows */}
               {isFilm && shots.map((s, i) => (
                 <ShotCard
                   key={s.id} shot={s} index={i} project={project}
-                  style={{ left: layout.colX(i), top: layout.rowY(i) }}
+                  style={{ left: s.x ?? layout.colX(i), top: s.y ?? layout.rowY(i), width: s.w ?? 300 }}
                   onRender={() => renderShot(s.id)}
                   onRewrite={() => rewriteLine(s.id)}
                   onEditPrompt={() => editPrompt(s)}
                   onPatch={(patch) => patchShotLocal(s.id, patch)}
+                  onMove={(x, y) => patchShotLocal(s.id, { x, y })}
+                  onResize={(w) => patchShotLocal(s.id, { w })}
+                  onOpenImage={(url) => setPreview(url)}
+                  recomputeWires={recomputeWires}
                   onMine={() => setPicker({ shotId: s.id, kind: s.kind })}
                   onDelete={async () => {
                     const p = { ...project, shots: project.shots.filter((x) => x.id !== s.id).map((x, n) => ({ ...x, order: n })) };
@@ -563,24 +573,52 @@ export function FocusedNarration() {
           setPicker(null);
         }}
       />
+      {/* click a shot image → full-size preview */}
+      {preview && (
+        <div className="fixed inset-0 z-[95] grid place-items-center bg-black/85 p-6" onClick={() => setPreview(null)}>
+          <img src={preview} alt="" className="max-h-[92vh] max-w-[92vw] rounded-xl object-contain shadow-2xl" />
+          <button onClick={() => setPreview(null)} className="absolute right-5 top-5 grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20"><X className="h-4 w-4" /></button>
+        </div>
+      )}
+      {promptNode}
     </div>
   );
 }
 
 // ─────────────────────────────── shot card
 
-function ShotCard({ shot, index, project, style, onRender, onRewrite, onEditPrompt, onPatch, onMine, onDelete }: {
+function ShotCard({ shot, index, project, style, onRender, onRewrite, onEditPrompt, onPatch, onMine, onDelete, onMove, onResize, onOpenImage, recomputeWires }: {
   shot: NarrationShot; index: number; project: NarrationProject; style: React.CSSProperties;
   onRender: () => void; onRewrite: () => void; onEditPrompt: () => void;
   onPatch: (p: Partial<NarrationShot>) => void; onMine: () => void; onDelete: () => void;
+  onMove: (x: number, y: number) => void; onResize: (w: number) => void;
+  onOpenImage: (url: string) => void; recomputeWires: () => void;
 }) {
   const [playing, setPlaying] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const busy = shot.status === "rendering" || shot.status === "queued";
   const cast = shot.cast.map((id) => project.characters.find((c) => c.id === id)).filter(Boolean) as FilmCharacter[];
 
+  const startDrag = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest("button, a, img, input, video, .resize")) return;
+    const card = cardRef.current; if (!card) return;
+    const sx = e.clientX, sy = e.clientY, ox = parseFloat(card.style.left || "0"), oy = parseFloat(card.style.top || "0");
+    const mv = (ev: PointerEvent) => { card.style.left = `${ox + ev.clientX - sx}px`; card.style.top = `${oy + ev.clientY - sy}px`; recomputeWires(); };
+    const up = (ev: PointerEvent) => { document.removeEventListener("pointermove", mv); document.removeEventListener("pointerup", up); onMove(ox + ev.clientX - sx, oy + ev.clientY - sy); };
+    document.addEventListener("pointermove", mv); document.addEventListener("pointerup", up);
+  };
+  const startResize = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    const card = cardRef.current; if (!card) return;
+    const sx = e.clientX, ow = card.offsetWidth, clamp = (w: number) => Math.max(240, Math.min(520, w));
+    const mv = (ev: PointerEvent) => { card.style.width = `${clamp(ow + ev.clientX - sx)}px`; recomputeWires(); };
+    const up = (ev: PointerEvent) => { document.removeEventListener("pointermove", mv); document.removeEventListener("pointerup", up); onResize(clamp(ow + ev.clientX - sx)); };
+    document.addEventListener("pointermove", mv); document.addEventListener("pointerup", up);
+  };
+
   return (
-    <div className="absolute w-[262px] overflow-hidden rounded-2xl border border-border bg-card shadow-sm" style={style} data-node={shot.id}>
-      <div className="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
+    <div ref={cardRef} className="absolute overflow-hidden rounded-2xl border border-border bg-card shadow-sm" style={style} data-node={shot.id}>
+      <div onPointerDown={startDrag} className="flex cursor-grab items-center gap-2 px-3 pb-1.5 pt-2.5 active:cursor-grabbing">
         <span className="grid h-5 w-5 place-items-center rounded-md bg-violet-500/15 text-violet-500">
           {shot.kind === "image" ? <ImageIcon className="h-3 w-3" /> : <Clapperboard className="h-3 w-3" />}
         </span>
@@ -594,12 +632,14 @@ function ShotCard({ shot, index, project, style, onRender, onRewrite, onEditProm
           <video src={shot.videoUrl} className="h-full w-full object-cover" autoPlay controls onEnded={() => setPlaying(false)} />
         ) : (
           <>
-            {isUrl(shot.imageUrl) && <img src={shot.imageUrl} alt="" className="h-full w-full object-cover" />}
+            {isUrl(shot.imageUrl) && <img src={shot.imageUrl} alt="" onClick={() => onOpenImage(shot.imageUrl!)} className="h-full w-full cursor-zoom-in object-cover" />}
             {isUrl(shot.videoUrl) && !playing && <video src={shot.videoUrl} className="h-full w-full object-cover" muted preload="metadata" />}
             {(isUrl(shot.imageUrl) || isUrl(shot.videoUrl)) && !busy && (
-              <button onClick={() => isUrl(shot.videoUrl) && setPlaying(true)}
+              <button onClick={() => (isUrl(shot.videoUrl) ? setPlaying(true) : isUrl(shot.imageUrl) && onOpenImage(shot.imageUrl))}
                 className="absolute inset-0 grid place-items-center bg-black/10 opacity-0 transition hover:opacity-100">
-                {isUrl(shot.videoUrl) && <span className="grid h-10 w-10 place-items-center rounded-full bg-white/90 text-violet-600"><Play className="h-4 w-4 translate-x-0.5 fill-current" /></span>}
+                {isUrl(shot.videoUrl)
+                  ? <span className="grid h-10 w-10 place-items-center rounded-full bg-white/90 text-violet-600"><Play className="h-4 w-4 translate-x-0.5 fill-current" /></span>
+                  : <span className="rounded-full bg-black/55 px-2.5 py-1 text-[9px] font-bold text-white">Click to enlarge</span>}
               </button>
             )}
             <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[8px] font-extrabold text-white">
@@ -680,6 +720,9 @@ function ShotCard({ shot, index, project, style, onRender, onRewrite, onEditProm
           {busy ? <FlowLoader size={11} tone="white" /> : <RefreshCw className="mx-auto h-3 w-3" />}
         </button>
         <button onClick={onMine} title="Use your own image or video" className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-violet-500"><Upload className="mx-auto h-3 w-3" /></button>
+      </div>
+      <div onPointerDown={startResize} title="Drag to resize" className="resize absolute bottom-1 right-1 h-4 w-4 cursor-nwse-resize text-muted-foreground">
+        <svg viewBox="0 0 10 10" className="h-full w-full"><path d="M9 1 L1 9 M9 5 L5 9" stroke="currentColor" strokeWidth="1" fill="none" /></svg>
       </div>
     </div>
   );
