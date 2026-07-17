@@ -7,7 +7,7 @@ import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard, Shirt,
-  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, UserSquare2, Monitor, type LucideIcon,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, UserSquare2, Monitor, PhoneCall, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -61,6 +61,7 @@ import { FocusedLogo } from "./focused/logo-workspace";
 import { FocusedVoice } from "./focused/voice-workspace";
 import { FocusedNarration } from "./focused/narration-workspace";
 import { FocusedClone } from "./focused/clone-workspace";
+import { FocusedVoiceAgent } from "./focused/voice-agent-workspace";
 import { FocusedVideo } from "./focused/video-workspace";
 import { FocusedAvatar } from "./focused/avatar-workspace";
 import { FocusedDelivery } from "./focused/delivery-workspace";
@@ -175,6 +176,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   voice: { label: "Voice studio", subtitle: "A voiceover, or a narrated video", icon: Mic },
   voices: { label: "Voices & cloning", subtitle: "Clone your voice, manage the rest", icon: Mic },
   clone: { label: "Clone yourself", subtitle: "Your face in any scene, outfit or pose", icon: UserSquare2 },
+  voiceagent: { label: "Voice Agent", subtitle: "An agent that answers your phone — books, takes messages, logs every call", icon: PhoneCall },
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
   director: { label: "Filmmaking", subtitle: "Direct a multi-scene cinematic film", icon: Clapperboard },
   ugc: { label: "UGC Studio", subtitle: "Creator videos with lip-sync", icon: Sparkles },
@@ -261,6 +263,8 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
       return `The user is on the **Video Studio — Director**: one canvas that fuses AI cinematic shots, talking-avatar clones, and reel clips into a single film. A film is a pipeline of scene nodes, each rendered by its own engine, then stitched into one video. Help them brief the film, add/edit/reorder scenes, pick the right engine per beat, generate scenes, and stitch the final cut.`;
     case "voice":
       return `The user is on the **Voice Studio** (AI voiceovers, narration & voice cloning). Making a voiceover is a generative task — help them write a punchy script for their goal, then they set the voice (gender/accent/style/speed) and click Generate; the audio lands in the studio and their Media library. They can also clone a voice from a sample.`;
+    case "voiceagent":
+      return `The user is on the **Voice Agent** studio — an agent that answers their business phone. It has a brief (what it does, the business, its greeting), a voice, a set of skills (book / answer / qualify a lead / take a message / transfer / check an order), a phone number, and a live switch. Help them describe the business, pick the right skills, and get a number. Never name any telephony or model provider. Calls cost 9 credits a minute; a new number is 500 credits a month; building it is free.`;
     case "avatar":
       return `The user is on the **Avatar Studio**. Never name or hint at any third-party provider to the user — this is FlowSmartly's own studio. INTERVIEW first (goal, tone, length), then use create_avatar_video — it renders into the studio canvas live and saves to the Library. It has modes: 'talking' (write a script → talking-avatar video; recommend Standard for social/outreach or Avatar IV for photoreal hero/ad), 'translate' (dub one of their FINISHED videos into another language — set targetLanguage), and 'batch' (many videos at once — pass a list of scripts). For a multi-scene PRESENTATION (a presenter avatar plus product/reference images or B-roll in one stitched video), use create_presentation — it plans the scenes for free onto the canvas as a Presentation node; the user opens the storyboard to attach per-scene visuals and render (only autoRender if they explicitly ask). Costs are in credits (priced from the DB/admin — never quote dollars). For 'photo → video' the user uploads a photo in the studio UI. To make a reusable avatar or cloned voice, use clone_avatar (consent-gated).`;
     case "print":
@@ -317,7 +321,7 @@ const AGENT_VIEW: Record<string, { surface: string; label: string }> = {
 // "grow" and "business" are category CONTAINERS (they open a nav panel, not a
 // real surface) — deliberately excluded so /home/grow and /home/business deep-
 // link cleanly to Home instead of a "coming soon" placeholder.
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "voices", "clone", "video", "director", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "voices", "clone", "voiceagent", "video", "director", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
@@ -1476,6 +1480,8 @@ export function AgentHome() {
                   <FocusedVoice onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "clone" ? (
                   <FocusedClone onOpenView={openView} />
+                ) : focused === "voiceagent" ? (
+                  <FocusedVoiceAgent onOpenView={openView} />
                 ) : focused === "video" ? (
                   <AdBuilderCanvas embedded refreshKey={actionCount} canvasRef={videoOpsRef} />
                 ) : focused === "director" ? (
