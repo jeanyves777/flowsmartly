@@ -5969,6 +5969,23 @@ model PhoneNumber {
   // be verified, and the only fix is to delete and re-register the number.
   signingSecret    String?
 
+  // --- Retained from the Twilio-era model (deliberately NOT dropped) --------
+  // These columns still back the SMS / number-rental system: a line can be
+  // SMS_LINKED and carry its own rental billing period (rentPaidUntil), so the
+  // voice→xAI migration keeps them rather than dropping live data. The xAI
+  // voice path doesn't read them; they're kept so the prod schema stays purely
+  // additive and the number-rental crons keep working. [[voice-agent-studio]]
+  twilioSid           String?   @unique // PN… — null for a FORWARDED number we don't own
+  numberType          String    @default("local") // local | tollfree | mobile
+  voiceCapable        Boolean   @default(true)
+  smsCapable          Boolean   @default(false)
+  source              String    @default("RENTED") // RENTED | FORWARDED | SMS_LINKED
+  rentCredits         Int       @default(500) // PHONE_NUMBER_RENTAL_COST.total
+  rentPaidUntil       DateTime? // null ⇒ never charge (FORWARDED / SMS_LINKED)
+  rentLastBilled      DateTime?
+  cancelAtPeriodEnd   Boolean   @default(false)
+  emergencyAddressSid String?
+
   releasedAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -5980,6 +5997,7 @@ model PhoneNumber {
   @@index([userId])
   @@index([status])
   @@index([origin, status])
+  @@index([rentPaidUntil])
 }
 
 model VoiceAgent {
@@ -5997,6 +6015,11 @@ model VoiceAgent {
   business  String @default("") // what the agent is told about the business
   greeting  String @default("")
   knowledge String @default("[]") // JSON: [{kind:"file"|"url", label, url}]
+
+  // Legacy voice config blob (deliberately NOT dropped). The xAI model reads the
+  // granular fields below; this JSON is kept so the migration stays additive and
+  // no live row loses data. [[voice-agent-studio]]
+  voice String @default("{}") // JSON
 
   // Voice + speech. voiceId is a provider voice id ("eve", "carina", …) or a
   // cloned voice id; voiceLabel is only for display so the UI needn't refetch.
