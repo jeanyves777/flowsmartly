@@ -49,17 +49,47 @@ const OUTFITS: { n: string; thumb: string }[] = [
 ];
 const POSES: { n: string; thumb: string }[] = [
   { n: "Looking at camera", thumb: `${CT}/clone-12.webp` },
+  { n: "Head & shoulders", thumb: `${CT}/clone-17.webp` },
   { n: "Three-quarter", thumb: `${CT}/clone-05.webp` },
+  { n: "Full body", thumb: `${CT}/clone-018.webp` },
   { n: "Seated at desk", thumb: `${CT}/clone-08.webp` },
   { n: "Standing, arms crossed", thumb: `${CT}/clone-15.webp` },
   { n: "Mid-gesture, talking", thumb: `${CT}/clone-16.webp` },
-  { n: "Head & shoulders", thumb: `${CT}/clone-17.webp` },
 ];
 
 const isUrl = (u?: string | null): u is string => !!u && /^https?:\/\//i.test(u);
 
+/** In-app text prompt (replaces the native window.prompt). Returns a promise. */
+function useTextPrompt() {
+  const [st, setSt] = useState<{ title: string; value: string; multiline: boolean; resolve: (v: string | null) => void } | null>(null);
+  const ask = useCallback((title: string, defaultValue = "", multiline = false) =>
+    new Promise<string | null>((resolve) => setSt({ title, value: defaultValue, multiline, resolve })), []);
+  const done = (v: string | null) => { setSt((s) => { s?.resolve(v); return null; }); };
+  const promptNode = st ? (
+    <div className="fixed inset-0 z-[90] grid place-items-center bg-black/60 p-4" onMouseDown={() => done(null)}>
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
+        <p className="mb-2.5 text-[13px] font-bold">{st.title}</p>
+        {st.multiline ? (
+          <textarea autoFocus value={st.value} onChange={(e) => setSt((s) => (s ? { ...s, value: e.target.value } : s))}
+            className="min-h-[90px] w-full resize-y rounded-lg border border-border bg-muted/30 p-2.5 text-[12.5px] leading-relaxed outline-none focus:border-brand-500" />
+        ) : (
+          <input autoFocus value={st.value} onChange={(e) => setSt((s) => (s ? { ...s, value: e.target.value } : s))}
+            onKeyDown={(e) => { if (e.key === "Enter") done((e.target as HTMLInputElement).value); }}
+            className="w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
+        )}
+        <div className="mt-3 flex justify-end gap-2">
+          <button onClick={() => done(null)} className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold">Cancel</button>
+          <button onClick={() => done(st.value)} className="rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white">OK</button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+  return { ask, promptNode };
+}
+
 export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => void }) {
   const { toast } = useToast();
+  const { ask, promptNode } = useTextPrompt();
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
   const [project, setProject] = useState<CloneProject | null>(null);
@@ -71,6 +101,8 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
   // "New shot" APPENDS to the current one (like the Director's New-film vs +).
   const [briefAdd, setBriefAdd] = useState(false);
   const [briefSeed, setBriefSeed] = useState<CloneIdentity | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [idPos, setIdPos] = useState({ x: 26, y: 84 });
   const boardRef = useRef<HTMLDivElement>(null);
 
   const openNew = () => { setBriefAdd(false); setBriefSeed(null); setBriefOpen(true); };
@@ -120,7 +152,7 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
   };
   const editPrompt = async (shot: CloneShot) => {
     if (!project) return;
-    const next = window.prompt("The prompt for this shot — edit and it re-renders just this one.", shot.prompt);
+    const next = await ask("Edit the prompt for this shot — it re-renders just this one.", shot.prompt, true);
     if (next === null || !next.trim() || next.trim() === shot.prompt) return;
     const p = { ...project, shots: project.shots.map((s) => (s.id === shot.id ? { ...s, prompt: next.trim() } : s)) };
     setProject(p); await save(p); await renderShot(shot.id);
@@ -129,6 +161,17 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
     if (!project) return;
     const p = { ...project, shots: project.shots.filter((s) => s.id !== shotId).map((s, i) => ({ ...s, order: i })) };
     setProject(p); await save(p);
+  };
+  // Persist a dragged / resized shot (called once on pointer-up, not per move).
+  const moveShot = (shotId: string, x: number, y: number) => { void patchShotLocal(shotId, { x, y }); };
+  const resizeShot = (shotId: string, w: number) => { void patchShotLocal(shotId, { w }); };
+  // Drag the identity node (position is session-local).
+  const startIdDrag = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest("button, a, img")) return;
+    const sx = e.clientX, sy = e.clientY, ox = idPos.x, oy = idPos.y;
+    const mv = (ev: PointerEvent) => setIdPos({ x: ox + ev.clientX - sx, y: oy + ev.clientY - sy });
+    const up = () => { document.removeEventListener("pointermove", mv); document.removeEventListener("pointerup", up); };
+    document.addEventListener("pointermove", mv); document.addEventListener("pointerup", up);
   };
 
   // A per-shot manipulation → a NEW variant shot, identity kept.
@@ -225,8 +268,8 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
           {project && activeClone && (
             <>
               {/* identity node */}
-              <div data-node="__id" className="absolute w-[240px] overflow-hidden rounded-2xl border border-brand-500/40 bg-card shadow-sm" style={{ left: 26, top: 84 }}>
-                <div className="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
+              <div data-node="__id" className="absolute w-[240px] overflow-hidden rounded-2xl border border-brand-500/40 bg-card shadow-sm" style={{ left: idPos.x, top: idPos.y }}>
+                <div onPointerDown={startIdDrag} className="flex cursor-grab items-center gap-2 px-3 pb-1.5 pt-2.5 active:cursor-grabbing">
                   <span className="grid h-5 w-5 place-items-center rounded-md bg-brand-500/15 text-violet-400"><Camera className="h-3 w-3" /></span>
                   <b className="text-[12px]">{activeClone.name}</b>
                   <span className="ml-auto rounded-full bg-brand-500/15 px-2 py-0.5 text-[9px] font-bold text-violet-400">look lock</span>
@@ -251,24 +294,46 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
                 </div>
               </div>
 
-              {shots.map((s, i) => (
-                <ShotCard key={s.id} shot={s} index={i} style={shotPos(i)}
-                  onRedo={() => renderShot(s.id)} onEditPrompt={() => editPrompt(s)} onDelete={() => deleteShot(s.id)}
-                  onVariant={(label, tweak) => variant(s, label, tweak)} onBgOnly={() => bgOnly(s)} scene={SCENES.find((x) => x.id === s.scene)?.n || s.scene} />
-              ))}
+              {shots.map((s, i) => {
+                const pos = { left: s.x ?? shotPos(i).left, top: s.y ?? shotPos(i).top, width: s.w ?? 330 };
+                return (
+                  <ShotCard key={s.id} shot={s} index={i} style={pos}
+                    onRedo={() => renderShot(s.id)} onEditPrompt={() => editPrompt(s)} onDelete={() => deleteShot(s.id)}
+                    onVariant={(label, tweak) => variant(s, label, tweak)} onBgOnly={() => bgOnly(s)}
+                    onMove={(x, y) => moveShot(s.id, x, y)} onResize={(w) => resizeShot(s.id, w)}
+                    onOpenImage={(url) => setPreview(url)} recomputeWires={recompute}
+                    scene={SCENES.find((x) => x.id === s.scene)?.n || s.scene} />
+                );
+              })}
 
-              {/* add-a-shot to THIS session, like the Director's canvas + */}
-              {shots.length > 0 && (
-                <button onClick={openAdd} title="Add a shot to this session"
-                  className="absolute grid h-11 w-11 place-items-center rounded-full border border-dashed border-border text-muted-foreground transition hover:border-brand-500 hover:text-brand-500"
-                  style={{ left: shotPos(shots.length).left, top: 240 }}>
-                  <Plus className="h-5 w-5" />
-                </button>
-              )}
+              {/* add-a-shot to THIS session, like the Director's canvas + — placed to the
+                  RIGHT of the last shot so it never sits on top of a card. */}
+              {shots.length > 0 && (() => {
+                const last = shots[shots.length - 1];
+                const li = shots.length - 1;
+                const left = (last.x ?? shotPos(li).left) + (last.w ?? 330) + 26;
+                const top = (last.y ?? shotPos(li).top) + 120;
+                return (
+                  <button onClick={openAdd} title="Add a shot to this session"
+                    className="absolute grid h-11 w-11 place-items-center rounded-full border border-dashed border-border text-muted-foreground transition hover:border-brand-500 hover:text-brand-500"
+                    style={{ left, top }}>
+                    <Plus className="h-5 w-5" />
+                  </button>
+                );
+              })()}
             </>
           )}
         </div>
       </div>
+
+      {/* click a shot image → full-size preview */}
+      {preview && (
+        <div className="fixed inset-0 z-[95] grid place-items-center bg-black/85 p-6" onClick={() => setPreview(null)}>
+          <img src={preview} alt="" className="max-h-[92vh] max-w-[92vw] rounded-xl object-contain shadow-2xl" />
+          <button onClick={() => setPreview(null)} className="absolute right-5 top-5 grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white hover:bg-white/20"><X className="h-4 w-4" /></button>
+          <a href={preview} download target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="absolute bottom-5 right-5 inline-flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-[12px] font-semibold text-white hover:bg-white/20"><Download className="h-3.5 w-3.5" /> Download</a>
+        </div>
+      )}
 
       {briefOpen && (
         <BriefSheet project={project} addMode={briefAdd} seedClone={briefSeed}
@@ -281,30 +346,60 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
           onNew={() => { setClonesOpen(false); openAddClone(); }} />
       )}
       {libOpen && <LibrarySheet onClose={() => setLibOpen(false)} onPick={async (id) => { const j = await fetch(`/api/ai/clone-studio/project/${id}`).then((r) => r.json()); if (j?.success) { setProject(j.data.project); setLibOpen(false); } }} />}
+      {promptNode}
     </div>
   );
 }
 
 // ─────────────────────────────── shot card
 
-function ShotCard({ shot, index, style, scene, onRedo, onEditPrompt, onDelete, onVariant, onBgOnly }: {
+function ShotCard({ shot, index, style, scene, onRedo, onEditPrompt, onDelete, onVariant, onBgOnly, onMove, onResize, onOpenImage, recomputeWires }: {
   shot: CloneShot; index: number; style: React.CSSProperties; scene: string;
   onRedo: () => void; onEditPrompt: () => void; onDelete: () => void;
   onVariant: (label: string, tweak: string) => void; onBgOnly: () => void;
+  onMove: (x: number, y: number) => void; onResize: (w: number) => void;
+  onOpenImage: (url: string) => void; recomputeWires: () => void;
 }) {
+  const { ask, promptNode } = useTextPrompt();
+  const cardRef = useRef<HTMLDivElement>(null);
   const busy = shot.status === "rendering" || shot.status === "queued";
   const ar = shot.aspect === "16:9" ? "aspect-video" : shot.aspect === "9:16" ? "aspect-[9/16]" : "aspect-square";
-  const pick = (label: string, opts: string[]) => { const v = window.prompt(`Change ${label.toLowerCase()} — keeps your identity:\n\n${opts.join(" · ")}`, opts[1] || opts[0]); if (v?.trim()) onVariant(label, v.trim()); };
+  const pick = async (label: string, opts: string[]) => { const v = await ask(`Change ${label.toLowerCase()} — keeps your identity. Try: ${opts.join(" · ")}`, opts[1] || opts[0]); if (v?.trim()) onVariant(label, v.trim()); };
+
+  // Drag from the header; commit position on pointer-up (live-move the DOM in between).
+  const startDrag = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest("button, a, img, input")) return;
+    const card = cardRef.current; if (!card) return;
+    const sx = e.clientX, sy = e.clientY, ox = parseFloat(card.style.left || "0"), oy = parseFloat(card.style.top || "0");
+    const mv = (ev: PointerEvent) => { card.style.left = `${ox + ev.clientX - sx}px`; card.style.top = `${oy + ev.clientY - sy}px`; recomputeWires(); };
+    const up = (ev: PointerEvent) => { document.removeEventListener("pointermove", mv); document.removeEventListener("pointerup", up); onMove(ox + ev.clientX - sx, oy + ev.clientY - sy); };
+    document.addEventListener("pointermove", mv); document.addEventListener("pointerup", up);
+  };
+  const startResize = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    const card = cardRef.current; if (!card) return;
+    const sx = e.clientX, ow = card.offsetWidth;
+    const clamp = (w: number) => Math.max(250, Math.min(560, w));
+    const mv = (ev: PointerEvent) => { card.style.width = `${clamp(ow + ev.clientX - sx)}px`; recomputeWires(); };
+    const up = (ev: PointerEvent) => { document.removeEventListener("pointermove", mv); document.removeEventListener("pointerup", up); onResize(clamp(ow + ev.clientX - sx)); };
+    document.addEventListener("pointermove", mv); document.addEventListener("pointerup", up);
+  };
+
   return (
-    <div className="absolute w-[258px] overflow-hidden rounded-2xl border border-border bg-card shadow-sm" style={style} data-shot>
-      <div className="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
+    <div ref={cardRef} className="absolute overflow-hidden rounded-2xl border border-border bg-card shadow-sm" style={style} data-shot>
+      <div onPointerDown={startDrag} className="flex cursor-grab items-center gap-2 px-3 pb-1.5 pt-2.5 active:cursor-grabbing">
         <span className={cn("grid h-5 w-5 place-items-center rounded-md", shot.kind === "background" ? "bg-amber-500/15 text-amber-500" : "bg-cyan-500/15 text-cyan-500")}>{shot.kind === "background" ? <ImageIcon className="h-3 w-3" /> : <Camera className="h-3 w-3" />}</span>
         <b className="text-[12px]">{shot.kind === "background" ? "Background" : `Shot ${index + 1}`}</b>
         <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[9px] font-bold", shot.kind === "background" ? "bg-amber-500/15 text-amber-500" : "bg-cyan-500/15 text-cyan-500")}>{shot.kind === "background" ? "scene only" : "you"}</span>
         <button onClick={onDelete} className="grid h-[17px] w-[17px] place-items-center rounded border border-border text-muted-foreground hover:border-rose-500 hover:text-rose-500"><X className="h-2.5 w-2.5" /></button>
       </div>
-      <div className={cn("relative mx-3 grid place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-slate-700/40 to-violet-900/30", ar)}>
-        {isUrl(shot.imageUrl) && <img src={shot.imageUrl} alt="" className="h-full w-full object-cover" />}
+      <div className={cn("group relative mx-3 grid place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-slate-700/40 to-violet-900/30", ar)}>
+        {isUrl(shot.imageUrl) && <img src={shot.imageUrl} alt="" onClick={() => isUrl(shot.imageUrl) && onOpenImage(shot.imageUrl)} className="h-full w-full cursor-zoom-in object-cover" />}
+        {isUrl(shot.imageUrl) && !busy && (
+          <button onClick={() => onOpenImage(shot.imageUrl!)} className="pointer-events-none absolute inset-0 grid place-items-center bg-black/0 opacity-0 transition group-hover:bg-black/15 group-hover:opacity-100">
+            <span className="rounded-full bg-black/55 px-2.5 py-1 text-[9px] font-bold text-white">Click to enlarge</span>
+          </button>
+        )}
         <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[8px] font-extrabold text-white">{shot.kind === "background" ? "🪟 Scene" : "🧑 " + scene}</span>
         {shot.kind === "person" && <span className="absolute right-1.5 top-1.5 rounded-full bg-brand-500/90 px-2 py-0.5 text-[8px] font-extrabold text-white">✨ You · locked</span>}
         {shot.status === "ready" && <span className="absolute bottom-1.5 left-1.5 rounded-full bg-brand-500 px-1.5 py-0.5 text-[8px] font-extrabold text-white">ready</span>}
@@ -333,6 +428,11 @@ function ShotCard({ shot, index, style, scene, onRedo, onEditPrompt, onDelete, o
         <button onClick={onRedo} disabled={busy} className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-brand-500 disabled:opacity-40"><RefreshCw className="mx-auto h-3 w-3" /></button>
         <a href={isUrl(shot.imageUrl) ? shot.imageUrl : undefined} download target="_blank" rel="noreferrer" className="flex-1 rounded-lg border border-border py-1.5 text-center text-[9.5px] font-semibold hover:border-brand-500"><Download className="mx-auto h-3 w-3" /></a>
       </div>
+      {/* resize from the corner */}
+      <div onPointerDown={startResize} title="Drag to resize" className="absolute bottom-1 right-1 h-4 w-4 cursor-nwse-resize text-muted-foreground">
+        <svg viewBox="0 0 10 10" className="h-full w-full"><path d="M9 1 L1 9 M9 5 L5 9" stroke="currentColor" strokeWidth="1" fill="none" /></svg>
+      </div>
+      {promptNode}
     </div>
   );
 }
@@ -348,12 +448,14 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
   onClose: () => void; onDone: (p: CloneProject) => void;
 }) {
   const { toast } = useToast();
+  const { ask, promptNode } = useTextPrompt();
   const [type, setType] = useState<"photo" | "actor">("photo");
   const [name, setName] = useState(seedClone?.name || "Me");
   const [photos, setPhotos] = useState<string[]>(seedClone?.photoUrls || []);
   const [prompt, setPrompt] = useState(SCENE_PROMPT.podcast);
   const [scene, setScene] = useState("podcast");
   const [outfit, setOutfit] = useState("Keep current");
+  const [outfit2, setOutfit2] = useState("Smart casual"); // the second "you" in a duo scene
   const [pose, setPose] = useState("Looking at camera");
   const [aspect, setAspect] = useState<CloneAspect>("1:1");
   const [quality, setQuality] = useState<CloneQuality>("standard");
@@ -385,10 +487,17 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
     try {
       const cloneId = seedClone?.id || `clone_${Math.random().toString(36).slice(2, 8)}`;
       const clone: CloneIdentity = { id: cloneId, name: name.trim() || "Me", photoUrls: photos };
+      // Duo scene = two of the SAME you, so each side gets its own outfit; the two
+      // outfits go into the prompt and shot.outfit is left neutral to avoid a clash.
+      const isDuo = scene === "duo";
+      const base = prompt.trim() || SCENE_PROMPT[scene] || "";
+      const finalPrompt = isDuo
+        ? `${base} The person on the LEFT wears ${outfit === "Keep current" ? "their everyday outfit" : outfit}; the person on the RIGHT wears ${outfit2}. Both are the SAME person — identical face on both.`
+        : base;
       const mkShot = (i: number) => ({
         id: `shot_${Math.random().toString(36).slice(2, 8)}_${i}`, order: 0,
         cloneId: scene === "bgonly" ? null : cloneId, kind: (scene === "bgonly" ? "background" : "person") as "background" | "person",
-        prompt: prompt.trim() || SCENE_PROMPT[scene] || "", scene, outfit, pose, aspect, quality, status: "queued" as const,
+        prompt: finalPrompt, scene, outfit: isDuo ? "Keep current" : outfit, pose, aspect, quality, status: "queued" as const,
       });
       const newShots = Array.from({ length: vars }, (_, i) => mkShot(i));
 
@@ -413,7 +522,31 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
     } finally { setBusy(false); }
   };
 
-  const pickScene = (id: string) => { setScene(id); setPrompt(SCENE_PROMPT[id] || prompt); if (id === "bgonly" || id === "duo") { /* keep */ } };
+  const pickScene = (id: string) => { setScene(id); setPrompt(SCENE_PROMPT[id] || prompt); };
+
+  // One reusable outfit picker — used once normally, twice for the duo (each "you").
+  const outfitPicker = (value: string, onSet: (v: string) => void) => {
+    const custom = !OUTFITS.some((o) => o.n === value);
+    return (
+      <div className="flex gap-2 overflow-x-auto pb-1.5">
+        {OUTFITS.map((o) => (
+          <button key={o.n} onClick={() => onSet(o.n)} className={cn("w-[92px] flex-none overflow-hidden rounded-lg border-2 text-center transition", value === o.n ? "border-brand-500" : "border-transparent hover:-translate-y-0.5")}>
+            <span className="relative block aspect-square w-full overflow-hidden bg-muted">
+              <img src={o.thumb} alt="" className="h-full w-full object-cover" />
+              <span className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
+              {value === o.n && <span className="absolute right-1 top-1 rounded-full bg-brand-500 px-1 py-0.5 text-[7px] font-bold text-white">✓</span>}
+            </span>
+            <span className={cn("block px-1 py-1 text-[9px] font-bold leading-tight", value === o.n ? "text-brand-500" : "text-muted-foreground")}>{o.n}</span>
+          </button>
+        ))}
+        <button onClick={async () => { const v = await ask("Describe your own outfit:", custom ? value : ""); if (v?.trim()) onSet(v.trim()); }}
+          className={cn("w-[92px] flex-none overflow-hidden rounded-lg border-2 text-center transition", custom ? "border-brand-500" : "border-dashed border-border hover:-translate-y-0.5")}>
+          <span className="grid aspect-square w-full place-items-center bg-muted/40 text-[16px]">✏️</span>
+          <span className={cn("block px-1 py-1 text-[9px] font-bold leading-tight", custom ? "text-brand-500" : "text-muted-foreground")}>{custom ? value : "Custom"}</span>
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="absolute inset-0 z-40">
@@ -504,7 +637,7 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
                 </button>
               ))}
               {/* custom scene — describe your own */}
-              <button onClick={() => { const v = window.prompt("Describe your own scene / setting:", prompt); if (v?.trim()) { setScene("custom"); setPrompt(v.trim()); } }}
+              <button onClick={async () => { const v = await ask("Describe your own scene / setting:", prompt, true); if (v?.trim()) { setScene("custom"); setPrompt(v.trim()); } }}
                 className={cn("w-[150px] flex-none overflow-hidden rounded-xl border-2 text-left transition", scene === "custom" ? "border-brand-500" : "border-dashed border-border hover:-translate-y-0.5")}>
                 <span className="grid aspect-[16/10] w-full place-items-center bg-muted/40 text-[20px]">✏️</span>
                 <span className={cn("block p-2.5", scene === "custom" ? "bg-brand-500/5" : "bg-muted/30")}>
@@ -514,29 +647,17 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
             </div>
           </div>
 
-          {/* outfit + pose */}
+          {/* outfit — a duo scene ("You × You") gets a second outfit, one per you */}
           <div className="mt-5">
-            <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Outfit</p>
-            <div className="flex gap-2 overflow-x-auto pb-1.5">
-              {OUTFITS.map((o) => (
-                <button key={o.n} onClick={() => setOutfit(o.n)} className={cn("w-[92px] flex-none overflow-hidden rounded-lg border-2 text-center transition", outfit === o.n ? "border-brand-500" : "border-transparent hover:-translate-y-0.5")}>
-                  <span className="relative block aspect-square w-full overflow-hidden bg-muted">
-                    <img src={o.thumb} alt="" className="h-full w-full object-cover" />
-                    <span className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
-                    {outfit === o.n && <span className="absolute right-1 top-1 rounded-full bg-brand-500 px-1 py-0.5 text-[7px] font-bold text-white">✓</span>}
-                  </span>
-                  <span className={cn("block px-1 py-1 text-[9px] font-bold leading-tight", outfit === o.n ? "text-brand-500" : "text-muted-foreground")}>{o.n}</span>
-                </button>
-              ))}
-              {(() => { const custom = !OUTFITS.some((o) => o.n === outfit); return (
-                <button onClick={() => { const v = window.prompt("Describe your own outfit:", custom ? outfit : ""); if (v?.trim()) setOutfit(v.trim()); }}
-                  className={cn("w-[92px] flex-none overflow-hidden rounded-lg border-2 text-center transition", custom ? "border-brand-500" : "border-dashed border-border hover:-translate-y-0.5")}>
-                  <span className="grid aspect-square w-full place-items-center bg-muted/40 text-[16px]">✏️</span>
-                  <span className={cn("block px-1 py-1 text-[9px] font-bold leading-tight", custom ? "text-brand-500" : "text-muted-foreground")}>{custom ? outfit : "Custom"}</span>
-                </button>
-              ); })()}
-            </div>
+            <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">{scene === "duo" ? "Left you — outfit" : "Outfit"}</p>
+            {outfitPicker(outfit, setOutfit)}
           </div>
+          {scene === "duo" && (
+            <div className="mt-4">
+              <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Right you — outfit</p>
+              {outfitPicker(outfit2, setOutfit2)}
+            </div>
+          )}
           <div className="mt-5">
             <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Pose &amp; framing</p>
             <div className="flex gap-2 overflow-x-auto pb-1.5">
@@ -551,7 +672,7 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
                 </button>
               ))}
               {(() => { const custom = !POSES.some((o) => o.n === pose); return (
-                <button onClick={() => { const v = window.prompt("Describe your own pose / framing:", custom ? pose : ""); if (v?.trim()) setPose(v.trim()); }}
+                <button onClick={async () => { const v = await ask("Describe your own pose / framing:", custom ? pose : ""); if (v?.trim()) setPose(v.trim()); }}
                   className={cn("w-[100px] flex-none overflow-hidden rounded-lg border-2 text-center transition", custom ? "border-brand-500" : "border-dashed border-border hover:-translate-y-0.5")}>
                   <span className="grid aspect-[4/3] w-full place-items-center bg-muted/40 text-[16px]">✏️</span>
                   <span className={cn("block px-1 py-1 text-[9px] font-bold leading-tight", custom ? "text-brand-500" : "text-muted-foreground")}>{custom ? pose : "Custom"}</span>
@@ -595,6 +716,7 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
         filterTypes={["image"]}
         onSelect={(url) => { if (photos.length < 4) setPhotos((p) => [...p, url]); setLibPick(false); }}
       />
+      {promptNode}
     </div>
   );
 }

@@ -69,9 +69,13 @@ function refUrlsFor(p: CloneProject, cloneId: string | null): string[] {
   return [c.anchorUrl, ...c.photoUrls].filter(isUrl).slice(0, 4);
 }
 
+// Identity = FACE, hair, build — NOT clothing. The reference photo's wardrobe must
+// NOT leak into the shot when the brief asked for a different outfit, which is why
+// this is explicit: only the person's likeness is taken from the reference.
 const IDENTITY_RULES =
   "IDENTITY (critical)\n" +
-  "- The reference image(s) are the SAME real person. Reproduce them EXACTLY — identical face, facial structure, skin tone, hair, age and build. This is a photo of THAT person, not a lookalike.\n" +
+  "- Take ONLY the person's LIKENESS from the reference image(s): identical face, facial structure, skin tone, hair, age and build. This is a photo of THAT person, not a lookalike.\n" +
+  "- Do NOT copy the clothing, background or pose from the reference — those come from the instructions above. Only the face/hair/build carry over.\n" +
   "- PHOTOREAL only: a real photograph, natural skin texture and lighting. Not a 3D render, illustration or cartoon.\n" +
   "- Frame them naturally in the scene; hands and body look real and correct.";
 
@@ -80,7 +84,10 @@ function buildShotPrompt(shot: CloneShot): string {
     return `${shot.prompt}\n\nHARD RULES\n- Absolutely NO person in the frame. An empty scene / background plate only — clean, usable behind a real webcam.`;
   }
   const bits = [shot.prompt.trim()];
-  if (shot.outfit && shot.outfit !== "Keep current") bits.push(`Wearing: ${shot.outfit}.`);
+  if (shot.outfit && shot.outfit !== "Keep current") {
+    // Make the chosen outfit authoritative over whatever they wore in the reference.
+    bits.push(`WARDROBE — dress this exact person in: ${shot.outfit}. This OVERRIDES the clothing in the reference photo; change their outfit to this.`);
+  }
   if (shot.pose) bits.push(`Pose / framing: ${shot.pose}.`);
   return `${bits.filter(Boolean).join(" ")}\n\n${IDENTITY_RULES}`;
 }

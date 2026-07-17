@@ -43,6 +43,10 @@ export interface CloneShot {
   status: ShotStatus;
   progress?: number;
   error?: string | null;
+  /** Canvas position + width (draggable / resizable). Absent ⇒ auto-laid-out. */
+  x?: number;
+  y?: number;
+  w?: number;
   /** Beaten while rendering; a quiet beat means the worker died and it's safe to re-run. */
   renderHeartbeatAt?: number;
   tries?: number;
@@ -107,6 +111,9 @@ export function normalizeShot(raw: Partial<CloneShot>, i: number): CloneShot {
     status: (["idle", "queued", "rendering", "ready", "failed"] as const).includes(raw.status as ShotStatus) ? (raw.status as ShotStatus) : "idle",
     progress: typeof raw.progress === "number" ? raw.progress : 0,
     error: raw.error ?? null,
+    x: typeof raw.x === "number" ? raw.x : undefined,
+    y: typeof raw.y === "number" ? raw.y : undefined,
+    w: typeof raw.w === "number" ? raw.w : undefined,
     renderHeartbeatAt: raw.renderHeartbeatAt,
     tries: raw.tries,
   };
