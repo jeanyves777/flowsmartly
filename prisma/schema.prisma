@@ -168,6 +168,8 @@ model User {
   syntheticPersona      SyntheticPersona?
   blocksInitiated       UserBlock[]                     @relation("UserBlocks_blocker")
   blocksReceived        UserBlock[]                     @relation("UserBlocks_blocked")
+  trainingSessions      TrainingSession[]
+  trainingParticipation TrainingParticipant[]
 
   // Onboarding
   onboardingComplete Boolean @default(false)
@@ -6087,4 +6089,161 @@ model VoiceCall {
   @@index([agentId, startedAt])
   @@index([outcome])
   @@index([status])
+}
+
+// ============================================
+// TRAINING STUDIO (live rooms)
+// ============================================
+
+/// A training room: the plan (segments) + the live session + its policy.
+/// The whiteboard document lives on the session/segment as JSON (same shape as
+/// the Design Studio's fractional-coordinate layer model), so the board survives
+/// a reload and a pm2 reload — only the *transport* is ephemeral.
+model TrainingSession {
+  id          String    @id @default(cuid())
+  userId      String // the host / owner
+  title       String    @default("Untitled session")
+  brief       String    @default("")
+  sessionType String    @default("training") // training | workshop | webinar | onboarding | coaching
+  status      String    @default("draft") // draft | scheduled | live | ended
+  seats       Int       @default(12)
+  plannedMins Int       @default(45)
+  startsAt    DateTime?
+  startedAt   DateTime?
+  endedAt     DateTime?
+  access      String    @default("invite") // invite | link_email | open
+
+  // room policy — "open*" = anyone may; otherwise hosts + whoever is granted
+  waitingRoom Boolean @default(true)
+  recording   Boolean @default(true)
+  transcript  Boolean @default(true)
+  openDraw    Boolean @default(false)
+  openShare   Boolean @default(false)
+  openMic     Boolean @default(true)
+  locked      Boolean @default(false)
+
+  // live stage state
+  penHolderId   String? // TrainingParticipant.id holding the pen (presenter-authoritative)
+  stageSource   String  @default("board") // board | slides | doc | video | screen | cam
+  stageKey      String? // material id, or the participant id who is screen-sharing
+  stagePage     Int     @default(1)
+  boardDoc      String  @default("{}") // JSON whiteboard document (the room's own board)
+  recordingUrl  String?
+  transcriptUrl String?
+  creditsSpent  Int     @default(0)
+  metadata      String  @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  segments     TrainingSegment[]
+  participants TrainingParticipant[]
+  invites      TrainingInvite[]
+  materials    TrainingMaterial[]
+
+  @@index([userId, updatedAt])
+  @@index([userId, status])
+  @@index([status])
+}
+
+/// One planned block of a session — a node on the plan canvas.
+/// x/y are the canvas position; order is derived left→right from x on drag.
+model TrainingSegment {
+  id           String  @id @default(cuid())
+  sessionId    String
+  kind         String  @default("board") // slides | board | doc | video | draw | discuss
+  title        String  @default("Segment")
+  note         String  @default("")
+  durationMins Int     @default(10)
+  order        Int     @default(0)
+  x            Int     @default(0)
+  y            Int     @default(0)
+  ready        Boolean @default(false)
+  materialId   String? // TrainingMaterial.id backing this segment
+  config       String  @default("{}") // JSON: per-kind settings (breakout size, who may draw…)
+  boardDoc     String  @default("{}") // JSON: this segment's board
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, order])
+}
+
+/// Somebody in (or knocking at) the room. userId is null for a link guest.
+/// canShare is the per-person screen-share GRANT — hosts/co-hosts always may.
+model TrainingParticipant {
+  id         String  @id @default(cuid())
+  sessionId  String
+  userId     String? // null = guest joined by link
+  name       String
+  email      String?
+  avatarUrl  String?
+  role       String  @default("TRAINEE") // HOST | COHOST | TRAINEE | GUEST
+  state      String  @default("WAITING") // WAITING | ADMITTED | DENIED | LEFT | REMOVED
+  canShare   Boolean @default(false)
+  canDraw    Boolean @default(false)
+  micOn      Boolean @default(false)
+  camOn      Boolean @default(false)
+  handRaised Boolean @default(false)
+  sharing    Boolean @default(false)
+
+  joinedAt   DateTime?
+  leftAt     DateTime?
+  lastSeenAt DateTime  @default(now())
+  focusPct   Int       @default(100)
+  secondsIn  Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, state])
+  @@index([userId])
+}
+
+/// A join link. Mirrors DesignShare: token + role + expiry + use cap.
+model TrainingInvite {
+  id        String    @id @default(cuid())
+  sessionId String
+  token     String    @unique
+  email     String?
+  role      String    @default("TRAINEE") // COHOST | TRAINEE | GUEST
+  label     String?
+  expiresAt DateTime?
+  maxUses   Int?
+  useCount  Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdBy String
+  sentAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([token])
+}
+
+/// A deck / PDF / video / image the host can push onto the board and annotate.
+model TrainingMaterial {
+  id          String  @id @default(cuid())
+  sessionId   String
+  name        String
+  kind        String  @default("doc") // slides | doc | video | image
+  url         String
+  pages       Int     @default(1)
+  sizeBytes   Int     @default(0)
+  mediaFileId String?
+
+  createdAt DateTime @default(now())
+
+  session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }

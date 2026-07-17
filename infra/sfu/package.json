@@ -1,0 +1,19 @@
+{
+  "name": "flowsmartly-sfu",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Training Room media server (mediasoup SFU). Runs on its OWN box — never installed by the web app's deploy.",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "jose": "^5.9.6",
+    "mediasoup": "^3.21.2",
+    "ws": "^8.18.0"
+  }
+}

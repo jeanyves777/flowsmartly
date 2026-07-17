@@ -1,0 +1,43 @@
+# Training Room media server — the INTERIM setup: run it in a container on the
+# app VPS until the dedicated media box exists.
+#
+#   docker compose -f docker-compose.sfu.yml up -d --build
+#
+# The app box measured 15G RAM / 12G available / 4 cores / load 0.09, so one
+# worker sits comfortably alongside everything else. Bandwidth, not RAM, is the
+# ceiling here — this is fine for testing and small rooms, and should move to its
+# own box before real classes. See infra/sfu/DEPLOY.md.
+services:
+  sfu:
+    build: ./infra/sfu
+    container_name: flowsmartly-sfu
+    restart: unless-stopped
+
+    # HOST NETWORKING IS REQUIRED — not a shortcut.
+    # mediasoup needs a whole RTP port range. Publishing 1000 ports the normal
+    # way makes Docker create an iptables rule AND a userland proxy process per
+    # port, which is pathological. Host mode also lets mediasoup see the real
+    # source address, which it needs for ICE.
+    network_mode: host
+
+    env_file:
+      - ./infra/sfu/.env
+
+    environment:
+      - SFU_PORT=${SFU_PORT:-4443}
+      # A single worker while we share the box. Bump it on the dedicated server.
+      - SFU_WORKERS=${SFU_WORKERS:-1}
+      - SFU_RTC_MIN_PORT=${SFU_RTC_MIN_PORT:-40000}
+      - SFU_RTC_MAX_PORT=${SFU_RTC_MAX_PORT:-40999}
+      - SFU_LOG_LEVEL=${SFU_LOG_LEVEL:-warn}
+
+    # A hard cap so a runaway media process can never starve `next build` or the
+    # app itself. The container dies instead of taking the site down with it.
+    mem_limit: 1g
+    cpus: 1.5
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
