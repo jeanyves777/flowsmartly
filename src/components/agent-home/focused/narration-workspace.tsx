@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { PublishNode, PublishSheet, type PublishChannel } from "@/components/agent-home/shared/publish-node";
+import { CastReviewSheet } from "@/components/agent-home/shared/cast-review";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { useTextPrompt } from "@/components/agent-home/shared/text-prompt";
 import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
@@ -190,11 +191,24 @@ export function FocusedNarration() {
     if (j?.success) setProject(j.data.project);
     else toast({ title: "Could not start", description: j?.error?.message, variant: "destructive" });
   };
-  const buildCast = async (characterId: string) => {
+  /** Build (or re-build) a subject's anchor. `baseImageUrl` anchors them to an
+   *  uploaded photo instead of a generated portrait. */
+  const buildCast = async (characterId: string, baseImageUrl?: string) => {
     if (!project) return;
     mutate((p) => ({ ...p, characters: p.characters.map((c) => (c.id === characterId ? { ...c, previewStatus: "generating" } : c)) }));
     const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/cast/${characterId}`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(baseImageUrl ? { baseImageUrl } : {}),
+    }).then((r) => r.json());
+    if (j?.success) setProject(j.data.project);
+  };
+
+  /** Free edits to a subject (approve / wardrobe / render style) — the route merges
+   *  the patch through the shared normalizeCharacter. */
+  const patchCast = async (characterId: string, patch: Record<string, unknown>) => {
+    if (!project) return;
+    const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/cast/${characterId}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
     }).then((r) => r.json());
     if (j?.success) setProject(j.data.project);
   };
@@ -519,17 +533,31 @@ export function FocusedNarration() {
       )}
 
       {castOpen && project && (
-        <CastSheet
-          project={project}
-          shots={shots}
+        <CastReviewSheet
+          characters={project.characters}
           onClose={() => setCastOpen(false)}
-          onBuild={buildCast}
-          onPatch={async (cid, patch) => {
-            const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/cast/${cid}`, {
-              method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
-            }).then((r) => r.json());
+          badge="Cast"
+          title="Approve your subjects"
+          usageNoun="shot"
+          usageCount={(c) => shots.filter((s) => s.cast.includes(c.id)).length}
+          intro={
+            <p>
+              Each subject is anchored by a turnaround sheet and fed into every shot they appear in, so the same person
+              looks the same throughout. They are <b className="text-foreground">depicted, never speakers</b> — your
+              narration is one continuous voice across the whole story.
+            </p>
+          }
+          onGenerate={(cid, opts) => buildCast(cid, opts?.baseImageUrl)}
+          onApprove={(cid, approved) => patchCast(cid, { approved })}
+          onSetRenderStyle={(cid, renderStyle) => patchCast(cid, { renderStyle })}
+          // No atomic wardrobe endpoint here: save the outfit, then re-anchor with it
+          // (buildCastAnchor reads wardrobe off the character).
+          onSetWardrobe={async (cid, wardrobe) => { await patchCast(cid, { wardrobe, approved: false }); await buildCast(cid); }}
+          onRemove={async (cid) => {
+            const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/cast/${cid}`, { method: "DELETE" }).then((r) => r.json());
             if (j?.success) setProject(j.data.project);
           }}
+          footer={{ hint: "Approve each subject so they look the same in every shot.", buildLabel: "Done", onBuild: () => setCastOpen(false) }}
         />
       )}
 
@@ -1127,60 +1155,6 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
           <button onClick={go} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60">
             {busy ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate
           </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────── cast sheet
-
-function CastSheet({ project, shots, onClose, onBuild, onPatch }: {
-  project: NarrationProject; shots: NarrationShot[];
-  onClose: () => void;
-  onBuild: (id: string) => void;
-  onPatch: (id: string, patch: Record<string, unknown>) => void;
-}) {
-  return (
-    <div className="absolute inset-0 z-40">
-      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/50" />
-      <div className="absolute inset-x-3 bottom-3 top-10 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
-        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-500">CAST</span>
-          <b className="text-[13.5px]">Recurring subjects</b>
-          <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <p className="mb-3 rounded-lg border-l-2 border-amber-500/40 bg-amber-500/5 p-2.5 text-[10.5px] leading-relaxed text-muted-foreground">
-            Each subject is anchored by a turnaround sheet and fed into every shot they appear in, so the same person looks the same
-            throughout. They are <b>depicted, never speakers</b> — your narration is one continuous voice across the whole story.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            {project.characters.map((c) => (
-              <div key={c.id} className="w-[190px] rounded-xl border border-border bg-muted/30 p-2.5">
-                <div className="mb-2 grid aspect-square w-full place-items-center overflow-hidden rounded-lg bg-gradient-to-br from-amber-500/25 to-violet-500/20">
-                  {c.previewStatus === "generating" ? <FlowLoader size={20} />
-                    : isUrl(c.characterSheetUrl) ? <img src={c.characterSheetUrl} alt="" className="h-full w-full object-cover" />
-                    : isUrl(c.referenceImageUrl) ? <img src={c.referenceImageUrl} alt="" className="h-full w-full object-cover" />
-                    : <span className="text-[10px] text-muted-foreground">No art yet</span>}
-                </div>
-                <b className="block text-[12px]">{c.name}</b>
-                <span className="block text-[9.5px] text-muted-foreground">{c.role} · in {shots.filter((s) => s.cast.includes(c.id)).length} shots</span>
-                <p className="mt-1 line-clamp-2 text-[9.5px] leading-snug text-muted-foreground">{c.description}</p>
-                {c.previewError && <p className="mt-1 text-[9.5px] text-rose-500">{c.previewError}</p>}
-                <div className="mt-2 flex gap-1.5">
-                  <button onClick={() => onBuild(c.id)} disabled={c.previewStatus === "generating"}
-                    className="flex-1 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 py-1 text-[9.5px] font-bold text-white disabled:opacity-50">
-                    {c.referenceImageUrl ? "Re-roll" : "Build"}
-                  </button>
-                  <button onClick={() => onPatch(c.id, { approved: !c.approved })}
-                    className={cn("flex-1 rounded-lg border py-1 text-[9.5px] font-bold", c.approved ? "border-emerald-500 text-emerald-500" : "border-border text-muted-foreground")}>
-                    {c.approved ? "Approved" : "Approve"}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>
