@@ -87,10 +87,22 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
   // inline text entry (replaces the native window.prompt): type on the board
   const [editing, setEditing] = useState<{ x: number; y: number; note: boolean; value: string } | null>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
+  // The text/note editor opens on pointer-UP, not down: opening on down let the
+  // same click's pointerup blur (and empty-commit) it instantly. This holds the
+  // intent between down and up.
+  const textPending = useRef<{ x: number; y: number; note: boolean } | null>(null);
   // eraser: which marks we've already deleted during the current drag + the ring
   const erasing = useRef(false);
   const erasedIds = useRef<Set<string>>(new Set());
   const [eraseAt, setEraseAt] = useState<{ x: number; y: number } | null>(null);
+  // laser pointer — a local glowing dot (we also ping others). Held while pressed.
+  const lasering = useRef(false);
+  const [laserAt, setLaserAt] = useState<{ x: number; y: number } | null>(null);
+
+  // Focus the editor once it opens (autoFocus alone races the pointer sequence).
+  useEffect(() => {
+    if (editing) requestAnimationFrame(() => editRef.current?.focus());
+  }, [editing]);
 
   // Track the rendered size so fractional coords can be projected to pixels.
   useEffect(() => {
@@ -160,7 +172,10 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
     const pt = toFrac(e.nativeEvent);
 
     if (tool === "laser") {
+      lasering.current = true;
+      setLaserAt({ x: pt.x, y: pt.y });
       onPing(pt.x, pt.y, true);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       return;
     }
     if (!canDraw) return;
@@ -174,8 +189,9 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
       return;
     }
     if (tool === "text" || tool === "note") {
-      // open an inline editor at the click point — no native prompt
-      setEditing({ x: pt.x, y: pt.y, note: tool === "note", value: "" });
+      // Record intent; open the editor on pointer-UP so this click's own
+      // pointerup can't blur-and-close it the instant it appears.
+      textPending.current = { x: pt.x, y: pt.y, note: tool === "note" };
       return;
     }
     if (tool === "shape") {
@@ -196,9 +212,13 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
     const now = Date.now();
     if (canDraw && now - lastPing.current > 50) {
       lastPing.current = now;
-      onPing(pt.x, pt.y, tool === "laser" && e.buttons > 0);
+      onPing(pt.x, pt.y, lasering.current);
     }
 
+    if (lasering.current) {
+      setLaserAt({ x: pt.x, y: pt.y });
+      return;
+    }
     if (erasing.current) {
       setEraseAt({ x: pt.x, y: pt.y });
       eraseNear(pt);
@@ -214,6 +234,17 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
   };
 
   const onUp = () => {
+    if (lasering.current) {
+      lasering.current = false;
+      setLaserAt(null);
+      return;
+    }
+    // open the text/note editor now that the click is complete (see textPending)
+    if (textPending.current) {
+      setEditing({ ...textPending.current, value: "" });
+      textPending.current = null;
+      return;
+    }
     if (erasing.current) {
       erasing.current = false;
       erasedIds.current = new Set();
@@ -382,6 +413,13 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
           {shapeFrom.current && shapeTo
             ? shapeEl(shapeKind, shapeFrom.current.x, shapeFrom.current.y, shapeTo.x, shapeTo.y, color, 0.003 * box.w, "preview", true)
             : null}
+          {/* your own laser dot (others see it via the cursor stream) */}
+          {laserAt ? (
+            <g>
+              <circle cx={laserAt.x * box.w} cy={laserAt.y * box.h} r={9} fill="#ef4444" opacity={0.25} />
+              <circle cx={laserAt.x * box.w} cy={laserAt.y * box.h} r={4} fill="#ef4444" />
+            </g>
+          ) : null}
         </svg>
       ) : null}
 
