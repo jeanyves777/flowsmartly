@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import type { CloneProject, CloneIdentity, CloneShot, CloneAspect, CloneQuality } from "@/lib/clone-studio/types";
 
 const CT = "/Studio_Menus_Thumnail/Clone_Yourself";
@@ -358,6 +359,7 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
   const [quality, setQuality] = useState<CloneQuality>("standard");
   const [vars, setVars] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [libPick, setLibPick] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -367,8 +369,10 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
     try {
       for (const f of Array.from(files).slice(0, 4 - photos.length)) {
         const fd = new FormData(); fd.append("file", f);
+        // The upload route nests the (presigned, displayable) URL under data.url.
         const up = await fetch("/api/upload", { method: "POST", body: fd }).then((r) => r.json()).catch(() => null);
-        if (up?.url) setPhotos((prev) => [...prev, up.url]);
+        if (up?.success && up.data?.url) setPhotos((prev) => [...prev, up.data.url]);
+        else toast({ title: "Upload failed", description: "Try a JPG or PNG under 10MB.", variant: "destructive" });
       }
     } finally { setUploading(false); }
   };
@@ -456,6 +460,11 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
                   {uploading ? <FlowLoader size={16} /> : <span><Upload className="mx-auto mb-1 h-4 w-4" />Add photo</span>}
                 </button>
               )}
+              {photos.length < 4 && (
+                <button onClick={() => setLibPick(true)} className="grid h-[120px] w-[96px] place-items-center rounded-xl border border-dashed border-border text-center text-[10.5px] text-muted-foreground hover:border-brand-500 hover:text-brand-500">
+                  <span><FolderOpen className="mx-auto mb-1 h-4 w-4" />From library</span>
+                </button>
+              )}
               <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => uploadPhotos(e.target.files)} />
             </div>
             <div className="mt-2">
@@ -494,6 +503,14 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
                   </span>
                 </button>
               ))}
+              {/* custom scene — describe your own */}
+              <button onClick={() => { const v = window.prompt("Describe your own scene / setting:", prompt); if (v?.trim()) { setScene("custom"); setPrompt(v.trim()); } }}
+                className={cn("w-[150px] flex-none overflow-hidden rounded-xl border-2 text-left transition", scene === "custom" ? "border-brand-500" : "border-dashed border-border hover:-translate-y-0.5")}>
+                <span className="grid aspect-[16/10] w-full place-items-center bg-muted/40 text-[20px]">✏️</span>
+                <span className={cn("block p-2.5", scene === "custom" ? "bg-brand-500/5" : "bg-muted/30")}>
+                  <b className="block text-[11px]">Custom scene</b><span className="line-clamp-2 text-[9px] leading-snug text-muted-foreground">Describe any setting you want.</span>
+                </span>
+              </button>
             </div>
           </div>
 
@@ -511,6 +528,13 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
                   <span className={cn("block px-1 py-1 text-[9px] font-bold leading-tight", outfit === o.n ? "text-brand-500" : "text-muted-foreground")}>{o.n}</span>
                 </button>
               ))}
+              {(() => { const custom = !OUTFITS.some((o) => o.n === outfit); return (
+                <button onClick={() => { const v = window.prompt("Describe your own outfit:", custom ? outfit : ""); if (v?.trim()) setOutfit(v.trim()); }}
+                  className={cn("w-[92px] flex-none overflow-hidden rounded-lg border-2 text-center transition", custom ? "border-brand-500" : "border-dashed border-border hover:-translate-y-0.5")}>
+                  <span className="grid aspect-square w-full place-items-center bg-muted/40 text-[16px]">✏️</span>
+                  <span className={cn("block px-1 py-1 text-[9px] font-bold leading-tight", custom ? "text-brand-500" : "text-muted-foreground")}>{custom ? outfit : "Custom"}</span>
+                </button>
+              ); })()}
             </div>
           </div>
           <div className="mt-5">
@@ -526,6 +550,13 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
                   <span className={cn("block px-1 py-1 text-[9px] font-bold leading-tight", pose === o.n ? "text-brand-500" : "text-muted-foreground")}>{o.n}</span>
                 </button>
               ))}
+              {(() => { const custom = !POSES.some((o) => o.n === pose); return (
+                <button onClick={() => { const v = window.prompt("Describe your own pose / framing:", custom ? pose : ""); if (v?.trim()) setPose(v.trim()); }}
+                  className={cn("w-[100px] flex-none overflow-hidden rounded-lg border-2 text-center transition", custom ? "border-brand-500" : "border-dashed border-border hover:-translate-y-0.5")}>
+                  <span className="grid aspect-[4/3] w-full place-items-center bg-muted/40 text-[16px]">✏️</span>
+                  <span className={cn("block px-1 py-1 text-[9px] font-bold leading-tight", custom ? "text-brand-500" : "text-muted-foreground")}>{custom ? pose : "Custom"}</span>
+                </button>
+              ); })()}
             </div>
           </div>
 
@@ -555,6 +586,15 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
           </button>
         </div>
       </div>
+
+      {/* pick a photo from the user's media library instead of re-uploading */}
+      <MediaLibraryPicker
+        open={libPick}
+        onClose={() => setLibPick(false)}
+        title="Choose a photo of yourself"
+        filterTypes={["image"]}
+        onSelect={(url) => { if (photos.length < 4) setPhotos((p) => [...p, url]); setLibPick(false); }}
+      />
     </div>
   );
 }
