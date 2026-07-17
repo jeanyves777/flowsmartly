@@ -34,6 +34,35 @@ function run(cmd: string, args: string[], timeoutMs = 300000): Promise<void> {
   });
 }
 
+/**
+ * The REAL duration of a rendered clip, in seconds (ffprobe), or null if it
+ * can't be read. A provider's clip is rarely the exact length we asked for, and
+ * a scene that keeps its PLANNED durationSec gets cut short at stitch time —
+ * so the true length has to come from the file, not the request.
+ */
+export async function probeDurationSec(buf: Buffer): Promise<number | null> {
+  const probe = ffprobePath();
+  if (!probe) return null;
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-dir-dur-"));
+  try {
+    const p = path.join(dir, "in.mp4");
+    await writeFile(p, buf);
+    const out = await new Promise<string>((resolve) => {
+      const pr = spawn(probe, ["-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", p], { windowsHide: true });
+      let s = "";
+      pr.stdout.on("data", (d) => (s += d.toString()));
+      pr.on("close", () => resolve(s));
+      pr.on("error", () => resolve(""));
+    });
+    const n = parseFloat(out.trim());
+    return Number.isFinite(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 function hasAudio(filePath: string): Promise<boolean> {
   const probe = ffprobePath();
   if (!probe) return Promise.resolve(false);
