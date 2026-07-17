@@ -14,7 +14,8 @@ import { createPortal } from "react-dom";
 import {
   Sparkles, X, Phone, Mic, Zap, ClipboardList, Plus, Pencil, Power, PhoneCall,
   Search, Coins, ListChecks, Settings, Hash, PauseCircle, PlayCircle, Trash2,
-  ChevronRight, AlertTriangle, FileText, Link2, RefreshCw,
+  ChevronRight, AlertTriangle, FileText, Link2, RefreshCw, Check, Loader2,
+  Volume2, Upload, Square,
 } from "lucide-react";
 
 import { useTextPrompt } from "@/components/agent-home/shared/text-prompt";
@@ -23,11 +24,12 @@ import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import {
-  ANSWER_MODES, DAYS, DEFAULT_HOURS, OUTCOME_LABEL, PRESETS, PRESET_BY_KEY,
-  SKILL_BY_KEY, SKILL_CATALOG, brandToBusinessBlurb, fmtDuration, fmtNumber,
-  greetingFor, skillFromDef, skillPos,
+  ANSWER_MODES, DAYS, DEFAULT_HOURS, DEFAULT_ORDER_CONFIG, DEFAULT_VOICE, FULFILLMENTS,
+  LANGUAGE_HINTS, OUTCOME_LABEL, PRESETS, PRESET_BY_KEY, SKILL_BY_KEY, SKILL_CATALOG,
+  brandToBusinessBlurb, fmtDuration, fmtNumber, fmtPrice, greetingFor, skillFromDef, skillPos,
   type AgentCall, type AgentNumber, type AgentSkill, type AnswerMode, type BrandLite,
-  type DayKey, type Hours, type KnowledgeItem, type VoiceAgentDraft,
+  type DayKey, type Hours, type KnowledgeItem, type MenuItem, type OrderConfig,
+  type VoiceAgentDraft, type VoiceChoice,
 } from "@/lib/voice-agent/types";
 
 const DOTS = "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)";
@@ -38,6 +40,7 @@ const PRESET_ART: Record<string, string> = {
   book: "from-emerald-900 to-emerald-500",
   lead: "from-violet-900 to-violet-500",
   supp: "from-cyan-900 to-cyan-500",
+  ordering: "from-orange-900 to-amber-500",
   out: "from-amber-900 to-amber-500",
   custom: "from-muted to-muted",
 };
@@ -67,6 +70,7 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
   const [briefOpen, setBriefOpen] = useState(false);
   const [backOpen, setBackOpen] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
+  const [voicePickerOpen, setVoicePickerOpen] = useState(false);
 
   const boardRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -254,7 +258,7 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
           ) : (
             <>
               <BriefNode agent={agent} onOpen={() => setBriefOpen(true)} onMove={recomputeWires} />
-              <VoiceNode agent={agent} onOpen={() => setBriefOpen(true)} onMove={recomputeWires} />
+              <VoiceNode agent={agent} onOpen={() => setVoicePickerOpen(true)} onMove={recomputeWires} />
 
               {skills.map((s, i) => (
                 <SkillNode key={s.id} skill={s} index={i} agent={agent}
@@ -324,6 +328,14 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
           onPick={async (id) => { setAgentsOpen(false); await loadAgent(id); }}
           onNew={() => { setAgentsOpen(false); setBriefOpen(true); }}
           onClose={() => setAgentsOpen(false)} />
+      )}
+
+      {voicePickerOpen && agent && (
+        <VoicePickerModal
+          voiceId={agent.voiceId}
+          onClose={() => setVoicePickerOpen(false)}
+          onPick={(v) => { void save({ voiceId: v.voiceId, voiceLabel: v.name }); }}
+        />
       )}
 
       {promptNode}
@@ -425,25 +437,26 @@ function BriefNode({ agent, onOpen, onMove }: { agent: VoiceAgentDraft; onOpen: 
 
 function VoiceNode({ agent, onOpen, onMove }: { agent: VoiceAgentDraft; onOpen: () => void; onMove: () => void }) {
   const { ref, start } = useNodeDrag(onMove);
-  const [playing, setPlaying] = useState(false);
-  const label = agent.voice?.label || "Not picked yet";
+  const { busy, play } = useVoicePreview();
+  const label = agent.voiceLabel || "Eve";
   const initials = label.slice(0, 2).toUpperCase();
+  const playing = busy === agent.voiceId;
   return (
     <div ref={ref} data-node="__voice" style={{ left: 316, top: 88 }}
       className="absolute w-[224px] overflow-hidden rounded-2xl border border-amber-500/40 bg-gradient-to-b from-amber-500/10 to-card shadow-sm">
       <NodeHead icon={<Mic className="h-3 w-3" />} tone="bg-amber-500/15 text-amber-500"
         title="Voice" tag="VOICE" tagTone="bg-amber-500/15 text-amber-500" onPointerDown={start} />
-      <div className="mx-3 flex items-center gap-2.5 rounded-xl border border-border bg-muted/40 p-2.5">
+      <button onClick={onOpen}
+        className="mx-3 flex w-[calc(100%-24px)] items-center gap-2.5 rounded-xl border border-border bg-muted/40 p-2.5 text-left hover:border-amber-500">
         <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-[11px] font-black text-white">
           {initials}
         </span>
-        <span className="min-w-0">
+        <span className="min-w-0 flex-1">
           <b className="block truncate text-[11.5px]">{label}</b>
-          <span className="text-[9.5px] text-muted-foreground">
-            {agent.voice ? "Answers as this voice" : "Pick one in the brief"}
-          </span>
+          <span className="text-[9.5px] text-muted-foreground">Tap to change voice</span>
         </span>
-      </div>
+        <Pencil className="h-3 w-3 flex-none text-muted-foreground" />
+      </button>
       <div className="mx-3 mt-2 flex h-[34px] items-center gap-[2px] overflow-hidden rounded-lg border border-border bg-muted/40 px-2">
         {Array.from({ length: 42 }, (_, n) => (
           <i key={n}
@@ -452,13 +465,42 @@ function VoiceNode({ agent, onOpen, onMove }: { agent: VoiceAgentDraft; onOpen: 
         ))}
       </div>
       <div className="flex gap-1 p-3">
-        <button onClick={() => { setPlaying(true); setTimeout(() => setPlaying(false), 2000); }}
-          className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-amber-500">
-          <PlayCircle className="mx-auto h-3 w-3" />
+        <button onClick={() => play(agent.voiceId, "Thanks for calling — how can I help you today?")}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-amber-500">
+          {playing ? <Volume2 className="h-3 w-3 animate-pulse text-amber-500" /> : <PlayCircle className="h-3 w-3" />} Preview
         </button>
-        <button onClick={onOpen} className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-amber-500">
-          <RefreshCw className="mx-auto h-3 w-3" />
+        <button onClick={onOpen}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 py-1.5 text-[9.5px] font-bold text-white">
+          <Mic className="h-3 w-3" /> Change
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** A standalone voice picker — opened from the canvas Voice node, saves on pick. */
+function VoicePickerModal({ voiceId, onClose, onPick }: {
+  voiceId: string;
+  onClose: () => void;
+  onPick: (v: VoiceChoice) => void;
+}) {
+  const [current, setCurrent] = useState(voiceId);
+  return (
+    <div className="absolute inset-0 z-40">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/50" />
+      <div className="absolute inset-x-3 bottom-3 top-14 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-8 sm:bottom-8">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <span className="grid h-6 w-6 place-items-center rounded-lg bg-amber-500/15 text-amber-500"><Mic className="h-3.5 w-3.5" /></span>
+          <b className="text-[13.5px]">Choose the voice</b>
+          <span className="text-[11px] text-muted-foreground">— tap a voice to use it, ▶ to preview</span>
+          <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <VoicePicker voiceId={current} onPick={(v) => { setCurrent(v.voiceId); onPick(v); }} />
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+          <button onClick={onClose} className="rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-1.5 text-[12px] font-bold text-white">Done</button>
+        </div>
       </div>
     </div>
   );
@@ -612,7 +654,7 @@ function LineNode({ agent, x, onOpen, onMove }: {
           <>
             <b className="block font-mono text-[15px] font-extrabold">{fmtNumber(n.e164)}</b>
             <span className="text-[9.5px] text-muted-foreground">
-              {n.source === "FORWARDED" ? "Forwarded" : n.source === "SMS_LINKED" ? "Shared with texts" : "Dedicated"}
+              {n.source === "SMS_LINKED" ? "Shared with texts" : "Dedicated"}
               {n.region ? ` · ${n.region}` : ""}
             </span>
             <div className={cn(
@@ -720,6 +762,9 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
   const [preset, setPreset] = useState(agent?.preset || "recep");
   const [business, setBusiness] = useState(agent?.business || "");
   const [greeting, setGreeting] = useState(agent?.greeting || "");
+  const [voiceId, setVoiceId] = useState(agent?.voiceId || DEFAULT_VOICE.voiceId);
+  const [voiceLabel, setVoiceLabel] = useState(agent?.voiceLabel || DEFAULT_VOICE.name);
+  const [order, setOrder] = useState<OrderConfig>(agent?.orderConfig || DEFAULT_ORDER_CONFIG);
   const [brand, setBrand] = useState<BrandLite | null>(null);
   const [prefilled, setPrefilled] = useState(false);
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>(agent?.knowledge || []);
@@ -732,7 +777,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
   // Numbers.
   const [numbers, setNumbers] = useState<AgentNumber[]>([]);
   const [linkable, setLinkable] = useState<{ e164: string; twilioSid: string } | null>(null);
-  const [numMode, setNumMode] = useState<"have" | "new" | "forward">("new");
+  const [numMode, setNumMode] = useState<"have" | "new">("new");
   const [numberId, setNumberId] = useState<string | null>(agent?.phoneNumberId || null);
 
   useEffect(() => {
@@ -808,7 +853,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
     try {
       if (editing && agent) {
         await onPatch({
-          preset, business, greeting, knowledge, answerMode,
+          preset, business, greeting, knowledge, answerMode, voiceId, voiceLabel, orderConfig: order,
           skills: skillKeys
             .map((k) => SKILL_BY_KEY[k])
             .filter(Boolean)
@@ -822,7 +867,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          preset, business, greeting, knowledge, skillKeys, answerMode,
+          preset, business, greeting, knowledge, skillKeys, answerMode, voiceId, voiceLabel, orderConfig: order,
           phoneNumberId: numberId,
           name: PRESET_BY_KEY[preset]?.title,
         }),
@@ -917,6 +962,14 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
           </div>
 
           <div className="mt-5">
+            <SectionLabel hint="how the agent sounds — clone your own on the canvas">Voice</SectionLabel>
+            <VoicePicker
+              voiceId={voiceId}
+              onPick={(v) => { setVoiceId(v.voiceId); setVoiceLabel(v.name); }}
+            />
+          </div>
+
+          <div className="mt-5">
             <SectionLabel hint="each one uses a part of your account you already have">
               What it&apos;s allowed to do
             </SectionLabel>
@@ -948,6 +1001,15 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
               })}
             </div>
           </div>
+
+          {skillKeys.includes("takeorder") && (
+            <div className="mt-5">
+              <SectionLabel hint="so the agent can take the order and confirm it right">
+                Your menu &amp; ordering
+              </SectionLabel>
+              <OrderSetup order={order} onChange={setOrder} ask={ask} />
+            </div>
+          )}
 
           <div className="mt-5">
             <SectionLabel hint="the agent needs a line to answer">Your number</SectionLabel>
@@ -1012,8 +1074,8 @@ type Available = {
 function NumberPicker({ numbers, linkable, mode, onMode, numberId, onNumberId, onRefresh, ask }: {
   numbers: AgentNumber[];
   linkable: { e164: string; twilioSid: string } | null;
-  mode: "have" | "new" | "forward";
-  onMode: (m: "have" | "new" | "forward") => void;
+  mode: "have" | "new";
+  onMode: (m: "have" | "new") => void;
   numberId: string | null;
   onNumberId: (id: string | null) => void;
   onRefresh: () => Promise<void>;
@@ -1092,24 +1154,6 @@ function NumberPicker({ numbers, linkable, mode, onMode, numberId, onNumberId, o
     onNumberId(j.number.id);
   };
 
-  const forward = async () => {
-    const e164 = await ask("What's your business number? Include the country code.", "+1");
-    if (!e164) return;
-    const j = await fetch("/api/voice-agent/numbers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: "forward", phoneNumber: e164.trim() }),
-    }).then((r) => r.json());
-    if (!j?.success) {
-      toast({ title: j?.error?.message || "Could not add that number", variant: "destructive" });
-      return;
-    }
-    toast({ title: "Number added", description: "Forward your line to it and the agent will answer." });
-    await onRefresh();
-    onNumberId(j.number.id);
-    onMode("have");
-  };
-
   return (
     <>
       <div className="flex flex-wrap gap-2.5">
@@ -1143,19 +1187,6 @@ function NumberPicker({ numbers, linkable, mode, onMode, numberId, onNumberId, o
             Pick an area code, pick a number, live in about a minute.
           </span>
         </button>
-        <button onClick={() => { onMode("forward"); void forward(); }}
-          className={cn(
-            "min-w-[210px] flex-1 rounded-xl border-2 p-3 text-left",
-            mode === "forward" ? "border-brand-500 bg-brand-500/5" : "border-transparent bg-muted/30",
-          )}>
-          <b className="flex items-center gap-1.5 text-[11.5px]">
-            <Link2 className="h-3.5 w-3.5" /> Forward my existing line
-            <span className="ml-auto text-[10px] font-extrabold text-emerald-500">Free</span>
-          </b>
-          <span className="mt-1 block text-[9.5px] leading-snug text-muted-foreground">
-            Keep the number on your cards — forward it here and the agent answers.
-          </span>
-        </button>
       </div>
 
       {mode === "have" && (
@@ -1170,7 +1201,7 @@ function NumberPicker({ numbers, linkable, mode, onMode, numberId, onNumberId, o
               <span className="min-w-0 flex-1">
                 <b className="block font-mono text-[12px]">{fmtNumber(n.e164)}</b>
                 <span className="text-[9.5px] text-muted-foreground">
-                  {n.source === "SMS_LINKED" ? "Shared with your texts" : n.source === "FORWARDED" ? "Forwarded" : "Dedicated"}
+                  {n.source === "SMS_LINKED" ? "Shared with your texts" : "Dedicated"}
                   {n.region ? ` · ${n.region}` : ""}
                 </span>
               </span>
@@ -1267,6 +1298,9 @@ function NumberPicker({ numbers, linkable, mode, onMode, numberId, onNumberId, o
       <p className="mt-2 rounded-r-lg border-l-2 border-brand-500/40 bg-brand-500/5 py-2 pl-2.5 pr-3 text-[10px] leading-relaxed text-muted-foreground">
         The number is yours for as long as you keep it — cancel any time from the back office and you
         aren&apos;t charged again. Only calls the agent actually answers cost minutes.
+        <br />
+        Already have a business number? Keep it on your cards and forward it to this line at your
+        phone company — callers never see the change.
       </p>
     </>
   );
@@ -1433,6 +1467,7 @@ function BackOffice({ agent, calls, stats, onClose, onPatch, onRefresh, onOpenVi
 function OutcomeChip({ outcome }: { outcome: string }) {
   const tone: Record<string, string> = {
     booked: "bg-emerald-500/15 text-emerald-500",
+    order: "bg-orange-500/15 text-orange-500",
     lead: "bg-brand-500/15 text-brand-400",
     message: "bg-violet-500/15 text-violet-400",
     escalated: "bg-amber-500/15 text-amber-500",
@@ -1564,6 +1599,63 @@ function Controls({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Par
           </select>
         </Row>
       </Group>
+
+      <Group title="Voice & speech" sub="How the agent sounds and how it hears callers.">
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">Voice</b>
+            <span className="text-[9.5px] text-muted-foreground">{agent.voiceLabel || "Eve"} — change it in the brief</span></span>
+        </Row>
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">Speaking speed</b>
+            <span className="text-[9.5px] text-muted-foreground">{(agent.speakingSpeed ?? 1).toFixed(2)}×</span></span>
+          <input type="range" min={0.7} max={1.5} step={0.05} value={agent.speakingSpeed ?? 1}
+            onChange={(e) => void onPatch({ speakingSpeed: Number(e.target.value) })}
+            className="w-[150px] accent-brand-500" />
+        </Row>
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">Language</b>
+            <span className="text-[9.5px] text-muted-foreground">Bias recognition to a language</span></span>
+          <select value={agent.languageHint || "auto"} onChange={(e) => void onPatch({ languageHint: e.target.value })}
+            className="w-[172px] rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-[11.5px] outline-none focus:border-brand-500">
+            {LANGUAGE_HINTS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
+        </Row>
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">Caller can interrupt</b>
+            <span className="text-[9.5px] text-muted-foreground">Talk over the agent to cut in</span></span>
+          <Toggle on={agent.allowInterrupt ?? true} onClick={() => void onPatch({ allowInterrupt: !(agent.allowInterrupt ?? true) })} />
+        </Row>
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">Nudge a silent caller</b>
+            <span className="text-[9.5px] text-muted-foreground">{agent.idleTimeoutMs ? `After ${(agent.idleTimeoutMs / 1000).toFixed(0)}s of quiet` : "Off"}</span></span>
+          <Toggle on={(agent.idleTimeoutMs ?? 0) > 0} onClick={() => void onPatch({ idleTimeoutMs: (agent.idleTimeoutMs ?? 0) > 0 ? 0 : 8000 })} />
+        </Row>
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">Faster, blunter replies</b>
+            <span className="text-[9.5px] text-muted-foreground">Skips deeper reasoning — snappier, less careful</span></span>
+          <Toggle on={agent.reasoningEffort === "none"} onClick={() => void onPatch({ reasoningEffort: agent.reasoningEffort === "none" ? "high" : "none" })} />
+        </Row>
+        <KeytermsRow agent={agent} onPatch={onPatch} />
+        <PronunciationRow agent={agent} onPatch={onPatch} />
+      </Group>
+
+      <Group title="Hearing callers" sub="How patiently it waits before it answers.">
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">How long a caller can pause</b>
+            <span className="text-[9.5px] text-muted-foreground">{((agent.vadSilenceMs ?? 500) / 1000).toFixed(1)}s before the agent takes its turn</span></span>
+          <input type="range" min={200} max={2000} step={100} value={agent.vadSilenceMs ?? 500}
+            onChange={(e) => void onPatch({ vadSilenceMs: Number(e.target.value) })}
+            className="w-[150px] accent-brand-500" />
+        </Row>
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">How loud speech must be</b>
+            <span className="text-[9.5px] text-muted-foreground">Higher = ignores background noise, needs clearer speech</span></span>
+          <input type="range" min={0.1} max={0.9} step={0.05} value={agent.vadThreshold ?? 0.85}
+            onChange={(e) => void onPatch({ vadThreshold: Number(e.target.value) })}
+            className="w-[150px] accent-brand-500" />
+        </Row>
+      </Group>
+
 
       <Group title="Opening hours" sub="The agent only books inside these.">
         <div className="grid gap-1.5">
@@ -1740,7 +1832,6 @@ function NumberTab({ agent, onPatch, onRefresh }: {
                 <span className="text-[9.5px] text-muted-foreground">
                   {n.agent ? `${n.agent.name} answers it` : "No agent answering it yet"}
                   {n.source === "SMS_LINKED" && " · shared with your texts"}
-                  {n.source === "FORWARDED" && " · forwarded"}
                   {n.cancelAtPeriodEnd && " · cancels at the end of the month"}
                 </span>
               </span>
@@ -1809,5 +1900,666 @@ function AgentsDrawer({ agents, activeId, onPick, onNew, onClose }: {
         </button>
       </div>
     </>
+  );
+}
+
+// ── voice picker ───────────────────────────────────────────────────────────
+
+/** Preview a voice by streaming a short line from the provider. Cached per voice. */
+function useVoicePreview() {
+  const [busy, setBusy] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const cache = useRef<Map<string, string>>(new Map());
+
+  const stop = () => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setBusy(null);
+  };
+
+  const play = async (voiceId: string, line: string) => {
+    stop();
+    setBusy(voiceId);
+    try {
+      let url = cache.current.get(voiceId);
+      if (!url) {
+        const res = await fetch("/api/voice-agent/voices/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ voiceId, text: line }),
+        });
+        if (!res.ok) throw new Error("preview failed");
+        const blob = await res.blob();
+        url = URL.createObjectURL(blob);
+        cache.current.set(voiceId, url);
+      }
+      const a = new Audio(url);
+      audioRef.current = a;
+      a.onended = () => setBusy(null);
+      await a.play();
+    } catch {
+      setBusy(null);
+    }
+  };
+
+  useEffect(() => stop, []);
+  return { busy, play, stop };
+}
+
+function VoicePicker({ voiceId, onPick }: { voiceId: string; onPick: (v: VoiceChoice) => void }) {
+  const { toast } = useToast();
+  const [voices, setVoices] = useState<VoiceChoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [cloneOpen, setCloneOpen] = useState(false);
+  const { busy, play } = useVoicePreview();
+
+  const load = useCallback(async () => {
+    try {
+      const j = await fetch("/api/voice-agent/voices").then((r) => r.json());
+      if (j?.success) setVoices(j.voices);
+    } catch {
+      /* keep whatever is shown */
+    }
+    setLoading(false);
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const shown = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return t ? voices.filter((v) => v.name.toLowerCase().includes(t) || v.gender?.toLowerCase() === t) : voices;
+  }, [voices, q]);
+
+  const GREETING = "Thanks for calling — how can I help you today?";
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/30 p-3 text-[11.5px] text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading voices…
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="mb-2 flex items-center gap-2">
+        <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5">
+          <Search className="h-3 w-3 text-muted-foreground" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search voices — try “female”"
+            className="w-full bg-transparent py-1.5 text-[11.5px] outline-none"
+          />
+        </div>
+        <button
+          onClick={() => setCloneOpen(true)}
+          className="inline-flex flex-none items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/5 px-2.5 py-1.5 text-[11.5px] font-semibold text-amber-600 hover:border-amber-500"
+        >
+          <Mic className="h-3.5 w-3.5" /> Clone a voice
+        </button>
+      </div>
+
+      <div className="grid max-h-[220px] gap-1.5 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+        {shown.map((v) => {
+          const on = v.voiceId === voiceId;
+          return (
+            <div
+              key={v.voiceId}
+              className={cn(
+                "flex items-center gap-2 rounded-xl border p-2 transition",
+                on ? "border-brand-500 bg-brand-500/5" : "border-border bg-muted/30 hover:border-brand-500/40",
+              )}
+            >
+              <button onClick={() => onPick(v)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                <span
+                  className={cn(
+                    "grid h-7 w-7 flex-none place-items-center rounded-full text-[10px] font-black text-white",
+                    v.gender === "female"
+                      ? "bg-gradient-to-br from-rose-400 to-violet-500"
+                      : "bg-gradient-to-br from-brand-500 to-cyan-500",
+                  )}
+                >
+                  {v.name.slice(0, 2).toUpperCase()}
+                </span>
+                <span className="min-w-0">
+                  <b className="block truncate text-[11.5px]">{v.name}</b>
+                  <span className="text-[9px] text-muted-foreground">
+                    {v.kind === "cloned" ? "Your clone" : v.gender || "voice"}
+                  </span>
+                </span>
+              </button>
+              <button
+                onClick={() => play(v.voiceId, GREETING)}
+                title="Preview"
+                className="grid h-6 w-6 flex-none place-items-center rounded-md border border-border text-muted-foreground hover:border-brand-500 hover:text-brand-500"
+              >
+                {busy === v.voiceId ? (
+                  <Volume2 className="h-3 w-3 animate-pulse text-brand-500" />
+                ) : (
+                  <PlayCircle className="h-3 w-3" />
+                )}
+              </button>
+              {on && <Check className="h-3.5 w-3.5 flex-none text-brand-500" />}
+            </div>
+          );
+        })}
+      </div>
+
+      {cloneOpen && (
+        <CloneVoiceModal
+          onClose={() => setCloneOpen(false)}
+          onCloned={async (v) => {
+            setCloneOpen(false);
+            await load();
+            onPick(v);
+            toast({ title: `“${v.name}” is ready`, description: "It is in your voice library too." });
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+// ── clone modal: import from library, or record / upload a new clip ─────────
+
+function CloneVoiceModal({
+  onClose,
+  onCloned,
+}: {
+  onClose: () => void;
+  onCloned: (v: VoiceChoice) => void | Promise<void>;
+}) {
+  const { toast } = useToast();
+  const [tab, setTab] = useState<"import" | "new">("import");
+  const [mine, setMine] = useState<{ profileId: string; voiceId: string; name: string; gender?: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const [name, setName] = useState("");
+  const [gender, setGender] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const j = await fetch("/api/voice-agent/voices/clone").then((r) => r.json());
+        if (j?.success) {
+          setMine(j.voices);
+          if (!j.voices.length) setTab("new");
+        }
+      } catch {
+        setTab("new");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const record = async () => {
+    if (recording) {
+      recRef.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => chunksRef.current.push(e.data);
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        setFile(new File([blob], "recording.webm", { type: "audio/webm" }));
+        setRecording(false);
+      };
+      recRef.current = rec;
+      rec.start();
+      setRecording(true);
+    } catch {
+      toast({ title: "Couldn't reach your microphone", variant: "destructive" });
+    }
+  };
+
+  const clone = async () => {
+    if (!name.trim()) {
+      toast({ title: "Give the voice a name" });
+      return;
+    }
+    if (!file) {
+      toast({ title: "Record or upload a clip first" });
+      return;
+    }
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("name", name.trim());
+      if (gender) form.append("gender", gender);
+      const j = await fetch("/api/voice-agent/voices/clone", { method: "POST", body: form }).then((r) => r.json());
+      if (!j?.success) {
+        toast({ title: j?.error?.message || "Could not clone that voice", variant: "destructive" });
+        return;
+      }
+      await onCloned({ voiceId: j.voice.voiceId, name: j.voice.name, gender: j.voice.gender, kind: "cloned" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[90] grid place-items-center bg-black/60 p-4" onMouseDown={onClose}>
+      <div
+        className="w-full max-w-md rounded-2xl border border-border bg-card p-4 shadow-2xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center gap-2">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-amber-500/15 text-amber-500">
+            <Mic className="h-3.5 w-3.5" />
+          </span>
+          <b className="text-[13.5px]">Voice for your agent</b>
+          <button
+            onClick={onClose}
+            className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+
+        <div className="mb-3 flex gap-1 rounded-lg border border-border p-0.5">
+          {(
+            [
+              ["import", "Import from library"],
+              ["new", "Clone a new one"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={cn(
+                "flex-1 rounded-md py-1.5 text-[11.5px] font-semibold",
+                tab === k ? "bg-brand-500 text-white" : "text-muted-foreground",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "import" ? (
+          loading ? (
+            <div className="flex items-center gap-2 py-6 text-[11.5px] text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading your voices…
+            </div>
+          ) : mine.length === 0 ? (
+            <p className="py-6 text-center text-[11.5px] text-muted-foreground">
+              No cloned voices yet. Clone one on the other tab.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {mine.map((v) => (
+                <button
+                  key={v.profileId}
+                  onClick={() => onCloned({ voiceId: v.voiceId, name: v.name, gender: v.gender, kind: "cloned" })}
+                  className="flex w-full items-center gap-2.5 rounded-xl border border-border p-2.5 text-left hover:border-brand-500/60"
+                >
+                  <span className="grid h-8 w-8 flex-none place-items-center rounded-full bg-gradient-to-br from-amber-500 to-amber-600 text-[11px] font-black text-white">
+                    {v.name.slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-[12px]">{v.name}</b>
+                    <span className="text-[9.5px] text-muted-foreground">Your cloned voice</span>
+                  </span>
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          )
+        ) : (
+          <div className="space-y-3">
+            <p className="rounded-lg border border-border bg-muted/30 p-2.5 text-[10.5px] leading-relaxed text-muted-foreground">
+              Record or upload a clear clip of the voice — 20 to 60 seconds is ideal. Use your own voice, or anyone who
+              has agreed to it.
+            </p>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Name this voice (e.g. Amina)"
+              className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500"
+            />
+            <div className="flex gap-2">
+              {(["", "female", "male"] as const).map((g) => (
+                <button
+                  key={g || "any"}
+                  onClick={() => setGender(g)}
+                  className={cn(
+                    "flex-1 rounded-lg border py-1.5 text-[11px] font-semibold capitalize",
+                    gender === g ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground",
+                  )}
+                >
+                  {g || "Any"}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={record}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2 text-[11.5px] font-semibold",
+                  recording ? "border-rose-500 bg-rose-500/10 text-rose-500" : "border-border hover:border-brand-500",
+                )}
+              >
+                {recording ? (
+                  <>
+                    <Square className="h-3.5 w-3.5" /> Stop
+                  </>
+                ) : (
+                  <>
+                    <Mic className="h-3.5 w-3.5" /> Record
+                  </>
+                )}
+              </button>
+              <label className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-[11.5px] font-semibold hover:border-brand-500">
+                <Upload className="h-3.5 w-3.5" /> Upload
+                <input
+                  type="file"
+                  accept="audio/*"
+                  className="hidden"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                />
+              </label>
+            </div>
+            {file && (
+              <p className="flex items-center gap-1.5 text-[10.5px] text-emerald-600">
+                <Check className="h-3 w-3" /> {file.name} ready ({Math.round(file.size / 1024)} KB)
+              </p>
+            )}
+            <button
+              onClick={clone}
+              disabled={busy || !file || !name.trim()}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 py-2 text-[12.5px] font-bold text-white disabled:opacity-50"
+            >
+              {busy ? <FlowLoader size={14} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />}
+              Clone this voice
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── speech helper rows ──────────────────────────────────────────────────────
+
+/** Words the agent should recognise reliably — brand, product and place names. */
+function KeytermsRow({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void> }) {
+  const [draft, setDraft] = useState("");
+  const terms = agent.keyterms || [];
+  const add = () => {
+    const t = draft.trim();
+    if (!t || terms.includes(t) || terms.length >= 100) { setDraft(""); return; }
+    void onPatch({ keyterms: [...terms, t.slice(0, 50)] });
+    setDraft("");
+  };
+  return (
+    <div className="border-t border-border py-2.5">
+      <b className="block text-[11px]">Words to get right</b>
+      <span className="mb-1.5 block text-[9.5px] text-muted-foreground">Brand, product or place names the agent might mishear</span>
+      <div className="flex flex-wrap gap-1.5">
+        {terms.map((t) => (
+          <span key={t} className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-semibold">
+            {t}
+            <button onClick={() => void onPatch({ keyterms: terms.filter((x) => x !== t) })} className="text-muted-foreground hover:text-rose-500"><X className="h-2.5 w-2.5" /></button>
+          </span>
+        ))}
+        <input value={draft} onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+          onBlur={add} placeholder="+ add a word"
+          className="min-w-[96px] flex-1 rounded-md border border-dashed border-border bg-transparent px-2 py-0.5 text-[10px] outline-none focus:border-brand-500" />
+      </div>
+    </div>
+  );
+}
+
+/** Fix how the agent SAYS a word without changing the transcript. */
+function PronunciationRow({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void> }) {
+  const [word, setWord] = useState("");
+  const [say, setSay] = useState("");
+  const map = agent.pronunciations || {};
+  const entries = Object.entries(map);
+  const add = () => {
+    const w = word.trim();
+    const s = say.trim();
+    if (!w || !s) return;
+    void onPatch({ pronunciations: { ...map, [w]: s } });
+    setWord(""); setSay("");
+  };
+  return (
+    <div className="border-t border-border py-2.5">
+      <b className="block text-[11px]">Say it this way</b>
+      <span className="mb-1.5 block text-[9.5px] text-muted-foreground">Spell out a tricky name — spoken only, the transcript stays correct</span>
+      <div className="space-y-1">
+        {entries.map(([w, s]) => (
+          <div key={w} className="flex items-center gap-2 text-[10.5px]">
+            <span className="font-semibold">{w}</span>
+            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            <span className="text-muted-foreground">{s}</span>
+            <button onClick={() => { const n = { ...map }; delete n[w]; void onPatch({ pronunciations: n }); }}
+              className="ml-auto text-muted-foreground hover:text-rose-500"><X className="h-3 w-3" /></button>
+          </div>
+        ))}
+      </div>
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <input value={word} onChange={(e) => setWord(e.target.value)} placeholder="Lumiere"
+          className="w-[92px] rounded-md border border-border bg-muted/40 px-2 py-1 text-[10.5px] outline-none focus:border-brand-500" />
+        <ChevronRight className="h-3 w-3 flex-none text-muted-foreground" />
+        <input value={say} onChange={(e) => setSay(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+          placeholder="Loo-mee-air"
+          className="flex-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[10.5px] outline-none focus:border-brand-500" />
+        <button onClick={add} className="grid h-6 w-6 flex-none place-items-center rounded-md border border-border text-muted-foreground hover:border-brand-500 hover:text-brand-500"><Plus className="h-3 w-3" /></button>
+      </div>
+    </div>
+  );
+}
+
+// ── order setup (the restaurant / retail preset) ────────────────────────────
+
+function OrderSetup({
+  order,
+  onChange,
+  ask,
+}: {
+  order: OrderConfig;
+  onChange: (o: OrderConfig) => void;
+  ask: (t: string, d?: string, m?: boolean) => Promise<string | null>;
+}) {
+  const { toast } = useToast();
+  const [hasStore, setHasStore] = useState(false);
+  const [storeName, setStoreName] = useState("");
+  const [loadingStore, setLoadingStore] = useState(true);
+
+  const set = (patch: Partial<OrderConfig>) => onChange({ ...order, ...patch });
+
+  // If they sell with us, offer to load the menu straight from the store.
+  useEffect(() => {
+    (async () => {
+      try {
+        const j = await fetch("/api/voice-agent/menu").then((r) => r.json());
+        if (j?.success && j.hasStore) {
+          setHasStore(true);
+          setStoreName(j.storeName || "your store");
+          // First time on the ordering preset with an empty manual menu → adopt
+          // the store automatically, so it "just works" for existing sellers.
+          if (order.items.length === 0 && order.menuSource !== "store" && Array.isArray(j.items) && j.items.length) {
+            onChange({ ...order, menuSource: "store", storeId: j.storeId, items: j.items });
+          }
+        }
+      } catch {
+        /* no store → manual entry, which is the default */
+      }
+      setLoadingStore(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadStore = async () => {
+    const j = await fetch("/api/voice-agent/menu").then((r) => r.json());
+    if (!j?.success || !j.hasStore) {
+      toast({ title: "No store found", description: "Add items by hand instead." });
+      return;
+    }
+    set({ menuSource: "store", storeId: j.storeId, items: j.items });
+    toast({ title: `Loaded ${j.items.length} items from ${j.storeName || "your store"}` });
+  };
+
+  const addItem = async () => {
+    const name = await ask("Item name (e.g. Margherita Pizza)");
+    if (!name?.trim()) return;
+    const priceStr = await ask(`Price for “${name.trim()}” in dollars (e.g. 12.50)`, "");
+    const priceCents = Math.round(parseFloat((priceStr || "0").replace(/[^0-9.]/g, "")) * 100);
+    if (!priceCents || priceCents < 0) {
+      toast({ title: "Enter a price like 12.50" });
+      return;
+    }
+    // Adding a manual item detaches from the store menu — otherwise a store
+    // reload would silently wipe hand-added specials.
+    set({ menuSource: "manual", items: [...order.items, { name: name.trim(), priceCents }] });
+  };
+
+  const removeItem = (i: number) => set({ items: order.items.filter((_, n) => n !== i) });
+
+  const dollars = (cents: number) => (cents / 100).toFixed(2);
+
+  return (
+    <div className="space-y-3">
+      {/* fulfilment */}
+      <div className="flex flex-wrap gap-1.5">
+        {FULFILLMENTS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => set({ fulfillment: f.key })}
+            className={cn(
+              "rounded-lg border px-3 py-1.5 text-center transition",
+              order.fulfillment === f.key
+                ? "border-brand-500 bg-brand-500/10 text-brand-400"
+                : "border-border text-muted-foreground hover:border-brand-500/40",
+            )}
+          >
+            <span className="block text-[12px] font-bold">{f.title}</span>
+            <span className="text-[10px] text-muted-foreground">{f.hint}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* delivery details, only when relevant */}
+      {order.fulfillment !== "pickup" && (
+        <div className="grid gap-2 sm:grid-cols-3">
+          <label className="text-[10px] font-semibold text-muted-foreground">
+            Delivery fee ($)
+            <input
+              type="number"
+              min={0}
+              step={0.5}
+              value={dollars(order.deliveryFeeCents)}
+              onChange={(e) => set({ deliveryFeeCents: Math.round((parseFloat(e.target.value) || 0) * 100) })}
+              className="mt-1 w-full rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-brand-500"
+            />
+          </label>
+          <label className="text-[10px] font-semibold text-muted-foreground">
+            Minimum order ($)
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={dollars(order.minOrderCents)}
+              onChange={(e) => set({ minOrderCents: Math.round((parseFloat(e.target.value) || 0) * 100) })}
+              className="mt-1 w-full rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-brand-500"
+            />
+          </label>
+          <label className="text-[10px] font-semibold text-muted-foreground">
+            Delivery area
+            <input
+              value={order.deliveryNote}
+              onChange={(e) => set({ deliveryNote: e.target.value })}
+              placeholder="within 5 miles"
+              className="mt-1 w-full rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-brand-500"
+            />
+          </label>
+        </div>
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="text-[10px] font-semibold text-muted-foreground">
+          Prep / ready time (minutes)
+          <input
+            type="number"
+            min={0}
+            step={5}
+            value={order.prepTimeMin}
+            onChange={(e) => set({ prepTimeMin: Math.max(0, parseInt(e.target.value) || 0) })}
+            className="mt-1 w-full rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-brand-500"
+          />
+        </label>
+        <div className="flex items-end">
+          <button
+            onClick={() => set({ payOnDelivery: !order.payOnDelivery })}
+            className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-2 text-left"
+          >
+            <span className={cn("relative h-4 w-7 flex-none rounded-full transition", order.payOnDelivery ? "bg-brand-500/35" : "bg-muted")}>
+              <span className={cn("absolute top-0.5 h-3 w-3 rounded-full transition-all", order.payOnDelivery ? "left-3.5 bg-brand-400" : "left-0.5 bg-muted-foreground")} />
+            </span>
+            <span className="text-[11px] font-semibold">Pay on pickup / delivery</span>
+          </button>
+        </div>
+      </div>
+
+      {/* the menu */}
+      <div className="rounded-xl border border-border bg-muted/30 p-2.5">
+        <div className="mb-1.5 flex items-center gap-2">
+          <b className="text-[11.5px]">Menu</b>
+          <span className="rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold text-brand-400">
+            {order.items.length} item{order.items.length === 1 ? "" : "s"}
+          </span>
+          {order.menuSource === "store" && (
+            <span className="text-[9.5px] text-emerald-600">· from {storeName || "your store"}</span>
+          )}
+          <div className="ml-auto flex gap-1.5">
+            {hasStore && (
+              <button onClick={loadStore} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold hover:border-brand-500">
+                <RefreshCw className="h-3 w-3" /> {order.menuSource === "store" ? "Refresh" : "Load store"}
+              </button>
+            )}
+            <button onClick={addItem} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold hover:border-brand-500">
+              <Plus className="h-3 w-3" /> Add item
+            </button>
+          </div>
+        </div>
+
+        {loadingStore ? (
+          <p className="py-3 text-center text-[11px] text-muted-foreground">Checking your store…</p>
+        ) : order.items.length === 0 ? (
+          <p className="py-3 text-center text-[11px] text-muted-foreground">
+            {hasStore ? "Load your store menu, or add items by hand." : "Add the items the agent can take orders for."}
+          </p>
+        ) : (
+          <div className="max-h-[200px] space-y-1 overflow-y-auto pr-1">
+            {order.items.map((it, i) => (
+              <div key={`${it.name}-${i}`} className="flex items-center gap-2 rounded-lg bg-card px-2.5 py-1.5">
+                <span className="min-w-0 flex-1">
+                  <b className="block truncate text-[11px]">{it.name}</b>
+                  {it.category && <span className="text-[9px] text-muted-foreground">{it.category}</span>}
+                </span>
+                <span className="flex-none text-[11px] font-semibold text-foreground">{fmtPrice(it.priceCents)}</span>
+                <button onClick={() => removeItem(i)} className="flex-none text-muted-foreground hover:text-rose-500"><X className="h-3 w-3" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

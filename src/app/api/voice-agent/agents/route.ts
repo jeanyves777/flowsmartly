@@ -33,7 +33,9 @@ function hydrate(row: Record<string, unknown>) {
   return {
     ...row,
     knowledge: parse(row.knowledge, []),
-    voice: parse<unknown>(row.voice, null) || null,
+    keyterms: parse<string[]>(row.keyterms, []),
+    pronunciations: parse<Record<string, string>>(row.pronunciations, {}),
+    orderConfig: parse(row.orderConfig, {}),
     skills: parse<AgentSkill[]>(row.skills, []),
     hours: parse(row.hours, DEFAULT_HOURS),
   };
@@ -110,7 +112,9 @@ export async function POST(request: NextRequest) {
         business,
         greeting,
         knowledge: JSON.stringify(body.knowledge || []),
-        voice: JSON.stringify(body.voice || {}),
+        voiceId: (body.voiceId || "eve").slice(0, 64),
+        voiceLabel: (body.voiceLabel || "Eve").slice(0, 64),
+        orderConfig: JSON.stringify(body.orderConfig || {}),
         skills: JSON.stringify(skills),
         answerMode: body.answerMode || "always",
         hours: JSON.stringify(body.hours || DEFAULT_HOURS),
