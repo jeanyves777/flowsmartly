@@ -6016,6 +6016,14 @@ model VoiceAgent {
   vadThreshold    Float   @default(0.85) // 0.1–0.9
   vadSilenceMs    Int     @default(500) // 0–10000
 
+  // Ordering (the restaurant / retail preset). JSON:
+  // { fulfillment: "both"|"pickup"|"delivery", menuSource: "store"|"manual",
+  //   items: [{name, priceCents, category?, note?}], deliveryFeeCents, minOrderCents,
+  //   deliveryNote, prepTimeMin, payOnDelivery, storeId? }
+  // menuSource "store" means we hydrate items live from the user's store at call
+  // time, so the agent never quotes a stale price.
+  orderConfig String @default("{}") // JSON
+
   // Skills — the canvas nodes. JSON array of:
   // {id, kind, enabled, trigger, rules, opts:{}, x?, y?, w?}
   // x/y/w are the canvas position + width (draggable/resizable). Absent ⇒ auto-laid-out.

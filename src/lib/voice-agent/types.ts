@@ -222,6 +222,25 @@ export const SKILL_CATALOG: SkillDef[] = [
       { key: "respectHours", label: "Only during opening hours", default: true },
     ],
   },
+  {
+    key: "takeorder",
+    title: "Take an order",
+    kind: "action",
+    icon: "ShoppingBag",
+    via: "Your menu",
+    blurb: "Takes the order over the phone and confirms it.",
+    trigger: "wants to place an order for pickup or delivery",
+    rules:
+      "Take the order item by item from your menu — quantities, sizes and any notes. Read the whole order and the total back before confirming. Ask pickup or delivery; for delivery, take the address. Never invent an item or a price that isn't on the menu.",
+    options: [
+      { key: "readMenu", label: "Reads your menu & prices", default: true },
+      { key: "confirmTotal", label: "Confirms the total before saving", default: true },
+      { key: "delivery", label: "Offers delivery", default: true },
+      { key: "pickup", label: "Offers pickup", default: true },
+      { key: "saveOrder", label: "Saves the order to your orders", default: true },
+      { key: "textReceipt", label: "Texts a receipt", default: true },
+    ],
+  },
 ];
 
 export const SKILL_BY_KEY: Record<string, SkillDef> = Object.fromEntries(
@@ -281,6 +300,15 @@ export const PRESETS: PresetDef[] = [
     blurb: "Order status, FAQs, and hands off the hard ones.",
     skills: ["order", "ask", "msg", "transfer"],
     greeting: "Thanks for calling {business} — do you have an order number handy?",
+  },
+  {
+    key: "ordering",
+    title: "Take orders",
+    emoji: "🍽️",
+    thumb: `${VA}/ordering.webp`,
+    blurb: "Takes food or product orders — pickup or delivery — and confirms.",
+    skills: ["takeorder", "ask", "msg", "transfer"],
+    greeting: "Thanks for calling {business} — would you like to place an order?",
   },
   {
     key: "out",
@@ -353,6 +381,50 @@ export interface KnowledgeItem {
   url: string;
 }
 
+// ── Ordering (the restaurant / retail preset) ──
+
+export type Fulfillment = "both" | "pickup" | "delivery";
+
+export interface MenuItem {
+  name: string;
+  priceCents: number;
+  category?: string | null;
+  note?: string | null;
+}
+
+export interface OrderConfig {
+  /** "store" hydrates the menu live from the user's store; "manual" uses `items`. */
+  menuSource: "store" | "manual";
+  storeId?: string | null;
+  items: MenuItem[];
+  fulfillment: Fulfillment;
+  deliveryFeeCents: number;
+  minOrderCents: number;
+  deliveryNote: string; // "within 5 miles", hours, etc.
+  prepTimeMin: number;
+  payOnDelivery: boolean; // take payment at the door / on pickup vs a texted link
+}
+
+export const DEFAULT_ORDER_CONFIG: OrderConfig = {
+  menuSource: "manual",
+  storeId: null,
+  items: [],
+  fulfillment: "both",
+  deliveryFeeCents: 0,
+  minOrderCents: 0,
+  deliveryNote: "",
+  prepTimeMin: 20,
+  payOnDelivery: true,
+};
+
+export const FULFILLMENTS: { key: Fulfillment; title: string; hint: string }[] = [
+  { key: "both", title: "Pickup & delivery", hint: "Offer both" },
+  { key: "pickup", title: "Pickup only", hint: "They collect" },
+  { key: "delivery", title: "Delivery only", hint: "You bring it" },
+];
+
+export const fmtPrice = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
+
 // ── Numbers ──
 
 export type NumberSource = "RENTED" | "SMS_LINKED";
@@ -387,6 +459,7 @@ export interface VoiceAgentDraft {
   business: string;
   greeting: string;
   knowledge: KnowledgeItem[];
+  orderConfig: OrderConfig;
   voiceId: string;
   voiceLabel: string;
   speakingSpeed: number;

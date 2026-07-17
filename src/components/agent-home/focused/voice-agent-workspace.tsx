@@ -24,11 +24,12 @@ import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import {
-  ANSWER_MODES, DAYS, DEFAULT_HOURS, DEFAULT_VOICE, LANGUAGE_HINTS, OUTCOME_LABEL,
-  PRESETS, PRESET_BY_KEY, SKILL_BY_KEY, SKILL_CATALOG, brandToBusinessBlurb,
-  fmtDuration, fmtNumber, greetingFor, skillFromDef, skillPos,
+  ANSWER_MODES, DAYS, DEFAULT_HOURS, DEFAULT_ORDER_CONFIG, DEFAULT_VOICE, FULFILLMENTS,
+  LANGUAGE_HINTS, OUTCOME_LABEL, PRESETS, PRESET_BY_KEY, SKILL_BY_KEY, SKILL_CATALOG,
+  brandToBusinessBlurb, fmtDuration, fmtNumber, fmtPrice, greetingFor, skillFromDef, skillPos,
   type AgentCall, type AgentNumber, type AgentSkill, type AnswerMode, type BrandLite,
-  type DayKey, type Hours, type KnowledgeItem, type VoiceAgentDraft, type VoiceChoice,
+  type DayKey, type Hours, type KnowledgeItem, type MenuItem, type OrderConfig,
+  type VoiceAgentDraft, type VoiceChoice,
 } from "@/lib/voice-agent/types";
 
 const DOTS = "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)";
@@ -39,6 +40,7 @@ const PRESET_ART: Record<string, string> = {
   book: "from-emerald-900 to-emerald-500",
   lead: "from-violet-900 to-violet-500",
   supp: "from-cyan-900 to-cyan-500",
+  ordering: "from-orange-900 to-amber-500",
   out: "from-amber-900 to-amber-500",
   custom: "from-muted to-muted",
 };
@@ -721,6 +723,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
   const [greeting, setGreeting] = useState(agent?.greeting || "");
   const [voiceId, setVoiceId] = useState(agent?.voiceId || DEFAULT_VOICE.voiceId);
   const [voiceLabel, setVoiceLabel] = useState(agent?.voiceLabel || DEFAULT_VOICE.name);
+  const [order, setOrder] = useState<OrderConfig>(agent?.orderConfig || DEFAULT_ORDER_CONFIG);
   const [brand, setBrand] = useState<BrandLite | null>(null);
   const [prefilled, setPrefilled] = useState(false);
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>(agent?.knowledge || []);
@@ -809,7 +812,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
     try {
       if (editing && agent) {
         await onPatch({
-          preset, business, greeting, knowledge, answerMode, voiceId, voiceLabel,
+          preset, business, greeting, knowledge, answerMode, voiceId, voiceLabel, orderConfig: order,
           skills: skillKeys
             .map((k) => SKILL_BY_KEY[k])
             .filter(Boolean)
@@ -823,7 +826,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          preset, business, greeting, knowledge, skillKeys, answerMode, voiceId, voiceLabel,
+          preset, business, greeting, knowledge, skillKeys, answerMode, voiceId, voiceLabel, orderConfig: order,
           phoneNumberId: numberId,
           name: PRESET_BY_KEY[preset]?.title,
         }),
@@ -957,6 +960,15 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
               })}
             </div>
           </div>
+
+          {skillKeys.includes("takeorder") && (
+            <div className="mt-5">
+              <SectionLabel hint="so the agent can take the order and confirm it right">
+                Your menu &amp; ordering
+              </SectionLabel>
+              <OrderSetup order={order} onChange={setOrder} ask={ask} />
+            </div>
+          )}
 
           <div className="mt-5">
             <SectionLabel hint="the agent needs a line to answer">Your number</SectionLabel>
@@ -2307,6 +2319,204 @@ function PronunciationRow({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch:
           placeholder="Loo-mee-air"
           className="flex-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[10.5px] outline-none focus:border-brand-500" />
         <button onClick={add} className="grid h-6 w-6 flex-none place-items-center rounded-md border border-border text-muted-foreground hover:border-brand-500 hover:text-brand-500"><Plus className="h-3 w-3" /></button>
+      </div>
+    </div>
+  );
+}
+
+// ── order setup (the restaurant / retail preset) ────────────────────────────
+
+function OrderSetup({
+  order,
+  onChange,
+  ask,
+}: {
+  order: OrderConfig;
+  onChange: (o: OrderConfig) => void;
+  ask: (t: string, d?: string, m?: boolean) => Promise<string | null>;
+}) {
+  const { toast } = useToast();
+  const [hasStore, setHasStore] = useState(false);
+  const [storeName, setStoreName] = useState("");
+  const [loadingStore, setLoadingStore] = useState(true);
+
+  const set = (patch: Partial<OrderConfig>) => onChange({ ...order, ...patch });
+
+  // If they sell with us, offer to load the menu straight from the store.
+  useEffect(() => {
+    (async () => {
+      try {
+        const j = await fetch("/api/voice-agent/menu").then((r) => r.json());
+        if (j?.success && j.hasStore) {
+          setHasStore(true);
+          setStoreName(j.storeName || "your store");
+          // First time on the ordering preset with an empty manual menu → adopt
+          // the store automatically, so it "just works" for existing sellers.
+          if (order.items.length === 0 && order.menuSource !== "store" && Array.isArray(j.items) && j.items.length) {
+            onChange({ ...order, menuSource: "store", storeId: j.storeId, items: j.items });
+          }
+        }
+      } catch {
+        /* no store → manual entry, which is the default */
+      }
+      setLoadingStore(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadStore = async () => {
+    const j = await fetch("/api/voice-agent/menu").then((r) => r.json());
+    if (!j?.success || !j.hasStore) {
+      toast({ title: "No store found", description: "Add items by hand instead." });
+      return;
+    }
+    set({ menuSource: "store", storeId: j.storeId, items: j.items });
+    toast({ title: `Loaded ${j.items.length} items from ${j.storeName || "your store"}` });
+  };
+
+  const addItem = async () => {
+    const name = await ask("Item name (e.g. Margherita Pizza)");
+    if (!name?.trim()) return;
+    const priceStr = await ask(`Price for “${name.trim()}” in dollars (e.g. 12.50)`, "");
+    const priceCents = Math.round(parseFloat((priceStr || "0").replace(/[^0-9.]/g, "")) * 100);
+    if (!priceCents || priceCents < 0) {
+      toast({ title: "Enter a price like 12.50" });
+      return;
+    }
+    // Adding a manual item detaches from the store menu — otherwise a store
+    // reload would silently wipe hand-added specials.
+    set({ menuSource: "manual", items: [...order.items, { name: name.trim(), priceCents }] });
+  };
+
+  const removeItem = (i: number) => set({ items: order.items.filter((_, n) => n !== i) });
+
+  const dollars = (cents: number) => (cents / 100).toFixed(2);
+
+  return (
+    <div className="space-y-3">
+      {/* fulfilment */}
+      <div className="flex flex-wrap gap-1.5">
+        {FULFILLMENTS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => set({ fulfillment: f.key })}
+            className={cn(
+              "rounded-lg border px-3 py-1.5 text-center transition",
+              order.fulfillment === f.key
+                ? "border-brand-500 bg-brand-500/10 text-brand-400"
+                : "border-border text-muted-foreground hover:border-brand-500/40",
+            )}
+          >
+            <span className="block text-[12px] font-bold">{f.title}</span>
+            <span className="text-[10px] text-muted-foreground">{f.hint}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* delivery details, only when relevant */}
+      {order.fulfillment !== "pickup" && (
+        <div className="grid gap-2 sm:grid-cols-3">
+          <label className="text-[10px] font-semibold text-muted-foreground">
+            Delivery fee ($)
+            <input
+              type="number"
+              min={0}
+              step={0.5}
+              value={dollars(order.deliveryFeeCents)}
+              onChange={(e) => set({ deliveryFeeCents: Math.round((parseFloat(e.target.value) || 0) * 100) })}
+              className="mt-1 w-full rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-brand-500"
+            />
+          </label>
+          <label className="text-[10px] font-semibold text-muted-foreground">
+            Minimum order ($)
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={dollars(order.minOrderCents)}
+              onChange={(e) => set({ minOrderCents: Math.round((parseFloat(e.target.value) || 0) * 100) })}
+              className="mt-1 w-full rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-brand-500"
+            />
+          </label>
+          <label className="text-[10px] font-semibold text-muted-foreground">
+            Delivery area
+            <input
+              value={order.deliveryNote}
+              onChange={(e) => set({ deliveryNote: e.target.value })}
+              placeholder="within 5 miles"
+              className="mt-1 w-full rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-brand-500"
+            />
+          </label>
+        </div>
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="text-[10px] font-semibold text-muted-foreground">
+          Prep / ready time (minutes)
+          <input
+            type="number"
+            min={0}
+            step={5}
+            value={order.prepTimeMin}
+            onChange={(e) => set({ prepTimeMin: Math.max(0, parseInt(e.target.value) || 0) })}
+            className="mt-1 w-full rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[12px] text-foreground outline-none focus:border-brand-500"
+          />
+        </label>
+        <div className="flex items-end">
+          <button
+            onClick={() => set({ payOnDelivery: !order.payOnDelivery })}
+            className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-2 text-left"
+          >
+            <span className={cn("relative h-4 w-7 flex-none rounded-full transition", order.payOnDelivery ? "bg-brand-500/35" : "bg-muted")}>
+              <span className={cn("absolute top-0.5 h-3 w-3 rounded-full transition-all", order.payOnDelivery ? "left-3.5 bg-brand-400" : "left-0.5 bg-muted-foreground")} />
+            </span>
+            <span className="text-[11px] font-semibold">Pay on pickup / delivery</span>
+          </button>
+        </div>
+      </div>
+
+      {/* the menu */}
+      <div className="rounded-xl border border-border bg-muted/30 p-2.5">
+        <div className="mb-1.5 flex items-center gap-2">
+          <b className="text-[11.5px]">Menu</b>
+          <span className="rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold text-brand-400">
+            {order.items.length} item{order.items.length === 1 ? "" : "s"}
+          </span>
+          {order.menuSource === "store" && (
+            <span className="text-[9.5px] text-emerald-600">· from {storeName || "your store"}</span>
+          )}
+          <div className="ml-auto flex gap-1.5">
+            {hasStore && (
+              <button onClick={loadStore} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold hover:border-brand-500">
+                <RefreshCw className="h-3 w-3" /> {order.menuSource === "store" ? "Refresh" : "Load store"}
+              </button>
+            )}
+            <button onClick={addItem} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold hover:border-brand-500">
+              <Plus className="h-3 w-3" /> Add item
+            </button>
+          </div>
+        </div>
+
+        {loadingStore ? (
+          <p className="py-3 text-center text-[11px] text-muted-foreground">Checking your store…</p>
+        ) : order.items.length === 0 ? (
+          <p className="py-3 text-center text-[11px] text-muted-foreground">
+            {hasStore ? "Load your store menu, or add items by hand." : "Add the items the agent can take orders for."}
+          </p>
+        ) : (
+          <div className="max-h-[200px] space-y-1 overflow-y-auto pr-1">
+            {order.items.map((it, i) => (
+              <div key={`${it.name}-${i}`} className="flex items-center gap-2 rounded-lg bg-card px-2.5 py-1.5">
+                <span className="min-w-0 flex-1">
+                  <b className="block truncate text-[11px]">{it.name}</b>
+                  {it.category && <span className="text-[9px] text-muted-foreground">{it.category}</span>}
+                </span>
+                <span className="flex-none text-[11px] font-semibold text-foreground">{fmtPrice(it.priceCents)}</span>
+                <button onClick={() => removeItem(i)} className="flex-none text-muted-foreground hover:text-rose-500"><X className="h-3 w-3" /></button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
