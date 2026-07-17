@@ -862,8 +862,12 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
                   "w-[158px] flex-none overflow-hidden rounded-xl border-2 text-left transition",
                   preset === p.key ? "border-brand-500" : p.key === "custom" ? "border-dashed border-border hover:-translate-y-0.5" : "border-transparent hover:-translate-y-0.5",
                 )}>
-                <span className={cn("relative grid aspect-[16/9] w-full place-items-center bg-gradient-to-br text-[30px]", PRESET_ART[p.key])}>
-                  {p.emoji}
+                {/* Real art per preset — the gradient + emoji stay as the fallback. */}
+                <span className={cn("relative grid aspect-[16/9] w-full place-items-center overflow-hidden bg-gradient-to-br text-[30px]", PRESET_ART[p.key])}>
+                  {p.thumb
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={p.thumb} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    : p.emoji}
                   <span className="absolute inset-0 bg-gradient-to-t from-black/55 to-transparent" />
                   {preset === p.key && (
                     <span className="absolute right-1.5 top-1.5 rounded-full bg-brand-500 px-1.5 py-0.5 text-[8px] font-bold text-white">✓</span>

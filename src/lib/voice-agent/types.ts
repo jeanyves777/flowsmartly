@@ -187,18 +187,24 @@ export const SKILL_BY_KEY: Record<string, SkillDef> = Object.fromEntries(
 export interface PresetDef {
   key: string;
   title: string;
+  /** Fallback when there's no thumb (and the compact rows / agent list). */
   emoji: string;
+  /** Real art for the brief card — sells what the agent actually does. */
+  thumb?: string;
   blurb: string;
   /** Skill keys switched on when this preset is picked. */
   skills: string[];
   greeting: string;
 }
 
+const VA = "/Studio_Menus_Thumnail/Voice_agent";
+
 export const PRESETS: PresetDef[] = [
   {
     key: "recep",
     title: "Receptionist",
-    emoji: "💇",
+    emoji: "💁",
+    thumb: `${VA}/receptionist.webp`,
     blurb: "Answers, books, takes messages, puts people through.",
     skills: ["book", "ask", "lead", "msg", "transfer"],
     greeting: "Thanks for calling {business} — how can I help?",
@@ -207,6 +213,7 @@ export const PRESETS: PresetDef[] = [
     key: "book",
     title: "Bookings only",
     emoji: "📅",
+    thumb: `${VA}/bookings.webp`,
     blurb: "Fills your calendar and confirms by text.",
     skills: ["book", "ask", "msg"],
     greeting: "Thanks for calling {business} — would you like to book in?",
@@ -215,6 +222,7 @@ export const PRESETS: PresetDef[] = [
     key: "lead",
     title: "Lead qualifier",
     emoji: "🎯",
+    thumb: `${VA}/lead-qualifier.webp`,
     blurb: "Qualifies new callers and saves them to Leads.",
     skills: ["lead", "ask", "transfer", "msg"],
     greeting: "Thanks for calling {business} — what can I help you with today?",
@@ -223,6 +231,7 @@ export const PRESETS: PresetDef[] = [
     key: "supp",
     title: "Orders & support",
     emoji: "📦",
+    thumb: `${VA}/orders-support.webp`,
     blurb: "Order status, FAQs, and hands off the hard ones.",
     skills: ["order", "ask", "msg", "transfer"],
     greeting: "Thanks for calling {business} — do you have an order number handy?",
@@ -231,6 +240,7 @@ export const PRESETS: PresetDef[] = [
     key: "out",
     title: "Outbound follow-up",
     emoji: "📲",
+    thumb: `${VA}/outbound.webp`,
     blurb: "Calls back your leads and no-shows.",
     skills: ["callback", "book", "ask", "msg"],
     greeting: "Hi, it's {business} calling — is now an ok time?",
@@ -239,6 +249,7 @@ export const PRESETS: PresetDef[] = [
     key: "custom",
     title: "Custom",
     emoji: "✏️",
+    thumb: `${VA}/custom.webp`,
     blurb: "Describe it yourself.",
     skills: ["ask", "msg", "transfer"],
     greeting: "Thanks for calling {business} — how can I help?",
