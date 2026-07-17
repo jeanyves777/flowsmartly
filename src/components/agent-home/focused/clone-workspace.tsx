@@ -22,20 +22,27 @@ import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
 import type { CloneProject, CloneIdentity, CloneShot, CloneAspect, CloneQuality } from "@/lib/clone-studio/types";
 
 const CT = "/Studio_Menus_Thumnail/Clone_Yourself";
+/**
+ * SCENE answers WHERE only. What KIND of thing we're making — one of you, two of
+ * you, or a reusable actor — is the TYPE, above. "You × You" lived here and it was
+ * the odd one out: it changed the output (two people, so two outfits), not the set,
+ * and it shared its art with the Actor-clone type card. It's a type now.
+ */
 const SCENES: { id: string; n: string; d: string; thumb?: string }[] = [
   { id: "podcast", n: "Podcast studio", d: "Mic in front, warm acoustic panels.", thumb: `${CT}/clone-01.webp` },
   { id: "office", n: "Modern office", d: "Desk, soft daylight, clean brand look.", thumb: `${CT}/clone-08.webp` },
   { id: "studio", n: "Studio portrait", d: "Seamless backdrop, headshot lighting.", thumb: `${CT}/clone-02.webp` },
   { id: "outdoor", n: "Outdoor", d: "City or nature, natural light.", thumb: `${CT}/clone-11.webp` },
   { id: "webinar", n: "Webinar / stage", d: "Screen + spotlight, presenting.", thumb: `${CT}/clone-09.webp` },
-  { id: "duo", n: "You × You", d: "Two of you in one scene — interview yourself.", thumb: `${CT}/clone-main.webp` },
   { id: "bgonly", n: "Background only", d: "Just the scene, no you — use it live.", thumb: `${CT}/clone-10.webp` },
 ];
+/** A background plate has nobody in it, so it can't be a "two of you" shot. */
+const DUO_SCENES = SCENES.filter((s) => s.id !== "bgonly");
+
 /**
  * An ACTOR CLONE is not a scene — it's the clean, locked hero look that gets sent
- * into UGC / Film, where the scene is chosen later. So the type drives it, and the
- * Scene picker is hidden: picking "You × You" or a podcast set for a reusable actor
- * made no sense (and silently turned the anchor into a two-person shot).
+ * into UGC / Film, where the scene is chosen later. So the type drives it and the
+ * Scene picker is hidden.
  */
 const ACTOR_SCENE = "studio";
 const ACTOR_PROMPT =
@@ -47,9 +54,21 @@ const SCENE_PROMPT: Record<string, string> = {
   studio: "A studio portrait on a seamless backdrop with flattering headshot lighting.",
   outdoor: "Outdoors in natural light — a clean, modern city or nature backdrop, golden-hour glow.",
   webinar: "On a webinar stage presenting to camera, a screen glowing behind, confident spotlight.",
-  duo: "TWO of the exact same person in one podcast scene, sitting across a table interviewing each other — same face on both, both looking natural.",
   bgonly: "A modern podcast studio scene — warm acoustic panels, soft key light, a table and mic stand.",
 };
+
+/** Two of the SAME you, in whichever scene was picked — the duo is the type, the scene is still the set. */
+const duoPrompt = (sceneId: string) =>
+  `TWO of the exact same person in one scene, sitting across a table interviewing each other — same face on both, both looking natural. ${SCENE_PROMPT[sceneId] || ""}`.trim();
+
+/** WHAT we're making. Each type asks a different set of questions below. */
+type CloneType = "photo" | "duo" | "actor";
+const TYPES: { id: CloneType; label: string; hint: string; thumb: string }[] = [
+  { id: "photo", label: "Photoshoot", hint: "You in any scene, outfit & pose — as images.", thumb: `${CT}/clone-07.webp` },
+  { id: "duo", label: "You × You", hint: "Two of you in one scene — interview yourself.", thumb: `${CT}/clone-main.webp` },
+  // Its own art: an actor clone is ONE of you. The duo image here read as "two of you".
+  { id: "actor", label: "Actor clone", hint: "A reusable you — send it into UGC or a Film to make videos.", thumb: `${CT}/clone-16.webp` },
+];
 const OUTFITS: { n: string; thumb: string }[] = [
   { n: "Keep current", thumb: `${CT}/clone-06.webp` },
   { n: "Suit & tie", thumb: `${CT}/clone-13.webp` },
@@ -440,7 +459,7 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
 }) {
   const { toast } = useToast();
   const { ask, promptNode } = useTextPrompt();
-  const [type, setType] = useState<"photo" | "actor">("photo");
+  const [type, setType] = useState<CloneType>("photo");
   const [name, setName] = useState(seedClone?.name || "Me");
   const [photos, setPhotos] = useState<string[]>(seedClone?.photoUrls || []);
   const [prompt, setPrompt] = useState(SCENE_PROMPT.podcast);
@@ -478,10 +497,10 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
     try {
       const cloneId = seedClone?.id || `clone_${Math.random().toString(36).slice(2, 8)}`;
       const clone: CloneIdentity = { id: cloneId, name: name.trim() || "Me", photoUrls: photos };
-      // Duo scene = two of the SAME you, so each side gets its own outfit; the two
-      // outfits go into the prompt and shot.outfit is left neutral to avoid a clash.
-      const isDuo = scene === "duo";
-      const base = prompt.trim() || SCENE_PROMPT[scene] || "";
+      // Duo = two of the SAME you, so each side gets its own outfit; the two outfits
+      // go into the prompt and shot.outfit is left neutral to avoid a clash.
+      const isDuo = type === "duo";
+      const base = prompt.trim() || (isDuo ? duoPrompt(scene) : SCENE_PROMPT[scene]) || "";
       const finalPrompt = isDuo
         ? `${base} The person on the LEFT wears ${outfit === "Keep current" ? "their everyday outfit" : outfit}; the person on the RIGHT wears ${outfit2}. Both are the SAME person — identical face on both.`
         : base;
@@ -513,16 +532,20 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
     } finally { setBusy(false); }
   };
 
-  const pickScene = (id: string) => { setScene(id); setPrompt(SCENE_PROMPT[id] || prompt); };
+  // The scene is the SET; a duo stays a duo when you move it to a different one.
+  const pickScene = (id: string) => { setScene(id); setPrompt((type === "duo" ? duoPrompt(id) : SCENE_PROMPT[id]) || prompt); };
 
-  /** The TYPE owns what gets made. An actor clone is a scene-less hero look, so
-   *  switching to it drops any scene the photoshoot flow had picked (a duo "You × You"
-   *  actor anchor is nonsense) — and switching back restores a real scene. */
-  const pickType = (t: "photo" | "actor") => {
+  /** The TYPE owns what gets made, and re-briefs to match. An actor clone is a
+   *  scene-less hero look; a duo is two of you in a scene; a photoshoot is one of
+   *  you in a scene. Switching always leaves a coherent brief behind. */
+  const pickType = (t: CloneType) => {
     if (t === type) return;
     setType(t);
-    if (t === "actor") { setScene(ACTOR_SCENE); setPrompt(ACTOR_PROMPT); setPose("Looking at camera"); }
-    else { setScene("podcast"); setPrompt(SCENE_PROMPT.podcast); }
+    if (t === "actor") { setScene(ACTOR_SCENE); setPrompt(ACTOR_PROMPT); setPose("Looking at camera"); return; }
+    // A background plate has nobody in it, so it can't carry a duo.
+    const next = t === "duo" && scene === "bgonly" ? "podcast" : scene === ACTOR_SCENE && type === "actor" ? "podcast" : scene;
+    setScene(next);
+    setPrompt(t === "duo" ? duoPrompt(next) : SCENE_PROMPT[next] || "");
   };
 
   // One reusable outfit picker — used once normally, twice for the duo (each "you").
@@ -555,15 +578,16 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
       <div className="absolute inset-x-3 bottom-3 top-10 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <span className="rounded-full bg-brand-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-400">BRIEF</span>
-          <b className="text-[13.5px]">{type === "actor" ? "New actor clone" : "New shot"}</b>
+          <b className="text-[13.5px]">{type === "actor" ? "New actor clone" : type === "duo" ? "New You × You" : "New shot"}</b>
           <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">What are we making?</p>
           <div className="flex gap-2.5">
-            {([["photo", ImageIcon, "Photoshoot", "You in any scene, outfit & pose — as images.", `${CT}/clone-07.webp`],
-               ["actor", Clapperboard, "Actor clone", "A reusable you — send it into UGC or a Film to make videos.", `${CT}/clone-main.webp`]] as const).map(([t, Icon, label, hint, thumb]) => (
+            {TYPES.map(({ id: t, label, hint, thumb }) => {
+              const Icon = t === "photo" ? ImageIcon : t === "duo" ? Users : Clapperboard;
+              return (
               <button key={t} onClick={() => pickType(t)} className={cn("flex max-w-[320px] flex-1 flex-col overflow-hidden rounded-xl border-2 text-left transition", type === t ? "border-brand-500" : "border-border hover:-translate-y-0.5")}>
                 <span className="relative block aspect-[16/7] w-full overflow-hidden bg-muted">
                   <img src={thumb} alt="" className="h-full w-full object-cover" />
@@ -576,7 +600,8 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
                   <span className="text-[10px] leading-snug text-muted-foreground">{hint}</span>
                 </span>
               </button>
-            ))}
+              );
+            })}
           </div>
 
           {/* identity */}
@@ -607,6 +632,8 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
             <p className="mt-2 rounded-r-lg border-l-2 border-brand-500/40 bg-brand-500/5 p-2.5 text-[10px] leading-relaxed text-muted-foreground">
               {type === "actor"
                 ? <><b className="text-foreground">Actor clone.</b> Builds a clean, locked hero look you can send into the UGC or Film studio to make talking videos of yourself — the same face in every scene.</>
+                : type === "duo"
+                ? <><b className="text-foreground">You × You.</b> Puts two of the same you in one scene — interview yourself. Each side gets its own outfit below; the face stays identical on both.</>
                 : <><b className="text-foreground">Identity look-lock.</b> More angles = a more faithful you across every outfit, pose and scene. Saved as a reusable clone.</>}
             </p>
           </div>
@@ -619,13 +646,13 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
             <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} className="min-h-[70px] w-full resize-y rounded-xl border border-border bg-muted/30 p-3 text-[12.5px] leading-relaxed outline-none focus:border-brand-500" />
           </div>
 
-          {/* scenes — a photoshoot picks its set here; an actor clone has no scene
-              (it's a clean hero look; the scene is chosen later in UGC / Film). */}
-          {type === "photo" && (
+          {/* scenes — WHERE only. A photoshoot and a duo both pick a set; an actor
+              clone has none (its scene is chosen later in UGC / Film). */}
+          {type !== "actor" && (
           <div className="mt-5">
-            <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Scene</p>
+            <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Scene <span className="font-semibold normal-case tracking-normal text-muted-foreground/70">— {type === "duo" ? "where the two of you are" : "where you are"}</span></p>
             <div className="flex gap-2 overflow-x-auto pb-1.5">
-              {SCENES.map((s) => (
+              {(type === "duo" ? DUO_SCENES : SCENES).map((s) => (
                 <button key={s.id} onClick={() => pickScene(s.id)} className={cn("w-[150px] flex-none overflow-hidden rounded-xl border-2 text-left transition", scene === s.id ? "border-brand-500" : "border-transparent hover:-translate-y-0.5")}>
                   {s.thumb ? (
                     <span className="relative block aspect-[16/10] w-full overflow-hidden bg-muted">
@@ -653,12 +680,12 @@ function BriefSheet({ project, addMode, seedClone, onClose, onDone }: {
           </div>
           )}
 
-          {/* outfit — a duo scene ("You × You") gets a second outfit, one per you */}
+          {/* outfit — the "You × You" TYPE gets a second one, one per you */}
           <div className="mt-5">
-            <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">{scene === "duo" ? "Left you — outfit" : "Outfit"}</p>
+            <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">{type === "duo" ? "Left you — outfit" : "Outfit"}</p>
             {outfitPicker(outfit, setOutfit)}
           </div>
-          {scene === "duo" && (
+          {type === "duo" && (
             <div className="mt-4">
               <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Right you — outfit</p>
               {outfitPicker(outfit2, setOutfit2)}
