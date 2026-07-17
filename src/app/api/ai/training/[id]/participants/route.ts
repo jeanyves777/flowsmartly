@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { checkRoomAccess, canControlRoom, canManageRoles, canShareScreen } from "@/lib/training/access";
+import { canControlRoom, canManageRoles, canShareScreen } from "@/lib/training/access";
+import { getTrainingActor } from "@/lib/training/guest";
 import { getSessionDTO } from "@/lib/training/session";
 import { broadcast, sendTo } from "@/lib/training/room";
 import type { ParticipantRole } from "@/lib/training/types";
@@ -40,12 +40,9 @@ type Action =
  *  - grant_share ADDS a right (many may hold it; only one is on stage)
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return err("Unauthorized", 401);
   const { id } = await params;
-
-  const access = await checkRoomAccess(id, session.userId);
-  if (!access.allowed || !access.role) return err("Access denied", 403);
+  const actor = await getTrainingActor(id);
+  if (!actor) return err("Access denied", 403);
 
   const b = (await request.json().catch(() => ({}))) as { action?: Action; participantId?: string };
   const action = b.action;
@@ -57,21 +54,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
   if (!room) return err("Not found", 404);
 
-  const meId =
-    access.participantId ??
-    (await prisma.trainingParticipant.findFirst({
-      where: { sessionId: id, userId: session.userId },
-      select: { id: true },
-    }))?.id;
+  const meId = actor.participantId;
 
-  // Self-service actions a trainee may take for themselves. Your own camera is
-  // always yours — a host can't switch someone's camera ON for them.
+  // Self-service actions a trainee (or guest) may take for themselves. Your own
+  // camera is always yours — a host can't switch someone's camera ON for them.
   const SELF: Action[] = ["raise_hand", "lower_hand", "start_share", "stop_share", "mute", "unmute", "cam_on", "cam_off"];
-  const isSelf = !!meId && b.participantId === meId;
-  if (!canControlRoom({ role: access.role }) && !(isSelf && SELF.includes(action))) {
+  const isSelf = b.participantId === meId;
+  if (!canControlRoom({ role: actor.role }) && !(isSelf && SELF.includes(action))) {
     return err("Only a host can do that", 403);
   }
-  if ((action === "promote" || action === "demote") && !canManageRoles({ role: access.role })) {
+  if ((action === "promote" || action === "demote") && !canManageRoles({ role: actor.role })) {
     return err("Only the room owner can change co-hosts", 403);
   }
 
@@ -178,7 +170,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       await prisma.trainingParticipant.update({ where: { id: participantId }, data: { micOn: false } });
       break;
     case "unmute": {
-      if (isSelf && !canControlRoom({ role: access.role }) && !room.openMic) {
+      if (isSelf && !canControlRoom({ role: actor.role }) && !room.openMic) {
         return err("The host has muting on — raise your hand to speak");
       }
       await prisma.trainingParticipant.update({ where: { id: participantId }, data: { micOn: true } });

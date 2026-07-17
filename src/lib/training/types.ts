@@ -158,6 +158,10 @@ export interface TrainingSessionDTO {
 
   waitingRoom: boolean;
   recording: boolean;
+  joinHeadline: string | null;
+  joinMessage: string | null;
+  joinLogoUrl: string | null;
+  joinCollectEmail: boolean;
   transcript: boolean;
   openDraw: boolean;
   openShare: boolean;
