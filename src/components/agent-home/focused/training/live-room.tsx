@@ -8,7 +8,7 @@
  * screen — that combination is what makes this a training room rather than a
  * meeting. [[training-studio]]
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MousePointer2, Pencil, Highlighter, Eraser, Square, Type, StickyNote, Flashlight,
   Undo2, Trash2, Presentation, PenLine, FileText, Monitor, Video, Hand, Mic, MicOff,
@@ -16,8 +16,40 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor } from "./training-board";
+import { useMedia, type RemoteStream } from "./use-media";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
 import type { BoardItem, BoardTool, StageSource, TrainingParticipantDTO, TrainingSessionDTO } from "@/lib/training/types";
+
+/** A live track. Muted for our own preview, or we'd howl with feedback.
+ *  Named VideoFeed, not Video — lucide already exports a `Video` icon here. */
+function VideoFeed({ stream, mirror, muted, className }: { stream: MediaStream; mirror?: boolean; muted?: boolean; className?: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream;
+  }, [stream]);
+  return (
+    <video
+      ref={ref}
+      autoPlay
+      playsInline
+      muted={muted}
+      className={cn("h-full w-full object-cover", mirror && "-scale-x-100", className)}
+    />
+  );
+}
+
+/** Remote audio has to be in the DOM to be heard, but must never be seen. */
+function AudioSink({ remotes }: { remotes: RemoteStream[] }) {
+  return (
+    <>
+      {remotes
+        .filter((r) => r.kind === "audio")
+        .map((r) => (
+          <audio key={`${r.participantId}-audio`} autoPlay ref={(el) => { if (el && el.srcObject !== r.stream) el.srcObject = r.stream; }} />
+        ))}
+    </>
+  );
+}
 
 const TOOLS: { id: BoardTool; Icon: typeof Pencil; title: string }[] = [
   { id: "sel", Icon: MousePointer2, title: "Select" },
@@ -57,6 +89,10 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onPing, onUnd
   const [tool, setTool] = useState<BoardTool>("pen");
   const [ink, setInk] = useState(INKS[0]);
 
+  // Camera/mic/screen. Optional: with no media server configured this reports
+  // enabled:false and the room runs as a whiteboard session.
+  const media = useMedia(session.id, session.status === "live");
+
   const host = isHost(me.role);
   const iCanDraw = canDrawFn(me, session);
   const iHavePen = session.penHolderId === me.id;
@@ -77,12 +113,24 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onPing, onUnd
   const backdrop = useMemo(() => {
     if (session.stageSource === "board") return null;
     if (session.stageSource === "screen") {
+      // Their real screen, full-bleed — and the pen still draws on top of it.
+      const feed =
+        sharer?.id === me.id
+          ? media.localScreen
+          : media.remotes.find((r) => r.participantId === sharer?.id && r.source === "screen" && r.kind === "video")?.stream;
+      if (feed) {
+        return (
+          <div className="h-full w-full bg-black">
+            <VideoFeed stream={feed} muted className="object-contain" />
+          </div>
+        );
+      }
       return (
         <div className="grid h-full w-full place-items-center bg-[#101318]">
           <div className="text-center">
             <Monitor className="mx-auto h-10 w-10 text-slate-600" />
             <p className="mt-2 text-[12px] font-semibold text-slate-400">
-              {sharer ? `${sharer.name} — screen` : "Nobody is sharing yet"}
+              {sharer ? `Waiting for ${sharer.name}'s screen…` : "Nobody is sharing yet"}
             </p>
           </div>
         </div>
@@ -90,11 +138,19 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onPing, onUnd
     }
     if (session.stageSource === "cam") {
       const presenter = session.participants.find((p) => p.id === session.penHolderId) ?? me;
+      const feed =
+        presenter.id === me.id
+          ? media.localCam
+          : media.remotes.find((r) => r.participantId === presenter.id && r.source === "cam" && r.kind === "video")?.stream;
       return (
         <div className="relative grid h-full w-full place-items-center bg-gradient-to-br from-[#221a3a] to-[#3a2c5e]">
-          <span className="grid h-20 w-20 place-items-center rounded-full bg-brand-600 text-2xl font-black text-white">
-            {presenter.name.slice(0, 2).toUpperCase()}
-          </span>
+          {feed ? (
+            <VideoFeed stream={feed} muted mirror={presenter.id === me.id} className="object-contain" />
+          ) : (
+            <span className="grid h-20 w-20 place-items-center rounded-full bg-brand-600 text-2xl font-black text-white">
+              {presenter.name.slice(0, 2).toUpperCase()}
+            </span>
+          )}
           <span className="absolute bottom-3 left-3 rounded-lg bg-black/55 px-2.5 py-1 text-[12px] font-bold text-white">
             {presenter.name} · presenting
           </span>
@@ -123,7 +179,7 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onPing, onUnd
         <p className="text-[12px] text-slate-400">Nothing on the stage yet — add a material.</p>
       </div>
     );
-  }, [session.stageSource, session.stagePage, session.penHolderId, session.participants, material, sharer, me]);
+  }, [session.stageSource, session.stagePage, session.penHolderId, session.participants, material, sharer, me, media.localCam, media.localScreen, media.remotes]);
 
   return (
     <div className="absolute inset-0 grid grid-cols-[52px_1fr_208px] bg-background">
@@ -245,10 +301,44 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onPing, onUnd
               <span className="text-amber-400">Reconnecting…</span>
             )}
           </span>
-          <Ctl on={me.micOn} onClick={() => void act(me.micOn ? "mute" : "unmute", me.id)} title={me.micOn ? "Mute" : "Unmute"} Icon={me.micOn ? Mic : MicOff} danger={!me.micOn} />
-          <Ctl on={me.camOn} onClick={() => void act(me.camOn ? "cam_off" : "cam_on", me.id)} title={me.camOn ? "Turn your camera off" : "Turn your camera on"} Icon={me.camOn ? Video : VideoOff} danger={!me.camOn} />
+          {/* The device is the truth; the roster flag follows it, so a tile can
+              never claim a camera is on when no track is flowing. */}
+          <Ctl
+            on={me.micOn}
+            disabled={!media.enabled}
+            onClick={async () => {
+              const e = await media.toggleMic();
+              if (e) return void act("mute", me.id);
+              await act(media.micOn ? "mute" : "unmute", me.id);
+            }}
+            title={!media.enabled ? "Video isn't switched on for this room" : me.micOn ? "Mute" : "Unmute"}
+            Icon={me.micOn ? Mic : MicOff}
+            danger={!me.micOn}
+          />
+          <Ctl
+            on={me.camOn}
+            disabled={!media.enabled}
+            onClick={async () => {
+              const e = await media.toggleCam();
+              if (e) return void act("cam_off", me.id);
+              await act(media.camOn ? "cam_off" : "cam_on", me.id);
+            }}
+            title={!media.enabled ? "Video isn't switched on for this room" : me.camOn ? "Turn your camera off" : "Turn your camera on"}
+            Icon={me.camOn ? Video : VideoOff}
+            danger={!me.camOn}
+          />
           {canShareScreen(me, session) ? (
-            <Ctl on={me.sharing} onClick={() => void act(me.sharing ? "stop_share" : "start_share", me.id)} title={me.sharing ? "Stop sharing" : "Share your screen"} Icon={Monitor} />
+            <Ctl
+              on={me.sharing}
+              disabled={!media.enabled}
+              onClick={async () => {
+                const e = await media.toggleScreen();
+                if (e) return; // the SFU refused, or they cancelled the picker
+                await act(media.screenOn ? "stop_share" : "start_share", me.id);
+              }}
+              title={!media.enabled ? "Video isn't switched on for this room" : me.sharing ? "Stop sharing" : "Share your screen"}
+              Icon={Monitor}
+            />
           ) : null}
           <Ctl onClick={() => void patch({ stageSource: "board" })} title="Whiteboard" Icon={PenLine} />
           {host ? <Ctl onClick={onManage} title="Materials" Icon={Paperclip} /> : null}
@@ -266,23 +356,48 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onPing, onUnd
           <Users className="h-3.5 w-3.5" /> In the room
           <span className="ms-auto text-[10px] text-muted-foreground">{inRoom.length}</span>
         </div>
+        {media.enabled && !media.connected ? (
+          <p className="border-b border-border bg-amber-500/10 px-3 py-1.5 text-[10px] font-semibold text-amber-400">
+            Connecting video…
+          </p>
+        ) : !media.enabled && media.reason ? (
+          // Say it plainly rather than showing dead camera buttons.
+          <p className="border-b border-border bg-muted px-3 py-1.5 text-[10px] leading-snug text-muted-foreground">
+            {media.reason} The board, your docs and the chat all work as normal.
+          </p>
+        ) : null}
         <div className="flex flex-1 flex-col gap-1.5 overflow-auto p-2">
           {inRoom.map((p) => (
-            <Tile key={p.id} p={p} session={session} me={me} host={host} act={act} />
+            <Tile
+              key={p.id}
+              p={p}
+              session={session}
+              me={me}
+              host={host}
+              act={act}
+              feed={
+                p.id === me.id
+                  ? media.localCam
+                  : media.remotes.find((r) => r.participantId === p.id && r.source === "cam" && r.kind === "video")?.stream ?? null
+              }
+            />
           ))}
         </div>
       </div>
+
+      <AudioSink remotes={media.remotes} />
     </div>
   );
 }
 
-function Ctl({ Icon, title, onClick, on, danger }: { Icon: typeof Mic; title: string; onClick: () => void; on?: boolean; danger?: boolean }) {
+function Ctl({ Icon, title, onClick, on, danger, disabled }: { Icon: typeof Mic; title: string; onClick: () => void; on?: boolean; danger?: boolean; disabled?: boolean }) {
   return (
     <button
       onClick={onClick}
       title={title}
+      disabled={disabled}
       className={cn(
-        "grid h-[38px] w-[38px] place-items-center rounded-xl border transition",
+        "grid h-[38px] w-[38px] place-items-center rounded-xl border transition disabled:opacity-40",
         danger ? "border-rose-500/45 bg-rose-500/15 text-rose-400" : on ? "border-brand-500 bg-brand-500/15 text-brand-400" : "border-border bg-card hover:border-brand-500",
       )}
     >
@@ -292,12 +407,13 @@ function Ctl({ Icon, title, onClick, on, danger }: { Icon: typeof Mic; title: st
 }
 
 /** One person. Hover reveals the host controls — pen, share, co-host, mute, remove. */
-function Tile({ p, session, me, host, act }: {
+function Tile({ p, session, me, host, act, feed }: {
   p: TrainingParticipantDTO;
   session: TrainingSessionDTO;
   me: TrainingParticipantDTO;
   host: boolean;
   act: (action: string, participantId?: string) => Promise<string | null>;
+  feed: MediaStream | null;
 }) {
   const hasPen = session.penHolderId === p.id;
   const mayShare = canShareScreen(p, session);
@@ -306,10 +422,9 @@ function Tile({ p, session, me, host, act }: {
       "group relative aspect-[4/3] overflow-hidden rounded-xl border bg-[#181820]",
       p.sharing ? "border-cyan-500/60" : p.role === "HOST" ? "border-brand-500/50" : "border-border",
     )}>
-      {p.camOn ? (
-        <div className="grid h-full w-full place-items-center bg-gradient-to-br from-brand-600 to-violet-700 text-lg font-black text-white">
-          {p.name.slice(0, 2).toUpperCase()}
-        </div>
+      {feed ? (
+        // our own preview is mirrored + muted; everyone else's audio is in AudioSink
+        <VideoFeed stream={feed} muted mirror={p.id === me.id} />
       ) : (
         <div className="grid h-full w-full place-items-center bg-[#181820]">
           <span className="grid h-[38px] w-[38px] place-items-center rounded-full bg-gradient-to-br from-brand-600 to-violet-700 text-[13px] font-black text-white">
