@@ -63,6 +63,10 @@ export interface NarrationShot {
   status: ShotStatus;
   progress?: number;
   error?: string | null;
+  /** Canvas position + width (draggable / resizable). Absent ⇒ auto-laid-out. */
+  x?: number;
+  y?: number;
+  w?: number;
   /** Provider handle, so a render orphaned by a deploy can be pulled instead of lost. */
   refKind?: string | null;
   refId?: string | null;
@@ -190,6 +194,9 @@ export function normalizeShot(raw: Partial<NarrationShot>, i: number): Narration
     status: (["idle", "queued", "rendering", "ready", "failed"] as const).includes(raw.status as ShotStatus) ? (raw.status as ShotStatus) : "idle",
     progress: typeof raw.progress === "number" ? raw.progress : 0,
     error: raw.error ?? null,
+    x: typeof raw.x === "number" ? raw.x : undefined,
+    y: typeof raw.y === "number" ? raw.y : undefined,
+    w: typeof raw.w === "number" ? raw.w : undefined,
     refKind: raw.refKind ?? null,
     refId: raw.refId ?? null,
     renderHeartbeatAt: raw.renderHeartbeatAt,

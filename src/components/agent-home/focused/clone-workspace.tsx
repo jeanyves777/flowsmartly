@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { FlowLoader, FlowGeneratingMark } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import { useTextPrompt } from "@/components/agent-home/shared/text-prompt";
+import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
 import type { CloneProject, CloneIdentity, CloneShot, CloneAspect, CloneQuality } from "@/lib/clone-studio/types";
 
 const CT = "/Studio_Menus_Thumnail/Clone_Yourself";
@@ -104,6 +106,8 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
   const [preview, setPreview] = useState<string | null>(null);
   const [idPos, setIdPos] = useState({ x: 26, y: 84 });
   const boardRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pan = useCanvasPan(scrollRef);
 
   const openNew = () => { setBriefAdd(false); setBriefSeed(null); setBriefOpen(true); };
   const openAdd = () => { setBriefAdd(true); setBriefSeed(activeClone); setBriefOpen(true); };
@@ -250,7 +254,7 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
         </div>
       )}
 
-      <div className="absolute inset-0 overflow-auto" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
+      <div ref={scrollRef} onPointerDown={pan} className="absolute inset-0 cursor-grab overflow-auto" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.16) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
         <div ref={boardRef} className="relative" style={{ width: 2200, height: 1050 }}>
           <svg className="pointer-events-none absolute inset-0 h-full w-full" style={{ overflow: "visible" }}><path d={wire} fill="none" stroke="#6366f1" strokeWidth={2} opacity={0.35} /></svg>
 
