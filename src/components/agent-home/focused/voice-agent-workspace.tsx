@@ -1546,6 +1546,63 @@ function Controls({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Par
         </Row>
       </Group>
 
+      <Group title="Voice & speech" sub="How the agent sounds and how it hears callers.">
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">Voice</b>
+            <span className="text-[9.5px] text-muted-foreground">{agent.voiceLabel || "Eve"} — change it in the brief</span></span>
+        </Row>
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">Speaking speed</b>
+            <span className="text-[9.5px] text-muted-foreground">{(agent.speakingSpeed ?? 1).toFixed(2)}×</span></span>
+          <input type="range" min={0.7} max={1.5} step={0.05} value={agent.speakingSpeed ?? 1}
+            onChange={(e) => void onPatch({ speakingSpeed: Number(e.target.value) })}
+            className="w-[150px] accent-brand-500" />
+        </Row>
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">Language</b>
+            <span className="text-[9.5px] text-muted-foreground">Bias recognition to a language</span></span>
+          <select value={agent.languageHint || "auto"} onChange={(e) => void onPatch({ languageHint: e.target.value })}
+            className="w-[172px] rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-[11.5px] outline-none focus:border-brand-500">
+            {LANGUAGE_HINTS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
+        </Row>
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">Caller can interrupt</b>
+            <span className="text-[9.5px] text-muted-foreground">Talk over the agent to cut in</span></span>
+          <Toggle on={agent.allowInterrupt ?? true} onClick={() => void onPatch({ allowInterrupt: !(agent.allowInterrupt ?? true) })} />
+        </Row>
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">Nudge a silent caller</b>
+            <span className="text-[9.5px] text-muted-foreground">{agent.idleTimeoutMs ? `After ${(agent.idleTimeoutMs / 1000).toFixed(0)}s of quiet` : "Off"}</span></span>
+          <Toggle on={(agent.idleTimeoutMs ?? 0) > 0} onClick={() => void onPatch({ idleTimeoutMs: (agent.idleTimeoutMs ?? 0) > 0 ? 0 : 8000 })} />
+        </Row>
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">Faster, blunter replies</b>
+            <span className="text-[9.5px] text-muted-foreground">Skips deeper reasoning — snappier, less careful</span></span>
+          <Toggle on={agent.reasoningEffort === "none"} onClick={() => void onPatch({ reasoningEffort: agent.reasoningEffort === "none" ? "high" : "none" })} />
+        </Row>
+        <KeytermsRow agent={agent} onPatch={onPatch} />
+        <PronunciationRow agent={agent} onPatch={onPatch} />
+      </Group>
+
+      <Group title="Hearing callers" sub="How patiently it waits before it answers.">
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">How long a caller can pause</b>
+            <span className="text-[9.5px] text-muted-foreground">{((agent.vadSilenceMs ?? 500) / 1000).toFixed(1)}s before the agent takes its turn</span></span>
+          <input type="range" min={200} max={2000} step={100} value={agent.vadSilenceMs ?? 500}
+            onChange={(e) => void onPatch({ vadSilenceMs: Number(e.target.value) })}
+            className="w-[150px] accent-brand-500" />
+        </Row>
+        <Row>
+          <span className="flex-1"><b className="block text-[11px]">How loud speech must be</b>
+            <span className="text-[9.5px] text-muted-foreground">Higher = ignores background noise, needs clearer speech</span></span>
+          <input type="range" min={0.1} max={0.9} step={0.05} value={agent.vadThreshold ?? 0.85}
+            onChange={(e) => void onPatch({ vadThreshold: Number(e.target.value) })}
+            className="w-[150px] accent-brand-500" />
+        </Row>
+      </Group>
+
+
       <Group title="Opening hours" sub="The agent only books inside these.">
         <div className="grid gap-1.5">
           {DAYS.map((d) => {
@@ -2176,6 +2233,80 @@ function CloneVoiceModal({
             </button>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── speech helper rows ──────────────────────────────────────────────────────
+
+/** Words the agent should recognise reliably — brand, product and place names. */
+function KeytermsRow({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void> }) {
+  const [draft, setDraft] = useState("");
+  const terms = agent.keyterms || [];
+  const add = () => {
+    const t = draft.trim();
+    if (!t || terms.includes(t) || terms.length >= 100) { setDraft(""); return; }
+    void onPatch({ keyterms: [...terms, t.slice(0, 50)] });
+    setDraft("");
+  };
+  return (
+    <div className="border-t border-border py-2.5">
+      <b className="block text-[11px]">Words to get right</b>
+      <span className="mb-1.5 block text-[9.5px] text-muted-foreground">Brand, product or place names the agent might mishear</span>
+      <div className="flex flex-wrap gap-1.5">
+        {terms.map((t) => (
+          <span key={t} className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-semibold">
+            {t}
+            <button onClick={() => void onPatch({ keyterms: terms.filter((x) => x !== t) })} className="text-muted-foreground hover:text-rose-500"><X className="h-2.5 w-2.5" /></button>
+          </span>
+        ))}
+        <input value={draft} onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+          onBlur={add} placeholder="+ add a word"
+          className="min-w-[96px] flex-1 rounded-md border border-dashed border-border bg-transparent px-2 py-0.5 text-[10px] outline-none focus:border-brand-500" />
+      </div>
+    </div>
+  );
+}
+
+/** Fix how the agent SAYS a word without changing the transcript. */
+function PronunciationRow({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void> }) {
+  const [word, setWord] = useState("");
+  const [say, setSay] = useState("");
+  const map = agent.pronunciations || {};
+  const entries = Object.entries(map);
+  const add = () => {
+    const w = word.trim();
+    const s = say.trim();
+    if (!w || !s) return;
+    void onPatch({ pronunciations: { ...map, [w]: s } });
+    setWord(""); setSay("");
+  };
+  return (
+    <div className="border-t border-border py-2.5">
+      <b className="block text-[11px]">Say it this way</b>
+      <span className="mb-1.5 block text-[9.5px] text-muted-foreground">Spell out a tricky name — spoken only, the transcript stays correct</span>
+      <div className="space-y-1">
+        {entries.map(([w, s]) => (
+          <div key={w} className="flex items-center gap-2 text-[10.5px]">
+            <span className="font-semibold">{w}</span>
+            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            <span className="text-muted-foreground">{s}</span>
+            <button onClick={() => { const n = { ...map }; delete n[w]; void onPatch({ pronunciations: n }); }}
+              className="ml-auto text-muted-foreground hover:text-rose-500"><X className="h-3 w-3" /></button>
+          </div>
+        ))}
+      </div>
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <input value={word} onChange={(e) => setWord(e.target.value)} placeholder="Lumiere"
+          className="w-[92px] rounded-md border border-border bg-muted/40 px-2 py-1 text-[10.5px] outline-none focus:border-brand-500" />
+        <ChevronRight className="h-3 w-3 flex-none text-muted-foreground" />
+        <input value={say} onChange={(e) => setSay(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+          placeholder="Loo-mee-air"
+          className="flex-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[10.5px] outline-none focus:border-brand-500" />
+        <button onClick={add} className="grid h-6 w-6 flex-none place-items-center rounded-md border border-border text-muted-foreground hover:border-brand-500 hover:text-brand-500"><Plus className="h-3 w-3" /></button>
       </div>
     </div>
   );
