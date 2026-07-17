@@ -362,6 +362,18 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           onManage={() => setMode("office")}
           onInvite={invite}
         />
+      ) : mode === "live" && session.status === "ended" ? (
+        // An ended room isn't live — never render it as if it were.
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="w-[380px] text-center">
+            <h2 className="text-[17px] font-bold">This session has ended</h2>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">Everyone was returned to the waiting room and the link is closed. Start a new session to run it again.</p>
+            <div className="mt-4 flex justify-center gap-2">
+              <button onClick={() => setMode("plan")} className="rounded-lg border border-border px-4 py-2 text-[12.5px] font-semibold hover:border-brand-500">Back to the plan</button>
+              <button onClick={() => setBriefOpen(true)} className="rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12.5px] font-bold text-white">New session</button>
+            </div>
+          </div>
+        </div>
       ) : mode === "live" ? (
         room.me ? (
           <LiveRoom
@@ -371,6 +383,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
             connected={room.connected}
             onAdd={(i) => void room.addItem(i)}
             onRemove={(id) => void room.removeItem(id)}
+            onUpdate={(i) => void room.updateItem(i)}
             onPing={room.ping}
             onUndo={undo}
             onClear={() => void room.clearBoard()}

@@ -121,6 +121,19 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
                 },
               };
             }
+            case "board:update": {
+              if (!s.session) return s;
+              return {
+                ...s,
+                session: {
+                  ...s.session,
+                  boardDoc: {
+                    ...s.session.boardDoc,
+                    items: s.session.boardDoc.items.map((i) => (i.id === msg.item.id ? msg.item : i)),
+                  },
+                },
+              };
+            }
             case "board:remove": {
               if (!s.session) return s;
               return {
@@ -247,6 +260,24 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     [sessionId],
   );
 
+  /** Move or edit a mark. Applied locally first; the server broadcasts the result. */
+  const updateItem = useCallback(
+    async (item: BoardItem) => {
+      if (!sessionId) return;
+      setState((s) =>
+        s.session
+          ? { ...s, session: { ...s.session, boardDoc: { ...s.session.boardDoc, items: s.session.boardDoc.items.map((i) => (i.id === item.id ? item : i)) } } }
+          : s,
+      );
+      await fetch(`/api/ai/training/${sessionId}/board`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ op: "update", item }),
+      }).catch(() => {});
+    },
+    [sessionId],
+  );
+
   const clearBoard = useCallback(async () => {
     if (!sessionId) return;
     setState((s) => (s.session ? { ...s, session: { ...s.session, boardDoc: { ...s.session.boardDoc, items: [] } } } : s));
@@ -311,5 +342,5 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     [sessionId, setSession],
   );
 
-  return { ...state, addItem, removeItem, clearBoard, ping, act, patch, setSession };
+  return { ...state, addItem, removeItem, updateItem, clearBoard, ping, act, patch, setSession };
 }

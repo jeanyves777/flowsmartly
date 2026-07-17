@@ -188,6 +188,7 @@ export type RoomEvent =
   | { type: "room:state"; patch: Partial<TrainingSessionDTO> }
   | { type: "room:participant"; participant: TrainingParticipantDTO }
   | { type: "board:add"; item: BoardItem }
+  | { type: "board:update"; item: BoardItem }
   | { type: "board:remove"; itemId: string }
   | { type: "board:clear" }
   | { type: "cursor"; participantId: string; x: number; y: number }
