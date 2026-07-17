@@ -145,7 +145,9 @@ export function PlanCanvas({
       className="absolute inset-0 cursor-grab overflow-auto"
       style={{
         background:
-          "radial-gradient(circle at 1px 1px,#20202b 1px,transparent 0) 0 0/24px 24px, hsl(var(--background))",
+          // Subtle theme-neutral dots to match the other playgrounds (was a
+          // solid dark #20202b that read "too deep" on light theme).
+          "radial-gradient(circle at 1px 1px,rgba(130,130,150,0.16) 1px,transparent 0) 0 0/22px 22px, hsl(var(--background))",
       }}
       onPointerDown={pan}
     >

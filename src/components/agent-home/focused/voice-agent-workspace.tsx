@@ -189,7 +189,7 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
   const header = headerSlot && createPortal(
     <div className="flex items-center gap-2">
       {agent && (
-        <span className="hidden text-[11.5px] text-muted-foreground sm:inline">
+        <span className="hidden whitespace-nowrap text-[11.5px] text-muted-foreground sm:inline">
           {skills.filter((s) => s.enabled).length} skills
           {stats ? ` · ${stats.calls} calls this month` : ""}
         </span>
