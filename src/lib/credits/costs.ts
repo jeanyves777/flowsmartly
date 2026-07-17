@@ -209,6 +209,15 @@ export const DEFAULT_CREDIT_COSTS = {
   VOICE_AGENT_MINUTE: 9,        // realtime voice ~$0.05/min + telephony ~$0.01/min
   VOICE_AGENT_NUMBER_RENTAL: 500, // monthly DID rent — same house rate as an SMS number
 
+  // --- Training Studio (live rooms) ---
+  // Metered in ATTENDEE-minutes, charged in 10-attendee-minute blocks while the
+  // room is live — never once at the end, so a room whose host never clicks
+  // "End session" (or whose worker dies on a deploy) can't leave an unbilled tab.
+  // A 12-seat × 45-min session = 540 attendee-min = 54 credits.
+  TRAINING_ATTENDEE_10MIN: 1,   // media relay is our own SFU — this is VPS bandwidth, not a vendor bill
+  TRAINING_RECORDING: 8,        // per session: record + store the room
+  TRAINING_TRANSCRIPT: 4,       // per session: live transcript + emailed summary
+
   // --- ListSmartly ---
   AI_LISTING_DESCRIPTION: 3,    // AI listing description generation
   AI_LISTING_BULK_DESCRIBE: 2,  // AI bulk listing descriptions (per listing)
@@ -344,6 +353,9 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_VOICE_CLONE: "AI voice cloning",
   VOICE_AGENT_MINUTE: "Voice agent: per minute of calls",
   VOICE_AGENT_NUMBER_RENTAL: "Voice agent: phone number, monthly",
+  TRAINING_ATTENDEE_10MIN: "Training room: time in the room",
+  TRAINING_RECORDING: "Training room: recording",
+  TRAINING_TRANSCRIPT: "Training room: transcript & summary",
   AI_LISTING_DESCRIPTION: "AI listing description generation",
   AI_LISTING_BULK_DESCRIBE: "AI bulk listing description",
   AI_REVIEW_RESPONSE: "AI review response draft",

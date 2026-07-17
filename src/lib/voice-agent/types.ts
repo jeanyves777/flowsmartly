@@ -390,6 +390,87 @@ export interface AgentCall {
   recordingUrl: string | null;
 }
 
+// ── Brand Kit ──
+
+/**
+ * The slice of the Brand Kit the phone agent cares about. The account already
+ * knows who the business is — the brief should never start blank and make the
+ * user type it again.
+ */
+export interface BrandLite {
+  name?: string | null;
+  tagline?: string | null;
+  description?: string | null;
+  industry?: string | null;
+  niche?: string | null;
+  targetAudience?: string | null;
+  uniqueValue?: string | null;
+  voiceTone?: string | null;
+  products?: unknown;
+  phone?: string | null;
+  website?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+}
+
+const clean = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+
+/** `products` is a JSON string column, not a native array. */
+function productNames(products: unknown): string[] {
+  const raw = typeof products === "string" ? safeParse(products) : products;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((p) => (typeof p === "string" ? p : clean((p as { name?: string })?.name)))
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function safeParse(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Turn the Brand Kit into the prose the agent reads before every call.
+ *
+ * Deliberately written as sentences a human would say, not a labelled block —
+ * this lands in a textarea the user edits, and the agent speaks from it. The
+ * machine-shaped `buildBrandContext` is for system prompts, not for this.
+ */
+export function brandToBusinessBlurb(bk: BrandLite): string {
+  const name = clean(bk.name);
+  if (!name) return "";
+
+  const what = clean(bk.industry) || clean(bk.niche);
+  const where = [clean(bk.city), clean(bk.state)].filter(Boolean).join(", ");
+  const about = clean(bk.description) || clean(bk.tagline);
+  const offers = productNames(bk.products);
+
+  const lines: string[] = [];
+  lines.push(
+    [name, what && `— ${what}`, where && `in ${where}`].filter(Boolean).join(" ") + ".",
+  );
+  if (about) lines.push(about);
+  if (offers.length) lines.push(`What we offer: ${offers.join(", ")}.`);
+  if (clean(bk.uniqueValue)) lines.push(clean(bk.uniqueValue));
+  if (clean(bk.targetAudience)) lines.push(`Who we serve: ${clean(bk.targetAudience)}.`);
+  if (clean(bk.address)) lines.push(`Address: ${clean(bk.address)}.`);
+
+  return lines.join("\n");
+}
+
+/** The greeting for a preset, with the real business name in it. */
+export function greetingFor(presetKey: string, businessName?: string | null): string {
+  const preset = PRESET_BY_KEY[presetKey] || PRESET_BY_KEY.recep;
+  // Falling back to "us" is what makes callers hear "Thanks for calling us."
+  // Only do it when we genuinely don't know the name.
+  return preset.greeting.replace("{business}", clean(businessName) || "us");
+}
+
 // ── Helpers ──
 
 /** Build a live skill from its catalog entry, with the catalog's defaults. */

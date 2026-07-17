@@ -7,7 +7,7 @@ import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
   Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard, Shirt,
-  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, UserSquare2, Monitor, PhoneCall, type LucideIcon,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, UserSquare2, Monitor, PhoneCall, GraduationCap, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -62,6 +62,7 @@ import { FocusedVoice } from "./focused/voice-workspace";
 import { FocusedNarration } from "./focused/narration-workspace";
 import { FocusedClone } from "./focused/clone-workspace";
 import { FocusedVoiceAgent } from "./focused/voice-agent-workspace";
+import { FocusedTraining } from "./focused/training-workspace";
 import { FocusedVideo } from "./focused/video-workspace";
 import { FocusedAvatar } from "./focused/avatar-workspace";
 import { FocusedDelivery } from "./focused/delivery-workspace";
@@ -177,6 +178,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   voices: { label: "Voices & cloning", subtitle: "Clone your voice, manage the rest", icon: Mic },
   clone: { label: "Clone yourself", subtitle: "Your face in any scene, outfit or pose", icon: UserSquare2 },
   voiceagent: { label: "Voice Agent", subtitle: "An agent that answers your phone — books, takes messages, logs every call", icon: PhoneCall },
+  training: { label: "Training Room", subtitle: "Live rooms — everyone on video, a shared whiteboard, your docs on the board", icon: GraduationCap },
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
   director: { label: "Filmmaking", subtitle: "Direct a multi-scene cinematic film", icon: Clapperboard },
   ugc: { label: "UGC Studio", subtitle: "Creator videos with lip-sync", icon: Sparkles },
@@ -263,6 +265,8 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
       return `The user is on the **Video Studio — Director**: one canvas that fuses AI cinematic shots, talking-avatar clones, and reel clips into a single film. A film is a pipeline of scene nodes, each rendered by its own engine, then stitched into one video. Help them brief the film, add/edit/reorder scenes, pick the right engine per beat, generate scenes, and stitch the final cut.`;
     case "voice":
       return `The user is on the **Voice Studio** (AI voiceovers, narration & voice cloning). Making a voiceover is a generative task — help them write a punchy script for their goal, then they set the voice (gender/accent/style/speed) and click Generate; the audio lands in the studio and their Media library. They can also clone a voice from a sample.`;
+    case "training":
+      return `The user is on the **Training Room** studio — live training sessions. A session has a PLAN (a canvas of segments: slides, whiteboard, document, video, illustration, breakout) and a LIVE room (everyone on video, a shared whiteboard, their deck/docs on the board, and the host draws on top of any of it). Help them describe the session so the agenda, the board and the room get built. Two rules to hold onto: the PEN is handed to one person at a time, while SCREEN SHARE is a permission you grant to as many people as you like — hosts and co-hosts always have both. Co-hosts can share, draw and admit people. Room time is billed for the minutes people are actually in the room, as it runs; recording and the transcript are small one-offs. Never name any video or infrastructure provider.`;
     case "voiceagent":
       return `The user is on the **Voice Agent** studio — an agent that answers their business phone. It has a brief (what it does, the business, its greeting), a voice, a set of skills (book / answer / qualify a lead / take a message / transfer / check an order), a phone number, and a live switch. Help them describe the business, pick the right skills, and get a number. Never name any telephony or model provider. Calls cost 9 credits a minute; a new number is 500 credits a month; building it is free.`;
     case "avatar":
@@ -321,7 +325,7 @@ const AGENT_VIEW: Record<string, { surface: string; label: string }> = {
 // "grow" and "business" are category CONTAINERS (they open a nav panel, not a
 // real surface) — deliberately excluded so /home/grow and /home/business deep-
 // link cleanly to Home instead of a "coming soon" placeholder.
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "voices", "clone", "voiceagent", "video", "director", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "voices", "clone", "voiceagent", "training", "video", "director", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
@@ -831,8 +835,10 @@ export function AgentHome() {
   // forms, contacts all live in the Leads group), so Outreach is dropped from the rail.
   const FILM_WS: Workspace = { key: "film", label: "Film", icon: Clapperboard, route: "/home/director", items: [] };
   const LEADS_WS: Workspace = { key: "leads", label: "Leads", icon: Search, route: "/home/leads", items: [] };
+  const CALL_WS: Workspace = { key: "callagent", label: "Call agent", icon: PhoneCall, route: "/home/voiceagent", items: [] };
+  const TRAIN_WS: Workspace = { key: "training", label: "Training Room", icon: GraduationCap, route: "/home/training", items: [] };
   const basePrimary = WORKSPACES.filter((w) => !["business", "print", "campaign", "leads", "outreach"].includes(w.key));
-  const primaryWorkspaces = [basePrimary[0], FILM_WS, LEADS_WS, ...basePrimary.slice(1)];
+  const primaryWorkspaces = [basePrimary[0], FILM_WS, LEADS_WS, CALL_WS, TRAIN_WS, ...basePrimary.slice(1)];
   const businessWorkspace = WORKSPACES.find((w) => w.key === "business");
 
   const openWorkspace = (key: string) => {
@@ -863,7 +869,22 @@ export function AgentHome() {
   // card-grid menu + composer set to that group — NOT the old browse panel.
   // Rail keys map to agent-group keys (outreach → leads · connections → publish).
   const RAIL_GROUP: Record<string, string> = { outreach: "leads", connections: "publish" };
+  // A rail section whose group holds exactly ONE product opens that product
+  // straight away — a card-grid menu of a single card is just an extra click.
+  const RAIL_DIRECT: Record<string, string> = { callagent: "voiceagent", training: "training" };
   const openAgentGroup = (key: string) => {
+    const direct = RAIL_DIRECT[key];
+    if (direct) {
+      guardNav(() => {
+        setPanelKey(null);
+        setHistoryOpen(false);
+        setDrawerOpen(false);
+        setActiveWs(key);
+        setAgentMode(RAIL_GROUP[key] ?? key);
+        setFocused(direct);
+      });
+      return;
+    }
     const group = RAIL_GROUP[key] ?? key;
     if (!AGENT_GROUP_KEYS.includes(group)) { openWorkspace(key); return; }
     guardNav(() => {
@@ -1211,7 +1232,7 @@ export function AgentHome() {
                   <Icon className="h-[21px] w-[21px]" />
                   <span>{s.ws[w.key] ?? w.label}</span>
                 </button>
-                {(i === 0 || w.key === "leads") && <div className="my-1.5 h-px w-11 bg-border" />}
+                {(i === 0 || w.key === "leads" || w.key === "callagent") && <div className="my-1.5 h-px w-11 bg-border" />}
               </div>
             );
           })}
@@ -1482,6 +1503,8 @@ export function AgentHome() {
                   <FocusedClone onOpenView={openView} />
                 ) : focused === "voiceagent" ? (
                   <FocusedVoiceAgent onOpenView={openView} />
+                ) : focused === "training" ? (
+                  <FocusedTraining refreshKey={actionCount} />
                 ) : focused === "video" ? (
                   <AdBuilderCanvas embedded refreshKey={actionCount} canvasRef={videoOpsRef} />
                 ) : focused === "director" ? (
