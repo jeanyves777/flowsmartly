@@ -60,7 +60,46 @@ const SENIORITY = ["Owner", "C-level", "VP", "Director", "Manager"];
 const SIZES = ["Any", "1–10", "11–50", "51–200", "200+"];
 const REVS = ["Any", "<$1M", "$1M–$10M", "$10M+"];
 const COUNTS = ["25", "50", "100"];
-const INDUSTRY_CHIPS = ["Dental", "Med spa", "Law", "SaaS", "Real estate"];
+
+/**
+ * One-tap industry presets. Picking a card fills the brief with a segment that
+ * actually converts for that trade — who to ask for, and the buying signals worth
+ * searching. Location is deliberately NOT set here: it comes from the user's own
+ * business location and stays editable. Every field remains editable after a pick.
+ */
+const LP = "/Studio_Menus_Thumnail/Leads_industry_presets";
+interface LeadPreset {
+  id: string; name: string; blurb: string; thumb: string;
+  industry: string; title: string; seniority: string[]; keywords: string; size: string;
+}
+const LEAD_PRESETS: LeadPreset[] = [
+  { id: "dental", name: "Dental", blurb: "Practices & DSOs", thumb: `${LP}/dental.webp`,
+    industry: "Dental practice", title: "Owner, Practice Manager", seniority: ["Owner", "Manager"], keywords: "“accepting new patients”, “implants”, “new location”", size: "1–10" },
+  { id: "medspa", name: "Med spa", blurb: "Aesthetics & wellness", thumb: `${LP}/medspa.webp`,
+    industry: "Med spa / aesthetics clinic", title: "Owner, Medical Director", seniority: ["Owner", "C-level"], keywords: "“botox”, “memberships”, “now open”", size: "1–10" },
+  { id: "legal", name: "Legal", blurb: "Firms & attorneys", thumb: `${LP}/legal.webp`,
+    industry: "Law firm", title: "Managing Partner, Owner", seniority: ["Owner", "C-level"], keywords: "“free consultation”, “personal injury”, “hiring”", size: "1–10" },
+  { id: "realestate", name: "Real estate", blurb: "Agents & brokerages", thumb: `${LP}/realestate.webp`,
+    industry: "Real estate brokerage", title: "Broker, Owner, Team Lead", seniority: ["Owner", "Director"], keywords: "“just listed”, “new agents”, “luxury”", size: "1–10" },
+  { id: "homeservice", name: "Home service", blurb: "Trades & contractors", thumb: `${LP}/homeservice.webp`,
+    industry: "Home services (HVAC, plumbing, roofing, electrical)", title: "Owner, General Manager", seniority: ["Owner", "Manager"], keywords: "“free estimate”, “emergency service”, “hiring techs”", size: "1–10" },
+  { id: "fitness", name: "Fitness", blurb: "Gyms & studios", thumb: `${LP}/fitness.webp`,
+    industry: "Gym / fitness studio", title: "Owner, General Manager", seniority: ["Owner", "Manager"], keywords: "“membership”, “personal training”, “grand opening”", size: "1–10" },
+  { id: "restaurant", name: "Restaurant", blurb: "Dining & hospitality", thumb: `${LP}/restaurant.webp`,
+    industry: "Restaurant", title: "Owner, General Manager", seniority: ["Owner", "Manager"], keywords: "“now open”, “catering”, “new menu”", size: "1–10" },
+  { id: "beauty", name: "Beauty", blurb: "Salons & barbers", thumb: `${LP}/beauty.webp`,
+    industry: "Hair salon / barbershop", title: "Owner, Salon Manager", seniority: ["Owner", "Manager"], keywords: "“booking”, “chair rental”, “now open”", size: "1–10" },
+  { id: "healthcare", name: "Healthcare", blurb: "Clinics & practices", thumb: `${LP}/healthcare.webp`,
+    industry: "Medical clinic / private practice", title: "Owner, Practice Administrator", seniority: ["Owner", "Manager"], keywords: "“accepting new patients”, “telehealth”, “new location”", size: "11–50" },
+  { id: "retail", name: "Retail", blurb: "Shops & boutiques", thumb: `${LP}/retail.webp`,
+    industry: "Retail store / boutique", title: "Owner, Store Manager", seniority: ["Owner", "Manager"], keywords: "“new location”, “online store”, “grand opening”", size: "1–10" },
+  { id: "automotive", name: "Automotive", blurb: "Dealers & repair", thumb: `${LP}/automotive.webp`,
+    industry: "Auto dealership / repair shop", title: "Owner, General Manager", seniority: ["Owner", "Manager"], keywords: "“service specials”, “used inventory”, “hiring”", size: "11–50" },
+  { id: "saas", name: "SaaS", blurb: "Software & tech", thumb: `${LP}/saas.webp`,
+    industry: "SaaS / software company", title: "Founder, CEO, CMO, Head of Growth", seniority: ["C-level", "VP", "Director"], keywords: "“just raised”, “hiring”, “free trial”", size: "11–50" },
+  { id: "coaching", name: "Coaching", blurb: "Consultants & agencies", thumb: `${LP}/coaching.webp`,
+    industry: "Coaching / consulting", title: "Founder, Owner, Principal", seniority: ["Owner", "C-level"], keywords: "“1:1 coaching”, “cohort”, “masterclass”", size: "1–10" },
+];
 const FLD = "w-full rounded-[9px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 const SEL = "rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12px] outline-none focus:border-brand-500/60";
 
@@ -90,6 +129,40 @@ export function FocusedLeads({ initialScreen, initialListId, onAsk, refreshKey, 
   const [brief, setBrief] = useState({ industry: "", location: "", title: "", seniority: ["Owner", "C-level"] as string[], size: "Any", revenue: "Any", tech: "", keywords: "", count: "50" });
   const findingRef = useRef(false);
   const baselineRef = useRef(0);
+  const [presetId, setPresetId] = useState<string | null>(null);
+  // Where the user actually sells — prefills Location so a search is one tap away.
+  // Their audience focus wins over the office address; both stay editable.
+  const [homeLocation, setHomeLocation] = useState("");
+  const locTouched = useRef(false);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/brand").then((r) => r.json()).then((j) => {
+      const b = j?.data?.brandKit;
+      if (!alive || !b) return;
+      const loc = String(b.audienceLocation || "").trim()
+        || [b.city, b.state].filter(Boolean).join(", ")
+        || String(b.country || "").trim();
+      if (!loc) return;
+      setHomeLocation(loc);
+      // Don't clobber something the user already typed.
+      if (!locTouched.current) setBrief((prev) => (prev.location ? prev : { ...prev, location: loc }));
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  /** A preset fills WHO to look for; location + every field stay editable after. */
+  const applyPreset = (p: LeadPreset) => {
+    setPresetId(p.id);
+    setBrief((b) => ({
+      ...b,
+      industry: p.industry,
+      title: p.title,
+      seniority: p.seniority,
+      keywords: p.keywords,
+      size: p.size,
+      location: b.location || homeLocation,
+    }));
+  };
 
   // ── Enrich (agent operates the row, not the chat) ──
   // Leads currently being enriched → drives the per-row / bulk loaders. The agent
@@ -341,12 +414,45 @@ export function FocusedLeads({ initialScreen, initialListId, onAsk, refreshKey, 
             </div>
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
               <BriefSuggest kind="leads" onApply={applyLeadProposal} />
+
+              {/* One-tap presets — pick a trade and the brief fills itself. */}
+              <div>
+                <p className="mb-0.5 text-[11.5px] font-semibold">Start from an industry</p>
+                <p className="mb-2 text-[11px] text-muted-foreground">Pick one and we fill the brief — who to ask for and what to look for. Change anything after.</p>
+                <div className="flex gap-2.5 overflow-x-auto pb-1.5">
+                  {LEAD_PRESETS.map((p) => (
+                    <button key={p.id} type="button" onClick={() => applyPreset(p)}
+                      className={cn("group w-[132px] shrink-0 overflow-hidden rounded-xl border text-left transition",
+                        presetId === p.id ? "border-brand-500 ring-1 ring-inset ring-brand-500/30" : "border-border hover:border-brand-500/50")}>
+                      <span className="relative block aspect-[16/9] overflow-hidden bg-muted">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={p.thumb} alt="" loading="lazy" className="h-full w-full object-cover transition group-hover:scale-[1.04]" />
+                        {presetId === p.id && (
+                          <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-brand-500 text-white"><Check className="h-2.5 w-2.5" /></span>
+                        )}
+                      </span>
+                      <span className="block px-2 py-1.5">
+                        <span className={cn("block truncate text-[11.5px] font-bold", presetId === p.id && "text-brand-500")}>{p.name}</span>
+                        <span className="block truncate text-[10px] text-muted-foreground">{p.blurb}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
                 <Field label="Industry">
-                  <input value={brief.industry} onChange={(e) => setBrief((b) => ({ ...b, industry: e.target.value }))} placeholder="e.g. Dental, SaaS, Real estate" className={FLD} />
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">{INDUSTRY_CHIPS.map((c) => <Chip key={c} on={brief.industry === c} onClick={() => setBrief((b) => ({ ...b, industry: c }))}>{c}</Chip>)}</div>
+                  <input value={brief.industry} onChange={(e) => { setPresetId(null); setBrief((b) => ({ ...b, industry: e.target.value })); }} placeholder="e.g. Dental, SaaS, Real estate" className={FLD} />
                 </Field>
-                <Field label="Location"><input value={brief.location} onChange={(e) => setBrief((b) => ({ ...b, location: e.target.value }))} placeholder="City, state or region" className={FLD} /></Field>
+                <Field label="Location">
+                  <input value={brief.location} onChange={(e) => { locTouched.current = true; setBrief((b) => ({ ...b, location: e.target.value })); }} placeholder="City, state or region" className={FLD} />
+                  {homeLocation && brief.location !== homeLocation && (
+                    <button type="button" onClick={() => { locTouched.current = true; setBrief((b) => ({ ...b, location: homeLocation })); }}
+                      className="mt-1.5 inline-flex items-center gap-1 text-[10.5px] font-semibold text-brand-500 hover:underline">
+                      <MapPin className="h-3 w-3" /> Use {homeLocation}
+                    </button>
+                  )}
+                </Field>
                 <Field label="Job title"><input value={brief.title} onChange={(e) => setBrief((b) => ({ ...b, title: e.target.value }))} placeholder="Owner, CMO, Practice Manager" className={FLD} /></Field>
                 <Field label="Seniority"><div className="flex flex-wrap gap-1.5">{SENIORITY.map((s) => <Chip key={s} on={brief.seniority.includes(s)} onClick={() => toggleSeniority(s)}>{s}</Chip>)}</div></Field>
                 <Field label="Employee size"><select value={brief.size} onChange={(e) => setBrief((b) => ({ ...b, size: e.target.value }))} className={FLD}>{SIZES.map((s) => <option key={s}>{s}</option>)}</select></Field>

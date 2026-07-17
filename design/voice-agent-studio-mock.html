@@ -214,6 +214,16 @@
   .numopt .cr{margin-left:auto;font-size:10px;color:var(--amber);font-weight:800}
   .numopt span{display:block;font-size:9.5px;color:var(--muted);margin-top:3px;line-height:1.4}
 
+  /* number search results */
+  .ntile{border:2px solid transparent;border-radius:10px;padding:9px 10px;background:var(--card2);cursor:pointer;text-align:left;color:inherit;transition:transform .12s}
+  .ntile:hover{transform:translateY(-1px);border-color:rgba(14,165,233,.4)}
+  .ntile.on{border-color:var(--brand);background:rgba(14,165,233,.07)}
+  .ntile b{display:block;font:800 12.5px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .ntile .loc{display:block;font-size:9.5px;color:var(--muted);margin-top:2px}
+  .ntile .caps{display:flex;gap:3px;margin-top:5px}
+  .ntile .cap2{font-size:8px;font-weight:800;border-radius:4px;padding:1px 5px;background:rgba(16,185,129,.14);color:var(--emerald)}
+  .ntile .cap2.no{background:rgba(255,255,255,.04);color:var(--dim)}
+
   /* ---------- BACK OFFICE (full-cover glass, z-40 — Director-library pattern) ---------- */
   .back{position:absolute;inset:0;z-index:40;display:none;flex-direction:column;background:rgba(11,11,15,.97);backdrop-filter:blur(8px)}
   .back.on{display:flex}
@@ -532,10 +542,31 @@
         <div class="sec">
           <p class="b-lbl">Your number <span class="tip">— the agent needs a line to answer</span></p>
           <div class="numopts" id="numopts">
-            <button class="numopt on" data-n="new"><b>📞 Get a new number <span class="cr">150 cr / month</span></b><span>Pick your area code. Live in about a minute — nothing to set up.</span></button>
-            <button class="numopt" data-n="mine"><b>🔗 Use my existing number <span class="cr">Free</span></b><span>Forward your business line here. Keeps your number on your cards.</span></button>
+            <button class="numopt" data-n="have"><b>♻️ Add voice to my number <span class="cr">Free</span></b><span>You already rent <b style="font-family:ui-monospace,Menlo,monospace">+1 (628) 555-0301</b> for texts. Ava can answer it too — no extra rent.</span></button>
+            <button class="numopt on" data-n="new"><b>📞 Subscribe to a new number <span class="cr">500 cr / month</span></b><span>Pick an area code, pick a number, live in about a minute.</span></button>
+            <button class="numopt" data-n="mine"><b>🔗 Forward my existing line <span class="cr">Free</span></b><span>Keep the number on your cards — forward it here and Ava answers.</span></button>
           </div>
-          <p class="note">Only calls that reach the agent are charged. Your line keeps working exactly as it does today until you switch it on.</p>
+
+          <!-- number picker: only for data-n="new" -->
+          <div id="numpick" style="margin-top:11px;border:1px solid var(--border);border-radius:12px;background:rgba(27,27,35,.4);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:7px;padding:10px 12px;border-bottom:1px solid var(--border)">
+              <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)">Find a number</span>
+              <select class="inp" style="width:112px;margin-left:6px"><option>🇺🇸 United States</option><option>🇨🇦 Canada</option><option>🇬🇧 United Kingdom</option></select>
+              <input class="inp" style="width:96px" placeholder="Area code" value="415">
+              <select class="inp" style="width:104px"><option>Local</option><option>Toll-free</option></select>
+              <button class="btn sm" onclick="searchNums()">🔍 Search</button>
+              <span class="spacer" style="flex:1"></span>
+              <span style="font-size:9.5px;color:var(--muted)" id="numcount">6 available</span>
+            </div>
+            <div id="numgrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:7px;padding:11px"></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:10px 12px;border-top:1px solid var(--border)">
+              <span style="font-size:10.5px;color:var(--muted)">Selected <b style="color:var(--text);font-family:ui-monospace,Menlo,monospace" id="numsel">+1 (415) 555-0188</b></span>
+              <span class="spacer" style="flex:1"></span>
+              <span style="font-size:10.5px;color:var(--muted)">First month <b style="color:var(--amber)">500 cr</b> · then 500 cr/month</span>
+            </div>
+          </div>
+
+          <p class="note">The number is yours for as long as you keep it — cancel any time from the back office and you're not charged again. Only calls the agent actually answers cost minutes.</p>
         </div>
 
         <div class="sec">
@@ -550,7 +581,7 @@
 
       </div>
       <div class="b-foot">
-        <span class="cost">Building is free · calls cost <b>9 cr / min</b> · number <b>150 cr / month</b></span>
+        <span class="cost">Building is free · calls cost <b>9 cr / min</b> · new number <b>500 cr / month</b></span>
         <div class="spacer"></div>
         <button class="btn" onclick="show('studio')">Cancel</button>
         <button class="btn pri" onclick="show('studio')">✨ Build my agent</button>
@@ -703,14 +734,14 @@
       <div class="bo-body" id="t-number" style="display:none">
         <div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
           <div class="tile"><div class="k">Your number</div><div class="v" style="font-size:15px;font-family:ui-monospace,Menlo,monospace">+1 (415) 555-0188</div><div class="d">San Francisco · dedicated</div></div>
-          <div class="tile"><div class="k">Status</div><div class="v em" style="font-size:15px">Receiving</div><div class="d">Renews Aug 2 · 150 cr</div></div>
+          <div class="tile"><div class="k">Status</div><div class="v em" style="font-size:15px">Receiving</div><div class="d">Renews Aug 2 · 500 cr</div></div>
           <div class="tile"><div class="k">Forwarding</div><div class="v" style="font-size:15px">Off</div><div class="d">Ava answers directly</div></div>
         </div>
         <div class="panel" style="max-width:620px">
           <div class="ph"><b>Numbers</b><button class="btn sm" style="margin-left:auto">＋ Add a number</button></div>
           <div style="padding:12px">
-            <div class="crow" style="border:none"><span class="lab"><b>+1 (415) 555-0188</b><span>Main line · Ava answers · 128 calls this month</span></span><span class="livepill"><i></i> LIVE</span></div>
-            <div class="crow"><span class="lab"><b>+1 (628) 555-0301</b><span>Not assigned to an agent</span></span><button class="btn sm">Assign</button></div>
+            <div class="crow" style="border:none"><span class="lab"><b>+1 (415) 555-0188</b><span>Main line · Ava answers · 128 calls this month · 500 cr/month, renews Aug 2</span></span><span class="livepill"><i></i> LIVE</span><button class="btn sm">Cancel</button></div>
+            <div class="crow"><span class="lab"><b>+1 (628) 555-0301</b><span>Texts only · no agent answering it yet</span></span><button class="btn sm">＋ Add voice</button></div>
           </div>
         </div>
         <p class="note" style="max-width:620px">Prefer to keep the number on your cards? Forward your existing business line here and Ava answers it — your number stays yours.</p>
@@ -786,7 +817,43 @@
       document.querySelectorAll(sel+" "+itemSel).forEach(x=>x.classList.remove("on"));
       b.classList.add("on");
     }));
-  pickOne("#presets",".tc"); pickOne("#voices",".vc"); pickOne("#numopts",".numopt"); pickOne("#when",".pill");
+  pickOne("#presets",".tc"); pickOne("#voices",".vc"); pickOne("#when",".pill");
+
+  /* ---------- number subscription ---------- */
+  const NUMS = [
+    {n:"+1 (415) 555-0188", loc:"San Francisco, CA", voice:true, sms:true},
+    {n:"+1 (415) 555-0224", loc:"San Francisco, CA", voice:true, sms:true},
+    {n:"+1 (415) 555-0391", loc:"San Francisco, CA", voice:true, sms:false},
+    {n:"+1 (415) 555-0470", loc:"Daly City, CA", voice:true, sms:true},
+    {n:"+1 (415) 555-0612", loc:"San Rafael, CA", voice:true, sms:true},
+    {n:"+1 (415) 555-0755", loc:"Sausalito, CA", voice:true, sms:true},
+  ];
+  function renderNums(){
+    const g = document.getElementById("numgrid");
+    g.innerHTML = "";
+    NUMS.forEach((x,i)=>{
+      const b = document.createElement("button");
+      b.className = "ntile" + (i===0 ? " on" : "");
+      b.innerHTML = `<b>${x.n}</b><span class="loc">${x.loc}</span>
+        <span class="caps"><span class="cap2">📞 Voice</span><span class="cap2${x.sms?"":" no"}">💬 Texts</span></span>`;
+      b.addEventListener("click",()=>{
+        g.querySelectorAll(".ntile").forEach(t=>t.classList.remove("on"));
+        b.classList.add("on");
+        document.getElementById("numsel").textContent = x.n;
+      });
+      g.appendChild(b);
+    });
+    document.getElementById("numcount").textContent = NUMS.length + " available";
+  }
+  function searchNums(){ renderNums(); }
+  renderNums();
+
+  // the picker only belongs to "subscribe to a new number"
+  document.querySelectorAll("#numopts .numopt").forEach(b => b.addEventListener("click",()=>{
+    document.querySelectorAll("#numopts .numopt").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    document.getElementById("numpick").style.display = b.dataset.n === "new" ? "" : "none";
+  }));
   document.querySelectorAll("#skills .skopt").forEach(b => b.addEventListener("click",()=>b.classList.toggle("on")));
   document.querySelectorAll(".filt button").forEach(b => b.addEventListener("click",()=>{
     b.parentElement.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
