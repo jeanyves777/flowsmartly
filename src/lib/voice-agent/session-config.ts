@@ -290,3 +290,26 @@ export function buildSessionUpdate(agent: AgentForSession): Record<string, unkno
 function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
 }
+
+/**
+ * The same instructions + voice + tools, shaped for creating a persistent xAI
+ * console agent (when the agents endpoint is enabled). Kept here so the console
+ * agent and the per-call session are built from ONE source and can't drift.
+ */
+export function buildAgentSpec(agent: AgentForSession): {
+  name: string;
+  instructions: string;
+  voice: string;
+  tools: Array<{ name: string; description: string; parameters: Record<string, unknown> }>;
+} {
+  const tools = agent.skills
+    .filter((s) => s.enabled)
+    .flatMap((s) => toolsForSkill(s, agent));
+  tools.push(END_CALL_TOOL);
+  return {
+    name: agent.name,
+    instructions: buildInstructions(agent),
+    voice: agent.voiceId || "eve",
+    tools: tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })),
+  };
+}
