@@ -230,26 +230,15 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
     if (!file || !sessionId) return;
     setUploading(true);
     try {
-      const pres = await fetch("/api/media/upload-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, contentType: file.type, size: file.size }),
-      }).then((r) => r.json());
-      if (!pres?.success) { toast({ title: pres?.error?.message || "That file type isn't supported", variant: "destructive" }); return; }
-
-      const { uploadUrl, file: mf } = pres.data;
-      if (uploadUrl) {
-        const put = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
-        if (!put.ok) { toast({ title: "Upload failed — try again", variant: "destructive" }); return; }
-      }
-
-      const kind = file.type.startsWith("video/") ? "video" : file.type.startsWith("image/") ? "image" : "doc";
+      // Multipart to our own route → it uploads to S3 server-side. (The presigned
+      // browser-PUT path 403s on this bucket, so we don't use it.)
+      const form = new FormData();
+      form.append("file", file);
       const j = await fetch(`/api/ai/training/${sessionId}/materials`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: file.name, kind, url: mf.url, sizeBytes: file.size, mediaFileId: mf.id }),
+        body: form,
       }).then((r) => r.json());
-      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't attach the file", variant: "destructive" }); return; }
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't add that file", variant: "destructive" }); return; }
       if (j.data?.session) room.setSession(j.data.session as TrainingSessionDTO);
       toast({ title: `${file.name} added — push it to the board any time` });
     } catch {
