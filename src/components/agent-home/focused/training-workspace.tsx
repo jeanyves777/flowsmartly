@@ -1,0 +1,390 @@
+"use client";
+
+/**
+ * Training Studio — live rooms: video, whiteboard, docs, illustration.
+ *
+ * Three surfaces on one shell, same split the Video Director uses: the PLAN is a
+ * node canvas (brief → room → segments → go live → invite), the LIVE session is a
+ * stage, and the BACK OFFICE is the host's control panel.
+ *
+ * Data: GET/POST /api/ai/training, GET/PATCH/DELETE …/[id], …/[id]/segments,
+ * …/[id]/participants, …/[id]/board, …/[id]/live, …/[id]/invites, …/[id]/materials.
+ * The room streams over …/[id]/stream (SSE). [[training-studio]]
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { GraduationCap, FolderOpen, Sparkles, Radio, LayoutGrid, SlidersHorizontal, Users } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
+import { useToast } from "@/hooks/use-toast";
+import { FlowLoader } from "@/components/shared/flow-loader";
+import { emitCreditsUpdate } from "@/lib/utils/credits-event";
+import { PlanCanvas } from "./training/plan-canvas";
+import { LiveRoom } from "./training/live-room";
+import { BackOffice } from "./training/back-office";
+import { BriefSheet, type BriefDraft } from "./training/brief-sheet";
+import { useRoom } from "./training/use-room";
+import type { SegmentKind, TrainingSessionDTO } from "@/lib/training/types";
+
+type Mode = "plan" | "live" | "office";
+
+interface SessionRow {
+  id: string;
+  title: string;
+  status: string;
+  plannedMins: number;
+  seats: number;
+  startedAt: string | null;
+}
+
+export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
+  const { toast } = useToast();
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>("plan");
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const [rows, setRows] = useState<SessionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [estimate, setEstimate] = useState<{ total: number; room: number } | null>(null);
+
+  useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
+
+  const room = useRoom(sessionId, { enabled: !!sessionId });
+  const session = room.session;
+
+  const fail = useCallback((msg: string | null) => {
+    if (msg) toast({ title: msg, variant: "destructive" });
+    return !msg;
+  }, [toast]);
+
+  // ---- load: the newest room, else open the brief to start one ----
+  const loadList = useCallback(async () => {
+    try {
+      const j = await fetch("/api/ai/training").then((r) => r.json());
+      const list: SessionRow[] = j?.data?.sessions ?? [];
+      setRows(list);
+      return list;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const list = await loadList();
+      if (!alive) return;
+      if (list[0]) setSessionId(list[0].id);
+      else setBriefOpen(true);
+      setLoading(false);
+    })();
+    return () => { alive = false; };
+  }, [loadList]);
+
+  // Agent live-bridge: when the agent builds a room, surface it here.
+  useEffect(() => {
+    if (!refreshKey) return;
+    void (async () => {
+      const list = await loadList();
+      if (list[0] && list[0].id !== sessionId) { setSessionId(list[0].id); setBriefOpen(false); }
+    })();
+  }, [refreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Follow the room: if it goes live while we're planning, move to the stage.
+  useEffect(() => {
+    if (session?.status === "live" && mode === "plan") setMode("live");
+  }, [session?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- estimate (drives the Go-live node + the office KPI) ----
+  useEffect(() => {
+    if (!session) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const r = await fetch("/api/ai/training/estimate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            seats: session.seats,
+            plannedMins: session.plannedMins,
+            recording: session.recording,
+            transcript: session.transcript,
+          }),
+        }).then((x) => x.json());
+        if (alive && r?.success) setEstimate({ total: r.data.total, room: r.data.room });
+      } catch { /* the estimate is a nicety */ }
+    })();
+    return () => { alive = false; };
+  }, [session?.seats, session?.plannedMins, session?.recording, session?.transcript]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---- actions ----
+  const build = async (d: BriefDraft) => {
+    setBusy(true);
+    try {
+      const j = await fetch("/api/ai/training", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...d, startsAt: d.startsAt || null }),
+      }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't build the room", variant: "destructive" }); return; }
+      const built = j.data.session as TrainingSessionDTO;
+      setSessionId(built.id);
+      setBriefOpen(false);
+      setMode("plan");
+      await loadList();
+      toast({ title: `Room built — ${built.segments.length} segments on the canvas` });
+    } catch {
+      toast({ title: "Couldn't build the room", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const segAct = async (method: "POST" | "PATCH" | "DELETE", body?: unknown, qs = "") => {
+    if (!sessionId) return;
+    try {
+      const j = await fetch(`/api/ai/training/${sessionId}/segments${qs}`, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "That didn't work", variant: "destructive" }); return; }
+      if (j.data?.session) room.setSession(j.data.session as TrainingSessionDTO);
+    } catch {
+      toast({ title: "That didn't work", variant: "destructive" });
+    }
+  };
+
+  const goLive = async () => {
+    if (!sessionId || !session) return;
+    if (session.status === "live") { setMode("live"); return; }
+    setBusy(true);
+    try {
+      const j = await fetch(`/api/ai/training/${sessionId}/live`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start" }),
+      }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't start the session", variant: "destructive" }); return; }
+      if (j.data?.session) room.setSession(j.data.session as TrainingSessionDTO);
+      emitCreditsUpdate();
+      setMode("live");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const endLive = async () => {
+    if (!sessionId) return;
+    const j = await fetch(`/api/ai/training/${sessionId}/live`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "end" }),
+    }).then((r) => r.json()).catch(() => null);
+    if (!j?.success) { toast({ title: j?.error?.message || "Couldn't end the session", variant: "destructive" }); return; }
+    if (j.data?.session) room.setSession(j.data.session as TrainingSessionDTO);
+    emitCreditsUpdate();
+    setMode("plan");
+    await loadList();
+    toast({ title: "Session ended — the recording and notes are processing" });
+  };
+
+  const undo = () => {
+    if (!session || !room.me) return;
+    const mine = [...session.boardDoc.items].reverse().find((i) => i.by === room.me!.id);
+    if (!mine) { toast({ title: "Nothing of yours to undo" }); return; }
+    void room.removeItem(mine.id);
+  };
+
+  const invite = async () => {
+    if (!sessionId) return;
+    const link = session?.invites.find((i) => i.isActive && !i.email);
+    if (link) {
+      await navigator.clipboard?.writeText(`${window.location.origin}/t/${link.token}`).catch(() => {});
+      toast({ title: "Join link copied — anyone with it can join" });
+      return;
+    }
+    const j = await fetch(`/api/ai/training/${sessionId}/invites`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "TRAINEE", label: "Join link" }),
+    }).then((r) => r.json()).catch(() => null);
+    if (j?.success && j.data?.session) {
+      room.setSession(j.data.session as TrainingSessionDTO);
+      toast({ title: "Join link created" });
+    }
+  };
+
+  const stats = useMemo(() => {
+    if (!session) return "";
+    const inRoom = session.participants.filter((p) => p.state === "ADMITTED").length;
+    return `${session.segments.length} segments · ${session.plannedMins} min · ${session.status === "live" ? `${inRoom} in the room` : `${session.seats} seats`}`;
+  }, [session]);
+
+  // ---- header (portaled into the FocusedView's single header row) ----
+  const header = headerSlot
+    ? createPortal(
+        <div className="flex items-center gap-2">
+          <div className="flex gap-0.5 rounded-xl border border-border bg-card p-0.5">
+            {([
+              ["plan", "Plan", LayoutGrid],
+              ["live", "Live room", Radio],
+              ["office", "Back office", SlidersHorizontal],
+            ] as [Mode, string, typeof Radio][]).map(([m, label, Icon]) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                disabled={!session}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-bold transition disabled:opacity-40",
+                  mode === m ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {m === "live" && session?.status === "live" ? (
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
+                ) : (
+                  <Icon className="h-3 w-3" />
+                )}
+                {label}
+              </button>
+            ))}
+          </div>
+          {stats ? <span className="hidden text-[11.5px] text-muted-foreground lg:inline">{stats}</span> : null}
+          <button onClick={() => setListOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500">
+            <FolderOpen className="h-3 w-3" /> Sessions
+          </button>
+          <button onClick={() => setBriefOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2.5 py-1.5 text-[12px] font-semibold text-white">
+            <Sparkles className="h-3 w-3" /> New session
+          </button>
+        </div>,
+        headerSlot,
+      )
+    : null;
+
+  if (loading) {
+    return (
+      <div className="absolute inset-0 grid place-items-center">
+        <FlowLoader label="Opening your training rooms…" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute inset-0">
+      {header}
+
+      {sessionId && !session ? (
+        // A room IS selected, its state just hasn't landed yet. Never flash the
+        // "no rooms" empty state at someone who has rooms.
+        <div className="absolute inset-0 grid place-items-center">
+          <FlowLoader label="Opening the room…" />
+        </div>
+      ) : !session ? (
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="w-[420px] text-center">
+            <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-600">
+              <GraduationCap className="h-6 w-6 text-white" />
+            </span>
+            <h2 className="mt-3 text-[18px] font-bold">Run a training room</h2>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">
+              Everyone on video, a shared whiteboard, your deck and docs on the board — and you draw on top of all of it.
+            </p>
+            <button onClick={() => setBriefOpen(true)} className="mt-4 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-5 py-3 text-[14px] font-extrabold text-white">
+              Build a room
+            </button>
+          </div>
+        </div>
+      ) : mode === "plan" ? (
+        <PlanCanvas
+          session={session}
+          estimate={estimate}
+          busy={busy}
+          onEditBrief={() => setBriefOpen(true)}
+          onAddSegment={(k: SegmentKind) => void segAct("POST", { kind: k })}
+          onRemoveSegment={(id) => void segAct("DELETE", undefined, `?segmentId=${id}`)}
+          onPatchSegments={(segs) => void segAct("PATCH", { segments: segs })}
+          onGoLive={goLive}
+          onManage={() => setMode("office")}
+          onInvite={invite}
+        />
+      ) : mode === "live" ? (
+        room.me ? (
+          <LiveRoom
+            session={session}
+            me={room.me}
+            cursors={room.cursors}
+            connected={room.connected}
+            onAdd={(i) => void room.addItem(i)}
+            onPing={room.ping}
+            onUndo={undo}
+            onClear={() => void room.clearBoard()}
+            act={async (a, p) => { const e = await room.act(a, p); fail(e); return e; }}
+            patch={async (b) => { const e = await room.patch(b); fail(e); return e; }}
+            onLeave={() => setMode("plan")}
+            onManage={() => setMode("office")}
+          />
+        ) : (
+          <div className="absolute inset-0 grid place-items-center">
+            <FlowLoader label="Joining the room…" />
+          </div>
+        )
+      ) : (
+        <BackOffice
+          session={session}
+          me={room.me}
+          estimate={estimate}
+          act={async (a, p) => { const e = await room.act(a, p); fail(e); return e; }}
+          patch={async (b) => { const e = await room.patch(b); fail(e); return e; }}
+          onAddMaterial={() => toast({ title: "Drop a file on the board — coming with the next slice" })}
+          onPushMaterial={(id) => void room.patch({ stageSource: "doc", stageKey: id, stagePage: 1 }).then(() => setMode("live"))}
+          onEnd={endLive}
+        />
+      )}
+
+      <BriefSheet open={briefOpen} busy={busy} onClose={() => setBriefOpen(false)} onBuild={build} />
+
+      {listOpen ? (
+        <>
+          <div className="absolute inset-0 z-[49] bg-black/55" onClick={() => setListOpen(false)} />
+          <div className="absolute inset-y-0 end-0 z-50 flex w-[360px] flex-col border-s border-border bg-card shadow-2xl">
+            <div className="flex items-center gap-2 border-b border-border px-4 py-3 text-[13px] font-bold">
+              <Users className="h-3.5 w-3.5" /> Your sessions
+              <button onClick={() => setListOpen(false)} className="ms-auto text-[12px] font-normal text-muted-foreground hover:text-foreground">Close</button>
+            </div>
+            <div className="flex-1 overflow-auto p-2">
+              {rows.length === 0 ? (
+                <p className="p-4 text-center text-[12px] text-muted-foreground">No sessions yet.</p>
+              ) : (
+                rows.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => { setSessionId(r.id); setListOpen(false); setMode("plan"); }}
+                    className={cn(
+                      "mb-1.5 flex w-full items-center gap-2.5 rounded-xl border p-2.5 text-left transition",
+                      r.id === sessionId ? "border-brand-500 bg-brand-500/[0.06]" : "border-border hover:border-brand-500/50",
+                    )}
+                  >
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-muted">
+                      <GraduationCap className="h-4 w-4 text-brand-400" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate text-[12px]">{r.title}</b>
+                      <span className="text-[10px] text-muted-foreground">{r.plannedMins} min · {r.seats} seats</span>
+                    </span>
+                    <span className={cn(
+                      "shrink-0 rounded-full px-1.5 py-px text-[9px] font-extrabold",
+                      r.status === "live" ? "bg-rose-500 text-white" : r.status === "ended" ? "bg-muted text-muted-foreground" : "bg-brand-500/15 text-brand-400",
+                    )}>
+                      {r.status}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
