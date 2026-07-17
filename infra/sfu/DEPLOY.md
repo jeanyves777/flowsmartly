@@ -1,13 +1,89 @@
 # Training Room media server (SFU) — deploy
 
-The media server for `/home/training`. Runs on **its own box**, not the app VPS.
+The media server for `/home/training`.
 
-## Why a second box
+- **§0 Interim** — a container on the app VPS. Switches video on today.
+- **§1+ Proper** — its own box, once there is one.
 
-- Media relay is CPU + bandwidth hungry. The app VPS is already RAM-tight —
-  `scripts/deploy-vps.sh` stops the `supertonic-tts` and `whisper-stt` pm2 apps
-  purely to free memory for `next build`. A call degrading every time someone
-  deploys or renders a video is not acceptable.
+---
+
+## §0. INTERIM — a container on the app VPS
+
+Measured on the app box (2026-07-17): **15G RAM · 12G available · 4 cores · load
+0.09**, Docker 29.2.1 already installed. One worker sits comfortably alongside
+everything else — an earlier worry that the box was RAM-tight was simply wrong.
+The deploy stops `supertonic-tts`/`whisper-stt` as a precaution for the 8G-heap
+`next build`, not because memory is actually scarce.
+
+**Fine for:** testing, demos, small internal rooms.
+**Not fine for:** real classes. Bandwidth is the ceiling and it's shared with the
+site. Move to §1 before customers are in a room.
+
+```bash
+# on the app box, in /opt/flowsmartly (once this is on main)
+openssl rand -hex 32                        # the secret — used in BOTH places below
+
+cat > infra/sfu/.env <<EOF
+TRAINING_SFU_SECRET=<paste it>
+SFU_ANNOUNCED_IP=$(curl -s ifconfig.me)     # the box's PUBLIC IPv4
+EOF
+
+docker compose -f docker-compose.sfu.yml up -d --build   # ~3 min: builds the C++ worker
+curl -s localhost:4443/health                            # {"ok":true,...}
+```
+
+Open the media ports — **both**, because Hostinger's cloud firewall filters
+independently of ufw, and opening only one looks exactly like a broken NAT:
+
+```bash
+ufw allow 40000:40999/udp && ufw allow 40000:40999/tcp
+```
+
+**Signalling reuses the existing nginx + certificate.** Same box means no new
+subdomain and no new cert — just a path. Add to the existing `server {}` in
+`/etc/nginx/sites-available/flowsmartly`, **above** `location / {`:
+
+```nginx
+location /rtc {
+    proxy_pass         http://127.0.0.1:4443;
+    proxy_http_version 1.1;
+    proxy_set_header   Upgrade $http_upgrade;
+    proxy_set_header   Connection "upgrade";
+    proxy_set_header   Host $host;
+    proxy_read_timeout 3600s;   # a call outlives the default 60s idle timeout
+}
+```
+
+```bash
+nginx -t && systemctl reload nginx
+```
+
+Point the app at itself, in `/opt/flowsmartly/.env`:
+
+```ini
+TRAINING_SFU_URL=https://flowsmartly.com
+TRAINING_SFU_SECRET=<the SAME secret>
+```
+
+`pm2 reload flowsmartly`. Video is on.
+
+> Only signalling passes through nginx. Media is UDP straight to the ports above
+> and never touches it.
+
+**Moving to the real box later:** stand it up per §1, change `TRAINING_SFU_URL` to
+the new host, `pm2 reload flowsmartly`, then `docker compose -f
+docker-compose.sfu.yml down` here. No code change.
+
+**Rolling back:** unset the two env vars and reload. Video switches off; every
+room keeps working as a whiteboard session.
+
+---
+
+## §1. Why a second box (the proper setup)
+
+- Media relay is CPU + bandwidth hungry, and on the shared box that bandwidth
+  competes with the site itself. A call degrading whenever someone deploys or
+  renders a video is not acceptable for a paid class.
 - It needs a **raw UDP port range**. nginx cannot proxy UDP, so this can't hide
   behind the existing web proxy.
 - Browsers connect to it **directly**, so media never crosses the app box and
