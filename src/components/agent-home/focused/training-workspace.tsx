@@ -77,12 +77,20 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
     (async () => {
       const list = await loadList();
       if (!alive) return;
-      // A join link lands on /home/training?session=<id> — open THAT room, live.
+      // The studio is the OWNER's console (plan + back office). `loadList` only
+      // returns rooms this user owns, so a ?session that isn't in it belongs to
+      // someone else — never open it here. Attendees use the public meeting view
+      // (/t/<token>), not this playground. This is the access-control boundary.
       const wanted = new URLSearchParams(window.location.search).get("session");
-      if (wanted) {
+      const owned = wanted && list.some((r) => r.id === wanted);
+      if (wanted && !owned) {
+        // not your room — bounce to the public join/meeting page for it
+        window.location.replace(`/m/${wanted}`);
+        return;
+      }
+      if (owned) {
         setSessionId(wanted);
         setMode("live");
-        // tidy the URL so a refresh doesn't re-force live mode
         window.history.replaceState({}, "", "/home/training");
       } else if (list[0]) {
         setSessionId(list[0].id);

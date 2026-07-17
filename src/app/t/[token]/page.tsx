@@ -50,7 +50,8 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
         return;
       }
       if (!j.success) { setError(j.error?.message || "Couldn't join"); return; }
-      router.push(`/home/training?session=${j.data.sessionId}`);
+      // Attendees go to the PUBLIC meeting view — never the owner's studio.
+      router.push(`/m/${j.data.sessionId}`);
     } catch {
       setError("Couldn't join — try again");
     } finally {

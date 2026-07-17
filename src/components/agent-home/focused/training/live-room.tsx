@@ -13,7 +13,7 @@ import {
   MousePointer2, Pencil, Highlighter, Eraser, Square, Type, StickyNote, Flashlight,
   Undo2, Trash2, Presentation, PenLine, FileText, Monitor, Video, Hand, Mic, MicOff,
   VideoOff, Circle, Users, LogOut, Paperclip, ChevronLeft, ChevronRight, Star, X,
-  Minus, MoveUpRight, Triangle, Diamond, ChevronDown, PanelLeftClose, PanelLeftOpen,
+  Minus, MoveUpRight, Triangle, Diamond, ChevronDown, PanelLeftClose, PanelLeftOpen, UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
@@ -104,6 +104,8 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onP
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rect");
   const [shapeMenu, setShapeMenu] = useState(false);
   const [showTools, setShowTools] = useState(true); // hide the pen rail e.g. while presenting slides
+  const [showRoster, setShowRoster] = useState(true); // the Participants button toggles this
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   // Camera/mic/screen. Optional: with no media server configured this reports
   // enabled:false and the room runs as a whiteboard session.
@@ -114,6 +116,10 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onP
   const iHavePen = session.penHolderId === me.id;
   const inRoom = useMemo(
     () => session.participants.filter((p) => p.state === "ADMITTED"),
+    [session.participants],
+  );
+  const waiting = useMemo(
+    () => session.participants.filter((p) => p.state === "WAITING"),
     [session.participants],
   );
   const sharer = useMemo(
@@ -198,16 +204,15 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onP
   }, [session.stageSource, session.stagePage, session.penHolderId, session.participants, material, sharer, me, media.localCam, media.localScreen, media.remotes]);
 
   return (
-    <div className="absolute inset-0 grid bg-background" style={{ gridTemplateColumns: showTools ? "52px 1fr 208px" : "1fr 208px" }}>
+    <div className="absolute inset-0 grid bg-background" style={{ gridTemplateColumns: `${showTools ? "52px " : ""}1fr${showRoster ? " 208px" : ""}` }}>
       {/* ---- tool rail (hideable) ---- */}
       {showTools ? (
       <div className="relative flex flex-col items-center gap-1 border-e border-border bg-card py-2.5">
         {TOOLS.map(({ id, Icon, title }) => {
           const isShape = id === "shape";
           const ShapeIcon = isShape ? (SHAPES.find((s) => s.id === shapeKind)?.Icon ?? Square) : Icon;
-          return (
+          const btn = (
             <button
-              key={id}
               onClick={() => {
                 setTool(id);
                 setShapeMenu(isShape ? (tool === "shape" ? !shapeMenu : true) : false);
@@ -224,28 +229,34 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onP
               {isShape ? <ChevronDown className="absolute bottom-0 right-0 h-2 w-2" /> : null}
             </button>
           );
-        })}
-        {/* shapes flyout */}
-        {shapeMenu && tool === "shape" ? (
-          <>
-            <div className="fixed inset-0 z-[19]" onClick={() => setShapeMenu(false)} />
-            <div className="absolute left-[46px] top-[150px] z-20 grid grid-cols-3 gap-1 rounded-xl border border-border bg-card p-1.5 shadow-2xl">
-              {SHAPES.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => { setShapeKind(s.id); setTool("shape"); setShapeMenu(false); }}
-                  title={s.label}
-                  className={cn(
-                    "grid h-[34px] w-[34px] place-items-center rounded-lg text-muted-foreground transition",
-                    shapeKind === s.id ? "bg-brand-500/15 text-brand-400" : "hover:bg-muted hover:text-foreground",
-                  )}
-                >
-                  <s.Icon className="h-4 w-4" />
-                </button>
-              ))}
+          if (!isShape) return <div key={id}>{btn}</div>;
+          // The shapes flyout is anchored to THIS button, so it can't drift.
+          return (
+            <div key={id} className="relative">
+              {btn}
+              {shapeMenu && tool === "shape" ? (
+                <>
+                  <div className="fixed inset-0 z-[19]" onClick={() => setShapeMenu(false)} />
+                  <div className="absolute left-[42px] top-1/2 z-20 grid w-[122px] -translate-y-1/2 grid-cols-3 gap-1 rounded-xl border border-border bg-card p-1.5 shadow-2xl">
+                    {SHAPES.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => { setShapeKind(s.id); setTool("shape"); setShapeMenu(false); }}
+                        title={s.label}
+                        className={cn(
+                          "grid h-[34px] w-[34px] place-items-center rounded-lg text-muted-foreground transition",
+                          shapeKind === s.id ? "bg-brand-500/15 text-brand-400" : "hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        <s.Icon className="h-4 w-4" />
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : null}
             </div>
-          </>
-        ) : null}
+          );
+        })}
         <span className="my-1.5 h-px w-5 bg-border" />
         <div className="flex flex-col gap-1">
           {INKS.map((c) => (
@@ -413,7 +424,7 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onP
           <Ctl onClick={() => void patch({ stageSource: "board" })} title="Whiteboard" Icon={PenLine} />
           {host ? <Ctl onClick={onManage} title="Materials" Icon={Paperclip} /> : null}
           <Ctl on={me.handRaised} onClick={() => void act(me.handRaised ? "lower_hand" : "raise_hand", me.id)} title={me.handRaised ? "Lower your hand" : "Raise your hand"} Icon={Hand} />
-          <Ctl onClick={onManage} title="Participants" Icon={Users} />
+          <Ctl on={showRoster} onClick={() => setShowRoster((v) => !v)} title={showRoster ? "Hide participants" : "Show participants"} Icon={Users} />
           <button onClick={onLeave} className="inline-flex h-[38px] items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 text-[12px] font-bold text-foreground hover:border-rose-500 hover:text-rose-400">
             <LogOut className="h-3.5 w-3.5" /> Leave
           </button>
@@ -427,11 +438,34 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onP
       </div>
 
       {/* ---- roster ---- */}
-      <div className="flex min-h-0 flex-col border-s border-border bg-card">
+      {showRoster ? (
+      <div className="relative flex min-h-0 flex-col border-s border-border bg-card">
         <div className="flex items-center gap-1.5 border-b border-border px-3 py-2.5 text-[11px] font-bold">
           <Users className="h-3.5 w-3.5" /> In the room
           <span className="ms-auto text-[10px] text-muted-foreground">{inRoom.length}</span>
+          {host ? (
+            <button onClick={() => setInviteOpen((v) => !v)} title="Invite people" className="grid h-6 w-6 place-items-center rounded-md border border-border text-muted-foreground hover:border-brand-500 hover:text-brand-400">
+              <UserPlus className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
         </div>
+        {host && inviteOpen ? <InvitePanel session={session} onClose={() => setInviteOpen(false)} /> : null}
+        {/* live admit requests — the host lets people in without leaving the room */}
+        {host && waiting.length ? (
+          <div className="border-b border-amber-500/30 bg-amber-500/[0.06]">
+            <div className="px-3 pb-1 pt-2 text-[10px] font-extrabold uppercase tracking-wide text-amber-400">Waiting to join · {waiting.length}</div>
+            {waiting.map((w) => (
+              <div key={w.id} className="flex items-center gap-2 px-3 py-1.5">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br from-amber-500 to-amber-700 text-[8.5px] font-black text-white">
+                  {w.name.slice(0, 2).toUpperCase()}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold">{w.name}</span>
+                <button onClick={() => void act("admit", w.id)} className="rounded-md bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-1 text-[10px] font-bold text-white">Admit</button>
+                <button onClick={() => void act("deny", w.id)} title="Deny" className="grid h-[22px] w-[22px] place-items-center rounded-md border border-border text-muted-foreground hover:border-rose-500 hover:text-rose-400"><X className="h-3 w-3" /></button>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {media.enabled && !media.connected ? (
           <p className="border-b border-border bg-amber-500/10 px-3 py-1.5 text-[10px] font-semibold text-amber-400">
             Connecting video…
@@ -460,8 +494,64 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onP
           ))}
         </div>
       </div>
+      ) : null}
 
       <AudioSink remotes={media.remotes} />
+    </div>
+  );
+}
+
+/** In-room invite: copy the link, or email people, without leaving the room. */
+function InvitePanel({ session, onClose }: { session: TrainingSessionDTO; onClose: () => void }) {
+  const link = session.invites.find((i) => i.isActive && !i.email);
+  const url = link ? `${typeof window !== "undefined" ? window.location.origin : ""}/t/${link.token}` : "";
+  const [copied, setCopied] = useState(false);
+  const [emails, setEmails] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(0);
+
+  const copy = async () => {
+    await navigator.clipboard?.writeText(url).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  };
+  const send = async () => {
+    const list = emails.split(/[\s,;]+/).map((e) => e.trim()).filter((e) => e.includes("@"));
+    if (!list.length) return;
+    setSending(true);
+    try {
+      const r = await fetch(`/api/ai/training/${session.id}/invites`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails: list, role: "TRAINEE" }),
+      }).then((x) => x.json());
+      if (r?.success) { setSent(list.length); setEmails(""); setTimeout(onClose, 1200); }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="border-b border-border bg-muted/40 p-2.5">
+      <div className="mb-2 flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1.5">
+        <code className="flex-1 truncate font-mono text-[9.5px] text-muted-foreground">{url.replace(/^https?:\/\//, "")}</code>
+        <button onClick={copy} className={cn("rounded px-2 py-0.5 text-[10px] font-bold", copied ? "bg-emerald-500/15 text-emerald-400" : "bg-brand-500/15 text-brand-400 hover:bg-brand-500/25")}>
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <textarea
+        value={emails}
+        onChange={(e) => setEmails(e.target.value)}
+        placeholder="Email addresses, comma or space separated…"
+        className="min-h-[52px] w-full resize-none rounded-lg border border-border bg-card px-2.5 py-2 text-[11px] outline-none focus:border-brand-500"
+      />
+      <div className="mt-1.5 flex items-center gap-2">
+        {sent ? <span className="text-[10px] text-emerald-400">Invited {sent} · ✓</span> : <span className="text-[10px] text-muted-foreground">No account needed to join.</span>}
+        <button onClick={onClose} className="ms-auto rounded-lg border border-border px-2.5 py-1 text-[10.5px] font-semibold hover:border-brand-500">Close</button>
+        <button onClick={send} disabled={sending || !emails.trim()} className="rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2.5 py-1 text-[10.5px] font-bold text-white disabled:opacity-50">
+          {sending ? "Sending…" : "Send"}
+        </button>
+      </div>
     </div>
   );
 }
