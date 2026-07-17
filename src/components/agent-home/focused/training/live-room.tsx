@@ -13,12 +13,22 @@ import {
   MousePointer2, Pencil, Highlighter, Eraser, Square, Type, StickyNote, Flashlight,
   Undo2, Trash2, Presentation, PenLine, FileText, Monitor, Video, Hand, Mic, MicOff,
   VideoOff, Circle, Users, LogOut, Paperclip, ChevronLeft, ChevronRight, Star, X,
+  Minus, MoveUpRight, Triangle, Diamond, ChevronDown, PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
-import { TrainingBoard, type BoardCursor } from "./training-board";
+import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
 import { useMedia, type RemoteStream } from "./use-media";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
 import type { BoardItem, BoardTool, StageSource, TrainingParticipantDTO, TrainingSessionDTO } from "@/lib/training/types";
+
+const SHAPES: { id: ShapeKind; Icon: typeof Square; label: string }[] = [
+  { id: "rect", Icon: Square, label: "Rectangle" },
+  { id: "ellipse", Icon: Circle, label: "Ellipse" },
+  { id: "triangle", Icon: Triangle, label: "Triangle" },
+  { id: "diamond", Icon: Diamond, label: "Diamond" },
+  { id: "line", Icon: Minus, label: "Line" },
+  { id: "arrow", Icon: MoveUpRight, label: "Arrow" },
+];
 
 /** A live track. Muted for our own preview, or we'd howl with feedback.
  *  Named VideoFeed, not Video — lucide already exports a `Video` icon here. */
@@ -76,6 +86,7 @@ interface Props {
   cursors: BoardCursor[];
   connected: boolean;
   onAdd: (item: BoardItem) => void;
+  onRemove: (itemId: string) => void;
   onPing: (x: number, y: number, laser: boolean) => void;
   onUndo: () => void;
   onClear: () => void;
@@ -83,11 +94,16 @@ interface Props {
   patch: (body: Record<string, unknown>) => Promise<string | null>;
   onLeave: () => void;
   onManage: () => void;
+  /** owner-only — ends the session for everyone */
+  onEnd: () => void;
 }
 
-export function LiveRoom({ session, me, cursors, connected, onAdd, onPing, onUndo, onClear, act, patch, onLeave, onManage }: Props) {
+export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onPing, onUndo, onClear, act, patch, onLeave, onManage, onEnd }: Props) {
   const [tool, setTool] = useState<BoardTool>("pen");
   const [ink, setInk] = useState(INKS[0]);
+  const [shapeKind, setShapeKind] = useState<ShapeKind>("rect");
+  const [shapeMenu, setShapeMenu] = useState(false);
+  const [showTools, setShowTools] = useState(true); // hide the pen rail e.g. while presenting slides
 
   // Camera/mic/screen. Optional: with no media server configured this reports
   // enabled:false and the room runs as a whiteboard session.
@@ -182,24 +198,54 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onPing, onUnd
   }, [session.stageSource, session.stagePage, session.penHolderId, session.participants, material, sharer, me, media.localCam, media.localScreen, media.remotes]);
 
   return (
-    <div className="absolute inset-0 grid grid-cols-[52px_1fr_208px] bg-background">
-      {/* ---- tool rail ---- */}
-      <div className="flex flex-col items-center gap-1 border-e border-border bg-card py-2.5">
-        {TOOLS.map(({ id, Icon, title }) => (
-          <button
-            key={id}
-            onClick={() => setTool(id)}
-            disabled={!iCanDraw && id !== "sel" && id !== "laser"}
-            title={!iCanDraw && id !== "sel" && id !== "laser" ? "You don't have the pen" : title}
-            className={cn(
-              "grid h-[34px] w-[34px] place-items-center rounded-lg text-muted-foreground transition",
-              tool === id ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "hover:bg-muted hover:text-foreground",
-              !iCanDraw && id !== "sel" && id !== "laser" ? "opacity-30" : "",
-            )}
-          >
-            <Icon className="h-4 w-4" />
-          </button>
-        ))}
+    <div className="absolute inset-0 grid bg-background" style={{ gridTemplateColumns: showTools ? "52px 1fr 208px" : "1fr 208px" }}>
+      {/* ---- tool rail (hideable) ---- */}
+      {showTools ? (
+      <div className="relative flex flex-col items-center gap-1 border-e border-border bg-card py-2.5">
+        {TOOLS.map(({ id, Icon, title }) => {
+          const isShape = id === "shape";
+          const ShapeIcon = isShape ? (SHAPES.find((s) => s.id === shapeKind)?.Icon ?? Square) : Icon;
+          return (
+            <button
+              key={id}
+              onClick={() => {
+                setTool(id);
+                setShapeMenu(isShape ? (tool === "shape" ? !shapeMenu : true) : false);
+              }}
+              disabled={!iCanDraw && id !== "sel" && id !== "laser"}
+              title={!iCanDraw && id !== "sel" && id !== "laser" ? "You don't have the pen" : isShape ? "Shapes — click for more" : title}
+              className={cn(
+                "relative grid h-[34px] w-[34px] place-items-center rounded-lg text-muted-foreground transition",
+                tool === id ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "hover:bg-muted hover:text-foreground",
+                !iCanDraw && id !== "sel" && id !== "laser" ? "opacity-30" : "",
+              )}
+            >
+              <ShapeIcon className="h-4 w-4" />
+              {isShape ? <ChevronDown className="absolute bottom-0 right-0 h-2 w-2" /> : null}
+            </button>
+          );
+        })}
+        {/* shapes flyout */}
+        {shapeMenu && tool === "shape" ? (
+          <>
+            <div className="fixed inset-0 z-[19]" onClick={() => setShapeMenu(false)} />
+            <div className="absolute left-[46px] top-[150px] z-20 grid grid-cols-3 gap-1 rounded-xl border border-border bg-card p-1.5 shadow-2xl">
+              {SHAPES.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => { setShapeKind(s.id); setTool("shape"); setShapeMenu(false); }}
+                  title={s.label}
+                  className={cn(
+                    "grid h-[34px] w-[34px] place-items-center rounded-lg text-muted-foreground transition",
+                    shapeKind === s.id ? "bg-brand-500/15 text-brand-400" : "hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  <s.Icon className="h-4 w-4" />
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
         <span className="my-1.5 h-px w-5 bg-border" />
         <div className="flex flex-col gap-1">
           {INKS.map((c) => (
@@ -220,10 +266,19 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onPing, onUnd
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
+      ) : null}
 
       {/* ---- stage ---- */}
       <div className="relative flex min-w-0 flex-col">
         <div className="flex items-center gap-1 border-b border-border bg-background/70 px-3 py-2">
+          {/* hide / show the drawing rail — handy when presenting slides or a screen */}
+          <button
+            onClick={() => setShowTools((v) => !v)}
+            title={showTools ? "Hide the drawing tools" : "Show the drawing tools"}
+            className="me-1 grid h-[30px] w-[30px] place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:border-brand-500 hover:text-foreground"
+          >
+            {showTools ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+          </button>
           {SOURCES.map(({ id, Icon, label }) => (
             <button
               key={id}
@@ -269,10 +324,12 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onPing, onUnd
             <TrainingBoard
               doc={session.boardDoc}
               tool={tool}
+              shapeKind={shapeKind}
               color={ink}
               canDraw={iCanDraw}
               cursors={cursors}
               onAdd={onAdd}
+              onRemove={onRemove}
               onPing={onPing}
               backdrop={backdrop}
             />
@@ -294,13 +351,26 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onPing, onUnd
 
         {/* ---- control bar ---- */}
         <div className="flex shrink-0 items-center justify-center gap-1.5 border-t border-border bg-background/90 p-2.5">
-          <span className="me-2 text-[11px] tabular-nums text-muted-foreground">
-            {connected ? (
-              session.recording ? <><Circle className="me-1 inline h-2 w-2 animate-pulse fill-rose-500 text-rose-500" />REC</> : "Not recording"
-            ) : (
-              <span className="text-amber-400">Reconnecting…</span>
-            )}
-          </span>
+          {/* Recording — a real toggle for the host; a plain status for everyone else. */}
+          {host ? (
+            <button
+              onClick={() => void patch({ recording: !session.recording })}
+              title={session.recording ? "Stop recording" : "Start recording"}
+              className={cn(
+                "me-1 inline-flex h-[38px] items-center gap-1.5 rounded-xl border px-3 text-[11px] font-bold transition",
+                session.recording
+                  ? "border-rose-500/45 bg-rose-500/15 text-rose-400"
+                  : "border-border bg-card hover:border-brand-500",
+              )}
+            >
+              <Circle className={cn("h-2.5 w-2.5", session.recording ? "animate-pulse fill-rose-500 text-rose-500" : "fill-current")} />
+              {session.recording ? "Stop rec" : "Record"}
+            </button>
+          ) : (
+            <span className="me-2 text-[11px] tabular-nums text-muted-foreground">
+              {!connected ? <span className="text-amber-400">Reconnecting…</span> : session.recording ? <><Circle className="me-1 inline h-2 w-2 animate-pulse fill-rose-500 text-rose-500" />REC</> : null}
+            </span>
+          )}
           {/* The device is the truth; the roster flag follows it, so a tile can
               never claim a camera is on when no track is flowing. */}
           <Ctl
@@ -344,9 +414,15 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onPing, onUnd
           {host ? <Ctl onClick={onManage} title="Materials" Icon={Paperclip} /> : null}
           <Ctl on={me.handRaised} onClick={() => void act(me.handRaised ? "lower_hand" : "raise_hand", me.id)} title={me.handRaised ? "Lower your hand" : "Raise your hand"} Icon={Hand} />
           <Ctl onClick={onManage} title="Participants" Icon={Users} />
-          <button onClick={onLeave} className="inline-flex h-[38px] items-center gap-1.5 rounded-xl bg-gradient-to-br from-rose-600 to-rose-400 px-3.5 text-[12px] font-extrabold text-white">
+          <button onClick={onLeave} className="inline-flex h-[38px] items-center gap-1.5 rounded-xl border border-border bg-card px-3.5 text-[12px] font-bold text-foreground hover:border-rose-500 hover:text-rose-400">
             <LogOut className="h-3.5 w-3.5" /> Leave
           </button>
+          {/* Owner ends the room for EVERYONE, distinct from just leaving. */}
+          {me.role === "HOST" ? (
+            <button onClick={onEnd} title="End the session for everyone" className="inline-flex h-[38px] items-center gap-1.5 rounded-xl bg-gradient-to-br from-rose-600 to-rose-400 px-3.5 text-[12px] font-extrabold text-white">
+              <Square className="h-3.5 w-3.5" /> End
+            </button>
+          ) : null}
         </div>
       </div>
 

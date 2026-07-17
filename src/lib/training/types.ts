@@ -47,7 +47,7 @@ export interface BoardShape {
   id: string;
   t: "shape";
   by: string;
-  shape: "rect" | "ellipse" | "arrow" | "line";
+  shape: "rect" | "ellipse" | "arrow" | "line" | "triangle" | "diamond";
   color: string;
   size: number;
   from: BoardPoint;

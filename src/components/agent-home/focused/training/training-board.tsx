@@ -26,14 +26,20 @@ export interface BoardCursor {
   laser?: boolean;
 }
 
+/** Which shape the shape tool draws (chosen from the toolbar dropdown). */
+export type ShapeKind = "rect" | "ellipse" | "arrow" | "line" | "triangle" | "diamond";
+
 interface Props {
   doc: BoardDoc;
   tool: BoardTool;
+  shapeKind?: ShapeKind;
   color: string;
   /** false → read-only: no marks, no cursor ping (they don't have the pen) */
   canDraw: boolean;
   cursors: BoardCursor[];
   onAdd: (item: BoardItem) => void;
+  /** the eraser deletes whole marks it touches (tldraw-style object erase) */
+  onRemove: (itemId: string) => void;
   onPing: (x: number, y: number, laser: boolean) => void;
   /** the deck/doc/screen sitting behind the ink, if any */
   backdrop?: React.ReactNode;
@@ -71,13 +77,20 @@ function toPath(points: number[][]): string {
   return d.join(" ");
 }
 
-export function TrainingBoard({ doc, tool, color, canDraw, cursors, onAdd, onPing, backdrop, className }: Props) {
+export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, cursors, onAdd, onRemove, onPing, backdrop, className }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [live, setLive] = useState<BoardPoint[] | null>(null);
   const liveRef = useRef<BoardPoint[] | null>(null);
   const shapeFrom = useRef<BoardPoint | null>(null);
   const [shapeTo, setShapeTo] = useState<BoardPoint | null>(null);
+  // inline text entry (replaces the native window.prompt): type on the board
+  const [editing, setEditing] = useState<{ x: number; y: number; note: boolean; value: string } | null>(null);
+  const editRef = useRef<HTMLTextAreaElement>(null);
+  // eraser: which marks we've already deleted during the current drag + the ring
+  const erasing = useRef(false);
+  const erasedIds = useRef<Set<string>>(new Set());
+  const [eraseAt, setEraseAt] = useState<{ x: number; y: number } | null>(null);
 
   // Track the rendered size so fractional coords can be projected to pixels.
   useEffect(() => {
@@ -102,6 +115,44 @@ export function TrainingBoard({ doc, tool, color, canDraw, cursors, onAdd, onPin
     };
   }, []);
 
+  // ---- eraser: delete whole marks near the pointer (object erase) ----
+  const ERASE_R = 14; // px
+  const eraseNear = useCallback(
+    (pt: BoardPoint) => {
+      const ex = pt.x * box.w, ey = pt.y * box.h;
+      for (const it of doc.items ?? []) {
+        if (erasedIds.current.has(it.id)) continue;
+        let hit = false;
+        if (it.t === "stroke") {
+          const pad = ERASE_R + (it.size * box.w) / 2;
+          for (const p of it.pts) {
+            const dx = p.x * box.w - ex, dy = p.y * box.h - ey;
+            if (dx * dx + dy * dy <= pad * pad) { hit = true; break; }
+          }
+        } else if (it.t === "shape") {
+          const x1 = Math.min(it.from.x, it.to.x) * box.w, y1 = Math.min(it.from.y, it.to.y) * box.h;
+          const x2 = Math.max(it.from.x, it.to.x) * box.w, y2 = Math.max(it.from.y, it.to.y) * box.h;
+          const dxr = Math.max(x1 - ex, 0, ex - x2), dyr = Math.max(y1 - ey, 0, ey - y2);
+          const nearOutside = dxr * dxr + dyr * dyr <= ERASE_R * ERASE_R;
+          const nearBorderInside =
+            ex >= x1 && ex <= x2 && ey >= y1 && ey <= y2 &&
+            Math.min(ex - x1, x2 - ex, ey - y1, y2 - ey) <= ERASE_R;
+          hit = nearOutside || nearBorderInside;
+        } else if (it.t === "text") {
+          const tx = it.at.x * box.w, ty = it.at.y * box.h;
+          const fs = Math.max(11, it.size * box.h);
+          const w = Math.min(0.38 * box.w, Math.max(fs, it.text.length * fs * 0.55));
+          hit = ex >= tx - ERASE_R && ex <= tx + w + ERASE_R && ey >= ty - ERASE_R && ey <= ty + fs * 1.6 + ERASE_R;
+        } else if (it.t === "image") {
+          const ix = it.at.x * box.w, iy = it.at.y * box.h;
+          hit = ex >= ix - ERASE_R && ex <= ix + it.w * box.w + ERASE_R && ey >= iy - ERASE_R && ey <= iy + it.h * box.h + ERASE_R;
+        }
+        if (hit) { erasedIds.current.add(it.id); onRemove(it.id); }
+      }
+    },
+    [box.w, box.h, doc.items, onRemove],
+  );
+
   // ---- pointer ----
   const lastPing = useRef(0);
   const onDown = (e: ReactPointerEvent) => {
@@ -114,20 +165,17 @@ export function TrainingBoard({ doc, tool, color, canDraw, cursors, onAdd, onPin
     }
     if (!canDraw) return;
 
+    if (tool === "era") {
+      erasing.current = true;
+      erasedIds.current = new Set();
+      setEraseAt({ x: pt.x, y: pt.y });
+      eraseNear(pt);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      return;
+    }
     if (tool === "text" || tool === "note") {
-      const text = window.prompt(tool === "note" ? "Sticky note" : "Text on the board");
-      if (text?.trim()) {
-        onAdd({
-          id: uid("t"),
-          t: "text",
-          by: "",
-          at: pt,
-          text: text.trim().slice(0, 400),
-          color: tool === "note" ? "#111827" : color,
-          size: 0.035,
-          ...(tool === "note" ? { note: "#fde68a" } : {}),
-        });
-      }
+      // open an inline editor at the click point — no native prompt
+      setEditing({ x: pt.x, y: pt.y, note: tool === "note", value: "" });
       return;
     }
     if (tool === "shape") {
@@ -151,6 +199,11 @@ export function TrainingBoard({ doc, tool, color, canDraw, cursors, onAdd, onPin
       onPing(pt.x, pt.y, tool === "laser" && e.buttons > 0);
     }
 
+    if (erasing.current) {
+      setEraseAt({ x: pt.x, y: pt.y });
+      eraseNear(pt);
+      return;
+    }
     if (shapeFrom.current) {
       setShapeTo(pt);
       return;
@@ -161,11 +214,17 @@ export function TrainingBoard({ doc, tool, color, canDraw, cursors, onAdd, onPin
   };
 
   const onUp = () => {
+    if (erasing.current) {
+      erasing.current = false;
+      erasedIds.current = new Set();
+      setEraseAt(null);
+      return;
+    }
     if (shapeFrom.current && shapeTo) {
       const from = shapeFrom.current;
       // ignore an accidental click that isn't a drag
       if (Math.abs(shapeTo.x - from.x) > 0.005 || Math.abs(shapeTo.y - from.y) > 0.005) {
-        onAdd({ id: uid("s"), t: "shape", by: "", shape: "ellipse", color, size: 0.003, from, to: shapeTo });
+        onAdd({ id: uid("s"), t: "shape", by: "", shape: shapeKind, color, size: 0.003, from, to: shapeTo });
       }
       shapeFrom.current = null;
       setShapeTo(null);
@@ -179,16 +238,36 @@ export function TrainingBoard({ doc, tool, color, canDraw, cursors, onAdd, onPin
       id: uid("k"),
       t: "stroke",
       by: "",
-      tool: tool === "hi" ? "hi" : tool === "era" ? "era" : "pen",
+      tool: tool === "hi" ? "hi" : "pen",
       color,
       size: TOOL_SIZE[tool] ?? TOOL_SIZE.pen,
       pts,
     });
   };
 
+  const commitText = () => {
+    const v = editing?.value.trim();
+    if (editing && v) {
+      onAdd({
+        id: uid("t"),
+        t: "text",
+        by: "",
+        at: { x: editing.x, y: editing.y },
+        text: v.slice(0, 400),
+        color: editing.note ? "#111827" : color,
+        size: 0.035,
+        ...(editing.note ? { note: "#fde68a" } : {}),
+      });
+    }
+    setEditing(null);
+  };
+
   // ---- render ----
   const renderStroke = useCallback(
     (item: Extract<BoardItem, { t: "stroke" }>, key: string) => {
+      // The eraser deletes marks now (object erase); any legacy "era" stroke in
+      // an old doc is not ink and must not paint.
+      if (item.tool === "era") return null;
       const px = item.size * box.w;
       const outline = getStroke(
         item.pts.map((p) => [p.x * box.w, p.y * box.h, p.p ?? 0.5]),
@@ -198,12 +277,45 @@ export function TrainingBoard({ doc, tool, color, canDraw, cursors, onAdd, onPin
         <path
           key={key}
           d={toPath(outline)}
-          fill={item.tool === "era" ? "#000" : item.color}
+          fill={item.color}
           opacity={item.tool === "hi" ? 0.32 : 1}
-          // the eraser cuts through the ink beneath it rather than painting over it
-          style={item.tool === "era" ? { mixBlendMode: "destination-out" as never } : undefined}
         />
       );
+    },
+    [box.w, box.h],
+  );
+
+  // One renderer for every shape kind — used for committed shapes and the live
+  // preview. Coords come in fractional; projected to pixels here.
+  const shapeEl = useCallback(
+    (shape: ShapeKind, fx: number, fy: number, tx: number, ty: number, col: string, sw: number, key: string, dashed = false) => {
+      const x1 = fx * box.w, y1 = fy * box.h, x2 = tx * box.w, y2 = ty * box.h;
+      const x = Math.min(x1, x2), y = Math.min(y1, y2), w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
+      const c = { fill: "none", stroke: col, strokeWidth: sw, strokeLinejoin: "round" as const, strokeLinecap: "round" as const, ...(dashed ? { strokeDasharray: "6 4" } : {}) };
+      switch (shape) {
+        case "ellipse":
+          return <ellipse key={key} cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} {...c} />;
+        case "line":
+          return <line key={key} x1={x1} y1={y1} x2={x2} y2={y2} {...c} />;
+        case "arrow": {
+          const ang = Math.atan2(y2 - y1, x2 - x1), ah = Math.max(10, sw * 4);
+          return (
+            <g key={key}>
+              <line x1={x1} y1={y1} x2={x2} y2={y2} {...c} />
+              <polyline
+                points={`${x2 - ah * Math.cos(ang - Math.PI / 6)},${y2 - ah * Math.sin(ang - Math.PI / 6)} ${x2},${y2} ${x2 - ah * Math.cos(ang + Math.PI / 6)},${y2 - ah * Math.sin(ang + Math.PI / 6)}`}
+                {...c}
+              />
+            </g>
+          );
+        }
+        case "triangle":
+          return <polygon key={key} points={`${x + w / 2},${y} ${x},${y + h} ${x + w},${y + h}`} {...c} />;
+        case "diamond":
+          return <polygon key={key} points={`${x + w / 2},${y} ${x + w},${y + h / 2} ${x + w / 2},${y + h} ${x},${y + h / 2}`} {...c} />;
+        default:
+          return <rect key={key} x={x} y={y} width={w} height={h} rx={6} {...c} />;
+      }
     },
     [box.w, box.h],
   );
@@ -239,15 +351,7 @@ export function TrainingBoard({ doc, tool, color, canDraw, cursors, onAdd, onPin
           {items.map((it) => {
             if (it.t === "stroke") return renderStroke(it, it.id);
             if (it.t === "shape") {
-              const x = Math.min(it.from.x, it.to.x) * box.w;
-              const y = Math.min(it.from.y, it.to.y) * box.h;
-              const w = Math.abs(it.to.x - it.from.x) * box.w;
-              const h = Math.abs(it.to.y - it.from.y) * box.h;
-              return it.shape === "rect" ? (
-                <rect key={it.id} x={x} y={y} width={w} height={h} fill="none" stroke={it.color} strokeWidth={it.size * box.w} rx={6} />
-              ) : (
-                <ellipse key={it.id} cx={x + w / 2} cy={y + h / 2} rx={w / 2} ry={h / 2} fill="none" stroke={it.color} strokeWidth={it.size * box.w} />
-              );
+              return shapeEl(it.shape, it.from.x, it.from.y, it.to.x, it.to.y, it.color, it.size * box.w, it.id);
             }
             return null;
           })}
@@ -260,22 +364,24 @@ export function TrainingBoard({ doc, tool, color, canDraw, cursors, onAdd, onPin
                   strokeOptions(tool, (TOOL_SIZE[tool] ?? TOOL_SIZE.pen) * box.w),
                 ),
               )}
-              fill={tool === "era" ? "#94a3b8" : color}
-              opacity={tool === "hi" ? 0.32 : tool === "era" ? 0.5 : 1}
+              fill={color}
+              opacity={tool === "hi" ? 0.32 : 1}
             />
           ) : null}
-          {shapeFrom.current && shapeTo ? (
-            <ellipse
-              cx={((shapeFrom.current.x + shapeTo.x) / 2) * box.w}
-              cy={((shapeFrom.current.y + shapeTo.y) / 2) * box.h}
-              rx={(Math.abs(shapeTo.x - shapeFrom.current.x) / 2) * box.w}
-              ry={(Math.abs(shapeTo.y - shapeFrom.current.y) / 2) * box.h}
-              fill="none"
-              stroke={color}
-              strokeWidth={0.003 * box.w}
-              strokeDasharray="6 4"
+          {/* eraser ring — shows what the eraser will remove */}
+          {eraseAt ? (
+            <circle
+              cx={eraseAt.x * box.w}
+              cy={eraseAt.y * box.h}
+              r={ERASE_R}
+              fill="rgba(148,163,184,0.25)"
+              stroke="#64748b"
+              strokeWidth={1}
             />
           ) : null}
+          {shapeFrom.current && shapeTo
+            ? shapeEl(shapeKind, shapeFrom.current.x, shapeFrom.current.y, shapeTo.x, shapeTo.y, color, 0.003 * box.w, "preview", true)
+            : null}
         </svg>
       ) : null}
 
@@ -302,6 +408,31 @@ export function TrainingBoard({ doc, tool, color, canDraw, cursors, onAdd, onPin
           ) : null,
         )}
       </div>
+
+      {/* inline text / sticky-note editor — type right on the board */}
+      {editing ? (
+        <textarea
+          ref={editRef}
+          autoFocus
+          value={editing.value}
+          onChange={(e) => setEditing((s) => (s ? { ...s, value: e.target.value } : s))}
+          onBlur={commitText}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitText(); }
+            if (e.key === "Escape") { e.preventDefault(); setEditing(null); }
+          }}
+          placeholder={editing.note ? "Sticky note…" : "Type here…"}
+          className="absolute z-[6] min-w-[120px] max-w-[38%] resize-none rounded-md border border-brand-500 p-1.5 leading-snug shadow-lg outline-none"
+          style={{
+            left: `${editing.x * 100}%`,
+            top: `${editing.y * 100}%`,
+            color: editing.note ? "#111827" : color,
+            background: editing.note ? "#fde68a" : "rgba(255,255,255,0.96)",
+            fontSize: Math.max(11, 0.035 * box.h),
+            fontWeight: editing.note ? 400 : 600,
+          }}
+        />
+      ) : null}
 
       {/* everyone else's cursors */}
       <div className="pointer-events-none absolute inset-0 z-[4]">
