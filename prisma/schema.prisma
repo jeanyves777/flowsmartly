@@ -5933,33 +5933,39 @@ model PhoneNumber {
   id     String @id @default(cuid())
   userId String
 
-  e164         String  @unique // +14155550188 — the number itself
-  twilioSid    String? @unique // PN… — null for a FORWARDED number we don't own
+  // Null until a number actually exists: a REQUESTED row is a user asking us for
+  // a line, before an admin has provisioned one. Postgres allows many NULLs in a
+  // unique index, so requests don't collide.
+  e164         String? @unique
   friendlyName String?
   country      String  @default("US")
-  region       String? // "San Francisco, CA"
-  numberType   String  @default("local") // local | tollfree | mobile
+  region       String?
 
-  // What the DID can actually do, from Twilio's capabilities payload.
-  voiceCapable Boolean @default(true)
-  smsCapable   Boolean @default(false)
+  // Where the line comes from.
+  //  XAI_PROVISIONED — we provide it. The API REFUSES to provision these
+  //    ("Provisioning xAI phone numbers via the API is not supported. Use the
+  //    console instead."), so an admin adds it by hand and we reconcile by
+  //    listing. That is why REQUESTED exists as a real state.
+  //  BYO_TRUNK — the business already owns the number; registering it IS
+  //    automatable, so this path needs no human.
+  origin String @default("XAI_PROVISIONED") // XAI_PROVISIONED | BYO_TRUNK
+  status String @default("REQUESTED") // REQUESTED | ACTIVE | FAILED | RELEASED
 
-  // How we got it. RENTED = we bought it at Twilio and bill rent for it.
-  // FORWARDED = the user's own line points here; we own nothing and charge no rent.
-  // SMS_LINKED = already rented by the SMS system (MarketingConfig); voice added free.
-  source String @default("RENTED") // RENTED | FORWARDED | SMS_LINKED
-  status String @default("ACTIVE") // ACTIVE | PENDING | RELEASED | SUSPENDED
+  // What the user asked for, so an admin can fulfil it without guessing.
+  requestedAreaCode String?
+  requestNote       String?
+  requestedAt       DateTime?
+  fulfilledAt       DateTime?
+  fulfilledBy       String?
 
-  // Rent. There is no recurring biller for the SMS numbers today (they're charged
-  // once at purchase), so voice numbers carry their own period so a cron can bill
-  // them honestly and stop when the user cancels.
-  rentCredits       Int       @default(500) // PHONE_NUMBER_RENTAL_COST.total
-  rentPaidUntil     DateTime? // null ⇒ never charge (FORWARDED / SMS_LINKED)
-  rentLastBilled    DateTime?
-  cancelAtPeriodEnd Boolean   @default(false)
-
-  // E911 — matters far more for voice than SMS.
-  emergencyAddressSid String?
+  // The provider's handles.
+  xaiPhoneNumberId String? @unique
+  xaiAgentId       String?
+  sipHost          String?
+  webhookId        String?
+  // Returned exactly ONCE at registration. Without it an inbound call can never
+  // be verified, and the only fix is to delete and re-register the number.
+  signingSecret    String?
 
   releasedAt DateTime?
   createdAt  DateTime  @default(now())
@@ -5971,7 +5977,7 @@ model PhoneNumber {
 
   @@index([userId])
   @@index([status])
-  @@index([rentPaidUntil])
+  @@index([origin, status])
 }
 
 model VoiceAgent {

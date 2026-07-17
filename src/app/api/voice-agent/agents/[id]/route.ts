@@ -10,7 +10,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { attachVoiceToNumber, detachVoiceFromNumber } from "@/lib/twilio/voice";
 import { DEFAULT_HOURS, type AgentSkill } from "@/lib/voice-agent/types";
 
 function fail(message: string, status = 400) {
@@ -127,11 +126,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.skills !== undefined) data.skills = JSON.stringify(body.skills);
     if (body.hours !== undefined) data.hours = JSON.stringify(body.hours);
 
-    // Reassigning the line: wire the new one before unwiring the old, so a
-    // failure can't leave the agent unreachable on both.
+    // Reassign the line. Nothing to wire here any more — the provider owns the
+    // trunk and routes by number, so this is just which line this agent answers.
     if (body.phoneNumberId !== undefined && body.phoneNumberId !== existing.phoneNumberId) {
       if (body.phoneNumberId === null) {
-        if (existing.number?.twilioSid) await detachVoiceFromNumber(existing.number.twilioSid);
         data.phoneNumberId = null;
         if (existing.status === "LIVE") data.status = "PAUSED";
       } else {
@@ -141,22 +139,31 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         });
         if (!next) return fail("That number isn't available.");
         if (next.agent && next.agent.id !== id) return fail("Another agent already answers that number.");
-        if (next.twilioSid) {
-          const wired = await attachVoiceToNumber(next.twilioSid);
-          if (!wired.success) return fail(wired.error || "Could not set that number up for calls", 502);
-        }
-        if (existing.number?.twilioSid && existing.number.twilioSid !== next.twilioSid) {
-          await detachVoiceFromNumber(existing.number.twilioSid);
-        }
         data.phoneNumberId = next.id;
       }
     }
 
-    // Going live needs a line to answer — never claim LIVE without one.
+    // Going live needs a line that can ACTUALLY ring. A REQUESTED line is a
+    // number we've asked an admin to provision — it doesn't exist yet, so a
+    // green LIVE pill over it would be a lie the user only discovers when the
+    // phone never rings. Building and editing an agent is never blocked; only
+    // this switch is.
     if (typeof body.status === "string" && ["DRAFT", "LIVE", "PAUSED"].includes(body.status)) {
-      const numberId = (data.phoneNumberId as string | null | undefined) ?? existing.phoneNumberId;
-      if (body.status === "LIVE" && !numberId) {
-        return fail("Give the agent a number to answer before switching it on.");
+      if (body.status === "LIVE") {
+        const numberId = (data.phoneNumberId as string | null | undefined) ?? existing.phoneNumberId;
+        if (!numberId) return fail("Give the agent a number to answer before switching it on.");
+
+        const line = await prisma.phoneNumber.findFirst({
+          where: { id: numberId, userId: session.userId },
+          select: { status: true, e164: true },
+        });
+        if (!line) return fail("That number isn't available.");
+        if (line.status === "REQUESTED") {
+          return fail("Your number is still being set up — we'll switch the agent on the moment it's ready.");
+        }
+        if (line.status !== "ACTIVE" || !line.e164) {
+          return fail("That number can't take calls yet.");
+        }
       }
       data.status = body.status;
       if (body.status === "LIVE" && !existing.liveSince) data.liveSince = new Date();
@@ -190,9 +197,8 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
     });
     if (!agent) return fail("Agent not found", 404);
 
-    // Stop the line ringing, but keep the number — the user pays for it and
-    // deleting an agent shouldn't quietly throw their phone number away.
-    if (agent.number?.twilioSid) await detachVoiceFromNumber(agent.number.twilioSid);
+    // Keep the number — deleting an agent shouldn't quietly throw away a line
+    // the user asked for or connected. It just stops answering.
     await prisma.voiceAgent.delete({ where: { id } });
 
     return NextResponse.json({ success: true });

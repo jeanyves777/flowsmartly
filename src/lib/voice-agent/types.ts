@@ -309,7 +309,7 @@ export interface KnowledgeItem {
 
 // ── Numbers ──
 
-export type NumberSource = "RENTED" | "FORWARDED" | "SMS_LINKED";
+export type NumberSource = "RENTED" | "SMS_LINKED";
 
 export interface AgentNumber {
   id: string;
