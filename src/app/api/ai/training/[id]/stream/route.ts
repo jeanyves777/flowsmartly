@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { checkRoomAccess, checkInviteToken } from "@/lib/training/access";
+import { checkInviteToken } from "@/lib/training/access";
+import { getTrainingActor } from "@/lib/training/guest";
 import { addConn, removeConn, touchConn, broadcast, connectedIds } from "@/lib/training/room";
 import { getSessionDTO, meterRoom } from "@/lib/training/session";
 import type { RoomEvent } from "@/lib/training/types";
@@ -29,44 +30,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   let participantId: string | null = null;
 
-  if (session) {
-    const access = await checkRoomAccess(id, session.userId);
-    if (access.allowed || access.waiting) {
-      participantId =
-        access.participantId ??
-        (
-          await prisma.trainingParticipant.findFirst({
-            where: { sessionId: id, userId: session.userId },
-            select: { id: true },
-          })
-        )?.id ??
-        null;
+  // A logged-in user OR an anonymous guest (via the room cookie) is resolved here.
+  const actor = await getTrainingActor(id);
+  if (actor) participantId = actor.participantId;
 
-      // The owner may never have "joined" their own room — seat them now.
-      if (!participantId && access.role === "HOST") {
-        const p = await prisma.trainingParticipant.create({
-          data: {
-            sessionId: id,
-            userId: session.userId,
-            name: session.user.name || session.user.email || "Host",
-            email: session.user.email ?? null,
-            avatarUrl: session.user.avatarUrl ?? null,
-            role: "HOST",
-            state: "ADMITTED",
-            canShare: true,
-            canDraw: true,
-            joinedAt: new Date(),
-          },
-          select: { id: true },
-        });
-        participantId = p.id;
-      }
-    } else if (!inviteToken) {
-      return deny(access.reason || "Access denied", 403);
-    }
-  }
-
-  // No seat yet → try the join link.
+  // No seat yet → try the join link (the direct ?invite path, still supported).
   if (!participantId && inviteToken) {
     const invite = await checkInviteToken(inviteToken);
     if (!invite || invite.sessionId !== id) return deny("That link isn't valid any more", 403);

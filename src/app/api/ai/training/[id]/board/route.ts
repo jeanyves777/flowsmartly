@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { checkRoomAccess, canDraw, canControlRoom } from "@/lib/training/access";
+import { canDraw, canControlRoom } from "@/lib/training/access";
+import { getTrainingActor } from "@/lib/training/guest";
 import { parseBoard } from "@/lib/training/session";
 import { broadcast } from "@/lib/training/room";
 import type { BoardItem, ParticipantRole } from "@/lib/training/types";
@@ -24,12 +24,9 @@ const MAX_ITEMS = 4000;
  * gets the board from the snapshot and everyone else gets it live.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return err("Unauthorized", 401);
   const { id } = await params;
-
-  const access = await checkRoomAccess(id, session.userId);
-  if (!access.allowed || !access.role) return err("Access denied", 403);
+  const actor = await getTrainingActor(id);
+  if (!actor || actor.state !== "ADMITTED") return err("Access denied", 403);
 
   const room = await prisma.trainingSession.findUnique({
     where: { id },
@@ -37,18 +34,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   });
   if (!room) return err("Not found", 404);
 
-  const meId =
-    access.participantId ??
-    (
-      await prisma.trainingParticipant.findFirst({
-        where: { sessionId: id, userId: session.userId },
-        select: { id: true },
-      })
-    )?.id;
-  if (!meId) return err("You're not in this room", 403);
-
   const me = await prisma.trainingParticipant.findUnique({
-    where: { id: meId },
+    where: { id: actor.participantId },
     select: { id: true, role: true, canDraw: true },
   });
   if (!me) return err("You're not in this room", 403);
@@ -132,12 +119,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
  * to Postgres 20×/second per person would be absurd.
  */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return err("Unauthorized", 401);
   const { id } = await params;
-
-  const access = await checkRoomAccess(id, session.userId);
-  if (!access.allowed) return err("Access denied", 403);
+  const actor = await getTrainingActor(id);
+  if (!actor || actor.state !== "ADMITTED") return err("Access denied", 403);
 
   const b = (await request.json().catch(() => ({}))) as {
     kind?: "cursor" | "laser";
@@ -145,19 +129,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     y?: number;
     sessionKey?: string;
   };
-  const meId =
-    access.participantId ??
-    (
-      await prisma.trainingParticipant.findFirst({
-        where: { sessionId: id, userId: session.userId },
-        select: { id: true },
-      })
-    )?.id;
-  if (!meId || typeof b.x !== "number" || typeof b.y !== "number") return err("Bad ping");
+  if (typeof b.x !== "number" || typeof b.y !== "number") return err("Bad ping");
 
   broadcast(
     id,
-    { type: b.kind === "laser" ? "laser" : "cursor", participantId: meId, x: b.x, y: b.y },
+    { type: b.kind === "laser" ? "laser" : "cursor", participantId: actor.participantId, x: b.x, y: b.y },
     b.sessionKey,
   );
   return NextResponse.json({ success: true });

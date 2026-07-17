@@ -6154,6 +6154,13 @@ model TrainingSession {
   endedAt     DateTime?
   access      String    @default("invite") // invite | link_email | open
 
+  // Public join page — the host brands it and decides what to collect before a
+  // guest (no account) can enter. Guests always give a name; email is optional.
+  joinHeadline     String?
+  joinMessage      String?
+  joinLogoUrl      String?
+  joinCollectEmail Boolean @default(false)
+
   // room policy — "open*" = anyone may; otherwise hosts + whoever is granted
   waitingRoom Boolean @default(true)
   recording   Boolean @default(true)

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { checkRoomAccess, canShareScreen } from "@/lib/training/access";
+import { canShareScreen } from "@/lib/training/access";
+import { getTrainingActor } from "@/lib/training/guest";
 import { mintSfuToken } from "@/lib/training/sfu";
 import type { ParticipantRole } from "@/lib/training/types";
 
@@ -17,12 +17,10 @@ const err = (message: string, status = 400) =>
  * perfectly usable whiteboard session, not a failure.
  */
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return err("Unauthorized", 401);
   const { id } = await params;
-
-  const access = await checkRoomAccess(id, session.userId);
-  if (!access.allowed) return err(access.waiting ? "You're still in the waiting room" : "Access denied", 403);
+  const actor = await getTrainingActor(id);
+  if (!actor) return err("Access denied", 403);
+  if (actor.state !== "ADMITTED") return err("You're still in the waiting room", 403);
 
   const room = await prisma.trainingSession.findUnique({
     where: { id },
@@ -30,18 +28,8 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   });
   if (!room) return err("Not found", 404);
 
-  const meId =
-    access.participantId ??
-    (
-      await prisma.trainingParticipant.findFirst({
-        where: { sessionId: id, userId: session.userId },
-        select: { id: true },
-      })
-    )?.id;
-  if (!meId) return err("You're not in this room", 403);
-
   const me = await prisma.trainingParticipant.findUnique({
-    where: { id: meId },
+    where: { id: actor.participantId },
     select: { id: true, role: true, canShare: true },
   });
   if (!me) return err("You're not in this room", 403);
