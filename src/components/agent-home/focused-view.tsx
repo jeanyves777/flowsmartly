@@ -109,24 +109,28 @@ export function FocusedView({
           "md:flex",
         )}
       >
-        <div className="flex items-center gap-2.5 border-b border-border bg-card/40 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 border-b border-border bg-card/40 px-3 py-2.5 sm:px-4">
           {collapsed && (
             <button onClick={() => setCollapsed(false)} title="Show chat" className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground hover:text-foreground" aria-label="Show chat">
               <MessageSquare className="h-[18px] w-[18px]" />
             </button>
           )}
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Icon className="h-[18px] w-[18px]" /></span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="truncate text-[14px] font-bold leading-tight">{title}</div>
             {subtitle && <div className="truncate text-[11.5px] text-muted-foreground">{subtitle}</div>}
           </div>
-          <div className="ms-auto flex items-center gap-2">
+          {/* Below lg, this whole cluster wraps to its own right-aligned row
+              (w-full) so the meta + controls don't crush the title. The lg
+              threshold (not sm) also covers the split view, where the chat panel
+              keeps the workspace column narrow even on a wide viewport. */}
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 lg:ms-auto lg:w-auto">
             {/* Mode switches / view controls sit at the left of the cluster. */}
             {headerActions}
             {/* Surfaces (e.g. Pitch Studio) portal their own toolbar controls here,
                 so there's ONE header row instead of a duplicate title bar below. */}
             <div id="fv-header-slot" className="flex flex-wrap items-center justify-end gap-2 empty:hidden" />
-            <button onClick={onClose} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">
+            <button onClick={onClose} className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">
               <X className="h-4 w-4" /> Exit
             </button>
           </div>
