@@ -497,6 +497,7 @@ export interface VoiceAgentDraft {
 
 export type CallOutcome =
   | "booked"
+  | "order"
   | "lead"
   | "message"
   | "escalated"
@@ -652,6 +653,7 @@ export function fmtNumber(e164: string): string {
 
 export const OUTCOME_LABEL: Record<CallOutcome, string> = {
   booked: "BOOKED",
+  order: "ORDER",
   lead: "LEAD",
   message: "MESSAGE",
   escalated: "HANDED OFF",

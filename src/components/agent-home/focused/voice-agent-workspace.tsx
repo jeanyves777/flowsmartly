@@ -1426,6 +1426,7 @@ function BackOffice({ agent, calls, stats, onClose, onPatch, onRefresh, onOpenVi
 function OutcomeChip({ outcome }: { outcome: string }) {
   const tone: Record<string, string> = {
     booked: "bg-emerald-500/15 text-emerald-500",
+    order: "bg-orange-500/15 text-orange-500",
     lead: "bg-brand-500/15 text-brand-400",
     message: "bg-violet-500/15 text-violet-400",
     escalated: "bg-amber-500/15 text-amber-500",
