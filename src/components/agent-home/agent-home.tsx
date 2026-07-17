@@ -831,8 +831,9 @@ export function AgentHome() {
   // forms, contacts all live in the Leads group), so Outreach is dropped from the rail.
   const FILM_WS: Workspace = { key: "film", label: "Film", icon: Clapperboard, route: "/home/director", items: [] };
   const LEADS_WS: Workspace = { key: "leads", label: "Leads", icon: Search, route: "/home/leads", items: [] };
+  const CALL_WS: Workspace = { key: "callagent", label: "Call agent", icon: PhoneCall, route: "/home/voiceagent", items: [] };
   const basePrimary = WORKSPACES.filter((w) => !["business", "print", "campaign", "leads", "outreach"].includes(w.key));
-  const primaryWorkspaces = [basePrimary[0], FILM_WS, LEADS_WS, ...basePrimary.slice(1)];
+  const primaryWorkspaces = [basePrimary[0], FILM_WS, LEADS_WS, CALL_WS, ...basePrimary.slice(1)];
   const businessWorkspace = WORKSPACES.find((w) => w.key === "business");
 
   const openWorkspace = (key: string) => {
@@ -863,7 +864,22 @@ export function AgentHome() {
   // card-grid menu + composer set to that group — NOT the old browse panel.
   // Rail keys map to agent-group keys (outreach → leads · connections → publish).
   const RAIL_GROUP: Record<string, string> = { outreach: "leads", connections: "publish" };
+  // A rail section whose group holds exactly ONE product opens that product
+  // straight away — a card-grid menu of a single card is just an extra click.
+  const RAIL_DIRECT: Record<string, string> = { callagent: "voiceagent" };
   const openAgentGroup = (key: string) => {
+    const direct = RAIL_DIRECT[key];
+    if (direct) {
+      guardNav(() => {
+        setPanelKey(null);
+        setHistoryOpen(false);
+        setDrawerOpen(false);
+        setActiveWs(key);
+        setAgentMode(RAIL_GROUP[key] ?? key);
+        setFocused(direct);
+      });
+      return;
+    }
     const group = RAIL_GROUP[key] ?? key;
     if (!AGENT_GROUP_KEYS.includes(group)) { openWorkspace(key); return; }
     guardNav(() => {
@@ -1211,7 +1227,7 @@ export function AgentHome() {
                   <Icon className="h-[21px] w-[21px]" />
                   <span>{s.ws[w.key] ?? w.label}</span>
                 </button>
-                {(i === 0 || w.key === "leads") && <div className="my-1.5 h-px w-11 bg-border" />}
+                {(i === 0 || w.key === "leads" || w.key === "callagent") && <div className="my-1.5 h-px w-11 bg-border" />}
               </div>
             );
           })}
