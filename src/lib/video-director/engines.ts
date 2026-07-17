@@ -20,9 +20,10 @@ import { getDynamicCreditCost, checkCreditsAvailable } from "@/lib/credits/costs
 import { prisma } from "@/lib/db/client";
 import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { buildBrandOutroClip } from "@/lib/video/brand-outro";
+import { loadLogoBuffer } from "@/lib/media/logo-source";
 import { generateImageXaiFirst, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { sanitizeUserError } from "@/lib/ai/user-error";
-import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName, compositeOverlay, compositeTimedMedia, compositeTimedText, mixTimedAudio, preserveSourceAudio } from "./clip-helpers";
+import { filmDims, imageToClip, normalizeClip, crossfadePair, mixMusicUnder, xfadeName, compositeOverlay, compositeTimedMedia, compositeTimedText, mixTimedAudio, preserveSourceAudio, probeDurationSec } from "./clip-helpers";
 
 const isVideoUrl = (u?: string | null): u is string => !!u && /\.(mp4|webm|mov|m4v)(\?|$)/i.test(u);
 const isImageUrl = (u?: string | null): u is string => !!u && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(u);
@@ -730,7 +731,16 @@ async function renderAiScene(filmId: string, userId: string, sceneId: string, sc
       "This shot took too long and timed out.",
     );
     const url = await uploadToS3(`director/${filmId}/${sceneId}-${uid()}.mp4`, result.videoBuffer, "video/mp4");
-    await patchScene(filmId, userId, sceneId, { status: "ready", progress: 100, videoUrl: url });
+    // Record the clip's REAL length. The provider rarely returns exactly the
+    // seconds we asked for, and the timeline + stitch both cut a scene to its
+    // durationSec — so keeping the PLANNED number here chops the tail off the
+    // finished film and forces the user to stretch every clip by hand.
+    const realSec = await probeDurationSec(result.videoBuffer);
+    await patchScene(filmId, userId, sceneId, {
+      status: "ready", progress: 100, videoUrl: url,
+      // A fresh render supersedes any trim that was set against the old clip.
+      ...(realSec ? { durationSec: Math.round(realSec * 10) / 10, clipStart: undefined, clipEnd: undefined } : {}),
+    });
   } catch (e) {
     if (cost > 0) {
       await creditService.addCredits({
@@ -801,8 +811,14 @@ async function renderAiContinuation(
       result.videoBuffer, aspect, extensionSeconds, playedLenOf(source), result.duration,
     );
     const url = await uploadToS3(`director/${filmId}/${sceneId}-continuation-${uid()}.mp4`, segment, "video/mp4");
+    // The extracted segment's REAL length, not the length we asked for — see the
+    // note on the AI scene render; a planned number here truncates the stitch.
+    const realSec = await probeDurationSec(segment);
     await patchScene(filmId, userId, sceneId, {
-      status: "ready", progress: 100, durationSec: extensionSeconds, videoUrl: url, error: null,
+      status: "ready", progress: 100,
+      durationSec: realSec ? Math.round(realSec * 10) / 10 : extensionSeconds,
+      clipStart: undefined, clipEnd: undefined,
+      videoUrl: url, error: null,
     });
   } catch (e) {
     if (cost > 0) {
@@ -1207,7 +1223,7 @@ interface OutroBrand {
   primary?: string | null; secondary?: string | null; accent?: string | null;
   name?: string | null; industry?: string | null; filmStyle?: string | null;
 }
-async function buildDirectorOutro(logoSource: string, aspect: FilmAspect, brand: OutroBrand): Promise<Buffer | null> {
+async function buildDirectorOutro(logoSource: string, aspect: FilmAspect, brand: OutroBrand, logoBuffer?: Buffer | null): Promise<Buffer | null> {
   const brandColor = typeof brand.primary === "string" ? brand.primary : null;
   let bgImage: Buffer | null = null;
   try {
@@ -1231,7 +1247,7 @@ async function buildDirectorOutro(logoSource: string, aspect: FilmAspect, brand:
   } catch (e) {
     console.warn("[video-director] outro background gen failed; using colour card:", e instanceof Error ? e.message : e);
   }
-  return buildBrandOutroClip({ logoSource, aspectRatio: aspect, brandColor, durationSec: 3, backgroundImage: bgImage });
+  return buildBrandOutroClip({ logoSource, logoBuffer, aspectRatio: aspect, brandColor, durationSec: 3, backgroundImage: bgImage });
 }
 
 export async function composeFilm(filmId: string, userId: string): Promise<void> {
@@ -1249,7 +1265,7 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
     const ordered = [...film.scenes].sort((a, b) => a.order - b.order).filter((s) => s.status === "ready" && (isVideoUrl(s.videoUrl) || isImageUrl(s.videoUrl)));
     if (ordered.length === 0) throw new Error("Generate at least one scene before stitching.");
 
-    const built: { buf: Buffer; dur: number; transition?: string }[] = [];
+    const built: { id: string; buf: Buffer; dur: number; transition?: string }[] = [];
     for (const s of ordered) {
       const res = await fetch(s.videoUrl as string).catch(() => null);
       if (!res?.ok) continue;
@@ -1274,7 +1290,13 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
             console.error(`[video-director] overlay composite skipped for scene ${s.id}:`, e instanceof Error ? e.message : e);
           }
         }
-        built.push({ buf, dur: playedLenOf(s), transition: s.transitionIn });
+        // `dur` MUST describe the buffer we just built, not what the scene was
+        // planned at. assembleClips feeds it to xfade as the offset, and xfade
+        // CUTS the outgoing clip at that offset — so an understated dur silently
+        // chops the tail off the film (and no trim was ever asked for). Probe the
+        // real thing; fall back to the scene's number only if ffprobe is absent.
+        const realDur = await probeDurationSec(buf);
+        built.push({ id: s.id, buf, dur: realDur ?? playedLenOf(s), transition: s.transitionIn });
       } catch (e) {
         console.error(`[video-director] clip build failed for scene ${s.id}:`, e instanceof Error ? e.message : e);
       }
@@ -1317,8 +1339,12 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
     // then burn the chosen font/style into the final film.
     if (composer?.captions.enabled) {
       let cueStart = 0;
-      for (const scene of ordered) {
-        const duration = playedLenOf(scene);
+      // Walk the clips we ACTUALLY built (a scene whose fetch failed isn't in the
+      // film), timing each cue by that clip's real length so captions can't drift.
+      for (const b of built) {
+        const scene = ordered.find((s) => s.id === b.id);
+        if (!scene) continue;
+        const duration = b.dur;
         const caption = scene.captionsOn
           ? (scene.cast || []).filter((line) => line.dialogue?.trim()).map((line) => `${line.name}: ${line.dialogue!.trim()}`).join("\n")
           : "";
@@ -1368,18 +1394,30 @@ export async function composeFilm(filmId: string, userId: string): Promise<void>
       try {
         const bk = await prisma.brandKit.findFirst({ where: { userId }, orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], select: { logo: true, iconLogo: true, colors: true, name: true, industry: true } });
         const logo = bk?.iconLogo || bk?.logo || null;
-        if (logo) {
-          finalBuffer = await overlayBrandLogoOnVideo(finalBuffer, logo);
+        // Resolve the logo to BYTES once, here. The stored BrandKit URL is presigned
+        // and its signature is long dead by render time, so anything that fetch()es
+        // it gets a 403 and drops the branding without a word — which is exactly why
+        // "Logo on" produced no outro. loadLogoBuffer reads our own objects by key.
+        const logoBytes = logo ? await loadLogoBuffer(logo) : null;
+        if (!logo) {
+          console.warn(`[video-director] ${filmId}: brand logo is ON but the BrandKit has no logo — nothing to stamp.`);
+        } else if (!logoBytes) {
+          console.error(`[video-director] ${filmId}: brand logo is ON but the logo could not be read from storage — no overlay/outro.`);
+        }
+        if (logoBytes) {
+          finalBuffer = await overlayBrandLogoOnVideo(finalBuffer, logo as string, logoBytes);
           try {
             let colors: { primary?: string; secondary?: string; accent?: string } = {};
             try { const c = bk?.colors ? JSON.parse(bk.colors) : null; if (c && typeof c === "object") colors = c as typeof colors; } catch { /* ignore */ }
-            const outro = await buildDirectorOutro(logo, film.aspect, {
+            const outro = await buildDirectorOutro(logo as string, film.aspect, {
               primary: colors.primary ?? null, secondary: colors.secondary ?? null, accent: colors.accent ?? null,
               name: bk?.name ?? null, industry: bk?.industry ?? null, filmStyle: film.style ?? null,
-            });
+            }, logoBytes);
             if (outro) {
               const outroFit = await normalizeClip(outro, w, h, { preferSourceAudio: false });
               finalBuffer = await concatenateVideoBuffers([finalBuffer, outroFit]);
+            } else {
+              console.error(`[video-director] ${filmId}: outro build returned nothing — film keeps the logo overlay but ends without the brand card.`);
             }
           } catch (e) {
             console.error(`[video-director] outro skipped for ${filmId}:`, e instanceof Error ? e.message : e);

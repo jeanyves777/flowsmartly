@@ -5,6 +5,7 @@ import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
+import { loadLogoBuffer } from "@/lib/media/logo-source";
 
 const execFileAsync = promisify(execFile);
 
@@ -32,27 +33,9 @@ function toFfmpegColor(hex?: string | null): string {
   return "0x0b1220";
 }
 
-async function loadLogoBuffer(src: string): Promise<Buffer | null> {
-  try {
-    if (src.startsWith("data:")) {
-      const b64 = src.replace(/^data:image\/[^;]+;base64,/, "");
-      return b64 ? Buffer.from(b64, "base64") : null;
-    }
-    if (src.startsWith("http://") || src.startsWith("https://")) {
-      const res = await fetch(src);
-      if (!res.ok) return null;
-      return Buffer.from(await res.arrayBuffer());
-    }
-    if (src.startsWith("/")) {
-      const local = path.join(process.cwd(), "public", src);
-      if (fs.existsSync(local)) return fs.readFileSync(local);
-    }
-    if (fs.existsSync(src)) return fs.readFileSync(src);
-    return null;
-  } catch {
-    return null;
-  }
-}
+// Logo loading lives in one shared place — a stored BrandKit URL is presigned and
+// long expired by render time, so it must be read by key, not fetched. See
+// @/lib/media/logo-source.
 
 /**
  * Build a STANDALONE brand-outro clip (color card + animated logo + optional
