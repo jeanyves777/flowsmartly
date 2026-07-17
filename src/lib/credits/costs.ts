@@ -203,6 +203,12 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_VOICE_SCRIPT: 3,           // AI script generation (GPT-4o-mini ~$0.01)
   AI_VOICE_CLONE: 15,           // Voice cloning via ElevenLabs (~$0.10)
 
+  // --- Voice Agent (answers the phone) ---
+  // Billed per started minute while a call runs, not once at the end — an
+  // orphaned/dropped call must not leave an unbilled tab.
+  VOICE_AGENT_MINUTE: 9,        // realtime voice ~$0.05/min + telephony ~$0.01/min
+  VOICE_AGENT_NUMBER_RENTAL: 500, // monthly DID rent — same house rate as an SMS number
+
   // --- ListSmartly ---
   AI_LISTING_DESCRIPTION: 3,    // AI listing description generation
   AI_LISTING_BULK_DESCRIBE: 2,  // AI bulk listing descriptions (per listing)
@@ -336,6 +342,8 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_VOICE_GENERATION: "AI voice generation",
   AI_VOICE_SCRIPT: "AI voice script generation",
   AI_VOICE_CLONE: "AI voice cloning",
+  VOICE_AGENT_MINUTE: "Voice agent: per minute of calls",
+  VOICE_AGENT_NUMBER_RENTAL: "Voice agent: phone number, monthly",
   AI_LISTING_DESCRIPTION: "AI listing description generation",
   AI_LISTING_BULK_DESCRIBE: "AI bulk listing description",
   AI_REVIEW_RESPONSE: "AI review response draft",
