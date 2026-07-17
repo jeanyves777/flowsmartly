@@ -32,11 +32,12 @@ interface Props {
   act: (action: string, participantId?: string) => Promise<string | null>;
   patch: (body: Record<string, unknown>) => Promise<string | null>;
   onAddMaterial: () => void;
+  uploading?: boolean;
   onPushMaterial: (materialId: string) => void;
   onEnd: () => void;
 }
 
-export function BackOffice({ session, me, estimate, act, patch, onAddMaterial, onPushMaterial, onEnd }: Props) {
+export function BackOffice({ session, me, estimate, act, patch, onAddMaterial, uploading, onPushMaterial, onEnd }: Props) {
   const owner = me?.role === "HOST";
   const waiting = useMemo(() => session.participants.filter((p) => p.state === "WAITING"), [session.participants]);
   const inRoom = useMemo(() => session.participants.filter((p) => p.state === "ADMITTED"), [session.participants]);
@@ -155,7 +156,6 @@ export function BackOffice({ session, me, estimate, act, patch, onAddMaterial, o
           <Btn onClick={() => void act("take_pen")} Icon={Pencil}>Take the pen back</Btn>
           <Btn onClick={() => void act("revoke_all_share")} Icon={Monitor}>Revoke all sharing</Btn>
           <Btn onClick={() => void patch({ stageSource: "board" })} Icon={Eye}>Pull to my view</Btn>
-          <Btn onClick={onAddMaterial} Icon={Puzzle}>Breakout pairs</Btn>
           <Btn onClick={() => window.print()} Icon={Download}>Export attendance</Btn>
           {owner && session.status === "live" ? (
             <button onClick={onEnd} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-rose-600 to-rose-400 px-3 py-1.5 text-[11px] font-bold text-white">
@@ -183,12 +183,16 @@ export function BackOffice({ session, me, estimate, act, patch, onAddMaterial, o
               </button>
             );
           })}
-          <button onClick={onAddMaterial} className="overflow-hidden rounded-xl border border-dashed border-border bg-card text-left hover:border-brand-500">
+          <button onClick={onAddMaterial} disabled={uploading} className="overflow-hidden rounded-xl border border-dashed border-border bg-card text-left hover:border-brand-500 disabled:opacity-60">
             <span className="grid aspect-[16/10] place-items-center bg-muted/40">
-              <Plus className="h-5 w-5 text-muted-foreground" />
+              {uploading ? (
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-brand-500" />
+              ) : (
+                <Plus className="h-5 w-5 text-muted-foreground" />
+              )}
             </span>
             <span className="block px-2.5 py-2">
-              <b className="block text-[10.5px]">Add material</b>
+              <b className="block text-[10.5px]">{uploading ? "Uploading…" : "Add material"}</b>
               <span className="text-[9px] text-muted-foreground">PDF, deck, image, video</span>
             </span>
           </button>

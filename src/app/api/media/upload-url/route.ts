@@ -16,6 +16,8 @@ const ALLOWED_TYPES: Record<string, number> = {
   "video/mp4": 100 * 1024 * 1024,
   "video/webm": 100 * 1024 * 1024,
   "video/quicktime": 100 * 1024 * 1024,
+  // Documents (25MB) — decks/PDFs for Training Room materials
+  "application/pdf": 25 * 1024 * 1024,
   // Audio (25MB)
   "audio/mpeg": 25 * 1024 * 1024,
   "audio/wav": 25 * 1024 * 1024,
