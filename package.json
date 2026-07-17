@@ -24,7 +24,8 @@
     "test:reel-build:verbose": "npx tsx scripts/test-reel-build.ts --verbose",
     "test:reel-render": "npx tsx scripts/test-reel-render.ts",
     "test:director-ui": "node scripts/test-director-composer-ui.mjs",
-    "test:voice-agent": "node scripts/test-voice-agent-ui.mjs"
+    "test:voice-agent": "node scripts/test-voice-agent-ui.mjs",
+    "test:voice-audio": "npx tsx scripts/test-voice-audio.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.123",
