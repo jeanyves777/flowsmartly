@@ -1,0 +1,1155 @@
+<title>Training Studio — live rooms, whiteboard, docs, on video</title>
+<style>
+  :root{
+    --ground:#0b0b0f;--card:#15151c;--card2:#1b1b23;--border:#2a2a33;
+    --brand:#6366f1;--violet:#a78bfa;--violet2:#7c3aed;--amber:#fbbf24;--amber2:#f59e0b;
+    --teal:#22d3ee;--emerald:#10b981;--emerald2:#34d399;--rose:#fb7185;--slate:#94a3b8;
+    --text:#ececf1;--muted:#9a9aa6;
+  }
+  *{box-sizing:border-box}html,body{margin:0;height:100%}
+  body{background:var(--ground);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+  .app{height:100vh;display:flex;flex-direction:column}
+  button{font-family:inherit}
+
+  /* ---------------------------------------------------------------- top bar */
+  .top{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--border);background:rgba(11,11,15,.9);z-index:30}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--violet2));color:#fff;font-size:15px}
+  .brand b{font-size:13.5px;font-weight:700;display:block;line-height:1.1}.brand span{font-size:11px;color:var(--muted)}
+  .spacer{flex:1}
+  .stat{font-size:11.5px;color:var(--muted)}.stat b{color:var(--emerald)}
+  .btn{display:inline-flex;align-items:center;gap:6px;border-radius:9px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text)}
+  .btn:hover{border-color:var(--brand)}
+  .btn.pri{border:none;color:#fff;background:linear-gradient(135deg,var(--brand),var(--violet2))}
+  .btn.live{border:none;color:#fff;background:linear-gradient(135deg,#e11d48,#fb7185)}
+  .btn.sm{padding:5px 9px;font-size:11px}
+
+  /* mode switcher (Plan / Live / Back office) */
+  .modes{display:flex;gap:3px;border:1px solid var(--border);border-radius:10px;padding:3px;background:var(--card)}
+  .modes button{border:none;background:transparent;color:var(--muted);font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:7px;cursor:pointer}
+  .modes button.on{background:linear-gradient(135deg,var(--brand),var(--violet2));color:#fff}
+  .live-dot{width:6px;height:6px;border-radius:50%;background:#f43f5e;display:inline-block;margin-right:5px;animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+  .view{flex:1;position:relative;overflow:hidden;display:none}
+  .view.on{display:block}
+
+  /* ============================================================ PLAN CANVAS */
+  .canvas{position:absolute;inset:0;overflow:auto;background:radial-gradient(circle at 1px 1px,#20202b 1px,transparent 0) 0 0/24px 24px,var(--ground);cursor:grab}
+  .canvas:active{cursor:grabbing}
+  .board{position:relative;width:2400px;height:1100px}
+  svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+
+  .node{position:absolute;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .n-head{display:flex;align-items:center;gap:7px;padding:9px 11px 5px;cursor:grab}.n-head:active{cursor:grabbing}
+  .n-head .ic{width:19px;height:19px;border-radius:6px;display:grid;place-items:center;font-size:10px;flex:none}
+  .n-head b{font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .n-head .tag{margin-left:auto;font-size:9px;font-weight:700;border-radius:999px;padding:2px 7px;flex:none}
+  .tag.brief{background:rgba(99,102,241,.15);color:var(--violet)}
+  .tag.acc{background:rgba(251,191,36,.14);color:var(--amber)}
+  .tag.ready{background:rgba(16,185,129,.16);color:var(--emerald2)}
+  .tag.draft{background:rgba(148,163,184,.14);color:var(--slate)}
+  .x{width:17px;height:17px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;margin-left:4px;flex:none}
+  .x:hover{border-color:var(--rose);color:var(--rose)}
+
+  /* brief node */
+  .node.briefn{width:224px;background:rgba(21,21,28,.8)}
+  .b-line{padding:2px 11px 0;font-size:10px;color:var(--muted);line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .b-meta{display:flex;flex-wrap:wrap;gap:4px;padding:8px 11px 0}
+  .mchip{font-size:9px;font-weight:700;border-radius:6px;padding:2px 6px;background:var(--card2);border:1px solid var(--border);color:var(--muted)}
+
+  /* room node (amber, like director's cast) */
+  .node.roomn{width:214px;border-color:rgba(251,191,36,.4);background:linear-gradient(180deg,rgba(251,191,36,.1),var(--card));overflow:hidden}
+  .seats{display:flex;align-items:center;gap:-6px;padding:6px 11px 0}
+  .av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:9px;font-weight:900;color:#fff;border:2px solid var(--card);margin-right:-7px}
+  .av.more{background:var(--card2);color:var(--muted);border-color:var(--border)}
+  .r-meta{padding:9px 11px 0;font-size:10px;color:var(--muted);line-height:1.5}
+  .r-meta b{color:var(--amber)}
+  .linkrow{display:flex;align-items:center;gap:5px;margin:8px 11px 0;padding:5px 7px;border-radius:8px;background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.25)}
+  .linkrow code{flex:1;font-size:8.5px;color:var(--amber);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,monospace}
+
+  /* segment nodes */
+  .seg{width:250px}
+  .seg .pic{position:relative;margin:2px 11px 0;border-radius:12px;overflow:hidden;aspect-ratio:16/9;background:linear-gradient(160deg,#20202b,#2a2440);display:grid;place-items:center}
+  .pic .kind{position:absolute;left:5px;top:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 7px;background:rgba(0,0,0,.55);color:#fff}
+  .pic .dur{position:absolute;right:5px;top:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 7px;background:rgba(0,0,0,.55);color:#fff}
+  .pic .badge{position:absolute;left:5px;bottom:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 6px}
+  .badge.ok{background:var(--emerald);color:#04231a}
+  .badge.need{background:rgba(251,191,36,.9);color:#2a1a00}
+  /* fake artwork per segment kind */
+  .art{position:absolute;inset:0;display:grid;place-items:center;font-size:26px;opacity:.9}
+  .art.slides{background:linear-gradient(160deg,#2a2440,#3a2f52)}
+  .art.board{background:linear-gradient(160deg,#0e2a33,#164e57)}
+  .art.video{background:linear-gradient(160deg,#3a2a10,#5a4318)}
+  .art.doc{background:linear-gradient(160deg,#1e2530,#2c3644)}
+  .art.draw{background:linear-gradient(160deg,#0f2e22,#175c42)}
+  .art.discuss{background:linear-gradient(160deg,#33141f,#5c2434)}
+  .s-note{display:flex;align-items:flex-start;gap:5px;margin:8px 11px 0;padding:6px 7px;border-radius:9px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.22)}
+  .s-l{font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--violet);flex:none;margin-top:1px}
+  .s-t{flex:1;font-size:9px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .manip{display:flex;flex-wrap:wrap;gap:4px;margin:8px 11px 0}
+  .chip{display:inline-flex;align-items:center;gap:3px;border:1px solid var(--border);background:var(--card2);border-radius:8px;padding:4px 8px;font-size:9.5px;font-weight:600;cursor:pointer;color:var(--text)}
+  .chip:hover{border-color:var(--brand);color:var(--brand)}
+  .chip.warm:hover{border-color:var(--amber);color:var(--amber)}
+  .acts{display:flex;gap:4px;padding:9px 11px 11px}
+  .a{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:3px;border:1px solid var(--border);border-radius:8px;padding:5px;font-size:9.5px;font-weight:600;cursor:pointer;color:var(--text);background:transparent}
+  .a:hover{border-color:var(--brand)}
+  .a.prime{border:none;color:#fff;background:linear-gradient(135deg,var(--brand),var(--violet2))}
+
+  /* go-live node (violet, like director's output) */
+  .node.liven{width:216px;border-color:rgba(167,139,250,.4);background:linear-gradient(180deg,rgba(167,139,250,.1),var(--card));overflow:hidden}
+  .l-stat{display:flex;justify-content:space-between;padding:7px 11px 0;font-size:10px;color:var(--muted)}
+  .l-stat b{color:var(--text)}
+  .cost{margin:9px 11px 0;padding:7px 8px;border-radius:9px;background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.25);font-size:9.5px;color:var(--muted);line-height:1.5}
+  .cost b{color:var(--violet)}
+  .golive{margin:9px 11px 11px;display:block;width:calc(100% - 22px);border:none;border-radius:10px;padding:9px;font-size:12px;font-weight:800;color:#fff;background:linear-gradient(135deg,#e11d48,#fb7185);cursor:pointer}
+
+  /* invite node (teal, like publish) */
+  .node.inviten{width:208px;border-color:rgba(34,211,238,.4);background:linear-gradient(180deg,rgba(34,211,238,.1),var(--card));overflow:hidden}
+  .ch{display:flex;align-items:center;gap:6px;margin:6px 11px 0;padding:5px 7px;border-radius:8px;border:1px solid var(--border);background:var(--card2);font-size:10px;cursor:pointer}
+  .ch:hover{border-color:var(--teal)}
+  .ch .ci{width:16px;height:16px;border-radius:5px;display:grid;place-items:center;font-size:9px;background:rgba(34,211,238,.15);color:var(--teal);flex:none}
+  .ch .ck{margin-left:auto;font-size:9px;color:var(--emerald2);font-weight:800}
+
+  .addbtn{position:absolute;width:40px;height:40px;border-radius:50%;border:1px dashed var(--border);background:var(--ground);color:var(--muted);font-size:18px;cursor:pointer;display:grid;place-items:center;z-index:5}
+  .addbtn:hover{border-color:var(--brand);color:var(--brand)}
+  .addmenu{position:absolute;z-index:12;display:none;width:214px;border:1px solid var(--border);border-radius:14px;background:var(--card);box-shadow:0 18px 50px rgba(0,0,0,.6);padding:6px;overflow:hidden}
+  .am-h{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:6px 8px 5px}
+  .addmenu button{display:flex;align-items:center;gap:8px;width:100%;border:none;background:transparent;color:var(--text);border-radius:9px;padding:7px 8px;font-size:11.5px;font-weight:600;cursor:pointer;text-align:left}
+  .addmenu button:hover{background:var(--card2)}
+  .addmenu button i{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-size:11px;font-style:normal;flex:none}
+  .addmenu button span{margin-left:auto;font-size:9px;color:var(--muted);font-weight:400;max-width:96px;text-align:right;line-height:1.25}
+  .hint{position:absolute;left:24px;bottom:16px;font-size:10.5px;color:#55555f}
+
+  /* ============================================================= LIVE ROOM */
+  .room{position:absolute;inset:0;display:grid;grid-template-columns:52px 1fr 208px;background:var(--ground)}
+  /* tool rail */
+  .rail{border-right:1px solid var(--border);background:var(--card);display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0}
+  .tool{width:34px;height:34px;border-radius:9px;border:1px solid transparent;background:transparent;color:var(--muted);font-size:15px;cursor:pointer;display:grid;place-items:center}
+  .tool:hover{background:var(--card2);color:var(--text)}
+  .tool.on{background:linear-gradient(135deg,var(--brand),var(--violet2));color:#fff}
+  .tool.dis{opacity:.3;cursor:not-allowed}
+  .rsep{width:22px;height:1px;background:var(--border);margin:5px 0}
+  .swatches{display:flex;flex-direction:column;gap:4px;margin-top:2px}
+  .sw{width:18px;height:18px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+  .sw.on{border-color:#fff}
+
+  /* stage */
+  .stage{display:flex;flex-direction:column;min-width:0;position:relative}
+  .srcs{display:flex;align-items:center;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border);background:rgba(11,11,15,.7)}
+  .src{border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:11px;font-weight:700;padding:5px 10px;border-radius:8px;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+  .src:hover{border-color:var(--brand);color:var(--text)}
+  .src.on{background:linear-gradient(135deg,var(--brand),var(--violet2));border-color:transparent;color:#fff}
+  .pen-badge{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:var(--emerald2);background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:999px;padding:4px 10px}
+
+  .surface{flex:1;position:relative;overflow:hidden;background:#0e0e13;display:grid;place-items:center;padding:14px}
+  .sheet{position:relative;width:min(100%,980px);aspect-ratio:16/9;border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.55);border:1px solid var(--border)}
+  #board{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;z-index:2}
+  .bg-white{background:#f8f8f5}
+  .bg-grid{background:#f8f8f5;background-image:radial-gradient(circle at 1px 1px,#d8d8d0 1px,transparent 0);background-size:22px 22px}
+  .bg-dark{background:#12141a}
+  /* slide / doc backdrops behind the drawable board */
+  .backdrop{position:absolute;inset:0;z-index:1;display:none}
+  .backdrop.on{display:block}
+  .slide{width:100%;height:100%;background:linear-gradient(135deg,#1a1630,#2c2350);padding:7% 8%;color:#fff;display:flex;flex-direction:column;justify-content:center}
+  .slide h1{font-size:clamp(18px,3.4vw,38px);margin:0 0 12px;letter-spacing:-.02em}
+  .slide p{color:#b7b1d8;font-size:clamp(11px,1.4vw,16px);margin:0 0 6px;display:flex;align-items:center;gap:8px}
+  .slide p::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--violet);flex:none}
+  .slide .sn{position:absolute;right:16px;bottom:12px;font-size:11px;color:#6b6590}
+  .docpage{width:100%;height:100%;background:#fff;color:#1a1a1a;padding:5% 7%;overflow:hidden}
+  .docpage h2{font-size:clamp(13px,1.9vw,22px);margin:0 0 4px;color:#111}
+  .docpage .rule{height:2px;width:64px;background:var(--brand);margin:0 0 12px}
+  .docpage .ln{height:7px;border-radius:3px;background:#e9e9ee;margin:7px 0}
+  .docpage .ln.s{width:82%}.docpage .ln.m{width:94%}.docpage .ln.t{width:56%}
+  .docpage .box{height:22%;border:1.5px dashed #c9c9d4;border-radius:8px;margin-top:12px;display:grid;place-items:center;color:#9a9aa6;font-size:11px}
+  .screenshare{width:100%;height:100%;background:#101318;display:flex;flex-direction:column}
+  .ss-bar{height:26px;background:#1b202a;display:flex;align-items:center;gap:5px;padding:0 9px;flex:none}
+  .ss-bar i{width:8px;height:8px;border-radius:50%;background:#3a4150;display:block}
+  .ss-body{flex:1;display:grid;grid-template-columns:150px 1fr;min-height:0}
+  .ss-side{background:#151a22;border-right:1px solid #232a36;padding:10px}
+  .ss-side .r{height:6px;border-radius:3px;background:#232a36;margin-bottom:8px}
+  .ss-main{padding:14px;display:flex;flex-direction:column;gap:8px}
+  .ss-main .r{height:8px;border-radius:4px;background:#1e2531}
+  .ss-main .r.c{background:linear-gradient(90deg,#6366f1,#a78bfa);width:38%}
+  .presenter-cam{width:100%;height:100%;background:linear-gradient(150deg,#221a3a,#3a2c5e);display:grid;place-items:center;position:relative}
+  .presenter-cam .who{position:absolute;left:12px;bottom:10px;font-size:12px;font-weight:700;background:rgba(0,0,0,.55);border-radius:8px;padding:4px 10px}
+
+  .pager{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:8px;background:rgba(11,11,15,.85);border:1px solid var(--border);border-radius:999px;padding:5px 8px;backdrop-filter:blur(6px)}
+  .pager button{width:22px;height:22px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:11px}
+  .pager button:hover{border-color:var(--brand);color:var(--brand)}
+  .pager span{font-size:10.5px;color:var(--muted);min-width:52px;text-align:center}
+
+  /* remote cursors on the board */
+  .rcur{position:absolute;z-index:5;pointer-events:none;transition:transform .35s cubic-bezier(.22,.61,.36,1)}
+  .rcur i{display:block;width:0;height:0;border-left:7px solid currentColor;border-bottom:11px solid transparent;transform:rotate(-18deg)}
+  .rcur b{position:absolute;left:9px;top:9px;font-size:9px;font-weight:800;color:#04121a;background:var(--cc);border-radius:5px;padding:1px 5px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+
+  /* participants filmstrip */
+  .strip{border-left:1px solid var(--border);background:var(--card);display:flex;flex-direction:column;min-height:0}
+  .strip-h{display:flex;align-items:center;gap:6px;padding:9px 11px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700}
+  .strip-h .n{margin-left:auto;font-size:10px;color:var(--muted)}
+  .strip-b{flex:1;overflow:auto;padding:8px;display:flex;flex-direction:column;gap:7px}
+  .tile{position:relative;border-radius:11px;overflow:hidden;aspect-ratio:4/3;border:1px solid var(--border);background:#181820}
+  .tile.speaking{border-color:var(--emerald);box-shadow:0 0 0 2px rgba(16,185,129,.28)}
+  .tile.host{border-color:rgba(99,102,241,.5)}
+  .cam{position:absolute;inset:0;display:grid;place-items:center;font-size:20px;font-weight:900;color:#fff}
+  .camoff{position:absolute;inset:0;display:grid;place-items:center;background:#181820}
+  .camoff .ini{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:900;color:#fff}
+  .tname{position:absolute;left:5px;bottom:4px;right:5px;display:flex;align-items:center;gap:4px;font-size:9.5px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+  .tname .fl{margin-left:auto;display:flex;gap:3px}
+  .pill{font-size:8px;font-weight:800;border-radius:999px;padding:1px 5px;background:rgba(0,0,0,.6)}
+  .pill.pen{background:var(--emerald);color:#04231a}
+  .pill.hand{background:var(--amber);color:#2a1a00}
+  .pill.mut{background:rgba(244,63,94,.85);color:#fff}
+  .pill.co{background:rgba(99,102,241,.95);color:#fff}
+  .pill.shr{background:rgba(34,211,238,.9);color:#04232a}
+  .tile .give{position:absolute;inset:0;display:none;align-content:center;justify-content:center;flex-wrap:wrap;gap:4px;padding:6px;background:rgba(11,11,15,.8);backdrop-filter:blur(2px)}
+  .tile:hover .give{display:flex}
+  .give button{border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:7px;width:28px;height:26px;font-size:11px;cursor:pointer;display:grid;place-items:center}
+  .give button:hover{border-color:var(--brand);color:var(--brand)}
+  .give button.on{background:rgba(16,185,129,.18);border-color:rgba(16,185,129,.5)}
+  .give button.hot:hover{border-color:var(--rose);color:var(--rose)}
+  /* who's sharing the stage right now */
+  .sharechip{display:inline-flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;color:var(--teal);background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.32);border-radius:999px;padding:4px 5px 4px 10px;margin-left:8px}
+  .sharechip button{border:1px solid rgba(34,211,238,.4);background:transparent;color:var(--teal);border-radius:999px;padding:2px 8px;font-size:9.5px;font-weight:700;cursor:pointer}
+  .sharechip button:hover{background:rgba(34,211,238,.16)}
+
+  /* bottom control bar */
+  .bar{display:flex;align-items:center;justify-content:center;gap:6px;padding:9px;border-top:1px solid var(--border);background:rgba(11,11,15,.92);flex:none}
+  .cbtn{width:38px;height:38px;border-radius:11px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:15px;cursor:pointer;display:grid;place-items:center;position:relative}
+  .cbtn:hover{border-color:var(--brand)}
+  .cbtn.off{background:rgba(244,63,94,.16);border-color:rgba(244,63,94,.45);color:#fb7185}
+  .cbtn.rec.on{background:rgba(244,63,94,.9);border-color:transparent;color:#fff}
+  .cbtn.leave{width:auto;padding:0 14px;background:linear-gradient(135deg,#e11d48,#fb7185);border:none;color:#fff;font-size:12px;font-weight:800;gap:6px;display:inline-flex;align-items:center}
+  .clock{font-size:11px;color:var(--muted);margin-right:8px;font-variant-numeric:tabular-nums}
+  .clock b{color:#f43f5e}
+
+  /* =========================================================== BACK OFFICE */
+  .bo{position:absolute;inset:0;overflow:auto;background:var(--ground)}
+  .bo-in{max-width:1180px;margin:0 auto;padding:20px 22px 60px}
+  .bo h3{font-size:13px;margin:22px 0 9px;display:flex;align-items:center;gap:7px}
+  .bo h3:first-child{margin-top:0}
+  .bo h3 .hint2{font-size:10.5px;color:var(--muted);font-weight:400;margin-left:auto}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:10px}
+  .kpi{border:1px solid var(--border);border-radius:14px;background:var(--card);padding:12px 13px}
+  .kpi .k{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+  .kpi .v{font-size:22px;font-weight:800;margin-top:3px;letter-spacing:-.02em}
+  .kpi .d{font-size:10px;color:var(--muted);margin-top:1px}
+  .kpi .v.em{color:var(--emerald2)}.kpi .v.am{color:var(--amber)}.kpi .v.vi{color:var(--violet)}
+
+  .panel{border:1px solid var(--border);border-radius:14px;background:var(--card);overflow:hidden}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;padding:9px 12px;border-bottom:1px solid var(--border);font-weight:700;background:var(--card2)}
+  td{padding:9px 12px;border-bottom:1px solid rgba(42,42,51,.6);font-size:12px;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(99,102,241,.04)}
+  .who2{display:flex;align-items:center;gap:8px}
+  .who2 .av2{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:9.5px;font-weight:900;color:#fff;flex:none}
+  .who2 b{font-size:12px;display:block;line-height:1.2}
+  .who2 span{font-size:10px;color:var(--muted)}
+  .role{font-size:9px;font-weight:800;border-radius:999px;padding:2px 7px}
+  .role.host{background:rgba(99,102,241,.16);color:var(--violet)}
+  .role.co{background:rgba(34,211,238,.14);color:var(--teal)}
+  .role.tr{background:rgba(148,163,184,.14);color:var(--slate)}
+  .role.gu{background:rgba(251,191,36,.14);color:var(--amber)}
+  .dot2{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)}
+  .dot2 i{width:6px;height:6px;border-radius:50%;background:var(--emerald);display:block}
+  .dot2.away i{background:var(--amber)}
+  .dot2.gone i{background:#4a4a55}
+  .rowacts{display:flex;gap:4px;justify-content:flex-end}
+  .ia{width:26px;height:26px;border-radius:7px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer}
+  .ia:hover{border-color:var(--brand);color:var(--brand)}
+  .ia.hot:hover{border-color:var(--rose);color:var(--rose)}
+  .ia.on{background:rgba(16,185,129,.16);border-color:rgba(16,185,129,.4);color:var(--emerald2)}
+  .ia.onv{background:rgba(99,102,241,.18);border-color:rgba(99,102,241,.45);color:var(--violet)}
+  .ia.ont{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.42);color:var(--teal)}
+
+  .toggles{display:grid;grid-template-columns:repeat(auto-fit,minmax(258px,1fr));gap:9px}
+  .tg{display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:12px;background:var(--card);padding:11px 12px;cursor:pointer}
+  .tg:hover{border-color:rgba(99,102,241,.4)}
+  .tg .ti{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:14px;background:var(--card2);flex:none}
+  .tg b{font-size:11.5px;display:block;line-height:1.25}
+  .tg span{font-size:10px;color:var(--muted);line-height:1.35;display:block}
+  .sw2{margin-left:auto;width:34px;height:19px;border-radius:999px;background:#33333d;position:relative;flex:none;transition:background .18s}
+  .sw2::after{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:#8a8a96;transition:.18s}
+  .tg.on .sw2{background:rgba(99,102,241,.9)}
+  .tg.on .sw2::after{left:17px;background:#fff}
+
+  .waitrow{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid rgba(42,42,51,.6)}
+  .waitrow:last-child{border-bottom:none}
+  .waitrow .av2{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:9.5px;font-weight:900;color:#fff;flex:none}
+  .waitrow b{font-size:11.5px}.waitrow span{font-size:10px;color:var(--muted)}
+  .waitrow .ok{margin-left:auto;border:none;border-radius:8px;padding:5px 11px;font-size:10.5px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--brand),var(--violet2));cursor:pointer}
+  .waitrow .no{border:1px solid var(--border);border-radius:8px;padding:5px 9px;font-size:10.5px;font-weight:700;color:var(--muted);background:transparent;cursor:pointer}
+  .waitrow .no:hover{border-color:var(--rose);color:var(--rose)}
+
+  .mat{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:9px}
+  .mcard{border:1px solid var(--border);border-radius:12px;background:var(--card);overflow:hidden;cursor:pointer}
+  .mcard:hover{border-color:var(--brand)}
+  .mcard .th{aspect-ratio:16/10;display:grid;place-items:center;font-size:22px}
+  .mcard .mb{padding:7px 9px}
+  .mcard b{font-size:10.5px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mcard span{font-size:9px;color:var(--muted)}
+
+  /* ============================================ BRIEF SHEET (canonical) */
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:39;display:none}
+  .scrim.on{display:block}
+  .sheetw{position:absolute;left:12px;right:12px;bottom:12px;top:16px;z-index:40;display:none;flex-direction:column;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:0 24px 70px rgba(0,0,0,.65);overflow:hidden}
+  .sheetw.on{display:flex}
+  @media(min-width:640px){.sheetw{left:20px;right:20px;bottom:16px}}
+  .sh-h{display:flex;align-items:center;gap:9px;padding:13px 16px;border-bottom:1px solid var(--border);flex:none}
+  .sh-h .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--violet2));font-size:12px}
+  .sh-h b{font-size:13px}.sh-h span{font-size:11px;color:var(--muted)}
+  .sh-b{flex:1;overflow:auto;padding:16px}
+  .sh-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:18px;max-width:1080px;margin:0 auto}
+  @media(max-width:900px){.sh-grid{grid-template-columns:1fr}}
+  .fld{margin-bottom:15px}
+  .fld>label{font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .fld>label .opt{font-weight:400;color:var(--muted);font-size:10px;margin-left:auto}
+  textarea,input[type=text],input[type=number],select{width:100%;border:1px solid var(--border);background:var(--card2);color:var(--text);border-radius:10px;padding:9px 11px;font-size:12px;font-family:inherit;outline:none}
+  textarea:focus,input:focus,select:focus{border-color:var(--brand)}
+  textarea{min-height:86px;resize:vertical;line-height:1.55}
+  .picks{display:flex;flex-wrap:wrap;gap:6px}
+  .pick{border:1px solid var(--border);background:var(--card2);color:var(--muted);border-radius:9px;padding:7px 11px;font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .pick:hover{border-color:var(--brand);color:var(--text)}
+  .pick.on{border-color:transparent;background:linear-gradient(135deg,var(--brand),var(--violet2));color:#fff}
+  /* thumbnail picks (style selectors need visual thumbnails) */
+  .tpicks{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:7px}
+  .tp{display:block;padding:0;border:1px solid var(--border);border-radius:11px;overflow:hidden;background:var(--card2);cursor:pointer;text-align:left;color:var(--text)}
+  .tp:hover{border-color:rgba(99,102,241,.5)}
+  .tp.on{border-color:var(--brand);box-shadow:0 0 0 1px var(--brand)}
+  .tp .tt{aspect-ratio:16/10;display:grid;place-items:center;font-size:19px}
+  .tp .tl{padding:5px 7px 6px}
+  .tp b{font-size:10px;display:block}
+  .tp span{font-size:8.5px;color:var(--muted);display:block;line-height:1.3}
+  /* co-host picker */
+  .cohosts{display:flex;flex-wrap:wrap;gap:5px}
+  .cohost{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;background:var(--card);padding:3px 6px 3px 3px;font-size:11px;color:var(--text)}
+  .cohost .av2{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:8px;font-weight:900;color:#fff;flex:none}
+  .cohost b{font-size:10.5px;font-weight:700}
+  .cohost .cx{width:15px;height:15px;border-radius:50%;border:none;background:transparent;color:var(--muted);font-size:8px;cursor:pointer}
+  .cohost .cx:hover{color:var(--rose)}
+  .cohost.add{border-style:dashed;color:var(--muted);cursor:pointer;padding:5px 11px;font-weight:600}
+  .cohost.add:hover{border-color:var(--brand);color:var(--brand)}
+  .drop{border:1.5px dashed var(--border);border-radius:12px;background:var(--card2);padding:18px;text-align:center;cursor:pointer}
+  .drop:hover{border-color:var(--brand)}
+  .drop .di{font-size:22px;margin-bottom:5px}
+  .drop b{font-size:11.5px;display:block}
+  .drop span{font-size:10px;color:var(--muted)}
+  .files{display:flex;flex-direction:column;gap:5px;margin-top:7px}
+  .file{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9px;background:var(--card2);padding:6px 9px}
+  .file .fi{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:10px;flex:none}
+  .file b{font-size:10.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .file span{font-size:9px;color:var(--muted)}
+  .agenda{display:flex;flex-direction:column;gap:5px}
+  .ag{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:10px;background:var(--card2);padding:7px 9px}
+  .ag .gi{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:10px;flex:none}
+  .ag b{font-size:11px;flex:1}
+  .ag .gm{font-size:10px;color:var(--muted)}
+  .ag .gx{width:18px;height:18px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:9px;cursor:pointer}
+  .ag .gx:hover{border-color:var(--rose);color:var(--rose)}
+  .side{border:1px solid var(--border);border-radius:14px;background:var(--card2);padding:13px}
+  .side h4{font-size:11px;margin:0 0 9px;display:flex;align-items:center;gap:6px}
+  .est{display:flex;justify-content:space-between;font-size:11px;padding:5px 0;border-bottom:1px solid rgba(42,42,51,.7)}
+  .est:last-of-type{border-bottom:none}
+  .est span{color:var(--muted)}.est b{font-weight:700}
+  .tot{display:flex;justify-content:space-between;margin-top:9px;padding-top:9px;border-top:1px solid var(--border);font-size:13px;font-weight:800}
+  .tot b{color:var(--violet)}
+  .bal{font-size:10px;color:var(--muted);margin-top:5px;text-align:right}
+  .bal b{color:var(--emerald2)}
+  .sugg{margin-top:11px;border:1px solid rgba(99,102,241,.3);background:rgba(99,102,241,.07);border-radius:11px;padding:10px}
+  .sugg b{font-size:10.5px;color:var(--violet);display:flex;align-items:center;gap:5px}
+  .sugg p{font-size:10px;color:var(--muted);margin:5px 0 8px;line-height:1.5}
+  .sh-f{display:flex;align-items:center;gap:9px;padding:11px 16px;border-top:1px solid var(--border);flex:none;background:var(--card2)}
+  .sh-f .note{font-size:10.5px;color:var(--muted)}
+  .sh-f .sp{flex:1}
+
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(70px);z-index:90;background:var(--card);border:1px solid var(--border);border-radius:11px;padding:9px 15px;font-size:12px;box-shadow:0 14px 40px rgba(0,0,0,.6);opacity:0;transition:.28s;pointer-events:none;display:flex;align-items:center;gap:8px}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .td{width:6px;height:6px;border-radius:50%;background:var(--emerald)}
+</style>
+
+<div class="app">
+  <!-- ------------------------------------------------------------- top bar -->
+  <div class="top">
+    <div class="brand">
+      <div class="ic">🎓</div>
+      <div><b>Training Studio</b><span>Live rooms — video, whiteboard, docs, illustration</span></div>
+    </div>
+
+    <div class="modes" style="margin-left:16px">
+      <button id="m-plan" class="on" onclick="setMode('plan')">Plan</button>
+      <button id="m-live" onclick="setMode('live')"><span class="live-dot"></span>Live room</button>
+      <button id="m-bo" onclick="setMode('bo')">Back office</button>
+    </div>
+
+    <div class="spacer"></div>
+    <div class="stat" id="topstat">4 segments · 45 min · <b>12 seats</b></div>
+    <button class="btn" onclick="toast('Opens the session library')">📂 Sessions</button>
+    <button class="btn pri" onclick="openBrief()">✨ New session</button>
+  </div>
+
+  <!-- =========================================================== PLAN VIEW -->
+  <div class="view on" id="v-plan">
+    <div class="canvas" id="canvas">
+      <div class="board" id="board2">
+        <svg class="wires"><path id="wire" fill="none" stroke="#38bdf8" stroke-width="1.6" opacity=".55"/></svg>
+
+        <!-- BRIEF node -->
+        <div class="node briefn" data-node="__brief" style="left:24px;top:70px">
+          <div class="n-head" onpointerdown="grab(event,this)">
+            <div class="ic" style="background:rgba(99,102,241,.18);color:var(--violet)">✨</div>
+            <b>Session brief</b><div class="tag brief">Brief</div>
+          </div>
+          <div class="b-line" id="briefText">Onboard new sales reps on the FlowSmartly pitch — walk the deck, whiteboard the objection-handling loop, then role-play in pairs.</div>
+          <div class="b-meta" id="briefMeta">
+            <span class="mchip">Training</span><span class="mchip">45 min</span><span class="mchip">12 seats</span><span class="mchip">Recorded</span>
+          </div>
+          <div class="acts"><button class="a" onclick="openBrief()">✎ Edit brief</button><button class="a prime" onclick="toast('Agent re-plans the agenda from the brief')">✨ Re-plan</button></div>
+        </div>
+
+        <!-- ROOM node -->
+        <div class="node roomn" data-node="__room" style="left:274px;top:70px">
+          <div class="n-head" onpointerdown="grab(event,this)">
+            <div class="ic" style="background:rgba(251,191,36,.2);color:var(--amber)">🚪</div>
+            <b>The room</b><div class="tag acc">Access</div>
+          </div>
+          <div class="seats">
+            <div class="av" style="background:linear-gradient(135deg,#6366f1,#7c3aed)">JY</div>
+            <div class="av" style="background:linear-gradient(135deg,#22d3ee,#0891b2)">MA</div>
+            <div class="av" style="background:linear-gradient(135deg,#f59e0b,#d97706)">TK</div>
+            <div class="av" style="background:linear-gradient(135deg,#10b981,#059669)">SR</div>
+            <div class="av more">+3</div>
+          </div>
+          <div class="r-meta">Co-host <b>Maya A.</b> · Waiting room <b>on</b><br>Sharing: hosts + who you allow.</div>
+          <div class="linkrow"><span style="font-size:9px">🔗</span><code>flowsmartly.com/t/pitch-onboard-7k2</code><button class="x" style="border:none" onclick="toast('Link copied')">⧉</button></div>
+          <div class="acts"><button class="a" onclick="toast('Opens room access settings')">⚙ Settings</button><button class="a" onclick="setMode('bo')">👥 Manage</button></div>
+        </div>
+
+        <!-- segment nodes injected by JS -->
+
+        <!-- GO LIVE node -->
+        <div class="node liven" data-node="__live" style="left:1616px;top:96px">
+          <div class="n-head" onpointerdown="grab(event,this)">
+            <div class="ic" style="background:rgba(167,139,250,.2);color:var(--violet)">🔴</div>
+            <b>Go live</b><div class="tag draft" id="liveTag">Scheduled</div>
+          </div>
+          <div class="l-stat"><span>Segments</span><b id="lvSegs">4</b></div>
+          <div class="l-stat"><span>Runtime</span><b id="lvMins">45 min</b></div>
+          <div class="l-stat"><span>Starts</span><b>Today 14:00</b></div>
+          <div class="cost">Room time is billed per attendee-minute. <b>12 seats × 45 min ≈ 54 credits</b> · recording +8</div>
+          <button class="golive" onclick="setMode('live')">▶ Start the session</button>
+        </div>
+
+        <!-- INVITE node -->
+        <div class="node inviten" data-node="__invite" style="left:1616px;top:430px">
+          <div class="n-head" onpointerdown="grab(event,this)">
+            <div class="ic" style="background:rgba(34,211,238,.2);color:var(--teal)">📨</div>
+            <b>Invite</b><div class="tag ready">4 sent</div>
+          </div>
+          <div class="ch" onclick="toast('Emails the join link to your team')"><div class="ci">✉</div>Email invite<span class="ck">Sent</span></div>
+          <div class="ch" onclick="toast('Adds a calendar hold with the join link')"><div class="ci">📅</div>Calendar<span class="ck">Held</span></div>
+          <div class="ch" onclick="toast('Posts the link into your team chat')"><div class="ci">💬</div>Team chat</div>
+          <div class="ch" onclick="toast('Public link — anyone with it can join')"><div class="ci">🔗</div>Public link</div>
+          <div class="acts"><button class="a prime" onclick="toast('Invites sent to 12 people')">Send all</button></div>
+        </div>
+        <!-- add a segment (director parity) -->
+        <button class="addbtn" id="addSeg" data-nopan title="Add a segment" onclick="toggleAddMenu()">＋</button>
+        <div class="addmenu" id="addMenu" data-nopan>
+          <div class="am-h">Add a segment</div>
+          <button onclick="addSeg('slides')"><i style="background:rgba(167,139,250,.18);color:var(--violet)">📊</i>Present slides<span>Walk a deck, annotate it</span></button>
+          <button onclick="addSeg('board')"><i style="background:rgba(34,211,238,.18);color:var(--teal)">🖊</i>Whiteboard it<span>Draw it live</span></button>
+          <button onclick="addSeg('doc')"><i style="background:rgba(148,163,184,.18);color:var(--slate)">📄</i>Work a document<span>Mark up a PDF</span></button>
+          <button onclick="addSeg('video')"><i style="background:rgba(251,191,36,.18);color:var(--amber)">🎬</i>Watch a clip<span>Play in sync</span></button>
+          <button onclick="addSeg('draw')"><i style="background:rgba(16,185,129,.18);color:var(--emerald2)">🖼</i>Draw over an image<span>Illustrate on top</span></button>
+          <button onclick="addSeg('discuss')"><i style="background:rgba(251,113,133,.18);color:var(--rose)">🤝</i>Break out in pairs<span>Pairs get their own board</span></button>
+        </div>
+      </div>
+      <div class="hint">Drag any node · drag empty space to pan · segments run left → right</div>
+    </div>
+  </div>
+
+  <!-- =========================================================== LIVE VIEW -->
+  <div class="view" id="v-live">
+    <div class="room">
+      <!-- tool rail -->
+      <div class="rail">
+        <button class="tool" id="t-sel" onclick="setTool('sel')" title="Select">➚</button>
+        <button class="tool on" id="t-pen" onclick="setTool('pen')" title="Pen">✏️</button>
+        <button class="tool" id="t-hi" onclick="setTool('hi')" title="Highlighter">🖍️</button>
+        <button class="tool" id="t-era" onclick="setTool('era')" title="Eraser">🧽</button>
+        <button class="tool" id="t-shape" onclick="setTool('shape')" title="Shape">▢</button>
+        <button class="tool" id="t-text" onclick="setTool('text')" title="Text">T</button>
+        <button class="tool" id="t-note" onclick="setTool('note')" title="Sticky note">🗒️</button>
+        <button class="tool" id="t-laser" onclick="setTool('laser')" title="Laser pointer">🔦</button>
+        <div class="rsep"></div>
+        <div class="swatches">
+          <div class="sw on" style="background:#111827" onclick="setInk(this,'#111827')"></div>
+          <div class="sw" style="background:#6366f1" onclick="setInk(this,'#6366f1')"></div>
+          <div class="sw" style="background:#e11d48" onclick="setInk(this,'#e11d48')"></div>
+          <div class="sw" style="background:#10b981" onclick="setInk(this,'#10b981')"></div>
+          <div class="sw" style="background:#f59e0b" onclick="setInk(this,'#f59e0b')"></div>
+        </div>
+        <div class="rsep"></div>
+        <button class="tool" onclick="undo()" title="Undo">↶</button>
+        <button class="tool" onclick="clearBoard()" title="Clear board">🗑</button>
+      </div>
+
+      <!-- stage -->
+      <div class="stage">
+        <div class="srcs">
+          <button class="src" id="s-slides" onclick="setSrc('slides')">📊 Slides</button>
+          <button class="src on" id="s-board" onclick="setSrc('board')">🖊 Whiteboard</button>
+          <button class="src" id="s-doc" onclick="setSrc('doc')">📄 Document</button>
+          <button class="src" id="s-screen" onclick="setSrc('screen')">🖥 Screen</button>
+          <button class="src" id="s-cam" onclick="setSrc('cam')">🎥 Presenter</button>
+          <div class="sharechip" id="shareChip" style="display:none">🖥 Tomas K. is sharing <button onclick="setSrc('board');toast('Stage taken back — Tomas stopped sharing')">Take back the stage</button></div>
+          <div class="pen-badge" id="penBadge">✏️ You have the pen</div>
+        </div>
+
+        <div class="surface">
+          <div class="sheet" id="sheet">
+            <!-- backdrops behind the drawable board -->
+            <div class="backdrop" id="bd-slides">
+              <div class="slide" id="slideBody">
+                <h1>Handling “it’s too expensive”</h1>
+                <p>Never defend the price — reframe to cost of inaction</p>
+                <p>Anchor against their current spend, not our list</p>
+                <p>Close with a reversible first step</p>
+                <div class="sn">2 / 18</div>
+              </div>
+            </div>
+            <div class="backdrop" id="bd-doc">
+              <div class="docpage">
+                <h2 id="docTitle">Objection-handling worksheet</h2><div class="rule"></div>
+                <div class="ln m"></div><div class="ln s"></div><div class="ln m"></div><div class="ln t"></div>
+                <div class="box">Write the reframe here — annotate live</div>
+              </div>
+            </div>
+            <div class="backdrop" id="bd-screen">
+              <div class="screenshare">
+                <div class="ss-bar"><i></i><i></i><i></i><span style="margin-left:8px;font-size:9px;color:#7c8598">Tomas K. — screen</span></div>
+                <div class="ss-body">
+                  <div class="ss-side"><div class="r" style="width:70%"></div><div class="r" style="width:52%"></div><div class="r" style="width:64%"></div><div class="r" style="width:40%"></div></div>
+                  <div class="ss-main"><div class="r c"></div><div class="r" style="width:88%"></div><div class="r" style="width:72%"></div><div class="r" style="width:81%"></div><div class="r" style="width:47%"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="backdrop" id="bd-cam">
+              <div class="presenter-cam"><div style="font-size:52px">🧑‍🏫</div><div class="who">Jean-Yves · presenting</div></div>
+            </div>
+
+            <canvas id="board"></canvas>
+
+            <!-- other people's cursors, live -->
+            <div class="rcur" id="c1" style="color:#22d3ee;--cc:#22d3ee;transform:translate(180px,120px)"><i></i><b>Maya</b></div>
+            <div class="rcur" id="c2" style="color:#f59e0b;--cc:#f59e0b;transform:translate(520px,260px)"><i></i><b>Tomas</b></div>
+
+            <div class="pager" id="pager" style="display:none">
+              <button onclick="page(-1)">‹</button><span id="pageLbl">Page 3 / 18</span><button onclick="page(1)">›</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bar">
+          <div class="clock">⏱ <span id="clk">00:12:41</span> · <b id="recLbl">REC</b></div>
+          <button class="cbtn" id="c-mic" onclick="tog('c-mic','🎤','🔇')" title="Mic">🎤</button>
+          <button class="cbtn" id="c-cam" onclick="tog('c-cam','🎥','📷')" title="Camera">🎥</button>
+          <button class="cbtn" onclick="setSrc('screen')" title="Share screen">🖥</button>
+          <button class="cbtn" onclick="setSrc('board')" title="Whiteboard">🖊</button>
+          <button class="cbtn" onclick="toast('Upload a PDF, deck, image or video — it becomes the board backdrop')" title="Upload material">📎</button>
+          <button class="cbtn" onclick="toast('Hand raised — the host sees it in the roster')" title="Raise hand">✋</button>
+          <button class="cbtn rec on" id="c-rec" onclick="togRec()" title="Recording">⏺</button>
+          <button class="cbtn" onclick="setMode('bo')" title="Participants">👥</button>
+          <button class="cbtn leave" onclick="setMode('plan')">Leave</button>
+        </div>
+      </div>
+
+      <!-- participants -->
+      <div class="strip">
+        <div class="strip-h">👥 In the room <span class="n" id="inRoom">12</span></div>
+        <div class="strip-b" id="tiles"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================== BACK OFFICE VIEW -->
+  <div class="view" id="v-bo">
+    <div class="bo"><div class="bo-in">
+
+      <h3>📊 This session <span class="hint2">Live · started 14:00 · Onboard new sales reps</span></h3>
+      <div class="cards">
+        <div class="kpi"><div class="k">In the room</div><div class="v em">7 / 12</div><div class="d">2 in the waiting room</div></div>
+        <div class="kpi"><div class="k">Avg. attention</div><div class="v">86%</div><div class="d">tab focused, camera on</div></div>
+        <div class="kpi"><div class="k">Hands raised</div><div class="v am">2</div><div class="d">Tomas, Dan</div></div>
+        <div class="kpi"><div class="k">Elapsed</div><div class="v">12:41</div><div class="d">of 45:00 planned</div></div>
+        <div class="kpi"><div class="k">Credits burned</div><div class="v vi">18</div><div class="d">of ~66 estimated</div></div>
+      </div>
+
+      <h3>🚪 Waiting room <span class="hint2">Nobody enters until you admit them</span></h3>
+      <div class="panel">
+        <div class="waitrow">
+          <div class="av2" style="background:linear-gradient(135deg,#fb7185,#e11d48)">PN</div>
+          <div><b>Priya Nandal</b><br><span>priya@acme.io · knocked 40s ago</span></div>
+          <button class="ok" onclick="toast('Priya admitted')">Admit</button><button class="no" onclick="toast('Priya declined')">Deny</button>
+        </div>
+        <div class="waitrow">
+          <div class="av2" style="background:linear-gradient(135deg,#94a3b8,#64748b)">?</div>
+          <div><b>Guest (no name)</b><br><span>Joined by public link · knocked 8s ago</span></div>
+          <button class="ok" onclick="toast('Guest admitted as a trainee')">Admit</button><button class="no" onclick="toast('Guest declined')">Deny</button>
+        </div>
+      </div>
+
+      <h3>👥 Roster <span class="hint2">✏️ pen · 🖥 may share screen · ⭐ co-host</span></h3>
+      <div class="panel">
+        <table>
+          <thead><tr><th>Person</th><th>Role</th><th>Status</th><th>Joined</th><th>Attention</th><th style="text-align:right">Controls</th></tr></thead>
+          <tbody id="roster"></tbody>
+        </table>
+      </div>
+
+      <h3>🎛 Room controls</h3>
+      <div class="toggles">
+        <div class="tg on" onclick="tg(this,'Waiting room')"><div class="ti">🚪</div><div><b>Waiting room</b><span>Knock before entering</span></div><div class="sw2"></div></div>
+        <div class="tg on" onclick="tg(this,'Recording')"><div class="ti">⏺</div><div><b>Record the session</b><span>Saved to your library when it ends</span></div><div class="sw2"></div></div>
+        <div class="tg" onclick="tg(this,'Trainees may draw')"><div class="ti">✏️</div><div><b>Anyone can draw</b><span>Off = only the pen-holder draws</span></div><div class="sw2"></div></div>
+        <div class="tg" onclick="tg(this,'Open screen sharing')"><div class="ti">🖥</div><div><b>Anyone can share screen</b><span>Off = hosts, plus whoever you allow</span></div><div class="sw2"></div></div>
+        <div class="tg on" onclick="tg(this,'Trainee mics')"><div class="ti">🎤</div><div><b>Trainees can unmute</b><span>Off = raise hand to speak</span></div><div class="sw2"></div></div>
+        <div class="tg" onclick="tg(this,'Lock room')"><div class="ti">🔒</div><div><b>Lock the room</b><span>No new joins, even with the link</span></div><div class="sw2"></div></div>
+        <div class="tg on" onclick="tg(this,'Auto-transcript')"><div class="ti">📝</div><div><b>Live transcript</b><span>Notes + summary emailed after</span></div><div class="sw2"></div></div>
+      </div>
+      <div style="display:flex;gap:7px;margin-top:11px;flex-wrap:wrap">
+        <button class="btn sm" onclick="toast('All trainees muted')">🔇 Mute all</button>
+        <button class="btn sm" onclick="toast('Pick someone to co-host with you')">⭐ Add a co-host</button>
+        <button class="btn sm" onclick="toast('Pen returned to you')">✏️ Take the pen back</button>
+        <button class="btn sm" onclick="toast('Screen sharing revoked for everyone but the hosts')">🖥 Revoke all sharing</button>
+        <button class="btn sm" onclick="toast('Everyone pulled to your current view')">👁 Pull to my view</button>
+        <button class="btn sm" onclick="toast('Breakout rooms — 3 pairs created')">🧩 Breakout pairs</button>
+        <button class="btn sm" onclick="toast('Attendance CSV exported')">⬇ Export attendance</button>
+        <button class="btn live sm" onclick="toast('Session ended — recording + notes are processing')">⏹ End session</button>
+      </div>
+
+      <h3>📎 Materials <span class="hint2">Anything here can be pushed to the board mid-session</span></h3>
+      <div class="mat">
+        <div class="mcard" onclick="toast('Pushed the deck to the board')"><div class="th" style="background:linear-gradient(160deg,#2a2440,#3a2f52)">📊</div><div class="mb"><b>Pitch deck v4.pdf</b><span>18 pages · pushed</span></div></div>
+        <div class="mcard" onclick="toast('Pushed the worksheet to the board')"><div class="th" style="background:linear-gradient(160deg,#1e2530,#2c3644)">📄</div><div class="mb"><b>Objection worksheet</b><span>2 pages</span></div></div>
+        <div class="mcard" onclick="toast('Plays the clip for everyone, in sync')"><div class="th" style="background:linear-gradient(160deg,#3a2a10,#5a4318)">🎬</div><div class="mb"><b>Great call teardown</b><span>4:12 video</span></div></div>
+        <div class="mcard" onclick="toast('Pushed the diagram to the board')"><div class="th" style="background:linear-gradient(160deg,#0f2e22,#175c42)">🖼</div><div class="mb"><b>Loop diagram.png</b><span>illustration</span></div></div>
+        <div class="mcard" onclick="toast('Board snapshot saved to the session library')"><div class="th" style="background:linear-gradient(160deg,#0e2a33,#164e57)">🖊</div><div class="mb"><b>Board — 14:09</b><span>auto-snapshot</span></div></div>
+        <div class="mcard" onclick="openBrief()"><div class="th" style="background:var(--card2);color:var(--muted)">＋</div><div class="mb"><b>Add material</b><span>PDF, deck, image, video</span></div></div>
+      </div>
+
+      <h3>🗂 Past sessions</h3>
+      <div class="panel">
+        <table>
+          <thead><tr><th>Session</th><th>When</th><th>Attended</th><th>Completion</th><th>Recording</th><th style="text-align:right"></th></tr></thead>
+          <tbody>
+            <tr><td><b style="font-size:12px">Pitch onboarding — cohort 3</b></td><td>Jul 10, 14:00</td><td>11 / 12</td><td><span class="dot2"><i></i>92%</span></td><td>42:10</td><td class="rowacts"><button class="ia" onclick="toast('Opens the recording')">▶</button><button class="ia" onclick="toast('Re-runs this session with a new cohort')">⧉</button></td></tr>
+            <tr><td><b style="font-size:12px">Product deep-dive — support</b></td><td>Jul 8, 10:00</td><td>7 / 9</td><td><span class="dot2 away"><i></i>78%</span></td><td>58:44</td><td class="rowacts"><button class="ia" onclick="toast('Opens the recording')">▶</button><button class="ia" onclick="toast('Re-runs this session with a new cohort')">⧉</button></td></tr>
+            <tr><td><b style="font-size:12px">New-hire welcome</b></td><td>Jul 3, 09:30</td><td>4 / 4</td><td><span class="dot2"><i></i>100%</span></td><td>26:02</td><td class="rowacts"><button class="ia" onclick="toast('Opens the recording')">▶</button><button class="ia" onclick="toast('Re-runs this session with a new cohort')">⧉</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div></div>
+  </div>
+
+  <!-- ======================================================== BRIEF SHEET -->
+  <div class="scrim" id="scrim" onclick="closeBrief()"></div>
+  <div class="sheetw" id="sheet-brief">
+    <div class="sh-h">
+      <div class="ic">✨</div>
+      <div><b>New training session</b><br><span>Describe the session — the agent drafts the agenda, materials and board</span></div>
+      <div class="spacer" style="flex:1"></div>
+      <button class="x" style="width:24px;height:24px" onclick="closeBrief()">✕</button>
+    </div>
+
+    <div class="sh-b">
+      <div class="sh-grid">
+        <!-- left: the brief -->
+        <div>
+          <div class="fld">
+            <label>What are you training, and who's in the room?</label>
+            <textarea id="bf">Onboard new sales reps on the FlowSmartly pitch — walk the deck, whiteboard the objection-handling loop, then role-play in pairs.</textarea>
+          </div>
+
+          <div class="fld">
+            <label>Session type</label>
+            <div class="picks" id="p-type">
+              <button class="pick on">🎓 Training</button><button class="pick">🛠 Workshop</button>
+              <button class="pick">📢 Webinar</button><button class="pick">👋 Onboarding</button>
+              <button class="pick">🤝 1-on-1 coaching</button>
+            </div>
+          </div>
+
+          <div class="fld">
+            <label>Agenda <span class="opt">drag to reorder · the agent drafted these from your brief</span></label>
+            <div class="agenda" id="agenda">
+              <div class="ag"><div class="gi" style="background:rgba(167,139,250,.18);color:var(--violet)">📊</div><b>Walk the deck</b><span class="gm">12 min · slides</span><button class="gx" onclick="dropRow(this,'Walk the deck')">✕</button></div>
+              <div class="ag"><div class="gi" style="background:rgba(34,211,238,.18);color:var(--teal)">🖊</div><b>Whiteboard the objection loop</b><span class="gm">15 min · board</span><button class="gx" onclick="dropRow(this,'Whiteboard the objection loop')">✕</button></div>
+              <div class="ag"><div class="gi" style="background:rgba(148,163,184,.18);color:var(--slate)">📄</div><b>Fill the worksheet together</b><span class="gm">8 min · document</span><button class="gx" onclick="dropRow(this,'Fill the worksheet together')">✕</button></div>
+              <div class="ag"><div class="gi" style="background:rgba(251,113,133,.18);color:var(--rose)">🤝</div><b>Role-play in pairs</b><span class="gm">10 min · breakout</span><button class="gx" onclick="dropRow(this,'Role-play in pairs')">✕</button></div>
+              <button class="chip" style="align-self:flex-start;margin-top:3px" onclick="addAgendaRow()">＋ Add segment</button>
+            </div>
+          </div>
+
+          <div class="fld">
+            <label>What's on the board? <span class="opt">real examples, not names</span></label>
+            <div class="tpicks" id="p-board">
+              <button class="tp on"><div class="tt" style="background:linear-gradient(160deg,#0e2a33,#164e57)">🖊</div><div class="tl"><b>Blank board</b><span>Draw from scratch</span></div></button>
+              <button class="tp"><div class="tt" style="background:#f8f8f5;background-image:radial-gradient(circle at 1px 1px,#d8d8d0 1px,transparent 0);background-size:9px 9px"></div><div class="tl"><b>Grid board</b><span>Diagrams, flows</span></div></button>
+              <button class="tp"><div class="tt" style="background:linear-gradient(160deg,#2a2440,#3a2f52)">📊</div><div class="tl"><b>Your deck</b><span>Annotate slides</span></div></button>
+              <button class="tp"><div class="tt" style="background:linear-gradient(160deg,#1e2530,#2c3644)">📄</div><div class="tl"><b>A document</b><span>Mark up a PDF</span></div></button>
+              <button class="tp"><div class="tt" style="background:linear-gradient(160deg,#3a2a10,#5a4318)">🎬</div><div class="tl"><b>A video</b><span>Watch in sync</span></div></button>
+              <button class="tp"><div class="tt" style="background:linear-gradient(160deg,#0f2e22,#175c42)">🖼</div><div class="tl"><b>An illustration</b><span>Draw over an image</span></div></button>
+            </div>
+          </div>
+
+          <div class="fld">
+            <label>Materials <span class="opt">PDF, deck, doc, image or video — up to 100MB each</span></label>
+            <div class="drop" onclick="toast('Opens the file picker / media library')">
+              <div class="di">⬆️</div><b>Drop files, or pick from your library</b>
+              <span>They become board backdrops you can annotate live</span>
+            </div>
+            <div class="files">
+              <div class="file"><div class="fi" style="background:rgba(167,139,250,.18);color:var(--violet)">📊</div><b>Pitch deck v4.pdf</b><span>18 pages · 4.2 MB</span><button class="x" onclick="dropRow(this,'Pitch deck v4.pdf')">✕</button></div>
+              <div class="file"><div class="fi" style="background:rgba(148,163,184,.18);color:var(--slate)">📄</div><b>Objection worksheet.pdf</b><span>2 pages · 180 KB</span><button class="x" onclick="dropRow(this,'Objection worksheet.pdf')">✕</button></div>
+              <div class="file"><div class="fi" style="background:rgba(251,191,36,.18);color:var(--amber)">🎬</div><b>Great call teardown.mp4</b><span>4:12 · 38 MB</span><button class="x" onclick="dropRow(this,'Great call teardown.mp4')">✕</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- right: setup + estimate -->
+        <div>
+          <div class="side" style="margin-bottom:11px">
+            <h4>⚙️ Room setup</h4>
+            <div class="fld" style="margin-bottom:11px">
+              <label>Length</label>
+              <div class="picks" id="p-len">
+                <button class="pick">30 min</button><button class="pick on">45 min</button>
+                <button class="pick">60 min</button><button class="pick">90 min</button>
+              </div>
+            </div>
+            <div class="fld" style="margin-bottom:11px">
+              <label>Seats <span class="opt">how many can join</span></label>
+              <input type="number" value="12" id="seats" oninput="reest()">
+            </div>
+            <div class="fld" style="margin-bottom:11px">
+              <label>Co-hosts <span class="opt">they can share, draw &amp; admit</span></label>
+              <div class="cohosts">
+                <div class="cohost"><div class="av2" style="background:linear-gradient(135deg,#22d3ee,#0891b2)">MA</div><b>Maya A.</b><button class="cx" onclick="toast('Maya removed as co-host')">✕</button></div>
+                <button class="cohost add" onclick="toast('Pick a teammate, or invite by email')">＋ Add a co-host</button>
+              </div>
+            </div>
+            <div class="fld" style="margin-bottom:11px">
+              <label>Who can join</label>
+              <div class="picks" id="p-acc">
+                <button class="pick on">Invite only</button><button class="pick">Link + email</button><button class="pick">Open link</button>
+              </div>
+            </div>
+            <div class="fld" style="margin-bottom:0">
+              <label>Starts</label>
+              <input type="text" value="Today, 14:00">
+            </div>
+          </div>
+
+          <div class="side" style="margin-bottom:11px">
+            <h4>🎛 During the session</h4>
+            <div class="tg on" style="border:none;background:transparent;padding:7px 0" onclick="tg(this,'Waiting room')"><div class="ti">🚪</div><div><b>Waiting room</b><span>Admit people yourself</span></div><div class="sw2"></div></div>
+            <div class="tg on" style="border:none;background:transparent;padding:7px 0" onclick="tg(this,'Recording')"><div class="ti">⏺</div><div><b>Record it</b><span>Saved to your library</span></div><div class="sw2"></div></div>
+            <div class="tg" style="border:none;background:transparent;padding:7px 0" onclick="tg(this,'Anyone can draw')"><div class="ti">✏️</div><div><b>Anyone can draw</b><span>Or hand the pen out yourself</span></div><div class="sw2"></div></div>
+            <div class="tg" style="border:none;background:transparent;padding:7px 0" onclick="tg(this,'Anyone can share screen')"><div class="ti">🖥</div><div><b>Anyone can share screen</b><span>Off = hosts, plus who you allow</span></div><div class="sw2"></div></div>
+            <div class="tg on" style="border:none;background:transparent;padding:7px 0" onclick="tg(this,'Live transcript')"><div class="ti">📝</div><div><b>Live transcript</b><span>Notes + summary after</span></div><div class="sw2"></div></div>
+          </div>
+
+          <div class="side">
+            <h4>⚡ What this costs</h4>
+            <div class="est"><span>Room · 12 seats × 45 min</span><b id="e-room">54</b></div>
+            <div class="est"><span>Recording</span><b>8</b></div>
+            <div class="est"><span>Live transcript + summary</span><b>4</b></div>
+            <div class="est"><span>Materials &amp; board</span><b>Free</b></div>
+            <div class="tot"><span>Estimated</span><b id="e-tot">66 credits</b></div>
+            <div class="bal">You have <b>1,240 credits</b></div>
+
+            <div class="sugg">
+              <b>✨ The agent noticed</b>
+              <p>Your brief says “role-play in pairs” but the room has no breakout segment sized for 12 people. Want me to add 3 breakout pairs at minute 35?</p>
+              <div style="display:flex;gap:5px"><button class="chip" onclick="toast('Breakout segment added to the agenda')">Add it</button><button class="chip" onclick="toast('Dismissed')">No thanks</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sh-f">
+      <span class="note">Guests join by link — no FlowSmartly account needed.</span>
+      <div class="sp"></div>
+      <button class="btn" onclick="closeBrief()">Cancel</button>
+      <button class="btn" onclick="closeBrief();toast('Saved as a draft session')">Save draft</button>
+      <button class="btn pri" onclick="closeBrief();toast('Room built — 4 segments on the canvas')">✨ Build the room</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="td"></span><span id="toastMsg"></span></div>
+
+<script>
+/* ------------------------------------------------------------------ toast */
+let tT;
+function toast(m){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=m;t.classList.add('on');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('on'),2100);}
+
+/* ------------------------------------------------------------------ modes */
+function setMode(m){
+  ['plan','live','bo'].forEach(k=>{
+    document.getElementById('v-'+k).classList.toggle('on',k===m);
+    document.getElementById('m-'+k).classList.toggle('on',k===m);
+  });
+  if(m==='plan') requestAnimationFrame(wires);
+  if(m==='live') requestAnimationFrame(fitBoard);
+}
+
+/* ============================================================ PLAN CANVAS */
+/* the kinds of segment a session can be built from */
+const KINDS={
+  slides:{icon:'📊',art:'slides',tag:'Slides',color:'var(--violet)',bg:'rgba(167,139,250,.18)',label:'Present slides',note:'Walk a deck — annotate the pages live as you go.',dur:10},
+  board:{icon:'🖊',art:'board',tag:'Board',color:'var(--teal)',bg:'rgba(34,211,238,.18)',label:'Whiteboard it',note:'Draw it live, then hand the pen to someone.',dur:15},
+  doc:{icon:'📄',art:'doc',tag:'Doc',color:'var(--slate)',bg:'rgba(148,163,184,.18)',label:'Work a document',note:'Mark up a PDF together — everyone sees the marks.',dur:8},
+  video:{icon:'🎬',art:'video',tag:'Video',color:'var(--amber)',bg:'rgba(251,191,36,.18)',label:'Watch a clip',note:'Play a clip in sync, pause to talk over it.',dur:5},
+  draw:{icon:'🖼',art:'draw',tag:'Illustration',color:'var(--emerald2)',bg:'rgba(16,185,129,.18)',label:'Draw over an image',note:'Put an illustration on the board and mark it up.',dur:6},
+  discuss:{icon:'🤝',art:'discuss',tag:'Breakout',color:'var(--rose)',bg:'rgba(251,113,133,.18)',label:'Break out in pairs',note:'Pairs get their own board. Hosts drop in.',dur:10},
+};
+let SEGMENTS=[
+  {id:'s1',kind:'slides',label:'Walk the deck',dur:12,note:'Deck v4 · 18 pages. Pause on 3 & 11 for questions.',ready:1,x:534,y:70},
+  {id:'s2',kind:'board',label:'Whiteboard the loop',dur:15,note:'Draw the objection→reframe→close loop live, hand the pen to a rep.',ready:1,x:800,y:130},
+  {id:'s3',kind:'doc',label:'Fill the worksheet',dur:8,note:'Annotate the worksheet PDF together — everyone sees the marks.',ready:1,x:1066,y:70},
+  {id:'s4',kind:'discuss',label:'Role-play in pairs',dur:10,note:'3 breakout pairs, each with their own board. Host drops in.',ready:0,x:1332,y:210},
+];
+function segHTML(s){
+  const k=KINDS[s.kind];
+  return `<div class="node seg" data-node="${s.id}" style="left:${s.x}px;top:${s.y}px">
+    <div class="n-head" onpointerdown="grab(event,this)">
+      <div class="ic" style="background:${k.bg};color:${k.color}">${k.icon}</div>
+      <b>${s.label}</b><div class="tag ${s.ready?'ready':'draft'}">${k.tag}</div>
+      <button class="x" title="Remove this segment" onclick="removeSeg('${s.id}')">✕</button>
+    </div>
+    <div class="pic">
+      <div class="art ${k.art}">${k.icon}</div>
+      <span class="kind">${k.tag}</span><span class="dur">${s.dur} min</span>
+      <span class="badge ${s.ready?'ok':'need'}">${s.ready?'Ready':'Needs setup'}</span>
+    </div>
+    <div class="s-note"><span class="s-l">Plan</span><span class="s-t">${s.note}</span></div>
+    <div class="manip">
+      <button class="chip" onclick="toast('Attach a deck, PDF, image or video')">📎 Material</button>
+      <button class="chip" onclick="toast('Set who may draw and who may share in this segment')">✏️ Pen</button>
+      <button class="chip warm" onclick="segLen('${s.id}')">⏱ ${s.dur} min</button>
+    </div>
+    <div class="acts">
+      <button class="a" onclick="toast('Opens this segment on the board')">👁 Preview</button>
+      <button class="a prime" onclick="setMode('live')">▶ Rehearse</button>
+    </div>
+  </div>`;
+}
+function renderSegs(){
+  boardEl.querySelectorAll('.seg').forEach(e=>e.remove());
+  boardEl.insertAdjacentHTML('beforeend',SEGMENTS.map(segHTML).join(''));
+  placeAdd();recount();wires();
+}
+/* the "+" affordance sits just past the last segment, like the director's add */
+function placeAdd(){
+  const maxX=SEGMENTS.reduce((m,s)=>Math.max(m,s.x),534);
+  const b=document.getElementById('addSeg');
+  b.style.left=(maxX+268)+'px';b.style.top='150px';
+}
+function addSeg(kind){
+  document.getElementById('addMenu').style.display='none';
+  const maxX=SEGMENTS.reduce((m,s)=>Math.max(m,s.x),534);
+  const k=KINDS[kind];
+  SEGMENTS.push({id:'s'+(Date.now()%100000),kind,label:k.label,dur:k.dur,note:k.note,ready:0,x:maxX+266,y:150});
+  renderSegs();toast(`${k.label} added — it needs setup before you go live`);
+}
+function removeSeg(id){
+  const s=SEGMENTS.find(x=>x.id===id);if(!s)return;
+  SEGMENTS=SEGMENTS.filter(x=>x.id!==id);
+  renderSegs();toast(`“${s.label}” removed`);
+}
+function segLen(id){
+  const s=SEGMENTS.find(x=>x.id===id);if(!s)return;
+  const steps=[5,8,10,12,15,20];
+  s.dur=steps[(steps.indexOf(s.dur)+1)%steps.length];
+  renderSegs();toast(`${s.label} — ${s.dur} min`);
+}
+/* segment count / runtime are derived, never hand-typed */
+function recount(){
+  const mins=SEGMENTS.reduce((m,s)=>m+s.dur,0);
+  document.getElementById('lvSegs').textContent=SEGMENTS.length;
+  document.getElementById('lvMins').textContent=mins+' min';
+  document.getElementById('topstat').innerHTML=`${SEGMENTS.length} segments · ${mins} min · <b>12 seats</b>`;
+  document.getElementById('liveTag').className='tag '+(SEGMENTS.every(s=>s.ready)?'ready':'draft');
+  document.getElementById('liveTag').textContent=SEGMENTS.every(s=>s.ready)?'Ready':'Needs setup';
+}
+function toggleAddMenu(){
+  const m=document.getElementById('addMenu');
+  const open=m.style.display==='block';
+  if(!open){const b=document.getElementById('addSeg');m.style.left=(parseFloat(b.style.left)+46)+'px';m.style.top='150px';}
+  m.style.display=open?'none':'block';
+}
+
+/* wires: brief → room → segments (by x) → live → invite  (director logic) */
+const boardEl=document.getElementById('board2');
+function wires(){
+  const get=id=>boardEl.querySelector(`[data-node="${id}"]`);
+  const br=boardEl.getBoundingClientRect();
+  const anc=(el,side)=>{if(!el)return null;const r=el.getBoundingClientRect();
+    return side==='r'?{x:r.left-br.left+r.width,y:r.top-br.top+r.height/2}:{x:r.left-br.left,y:r.top-br.top+r.height/2};};
+  const segs=[...boardEl.querySelectorAll('.seg')].sort((a,b)=>parseFloat(a.style.left)-parseFloat(b.style.left)).map(e=>e.dataset.node);
+  const seq=['__brief','__room',...segs,'__live','__invite'];
+  let d='';
+  for(let i=0;i<seq.length-1;i++){
+    const a=anc(get(seq[i]),'r'),b=anc(get(seq[i+1]),'l');
+    if(!a||!b)continue;
+    const dx=Math.max(40,(b.x-a.x)/2);
+    d+=`M${a.x} ${a.y} C${a.x+dx} ${a.y},${b.x-dx} ${b.y},${b.x} ${b.y} `;
+  }
+  document.getElementById('wire').setAttribute('d',d);
+}
+
+/* drag a node by its head */
+let drag=null;
+function grab(e,head){
+  if(e.target.closest('button'))return;
+  const n=head.closest('.node');
+  drag={n,dx:e.clientX-parseFloat(n.style.left),dy:e.clientY-parseFloat(n.style.top)};
+  head.setPointerCapture(e.pointerId);
+  head.onpointermove=ev=>{
+    if(!drag)return;
+    drag.n.style.left=Math.max(0,ev.clientX-drag.dx)+'px';
+    drag.n.style.top=Math.max(0,ev.clientY-drag.dy)+'px';
+    wires();
+  };
+  head.onpointerup=()=>{drag=null;head.onpointermove=null;wires();};
+}
+/* grab empty space to pan — same rule as use-canvas-pan.ts */
+(function(){
+  const c=document.getElementById('canvas');let p=null;
+  c.addEventListener('pointerdown',e=>{
+    if(e.target.closest('[data-node],[data-nopan],button,a,input,textarea,select,.resize'))return;
+    p={x:e.clientX,y:e.clientY,l:c.scrollLeft,t:c.scrollTop};
+  });
+  window.addEventListener('pointermove',e=>{if(!p)return;c.scrollLeft=p.l-(e.clientX-p.x);c.scrollTop=p.t-(e.clientY-p.y);});
+  window.addEventListener('pointerup',()=>p=null);
+})();
+window.addEventListener('resize',wires);
+document.addEventListener('pointerdown',e=>{ // outside click closes the add menu
+  if(!e.target.closest('#addMenu,#addSeg'))document.getElementById('addMenu').style.display='none';
+});
+renderSegs();
+requestAnimationFrame(wires);
+
+/* ============================================================== LIVE ROOM */
+// share = allowed to share their screen. Hosts and co-hosts always may; trainees only
+// when the host grants it (or the room-wide "anyone can share" toggle is on).
+const PEOPLE=[
+  {n:'Jean-Yves',i:'JY',c:'linear-gradient(135deg,#6366f1,#7c3aed)',role:'host',cam:1,mic:1,pen:1,hand:0,speak:1,share:1,sharing:0,att:'98%',joined:'14:00'},
+  {n:'Maya A.',i:'MA',c:'linear-gradient(135deg,#22d3ee,#0891b2)',role:'co',cam:1,mic:1,pen:0,hand:0,speak:0,share:1,sharing:0,att:'94%',joined:'14:01'},
+  {n:'Tomas K.',i:'TK',c:'linear-gradient(135deg,#f59e0b,#d97706)',role:'tr',cam:1,mic:0,pen:0,hand:1,speak:0,share:1,sharing:1,att:'91%',joined:'14:02'},
+  {n:'Sara R.',i:'SR',c:'linear-gradient(135deg,#10b981,#059669)',role:'tr',cam:0,mic:0,pen:0,hand:0,speak:0,share:0,sharing:0,att:'76%',joined:'14:02'},
+  {n:'Dan O.',i:'DO',c:'linear-gradient(135deg,#fb7185,#e11d48)',role:'tr',cam:1,mic:0,pen:0,hand:1,speak:0,share:0,sharing:0,att:'88%',joined:'14:03'},
+  {n:'Lina M.',i:'LM',c:'linear-gradient(135deg,#a78bfa,#7c3aed)',role:'tr',cam:1,mic:0,pen:0,hand:0,speak:0,share:0,sharing:0,att:'95%',joined:'14:03'},
+  {n:'Guest',i:'G',c:'linear-gradient(135deg,#94a3b8,#64748b)',role:'gu',cam:0,mic:0,pen:0,hand:0,speak:0,share:0,sharing:0,att:'62%',joined:'14:06'},
+];
+const canShare=p=>p.role==='host'||p.role==='co'||!!p.share;
+const ROLE={host:['Host','host'],co:['Co-host','co'],tr:['Trainee','tr'],gu:['Guest','gu']};
+const FACE=['🧑‍🏫','👩','🧔','👩‍🦰','👨','👩‍🦱','🙂'];
+document.getElementById('tiles').innerHTML=PEOPLE.map((p,i)=>`
+  <div class="tile ${p.speak?'speaking':''} ${p.role==='host'?'host':''}">
+    ${p.cam?`<div class="cam" style="background:${p.c}">${FACE[i%FACE.length]}</div>`
+           :`<div class="camoff"><div class="ini" style="background:${p.c}">${p.i}</div></div>`}
+    <div class="tname">${p.n}<span class="fl">
+      ${p.role==='co'?'<span class="pill co">CO</span>':''}${p.pen?'<span class="pill pen">PEN</span>':''}${p.sharing?'<span class="pill shr">🖥</span>':''}${p.hand?'<span class="pill hand">✋</span>':''}${!p.mic?'<span class="pill mut">🔇</span>':''}
+    </span></div>
+    <div class="give">
+      <button class="${p.pen?'on':''}" title="Hand ${p.n} the pen" onclick="toast('Pen handed to ${p.n}')">✏️</button>
+      <button class="${canShare(p)?'on':''}" title="${canShare(p)?'Stop '+p.n+' sharing their screen':'Let '+p.n+' share their screen'}" onclick="toast('${canShare(p)?p.n+' can no longer share their screen':p.n+' can now share their screen'}')">🖥</button>
+      <button class="${p.role==='co'?'on':''}" title="${p.role==='co'?'Demote '+p.n:'Make '+p.n+' a co-host'}" onclick="toast('${p.role==='co'?p.n+' is a trainee again':p.n+' is now a co-host — they can share, draw and admit people'}')">⭐</button>
+      <button title="Mute / unmute" onclick="toast('${p.n} ${p.mic?'muted':'unmuted'}')">🎤</button>
+      <button class="hot" title="Remove" onclick="toast('${p.n} removed')">✕</button>
+    </div>
+  </div>`).join('');
+document.getElementById('inRoom').textContent=PEOPLE.length;
+
+/* roster (back office) */
+document.getElementById('roster').innerHTML=PEOPLE.map(p=>{
+  const a=parseInt(p.att,10);
+  const st=p.role==='gu'?'gone':(a>=85?'':'away');
+  return `<tr>
+    <td><div class="who2"><div class="av2" style="background:${p.c}">${p.i}</div><div><b>${p.n}</b><span>${p.role==='gu'?'joined by link':p.n.split(' ')[0].toLowerCase()+'@flowsmartly.com'}</span></div></div></td>
+    <td><span class="role ${ROLE[p.role][1]}">${ROLE[p.role][0]}</span></td>
+    <td><span class="dot2 ${st}"><i></i>${p.hand?'Hand raised':(p.cam?'In the room':'Camera off')}</span></td>
+    <td style="color:var(--muted);font-size:11px">${p.joined}</td>
+    <td style="font-size:11px">${p.att}</td>
+    <td class="rowacts">
+      <button class="ia ${p.pen?'on':''}" title="${p.pen?'Take the pen back':'Hand '+p.n+' the pen'}" onclick="toast('${p.pen?'Pen returned to you':'Pen handed to '+p.n}')">✏️</button>
+      <button class="ia ${canShare(p)?'ont':''}" title="${canShare(p)?'Revoke screen share':'Let '+p.n+' share their screen'}" onclick="toast('${canShare(p)?p.n+' can no longer share their screen':p.n+' can now share their screen'}')">🖥</button>
+      <button class="ia" title="Mute / unmute" onclick="toast('${p.n} ${p.mic?'muted':'unmuted'}')">🎤</button>
+      <button class="ia ${p.role==='co'?'onv':''}" title="${p.role==='co'?'Demote to trainee':'Make '+p.n+' a co-host'}" onclick="toast('${p.role==='co'?p.n+' is a trainee again':p.n+' is now a co-host'}')">⭐</button>
+      <button class="ia hot" title="Remove" onclick="toast('${p.n} removed from the room')">✕</button>
+    </td></tr>`;
+}).join('');
+
+/* --- stage source --- */
+let src='board';
+function setSrc(s){
+  src=s;
+  ['slides','board','doc','screen','cam'].forEach(k=>document.getElementById('s-'+k).classList.toggle('on',k===s));
+  ['slides','doc','screen','cam'].forEach(k=>{const el=document.getElementById('bd-'+k);if(el)el.classList.toggle('on',k===s);});
+  const b=document.getElementById('board');
+  b.className='';
+  if(s==='board')b.classList.add('bg-grid');
+  b.style.cursor=(s==='screen'||s==='cam')?'default':'crosshair';
+  document.getElementById('pager').style.display=(s==='slides'||s==='doc')?'flex':'none';
+  paint();
+  // a trainee you allowed can take the stage — you keep the pen and can draw on top
+  const sharer=PEOPLE.find(p=>p.sharing);
+  document.getElementById('shareChip').style.display=(s==='screen'&&sharer)?'inline-flex':'none';
+  if(s==='screen'&&sharer)toast(`${sharer.n} is sharing — you can still draw on top`);
+  else if(s==='cam')toast('Presenter camera full-stage');
+}
+
+/* --- the whiteboard: freehand, presenter-authoritative --- */
+const cv=document.getElementById('board'),cx=cv.getContext('2d');
+let strokes=[],cur=null,tool='pen',ink='#111827';
+function fitBoard(){
+  const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;
+  cv.width=r.width*d;cv.height=r.height*d;cx.setTransform(d,0,0,d,0,0);redraw();
+}
+function setTool(t){
+  tool=t;['sel','pen','hi','era','shape','text','note','laser'].forEach(k=>document.getElementById('t-'+k).classList.toggle('on',k===t));
+  cv.style.cursor=t==='sel'?'default':(t==='era'?'cell':'crosshair');
+}
+function setInk(el,c){ink=c;[...document.querySelectorAll('.sw')].forEach(s=>s.classList.remove('on'));el.classList.add('on');}
+function width(){return tool==='hi'?16:(tool==='era'?22:2.6);}
+function alpha(){return tool==='hi'?.32:1;}
+function pt(e){const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+cv.addEventListener('pointerdown',e=>{
+  if(tool==='sel')return;
+  if(tool==='note'||tool==='text'){toast(tool==='note'?'Sticky note dropped — everyone sees it':'Type on the board');return;}
+  cv.setPointerCapture(e.pointerId);
+  cur={pts:[pt(e)],c:tool==='era'?null:ink,w:width(),a:alpha(),era:tool==='era'};
+  strokes.push(cur);
+});
+cv.addEventListener('pointermove',e=>{if(!cur)return;cur.pts.push(pt(e));redraw();});
+cv.addEventListener('pointerup',()=>{cur=null;});
+cv.addEventListener('pointerleave',()=>{cur=null;});
+function redraw(){
+  cx.clearRect(0,0,cv.width,cv.height);
+  for(const s of strokes){
+    if(s.pts.length<2)continue;
+    cx.save();
+    cx.globalCompositeOperation=s.era?'destination-out':'source-over';
+    cx.globalAlpha=s.a;cx.strokeStyle=s.c||'#000';cx.lineWidth=s.w;cx.lineCap='round';cx.lineJoin='round';
+    cx.beginPath();cx.moveTo(s.pts[0].x,s.pts[0].y);
+    for(let i=1;i<s.pts.length-1;i++){ // quadratic smoothing — the perfect-freehand look
+      const m={x:(s.pts[i].x+s.pts[i+1].x)/2,y:(s.pts[i].y+s.pts[i+1].y)/2};
+      cx.quadraticCurveTo(s.pts[i].x,s.pts[i].y,m.x,m.y);
+    }
+    const last=s.pts[s.pts.length-1];cx.lineTo(last.x,last.y); // 2-pt strokes draw nothing without this
+    cx.stroke();cx.restore();
+  }
+}
+function undo(){strokes.pop();redraw();toast('Undone — for everyone');}
+function clearBoard(){strokes=[];redraw();toast('Board cleared');}
+window.addEventListener('resize',()=>{if(document.getElementById('v-live').classList.contains('on'))fitBoard();});
+setSrc('board');
+
+/* seed the board with a drawn diagram so it reads as a live session */
+function seed(){
+  const S=(pts,c,w)=>strokes.push({pts,c,w:w||2.6,a:1,era:0});
+  const circle=(cxx,cyy,r,c)=>{const p=[];for(let a=0;a<=6.5;a+=.18)p.push({x:cxx+Math.cos(a)*r,y:cyy+Math.sin(a)*r*.86});S(p,c,2.4);};
+  circle(190,120,52,'#6366f1');circle(470,120,52,'#6366f1');circle(330,300,52,'#10b981');
+  S([{x:245,y:118},{x:380,y:112},{x:414,y:118}],'#111827');S([{x:400,y:106},{x:416,y:118},{x:399,y:129}],'#111827');
+  S([{x:466,y:172},{x:420,y:250},{x:390,y:282}],'#111827');S([{x:404,y:268},{x:388,y:284},{x:405,y:293}],'#111827');
+  S([{x:275,y:288},{x:230,y:220},{x:198,y:174}],'#111827');S([{x:196,y:196},{x:197,y:172},{x:216,y:180}],'#111827');
+  S([{x:110,y:400},{x:600,y:400}],'#e11d48',3);
+  redraw();
+}
+
+/* live cursors drifting — the SSE presence feel */
+let ct=0;
+setInterval(()=>{
+  if(!document.getElementById('v-live').classList.contains('on'))return;
+  ct+=1;
+  document.getElementById('c1').style.transform=`translate(${180+Math.sin(ct/3)*90}px,${120+Math.cos(ct/4)*46}px)`;
+  document.getElementById('c2').style.transform=`translate(${520+Math.cos(ct/5)*70}px,${260+Math.sin(ct/3.5)*38}px)`;
+},900);
+
+/* clock + recording */
+let secs=761,rec=1;
+setInterval(()=>{
+  secs++;const h=String(Math.floor(secs/3600)).padStart(2,'0'),m=String(Math.floor(secs%3600/60)).padStart(2,'0'),s=String(secs%60).padStart(2,'0');
+  document.getElementById('clk').textContent=`${h}:${m}:${s}`;
+  const r=document.getElementById('recLbl');if(rec)r.style.opacity=r.style.opacity==='0.3'?'1':'0.3';
+},1000);
+function togRec(){rec=!rec;const b=document.getElementById('c-rec');b.classList.toggle('on',rec);
+  document.getElementById('recLbl').style.display=rec?'':'none';toast(rec?'Recording resumed':'Recording paused');}
+function tog(id,on,off){const b=document.getElementById(id),o=b.classList.toggle('off');b.textContent=o?off:on;
+  toast(id==='c-mic'?(o?'You are muted':'You are live'):(o?'Camera off':'Camera on'));}
+/* paging the deck/doc moves EVERYONE — the host drives the stage */
+const DECK=[
+  {h:'Why they say no',b:['Price is rarely the real objection','Listen for the risk underneath','Name it before they do']},
+  {h:'Handling “it’s too expensive”',b:['Never defend the price — reframe to cost of inaction','Anchor against their current spend, not our list','Close with a reversible first step']},
+  {h:'The reversible first step',b:['Small, dated, and easy to undo','Put it in writing the same day','Book the check-in before you leave']},
+];
+const PGMAX={slides:18,doc:2};
+const pg={slides:2,doc:1};
+function paint(){
+  const k=(src==='slides'||src==='doc')?src:null;if(!k)return;
+  document.getElementById('pageLbl').textContent=`Page ${pg[k]} / ${PGMAX[k]}`;
+  if(k==='slides'){
+    const d=DECK[(pg.slides-1)%DECK.length];
+    document.getElementById('slideBody').innerHTML=`<h1>${d.h}</h1>${d.b.map(x=>`<p>${x}</p>`).join('')}<div class="sn">${pg.slides} / 18</div>`;
+  }else{
+    document.getElementById('docTitle').textContent=pg.doc===1?'Objection-handling worksheet':'Your reframes — page 2';
+  }
+}
+function page(d){
+  const k=(src==='slides'||src==='doc')?src:null;if(!k)return;
+  const next=pg[k]+d;
+  if(next<1||next>PGMAX[k]){toast(next<1?'Already on the first page':'Already on the last page');return;}
+  pg[k]=next;paint();
+  toast(`Page ${pg[k]} — everyone follows`);
+}
+document.getElementById('penBadge').onclick=()=>toast('Click a person\'s tile to hand them the pen');
+
+/* ============================================================ BRIEF SHEET */
+/* remove an agenda / material row — the ✕ has to actually remove it */
+function dropRow(btn,name){btn.closest('.ag,.file').remove();toast(`“${name}” removed`);}
+function addAgendaRow(){
+  const k=KINDS.board;
+  document.getElementById('agenda').insertAdjacentHTML('afterbegin',
+    `<div class="ag"><div class="gi" style="background:${k.bg};color:${k.color}">${k.icon}</div><b>${k.label}</b><span class="gm">${k.dur} min · board</span><button class="gx" onclick="dropRow(this,'${k.label}')">✕</button></div>`);
+  toast('Segment added — set it up on the canvas');
+}
+function openBrief(){document.getElementById('sheet-brief').classList.add('on');document.getElementById('scrim').classList.add('on');}
+function closeBrief(){document.getElementById('sheet-brief').classList.remove('on');document.getElementById('scrim').classList.remove('on');}
+function tg(el,name){el.classList.toggle('on');toast(name+(el.classList.contains('on')?' on':' off'));}
+/* pick groups */
+['p-type','p-len','p-acc','p-board'].forEach(g=>{
+  const el=document.getElementById(g);if(!el)return;
+  el.addEventListener('click',e=>{
+    const b=e.target.closest('.pick,.tp');if(!b)return;
+    [...el.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');
+    if(g==='p-len'||g==='p-acc')reest();
+  });
+});
+function reest(){
+  const seats=parseInt(document.getElementById('seats').value||'0',10);
+  const lenBtn=[...document.getElementById('p-len').children].find(b=>b.classList.contains('on'));
+  const mins=parseInt((lenBtn?lenBtn.textContent:'45'),10);
+  const room=Math.round(seats*mins*0.1);
+  document.getElementById('e-room').textContent=room;
+  document.getElementById('e-tot').textContent=(room+12)+' credits';
+  document.querySelector('.est span').textContent=`Room · ${seats} seats × ${mins} min`;
+}
+reest();
+seed();
+</script>
