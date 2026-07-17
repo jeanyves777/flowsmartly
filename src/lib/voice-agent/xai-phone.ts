@@ -21,20 +21,32 @@
 
 const BASE = "https://api.x.ai";
 
+/** Inference key — realtime WS, TTS/STT, voices. */
 function key(): string | null {
   return process.env.XAI_API_KEY || null;
 }
 
+/**
+ * Management key — the agent-management + number-management API (`prod.mc.*`)
+ * lives behind a separate MANAGEMENT key, not the inference API key. Falls back
+ * to the inference key so behaviour is unchanged until a management key is set;
+ * once `XAI_MANAGEMENT_KEY` exists, /v1/agents and number binding start working.
+ */
+function mgmtKey(): string | null {
+  return process.env.XAI_MANAGEMENT_KEY || process.env.XAI_API_KEY || null;
+}
+
 async function call<T>(
   path: string,
-  init: RequestInit & { body?: string } = {},
+  init: RequestInit & { body?: string; management?: boolean } = {},
 ): Promise<{ ok: true; data: T } | { ok: false; error: string; status: number }> {
-  const k = key();
+  const { management, ...reqInit } = init;
+  const k = management ? mgmtKey() : key();
   if (!k) return { ok: false, error: "Voice calling isn't configured yet.", status: 503 };
 
   try {
     const res = await fetch(`${BASE}${path}`, {
-      ...init,
+      ...reqInit,
       headers: {
         Authorization: `Bearer ${k}`,
         "Content-Type": "application/json",
@@ -230,6 +242,7 @@ export async function syncXaiAgent(xaiAgentId: string | null, spec: XaiAgentSpec
   const method = xaiAgentId ? "PATCH" : "POST";
   const r = await call<{ agent_id?: string; agentId?: string; id?: string }>(path, {
     method,
+    management: true,
     body: JSON.stringify(agentBody(spec)),
   });
 
@@ -245,7 +258,7 @@ export async function syncXaiAgent(xaiAgentId: string | null, spec: XaiAgentSpec
 }
 
 export async function deleteXaiAgent(xaiAgentId: string): Promise<{ ok: boolean }> {
-  const r = await call(`/v1/agents/${encodeURIComponent(xaiAgentId)}`, { method: "DELETE" });
+  const r = await call(`/v1/agents/${encodeURIComponent(xaiAgentId)}`, { method: "DELETE", management: true });
   return { ok: r.ok };
 }
 
@@ -260,6 +273,7 @@ export async function bindNumberToAgent(
 ): Promise<{ ok: boolean; error?: string }> {
   const r = await call(`/v2/phone-numbers/${encodeURIComponent(phoneNumberId)}`, {
     method: "PATCH",
+    management: true,
     body: JSON.stringify({ agent_id: xaiAgentId, field_mask: "agent_id" }),
   });
   return r.ok ? { ok: true } : { ok: false, error: r.error };
