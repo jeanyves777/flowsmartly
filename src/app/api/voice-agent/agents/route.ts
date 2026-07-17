@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db/client";
 import {
   DEFAULT_HOURS,
   PRESET_BY_KEY,
+  greetingFor,
   skillsForPreset,
   type AgentSkill,
 } from "@/lib/voice-agent/types";
@@ -90,13 +91,19 @@ export async function POST(request: NextRequest) {
       phoneNumberId = number.id;
     }
 
-    const greeting: string =
-      (body.greeting || "").trim() || preset.greeting.replace("{business}", "your business");
+    // The account knows the business name — a caller should never hear
+    // "Thanks for calling your business."
+    const kit = await prisma.brandKit.findFirst({
+      where: { userId: session.userId },
+      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+      select: { name: true },
+    });
+    const greeting: string = (body.greeting || "").trim() || greetingFor(presetKey, kit?.name);
 
     const agent = await prisma.voiceAgent.create({
       data: {
         userId: session.userId,
-        name: (body.name || `${preset.title}`).slice(0, 80),
+        name: (body.name || (kit?.name ? `${preset.title} — ${kit.name}` : preset.title)).slice(0, 80),
         preset: presetKey,
         status: "DRAFT",
         phoneNumberId,
