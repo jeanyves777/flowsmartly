@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { syncAgentToXai } from "@/lib/voice-agent/agent-sync";
 import {
   DEFAULT_HOURS,
   PRESET_BY_KEY,
@@ -124,6 +125,11 @@ export async function POST(request: NextRequest) {
       },
       include: { number: true },
     });
+
+    // Mirror to a real xAI console agent if the team's agents endpoint is on;
+    // otherwise this records "webhook" and the call path uses per-call config.
+    // Fire-and-forget so creation isn't blocked on the provider.
+    void syncAgentToXai(agent.id).catch(() => {});
 
     return NextResponse.json({
       success: true,

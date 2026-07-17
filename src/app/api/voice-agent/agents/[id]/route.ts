@@ -10,10 +10,29 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { syncAgentToXai } from "@/lib/voice-agent/agent-sync";
 import { DEFAULT_HOURS, type AgentSkill } from "@/lib/voice-agent/types";
+import { bindNumberToAgent } from "@/lib/voice-agent/xai-phone";
 
 function fail(message: string, status = 400) {
   return NextResponse.json({ success: false, error: { message } }, { status });
+}
+
+/**
+ * Make an agent answerable on go-live: sync it to xAI, and if that produced a
+ * console agent, bind the agent's number to it. If the agents endpoint is off,
+ * the number's webhook already routes to our bridge, so there's nothing to do.
+ */
+async function ensureLiveRouting(agentId: string): Promise<void> {
+  const sync = await syncAgentToXai(agentId);
+  if (sync.state !== "synced" || !sync.xaiAgentId) return;
+  const agent = await prisma.voiceAgent.findUnique({
+    where: { id: agentId },
+    include: { number: true },
+  });
+  if (agent?.number?.xaiPhoneNumberId) {
+    await bindNumberToAgent(agent.number.xaiPhoneNumberId, sync.xaiAgentId).catch(() => {});
+  }
 }
 
 function hydrate(row: Record<string, unknown>) {
@@ -180,6 +199,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data,
       include: { number: true },
     });
+
+    // On go-live, make sure the provider knows this agent. If the agents endpoint
+    // is on, this creates/updates the console agent and binds the number to it;
+    // if it's off, the number's webhook (set at provision time) carries the call
+    // instead. Either way the line answers.
+    if (body.status === "LIVE") {
+      void ensureLiveRouting(agent.id).catch((e) =>
+        console.error("[VoiceAgent] live routing sync failed:", e),
+      );
+    }
 
     return NextResponse.json({
       success: true,

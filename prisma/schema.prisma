@@ -6058,6 +6058,17 @@ model VoiceAgent {
   blockSpam         Boolean @default(true)
   discloseAi        Boolean @default(true) // "I'm an AI assistant" — required in some regions
 
+  // Sync to a real xAI console agent, when the team's agents endpoint is on.
+  // synced   = a real xAI agent mirrors this row (xaiAgentId set); calls can bind
+  //            a number straight to it.
+  // webhook  = the agents endpoint is off for the team, so calls route through
+  //            our /webhook/incoming + per-call session.update instead (works too).
+  // error    = the sync hit a real error (not the feature flag) — see xaiSyncError.
+  xaiAgentId   String?
+  xaiSyncState String    @default("pending") // pending | synced | webhook | error
+  xaiSyncError String?
+  xaiSyncedAt  DateTime?
+
   liveSince DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

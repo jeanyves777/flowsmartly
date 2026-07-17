@@ -183,6 +183,88 @@ export function realtimeCallUrl(callId: string): string {
   return `wss://api.x.ai/v1/realtime?call_id=${encodeURIComponent(callId)}`;
 }
 
+// ── Console agents ──
+//
+// `/v1/agents` is the real endpoint (a 403 there vs a 404 on a bad path proves
+// it exists) but it returns "agents endpoint is not enabled for this team" until
+// the team turns the agents feature on. So `notEnabled` is a first-class result:
+// callers fall back to the webhook + per-call session.update path, which needs no
+// console agent. The request shape follows the OpenAI-compatible realtime agent
+// (name/model/instructions/voice/tools) since xAI's realtime is OpenAI-compatible;
+// it's unverified while the endpoint is gated, and validated the moment it's on.
+
+export interface XaiAgentSpec {
+  name: string;
+  instructions: string;
+  voice: string;
+  tools: Array<{ name: string; description: string; parameters: Record<string, unknown> }>;
+}
+
+type SyncResult =
+  | { ok: true; agentId: string }
+  | { ok: false; notEnabled: true }
+  | { ok: false; notEnabled?: false; error: string };
+
+function agentBody(spec: XaiAgentSpec) {
+  // Schema discovered from the endpoint's own 422s (2026-07-17): top-level
+  // {name, instructions, voice, tools, collection_ids, workflow_json}; `voice`
+  // is a struct {voice_id, vad_threshold, vad_silence_duration_ms, model,
+  // language_hint, reasoning…}, NOT a plain string. `model` is a Voice field,
+  // not top-level.
+  return {
+    name: spec.name.slice(0, 120),
+    instructions: spec.instructions,
+    voice: { voice_id: spec.voice || "eve" },
+    // A tool is a tagged union keyed by its type (function | web_search | …),
+    // NOT {type:"function"} — the agent-mgmt API differs from the realtime one.
+    // And `parameters` is a JSON-encoded STRING here, not an object.
+    tools: spec.tools.map((t) => ({
+      function: { name: t.name, description: t.description, parameters: JSON.stringify(t.parameters) },
+    })),
+  };
+}
+
+/** Create or update the console agent that mirrors one of our DB agents. */
+export async function syncXaiAgent(xaiAgentId: string | null, spec: XaiAgentSpec): Promise<SyncResult> {
+  const path = xaiAgentId ? `/v1/agents/${encodeURIComponent(xaiAgentId)}` : "/v1/agents";
+  const method = xaiAgentId ? "PATCH" : "POST";
+  const r = await call<{ agent_id?: string; agentId?: string; id?: string }>(path, {
+    method,
+    body: JSON.stringify(agentBody(spec)),
+  });
+
+  if (!r.ok) {
+    if (r.status === 403 && /not enabled/i.test(r.error)) return { ok: false, notEnabled: true };
+    // A gone agent on update → treat as "create next time".
+    if (r.status === 404 && xaiAgentId) return { ok: false, error: "agent no longer exists" };
+    return { ok: false, error: r.error };
+  }
+  const id = r.data.agent_id || r.data.agentId || r.data.id || xaiAgentId || "";
+  if (!id) return { ok: false, error: "no agent id returned" };
+  return { ok: true, agentId: id };
+}
+
+export async function deleteXaiAgent(xaiAgentId: string): Promise<{ ok: boolean }> {
+  const r = await call(`/v1/agents/${encodeURIComponent(xaiAgentId)}`, { method: "DELETE" });
+  return { ok: r.ok };
+}
+
+/**
+ * Point a number at an agent, or at our webhook. The number-update API only
+ * accepts a `field_mask`-style body, so we send both the field and the mask.
+ * Returns notEnabled/error so callers can degrade to the webhook path.
+ */
+export async function bindNumberToAgent(
+  phoneNumberId: string,
+  xaiAgentId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const r = await call(`/v2/phone-numbers/${encodeURIComponent(phoneNumberId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ agent_id: xaiAgentId, field_mask: "agent_id" }),
+  });
+  return r.ok ? { ok: true } : { ok: false, error: r.error };
+}
+
 // ── Voices ──
 
 export interface VoiceOption {
