@@ -194,8 +194,16 @@ export interface TrainingSessionDTO {
 // ------------------------------------------------------------------- realtime
 /** Events the room SSE stream emits. Read = SSE, write = POST — same shape as
  *  the Design Studio's collab layer, which already survives nginx. */
+export interface TrainingMessageDTO {
+  id: string;
+  participantId: string | null;
+  name: string;
+  text: string;
+  at: string; // ISO timestamp
+}
+
 export type RoomEvent =
-  | { type: "room:init"; sessionKey: string; me: TrainingParticipantDTO; session: TrainingSessionDTO }
+  | { type: "room:init"; sessionKey: string; me: TrainingParticipantDTO; session: TrainingSessionDTO; messages: TrainingMessageDTO[] }
   | { type: "room:join"; participant: TrainingParticipantDTO }
   | { type: "room:leave"; participantId: string }
   | { type: "room:state"; patch: Partial<TrainingSessionDTO> }
@@ -207,6 +215,7 @@ export type RoomEvent =
   | { type: "cursor"; participantId: string; x: number; y: number }
   | { type: "laser"; participantId: string; x: number; y: number }
   | { type: "knock"; participant: TrainingParticipantDTO }
+  | { type: "chat"; message: TrainingMessageDTO }
   | { type: "heartbeat" };
 
 // ------------------------------------------------------------------- defaults

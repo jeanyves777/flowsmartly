@@ -6255,6 +6255,7 @@ model TrainingSession {
   participants TrainingParticipant[]
   invites      TrainingInvite[]
   materials    TrainingMaterial[]
+  messages     TrainingMessage[]
 
   @@index([userId, updatedAt])
   @@index([userId, status])
@@ -6360,4 +6361,20 @@ model TrainingMaterial {
   session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+}
+
+// In-meeting chat: a running text conversation during a live training room.
+// Persisted so late joiners load the recent history and it can attach to the
+// recording later. [[training-studio]]
+model TrainingMessage {
+  id            String   @id @default(cuid())
+  sessionId     String
+  participantId String? // null if the sender's seat was later removed
+  name          String // display name captured at send time (guests have no account)
+  text          String
+  createdAt     DateTime @default(now())
+
+  session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
 }
