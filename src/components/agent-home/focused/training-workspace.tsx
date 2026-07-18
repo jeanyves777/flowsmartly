@@ -266,17 +266,12 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
     }
   };
 
-  const stats = useMemo(() => {
-    if (!session) return "";
-    const inRoom = session.participants.filter((p) => p.state === "ADMITTED").length;
-    return `${session.segments.length} segments · ${session.plannedMins} min · ${session.status === "live" ? `${inRoom} in the room` : `${session.seats} seats`}`;
-  }, [session]);
 
   // ---- header (portaled into the FocusedView's single header row) ----
   const header = headerSlot
     ? createPortal(
-        <div className="flex items-center gap-2">
-          <div className="flex gap-0.5 rounded-xl border border-border bg-card p-0.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <div className="flex shrink-0 gap-0.5 rounded-xl border border-border bg-card p-0.5">
             {([
               ["plan", "Plan", LayoutGrid],
               ["live", "Live room", Radio],
@@ -286,26 +281,28 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
                 key={m}
                 onClick={() => setMode(m)}
                 disabled={!session}
+                title={label}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-bold transition disabled:opacity-40",
+                  "inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11.5px] font-bold transition disabled:opacity-40 sm:px-2.5",
                   mode === m ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {m === "live" && session?.status === "live" ? (
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
-                ) : (
-                  <Icon className="h-3 w-3" />
-                )}
-                {label}
+                <span className="relative inline-flex">
+                  <Icon className="h-3.5 w-3.5" />
+                  {m === "live" && session?.status === "live" ? (
+                    <span className="absolute -right-1 -top-1 h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
+                  ) : null}
+                </span>
+                <span className="hidden sm:inline">{label}</span>
               </button>
             ))}
           </div>
-          {stats ? <span className="hidden text-[11.5px] text-muted-foreground lg:inline">{stats}</span> : null}
-          <button onClick={() => setListOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500">
-            <FolderOpen className="h-3 w-3" /> Sessions
+          {session ? <SessionMeta session={session} /> : null}
+          <button onClick={() => setListOpen(true)} title="Sessions" className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[12px] font-semibold hover:border-brand-500 sm:px-2.5">
+            <FolderOpen className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Sessions</span>
           </button>
-          <button onClick={() => setBriefOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2.5 py-1.5 text-[12px] font-semibold text-white">
-            <Sparkles className="h-3 w-3" /> New session
+          <button onClick={() => setBriefOpen(true)} title="New session" className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-1.5 text-[12px] font-semibold text-white sm:px-2.5">
+            <Sparkles className="h-3.5 w-3.5" /> <span className="hidden sm:inline">New session</span>
           </button>
         </div>,
         headerSlot,
@@ -465,5 +462,33 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
         </>
       ) : null}
     </div>
+  );
+}
+
+/** Room meta for the header. When the session is LIVE it shows a ticking elapsed
+ *  clock (from startedAt); otherwise the planned agenda length (`~37 min`). The
+ *  old label read a planned duration as if it were the session's age. */
+function SessionMeta({ session }: { session: TrainingSessionDTO }) {
+  const inRoom = session.participants.filter((p) => p.state === "ADMITTED").length;
+  const live = session.status === "live" && !!session.startedAt;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!live) return;
+    const iv = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, [live]);
+
+  const elapsedMs = live ? Math.max(0, now - new Date(session.startedAt as string).getTime()) : 0;
+  const mm = Math.floor(elapsedMs / 60000);
+  const ss = Math.floor((elapsedMs % 60000) / 1000);
+  const timePart = live
+    ? `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")} live`
+    : `~${session.plannedMins} min`;
+  const peoplePart = session.status === "live" ? `${inRoom} in the room` : `${session.seats} seats`;
+
+  return (
+    <span className="hidden text-[11.5px] tabular-nums text-muted-foreground lg:inline">
+      {session.segments.length} segments · {timePart} · {peoplePart}
+    </span>
   );
 }
