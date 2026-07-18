@@ -16,7 +16,7 @@ import { buildAgentSpec, type AgentForSession } from "@/lib/voice-agent/session-
 import { syncXaiAgent } from "@/lib/voice-agent/xai-phone";
 
 /** Parse a stored agent row into the shape the spec builder wants. */
-function toSessionAgent(row: Record<string, unknown>): AgentForSession {
+export function toSessionAgent(row: Record<string, unknown>): AgentForSession {
   const j = <T,>(v: unknown, f: T): T => {
     try {
       return typeof v === "string" ? (JSON.parse(v) as T) : f;

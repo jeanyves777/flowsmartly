@@ -3,13 +3,13 @@
 /**
  * Admin — voice agent build queue.
  *
- * Users request a phone agent; the request lands here with everything needed to
- * hand-build the console agent (the provider's agents API is team-gated). For
- * each request we show the business brief, the greeting, the enabled skills and
- * menu, plus a ready-to-paste MCP relay URL and the console instructions. The
- * admin builds the agent in the console, then approves here with the number +
- * agent id — that flips the agent LIVE and notifies the user. Nothing is charged
- * before approval.
+ * Users request a phone agent; the request lands here as a complete console
+ * BUILD SHEET (the provider's agents API is team-gated, so the agent is built by
+ * hand). The sheet mirrors the xAI console tab-by-tab — Configuration, Speech,
+ * Deployment — with every field auto-filled from the tenant's profile + brief
+ * and a copy button on each, so setup is pure copy-paste. The admin builds the
+ * agent in the console, then approves here with the number + agent id — that
+ * flips the agent LIVE and notifies the user. Nothing is charged before approval.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -27,18 +27,40 @@ import {
   Copy,
   Check,
   Clock,
-  Building2,
-  MessageSquareQuote,
-  Mic,
-  Wrench,
-  UtensilsCrossed,
+  Settings2,
+  AudioLines,
+  Rocket,
   CheckCircle2,
   Inbox,
+  Plug,
+  ExternalLink,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types — mirror GET /api/admin/voice-agent/agents
 // ---------------------------------------------------------------------------
+
+interface ConsoleSheet {
+  configuration: {
+    name: string;
+    instructions: string;
+    welcomeOn: boolean;
+    greeting: string;
+    callerCanInterrupt: boolean;
+    timezone: string;
+    nativeTools: string[];
+    connector: { type: string; url: string; exposes: string[] };
+  };
+  speech: {
+    voice: string;
+    language: string;
+    speakingSpeed: string;
+    pronunciations: { word: string; say: string }[];
+    keyterms: string[];
+    followUpAfterSilence: boolean;
+  };
+  deployment: { escalateTo: string | null };
+}
 
 interface AgentRequest {
   id: string;
@@ -54,21 +76,21 @@ interface AgentRequest {
   skills: string[];
   menu: string[];
   mcpUrl: string;
-  consoleInstructions: string;
+  console: ConsoleSheet;
 }
 
 // ---------------------------------------------------------------------------
-// Small helpers
+// Copy helpers
 // ---------------------------------------------------------------------------
 
-function CopyButton({ text, label }: { text: string; label: string }) {
+function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
       type="button"
       size="sm"
       variant="outline"
-      className="h-7 gap-1.5 text-xs"
+      className="h-7 shrink-0 gap-1.5 text-xs"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
@@ -79,9 +101,58 @@ function CopyButton({ text, label }: { text: string; label: string }) {
         }
       }}
     >
-      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
       {copied ? "Copied" : label}
     </Button>
+  );
+}
+
+/** A labelled console field with its value and a copy button. */
+function CopyField({
+  label,
+  value,
+  mono,
+  block,
+  copyText,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  block?: boolean;
+  copyText?: string;
+}) {
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <CopyButton text={copyText ?? value} />
+      </div>
+      <p
+        className={`rounded-md border bg-background p-2 text-sm ${mono ? "font-mono text-xs" : ""} ${
+          block ? "max-h-56 overflow-auto whitespace-pre-wrap" : "break-words"
+        }`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+/** A read-only field with no copy (toggles, chips). */
+function InfoField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-1 text-xs font-medium text-muted-foreground">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function OnOff({ on }: { on: boolean }) {
+  return (
+    <Badge variant={on ? "default" : "secondary"} className={on ? "bg-emerald-600 hover:bg-emerald-600" : ""}>
+      {on ? "On" : "Off"}
+    </Badge>
   );
 }
 
@@ -98,7 +169,31 @@ function relTime(iso: string | null): string {
 }
 
 // ---------------------------------------------------------------------------
-// Approve form (per request)
+// Console tab panel
+// ---------------------------------------------------------------------------
+
+function TabPanel({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border bg-muted/20 p-4">
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
+        <Icon className="h-4 w-4 text-brand-500" />
+        {title}
+      </div>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Approve form
 // ---------------------------------------------------------------------------
 
 function ApproveForm({ req, onApproved }: { req: AgentRequest; onApproved: () => void }) {
@@ -147,10 +242,14 @@ function ApproveForm({ req, onApproved }: { req: AgentRequest; onApproved: () =>
 
   return (
     <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.03] p-4">
-      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-        <CheckCircle2 className="w-4 h-4" />
-        Activate this agent
+      <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+        <Rocket className="h-4 w-4" />
+        Activate
       </div>
+      <p className="mb-3 text-xs text-muted-foreground">
+        After building the agent and assigning a number in the console, copy the <code>agent_id</code> from the
+        Deployment tab&apos;s WebSocket URL (<code>…?agent_id=</code>) and paste it here with the number.
+      </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs font-medium text-muted-foreground">Phone number (E.164)</label>
@@ -171,7 +270,7 @@ function ApproveForm({ req, onApproved }: { req: AgentRequest; onApproved: () =>
       </div>
       <div className="mt-3 flex justify-end">
         <Button onClick={submit} disabled={saving} className="gap-2">
-          {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+          {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
           {saving ? "Activating…" : "Approve & activate"}
         </Button>
       </div>
@@ -180,10 +279,13 @@ function ApproveForm({ req, onApproved }: { req: AgentRequest; onApproved: () =>
 }
 
 // ---------------------------------------------------------------------------
-// Request card
+// Request card — the console build sheet
 // ---------------------------------------------------------------------------
 
 function RequestCard({ req, onApproved }: { req: AgentRequest; onApproved: () => void }) {
+  const c = req.console.configuration;
+  const s = req.console.speech;
+
   return (
     <Card className="overflow-hidden">
       <CardContent className="space-y-4 p-5">
@@ -200,105 +302,133 @@ function RequestCard({ req, onApproved }: { req: AgentRequest; onApproved: () =>
             </p>
           </div>
           <Badge variant="outline" className="gap-1.5 border-amber-500/40 text-amber-600 dark:text-amber-400">
-            <Clock className="w-3 h-3" />
+            <Clock className="h-3 w-3" />
             {relTime(req.requestedAt)}
           </Badge>
         </div>
 
-        {/* Brief grid */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          {req.business && (
-            <Field icon={Building2} label="Business">
-              <p className="whitespace-pre-wrap text-sm">{req.business}</p>
-            </Field>
-          )}
-          {req.greeting && (
-            <Field icon={MessageSquareQuote} label="Greeting">
-              <p className="text-sm italic">“{req.greeting}”</p>
-            </Field>
-          )}
-          <Field icon={Mic} label="Voice">
-            <p className="text-sm">
-              {req.voice || "Default"}
-              {req.voiceId ? <span className="ml-1.5 font-mono text-xs text-muted-foreground">({req.voiceId})</span> : null}
-            </p>
-          </Field>
-          {req.escalateTo && (
-            <Field icon={PhoneCall} label="Escalate to">
-              <p className="font-mono text-sm">{req.escalateTo}</p>
-            </Field>
-          )}
-        </div>
+        <p className="text-xs text-muted-foreground">
+          Build this agent in the xAI console using the sheet below, then activate it at the bottom. Everything is
+          filled from the customer&apos;s brief — just copy each field into the matching console field.
+        </p>
 
-        {/* Skills */}
-        {req.skills.length > 0 && (
-          <Field icon={Wrench} label="Skills">
-            <div className="flex flex-wrap gap-1.5">
-              {req.skills.map((s) => (
-                <Badge key={s} variant="secondary" className="font-normal">{s}</Badge>
-              ))}
+        {/* 1 · Configuration */}
+        <TabPanel icon={Settings2} title="1 · Configuration">
+          <CopyField label="Agent name" value={c.name} />
+          <CopyField label="Instructions" value={c.instructions} block />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <InfoField label="Welcome message">
+              <div className="flex items-center gap-2">
+                <OnOff on={c.welcomeOn} />
+                <span className="text-xs text-muted-foreground">
+                  {c.greeting ? "with greeting →" : "agent chooses its own opener"}
+                </span>
+              </div>
+            </InfoField>
+            <InfoField label="Caller can interrupt">
+              <OnOff on={c.callerCanInterrupt} />
+            </InfoField>
+          </div>
+          {c.greeting && <CopyField label="Welcome message text" value={c.greeting} />}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <InfoField label="Timezone">
+              <p className="text-sm">{c.timezone}</p>
+            </InfoField>
+            <InfoField label="Tools to add (built-in)">
+              <div className="flex flex-wrap gap-1.5">
+                {c.nativeTools.map((t) => (
+                  <Badge key={t} variant="secondary" className="font-mono font-normal">{t}</Badge>
+                ))}
+              </div>
+            </InfoField>
+          </div>
+
+          {/* Connector — the one piece that wires our backend in */}
+          <div className="rounded-md border border-brand-500/30 bg-brand-500/[0.04] p-3">
+            <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold">
+              <Plug className="h-3.5 w-3.5 text-brand-500" />
+              Add connector → {c.connector.type}
             </div>
-          </Field>
-        )}
-
-        {/* Menu */}
-        {req.menu.length > 0 && (
-          <Field icon={UtensilsCrossed} label={`Menu (${req.menu.length})`}>
-            <ul className="grid gap-0.5 text-sm sm:grid-cols-2">
-              {req.menu.map((m, i) => (
-                <li key={i} className="text-muted-foreground">{m}</li>
+            <CopyField label="MCP server URL" value={c.connector.url} mono />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Exposes:{" "}
+              {c.connector.exposes.map((t, i) => (
+                <span key={t}>
+                  <code className="text-[11px]">{t}</code>
+                  {i < c.connector.exposes.length - 1 ? ", " : ""}
+                </span>
               ))}
-            </ul>
-          </Field>
-        )}
+              . These are all the caller actions — no need to hand-define any tool.
+            </p>
+          </div>
+        </TabPanel>
 
-        {/* Copy-paste setup for the console agent */}
-        <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Build in console</p>
-          <SetupRow label="MCP relay URL" value={req.mcpUrl} copyLabel="Copy URL" mono />
-          <SetupRow label="Agent instructions" value={req.consoleInstructions} copyLabel="Copy" />
-          <p className="text-xs text-muted-foreground">
-            Create the agent in the console, add a Custom MCP connector pointing at the URL above, paste these instructions,
-            pick the voice, then approve below with the number + agent id.
+        {/* 2 · Speech */}
+        <TabPanel icon={AudioLines} title="2 · Speech">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <InfoField label="Voice">
+              <p className="text-sm font-medium">{s.voice}</p>
+            </InfoField>
+            <InfoField label="Language">
+              <p className="text-sm">{s.language}</p>
+            </InfoField>
+            <InfoField label="Speaking speed">
+              <p className="text-sm">{s.speakingSpeed}</p>
+            </InfoField>
+          </div>
+          {s.keyterms.length > 0 && (
+            <InfoField label="Keyterms">
+              <div className="flex flex-wrap gap-1.5">
+                {s.keyterms.map((k) => (
+                  <Badge key={k} variant="secondary" className="font-normal">{k}</Badge>
+                ))}
+              </div>
+            </InfoField>
+          )}
+          {s.pronunciations.length > 0 && (
+            <InfoField label="Pronunciation">
+              <ul className="space-y-0.5 text-sm">
+                {s.pronunciations.map((p) => (
+                  <li key={p.word}>
+                    <span className="font-medium">{p.word}</span> → <span className="text-muted-foreground">{p.say}</span>
+                  </li>
+                ))}
+              </ul>
+            </InfoField>
+          )}
+          <InfoField label="Follow-up after silence">
+            <OnOff on={s.followUpAfterSilence} />
+          </InfoField>
+        </TabPanel>
+
+        {/* 3 · Deployment */}
+        <TabPanel icon={Rocket} title="3 · Deployment">
+          <p className="text-sm text-muted-foreground">
+            Provision or assign a phone number to this agent, then grab its <code>agent_id</code> for activation below.
           </p>
-        </div>
+          {req.console.deployment.escalateTo && (
+            <InfoField label="Escalation / transfer number">
+              <p className="font-mono text-sm">{req.console.deployment.escalateTo}</p>
+            </InfoField>
+          )}
+          {req.menu.length > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                Menu reference ({req.menu.length} items)
+              </summary>
+              <ul className="mt-2 grid gap-0.5 sm:grid-cols-2">
+                {req.menu.map((m, i) => (
+                  <li key={i} className="text-muted-foreground">{m}</li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </TabPanel>
 
-        {/* Approve */}
+        {/* Activate */}
         <ApproveForm req={req} onApproved={onApproved} />
       </CardContent>
     </Card>
-  );
-}
-
-function Field({
-  icon: Icon,
-  label,
-  children,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        <Icon className="w-3.5 h-3.5" />
-        {label}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function SetupRow({ label, value, copyLabel, mono }: { label: string; value: string; copyLabel: string; mono?: boolean }) {
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
-        <CopyButton text={value} label={copyLabel} />
-      </div>
-      <p className={`break-all rounded-md border bg-background p-2 text-xs ${mono ? "font-mono" : ""}`}>{value}</p>
-    </div>
   );
 }
 
@@ -339,23 +469,34 @@ export default function VoiceAgentsQueuePage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Link href="/admin" className="rounded-lg p-2 transition-colors hover:bg-muted">
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <PhoneCall className="w-6 h-6 text-brand-500" />
+              <PhoneCall className="h-6 w-6 text-brand-500" />
               <h1 className="text-2xl font-bold">Phone Agent Requests</h1>
               {!loading && requests.length > 0 && <Badge variant="secondary">{requests.length}</Badge>}
             </div>
             <p className="mt-1 text-muted-foreground">
-              Build each requested agent in the console, then approve with its number + id to activate it.
+              Each request is a ready-to-build console sheet. Build the agent in the console, then approve with its
+              number + id to activate it.
             </p>
           </div>
         </div>
-        <Button variant="outline" onClick={fetchRequests} disabled={loading} className="gap-2">
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <a
+            href="https://console.x.ai"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm transition-colors hover:bg-muted"
+          >
+            xAI console <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+          <Button variant="outline" onClick={fetchRequests} disabled={loading} className="gap-2">
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Body */}
@@ -366,7 +507,7 @@ export default function VoiceAgentsQueuePage() {
               <CardContent className="space-y-3 p-5">
                 <Skeleton className="h-6 w-48" />
                 <Skeleton className="h-4 w-64" />
-                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-32 w-full" />
               </CardContent>
             </Card>
           ))}

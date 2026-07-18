@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin · Phone Agent Build Sheet</title>
+<style>
+  :root {
+    --bg: #0a0a0b; --panel: #121214; --panel2: #17171a; --border: #26262b;
+    --text: #f4f4f5; --muted: #a1a1aa; --muted2: #71717a;
+    --brand: #7c5cff; --brand-soft: rgba(124,92,255,.08); --brand-border: rgba(124,92,255,.32);
+    --green: #22c55e; --green-soft: rgba(34,197,94,.06); --green-border: rgba(34,197,94,.3);
+    --amber: #f59e0b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.55 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 28px 20px 80px; }
+  .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+  h1 { font-size: 22px; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .sub { color: var(--muted); margin: 4px 0 0; font-size: 13px; max-width: 620px; }
+  .count { background: var(--panel2); border: 1px solid var(--border); border-radius: 999px; font-size: 12px; padding: 1px 9px; color: var(--muted); }
+  .btn { background: var(--panel2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 7px 12px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .btn:hover { background: #1d1d21; }
+  .btn.primary { background: #fff; color: #111; border-color: #fff; font-weight: 600; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+  .cardhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .name { font-size: 18px; font-weight: 700; margin: 0; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel2); color: var(--muted); text-transform: capitalize; }
+  .pill.amber { border-color: rgba(245,158,11,.4); color: var(--amber); background: transparent; }
+  .who { color: var(--muted); font-size: 13px; margin: 3px 0 0; }
+  .lead { color: var(--muted); font-size: 12.5px; margin: 12px 0 16px; }
+
+  .panel { border: 1px solid var(--border); background: rgba(255,255,255,.015); border-radius: 12px; padding: 16px; margin-top: 14px; }
+  .panelhead { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13.5px; margin-bottom: 12px; }
+  .panelhead .ic { color: var(--brand); }
+  .field { margin-top: 12px; }
+  .field:first-child { margin-top: 0; }
+  .flabel { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+  .flabel span { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .val { border: 1px solid var(--border); background: var(--bg); border-radius: 8px; padding: 8px 10px; font-size: 13.5px; }
+  .val.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; }
+  .val.block { white-space: pre-wrap; max-height: 220px; overflow: auto; font-size: 12.5px; line-height: 1.5; color: #d4d4d8; }
+  .copy { font-size: 11px; padding: 3px 8px; border-radius: 7px; border: 1px solid var(--border); background: var(--panel2); color: var(--muted); cursor: pointer; display: inline-flex; gap: 5px; align-items: center; }
+  .copy:hover { color: var(--text); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+  .chip { display: inline-block; font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--border); color: var(--muted); margin: 0 6px 6px 0; }
+  .chip.mono { font-family: ui-monospace, monospace; font-size: 11.5px; }
+  .badge-on { background: var(--green); color: #06210f; font-weight: 600; font-size: 11px; padding: 2px 9px; border-radius: 999px; }
+  .badge-off { background: var(--panel2); color: var(--muted); font-size: 11px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); }
+  .connector { border: 1px solid var(--brand-border); background: var(--brand-soft); border-radius: 10px; padding: 12px; margin-top: 12px; }
+  .connector .h { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; margin-bottom: 8px; }
+  .connector .h .ic { color: var(--brand); }
+  .exposes { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .exposes code { font-family: ui-monospace, monospace; font-size: 11px; color: #cbb8ff; }
+  .activate { border: 1px solid var(--green-border); background: var(--green-soft); border-radius: 12px; padding: 16px; margin-top: 16px; }
+  .activate .h { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13.5px; color: #4ade80; }
+  .activate .note { color: var(--muted); font-size: 12px; margin: 6px 0 12px; }
+  .inp { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; color: var(--text); font-size: 13px; }
+  .inp.mono { font-family: ui-monospace, monospace; }
+  .inplabel { font-size: 11.5px; color: var(--muted); margin-bottom: 4px; display: block; }
+  details summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+  .muted { color: var(--muted); }
+  code { font-family: ui-monospace, monospace; font-size: 12px; background: rgba(255,255,255,.05); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div>
+      <h1>📞 Phone Agent Requests <span class="count">1</span></h1>
+      <p class="sub">Each request is a ready-to-build console sheet. Build the agent in the console, then approve with its number + id to activate it.</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn">xAI console ↗</button>
+      <button class="btn">⟳ Refresh</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="cardhead">
+      <div>
+        <p class="name">Bella&apos;s Pizzeria</p>
+        <p class="who">Marco Bellini · marco@bellaspizzeria.com <span class="pill" style="margin-left:6px">restaurant</span></p>
+      </div>
+      <span class="pill amber">🕐 3m ago</span>
+    </div>
+
+    <p class="lead">Build this agent in the xAI console using the sheet below, then activate it at the bottom. Everything is filled from the customer&apos;s brief — just copy each field into the matching console field.</p>
+
+    <!-- 1 Configuration -->
+    <div class="panel">
+      <div class="panelhead"><span class="ic">⚙️</span> 1 · Configuration</div>
+
+      <div class="field">
+        <div class="flabel"><span>Agent name</span><button class="copy">⧉ Copy</button></div>
+        <div class="val">Bella&apos;s Pizzeria</div>
+      </div>
+
+      <div class="field">
+        <div class="flabel"><span>Instructions</span><button class="copy">⧉ Copy</button></div>
+        <div class="val block">You are the phone agent for Bella's Pizzeria. You are answering a live phone call. Keep replies short and natural — this is spoken, not written. One question at a time.
+If asked, say you're an AI assistant for the business.
+At the very start, briefly mention the call may be recorded.
+
+ABOUT THE BUSINESS:
+Family-owned wood-fired pizzeria in North End, Boston. Known for Neapolitan pies and homemade tiramisu. Dine-in, pickup and delivery within 3 miles.
+
+Opening hours: Tue 11:00–22:00, Wed 11:00–22:00, Thu 11:00–22:00, Fri 11:00–23:00, Sat 12:00–23:00, Sun 12:00–21:00.
+
+WHAT YOU CAN DO ON THIS CALL:
+- Take an order: when the caller wants to order food. Read the whole order and total back before placing it. Only use items from the menu.
+- Answer questions: when the caller asks about hours, location or the menu. Keep it brief.
+
+MENU (only ever offer these — never invent an item or price):
+Pizzas:
+  - Margherita — $16.00
+  - Marinara — $14.00
+  - Diavola — $19.00 (spicy salami)
+Desserts:
+  - Tiramisu — $9.00
+
+Fulfilment: pickup or delivery.
+Delivery fee: $4.00.
+Minimum order for delivery: $20.00.
+Ready in about 25 minutes.
+Payment is taken on pickup/delivery.
+
+Transfer to a human when the caller is upset, or they ask for a person, using transfer_to_human.
+
+When the call is done, use end_call.</div>
+      </div>
+
+      <div class="grid2" style="margin-top:12px">
+        <div>
+          <div class="flabel"><span>Welcome message</span></div>
+          <span class="badge-on">On</span> <span class="muted" style="font-size:12px">with greeting →</span>
+        </div>
+        <div>
+          <div class="flabel"><span>Caller can interrupt</span></div>
+          <span class="badge-on">On</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="flabel"><span>Welcome message text</span><button class="copy">⧉ Copy</button></div>
+        <div class="val">Thanks for calling Bella&apos;s Pizzeria! Would you like to place an order or ask about our menu?</div>
+      </div>
+
+      <div class="grid2" style="margin-top:12px">
+        <div>
+          <div class="flabel"><span>Timezone</span></div>
+          <div class="val">America/New_York</div>
+        </div>
+        <div>
+          <div class="flabel"><span>Tools to add (built-in)</span></div>
+          <span class="chip mono">end_call</span><span class="chip mono">transfer_call</span>
+        </div>
+      </div>
+
+      <div class="connector">
+        <div class="h"><span class="ic">🔌</span> Add connector → Custom MCP server</div>
+        <div class="flabel"><span>MCP server URL</span><button class="copy">⧉ Copy</button></div>
+        <div class="val mono">https://flowsmartly.com/api/voice-agent/mcp/va_7f3c9a1b4e2d48f0a9c1e5b7d2f6a8c3</div>
+        <div class="exposes">Exposes: <code>get_business_profile</code>, <code>place_order</code>, <code>transfer_to_human</code>. These are all the caller actions — no need to hand-define any tool.</div>
+      </div>
+    </div>
+
+    <!-- 2 Speech -->
+    <div class="panel">
+      <div class="panelhead"><span class="ic">🎚️</span> 2 · Speech</div>
+      <div class="grid3">
+        <div><div class="flabel"><span>Voice</span></div><div class="val" style="font-weight:600">Carina</div></div>
+        <div><div class="flabel"><span>Language</span></div><div class="val">Auto-detect</div></div>
+        <div><div class="flabel"><span>Speaking speed</span></div><div class="val">1.0×</div></div>
+      </div>
+      <div class="field">
+        <div class="flabel"><span>Keyterms</span></div>
+        <span class="chip">Neapolitan</span><span class="chip">Diavola</span><span class="chip">Tiramisu</span>
+      </div>
+      <div class="field">
+        <div class="flabel"><span>Pronunciation</span></div>
+        <div style="font-size:13.5px"><b>Bella&apos;s</b> → <span class="muted">BEH-lahs</span></div>
+      </div>
+      <div class="field">
+        <div class="flabel"><span>Follow-up after silence</span></div>
+        <span class="badge-off">Off</span>
+      </div>
+    </div>
+
+    <!-- 3 Deployment -->
+    <div class="panel">
+      <div class="panelhead"><span class="ic">🚀</span> 3 · Deployment</div>
+      <p class="muted" style="font-size:13px;margin:0 0 8px">Provision or assign a phone number to this agent, then grab its <code>agent_id</code> for activation below.</p>
+      <div class="field">
+        <div class="flabel"><span>Escalation / transfer number</span></div>
+        <div class="val mono">+16175551234</div>
+      </div>
+      <details style="margin-top:12px"><summary>Menu reference (4 items)</summary>
+        <div class="grid2" style="margin-top:8px;font-size:13px" class="muted">
+          <div class="muted">Margherita — $16.00</div><div class="muted">Marinara — $14.00</div>
+          <div class="muted">Diavola — $19.00</div><div class="muted">Tiramisu — $9.00</div>
+        </div>
+      </details>
+    </div>
+
+    <!-- Activate -->
+    <div class="activate">
+      <div class="h">🚀 Activate</div>
+      <p class="note">After building the agent and assigning a number in the console, copy the <code>agent_id</code> from the Deployment tab&apos;s WebSocket URL (<code>…?agent_id=</code>) and paste it here with the number.</p>
+      <div class="grid2">
+        <div><label class="inplabel">Phone number (E.164)</label><input class="inp mono" placeholder="+14155550142"></div>
+        <div><label class="inplabel">Console agent id</label><input class="inp mono" placeholder="agent_…"></div>
+        <div><label class="inplabel">Number id (optional)</label><input class="inp mono" placeholder="phone_…"></div>
+        <div><label class="inplabel">Internal note (optional)</label><input class="inp" placeholder="e.g. built on pooled agent #7"></div>
+      </div>
+      <div style="text-align:right;margin-top:12px"><button class="btn primary">✓ Approve &amp; activate</button></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
