@@ -3875,6 +3875,7 @@ model Store {
   feedbacks             OrderFeedback[]
   shippingMethods       StoreShippingMethod[]
   payouts               StorePayout[]
+  coupons               StoreCoupon[]
 
   @@index([slug])
   @@index([userId])
@@ -3920,6 +3921,28 @@ model StoreShippingMethod {
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
+  @@index([storeId])
+}
+
+// Store discount / promo codes applied at checkout — store-scoped (distinct from
+// the marketing `Coupon` model, which is per-contact and never wired to checkout).
+model StoreCoupon {
+  id            String    @id @default(cuid())
+  storeId       String
+  code          String // uppercased; unique per store
+  type          String    @default("percentage") // percentage | fixed | free_shipping
+  value         Int       @default(0) // percentage: 1-100; fixed: amount in cents; free_shipping: ignored
+  minOrderCents Int? // minimum order subtotal to qualify
+  usageLimit    Int? // null = unlimited total redemptions
+  usageCount    Int       @default(0) // incremented when an order using it is paid
+  isActive      Boolean   @default(true)
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, code])
   @@index([storeId])
 }
 
@@ -4114,6 +4137,8 @@ model Order {
   subtotalCents         Int
   shippingCents         Int    @default(0)
   taxCents              Int    @default(0)
+  discountCents         Int    @default(0) // coupon/promo discount applied at checkout
+  couponCode            String? // the promo code that was applied (if any)
   totalCents            Int
   platformFeeCents      Int    @default(0) // FlowSmartly's cut
   storeOwnerAmountCents Int    @default(0) // Amount transferred to store owner

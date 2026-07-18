@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Store, Sparkles, Check, BadgePercent, CreditCard, Wallet, Gift, ArrowLeft, AlertTriangle } from "lucide-react";
+import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 import { useMobileChat } from "../mobile-chat-context";
 
@@ -148,6 +149,8 @@ function StoreBrief({ onBuild, onTopUp, cost, balance, shortfall }: { onBuild: (
   const [style, setStyle] = useState("Modern");
   const [currency, setCurrency] = useState("USD");
   const [error, setError] = useState("");
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggested, setSuggested] = useState(false);
 
   // Prefill the store name from the Brand Kit so the user rarely types it.
   useEffect(() => {
@@ -155,6 +158,30 @@ function StoreBrief({ onBuild, onTopUp, cost, balance, shortfall }: { onBuild: (
     fetch("/api/brand").then((r) => r.json()).then((j) => { if (alive && j?.data?.brandKit?.name) setName((n) => n || String(j.data.brandKit.name)); }).catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  // "Not sure what to sell?" — AI proposes a concept from the brand identity and
+  // fills the brief. Free onboarding helper; the user can edit everything after.
+  const suggest = async () => {
+    setSuggesting(true); setError("");
+    try {
+      const r = await fetch("/api/ecommerce/ai/suggest-concept", { method: "POST" });
+      const j = await r.json().catch(() => null);
+      const d = j?.data;
+      if (r.ok && d) {
+        if (d.sells) setSells(d.sells);
+        if (d.products) setProducts(d.products);
+        if (d.style && STORE_STYLES.includes(d.style)) setStyle(d.style);
+        setName((n) => n || d.storeName || "");
+        setSuggested(true);
+      } else {
+        setError(j?.error || "Couldn't suggest a concept — try again.");
+      }
+    } catch {
+      setError("Couldn't suggest a concept — try again.");
+    } finally {
+      setSuggesting(false);
+    }
+  };
 
   const build = () => {
     if (shortfall) return; // guarded — the button is disabled anyway
@@ -174,6 +201,18 @@ function StoreBrief({ onBuild, onTopUp, cost, balance, shortfall }: { onBuild: (
 
   return (
     <>
+      {/* AI helper — for users who aren't sure what to sell. Fills the brief from
+          their brand identity; everything below stays editable. */}
+      <div className="mt-4 flex flex-wrap items-center gap-2.5 rounded-xl border border-brand-500/30 bg-gradient-to-r from-brand-500/10 to-violet-500/10 p-3">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-500/15 text-brand-500"><Sparkles className="h-4 w-4" /></span>
+        <p className="min-w-0 flex-1 text-[12px] leading-snug text-muted-foreground">
+          {suggested ? <><span className="font-semibold text-foreground">AI filled this from your brand</span> — tweak anything below.</> : <><span className="font-semibold text-foreground">Not sure what to sell?</span> Let AI suggest a store concept from your brand identity.</>}
+        </p>
+        <button onClick={suggest} disabled={suggesting} className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] border border-brand-500/40 bg-brand-500/10 px-3 py-1.5 text-[12px] font-semibold text-brand-500 hover:bg-brand-500/20 disabled:opacity-60">
+          {suggesting ? <FlowLoader size={13} /> : <Sparkles className="h-3.5 w-3.5" />} {suggested ? "Suggest again" : "Suggest with AI"}
+        </button>
+      </div>
+
       <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-3.5 sm:grid-cols-2">
         <Field label="Store name *"><input value={name} onChange={(e) => setName(e.target.value)} className={SC_FIELD} placeholder="Acme Goods" /></Field>
         <Field label="Currency">

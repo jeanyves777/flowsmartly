@@ -1,0 +1,132 @@
+<title>Store onboarding — AI suggest from brand identity</title>
+<style>
+  :root{
+    --ground:#0b0b0f;--card:#15151c;--card2:#1b1b23;--border:#26262f;--input:#33333f;
+    --text:#ececf1;--muted:#9a9aa6;--faint:#6c6c78;
+    --brand:#6366f1;--violet:#7c3aed;--emerald:#10b981;--amber:#fbbf24;--rose:#fb7185;
+  }
+  :root[data-theme="light"]{--ground:#f6f6fa;--card:#fff;--card2:#f1f1f6;--border:#e6e6ee;--input:#e2e2ea;--text:#191922;--muted:#65656f;--faint:#9a9aa6}
+  @media(prefers-color-scheme:light){:root:not([data-theme="dark"]){--ground:#f6f6fa;--card:#fff;--card2:#f1f1f6;--border:#e6e6ee;--input:#e2e2ea;--text:#191922;--muted:#65656f;--faint:#9a9aa6}}
+  *{box-sizing:border-box}html,body{margin:0}
+  body{background:var(--ground);color:var(--text);font:13.5px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;padding:24px}
+  .top{max-width:1100px;margin:0 auto 18px;display:flex;align-items:center;gap:10px}
+  .top .mk{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff;font-weight:800}
+  .top b{font-size:13px}.top span{font-size:11px;color:var(--muted)}
+  .top .sp{flex:1}
+  .themebtn{cursor:pointer;font-size:11.5px;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:5px 11px;background:var(--card)}
+  .cols{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:900px){.cols{grid-template-columns:1fr}}
+  .cap{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);margin:0 0 8px}
+  .card{border:1px solid var(--border);border-radius:16px;background:var(--card);padding:20px}
+  .head{display:flex;align-items:center;gap:9px}
+  .back{width:30px;height:30px;flex:none;border:1px solid var(--border);border-radius:9px;background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer;font-size:15px}
+  .head h2{font-size:15px;font-weight:800;margin:0}
+  .head p{font-size:11.5px;color:var(--muted);margin:1px 0 0}
+
+  .ai{margin-top:16px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;border:1px solid rgba(99,102,241,.3);border-radius:12px;background:linear-gradient(90deg,rgba(99,102,241,.1),rgba(124,58,237,.1));padding:12px}
+  .ai .ic{width:32px;height:32px;flex:none;border-radius:9px;display:grid;place-items:center;background:rgba(99,102,241,.16);color:var(--brand);font-size:15px}
+  .ai p{flex:1;min-width:0;font-size:12px;line-height:1.35;color:var(--muted);margin:0}
+  .ai p b{color:var(--text)}
+  .ai button{flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(99,102,241,.4);background:rgba(99,102,241,.12);color:var(--brand);border-radius:10px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer}
+  .ai button:hover{background:rgba(99,102,241,.2)}
+  .spin{width:13px;height:13px;border-radius:50%;border:2px solid rgba(99,102,241,.3);border-top-color:var(--brand);animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  .grid{margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .full{grid-column:1/-1}
+  label{display:block}
+  .lab{display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:5px}
+  .inp,textarea,select{width:100%;border:1px solid var(--input);background:var(--ground);color:var(--text);border-radius:10px;padding:9px 11px;font-size:13px;outline:none;font-family:inherit}
+  .inp:focus,textarea:focus,select:focus{border-color:var(--brand)}
+  textarea{resize:vertical;min-height:52px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid var(--border);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;background:transparent}
+  .chip.on{border-color:var(--brand);background:rgba(99,102,241,.12);color:var(--brand)}
+  .fade{animation:fade .4s ease}
+  @keyframes fade{from{background:rgba(99,102,241,.12)}to{background:var(--ground)}}
+  .costs{margin-top:16px;border:1px solid var(--border);border-radius:12px;background:var(--card2);padding:12px}
+  .costs .r{display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0}
+  .costs .r span{flex:1;color:var(--muted)}.costs .r b{font-weight:700}.good{color:var(--emerald)!important}
+  .build{margin-top:16px;border-top:1px solid var(--border);padding-top:16px;display:flex;align-items:center;gap:10px}
+  .build button{display:inline-flex;align-items:center;gap:7px;border:none;border-radius:11px;background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff;font-size:13px;font-weight:700;padding:10px 16px;cursor:pointer}
+  .build span{margin-left:auto;font-size:11px;color:var(--muted)}
+  .note{font-size:10.5px;color:var(--faint);margin:14px auto 0;max-width:1100px;text-align:center}
+</style>
+
+<div class="top">
+  <span class="mk">F</span><b>FlowSmartly</b><span>· Store onboarding · Sell</span>
+  <span class="sp"></span>
+  <span class="themebtn" id="themeToggle">◐ Theme</span>
+</div>
+
+<div class="cols">
+  <div>
+    <p class="cap">Empty brief — the new AI helper</p>
+    <div class="card" id="cardA"></div>
+  </div>
+  <div>
+    <p class="cap">After "Suggest with AI" — filled from brand identity</p>
+    <div class="card" id="cardB"></div>
+  </div>
+</div>
+
+<p class="note">Interactive mockup — click <b>Suggest with AI</b> in the left card to watch it fill from the brand kit. Reflects the real store-cta.tsx brief + /api/ecommerce/ai/suggest-concept. Not the live app.</p>
+
+<script>
+const STYLES = ["Modern","Bold","Minimal","Elegant","Playful"];
+
+function brief(filled){
+  const sells = filled ? "Specialty single-origin coffee beans & brewing kit for home baristas who want café-quality at home." : "";
+  const products = filled ? "Ethiopia Guji $22, House Blend 1kg $18, Pour-over Kit $30, Ceramic Mug $14, Gift Trio Box $40" : "";
+  const style = filled ? "Elegant" : "Modern";
+  const suggested = filled;
+  return `
+    <div class="head">
+      <button class="back">←</button>
+      <div><h2>Tell us about your store</h2><p>The agent builds the whole branded store with these details — no back-and-forth.</p></div>
+    </div>
+
+    <div class="ai">
+      <span class="ic">✦</span>
+      <p>${suggested ? '<b>AI filled this from your brand</b> — tweak anything below.' : '<b>Not sure what to sell?</b> Let AI suggest a store concept from your brand identity.'}</p>
+      <button class="sug">✦ ${suggested ? 'Suggest again' : 'Suggest with AI'}</button>
+    </div>
+
+    <div class="grid">
+      <label><span class="lab">Store name *</span><input class="inp f-name" value="Aurora Coffee Co." /></label>
+      <label><span class="lab">Currency</span><select><option>USD</option><option>EUR</option><option>GBP</option></select></label>
+      <label class="full"><span class="lab">What you sell *</span><textarea class="f-sells" placeholder="e.g. handmade ceramic mugs & homeware for cozy kitchens">${sells}</textarea></label>
+      <label class="full"><span class="lab">A few starter products (optional)</span><textarea class="f-prod" placeholder="List a few products with prices — e.g. Blue Mug $20, Mug Set of 4 $70">${products}</textarea></label>
+      <div class="full"><span class="lab">Store style / vibe</span><div class="chips">${STYLES.map(s=>`<span class="chip ${s===style?'on':''}" data-s="${s}">${s}</span>`).join('')}</div></div>
+    </div>
+
+    <div class="costs">
+      <div class="r"><span>Activation & hosting</span><b class="good">Free — no monthly fee</b></div>
+      <div class="r"><span>Platform fee per sale</span><b>Small % of each order</b></div>
+      <div class="r"><span>AI store build</span><b>500 credits · $5 once</b></div>
+    </div>
+
+    <div class="build"><button>✦ Build my store</button><span>Uses your brand kit · confirms before anything bills.</span></div>
+  `;
+}
+
+function wire(card, allowSuggest){
+  const sug = card.querySelector('.sug');
+  card.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{card.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));c.classList.add('on')});
+  if(sug && allowSuggest){
+    sug.onclick=()=>{
+      sug.innerHTML='<span class="spin"></span> Suggesting…';sug.disabled=true;
+      setTimeout(()=>{
+        card.innerHTML = brief(true);
+        wire(card, true);
+        card.querySelectorAll('.f-sells,.f-prod,.chip.on,.f-name').forEach(e=>e.classList.add('fade'));
+      }, 950);
+    };
+  }
+}
+
+const a = document.getElementById('cardA'); a.innerHTML = brief(false); wire(a, true);
+const b = document.getElementById('cardB'); b.innerHTML = brief(true); wire(b, false);
+
+document.getElementById('themeToggle').onclick=()=>{const r=document.documentElement;const cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
+</script>
