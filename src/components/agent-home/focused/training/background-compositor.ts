@@ -63,6 +63,9 @@ export class BackgroundCompositor {
     this.video.muted = true;
     this.video.playsInline = true;
     this.video.autoplay = true;
+    // Some browsers won't decode frames (readyState stays 0 → a BLACK canvas) for a
+    // fully-detached <video>. Park it off-screen in the DOM so it decodes reliably.
+    this.video.style.cssText = "position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none";
   }
 
   /** Feed a camera stream and start compositing. Returns the composited stream
@@ -83,6 +86,7 @@ export class BackgroundCompositor {
     this.canvas.height = height;
 
     this.video.srcObject = source;
+    if (!this.video.isConnected) document.body.appendChild(this.video); // ensure decode
     await this.video.play().catch(() => {});
     await this.setBackground(spec);
 
@@ -112,13 +116,17 @@ export class BackgroundCompositor {
     this.out?.getTracks().forEach((t) => t.stop());
     this.out = null;
     this.video.srcObject = null;
+    if (this.video.isConnected) this.video.remove();
   }
 
   private loop = () => {
     if (!this.running) return;
     this.raf = requestAnimationFrame(this.loop);
+    if (this.video.readyState < 2) return; // no camera frame decoded yet
     const seg = this.segmenter;
-    if (!seg || this.video.readyState < 2) return;
+    const w = this.canvas.width, h = this.canvas.height;
+    // No segmenter (unavailable) → pass the raw camera through, never a black frame.
+    if (!seg) { this.ctx.drawImage(this.video, 0, 0, w, h); return; }
 
     try {
       seg.segmentForVideo(this.video, performance.now(), (result) => {
@@ -126,10 +134,13 @@ export class BackgroundCompositor {
         if (mask) {
           this.paint(mask.getAsUint8Array(), mask.width, mask.height);
           mask.close();
+        } else {
+          this.ctx.drawImage(this.video, 0, 0, w, h); // fall back rather than go black
         }
       });
     } catch {
-      // a dropped frame must never take the room down
+      // a dropped frame must never take the room down — show the raw camera instead
+      try { this.ctx.drawImage(this.video, 0, 0, w, h); } catch { /* noop */ }
     }
   };
 
@@ -144,7 +155,10 @@ export class BackgroundCompositor {
     this.maskCanvas.height = mh;
     const img = this.maskCtx.createImageData(mw, mh);
     for (let i = 0; i < mask.length; i++) {
-      const on = mask[i] !== 0 ? 255 : 0;
+      // selfie segmenter: category 0 IS the person, non-zero is background — so the
+      // person's alpha is where the mask is 0 (an inverted mask painted them as a
+      // solid silhouette of the background instead of showing their video).
+      const on = mask[i] === 0 ? 255 : 0;
       const j = i * 4;
       img.data[j] = 255;
       img.data[j + 1] = 255;

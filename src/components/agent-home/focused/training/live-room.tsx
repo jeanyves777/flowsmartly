@@ -136,6 +136,11 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
   const [seenChat, setSeenChat] = useState(0); // messages read → drives the unread badge
   const unread = Math.max(0, messages.length - seenChat);
   useEffect(() => { if (chatOpen) setSeenChat(messages.length); }, [chatOpen, messages.length]);
+  // How the roster looks on a PHONE — the viewer's own choice (per device): a top
+  // strip of tiles, or draggable floating bubbles over the board. Persisted local.
+  const [mobileRoster, setMobileRoster] = useState<"float" | "top">("float");
+  useEffect(() => { try { const v = localStorage.getItem("tg-mobile-roster"); if (v === "top" || v === "float") setMobileRoster(v); } catch {} }, []);
+  const pickMobileRoster = (v: "float" | "top") => { setMobileRoster(v); try { localStorage.setItem("tg-mobile-roster", v); } catch {} };
   const hideItems = session.hideBoard; // synced: when the host hides, everyone hides
   const audioBtnRef = useRef<HTMLDivElement>(null);
   const videoBtnRef = useRef<HTMLDivElement>(null);
@@ -323,9 +328,10 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
           </span>
         </div>
 
-        {/* attendee strip on TOP (desktop layouts only — a phone uses the
-            floating movable bubbles over the board instead) */}
+        {/* attendee strip on TOP — desktop uses it when the host picks the "top"
+            layout; on a phone it's one of the two viewer styles (see mobileRoster). */}
         {layout === "top" ? <RosterStrip {...rosterProps} className="hidden md:flex" /> : null}
+        {mobileRoster === "top" ? <RosterStrip {...rosterProps} className="md:hidden" /> : null}
 
         {/* stage — the inner ref measures the space, the board is a fitted 16:9 box */}
         <div className="relative flex flex-1 flex-col overflow-hidden bg-[#0e0e13] p-2.5 sm:p-3.5">
@@ -342,17 +348,20 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
               </div>
             </div>
           ) : null}
-          {/* phone: participants as movable floating bubbles over the board */}
-          <FloatingBubbles
-            className="md:hidden"
-            inRoom={inRoom}
-            me={me}
-            media={media}
-            session={session}
-            host={host}
-            onSpotlight={onSpotlight}
-            onOpenRoster={() => setSheet("roster")}
-          />
+          {/* phone: participants as movable floating bubbles over the board
+              (the other phone style is the top strip above) */}
+          {mobileRoster === "float" ? (
+            <FloatingBubbles
+              className="md:hidden"
+              inRoom={inRoom}
+              me={me}
+              media={media}
+              session={session}
+              host={host}
+              onSpotlight={onSpotlight}
+              onOpenRoster={() => setSheet("roster")}
+            />
+          ) : null}
           <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
           <div className="relative shadow-2xl" style={boardBox ? { width: boardBox.w, height: boardBox.h } : { width: "100%", maxWidth: 980, aspectRatio: "16 / 9" }}>
             <TrainingBoard
@@ -544,6 +553,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
             onManage={onManage}
             onChat={() => setChatOpen(true)}
             onEnd={onEnd}
+            mobileRoster={mobileRoster}
+            onMobileRoster={pickMobileRoster}
             onClose={() => setMoreMenu(false)}
           />
         </AnchoredMenu>
@@ -774,7 +785,7 @@ function FloatingBubbles({ inRoom, me, media, session, host, onSpotlight, onOpen
       const next = { ...prev };
       let changed = false;
       shown.forEach((p, i) => {
-        if (!next[p.id]) { next[p.id] = { x: box.w - SIZE - 8, y: 8 + i * (SIZE + GAP) }; changed = true; }
+        if (!next[p.id]) { next[p.id] = { x: box.w - SIZE - 12, y: 12 + i * (SIZE + GAP + 12) }; changed = true; }
       });
       for (const id of Object.keys(next)) {
         if (!shown.some((p) => p.id === id)) { delete next[id]; changed = true; }
@@ -783,9 +794,11 @@ function FloatingBubbles({ inRoom, me, media, session, host, onSpotlight, onOpen
     });
   }, [box.w, ids]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // keep a little margin so the badges (which sit just outside the circle) and
+  // the name label under the bubble are never clipped at an edge.
   const clampPos = (x: number, y: number) => ({
-    x: Math.max(6, Math.min(Math.max(6, box.w - SIZE - 6), x)),
-    y: Math.max(6, Math.min(Math.max(6, box.h - SIZE - 6), y)),
+    x: Math.max(8, Math.min(Math.max(8, box.w - SIZE - 8), x)),
+    y: Math.max(8, Math.min(Math.max(8, box.h - SIZE - 18), y)),
   });
 
   const down = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
@@ -821,14 +834,18 @@ function FloatingBubbles({ inRoom, me, media, session, host, onSpotlight, onOpen
             className="pointer-events-auto absolute touch-none select-none"
             style={{ left: pp.x, top: pp.y, width: SIZE }}
           >
-            <div className={cn("relative grid place-items-center overflow-hidden rounded-full border-2 bg-[#181820] shadow-lg", spotlit ? "border-amber-400" : p.role === "HOST" ? "border-brand-400" : "border-white/70")} style={{ width: SIZE, height: SIZE }}>
-              {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : (
-                <span className="grid h-full w-full place-items-center bg-gradient-to-br from-brand-600 to-violet-700 text-[14px] font-black text-white">{p.name.slice(0, 2).toUpperCase()}</span>
-              )}
-              {session.penHolderId === p.id ? <span className="absolute left-0 top-0 grid h-4 w-4 place-items-center rounded-br-lg bg-emerald-500 text-white"><PenLine className="h-2.5 w-2.5" /></span> : null}
-              {!p.micOn ? <span className="absolute bottom-0 right-0 grid h-4 w-4 place-items-center rounded-tl-lg bg-rose-500 text-white"><MicOff className="h-2.5 w-2.5" /></span> : null}
+            {/* the badges sit on THIS wrapper (not the clipped circle) so the
+                mute / pen indicators are never cut off inside the bubble */}
+            <div className="relative" style={{ width: SIZE, height: SIZE }}>
+              <div className={cn("grid h-full w-full place-items-center overflow-hidden rounded-full border-2 bg-[#181820] shadow-lg", spotlit ? "border-amber-400" : p.role === "HOST" ? "border-brand-400" : "border-white/70")}>
+                {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : (
+                  <span className="grid h-full w-full place-items-center bg-gradient-to-br from-brand-600 to-violet-700 text-[14px] font-black text-white">{p.name.slice(0, 2).toUpperCase()}</span>
+                )}
+              </div>
+              {session.penHolderId === p.id ? <span className="absolute -left-0.5 -top-0.5 grid h-[17px] w-[17px] place-items-center rounded-full bg-emerald-500 text-white ring-2 ring-[#0e0e13]"><PenLine className="h-2.5 w-2.5" /></span> : null}
+              {!p.micOn ? <span className="absolute -bottom-0.5 -right-0.5 grid h-[17px] w-[17px] place-items-center rounded-full bg-rose-500 text-white ring-2 ring-[#0e0e13]"><MicOff className="h-2.5 w-2.5" /></span> : null}
             </div>
-            <span className="mx-auto mt-0.5 block max-w-[64px] truncate rounded bg-black/45 px-1 text-center text-[8.5px] font-bold text-white">{p.id === me.id ? "You" : p.name}</span>
+            <span className="mx-auto mt-1 block max-w-[54px] truncate rounded bg-black/55 px-1 text-center text-[8.5px] font-bold text-white">{p.id === me.id ? "You" : p.name}</span>
           </div>
         );
       })}
@@ -958,9 +975,10 @@ function DeviceGroups({ onClose, groups }: {
 }
 
 /* ---------------------------------------------- more menu content (in a popover) */
-function MoreRows({ session, host, isOwner, unread, patch, onManage, onChat, onEnd, onClose }: {
+function MoreRows({ session, host, isOwner, unread, patch, onManage, onChat, onEnd, mobileRoster, onMobileRoster, onClose }: {
   session: TrainingSessionDTO; host: boolean; isOwner: boolean; unread: number;
-  patch: (b: Record<string, unknown>) => Promise<string | null>; onManage: () => void; onChat: () => void; onEnd: () => void; onClose: () => void;
+  patch: (b: Record<string, unknown>) => Promise<string | null>; onManage: () => void; onChat: () => void; onEnd: () => void;
+  mobileRoster: "float" | "top"; onMobileRoster: (v: "float" | "top") => void; onClose: () => void;
 }) {
   const Row = ({ Icon, name, meta, onClick, tone }: { Icon: typeof Circle; name: string; meta: string; onClick: () => void; tone?: string }) => (
     <button onClick={() => { onClick(); onClose(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted">
@@ -978,6 +996,21 @@ function MoreRows({ session, host, isOwner, unread, patch, onManage, onChat, onE
       {/* chat lives here on a phone (it isn't in the phone's control bar) */}
       <div className="md:hidden">
         <Row Icon={MessageSquare} name={unread ? `Chat · ${unread} new` : "Chat"} meta="Message the room" tone={unread ? "bg-rose-500/15 text-rose-400" : undefined} onClick={onChat} />
+      </div>
+      {/* phone: how YOU see the roster — floating bubbles or a top strip */}
+      <div className="mb-1 px-2.5 pt-1.5 md:hidden">
+        <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Participants view</div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {([["float", Users, "Float"], ["top", Rows3, "Top strip"]] as [("float" | "top"), typeof Users, string][]).map(([id, Icon, label]) => (
+            <button
+              key={id}
+              onClick={() => { onMobileRoster(id); onClose(); }}
+              className={cn("flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-[11.5px] font-bold transition", mobileRoster === id ? "border-brand-500 bg-brand-500/15 text-brand-400" : "border-border text-muted-foreground hover:border-brand-500")}
+            >
+              <Icon className="h-3.5 w-3.5" /> {label}
+            </button>
+          ))}
+        </div>
       </div>
       {host && !session.recording ? (
         <Row Icon={Circle} name="Start recording" meta="Nothing records until you start it" tone="bg-rose-500/15 text-rose-400" onClick={() => void patch({ recording: true })} />

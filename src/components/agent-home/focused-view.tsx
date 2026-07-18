@@ -121,11 +121,11 @@ export function FocusedView({
             {/* the tagline is noise on a phone — only show it once there's room */}
             {subtitle && <div className="hidden truncate text-[11.5px] text-muted-foreground sm:block">{subtitle}</div>}
           </div>
-          {/* Below lg, this whole cluster wraps to its own right-aligned row
-              (w-full) so the meta + controls don't crush the title. The lg
-              threshold (not sm) also covers the split view, where the chat panel
-              keeps the workspace column narrow even on a wide viewport. */}
-          <div className="flex w-full flex-wrap items-center justify-end gap-2 lg:ms-auto lg:w-auto">
+          {/* On a PHONE the controls flow inline next to the (truncating) title so
+              the header doesn't waste a whole empty row on the title alone. In the
+              sm–lg split view the chat panel narrows the column, so there the
+              cluster still drops to its own full-width row; lg+ goes inline again. */}
+          <div className="flex w-auto flex-wrap items-center justify-end gap-2 sm:w-full lg:ms-auto lg:w-auto">
             {/* Mode switches / view controls sit at the left of the cluster. */}
             {headerActions}
             {/* Surfaces (e.g. Pitch Studio) portal their own toolbar controls here,
