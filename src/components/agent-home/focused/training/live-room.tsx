@@ -401,12 +401,12 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
                 <button
                   onClick={() => setToolDock(true)}
                   title="Drawing tools"
-                  className="absolute bottom-3 left-3 grid h-[46px] w-[46px] place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-600 text-white shadow-lg md:hidden"
+                  className="absolute bottom-3 left-3 z-[25] grid h-[46px] w-[46px] place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-600 text-white shadow-lg md:hidden"
                 >
                   <Pencil className="h-5 w-5" />
                 </button>
               ) : (
-                <div className="absolute bottom-3 left-3 z-[13] flex max-h-[calc(100%-24px)] w-[52px] flex-col items-center gap-1 overflow-auto rounded-2xl border border-border bg-card/95 p-1.5 shadow-2xl backdrop-blur md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="absolute bottom-3 left-3 z-[25] flex max-h-[calc(100%-24px)] w-[52px] flex-col items-center gap-1 overflow-auto rounded-2xl border border-border bg-card/95 p-1.5 shadow-2xl backdrop-blur md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <button onClick={() => setToolDock(false)} className="grid h-[34px] w-[34px] place-items-center rounded-lg text-muted-foreground"><X className="h-4 w-4" /></button>
                   <ToolRail
                     tool={tool} setTool={setTool} shapeKind={shapeKind} setShapeKind={setShapeKind}

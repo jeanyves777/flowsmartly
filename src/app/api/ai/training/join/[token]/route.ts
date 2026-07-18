@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { checkInviteToken } from "@/lib/training/access";
 import { mintGuestToken, guestCookieName, getTrainingActor } from "@/lib/training/guest";
+import { brandColorList } from "@/lib/training/session";
 import type { ParticipantRole } from "@/lib/training/types";
 
 const err = (message: string, status = 400) =>
@@ -31,7 +32,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       joinLogoUrl: true,
       joinBannerUrl: true,
       joinCollectEmail: true,
-      user: { select: { name: true, brandKits: { orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], take: 1, select: { logo: true, iconLogo: true } } } },
+      user: { select: { name: true, brandKits: { orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], take: 1, select: { logo: true, iconLogo: true, colors: true } } } },
       _count: { select: { participants: { where: { state: "ADMITTED" } } } },
     },
   });
@@ -50,14 +51,16 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       seats: s.seats,
       role: invite.role,
       waitingRoom: invite.waitingRoom,
-      // an open (or link+email) room lets anyone in with just a name; invite-only
-      // needs an account so the host can match them to who they invited.
-      guestAllowed: s.access === "open" || s.access === "link_email",
-      collectEmail: s.joinCollectEmail || s.access === "link_email",
+      // The invite link IS the grant — anyone holding it joins as a guest with just
+      // their name + email. No account, no login, on every room. The host still
+      // controls entry from the waiting room.
+      guestAllowed: true,
+      collectEmail: true,
       headline: s.joinHeadline,
       message: s.joinMessage,
       logoUrl: s.joinLogoUrl || brandLogo, // uploaded override, else the Brand Kit logo
       bannerUrl: s.joinBannerUrl,
+      brandColors: brandColorList(s.user?.brandKits?.[0]?.colors),
     },
   });
 }
@@ -117,10 +120,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // ---- anonymous guest ----
-  if (room.access === "invite") {
-    // invite-only: the host expects a specific account, so require login
-    return NextResponse.json({ success: false, error: { message: "Please log in to join" } }, { status: 401 });
-  }
+  // No login on any room: the invite link is the grant. The host still gates
+  // entry through the waiting room. Name + email are always required.
 
   // A guest who resubmits (reload, double-tap, re-enter their name) already holds
   // this room's cookie — reuse that seat instead of stacking a second WAITING
@@ -134,9 +135,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const name = (body.name || "").trim().slice(0, 80);
   const email = (body.email || "").trim().toLowerCase().slice(0, 160);
   if (!name) return err("Please enter your name");
-  if ((room.joinCollectEmail || room.access === "link_email") && (!email || !email.includes("@"))) {
-    return err("Please enter a valid email");
-  }
+  if (!email || !email.includes("@")) return err("Please enter a valid email");
 
   const seated = await prisma.trainingParticipant.count({ where: { sessionId: room.id, state: "ADMITTED" } });
   const state = room.waitingRoom || seated >= room.seats ? "WAITING" : "ADMITTED";
