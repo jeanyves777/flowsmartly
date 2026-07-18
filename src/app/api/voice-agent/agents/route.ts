@@ -122,6 +122,9 @@ export async function POST(request: NextRequest) {
         timezone: body.timezone || "UTC",
         escalateTo: body.escalateTo || null,
         spendCapCredits: Number(body.spendCapCredits) || 5000,
+        // A stable token for the MCP relay URL, so a pooled console agent can be
+        // pointed at this tenant.
+        mcpToken: `va_${crypto.randomUUID().replace(/-/g, "")}`,
       },
       include: { number: true },
     });

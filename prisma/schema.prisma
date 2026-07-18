@@ -6092,6 +6092,11 @@ model VoiceAgent {
   xaiSyncError String?
   xaiSyncedAt  DateTime?
 
+  // MCP relay: a pre-built console agent (whose config we can't set via the
+  // gated agents API) calls OUR MCP server for its brain + actions. The token is
+  // embedded in the connector URL so the relay knows which tenant is calling.
+  mcpToken String? @unique
+
   liveSince DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

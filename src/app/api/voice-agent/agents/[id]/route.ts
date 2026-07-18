@@ -60,11 +60,22 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!session) return fail("Unauthorized", 401);
     const { id } = await params;
 
-    const agent = await prisma.voiceAgent.findFirst({
+    let agent = await prisma.voiceAgent.findFirst({
       where: { id, userId: session.userId },
       include: { number: true },
     });
     if (!agent) return fail("Agent not found", 404);
+
+    // Backfill an MCP token for agents created before the relay existed.
+    if (!agent.mcpToken) {
+      agent = await prisma.voiceAgent.update({
+        where: { id },
+        data: { mcpToken: `va_${crypto.randomUUID().replace(/-/g, "")}` },
+        include: { number: true },
+      });
+    }
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const mcpUrl = `${appUrl.replace(/\/$/, "")}/api/voice-agent/mcp/${agent.mcpToken}`;
 
     const calls = await prisma.voiceCall.findMany({
       where: { agentId: id },
@@ -94,6 +105,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
     return NextResponse.json({
       success: true,
+      mcpUrl,
       agent: hydrate(agent as unknown as Record<string, unknown>),
       calls: calls.map((c) => ({
         ...c,
