@@ -182,6 +182,8 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
     openMic: row.openMic,
     locked: row.locked,
     hideBoard: row.hideBoard,
+    rosterLayout: (row.rosterLayout as "side" | "top" | "bottom") ?? "side",
+    spotlightId: row.spotlightId,
 
     penHolderId: row.penHolderId,
     stageSource: row.stageSource as StageSource,

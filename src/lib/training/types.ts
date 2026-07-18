@@ -172,6 +172,10 @@ export interface TrainingSessionDTO {
   locked: boolean;
   /** host hid all board marks for the whole room (synced to attendees) */
   hideBoard: boolean;
+  /** where the attendee tiles sit for everyone: side | top | bottom */
+  rosterLayout: "side" | "top" | "bottom";
+  /** a participant the host spotlighted large for the whole room */
+  spotlightId: string | null;
 
   penHolderId: string | null;
   stageSource: StageSource;

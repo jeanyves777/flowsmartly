@@ -18,7 +18,7 @@ import {
   VideoOff, Circle, Users, LogOut, Paperclip, ChevronLeft, ChevronRight, Star, X,
   Minus, MoveUpRight, Triangle, Diamond, ChevronDown, ChevronUp, PanelLeftClose,
   PanelLeftOpen, Eye, EyeOff, MoreHorizontal,
-  Send, Check, Square as StopIcon, Save, Volume2, Pause, Play,
+  Send, Check, Square as StopIcon, Save, Volume2, Pause, Play, Focus, Rows3, Columns3, PanelBottom,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
@@ -237,7 +237,13 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
     );
   }, [session.stageSource, session.stagePage, session.penHolderId, session.participants, material, sharer, me, media.localCam, media.localScreen, media.remotes]);
 
-  const rosterProps = { session, me, host, act, media, waiting, inRoom, onInvite: () => setSheet("invite") };
+  const layout = session.rosterLayout ?? "side";
+  const spotlight = session.spotlightId ? inRoom.find((p) => p.id === session.spotlightId) ?? null : null;
+  const spotFeed = spotlight
+    ? (spotlight.id === me.id ? media.localCam : media.remotes.find((r) => r.participantId === spotlight.id && r.source === "cam" && r.kind === "video")?.stream ?? null)
+    : null;
+  const onSpotlight = (id: string) => void patch({ spotlightId: session.spotlightId === id ? null : id });
+  const rosterProps = { session, me, host, act, media, waiting, inRoom, onInvite: () => setSheet("invite"), onSpotlight };
 
   return (
     <div className="absolute inset-0 flex bg-background">
@@ -299,8 +305,24 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
           </span>
         </div>
 
+        {/* attendee strip on TOP */}
+        {layout === "top" ? <RosterStrip {...rosterProps} /> : null}
+
         {/* stage — the inner ref measures the space, the board is a fitted 16:9 box */}
         <div className="relative flex flex-1 flex-col overflow-hidden bg-[#0e0e13] p-2.5 sm:p-3.5">
+          {/* spotlight — a big pinned tile everyone sees */}
+          {spotlight ? (
+            <div className="pointer-events-none absolute right-3 top-3 z-[14] w-[38%] max-w-[240px]">
+              <div className="pointer-events-auto relative aspect-[4/3] overflow-hidden rounded-xl border-2 border-amber-400 bg-[#181820] shadow-2xl">
+                {spotFeed ? <VideoFeed stream={spotFeed} muted mirror={spotlight.id === me.id} /> : (
+                  <div className="grid h-full w-full place-items-center"><span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-brand-600 to-violet-700 text-lg font-black text-white">{spotlight.name.slice(0, 2).toUpperCase()}</span></div>
+                )}
+                <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-amber-400 px-1.5 py-0.5 text-[9px] font-black text-amber-950"><Star className="h-2.5 w-2.5 fill-current" /> Spotlight</span>
+                <span className="absolute inset-x-2 bottom-1 truncate text-[11px] font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.9)]">{spotlight.name}</span>
+                {host ? <button onClick={() => onSpotlight(spotlight.id)} title="Remove spotlight" className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-md bg-black/55 text-white hover:bg-black/75"><X className="h-3 w-3" /></button> : null}
+              </div>
+            </div>
+          ) : null}
           <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
           <div className="relative shadow-2xl" style={boardBox ? { width: boardBox.w, height: boardBox.h } : { width: "100%", maxWidth: 980, aspectRatio: "16 / 9" }}>
             <TrainingBoard
@@ -367,6 +389,9 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
           ) : null}
         </div>
 
+        {/* attendee strip on the BOTTOM */}
+        {layout === "bottom" ? <RosterStrip {...rosterProps} /> : null}
+
         {/* ---- control bar ---- */}
         <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border bg-background/90 p-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* mic + device caret */}
@@ -415,10 +440,12 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
             />
           ) : null}
           <Ctl on={me.handRaised} onClick={() => void act(me.handRaised ? "lower_hand" : "raise_hand", me.id)} title={me.handRaised ? "Lower your hand" : "Raise your hand"} Icon={Hand} />
-          <div className="relative shrink-0">
-            <Ctl on={rosterOpen} onClick={() => setRosterOpen((v) => !v)} title="Participants" Icon={Users} />
-            {inRoom.length ? <span className="pointer-events-none absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 px-1 text-[10px] font-extrabold text-white">{inRoom.length}</span> : null}
-          </div>
+          {layout === "side" ? (
+            <div className="relative shrink-0">
+              <Ctl on={rosterOpen} onClick={() => setRosterOpen((v) => !v)} title="Participants" Icon={Users} />
+              {inRoom.length ? <span className="pointer-events-none absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 px-1 text-[10px] font-extrabold text-white">{inRoom.length}</span> : null}
+            </div>
+          ) : null}
           <div ref={moreBtnRef} className="relative shrink-0">
             <Ctl on={moreMenu} onClick={() => setMoreMenu((v) => !v)} title="More" Icon={MoreHorizontal} />
           </div>
@@ -434,19 +461,21 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
         </div>
       </div>
 
-      {/* ---- desktop roster ---- */}
-      <aside className="relative hidden w-[300px] shrink-0 flex-col border-s border-border bg-card md:flex">
-        <RosterContent {...rosterProps} />
-      </aside>
-
-      {/* ---- mobile roster drawer ---- */}
-      {rosterOpen ? <div className="absolute inset-0 z-[20] bg-black/50 md:hidden" onClick={() => setRosterOpen(false)} /> : null}
-      <aside className={cn(
-        "absolute inset-y-0 right-0 z-[21] flex w-[86%] max-w-[340px] flex-col border-s border-border bg-card shadow-2xl transition-transform duration-300 md:hidden",
-        rosterOpen ? "translate-x-0" : "translate-x-full",
-      )}>
-        <RosterContent {...rosterProps} onCloseDrawer={() => setRosterOpen(false)} />
-      </aside>
+      {/* ---- side roster: desktop column + mobile drawer (only in the "side" layout) ---- */}
+      {layout === "side" ? (
+        <>
+          <aside className="relative hidden w-[300px] shrink-0 flex-col border-s border-border bg-card md:flex">
+            <RosterContent {...rosterProps} />
+          </aside>
+          {rosterOpen ? <div className="absolute inset-0 z-[20] bg-black/50 md:hidden" onClick={() => setRosterOpen(false)} /> : null}
+          <aside className={cn(
+            "absolute inset-y-0 right-0 z-[21] flex w-[86%] max-w-[340px] flex-col border-s border-border bg-card shadow-2xl transition-transform duration-300 md:hidden",
+            rosterOpen ? "translate-x-0" : "translate-x-full",
+          )}>
+            <RosterContent {...rosterProps} onCloseDrawer={() => setRosterOpen(false)} />
+          </aside>
+        </>
+      ) : null}
 
       {/* ---- anchored popovers (portalled, so the control bar never clips them) ---- */}
       {devMenu === "audio" ? (
@@ -552,11 +581,11 @@ function ToolRail({ tool, setTool, shapeKind, setShapeKind, ink, setInk, iCanDra
 }
 
 /* ------------------------------------------------------------------- roster */
-function RosterContent({ session, me, host, act, media, waiting, inRoom, onInvite, onCloseDrawer }: {
+function RosterContent({ session, me, host, act, media, waiting, inRoom, onInvite, onSpotlight, onCloseDrawer }: {
   session: TrainingSessionDTO; me: TrainingParticipantDTO; host: boolean;
   act: (action: string, participantId?: string) => Promise<string | null>;
   media: ReturnType<typeof useMedia>; waiting: TrainingParticipantDTO[]; inRoom: TrainingParticipantDTO[];
-  onInvite: () => void; onCloseDrawer?: () => void;
+  onInvite: () => void; onSpotlight: (id: string) => void; onCloseDrawer?: () => void;
 }) {
   return (
     <>
@@ -588,7 +617,7 @@ function RosterContent({ session, me, host, act, media, waiting, inRoom, onInvit
       <div className="flex flex-1 flex-col gap-1.5 overflow-auto p-2">
         {inRoom.map((p) => (
           <Tile
-            key={p.id} p={p} session={session} me={me} host={host} act={act}
+            key={p.id} p={p} session={session} me={me} host={host} act={act} onSpotlight={onSpotlight}
             feed={p.id === me.id ? media.localCam : media.remotes.find((r) => r.participantId === p.id && r.source === "cam" && r.kind === "video")?.stream ?? null}
           />
         ))}
@@ -599,6 +628,61 @@ function RosterContent({ session, me, host, act, media, waiting, inRoom, onInvit
         </button>
       ) : null}
     </>
+  );
+}
+
+/* ------------------------------------------------- roster strip (top / bottom) */
+/** A compact horizontal row of attendee tiles — the phone-friendly layout. Small
+ *  video/initials thumbnails scroll sideways; the host can admit + invite inline. */
+function RosterStrip({ session, me, host, act, media, waiting, inRoom, onInvite, onSpotlight }: {
+  session: TrainingSessionDTO; me: TrainingParticipantDTO; host: boolean;
+  act: (action: string, participantId?: string) => Promise<string | null>;
+  media: ReturnType<typeof useMedia>; waiting: TrainingParticipantDTO[]; inRoom: TrainingParticipantDTO[];
+  onInvite: () => void; onSpotlight: (id: string) => void;
+}) {
+  return (
+    <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-y border-border bg-card/60 px-2.5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {host && waiting.length ? (
+        <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-2 py-1.5">
+          <span className="text-[10px] font-extrabold text-amber-400">{waiting.length} waiting</span>
+          {waiting.slice(0, 3).map((w) => (
+            <button key={w.id} onClick={() => void act("admit", w.id)} title={`Admit ${w.name}`} className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-1 text-[10px] font-bold text-white">
+              <span className="max-w-[52px] truncate">{w.name}</span> ✓
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {inRoom.map((p) => {
+        const feed = p.id === me.id ? media.localCam : media.remotes.find((r) => r.participantId === p.id && r.source === "cam" && r.kind === "video")?.stream ?? null;
+        const spotlit = session.spotlightId === p.id;
+        return (
+          <button
+            key={p.id}
+            onClick={() => host && onSpotlight(p.id)}
+            title={host ? (spotlit ? `Remove ${p.name}'s spotlight` : `Spotlight ${p.name}`) : p.name}
+            className={cn("group relative h-[64px] w-[86px] shrink-0 overflow-hidden rounded-lg border-2 bg-[#181820]", spotlit ? "border-amber-400" : p.role === "HOST" ? "border-brand-500/50" : "border-border")}
+          >
+            {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : (
+              <span className="grid h-full w-full place-items-center"><span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-brand-600 to-violet-700 text-[11px] font-black text-white">{p.name.slice(0, 2).toUpperCase()}</span></span>
+            )}
+            <span className="absolute inset-x-1 bottom-0.5 flex items-center gap-0.5 text-[8.5px] font-bold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.9)]">
+              <span className="truncate">{p.name}</span>
+              <span className="ms-auto flex shrink-0 gap-0.5">
+                {session.penHolderId === p.id ? <Pill className="bg-emerald-500 text-emerald-950">PEN</Pill> : null}
+                {p.handRaised ? <Pill className="bg-amber-400 text-amber-950"><Hand className="h-2 w-2" /></Pill> : null}
+                {!p.micOn ? <Pill className="bg-rose-500/85 text-white"><MicOff className="h-2 w-2" /></Pill> : null}
+              </span>
+            </span>
+            {host ? <span className="absolute right-0.5 top-0.5 hidden rounded bg-black/55 p-0.5 text-white group-hover:block"><Star className={cn("h-2.5 w-2.5", spotlit && "fill-amber-400 text-amber-400")} /></span> : null}
+          </button>
+        );
+      })}
+      {host ? (
+        <button onClick={onInvite} title="Invite people" className="grid h-[64px] w-[52px] shrink-0 place-items-center rounded-lg border border-dashed border-border bg-card text-muted-foreground hover:border-brand-500 hover:text-brand-400">
+          <span className="flex flex-col items-center gap-0.5"><Send className="h-3.5 w-3.5" /><span className="text-[8.5px] font-bold">Invite</span></span>
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -670,6 +754,11 @@ function MoreRows({ session, host, patch, onManage, onClose }: {
       <span className="flex-1"><span className="block text-[12.5px] font-bold">{name}</span><span className="block text-[10.5px] text-muted-foreground">{meta}</span></span>
     </button>
   );
+  const LAYOUTS: { id: "side" | "top" | "bottom"; Icon: typeof Columns3; label: string }[] = [
+    { id: "side", Icon: Columns3, label: "Side" },
+    { id: "top", Icon: Rows3, label: "Top" },
+    { id: "bottom", Icon: PanelBottom, label: "Bottom" },
+  ];
   return (
     <>
       {host && !session.recording ? (
@@ -677,6 +766,22 @@ function MoreRows({ session, host, patch, onManage, onClose }: {
       ) : null}
       <Row Icon={PenLine} name="Whiteboard" meta="Put the board on the stage" onClick={() => void patch({ stageSource: "board" })} />
       {host ? <Row Icon={Paperclip} name="Materials" meta="Add a PDF, deck, image or video" onClick={onManage} tone="bg-brand-500/15 text-brand-400" /> : null}
+      {host ? (
+        <div className="mt-1 px-2.5 pb-1 pt-2">
+          <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Attendees</div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {LAYOUTS.map((l) => (
+              <button
+                key={l.id}
+                onClick={() => void patch({ rosterLayout: l.id })}
+                className={cn("flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-[10.5px] font-bold transition", (session.rosterLayout ?? "side") === l.id ? "border-brand-500 bg-brand-500/15 text-brand-400" : "border-border text-muted-foreground hover:border-brand-500")}
+              >
+                <l.Icon className="h-4 w-4" /> {l.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -825,14 +930,15 @@ function Caret({ onClick, title }: { onClick: () => void; title: string }) {
 }
 
 /** One person. Hover reveals the host controls — pen, share, co-host, mute, remove. */
-function Tile({ p, session, me, host, act, feed }: {
+function Tile({ p, session, me, host, act, onSpotlight, feed }: {
   p: TrainingParticipantDTO; session: TrainingSessionDTO; me: TrainingParticipantDTO; host: boolean;
-  act: (action: string, participantId?: string) => Promise<string | null>; feed: MediaStream | null;
+  act: (action: string, participantId?: string) => Promise<string | null>; onSpotlight: (id: string) => void; feed: MediaStream | null;
 }) {
   const hasPen = session.penHolderId === p.id;
   const mayShare = canShareScreen(p, session);
+  const spotlit = session.spotlightId === p.id;
   return (
-    <div className={cn("group relative aspect-[4/3] overflow-hidden rounded-xl border bg-[#181820]", p.sharing ? "border-cyan-500/60" : p.role === "HOST" ? "border-brand-500/50" : "border-border")}>
+    <div className={cn("group relative aspect-[4/3] overflow-hidden rounded-xl border bg-[#181820]", spotlit ? "border-amber-400" : p.sharing ? "border-cyan-500/60" : p.role === "HOST" ? "border-brand-500/50" : "border-border")}>
       {feed ? (
         <VideoFeed stream={feed} muted mirror={p.id === me.id} />
       ) : (
@@ -852,6 +958,7 @@ function Tile({ p, session, me, host, act, feed }: {
       </div>
       {host && p.id !== me.id ? (
         <div className="absolute inset-0 hidden flex-wrap content-center justify-center gap-1 bg-background/80 p-1.5 backdrop-blur-sm group-hover:flex">
+          <Mini onClick={() => onSpotlight(p.id)} on={spotlit} title={spotlit ? `Remove ${p.name}'s spotlight` : `Spotlight ${p.name} for everyone`} Icon={Focus} />
           <Mini onClick={() => void act("give_pen", p.id)} on={hasPen} title={`Hand ${p.name} the pen`} Icon={Pencil} />
           <Mini onClick={() => void act(mayShare ? "revoke_share" : "grant_share", p.id)} on={mayShare} title={mayShare ? `Stop ${p.name} sharing their screen` : `Let ${p.name} share their screen`} Icon={Monitor} />
           {me.role === "HOST" && p.role !== "HOST" ? (

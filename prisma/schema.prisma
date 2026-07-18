@@ -6233,6 +6233,8 @@ model TrainingSession {
   openMic     Boolean @default(true)
   locked      Boolean @default(false)
   hideBoard   Boolean @default(false) // host hid all marks for the WHOLE room (synced to attendees)
+  rosterLayout String @default("side") // where the attendee tiles sit: side | top | bottom
+  spotlightId  String? // a participant the host has spotlighted large for everyone
 
   // live stage state
   penHolderId   String? // TrainingParticipant.id holding the pen (presenter-authoritative)
