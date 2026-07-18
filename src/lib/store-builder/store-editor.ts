@@ -34,6 +34,8 @@ export interface StoreDataPatch {
   faq?: Array<{ question: string; answer: string }>;
   products?: Array<Record<string, Any>>;
   categories?: Array<{ id: string; name: string; slug: string; description: string; image: string }>;
+  policies?: Record<string, string>; // { shipping, returns, privacy, terms } — HTML bodies
+  theme?: { colors?: Record<string, string> }; // { primary, secondary, accent } hex → globals.css @theme
 }
 
 /* ── helpers (ported from the routes) ─────────────────────────────────── */
@@ -60,6 +62,85 @@ async function localizeImageUrl(url: string, storeDir: string, storeSlug: string
     console.error(`[StoreUpdateData] Failed to localize ${url.substring(0, 100)}:`, err?.message);
     return url;
   }
+}
+
+/* ── social / policies / theme extractors + writers ───────────────────── */
+
+const SOCIAL_KEYS = ["instagram", "facebook", "tiktok", "twitter"];
+const POLICY_KEYS = ["shipping", "returns", "privacy", "terms"];
+
+function extractSocialLinks(content: string): Record<string, string> {
+  const out: Record<string, string> = { instagram: "", facebook: "", tiktok: "", twitter: "" };
+  const block = content.match(/socialLinks\s*:\s*\{([\s\S]*?)\}/);
+  if (!block) return out;
+  for (const key of SOCIAL_KEYS) {
+    const m = block[1].match(new RegExp(`${key}\\s*:\\s*"([^"]*)"`));
+    if (m) out[key] = m[1];
+  }
+  return out;
+}
+
+function extractStringArrayField(content: string, field: string): string[] {
+  const m = content.match(new RegExp(`${field}\\s*:\\s*\\[([\\s\\S]*?)\\]`));
+  if (!m) return [];
+  return (m[1].match(/"([^"]*)"/g) || []).map((s) => s.slice(1, -1)).filter(Boolean);
+}
+
+function extractPolicies(content: string): Record<string, string> {
+  const out: Record<string, string> = { shipping: "", returns: "", privacy: "", terms: "" };
+  const block = content.match(/export const policies\s*=\s*\{([\s\S]*?)\n\};/);
+  if (!block) return out;
+  for (const key of POLICY_KEYS) {
+    const m = block[1].match(new RegExp(`${key}\\s*:\\s*\`([\\s\\S]*?)\``));
+    if (m) out[key] = m[1];
+  }
+  return out;
+}
+
+// Escape a string for use inside a TS template literal (policies HTML bodies).
+function escapeTemplate(str: string): string {
+  return (str || "").replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
+}
+
+// The color-mix shade scale the store generator uses (mirrors store-agent.ts).
+function themeReplacements(name: string, hex: string): Array<[RegExp, string]> {
+  const mix = (pct: number, tone: string) => `color-mix(in oklab, ${hex} ${pct}%, ${tone})`;
+  const scale: Record<string, string> = {
+    "": hex, "-50": mix(15, "white"), "-100": mix(25, "white"), "-200": mix(45, "white"),
+    "-300": mix(65, "white"), "-400": mix(80, "white"), "-500": hex, "-600": mix(85, "black"),
+    "-700": mix(70, "black"), "-800": mix(55, "black"), "-900": mix(40, "black"),
+  };
+  return Object.entries(scale).map(([suffix, val]) => [new RegExp(`(--color-${name}${suffix}\\s*:\\s*)[^;]+;`, "g"), `$1${val};`] as [RegExp, string]);
+}
+
+// Read the base brand colors from the generated globals.css @theme block.
+function extractThemeColors(storeDir: string): Record<string, string> {
+  const out: Record<string, string> = { primary: "", secondary: "", accent: "" };
+  const cssPath = join(storeDir, "src", "app", "globals.css");
+  if (!existsSync(cssPath)) return out;
+  const css = readFileSync(cssPath, "utf-8");
+  for (const name of ["primary", "secondary", "accent"]) {
+    const m = css.match(new RegExp(`--color-${name}\\s*:\\s*(#[0-9a-fA-F]{3,8})`));
+    if (m) out[name] = m[1];
+  }
+  return out;
+}
+
+// Rewrite the generated store's globals.css @theme brand colors (+ shade scale).
+// Guarded: only touches provided colors; a no-op if globals.css is absent.
+function applyThemeColors(storeDir: string, colors: Record<string, string>): void {
+  const cssPath = join(storeDir, "src", "app", "globals.css");
+  if (!existsSync(cssPath)) return;
+  let css = readFileSync(cssPath, "utf-8");
+  let changed = false;
+  for (const name of ["primary", "secondary", "accent"]) {
+    const hex = colors[name];
+    if (!hex || !/^#[0-9a-fA-F]{3,8}$/.test(hex.trim())) continue;
+    for (const [re, rep] of themeReplacements(name, hex.trim())) {
+      if (re.test(css)) { css = css.replace(re, rep); changed = true; }
+    }
+  }
+  if (changed) writeFileSync(cssPath, css, "utf-8");
 }
 
 function updateProductsFile(productsPath: string, products: Array<Record<string, Any>>): void {
@@ -191,6 +272,28 @@ export async function applyStoreDataUpdate(params: { store: StoreRef; patch: Sto
     if (storeInfo.emails) {
       data = data.replace(/emails:\s*\[.*?\]/s, `emails: [${storeInfo.emails.map((e: string) => `"${escapeStr(e)}"`).join(", ")}]`);
     }
+    if (storeInfo.socialLinks && typeof storeInfo.socialLinks === "object") {
+      const sl = storeInfo.socialLinks as Record<string, string>;
+      const block = data.match(/socialLinks\s*:\s*\{[\s\S]*?\}/);
+      if (block) {
+        const entries = SOCIAL_KEYS.map((k) => `    ${k}: "${escapeStr(sl[k] || "")}"`).join(",\n");
+        const replacement = `socialLinks: {\n${entries},\n  }`;
+        data = data.replace(block[0], () => replacement);
+      }
+    }
+  }
+
+  // Policy pages (shipping/returns/privacy/terms) — HTML bodies in a top-level
+  // `policies` object of template strings.
+  if (patch.policies && typeof patch.policies === "object") {
+    for (const key of POLICY_KEYS) {
+      const val = patch.policies[key];
+      if (val === undefined) continue;
+      const esc = escapeTemplate(val);
+      // Function replacement — the policy HTML can contain "$" (e.g. prices), which
+      // a string replacement would mis-read as $1/$2 backreferences.
+      data = data.replace(new RegExp(`(${key}\\s*:\\s*\`)[\\s\\S]*?(\`)`), (_m, p1, p2) => `${p1}${esc}${p2}`);
+    }
   }
 
   if (heroConfig) {
@@ -230,6 +333,12 @@ export async function applyStoreDataUpdate(params: { store: StoreRef; patch: Sto
   }
 
   writeFileSync(dataPath, data, "utf-8");
+
+  // Brand theme colors → the generated globals.css @theme block (guarded no-op
+  // when absent). Storefront themes off --color-primary/secondary/accent.
+  if (patch.theme?.colors && typeof patch.theme.colors === "object") {
+    applyThemeColors(storeDir, patch.theme.colors);
+  }
 
   if (categories && Array.isArray(categories)) {
     for (const cat of categories) {
@@ -307,7 +416,11 @@ export async function readStoreData(store: StoreRef, opts?: { forceRefresh?: boo
     region: extractString(dataContent, "region"), logoUrl: extractString(dataContent, "logoUrl"),
     bannerUrl: extractString(dataContent, "bannerUrl"), address: extractString(dataContent, "address"),
     ctaText: extractString(dataContent, "ctaText"), ctaUrl: extractString(dataContent, "ctaUrl"),
+    socialLinks: extractSocialLinks(dataContent), emails: extractStringArrayField(dataContent, "emails"),
+    phones: extractStringArrayField(dataContent, "phones"),
   };
+  result.policies = extractPolicies(dataContent);
+  result.theme = { colors: extractThemeColors(storeDir) };
 
   const heroBlockMatch = dataContent.match(/heroConfig\s*=\s*\{([\s\S]*?)\};/);
   const heroBlockBody = heroBlockMatch ? heroBlockMatch[1] : "";

@@ -5,6 +5,7 @@ import {
   Store, Globe, ExternalLink, RefreshCw, Save, Plus, Trash2, Link2, X, Check,
   AlertCircle, ArrowLeft, Image as ImageIcon, LayoutDashboard,
   Grid3X3, HelpCircle, FileText, Wand2, Server, Palette, Rocket, ChevronUp, ChevronDown,
+  Share2, ScrollText, Droplet,
 } from "lucide-react";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -25,8 +26,11 @@ interface StoreRecord {
   lastBuildError?: string | null; ssrPort?: number | null; ssrStatus?: string | null;
   storeUrl?: string | null; generatorVersion?: string;
 }
-interface StoreInfo { name: string; tagline: string; description: string; about: string; mission: string; address: string; ctaText: string; ctaUrl: string; logoUrl: string; bannerUrl: string; currency: string; region?: string; }
-interface HeroConfig { headline: string; subheadline: string; ctaText: string; ctaUrl: string; slides?: string[]; style?: "slideshow" | "image" | "gradient"; }
+interface SocialLinks { instagram?: string; facebook?: string; tiktok?: string; twitter?: string }
+interface StoreInfo { name: string; tagline: string; description: string; about: string; mission: string; address: string; ctaText: string; ctaUrl: string; logoUrl: string; bannerUrl: string; currency: string; region?: string; socialLinks?: SocialLinks; emails?: string[]; phones?: string[]; }
+interface HeroConfig { headline: string; subheadline: string; ctaText: string; ctaUrl: string; slides?: string[]; style?: "slideshow" | "image" | "gradient" | "video"; }
+interface Policies { shipping?: string; returns?: string; privacy?: string; terms?: string }
+interface ThemeConfig { colors?: { primary?: string; secondary?: string; accent?: string } }
 interface StoreData {
   storeInfo: StoreInfo;
   heroConfig: HeroConfig;
@@ -35,12 +39,14 @@ interface StoreData {
   faq: Array<{ question: string; answer: string }>;
   categories: Array<{ id: string; name: string; slug: string; description: string; image: string }>;
   pages: Array<{ slug: string; label: string }>;
+  policies?: Policies;
+  theme?: ThemeConfig;
 }
 
 const F = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 const isBuildingStatus = (s?: string) => s === "building" || s === "deploying";
 
-type TabId = "preview" | "store-info" | "hero" | "categories" | "navigation" | "faq" | "pages" | "ai" | "domains" | "status";
+type TabId = "preview" | "store-info" | "theme" | "hero" | "categories" | "navigation" | "footer-social" | "policies" | "faq" | "pages" | "ai" | "domains" | "status";
 
 export function StoreStudio({ storeId, onBack, onOpenView, onAsk }: {
   storeId: string;
@@ -80,7 +86,9 @@ export function StoreStudio({ storeId, onBack, onOpenView, onAsk }: {
   useEffect(() => {
     let alive = true;
     (async () => {
-      await Promise.all([loadStore(), loadData()]);
+      // Force a fresh parse on open so the newer fields (theme/social/policies)
+      // aren't hidden by an older cached shape.
+      await Promise.all([loadStore(), loadData(true)]);
       if (alive) { setLoading(false); setPreviewNonce(Date.now()); }
     })();
     return () => { alive = false; if (pollRef.current) clearInterval(pollRef.current); };
@@ -96,6 +104,23 @@ export function StoreStudio({ storeId, onBack, onOpenView, onAsk }: {
   }, []);
   const updateHero = useCallback(<K extends keyof HeroConfig>(key: K, value: HeroConfig[K]) => {
     setData((prev) => (prev ? { ...prev, heroConfig: { ...prev.heroConfig, [key]: value } } : prev));
+    setChanged(true);
+  }, []);
+  const updateSocial = useCallback((key: keyof SocialLinks, value: string) => {
+    setData((prev) => (prev ? { ...prev, storeInfo: { ...prev.storeInfo, socialLinks: { ...prev.storeInfo.socialLinks, [key]: value } } } : prev));
+    setChanged(true);
+  }, []);
+  // emails/phones are arrays; the studio edits the primary (index 0).
+  const updateContact = useCallback((key: "emails" | "phones", value: string) => {
+    setData((prev) => (prev ? { ...prev, storeInfo: { ...prev.storeInfo, [key]: value ? [value] : [] } } : prev));
+    setChanged(true);
+  }, []);
+  const updatePolicy = useCallback((key: keyof Policies, value: string) => {
+    setData((prev) => (prev ? { ...prev, policies: { ...prev.policies, [key]: value } } : prev));
+    setChanged(true);
+  }, []);
+  const updateThemeColor = useCallback((key: "primary" | "secondary" | "accent", value: string) => {
+    setData((prev) => (prev ? { ...prev, theme: { ...prev.theme, colors: { ...prev.theme?.colors, [key]: value } } } : prev));
     setChanged(true);
   }, []);
 
@@ -184,9 +209,12 @@ export function StoreStudio({ storeId, onBack, onOpenView, onAsk }: {
   const tabs: { id: TabId; label: string; icon: ElementType }[] = [
     { id: "preview", label: "Preview", icon: Globe },
     { id: "store-info", label: "Store Info", icon: Store },
+    { id: "theme", label: "Theme & colors", icon: Droplet },
     { id: "hero", label: "Hero", icon: LayoutDashboard },
     { id: "categories", label: "Categories", icon: Grid3X3 },
     { id: "navigation", label: "Navigation", icon: Link2 },
+    { id: "footer-social", label: "Footer & Social", icon: Share2 },
+    { id: "policies", label: "Policies", icon: ScrollText },
     { id: "faq", label: "FAQ", icon: HelpCircle },
     { id: "pages", label: "Pages", icon: FileText },
     { id: "ai", label: "AI Redesign", icon: Wand2 },
@@ -269,6 +297,9 @@ export function StoreStudio({ storeId, onBack, onOpenView, onAsk }: {
           )}
 
           {activeTab === "store-info" && data && <StoreInfoTab data={data} updateInfo={updateInfo} openPicker={openPicker} />}
+          {activeTab === "theme" && data && <ThemeTab data={data} updateThemeColor={updateThemeColor} />}
+          {activeTab === "footer-social" && data && <FooterSocialTab data={data} updateSocial={updateSocial} updateContact={updateContact} />}
+          {activeTab === "policies" && data && <PoliciesTab data={data} updatePolicy={updatePolicy} />}
           {activeTab === "hero" && data && <HeroTab data={data} updateHero={updateHero} updateInfo={updateInfo} openPicker={openPicker} />}
           {activeTab === "categories" && data && <CategoriesTab data={data} update={update} openPicker={openPicker} onOpenView={onOpenView} />}
           {activeTab === "navigation" && data && <NavigationTab data={data} update={update} />}
@@ -350,6 +381,7 @@ function HeroTab({ data, updateHero, updateInfo, openPicker }: { data: StoreData
             <option value="slideshow">Slideshow (multiple images)</option>
             <option value="image">Single image</option>
             <option value="gradient">Gradient only</option>
+            <option value="video">Video background</option>
           </select>
         </Section>
         <Section title={`Slideshow images (${slides.length}/8)`} hint="3–5 banner images to rotate. Reorder with the arrows.">
@@ -489,6 +521,88 @@ function PagesTab({ data, onEdit }: { data: StoreData; onEdit: () => void }) {
         </div>
       )}
     </div>
+  );
+}
+
+function ThemeTab({ data, updateThemeColor }: { data: StoreData; updateThemeColor: (k: "primary" | "secondary" | "accent", v: string) => void }) {
+  const colors = data.theme?.colors || {};
+  const primary = colors.primary || "#6366f1";
+  const accent = colors.accent || primary;
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <Section title="Brand colors" hint="The whole storefront themes off these — buttons, links, badges, hero. A tint scale (50–900) is derived automatically.">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <ColorField label="Primary" value={colors.primary || "#6366f1"} onChange={(v) => updateThemeColor("primary", v)} />
+          <ColorField label="Secondary" value={colors.secondary || "#a78bfa"} onChange={(v) => updateThemeColor("secondary", v)} />
+          <ColorField label="Accent" value={colors.accent || "#e0651a"} onChange={(v) => updateThemeColor("accent", v)} />
+        </div>
+        <p className="mt-3 text-[11.5px] text-muted-foreground">Save &amp; update to rebuild the store with the new palette.</p>
+      </Section>
+      <Section title="Live preview">
+        <div className="overflow-hidden rounded-2xl border border-border">
+          <div className="px-6 py-8 text-center text-white" style={{ background: `linear-gradient(135deg, ${primary}, ${accent})` }}>
+            <p className="text-[17px] font-extrabold">{data.storeInfo.tagline || data.storeInfo.name}</p>
+            <p className="mt-1 text-[12px] opacity-90">{(data.storeInfo.description || "Your storefront").slice(0, 64)}</p>
+            <span className="mt-3 inline-block rounded-lg px-4 py-2 text-[12px] font-bold text-white" style={{ background: accent }}>{data.storeInfo.ctaText || "Shop now"}</span>
+          </div>
+          <div className="flex gap-3 bg-card p-4">
+            {[1, 2, 3].map((i) => (<div key={i} className="w-20"><div className="aspect-square rounded-lg bg-muted" /><p className="mt-1 text-[11px] font-semibold" style={{ color: primary }}>$20.00</p></div>))}
+          </div>
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const safe = /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#6366f1";
+  return (
+    <div>
+      <span className="mb-1 block text-[11.5px] font-semibold text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-2">
+        <input type="color" value={safe} onChange={(e) => onChange(e.target.value)} className="h-9 w-11 shrink-0 cursor-pointer rounded-[8px] border border-border bg-card p-0.5" />
+        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder="#6366f1" className={F} />
+      </div>
+    </div>
+  );
+}
+
+function FooterSocialTab({ data, updateSocial, updateContact }: { data: StoreData; updateSocial: (k: keyof SocialLinks, v: string) => void; updateContact: (k: "emails" | "phones", v: string) => void }) {
+  const si = data.storeInfo;
+  const sl = si.socialLinks || {};
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <Section title="Social links" hint="Shown in your storefront footer.">
+        <div className="space-y-3">
+          <Field label="Instagram" value={sl.instagram || ""} onChange={(v) => updateSocial("instagram", v)} />
+          <Field label="Facebook" value={sl.facebook || ""} onChange={(v) => updateSocial("facebook", v)} />
+          <Field label="TikTok" value={sl.tiktok || ""} onChange={(v) => updateSocial("tiktok", v)} />
+          <Field label="X / Twitter" value={sl.twitter || ""} onChange={(v) => updateSocial("twitter", v)} />
+        </div>
+      </Section>
+      <Section title="Contact" hint="Rendered in the footer contact block.">
+        <div className="space-y-3">
+          <Field label="Email" value={si.emails?.[0] || ""} onChange={(v) => updateContact("emails", v)} />
+          <Field label="Phone" value={si.phones?.[0] || ""} onChange={(v) => updateContact("phones", v)} />
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function PoliciesTab({ data, updatePolicy }: { data: StoreData; updatePolicy: (k: keyof Policies, v: string) => void }) {
+  const [tab, setTab] = useState<keyof Policies>("shipping");
+  const pol = data.policies || {};
+  const KEYS: { id: keyof Policies; label: string }[] = [{ id: "shipping", label: "Shipping" }, { id: "returns", label: "Returns" }, { id: "privacy", label: "Privacy" }, { id: "terms", label: "Terms" }];
+  return (
+    <Section title="Store policies" hint="The four legal pages buyers can read. Basic HTML supported (h2, p, ul, li). Applied on Save.">
+      <div className="mb-3 flex flex-wrap gap-2">
+        {KEYS.map((k) => (
+          <button key={k.id} onClick={() => setTab(k.id)} className={cn("rounded-full border px-3 py-1.5 text-[12px] font-semibold", tab === k.id ? "border-transparent bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/60")}>{k.label}</button>
+        ))}
+      </div>
+      <textarea value={pol[tab] || ""} onChange={(e) => updatePolicy(tab, e.target.value)} rows={14} placeholder="<h2>Shipping Policy</h2><p>…</p>" className={cn(F, "resize-y font-mono !text-[12px] leading-relaxed")} />
+    </Section>
   );
 }
 
