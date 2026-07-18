@@ -521,6 +521,29 @@ export function useMedia(sessionId: string | null, live: boolean) {
 
   const dismissAttention = useCallback(() => setState((s) => ({ ...s, needsAttention: false })), []);
 
+  // Carry the pre-join screen's choices in: once media is live, turn the mic/camera
+  // on if the guest left them on before joining. One-shot — the flags are cleared
+  // immediately so the host studio (which never sets them) is never affected, and a
+  // later reconnect doesn't re-toggle.
+  const carriedPrejoin = useRef(false);
+  useEffect(() => {
+    if (!state.enabled || carriedPrejoin.current) return;
+    carriedPrejoin.current = true;
+    let wantCam: string | null = null, wantMic: string | null = null;
+    try {
+      wantCam = localStorage.getItem("tg-want-cam");
+      wantMic = localStorage.getItem("tg-want-mic");
+      localStorage.removeItem("tg-want-cam");
+      localStorage.removeItem("tg-want-mic");
+    } catch {}
+    if (wantCam !== "1" && wantMic !== "1") return;
+    const t = setTimeout(() => {
+      if (wantMic === "1" && !producers.current.has("mic")) void toggleMic();
+      if (wantCam === "1" && !producers.current.has("cam")) void toggleCam();
+    }, 700);
+    return () => clearTimeout(t);
+  }, [state.enabled, toggleCam, toggleMic]);
+
   const toggleScreen = useCallback(async (): Promise<string | null> => {
     if (producers.current.has("screen")) {
       await unpublish("screen");

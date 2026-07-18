@@ -37,7 +37,7 @@ function json<T>(raw: string | null | undefined, fallback: T): T {
 }
 
 /** Brand Kit `colors` is a JSON object/array of hex values — flatten to a list. */
-function brandColorList(colors: string | null | undefined): string[] {
+export function brandColorList(colors: string | null | undefined): string[] {
   if (!colors) return [];
   try {
     const parsed = JSON.parse(colors) as unknown;

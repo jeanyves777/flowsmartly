@@ -205,7 +205,11 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     img.crossOrigin = "anonymous"; // keep the canvas untainted so captureStream works
     img.onload = () => resolve(img);
     img.onerror = reject;
-    img.src = url;
+    // A cross-origin image (e.g. an S3 background) would TAINT the canvas —
+    // captureStream then goes permanently black. Route it through our same-origin
+    // proxy so it decodes clean. Data URLs / same-origin URLs pass through.
+    const sameOrigin = typeof window !== "undefined" && url.startsWith(window.location.origin);
+    img.src = /^https?:\/\//i.test(url) && !sameOrigin ? `/api/proxy?url=${encodeURIComponent(url)}` : url;
   });
 }
 
