@@ -283,7 +283,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
                 disabled={!session}
                 title={label}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11.5px] font-bold transition disabled:opacity-40 sm:px-2.5",
+                  "inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-[11.5px] font-bold transition disabled:opacity-40 max-md:min-w-[38px]",
                   mode === m ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -298,10 +298,10 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
             ))}
           </div>
           {session ? <SessionMeta session={session} /> : null}
-          <button onClick={() => setListOpen(true)} title="Sessions" className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[12px] font-semibold hover:border-brand-500 sm:px-2.5">
+          <button onClick={() => setListOpen(true)} title="Sessions" className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border px-2.5 py-2 text-[12px] font-semibold hover:border-brand-500 max-md:min-w-[38px]">
             <FolderOpen className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Sessions</span>
           </button>
-          <button onClick={() => setBriefOpen(true)} title="New session" className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-1.5 text-[12px] font-semibold text-white sm:px-2.5">
+          <button onClick={() => setBriefOpen(true)} title="New session" className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2.5 py-2 text-[12px] font-semibold text-white max-md:min-w-[38px]">
             <Sparkles className="h-3.5 w-3.5" /> <span className="hidden sm:inline">New session</span>
           </button>
         </div>,
