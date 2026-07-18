@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
 import { useMedia, type RemoteStream, type DeviceOption } from "./use-media";
 import { InviteSheet } from "./invite-sheet";
+import { VideoSheet } from "./video-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
 import type { BoardItem, BoardTool, StageSource, TrainingParticipantDTO, TrainingSessionDTO } from "@/lib/training/types";
 
@@ -125,7 +126,8 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
   const [toolDock, setToolDock] = useState(false); // mobile overlay dock
   const [rosterOpen, setRosterOpen] = useState(false); // mobile roster drawer
   const [sheet, setSheet] = useState<SheetKey>(null);
-  const [devMenu, setDevMenu] = useState<null | "audio" | "video">(null); // anchored device popover
+  const [devMenu, setDevMenu] = useState<null | "audio">(null); // anchored mic/speaker popover
+  const [videoSheet, setVideoSheet] = useState(false); // camera + virtual background
   const [moreMenu, setMoreMenu] = useState(false);
   const [hideItems, setHideItems] = useState(false);
   const audioBtnRef = useRef<HTMLDivElement>(null);
@@ -371,7 +373,7 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
               Icon={me.camOn ? Video : VideoOff}
               danger={!me.camOn}
             />
-            {media.enabled ? <Caret onClick={() => setDevMenu((v) => (v === "video" ? null : "video"))} title="Camera devices" /> : null}
+            {media.enabled ? <Caret onClick={() => setVideoSheet(true)} title="Camera & background" /> : null}
           </div>
           {canShareScreen(me, session) ? (
             <Ctl
@@ -432,13 +434,8 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
           />
         </AnchoredMenu>
       ) : null}
-      {devMenu === "video" ? (
-        <AnchoredMenu anchorRef={videoBtnRef} onClose={() => setDevMenu(null)} width={260}>
-          <DeviceGroups
-            onClose={() => setDevMenu(null)}
-            groups={[{ label: "Camera", Icon: Video, items: media.cameras, selected: media.camId, onPick: media.pickCamera }]}
-          />
-        </AnchoredMenu>
+      {videoSheet ? (
+        <VideoSheet media={media} session={session} onClose={() => setVideoSheet(false)} />
       ) : null}
       {moreMenu ? (
         <AnchoredMenu anchorRef={moreBtnRef} onClose={() => setMoreMenu(false)}>
