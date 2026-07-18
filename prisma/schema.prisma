@@ -6232,6 +6232,7 @@ model TrainingSession {
   openShare   Boolean @default(false)
   openMic     Boolean @default(true)
   locked      Boolean @default(false)
+  hideBoard   Boolean @default(false) // host hid all marks for the WHOLE room (synced to attendees)
 
   // live stage state
   penHolderId   String? // TrainingParticipant.id holding the pen (presenter-authoritative)

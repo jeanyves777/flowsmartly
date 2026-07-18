@@ -170,6 +170,8 @@ export interface TrainingSessionDTO {
   openShare: boolean;
   openMic: boolean;
   locked: boolean;
+  /** host hid all board marks for the whole room (synced to attendees) */
+  hideBoard: boolean;
 
   penHolderId: string | null;
   stageSource: StageSource;

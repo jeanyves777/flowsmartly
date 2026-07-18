@@ -37,6 +37,7 @@ interface PatchBody {
   openShare?: boolean;
   openMic?: boolean;
   locked?: boolean;
+  hideBoard?: boolean;
   joinHeadline?: string | null;
   joinMessage?: string | null;
   joinLogoUrl?: string | null;
@@ -68,7 +69,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (typeof b.seats === "number") data.seats = Math.min(200, Math.max(1, b.seats));
   if (b.startsAt !== undefined) data.startsAt = b.startsAt ? new Date(b.startsAt) : null;
   if (b.access) data.access = b.access;
-  for (const k of ["waitingRoom", "recording", "transcript", "openDraw", "openShare", "openMic", "locked", "joinCollectEmail"] as const) {
+  for (const k of ["waitingRoom", "recording", "transcript", "openDraw", "openShare", "openMic", "locked", "hideBoard", "joinCollectEmail"] as const) {
     if (typeof b[k] === "boolean") data[k] = b[k];
   }
   if (b.joinHeadline !== undefined) data.joinHeadline = b.joinHeadline ? String(b.joinHeadline).slice(0, 120) : null;
@@ -97,6 +98,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         waitingRoom: dto.waitingRoom,
         recording: dto.recording,
         locked: dto.locked,
+        hideBoard: dto.hideBoard,
         title: dto.title,
       },
     });

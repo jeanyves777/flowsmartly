@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { checkInviteToken } from "@/lib/training/access";
-import { mintGuestToken, guestCookieName } from "@/lib/training/guest";
+import { mintGuestToken, guestCookieName, getTrainingActor } from "@/lib/training/guest";
 import type { ParticipantRole } from "@/lib/training/types";
 
 const err = (message: string, status = 400) =>
@@ -120,6 +120,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (room.access === "invite") {
     // invite-only: the host expects a specific account, so require login
     return NextResponse.json({ success: false, error: { message: "Please log in to join" } }, { status: 401 });
+  }
+
+  // A guest who resubmits (reload, double-tap, re-enter their name) already holds
+  // this room's cookie — reuse that seat instead of stacking a second WAITING
+  // row that would leave a lingering "waiting to join" prompt after admitting.
+  const existing = await getTrainingActor(room.id);
+  if (existing?.isGuest && (existing.state === "WAITING" || existing.state === "ADMITTED")) {
+    return NextResponse.json({ success: true, data: { sessionId: room.id, state: existing.state, guest: true } });
   }
 
   const body = (await request.json().catch(() => ({}))) as { name?: string; email?: string };
