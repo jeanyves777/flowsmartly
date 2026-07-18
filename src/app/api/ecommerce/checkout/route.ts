@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { calculatePlatformFee } from "@/lib/ecommerce/platform-fees";
+import { applyCoupon } from "@/lib/ecommerce/coupons";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -13,7 +14,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { storeSlug, items, customerEmail, customerName } = body;
+    const { storeSlug, items, customerEmail, customerName, couponCode } = body;
 
     if (!storeSlug || !items || !customerEmail) {
       return NextResponse.json(
@@ -90,9 +91,30 @@ export async function POST(request: NextRequest) {
     // TODO: Add shipping and tax calculation here
     const shippingCents = 0;
     const taxCents = 0;
-    const totalCents = subtotalCents + shippingCents + taxCents;
 
-    // Calculate platform fee
+    // Apply a discount code if one was provided and it validates. When absent or
+    // invalid, discountCents stays 0 and checkout behaves exactly as before.
+    let discountCents = 0;
+    let appliedCode: string | null = null;
+    const stripeDiscounts: Stripe.Checkout.SessionCreateParams.Discount[] = [];
+    if (couponCode) {
+      const applied = await applyCoupon(store.id, String(couponCode), subtotalCents, shippingCents);
+      if (!("error" in applied) && applied.discountCents > 0) {
+        discountCents = Math.min(subtotalCents, applied.discountCents);
+        appliedCode = applied.coupon.code;
+        const stripeCoupon = await stripe.coupons.create({
+          amount_off: discountCents,
+          currency: store.currency.toLowerCase(),
+          duration: "once",
+          name: appliedCode,
+        });
+        stripeDiscounts.push({ coupon: stripeCoupon.id });
+      }
+    }
+
+    const totalCents = Math.max(0, subtotalCents + shippingCents + taxCents - discountCents);
+
+    // Calculate platform fee on the discounted total
     const feeBreakdown = calculatePlatformFee(
       totalCents,
       store.platformFeePercent
@@ -116,6 +138,8 @@ export async function POST(request: NextRequest) {
         subtotalCents,
         shippingCents,
         taxCents,
+        discountCents,
+        couponCode: appliedCode,
         totalCents,
         platformFeeCents: feeBreakdown.platformFeeCents,
         storeOwnerAmountCents: feeBreakdown.storeOwnerAmountCents,
@@ -131,6 +155,7 @@ export async function POST(request: NextRequest) {
       mode: "payment",
       customer_email: customerEmail,
       line_items: lineItems,
+      ...(stripeDiscounts.length ? { discounts: stripeDiscounts } : {}),
       payment_intent_data: {
         application_fee_amount: feeBreakdown.platformFeeCents,
         transfer_data: {

@@ -141,6 +141,13 @@ export async function handleEcommercePaymentSucceeded(paymentIntent: Stripe.Paym
         paymentBrand: brand,
       },
     });
+    // Count the discount-code redemption now that the order is actually paid.
+    if (updated.couponCode) {
+      await prisma.storeCoupon.updateMany({
+        where: { storeId: updated.storeId, code: updated.couponCode },
+        data: { usageCount: { increment: 1 } },
+      }).catch(() => {});
+    }
     await bumpStoreStats(updated.storeId, updated.storeOwnerAmountCents || updated.totalCents, updated.platformFeeCents);
     await fireOrderEmails(updated.id);
     return;

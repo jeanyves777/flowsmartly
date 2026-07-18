@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
 import Image from "next/image";
-import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users, Palette, LayoutGrid, FolderTree, BarChart3, Settings, Landmark } from "lucide-react";
+import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users, Palette, LayoutGrid, FolderTree, BarChart3, Settings, Landmark, Ticket } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { StoreCallToAction } from "./store-cta";
 import { StoreStudio } from "./store-studio";
@@ -13,6 +13,7 @@ import { StoreShipping } from "./store-shipping";
 import { StorePayments } from "./store-payments";
 import { StoreAnalytics } from "./store-analytics";
 import { StoreSettings } from "./store-settings";
+import { StoreDiscounts } from "./store-discounts";
 import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
@@ -55,7 +56,7 @@ const NEXT_STATUS: Record<string, { label: string; to: string }> = {
 // Statuses a seller can cancel from (matches server-side allowedTransitions → CANCELLED).
 const CANCELLABLE = new Set(["PENDING", "CONFIRMED", "PROCESSING"]);
 
-type Section = "overview" | "products" | "orders" | "categories" | "shipping" | "payments" | "analytics" | "settings";
+type Section = "overview" | "products" | "orders" | "categories" | "discounts" | "shipping" | "payments" | "analytics" | "settings";
 
 const ORDER_STATUS_FILTERS = ["PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"];
 const PAYMENT_STATUS_FILTERS = ["pending", "paid", "failed", "refunded"];
@@ -371,6 +372,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
     { id: "products", label: "Products", icon: Package, count: productCount },
     { id: "orders", label: "Orders", icon: ShoppingBag, count: orderCount },
     { id: "categories", label: "Categories", icon: FolderTree },
+    { id: "discounts", label: "Discounts", icon: Ticket },
     { id: "shipping", label: "Shipping", icon: Truck },
     { id: "payments", label: "Payments & payouts", icon: Landmark },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
@@ -456,6 +458,8 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
           <StoreOverview currency={cur} orders={orders} products={products} stats={stats} onSection={(s) => setSection(s as Section)} />
         ) : section === "categories" ? (
           <StoreCategories />
+        ) : section === "discounts" ? (
+          <StoreDiscounts currency={cur} />
         ) : section === "shipping" ? (
           <StoreShipping currency={cur} />
         ) : section === "payments" ? (
