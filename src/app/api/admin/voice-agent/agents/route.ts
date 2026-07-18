@@ -6,9 +6,10 @@
  * MCP relay URL, then approves with the number + agent id. Approval activates
  * the agent and notifies the user. Nothing is charged before this.
  *
- * GET  → open requests, each with everything needed to build the console agent
- *        (business, greeting, skills, menu, voice) + a ready MCP URL + suggested
- *        console instructions to paste.
+ * GET  → open requests, each with a complete console BUILD SHEET (Configuration /
+ *        Speech / Deployment) that mirrors every field of the xAI console —
+ *        auto-filled from the tenant's profile + brief — plus the MCP relay URL
+ *        so setup is pure copy-paste.
  * POST → approve: attach the number + xai agent id → LIVE → notify.
  */
 
@@ -17,7 +18,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminSession } from "@/lib/admin/auth";
 import { auditAdmin } from "@/lib/audit/logger";
 import { prisma } from "@/lib/db/client";
-import { DEFAULT_ORDER_CONFIG, SKILL_BY_KEY, fmtPrice, type AgentSkill, type MenuItem, type OrderConfig } from "@/lib/voice-agent/types";
+import { toSessionAgent } from "@/lib/voice-agent/agent-sync";
+import { buildInstructions } from "@/lib/voice-agent/session-config";
+import {
+  DEFAULT_ORDER_CONFIG,
+  LANGUAGE_HINTS,
+  SKILL_BY_KEY,
+  fmtPrice,
+  type AgentSkill,
+  type MenuItem,
+  type OrderConfig,
+} from "@/lib/voice-agent/types";
 
 function fail(message: string, status = 400) {
   return NextResponse.json({ success: false, error: { message } }, { status });
@@ -31,9 +42,21 @@ const j = <T,>(v: unknown, f: T): T => {
   }
 };
 
-/** The instructions an admin pastes into the console agent they build. */
-const CONSOLE_INSTRUCTIONS =
-  "You are a business phone agent. At the very start of every call, call get_business_profile and follow exactly what it returns — your greeting, who the business is, your hours, and your rules. Use the provided tools for every booking, order, lead, message or transfer. Never invent a price or a fact that isn't in your profile. Keep replies short and natural — this is a live phone call.";
+// The MCP relay tool each skill exposes to the console agent. These ride the
+// Custom MCP connector, so the admin never hand-defines them — adding the
+// connector is enough to give the agent every business action.
+const SKILL_TO_MCP_TOOL: Record<string, string> = {
+  book: "book_appointment",
+  lead: "save_lead",
+  msg: "take_message",
+  takeorder: "place_order",
+  order: "check_order",
+  deposit: "send_payment_link",
+  transfer: "transfer_to_human",
+};
+
+const languageLabel = (code: string) =>
+  LANGUAGE_HINTS.find((l) => l.code === code)?.label || (code === "auto" ? "Auto-detect" : code);
 
 export async function GET() {
   const admin = await getAdminSession();
@@ -51,9 +74,28 @@ export async function GET() {
     });
 
     const rows = requests.map((a) => {
-      const skills = j<AgentSkill[]>(a.skills, []).filter((s) => s.enabled);
+      const enabled = j<AgentSkill[]>(a.skills, []).filter((s) => s.enabled);
       const order = j<OrderConfig>(a.orderConfig, DEFAULT_ORDER_CONFIG);
       const menu = (order.items || []).map((m: MenuItem) => `${m.name} — ${fmtPrice(m.priceCents)}`);
+
+      // The full, business-specific brain — built from the SAME source a live
+      // call uses, so the console agent and a per-call session can't drift.
+      const sessionAgent = toSessionAgent(a as unknown as Record<string, unknown>);
+      const instructions = buildInstructions(sessionAgent);
+
+      const pronunciations = j<Record<string, string>>(a.pronunciations, {});
+      const keyterms = j<string[]>(a.keyterms, []);
+      const mcpUrl = `${appUrl.replace(/\/$/, "")}/api/voice-agent/mcp/${a.mcpToken}`;
+
+      // Tools that ride the MCP connector (auto-exposed once it's added).
+      const connectorTools = [
+        "get_business_profile",
+        ...enabled.map((s) => SKILL_TO_MCP_TOOL[s.key]).filter(Boolean),
+      ];
+      // Native console tools the admin adds by hand: end_call is always needed;
+      // transfer_call is offered when an escalation number is set.
+      const nativeTools = ["end_call", ...(a.escalateTo ? ["transfer_call"] : [])];
+
       return {
         id: a.id,
         requestedAt: a.requestedAt,
@@ -65,11 +107,38 @@ export async function GET() {
         voice: a.voiceLabel,
         voiceId: a.voiceId,
         escalateTo: a.escalateTo,
-        skills: skills.map((s) => SKILL_BY_KEY[s.key]?.title || s.key),
+        skills: enabled.map((s) => SKILL_BY_KEY[s.key]?.title || s.key),
         menu,
-        // Everything the admin pastes into the console agent:
-        mcpUrl: `${appUrl.replace(/\/$/, "")}/api/voice-agent/mcp/${a.mcpToken}`,
-        consoleInstructions: CONSOLE_INSTRUCTIONS,
+        mcpUrl,
+
+        // ── The console build sheet, tab by tab ──────────────────────────────
+        console: {
+          configuration: {
+            name: a.name,
+            instructions,
+            welcomeOn: true,
+            greeting: a.greeting || "",
+            callerCanInterrupt: a.allowInterrupt,
+            timezone: a.timezone || "UTC",
+            nativeTools,
+            connector: {
+              type: "Custom MCP server",
+              url: mcpUrl,
+              exposes: connectorTools,
+            },
+          },
+          speech: {
+            voice: a.voiceLabel,
+            language: languageLabel(a.languageHint || "auto"),
+            speakingSpeed: `${(a.speakingSpeed ?? 1).toFixed(1)}×`,
+            pronunciations: Object.entries(pronunciations).map(([word, say]) => ({ word, say })),
+            keyterms,
+            followUpAfterSilence: (a.idleTimeoutMs ?? 0) > 0,
+          },
+          deployment: {
+            escalateTo: a.escalateTo || null,
+          },
+        },
       };
     });
 
