@@ -17,7 +17,7 @@ import {
   VideoOff, Circle, Users, LogOut, Paperclip, ChevronLeft, ChevronRight, Star, X,
   Minus, MoveUpRight, Triangle, Diamond, ChevronDown, ChevronUp, PanelLeftClose,
   PanelLeftOpen, UserPlus, Eye, EyeOff, MoreHorizontal, Mail, Calendar, MessageSquare,
-  Send, Link2, Check, Download, Sparkles, Square as StopIcon, Save,
+  Send, Link2, Check, Download, Square as StopIcon, Save, Volume2, Pause, Play,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
@@ -113,7 +113,7 @@ interface Props {
   onEnd: () => void;
 }
 
-type SheetKey = null | "audio" | "video" | "more" | "invite";
+type SheetKey = null | "more" | "invite";
 
 export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onUpdate, onPing, onUndo, onClear, act, patch, onLeave, onManage, onEnd }: Props) {
   const [tool, setTool] = useState<BoardTool>("pen");
@@ -123,6 +123,7 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
   const [toolDock, setToolDock] = useState(false); // mobile overlay dock
   const [rosterOpen, setRosterOpen] = useState(false); // mobile roster drawer
   const [sheet, setSheet] = useState<SheetKey>(null);
+  const [devMenu, setDevMenu] = useState<null | "audio" | "video">(null); // anchored device popover
   const [hideItems, setHideItems] = useState(false);
 
   // Camera/mic/screen + device menus. Optional: with no media server this
@@ -348,7 +349,16 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
               Icon={me.micOn ? Mic : MicOff}
               danger={!me.micOn}
             />
-            {media.enabled ? <Caret onClick={() => setSheet("audio")} title="Audio devices" /> : null}
+            {media.enabled ? <Caret onClick={() => setDevMenu((v) => (v === "audio" ? null : "audio"))} title="Audio devices" /> : null}
+            {devMenu === "audio" ? (
+              <DeviceMenu
+                onClose={() => setDevMenu(null)}
+                groups={[
+                  { label: "Microphone", Icon: Mic, items: media.mics, selected: media.micId, onPick: media.pickMic },
+                  { label: "Speaker", Icon: Volume2, items: media.speakers, selected: media.spkId, onPick: media.pickSpeaker },
+                ]}
+              />
+            ) : null}
           </div>
           {/* cam + device caret */}
           <div className="relative shrink-0">
@@ -364,7 +374,13 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
               Icon={me.camOn ? Video : VideoOff}
               danger={!me.camOn}
             />
-            {media.enabled ? <Caret onClick={() => setSheet("video")} title="Camera & background" /> : null}
+            {media.enabled ? <Caret onClick={() => setDevMenu((v) => (v === "video" ? null : "video"))} title="Camera devices" /> : null}
+            {devMenu === "video" ? (
+              <DeviceMenu
+                onClose={() => setDevMenu(null)}
+                groups={[{ label: "Camera", Icon: Video, items: media.cameras, selected: media.camId, onPick: media.pickCamera }]}
+              />
+            ) : null}
           </div>
           {canShareScreen(me, session) ? (
             <Ctl
@@ -412,21 +428,6 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
       </aside>
 
       {/* ---- sheets ---- */}
-      {sheet === "audio" ? (
-        <DeviceSheet
-          title="Audio" sub="Pick the microphone and speaker for this room." onClose={() => setSheet(null)}
-          groups={[
-            { label: "Microphone", Icon: Mic, items: media.mics, selected: media.micId, onPick: media.pickMic },
-            { label: "Speaker", Icon: Users, items: media.speakers, selected: media.spkId, onPick: (id) => media.pickSpeaker(id) },
-          ]}
-        />
-      ) : null}
-      {sheet === "video" ? (
-        <DeviceSheet
-          title="Camera & background" sub="Choose your camera. Virtual backgrounds are coming next." onClose={() => setSheet(null)}
-          groups={[{ label: "Camera", Icon: Video, items: media.cameras, selected: media.camId, onPick: media.pickCamera }]}
-        />
-      ) : null}
       {sheet === "more" ? (
         <MoreSheet session={session} host={host} patch={patch} onManage={onManage} onClose={() => setSheet(null)} />
       ) : null}
@@ -574,32 +575,37 @@ function Sheet({ title, sub, onClose, children }: { title: string; sub?: string;
   );
 }
 
-/* --------------------------------------------------------------- device sheet */
-function DeviceSheet({ title, sub, onClose, groups }: {
-  title: string; sub?: string; onClose: () => void;
+/* ------------------------------------------------- device menu (anchored popover) */
+/** A compact Zoom-style dropdown that opens UPWARD from the caret — same on
+ *  desktop and mobile, so it never becomes a full-width bottom sheet. */
+function DeviceMenu({ onClose, groups }: {
+  onClose: () => void;
   groups: { label: string; Icon: typeof Mic; items: DeviceOption[]; selected: string | null; onPick: (id: string) => void }[];
 }) {
   return (
-    <Sheet title={title} sub={sub} onClose={onClose}>
-      {groups.map((g) => (
-        <div key={g.label}>
-          <div className="mx-1.5 mb-1 mt-3 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wide text-muted-foreground">
-            <g.Icon className="h-3.5 w-3.5" /> {g.label}
+    <>
+      <div className="fixed inset-0 z-[35]" onClick={onClose} />
+      <div className="absolute bottom-full left-0 z-[36] mb-2 w-[260px] max-w-[80vw] overflow-hidden rounded-2xl border border-border bg-card p-1.5 shadow-2xl">
+        {groups.map((g) => (
+          <div key={g.label}>
+            <div className="mx-1.5 mb-0.5 mt-1.5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">
+              <g.Icon className="h-3 w-3" /> {g.label}
+            </div>
+            {g.items.length === 0 ? (
+              <p className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">Turn your {g.label.toLowerCase()} on to see the choices.</p>
+            ) : g.items.map((d, i) => {
+              const isSel = g.selected ? g.selected === d.deviceId : i === 0;
+              return (
+                <button key={d.deviceId || i} onClick={() => { g.onPick(d.deviceId); onClose(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted">
+                  <Check className={cn("h-4 w-4 shrink-0 text-brand-400", !isSel && "invisible")} />
+                  <span className={cn("truncate text-[12.5px] font-semibold", isSel && "text-brand-400")}>{d.label}</span>
+                </button>
+              );
+            })}
           </div>
-          {g.items.length === 0 ? (
-            <p className="px-3 py-2 text-[12px] text-muted-foreground">Turn your {g.label.toLowerCase()} on once to see the choices.</p>
-          ) : g.items.map((d, i) => {
-            const isSel = g.selected ? g.selected === d.deviceId : i === 0;
-            return (
-              <button key={d.deviceId || i} onClick={() => { g.onPick(d.deviceId); onClose(); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-muted">
-                <Check className={cn("h-5 w-5 shrink-0 text-brand-400", !isSel && "invisible")} />
-                <span className={cn("text-[14px] font-semibold", isSel && "text-brand-400")}>{d.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      ))}
-    </Sheet>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -631,6 +637,7 @@ function RecordingLayer({ recording, host, patch }: { recording: boolean; host: 
   const [secs, setSecs] = useState(0);
   const [confirmStop, setConfirmStop] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [name, setName] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevRec = useRef(recording); // seed with the value at mount
@@ -652,18 +659,19 @@ function RecordingLayer({ recording, host, patch }: { recording: boolean; host: 
       return () => clearInterval(iv);
     }
     if (recording && was) { setPhase((p) => (p === "idle" ? "live" : p)); return; }
-    if (!recording) setPhase("idle");
+    if (!recording) { setPhase("idle"); setPaused(false); }
   }, [recording]);
 
+  // The timer runs while live and NOT paused.
   useEffect(() => {
-    if (phase === "live") {
+    if (phase === "live" && !paused) {
       timer.current = setInterval(() => setSecs((s) => s + 1), 1000);
       return () => { if (timer.current) clearInterval(timer.current); };
     }
-  }, [phase]);
+  }, [phase, paused]);
 
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-  const stop = () => { setConfirmStop(false); setName(`${session_name()} — ${today()}`); setSaveOpen(true); void patch({ recording: false }); };
+  const stop = () => { setConfirmStop(false); setPaused(false); setName(`${session_name()} — ${today()}`); setSaveOpen(true); void patch({ recording: false }); };
 
   return (
     <>
@@ -677,13 +685,23 @@ function RecordingLayer({ recording, host, patch }: { recording: boolean; host: 
       ) : null}
 
       {phase === "live" ? (
-        <button
-          onClick={() => host && setConfirmStop(true)}
-          className="absolute left-1/2 top-3 z-[16] inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-rose-500/55 bg-rose-500/20 px-3.5 py-1.5 text-[12.5px] font-extrabold text-rose-200 shadow-lg"
-        >
-          <span className="h-2 w-2 animate-pulse rounded-full bg-rose-500" /> REC <span className="min-w-[42px] text-center tabular-nums">{fmt(secs)}</span>
-          {host ? <span className="grid h-[22px] w-[22px] place-items-center rounded-md bg-rose-500/30 text-white"><StopIcon className="h-3 w-3 fill-current" /></span> : null}
-        </button>
+        <div className={cn(
+          "absolute left-1/2 top-3 z-[16] inline-flex -translate-x-1/2 items-center gap-2 rounded-full border px-3 py-1.5 text-[12.5px] font-extrabold shadow-lg",
+          paused ? "border-amber-500/55 bg-amber-500/20 text-amber-200" : "border-rose-500/55 bg-rose-500/20 text-rose-200",
+        )}>
+          <span className={cn("h-2 w-2 rounded-full", paused ? "bg-amber-400" : "animate-pulse bg-rose-500")} />
+          {paused ? "PAUSED" : "REC"} <span className="min-w-[42px] text-center tabular-nums">{fmt(secs)}</span>
+          {host ? (
+            <>
+              <button onClick={() => setPaused((p) => !p)} title={paused ? "Resume recording" : "Pause recording"} className="grid h-[22px] w-[22px] place-items-center rounded-md bg-white/15 text-white transition hover:bg-white/30">
+                {paused ? <Play className="h-3 w-3 fill-current" /> : <Pause className="h-3 w-3 fill-current" />}
+              </button>
+              <button onClick={() => setConfirmStop(true)} title="Stop recording" className="grid h-[22px] w-[22px] place-items-center rounded-md bg-white/15 text-white transition hover:bg-white/30">
+                <StopIcon className="h-3 w-3 fill-current" />
+              </button>
+            </>
+          ) : null}
+        </div>
       ) : null}
 
       {confirmStop ? (
