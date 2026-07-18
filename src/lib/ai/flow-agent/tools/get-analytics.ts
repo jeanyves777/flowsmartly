@@ -1,5 +1,7 @@
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db/client";
 import type { FlowAgentTool } from "../registry";
+import { analyticsDashboardView } from "@/lib/agent-views/templates";
 
 /**
  * get_analytics — a READ-ONLY snapshot of the user's key numbers across leads,
@@ -10,11 +12,16 @@ export const getAnalytics: FlowAgentTool = {
   name: "get_analytics",
   description:
     "READ a snapshot of the user's performance across the whole account — leads (total/enriched), sales pipeline (open/won/lost + won value), published + scheduled posts, email/SMS campaigns (sent/opens/clicks), ad performance (impressions/clicks/spend), and store (orders/revenue). Use to answer 'how am I doing / what are my numbers?'. Lifetime totals. Read-only.",
-  input_schema: { type: "object", properties: {} },
+  input_schema: {
+    type: "object",
+    properties: {
+      asView: { type: "boolean", description: "Show the numbers as a KPI dashboard card in the chat (default true). Pass false only if you're reading a single number internally and won't present it." },
+    },
+  },
   plans: null,
   costKey: "AGENT_TOOL_CALL_BASE",
   mutating: false,
-  handler: async (_input, ctx) => {
+  handler: async (input, ctx) => {
     try {
       const uid = ctx.userId;
       const store = await prisma.store.findUnique({ where: { userId: uid }, select: { id: true, currency: true } });
@@ -42,16 +49,25 @@ export const getAnalytics: FlowAgentTool = {
       ]);
       const cur = store?.currency ?? "USD";
       const money = (c: number) => `${cur} ${(c / 100).toFixed(2)}`;
+      const snapshot = {
+        leads: { total: leadsTotal, enriched: leadsEnriched, unenriched: leadsTotal - leadsEnriched },
+        pipeline: { open: dealsOpen, won: dealsWon, lost: dealsLost, wonValue: `${cur} ${(wonAgg._sum.value ?? 0).toFixed(2)}` },
+        content: { published: postsPublished, scheduled: postsScheduled },
+        email_sms: { campaignsSent: campAgg._count._all, recipients: campAgg._sum.sentCount ?? 0, opens: campAgg._sum.openCount ?? 0, clicks: campAgg._sum.clickCount ?? 0 },
+        ads: { campaigns: adAgg._count._all, impressions: adAgg._sum.impressions ?? 0, clicks: adAgg._sum.clicks ?? 0, spend: money(adAgg._sum.spentCents ?? 0) },
+        store: store ? { orders, pending: ordersPending, revenue: money(revenueAgg?._sum.totalCents ?? 0) } : null,
+      };
+      // Render a KPI dashboard inline in the chat unless the agent opted out.
+      if (input.asView !== false) {
+        ctx.emit({ type: "agent_view", requestId: randomUUID(), spec: analyticsDashboardView(snapshot) });
+      }
       return {
         ok: true,
         data: {
-          leads: { total: leadsTotal, enriched: leadsEnriched, unenriched: leadsTotal - leadsEnriched },
-          pipeline: { open: dealsOpen, won: dealsWon, lost: dealsLost, wonValue: `${cur} ${(wonAgg._sum.value ?? 0).toFixed(2)}` },
-          content: { published: postsPublished, scheduled: postsScheduled },
-          email_sms: { campaignsSent: campAgg._count._all, recipients: campAgg._sum.sentCount ?? 0, opens: campAgg._sum.openCount ?? 0, clicks: campAgg._sum.clickCount ?? 0 },
-          ads: { campaigns: adAgg._count._all, impressions: adAgg._sum.impressions ?? 0, clicks: adAgg._sum.clicks ?? 0, spend: money(adAgg._sum.spentCents ?? 0) },
-          store: store ? { orders, pending: ordersPending, revenue: money(revenueAgg?._sum.totalCents ?? 0) } : null,
-          userMessage: "Account snapshot ready — summarize the highlights for the user in one or two lines.",
+          ...snapshot,
+          userMessage: input.asView !== false
+            ? "A KPI dashboard is ALREADY rendered in the chat — don't repeat the raw numbers as text; add one or two lines of insight/highlights."
+            : "Account snapshot ready — summarize the highlights for the user in one or two lines.",
         },
       };
     } catch (e) {

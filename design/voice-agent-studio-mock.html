@@ -1,0 +1,886 @@
+<title>Voice Agent Studio — an agent that answers your phone</title>
+<style>
+  /* Tokens mirror tailwind.config.ts EXACTLY (not the older mocks):
+     brand = sky #0ea5e9 (NOT indigo #6366f1 — older mocks are wrong). */
+  :root{
+    --ground:#0b0b0f;--card:#15151c;--card2:#1b1b23;--border:#2a2a33;
+    --brand:#0ea5e9;--brand4:#38bdf8;--brand6:#0284c7;
+    --violet:#8b5cf6;--violet4:#a78bfa;--amber:#f59e0b;--teal:#06b6d4;
+    --emerald:#10b981;--rose:#f43f5e;
+    --text:#ececf1;--muted:#9a9aa6;--dim:#6b6b78;
+  }
+  *{box-sizing:border-box}html,body{margin:0;height:100%}
+  body{background:var(--ground);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+  .app{height:100vh;display:flex;flex-direction:column}
+
+  /* ---------- top bar (mirrors FocusedView header + #fv-header-slot portal) ---------- */
+  .top{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--border);background:rgba(11,11,15,.9);z-index:30;flex:none}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff;font-size:15px}
+  .brand b{font-size:13.5px;font-weight:700;display:block;line-height:1.1}.brand span{font-size:11px;color:var(--muted)}
+  .spacer{flex:1}
+  .stat{font-size:11.5px;color:var(--muted)}.stat b{color:var(--emerald)}
+  .btn{display:inline-flex;align-items:center;gap:6px;border-radius:9px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text)}
+  .btn:hover{border-color:var(--brand)}
+  .btn.pri{border:none;color:#fff;background:linear-gradient(135deg,var(--brand),var(--violet))}
+  .btn.sm{padding:5px 9px;font-size:11px}
+  .livepill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px 4px 8px;font-size:11px;font-weight:800;border:1px solid rgba(16,185,129,.4);background:rgba(16,185,129,.12);color:var(--emerald)}
+  .livepill i{width:6px;height:6px;border-radius:50%;background:var(--emerald);animation:blink 1.6s infinite}
+  @keyframes blink{50%{opacity:.25}}
+  .livepill.off{border-color:var(--border);background:transparent;color:var(--muted)}
+  .livepill.off i{background:var(--muted);animation:none}
+
+  /* mock-only view switcher */
+  .vsw{display:flex;gap:2px;border:1px solid var(--border);border-radius:999px;padding:3px;background:var(--card)}
+  .vsw button{border:none;background:transparent;color:var(--muted);font:600 11px/1 inherit;padding:6px 12px;border-radius:999px;cursor:pointer}
+  .vsw button.on{background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff}
+  .mockonly{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);border:1px dashed var(--border);border-radius:6px;padding:3px 6px}
+
+  /* ---------- studio root: relative, in-app modals live INSIDE this ---------- */
+  .studio{flex:1;position:relative;overflow:hidden}
+  .canvas{position:absolute;inset:0;overflow:auto;cursor:grab;
+    background:radial-gradient(circle at 1px 1px,rgba(130,130,150,.16) 1px,transparent 0) 0 0/22px 22px,var(--ground)}
+  .canvas:active{cursor:grabbing}
+  .board{position:relative;width:2200px;height:1050px}
+  svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+
+  /* ---------- nodes ---------- */
+  .node{position:absolute;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .n-head{display:flex;align-items:center;gap:7px;padding:9px 11px 5px;cursor:grab}.n-head:active{cursor:grabbing}
+  .n-head .ic{width:19px;height:19px;border-radius:6px;display:grid;place-items:center;font-size:10px;flex:none}
+  .n-head b{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .n-head .tag{margin-left:auto;font-size:9px;font-weight:800;border-radius:999px;padding:2px 7px;flex:none}
+  .x{width:17px;height:17px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;flex:none}
+  .x:hover{border-color:var(--rose);color:var(--rose)}
+  .resize{position:absolute;right:2px;bottom:2px;width:14px;height:14px;cursor:nwse-resize;color:var(--dim);font-size:11px}
+
+  .tag.brand{background:rgba(14,165,233,.15);color:var(--brand4)}
+  .tag.amber{background:rgba(245,158,11,.15);color:var(--amber)}
+  .tag.teal{background:rgba(6,182,212,.15);color:var(--teal)}
+  .tag.violet{background:rgba(139,92,246,.15);color:var(--violet4)}
+  .tag.emerald{background:rgba(16,185,129,.15);color:var(--emerald)}
+  .ic.brand{background:rgba(14,165,233,.15);color:var(--brand4)}
+  .ic.amber{background:rgba(245,158,11,.15);color:var(--amber)}
+  .ic.teal{background:rgba(6,182,212,.15);color:var(--teal)}
+  .ic.violet{background:rgba(139,92,246,.15);color:var(--violet4)}
+  .ic.emerald{background:rgba(16,185,129,.15);color:var(--emerald)}
+
+  /* __brief */
+  .node.brief-n{width:236px;border-color:rgba(14,165,233,.35)}
+  .bn-body{padding:4px 11px 0;cursor:pointer}
+  .bn-role{display:flex;align-items:center;gap:8px;padding:9px;border-radius:11px;background:linear-gradient(135deg,rgba(14,165,233,.12),rgba(139,92,246,.08));border:1px solid rgba(14,165,233,.2)}
+  .bn-role .em{font-size:19px}
+  .bn-role b{display:block;font-size:11.5px}
+  .bn-role span{font-size:9.5px;color:var(--muted)}
+  .bn-line{display:flex;gap:6px;margin-top:7px;font-size:9.5px;color:var(--muted)}
+  .bn-line .k{color:var(--dim);flex:none;width:52px}
+  .bn-line .v{color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .kchips{display:flex;flex-wrap:wrap;gap:4px;padding:9px 11px 0}
+  .kchip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);background:var(--card2);border-radius:7px;padding:3px 7px;font-size:9px;font-weight:600;color:var(--muted)}
+
+  /* __voice (amber, the "cast" analog) */
+  .node.voice-n{width:224px;border-color:rgba(245,158,11,.4);background:linear-gradient(180deg,rgba(245,158,11,.09),var(--card))}
+  .vcard{display:flex;align-items:center;gap:9px;margin:4px 11px 0;padding:9px;border-radius:11px;background:var(--card2);border:1px solid var(--border)}
+  .vav{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:900;color:#fff;background:linear-gradient(135deg,var(--amber),#d97706);flex:none}
+  .vcard b{display:block;font-size:11.5px}.vcard span{font-size:9.5px;color:var(--muted)}
+  .wave{display:flex;align-items:center;gap:2px;height:34px;margin:8px 11px 0;padding:0 8px;border-radius:9px;border:1px solid var(--border);background:rgba(27,27,35,.6)}
+  .wave i{flex:1;min-width:2px;border-radius:2px;background:linear-gradient(180deg,var(--amber),#b45309);opacity:.75}
+  .wave.play i{animation:pulse 1s ease-in-out infinite}
+  @keyframes pulse{50%{opacity:.3}}
+
+  /* skill nodes (the draggable middle — the "shot" analog) */
+  .node.skill{width:264px}
+  .sk-trig{margin:4px 11px 0;padding:7px 9px;border-radius:9px;background:var(--card2);border:1px solid var(--border)}
+  .sk-trig .l{font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);display:block;margin-bottom:2px}
+  .sk-trig p{margin:0;font-size:10px;line-height:1.45;color:var(--text)}
+  .prompt{display:flex;align-items:flex-start;gap:5px;margin:8px 11px 0;padding:6px 7px;border-radius:9px;background:rgba(14,165,233,.06);border:1px solid rgba(14,165,233,.22);cursor:pointer}
+  .prompt:hover{border-color:var(--brand)}
+  .pl-l{font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--brand4);flex:none;margin-top:1px}
+  .pt{flex:1;font-size:9px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .pe{flex:none;width:16px;height:16px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:9px;cursor:pointer}
+  .well{margin:8px 11px 0;padding:8px;border-radius:9px;border:1px solid var(--border);background:rgba(27,27,35,.5)}
+  .row{display:flex;align-items:center;gap:7px}
+  .row+.row{margin-top:7px}
+  .row .k{font-size:8.5px;font-weight:800;text-transform:uppercase;color:var(--dim);flex:1}
+  .tgl{width:28px;height:16px;border-radius:999px;background:#33333f;border:none;position:relative;cursor:pointer;flex:none;transition:background .15s}
+  .tgl::after{content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#8b8b98;transition:.15s}
+  .tgl.on{background:rgba(14,165,233,.35)}.tgl.on::after{left:14px;background:var(--brand4)}
+  .acts{display:flex;gap:4px;padding:9px 11px 11px}
+  .a{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:3px;border:1px solid var(--border);border-radius:8px;padding:5px;font-size:9.5px;font-weight:600;cursor:pointer;color:var(--text);background:transparent}
+  .a:hover{border-color:var(--brand)}
+  .a.prime{border:none;color:#fff;background:linear-gradient(135deg,var(--brand),var(--violet))}
+  .node.skill.off{opacity:.45}
+
+  /* __out — "Your line" */
+  .node.line-n{width:236px;border-color:rgba(6,182,212,.4);background:linear-gradient(180deg,rgba(6,182,212,.09),var(--card))}
+  .num{margin:4px 11px 0;padding:11px;border-radius:11px;background:var(--card2);border:1px solid var(--border);text-align:center}
+  .num b{display:block;font:800 15px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.02em}
+  .num span{font-size:9.5px;color:var(--muted)}
+  .numstat{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:6px;font-size:9px;font-weight:700;color:var(--emerald)}
+  .numstat i{width:5px;height:5px;border-radius:50%;background:var(--emerald)}
+
+  /* __live — Go live (the publish analog) */
+  .node.live-n{width:212px;border-color:rgba(16,185,129,.4);background:linear-gradient(180deg,rgba(16,185,129,.1),var(--card))}
+  .lv{margin:4px 11px 0;padding:14px 11px;border-radius:11px;background:linear-gradient(160deg,rgba(16,185,129,.16),rgba(11,11,15,.2));display:grid;place-items:center;gap:7px;text-align:center}
+  .lv .ring{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.9);color:var(--emerald);font-size:19px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+  .lv b{font-size:11.5px}.lv span{font-size:9.5px;color:var(--muted)}
+  .mini{display:flex;gap:5px;margin:8px 11px 0}
+  .mini div{flex:1;text-align:center;padding:5px 3px;border-radius:8px;background:var(--card2);border:1px solid var(--border)}
+  .mini b{display:block;font-size:11.5px;font-variant-numeric:tabular-nums}
+  .mini span{font-size:8px;color:var(--dim);text-transform:uppercase;font-weight:800}
+
+  .addbtn{position:absolute;width:44px;height:44px;border-radius:50%;border:1px dashed var(--border);background:transparent;color:var(--muted);font-size:19px;cursor:pointer;display:grid;place-items:center}
+  .addbtn:hover{border-color:var(--brand);color:var(--brand)}
+  .hint{position:absolute;left:12px;bottom:12px;font-size:10.5px;color:var(--muted);background:rgba(21,21,28,.85);border:1px solid var(--border);border-radius:8px;padding:6px 10px;z-index:5;pointer-events:none}
+
+  /* ---------- BRIEF SHEET (absolute inset-0 z-40, scoped to studio root) ---------- */
+  .scrim{position:absolute;inset:0;z-index:40;display:none;background:rgba(6,6,9,.5)}.scrim.on{display:block}
+  .brief{position:absolute;inset-inline:12px;bottom:12px;top:40px;z-index:41;display:none;flex-direction:column;
+    border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:0 -10px 60px rgba(0,0,0,.5)}
+  .brief.on{display:flex}
+  .grip{position:absolute;left:50%;top:6px;transform:translateX(-50%);width:36px;height:4px;border-radius:999px;background:var(--border)}
+  .b-head{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .b-head .p{font-size:10px;font-weight:800;color:var(--brand4);background:rgba(14,165,233,.12);border-radius:999px;padding:2px 8px}
+  .b-head b{font-size:13.5px}
+  .b-head .close{margin-left:auto;width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer}
+  .b-scroll{overflow:auto;padding:16px;flex:1;min-height:0}
+  .b-lbl{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 9px}
+  .b-lbl .tip{font-weight:600;letter-spacing:0;text-transform:none;color:var(--dim)}
+  .sec{margin-top:20px}
+  .b-foot{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border)}
+  .b-foot .cost{font-size:11px;color:var(--muted)}.b-foot .cost b{color:var(--amber)}
+
+  /* preset thumb cards — real visual thumbs per [[style-selectors-need-visual-thumbnails]] */
+  .thumbs{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}
+  .tc{width:158px;flex:none;border:2px solid transparent;border-radius:12px;overflow:hidden;cursor:pointer;text-align:left;background:none;padding:0;color:inherit;transition:transform .12s}
+  .tc:hover{transform:translateY(-2px)}
+  .tc.on{border-color:var(--brand)}
+  .tc .art{position:relative;display:block;aspect-ratio:16/9;overflow:hidden;display:grid;place-items:center;font-size:30px}
+  .tc .art::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.55),transparent)}
+  .tc .meta{display:block;padding:9px 10px;background:rgba(27,27,35,.5)}
+  .tc.on .meta{background:rgba(14,165,233,.06)}
+  .tc .meta b{display:block;font-size:11px}
+  .tc .meta span{display:block;font-size:9px;line-height:1.35;color:var(--muted);margin-top:2px}
+  .tc .ck{position:absolute;right:6px;top:6px;z-index:2;border-radius:999px;background:var(--brand);color:#fff;font-size:8px;font-weight:800;padding:2px 6px;display:none}
+  .tc.on .ck{display:block}
+  .tc.custom{border:2px dashed var(--border)}
+  .tc.custom .art{background:var(--card2);font-size:22px;color:var(--muted)}
+  .a1{background:linear-gradient(140deg,#0c4a6e,#0ea5e9)}
+  .a2{background:linear-gradient(140deg,#3b0764,#8b5cf6)}
+  .a3{background:linear-gradient(140deg,#064e3b,#10b981)}
+  .a4{background:linear-gradient(140deg,#78350f,#f59e0b)}
+  .a5{background:linear-gradient(140deg,#164e63,#06b6d4)}
+
+  .script{width:100%;min-height:74px;resize:vertical;border-radius:12px;border:1px solid var(--border);background:var(--card2);color:var(--text);padding:11px 12px;font:12.5px/1.6 inherit}
+  .script:focus{outline:none;border-color:var(--brand)}
+  .inp{border-radius:9px;border:1px solid var(--border);background:var(--card2);color:var(--text);padding:8px 10px;font:12.5px/1 inherit}
+  .inp:focus{outline:none;border-color:var(--brand)}
+
+  /* voice picker row */
+  .vrow{display:flex;gap:9px;overflow-x:auto;padding-bottom:4px}
+  .vc{width:162px;flex:none;border:2px solid transparent;border-radius:12px;padding:10px;cursor:pointer;background:rgba(27,27,35,.5);text-align:left;color:inherit;transition:transform .12s}
+  .vc:hover{transform:translateY(-2px)}
+  .vc.on{border-color:var(--brand);background:rgba(14,165,233,.05)}
+  .vc .h{display:flex;align-items:center;gap:8px}
+  .vc .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font:900 10px/1 inherit;color:#fff;flex:none}
+  .vc b{font-size:11px;display:block}.vc .sub{font-size:9px;color:var(--muted)}
+  .vc .play{margin-top:8px;width:100%;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--muted);font:600 9.5px/1 inherit;padding:5px;cursor:pointer}
+  .vc .play:hover{border-color:var(--brand);color:var(--brand)}
+
+  /* skill checklist in brief */
+  .sklist{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:8px}
+  .skopt{display:flex;align-items:flex-start;gap:9px;padding:10px;border:1px solid var(--border);border-radius:11px;background:rgba(27,27,35,.4);cursor:pointer;text-align:left;color:inherit}
+  .skopt.on{border-color:var(--brand);background:rgba(14,165,233,.05)}
+  .skopt .bx{width:15px;height:15px;border-radius:4px;border:1.5px solid var(--border);flex:none;margin-top:1px;display:grid;place-items:center;font-size:9px;color:#fff}
+  .skopt.on .bx{background:var(--brand);border-color:var(--brand)}
+  .skopt b{display:block;font-size:11px}
+  .skopt span{display:block;font-size:9.5px;color:var(--muted);line-height:1.4;margin-top:1px}
+  .skopt .via{display:inline-block;margin-top:4px;font-size:8.5px;font-weight:700;color:var(--violet4);background:rgba(139,92,246,.12);border-radius:5px;padding:2px 5px}
+
+  /* pill selector */
+  .pills{display:flex;gap:6px;flex-wrap:wrap}
+  .pill{border:1px solid var(--border);border-radius:9px;padding:7px 11px;background:transparent;color:var(--muted);cursor:pointer;text-align:center;font:inherit}
+  .pill:hover{border-color:rgba(14,165,233,.4)}
+  .pill.on{border-color:var(--brand);background:rgba(14,165,233,.1);color:var(--brand4)}
+  .pill b{display:block;font-size:12px}
+  .pill span{font-size:10px;color:var(--muted)}
+  .note{font-size:10px;color:var(--dim);line-height:1.45;margin:9px 0 0;padding:8px 10px;border-left:2px solid rgba(14,165,233,.4);background:rgba(14,165,233,.05);border-radius:0 8px 8px 0}
+
+  /* number options */
+  .numopts{display:flex;gap:9px;flex-wrap:wrap}
+  .numopt{flex:1;min-width:210px;border:2px solid transparent;border-radius:12px;padding:11px;background:rgba(27,27,35,.5);cursor:pointer;text-align:left;color:inherit}
+  .numopt.on{border-color:var(--brand);background:rgba(14,165,233,.05)}
+  .numopt b{font-size:11.5px;display:flex;align-items:center;gap:6px}
+  .numopt .cr{margin-left:auto;font-size:10px;color:var(--amber);font-weight:800}
+  .numopt span{display:block;font-size:9.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+
+  /* number search results */
+  .ntile{border:2px solid transparent;border-radius:10px;padding:9px 10px;background:var(--card2);cursor:pointer;text-align:left;color:inherit;transition:transform .12s}
+  .ntile:hover{transform:translateY(-1px);border-color:rgba(14,165,233,.4)}
+  .ntile.on{border-color:var(--brand);background:rgba(14,165,233,.07)}
+  .ntile b{display:block;font:800 12.5px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .ntile .loc{display:block;font-size:9.5px;color:var(--muted);margin-top:2px}
+  .ntile .caps{display:flex;gap:3px;margin-top:5px}
+  .ntile .cap2{font-size:8px;font-weight:800;border-radius:4px;padding:1px 5px;background:rgba(16,185,129,.14);color:var(--emerald)}
+  .ntile .cap2.no{background:rgba(255,255,255,.04);color:var(--dim)}
+
+  /* ---------- BACK OFFICE (full-cover glass, z-40 — Director-library pattern) ---------- */
+  .back{position:absolute;inset:0;z-index:40;display:none;flex-direction:column;background:rgba(11,11,15,.97);backdrop-filter:blur(8px)}
+  .back.on{display:flex}
+  .bo-head{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);flex:none}
+  .bo-head h3{margin:0;font-size:14px;font-weight:700}
+  .bo-head p{margin:0;font-size:11.5px;color:var(--muted)}
+  .bo-tabs{display:flex;gap:2px;padding:0 16px;border-bottom:1px solid var(--border);flex:none}
+  .bo-tabs button{border:none;background:transparent;color:var(--muted);font:700 12.5px/1 inherit;padding:11px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px}
+  .bo-tabs button.on{color:var(--text);border-bottom-color:var(--brand)}
+  .bo-body{flex:1;min-height:0;overflow:auto;padding:14px 16px}
+
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:9px;margin-bottom:14px}
+  .tile{border:1px solid var(--border);border-radius:12px;background:var(--card);padding:11px 12px}
+  .tile .k{font-size:8.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+  .tile .v{font-size:19px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums}
+  .tile .d{font-size:9.5px;color:var(--muted);margin-top:1px}
+  .tile .v.em{color:var(--emerald)}.tile .v.am{color:var(--amber)}
+
+  /* master/detail per [[full-width-left-menu-layout]] */
+  .md{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:12px;align-items:start}
+  .panel{border:1px solid var(--border);border-radius:12px;background:var(--card);overflow:hidden}
+  .panel>.ph{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
+  .panel>.ph b{font-size:12px}
+  .filt{display:flex;gap:4px;margin-left:auto}
+  .filt button{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:7px;padding:3px 8px;font:600 9.5px/1.6 inherit;cursor:pointer}
+  .filt button.on{border-color:var(--brand);color:var(--brand4);background:rgba(14,165,233,.08)}
+
+  .call{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;background:transparent;border-left:none;border-right:none;border-top:none;width:100%;text-align:left;color:inherit}
+  .call:hover{background:rgba(255,255,255,.02)}
+  .call.on{background:rgba(14,165,233,.07);box-shadow:inset 2px 0 0 var(--brand)}
+  .call .dir{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-size:11px;flex:none}
+  .dir.in{background:rgba(14,165,233,.14);color:var(--brand4)}
+  .dir.out{background:rgba(139,92,246,.14);color:var(--violet4)}
+  .call .who{flex:1;min-width:0}
+  .call .who b{display:block;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .call .who span{font-size:9.5px;color:var(--muted)}
+  .oc{font-size:8.5px;font-weight:800;border-radius:999px;padding:2px 7px;flex:none}
+  .oc.booked{background:rgba(16,185,129,.15);color:var(--emerald)}
+  .oc.lead{background:rgba(14,165,233,.15);color:var(--brand4)}
+  .oc.msg{background:rgba(139,92,246,.15);color:var(--violet4)}
+  .oc.esc{background:rgba(245,158,11,.15);color:var(--amber)}
+  .oc.miss{background:rgba(244,63,94,.15);color:var(--rose)}
+  .call .dur{font:600 10px/1 ui-monospace,Menlo,monospace;color:var(--muted);flex:none;width:34px;text-align:right}
+  .call .crd{font-size:9.5px;font-weight:700;color:var(--amber);flex:none;width:38px;text-align:right}
+
+  /* transcript */
+  .tx{padding:12px;max-height:396px;overflow:auto}
+  .turn{display:flex;gap:8px;margin-bottom:11px}
+  .turn .av{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:900 8px/1 inherit;color:#fff;flex:none}
+  .turn.agent .av{background:linear-gradient(135deg,var(--brand),var(--violet))}
+  .turn.caller .av{background:#3a3a46;color:var(--muted)}
+  .turn .bub{flex:1;font-size:11px;line-height:1.5;padding:7px 10px;border-radius:10px;background:var(--card2);border:1px solid var(--border)}
+  .turn.agent .bub{background:rgba(14,165,233,.06);border-color:rgba(14,165,233,.18)}
+  .turn .t{font-size:8.5px;color:var(--dim);margin-bottom:2px;font-variant-numeric:tabular-nums}
+  .did{display:flex;align-items:center;gap:6px;margin:0 12px 11px;padding:8px 10px;border-radius:9px;background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.25);font-size:10.5px}
+  .did b{color:var(--emerald)}
+  .tx-foot{display:flex;gap:6px;padding:10px 12px;border-top:1px solid var(--border)}
+
+  /* controls tab */
+  .ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+  .cgrp{border:1px solid var(--border);border-radius:12px;background:var(--card);padding:13px}
+  .cgrp>h4{margin:0 0 3px;font-size:12.5px}
+  .cgrp>.sub{margin:0 0 11px;font-size:10px;color:var(--muted)}
+  .crow{display:flex;align-items:center;gap:9px;padding:9px 0;border-top:1px solid var(--border)}
+  .crow:first-of-type{border-top:none}
+  .crow .lab{flex:1}
+  .crow .lab b{display:block;font-size:11px}
+  .crow .lab span{font-size:9.5px;color:var(--muted)}
+  .hrs{display:grid;grid-template-columns:34px 1fr;gap:5px;align-items:center;font-size:10px}
+  .hrs .d{color:var(--muted);font-weight:700}
+  .hrs .t{display:flex;gap:5px;align-items:center}
+  .hrs input{width:62px;border-radius:6px;border:1px solid var(--border);background:var(--card2);color:var(--text);padding:4px 6px;font:11px/1 inherit}
+  .cap{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .cap input[type=range]{flex:1;accent-color:var(--brand)}
+  .cap b{color:var(--amber);font-size:11.5px;width:78px;text-align:right;font-variant-numeric:tabular-nums}
+  .danger{border-color:rgba(244,63,94,.3)}
+  .danger .btn:hover{border-color:var(--rose);color:var(--rose)}
+</style>
+
+<div class="app">
+  <!-- ================= TOP BAR ================= -->
+  <div class="top">
+    <div class="brand">
+      <div class="ic">☎</div>
+      <div><b>Voice Agent</b><span>Answers your phone, books, and logs every call</span></div>
+    </div>
+    <span class="mockonly">mock nav</span>
+    <div class="vsw">
+      <button data-view="brief">Brief</button>
+      <button data-view="studio" class="on">Studio</button>
+      <button data-view="back">Back office</button>
+    </div>
+    <div class="spacer"></div>
+    <span class="stat" id="topstat">6 skills · <b>live</b> · 128 calls this month</span>
+    <span class="livepill" id="topLive"><i></i> LIVE</span>
+    <button class="btn sm" onclick="show('back')">📋 Back office</button>
+    <button class="btn sm">🗂 Agents</button>
+    <button class="btn pri sm" onclick="show('brief')">✨ New agent</button>
+  </div>
+
+  <!-- ================= STUDIO ROOT ================= -->
+  <div class="studio" id="studio">
+    <div class="canvas" id="canvas">
+      <div class="board" id="board">
+        <svg class="wires"><path id="wire" fill="none" stroke="#38bdf8" stroke-width="2" opacity=".45"/></svg>
+
+        <!-- __brief -->
+        <div class="node brief-n" data-node="__brief" style="left:40px;top:88px">
+          <div class="n-head"><span class="ic brand">📋</span><b>Agent brief</b><span class="tag brand">SETUP</span></div>
+          <div class="bn-body" onclick="show('brief')">
+            <div class="bn-role">
+              <span class="em">💇</span>
+              <div><b>Receptionist</b><span>Answer · route · book</span></div>
+            </div>
+            <div class="bn-line"><span class="k">Business</span><span class="v">Lumière Hair Studio</span></div>
+            <div class="bn-line"><span class="k">Hours</span><span class="v">Mon–Sat 9–7 · after-hours voicemail</span></div>
+            <div class="bn-line"><span class="k">Escalate</span><span class="v">+1 (415) 555-0142 — Amina</span></div>
+          </div>
+          <div class="kchips">
+            <span class="kchip">📄 price-list.pdf</span>
+            <span class="kchip">📄 services.docx</span>
+            <span class="kchip">🌐 lumiere.com</span>
+          </div>
+          <div class="acts"><button class="a">✏️ Edit brief</button></div>
+        </div>
+
+        <!-- __voice -->
+        <div class="node voice-n" data-node="__voice" style="left:316px;top:88px">
+          <div class="n-head"><span class="ic amber">🎙</span><b>Voice</b><span class="tag amber">VOICE</span></div>
+          <div class="vcard">
+            <div class="vav">AV</div>
+            <div><b>Ava</b><span>Warm · US · natural</span></div>
+          </div>
+          <div class="wave" id="wave"></div>
+          <div class="acts">
+            <button class="a" onclick="playWave()">▶ Preview</button>
+            <button class="a" onclick="show('brief')">🔀 Change</button>
+          </div>
+        </div>
+
+        <!-- skills row 1 -->
+        <div class="node skill" data-node="s1" style="left:576px;top:60px">
+          <div class="n-head"><span class="ic emerald">📅</span><b>Book an appointment</b><span class="tag emerald">ACTION</span><button class="x">✕</button></div>
+          <div class="sk-trig"><span class="l">When the caller</span><p>wants to book, reschedule or cancel a visit</p></div>
+          <div class="prompt"><span class="pl-l">Rules</span><span class="pt">Offer the 2 nearest open slots. Never double-book. Confirm name + mobile before saving.</span><button class="pe">✏️</button></div>
+          <div class="well">
+            <div class="row"><span class="k">Reads your calendar</span><button class="tgl on"></button></div>
+            <div class="row"><span class="k">Texts a confirmation</span><button class="tgl on"></button></div>
+            <div class="row"><span class="k">Confirm before saving</span><button class="tgl on"></button></div>
+          </div>
+          <div class="acts"><button class="a">📞 Test</button><button class="a prime">✏️ Edit</button><button class="a">⏻ Off</button></div>
+          <div class="resize">⋰</div>
+        </div>
+
+        <div class="node skill" data-node="s2" style="left:576px;top:452px">
+          <div class="n-head"><span class="ic brand">💬</span><b>Answer questions</b><span class="tag brand">ANSWER</span><button class="x">✕</button></div>
+          <div class="sk-trig"><span class="l">When the caller</span><p>asks about prices, services, parking or hours</p></div>
+          <div class="prompt"><span class="pl-l">Rules</span><span class="pt">Answer only from the uploaded price list & site. If it's not there, say so and offer a callback.</span><button class="pe">✏️</button></div>
+          <div class="well">
+            <div class="row"><span class="k">Uses your knowledge</span><button class="tgl on"></button></div>
+            <div class="row"><span class="k">Never guesses a price</span><button class="tgl on"></button></div>
+          </div>
+          <div class="acts"><button class="a">📞 Test</button><button class="a prime">✏️ Edit</button><button class="a">⏻ Off</button></div>
+          <div class="resize">⋰</div>
+        </div>
+
+        <!-- skills row 2 -->
+        <div class="node skill" data-node="s3" style="left:868px;top:60px">
+          <div class="n-head"><span class="ic brand">🎯</span><b>Qualify &amp; save the lead</b><span class="tag brand">ACTION</span><button class="x">✕</button></div>
+          <div class="sk-trig"><span class="l">When the caller</span><p>is new and asking about a service you sell</p></div>
+          <div class="prompt"><span class="pl-l">Rules</span><span class="pt">Get name, mobile, what they want, and when. Save to Leads with the call recording attached.</span><button class="pe">✏️</button></div>
+          <div class="well">
+            <div class="row"><span class="k">Saves to your Leads</span><button class="tgl on"></button></div>
+            <div class="row"><span class="k">Starts the follow-up</span><button class="tgl"></button></div>
+          </div>
+          <div class="acts"><button class="a">📞 Test</button><button class="a prime">✏️ Edit</button><button class="a">⏻ Off</button></div>
+          <div class="resize">⋰</div>
+        </div>
+
+        <div class="node skill" data-node="s4" style="left:868px;top:452px">
+          <div class="n-head"><span class="ic violet">📝</span><b>Take a message</b><span class="tag violet">ACTION</span><button class="x">✕</button></div>
+          <div class="sk-trig"><span class="l">When the caller</span><p>wants a person, and nobody picks up</p></div>
+          <div class="prompt"><span class="pl-l">Rules</span><span class="pt">Take name, number, reason. Text the summary to Amina straight away.</span><button class="pe">✏️</button></div>
+          <div class="well">
+            <div class="row"><span class="k">Texts you the summary</span><button class="tgl on"></button></div>
+            <div class="row"><span class="k">Saves to Contacts</span><button class="tgl on"></button></div>
+          </div>
+          <div class="acts"><button class="a">📞 Test</button><button class="a prime">✏️ Edit</button><button class="a">⏻ Off</button></div>
+          <div class="resize">⋰</div>
+        </div>
+
+        <!-- skills row 3 -->
+        <div class="node skill" data-node="s5" style="left:1160px;top:60px">
+          <div class="n-head"><span class="ic amber">🙋</span><b>Transfer to a human</b><span class="tag amber">HANDOFF</span><button class="x">✕</button></div>
+          <div class="sk-trig"><span class="l">When the caller</span><p>is upset, asks for a person, or the agent is unsure twice</p></div>
+          <div class="prompt"><span class="pl-l">Rules</span><span class="pt">Say you're putting them through, then ring Amina. If she doesn't pick up in 20s, take a message instead.</span><button class="pe">✏️</button></div>
+          <div class="well">
+            <div class="row"><span class="k">Rings +1 (415) 555-0142</span><button class="tgl on"></button></div>
+            <div class="row"><span class="k">Falls back to a message</span><button class="tgl on"></button></div>
+          </div>
+          <div class="acts"><button class="a">📞 Test</button><button class="a prime">✏️ Edit</button><button class="a">⏻ Off</button></div>
+          <div class="resize">⋰</div>
+        </div>
+
+        <div class="node skill off" data-node="s6" style="left:1160px;top:452px">
+          <div class="n-head"><span class="ic violet">📦</span><b>Check an order</b><span class="tag violet">ANSWER</span><button class="x">✕</button></div>
+          <div class="sk-trig"><span class="l">When the caller</span><p>asks where their order is</p></div>
+          <div class="prompt"><span class="pl-l">Rules</span><span class="pt">Look the order up by name or number. Read the status, never invent a delivery date.</span><button class="pe">✏️</button></div>
+          <div class="well">
+            <div class="row"><span class="k">Reads your Orders</span><button class="tgl"></button></div>
+          </div>
+          <div class="acts"><button class="a">📞 Test</button><button class="a prime">✏️ Edit</button><button class="a">⏻ On</button></div>
+          <div class="resize">⋰</div>
+        </div>
+
+        <!-- add skill -->
+        <button class="addbtn" style="left:1470px;top:260px" title="Add a skill">＋</button>
+
+        <!-- __out : the line -->
+        <div class="node line-n" data-node="__out" style="left:1552px;top:120px">
+          <div class="n-head"><span class="ic teal">📞</span><b>Your line</b><span class="tag teal">NUMBER</span></div>
+          <div class="num">
+            <b>+1 (415) 555-0188</b>
+            <span>Dedicated · San Francisco</span>
+            <div class="numstat"><i></i> Receiving calls</div>
+          </div>
+          <div class="acts">
+            <button class="a">📞 Test call me</button>
+            <button class="a">⚙️ Manage</button>
+          </div>
+        </div>
+
+        <!-- __live -->
+        <div class="node live-n" data-node="__live" style="left:1828px;top:120px">
+          <div class="n-head"><span class="ic emerald">⚡</span><b>Go live</b><span class="tag emerald">LIVE</span></div>
+          <div class="lv">
+            <div class="ring">✓</div>
+            <div><b>Answering since Jul 2</b><span>Mon–Sat 9–7</span></div>
+          </div>
+          <div class="mini">
+            <div><b>128</b><span>calls</span></div>
+            <div><b>31</b><span>booked</span></div>
+            <div><b>2:14</b><span>avg</span></div>
+          </div>
+          <div class="acts">
+            <button class="a" onclick="show('back')">📋 Calls</button>
+            <button class="a">⏸ Pause</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hint">Drag empty space to pan · drag a node to rearrange · drag the corner to resize</div>
+
+    <!-- ================= BRIEF SHEET ================= -->
+    <div class="scrim" id="scrim" onclick="show('studio')"></div>
+    <div class="brief" id="brief">
+      <span class="grip"></span>
+      <div class="b-head">
+        <span class="p">BRIEF</span>
+        <b>Voice agent</b>
+        <button class="close" onclick="show('studio')">✕</button>
+      </div>
+      <div class="b-scroll">
+
+        <p class="b-lbl">What should it do? <span class="tip">— pick a starting point, then tune it. Everything below is pre-filled for you.</span></p>
+        <div class="thumbs" id="presets">
+          <button class="tc on" data-p="recep"><span class="art a1">💇<span class="ck">✓</span></span><span class="meta"><b>Receptionist</b><span>Answers, books, takes messages, puts people through.</span></span></button>
+          <button class="tc" data-p="book"><span class="art a3">📅<span class="ck">✓</span></span><span class="meta"><b>Bookings only</b><span>Fills your calendar and confirms by text.</span></span></button>
+          <button class="tc" data-p="lead"><span class="art a2">🎯<span class="ck">✓</span></span><span class="meta"><b>Lead qualifier</b><span>Qualifies new callers and saves them to Leads.</span></span></button>
+          <button class="tc" data-p="supp"><span class="art a5">📦<span class="ck">✓</span></span><span class="meta"><b>Orders &amp; support</b><span>Order status, FAQs, and hands off the hard ones.</span></span></button>
+          <button class="tc" data-p="out"><span class="art a4">📲<span class="ck">✓</span></span><span class="meta"><b>Outbound follow-up</b><span>Calls back your leads and no-shows.</span></span></button>
+          <button class="tc custom" data-p="custom"><span class="art">✏️<span class="ck">✓</span></span><span class="meta"><b>Custom</b><span>Describe it yourself.</span></span></button>
+        </div>
+
+        <div class="sec">
+          <p class="b-lbl">Tell it about your business <span class="tip">— the agent reads this before every call</span></p>
+          <button class="btn sm" style="margin-bottom:9px">✨ Fill this from my business profile</button>
+          <textarea class="script">Lumière Hair Studio — a 4-chair salon in Hayes Valley, SF. We do cuts, colour, balayage and treatments. Walk-ins welcome before noon; afternoons are by appointment. Amina is the owner. Parking is on Octavia. We're closed Sundays.</textarea>
+          <div class="kchips" style="padding-left:0">
+            <span class="kchip">📄 price-list.pdf ✕</span>
+            <span class="kchip">📄 services.docx ✕</span>
+            <span class="kchip">🌐 lumiere.com ✕</span>
+            <span class="kchip" style="border-style:dashed;cursor:pointer">＋ Add a file or link</span>
+          </div>
+        </div>
+
+        <div class="sec">
+          <p class="b-lbl">Voice <span class="tip">— or clone your own from 30 seconds of audio</span></p>
+          <div class="vrow" id="voices">
+            <button class="vc on" data-v="ava"><span class="h"><span class="av" style="background:linear-gradient(135deg,#f59e0b,#d97706)">AV</span><span><b>Ava</b><span class="sub">Warm · US</span></span></span><span class="play">▶ Preview</span></button>
+            <button class="vc" data-v="marc"><span class="h"><span class="av" style="background:linear-gradient(135deg,#0ea5e9,#0284c7)">MA</span><span><b>Marcus</b><span class="sub">Calm · US</span></span></span><span class="play">▶ Preview</span></button>
+            <button class="vc" data-v="sofia"><span class="h"><span class="av" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9)">SO</span><span><b>Sofia</b><span class="sub">Bright · UK</span></span></span><span class="play">▶ Preview</span></button>
+            <button class="vc" data-v="mine"><span class="h"><span class="av" style="background:linear-gradient(135deg,#10b981,#047857)">🎤</span><span><b>My voice</b><span class="sub">Cloned · 15 cr</span></span></span><span class="play">▶ Preview</span></button>
+          </div>
+        </div>
+
+        <div class="sec">
+          <p class="b-lbl">Greeting <span class="tip">— the first thing every caller hears</span></p>
+          <input class="inp" style="width:100%" value="Thanks for calling Lumière Hair Studio, this is Ava — how can I help?">
+        </div>
+
+        <div class="sec">
+          <p class="b-lbl">What it's allowed to do <span class="tip">— each one uses a part of your account you already have</span></p>
+          <div class="sklist" id="skills">
+            <button class="skopt on" data-s="book"><span class="bx">✓</span><span><b>Book an appointment</b><span>Offers real open slots and saves the booking.</span><span class="via">Your calendar</span></span></button>
+            <button class="skopt on" data-s="ask"><span class="bx">✓</span><span><b>Answer questions</b><span>Prices, services, hours — from your files only.</span><span class="via">Your knowledge</span></span></button>
+            <button class="skopt on" data-s="lead"><span class="bx">✓</span><span><b>Qualify &amp; save the lead</b><span>New callers land in your lead list.</span><span class="via">Your leads</span></span></button>
+            <button class="skopt on" data-s="msg"><span class="bx">✓</span><span><b>Take a message</b><span>Texts you a summary the moment it hangs up.</span><span class="via">Your contacts</span></span></button>
+            <button class="skopt on" data-s="tr"><span class="bx">✓</span><span><b>Transfer to a human</b><span>Rings you when it's out of its depth.</span><span class="via">Your number</span></span></button>
+            <button class="skopt" data-s="ord"><span class="bx">✓</span><span><b>Check an order</b><span>Reads a real order status out loud.</span><span class="via">Your orders</span></span></button>
+            <button class="skopt" data-s="pay"><span class="bx">✓</span><span><b>Take a deposit</b><span>Texts a secure pay link mid-call.</span><span class="via">Your payments</span></span></button>
+            <button class="skopt" data-s="cb"><span class="bx">✓</span><span><b>Call people back</b><span>Rings leads and no-shows on a schedule.</span><span class="via">Outbound</span></span></button>
+          </div>
+        </div>
+
+        <div class="sec">
+          <p class="b-lbl">Your number <span class="tip">— the agent needs a line to answer</span></p>
+          <div class="numopts" id="numopts">
+            <button class="numopt" data-n="have"><b>♻️ Add voice to my number <span class="cr">Free</span></b><span>You already rent <b style="font-family:ui-monospace,Menlo,monospace">+1 (628) 555-0301</b> for texts. Ava can answer it too — no extra rent.</span></button>
+            <button class="numopt on" data-n="new"><b>📞 Subscribe to a new number <span class="cr">500 cr / month</span></b><span>Pick an area code, pick a number, live in about a minute.</span></button>
+            <button class="numopt" data-n="mine"><b>🔗 Forward my existing line <span class="cr">Free</span></b><span>Keep the number on your cards — forward it here and Ava answers.</span></button>
+          </div>
+
+          <!-- number picker: only for data-n="new" -->
+          <div id="numpick" style="margin-top:11px;border:1px solid var(--border);border-radius:12px;background:rgba(27,27,35,.4);overflow:hidden">
+            <div style="display:flex;align-items:center;gap:7px;padding:10px 12px;border-bottom:1px solid var(--border)">
+              <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--dim)">Find a number</span>
+              <select class="inp" style="width:112px;margin-left:6px"><option>🇺🇸 United States</option><option>🇨🇦 Canada</option><option>🇬🇧 United Kingdom</option></select>
+              <input class="inp" style="width:96px" placeholder="Area code" value="415">
+              <select class="inp" style="width:104px"><option>Local</option><option>Toll-free</option></select>
+              <button class="btn sm" onclick="searchNums()">🔍 Search</button>
+              <span class="spacer" style="flex:1"></span>
+              <span style="font-size:9.5px;color:var(--muted)" id="numcount">6 available</span>
+            </div>
+            <div id="numgrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:7px;padding:11px"></div>
+            <div style="display:flex;align-items:center;gap:9px;padding:10px 12px;border-top:1px solid var(--border)">
+              <span style="font-size:10.5px;color:var(--muted)">Selected <b style="color:var(--text);font-family:ui-monospace,Menlo,monospace" id="numsel">+1 (415) 555-0188</b></span>
+              <span class="spacer" style="flex:1"></span>
+              <span style="font-size:10.5px;color:var(--muted)">First month <b style="color:var(--amber)">500 cr</b> · then 500 cr/month</span>
+            </div>
+          </div>
+
+          <p class="note">The number is yours for as long as you keep it — cancel any time from the back office and you're not charged again. Only calls the agent actually answers cost minutes.</p>
+        </div>
+
+        <div class="sec">
+          <p class="b-lbl">When should it answer?</p>
+          <div class="pills" id="when">
+            <button class="pill on" data-w="always"><b>All the time</b><span>24/7, including nights</span></button>
+            <button class="pill" data-w="hours"><b>Only outside my hours</b><span>You pick up first</span></button>
+            <button class="pill" data-w="miss"><b>Only when I miss it</b><span>After 4 rings</span></button>
+            <button class="pill" data-w="open"><b>Only during opening hours</b><span>Mon–Sat 9–7</span></button>
+          </div>
+        </div>
+
+      </div>
+      <div class="b-foot">
+        <span class="cost">Building is free · calls cost <b>9 cr / min</b> · new number <b>500 cr / month</b></span>
+        <div class="spacer"></div>
+        <button class="btn" onclick="show('studio')">Cancel</button>
+        <button class="btn pri" onclick="show('studio')">✨ Build my agent</button>
+      </div>
+    </div>
+
+    <!-- ================= BACK OFFICE ================= -->
+    <div class="back" id="back">
+      <div class="bo-head">
+        <div style="flex:1">
+          <h3>Ava — your receptionist</h3>
+          <p>+1 (415) 555-0188 · answering since Jul 2 · Mon–Sat 9–7</p>
+        </div>
+        <span class="livepill"><i></i> LIVE</span>
+        <button class="btn sm">⏸ Pause answering</button>
+        <button class="btn sm">📅 This month ▾</button>
+        <button class="btn sm" onclick="show('studio')">✕ Close</button>
+      </div>
+
+      <div class="bo-tabs" id="botabs">
+        <button class="on" data-t="calls">📞 Calls</button>
+        <button data-t="controls">⚙️ Controls</button>
+        <button data-t="number">☎️ Number</button>
+      </div>
+
+      <!-- --- CALLS --- -->
+      <div class="bo-body" id="t-calls">
+        <div class="tiles">
+          <div class="tile"><div class="k">Calls answered</div><div class="v">128</div><div class="d">of 133 · 5 missed</div></div>
+          <div class="tile"><div class="k">Booked</div><div class="v em">31</div><div class="d">≈ $2,480 of work</div></div>
+          <div class="tile"><div class="k">Leads saved</div><div class="v">44</div><div class="d">→ your lead list</div></div>
+          <div class="tile"><div class="k">Handed to you</div><div class="v am">7</div><div class="d">5% of calls</div></div>
+          <div class="tile"><div class="k">Avg length</div><div class="v">2:14</div><div class="d">286 min total</div></div>
+          <div class="tile"><div class="k">Spent</div><div class="v am">2,724 cr</div><div class="d">of 5,000 cap</div></div>
+        </div>
+
+        <div class="md">
+          <div class="panel">
+            <div class="ph"><b>Recent calls</b>
+              <div class="filt">
+                <button class="on">All</button><button>Booked</button><button>Leads</button><button>Handed off</button><button>Missed</button>
+              </div>
+            </div>
+            <div id="calllist">
+              <button class="call on" data-c="1"><span class="dir in">↙</span><span class="who"><b>+1 (628) 555-0117</b><span>Today 14:02 · new caller</span></span><span class="oc booked">BOOKED</span><span class="dur">2:41</span><span class="crd">24 cr</span></button>
+              <button class="call" data-c="2"><span class="dir in">↙</span><span class="who"><b>Dana Whitfield</b><span>Today 11:48 · returning</span></span><span class="oc lead">LEAD</span><span class="dur">3:05</span><span class="crd">28 cr</span></button>
+              <button class="call" data-c="3"><span class="dir in">↙</span><span class="who"><b>+1 (415) 555-0904</b><span>Today 10:15 · new caller</span></span><span class="oc esc">HANDED OFF</span><span class="dur">1:12</span><span class="crd">11 cr</span></button>
+              <button class="call" data-c="4"><span class="dir out">↗</span><span class="who"><b>Priya Raman</b><span>Yesterday 17:30 · follow-up</span></span><span class="oc booked">BOOKED</span><span class="dur">1:58</span><span class="crd">18 cr</span></button>
+              <button class="call" data-c="5"><span class="dir in">↙</span><span class="who"><b>+1 (650) 555-0223</b><span>Yesterday 16:04 · new caller</span></span><span class="oc msg">MESSAGE</span><span class="dur">0:47</span><span class="crd">7 cr</span></button>
+              <button class="call" data-c="6"><span class="dir in">↙</span><span class="who"><b>+1 (415) 555-0771</b><span>Yesterday 09:22 · after hours</span></span><span class="oc miss">MISSED</span><span class="dur">0:00</span><span class="crd">0 cr</span></button>
+              <button class="call" data-c="7"><span class="dir in">↙</span><span class="who"><b>Tomás Ferreira</b><span>Jul 15 · returning</span></span><span class="oc booked">BOOKED</span><span class="dur">2:22</span><span class="crd">21 cr</span></button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="ph"><span class="dir in" style="width:22px;height:22px">↙</span><b>+1 (628) 555-0117</b>
+              <span class="oc booked" style="margin-left:auto">BOOKED</span>
+              <span style="font-size:10px;color:var(--muted)">2:41 · 24 cr</span>
+            </div>
+            <div class="did">✅ <span>Booked <b>Balayage · Sat Jul 19, 11:00</b> with Amina · confirmation texted · saved to Leads</span></div>
+            <div class="tx">
+              <div class="turn agent"><span class="av">AV</span><span class="bub"><span class="t">0:00</span>Thanks for calling Lumière Hair Studio, this is Ava — how can I help?</span></div>
+              <div class="turn caller"><span class="av">?</span><span class="bub"><span class="t">0:05</span>Hi — do you do balayage? And how much is it?</span></div>
+              <div class="turn agent"><span class="av">AV</span><span class="bub"><span class="t">0:09</span>We do. Balayage starts at $180 and takes about two and a half hours. Would you like me to find you a time?</span></div>
+              <div class="turn caller"><span class="av">?</span><span class="bub"><span class="t">0:18</span>Yes please, something on a Saturday.</span></div>
+              <div class="turn agent"><span class="av">AV</span><span class="bub"><span class="t">0:22</span>I've got Saturday the 19th at 11am, or the 26th at 2pm. Which suits you?</span></div>
+              <div class="turn caller"><span class="av">?</span><span class="bub"><span class="t">0:31</span>The 19th works.</span></div>
+              <div class="turn agent"><span class="av">AV</span><span class="bub"><span class="t">0:34</span>Lovely. Can I take your name and the best mobile for you?</span></div>
+              <div class="turn caller"><span class="av">?</span><span class="bub"><span class="t">0:39</span>Nadia Osei, and this number is fine.</span></div>
+              <div class="turn agent"><span class="av">AV</span><span class="bub"><span class="t">0:46</span>Thanks Nadia. So that's balayage, Saturday the 19th at 11am with Amina — shall I lock that in?</span></div>
+              <div class="turn caller"><span class="av">?</span><span class="bub"><span class="t">0:53</span>Yes, please.</span></div>
+              <div class="turn agent"><span class="av">AV</span><span class="bub"><span class="t">0:56</span>Done — you'll get a text confirmation in a moment. See you Saturday!</span></div>
+            </div>
+            <div class="tx-foot">
+              <button class="btn sm">▶ Play recording</button>
+              <button class="btn sm">👤 Open lead</button>
+              <button class="btn sm">📅 Open booking</button>
+              <div class="spacer"></div>
+              <button class="btn sm">🚩 Flag as wrong</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- --- CONTROLS --- -->
+      <div class="bo-body" id="t-controls" style="display:none">
+        <div class="ctl">
+          <div class="cgrp">
+            <h4>Answering</h4>
+            <p class="sub">When Ava picks up instead of you.</p>
+            <div class="crow"><span class="lab"><b>Answer calls</b><span>Turn off to send everything to voicemail</span></span><button class="tgl on"></button></div>
+            <div class="crow"><span class="lab"><b>Let me pick up first</b><span>Ava answers after 4 rings</span></span><button class="tgl on"></button></div>
+            <div class="crow"><span class="lab"><b>Answer after hours</b><span>Nights &amp; Sundays</span></span><button class="tgl on"></button></div>
+            <div class="crow"><span class="lab"><b>Say it's an AI assistant</b><span>Required in some regions</span></span><button class="tgl on"></button></div>
+          </div>
+
+          <div class="cgrp">
+            <h4>Opening hours</h4>
+            <p class="sub">Ava only books inside these.</p>
+            <div style="display:grid;gap:6px;margin-top:4px">
+              <div class="hrs"><span class="d">Mon</span><span class="t"><input value="09:00"> – <input value="19:00"><button class="tgl on" style="margin-left:auto"></button></span></div>
+              <div class="hrs"><span class="d">Tue</span><span class="t"><input value="09:00"> – <input value="19:00"><button class="tgl on" style="margin-left:auto"></button></span></div>
+              <div class="hrs"><span class="d">Wed</span><span class="t"><input value="09:00"> – <input value="19:00"><button class="tgl on" style="margin-left:auto"></button></span></div>
+              <div class="hrs"><span class="d">Thu</span><span class="t"><input value="09:00"> – <input value="21:00"><button class="tgl on" style="margin-left:auto"></button></span></div>
+              <div class="hrs"><span class="d">Fri</span><span class="t"><input value="09:00"> – <input value="21:00"><button class="tgl on" style="margin-left:auto"></button></span></div>
+              <div class="hrs"><span class="d">Sat</span><span class="t"><input value="10:00"> – <input value="18:00"><button class="tgl on" style="margin-left:auto"></button></span></div>
+              <div class="hrs"><span class="d">Sun</span><span class="t"><input value="—" disabled> – <input value="—" disabled><button class="tgl" style="margin-left:auto"></button></span></div>
+            </div>
+          </div>
+
+          <div class="cgrp">
+            <h4>Escalation</h4>
+            <p class="sub">Who Ava rings when it's out of its depth.</p>
+            <div class="crow"><span class="lab"><b>Ring this number</b><span>Amina — owner</span></span><input class="inp" style="width:132px" value="+1 415 555 0142"></div>
+            <div class="crow"><span class="lab"><b>Hand off if the caller sounds upset</b></span><button class="tgl on"></button></div>
+            <div class="crow"><span class="lab"><b>Hand off if it's unsure twice</b></span><button class="tgl on"></button></div>
+            <div class="crow"><span class="lab"><b>Hand off if they ask for a person</b></span><button class="tgl on"></button></div>
+            <div class="crow"><span class="lab"><b>If nobody picks up</b><span>After 20 seconds</span></span><select class="inp" style="width:132px"><option>Take a message</option><option>Send to voicemail</option><option>Offer a callback</option></select></div>
+          </div>
+
+          <div class="cgrp">
+            <h4>Spend</h4>
+            <p class="sub">A hard cap. Ava stops answering when it's hit.</p>
+            <div class="cap"><input type="range" min="500" max="20000" step="500" value="5000" oninput="document.getElementById('capv').textContent=(+this.value).toLocaleString()+' cr'"><b id="capv">5,000 cr</b></div>
+            <p style="font-size:10px;color:var(--muted);margin:6px 0 0">≈ 555 minutes of calls · 2,724 cr used so far this month</p>
+            <div class="crow" style="margin-top:8px"><span class="lab"><b>Warn me at 80%</b><span>Text + in-app</span></span><button class="tgl on"></button></div>
+            <div class="crow"><span class="lab"><b>Top up automatically</b><span>+2,000 cr when it runs out</span></span><button class="tgl"></button></div>
+          </div>
+
+          <div class="cgrp">
+            <h4>Privacy &amp; recording</h4>
+            <p class="sub">What Ava keeps after a call.</p>
+            <div class="crow"><span class="lab"><b>Record calls</b><span>You can play any call back</span></span><button class="tgl on"></button></div>
+            <div class="crow"><span class="lab"><b>Announce recording</b><span>Read at the start of the call</span></span><button class="tgl on"></button></div>
+            <div class="crow"><span class="lab"><b>Keep recordings for</b></span><select class="inp" style="width:112px"><option>30 days</option><option>90 days</option><option>1 year</option></select></div>
+            <div class="crow"><span class="lab"><b>Block known spam callers</b><span>18 blocked this month</span></span><button class="tgl on"></button></div>
+          </div>
+
+          <div class="cgrp danger">
+            <h4>Danger zone</h4>
+            <p class="sub">These stop calls being answered.</p>
+            <div class="crow"><span class="lab"><b>Pause this agent</b><span>Calls go to voicemail. Nothing is deleted.</span></span><button class="btn sm">⏸ Pause</button></div>
+            <div class="crow"><span class="lab"><b>Release the number</b><span>You lose +1 (415) 555-0188 permanently.</span></span><button class="btn sm">Release</button></div>
+            <div class="crow"><span class="lab"><b>Delete agent</b><span>Call history is kept for 90 days.</span></span><button class="btn sm">Delete</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- --- NUMBER --- -->
+      <div class="bo-body" id="t-number" style="display:none">
+        <div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+          <div class="tile"><div class="k">Your number</div><div class="v" style="font-size:15px;font-family:ui-monospace,Menlo,monospace">+1 (415) 555-0188</div><div class="d">San Francisco · dedicated</div></div>
+          <div class="tile"><div class="k">Status</div><div class="v em" style="font-size:15px">Receiving</div><div class="d">Renews Aug 2 · 500 cr</div></div>
+          <div class="tile"><div class="k">Forwarding</div><div class="v" style="font-size:15px">Off</div><div class="d">Ava answers directly</div></div>
+        </div>
+        <div class="panel" style="max-width:620px">
+          <div class="ph"><b>Numbers</b><button class="btn sm" style="margin-left:auto">＋ Add a number</button></div>
+          <div style="padding:12px">
+            <div class="crow" style="border:none"><span class="lab"><b>+1 (415) 555-0188</b><span>Main line · Ava answers · 128 calls this month · 500 cr/month, renews Aug 2</span></span><span class="livepill"><i></i> LIVE</span><button class="btn sm">Cancel</button></div>
+            <div class="crow"><span class="lab"><b>+1 (628) 555-0301</b><span>Texts only · no agent answering it yet</span></span><button class="btn sm">＋ Add voice</button></div>
+          </div>
+        </div>
+        <p class="note" style="max-width:620px">Prefer to keep the number on your cards? Forward your existing business line here and Ava answers it — your number stays yours.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* ---------- wires: recomputed from live DOM rects, like the real studios ---------- */
+  const SEQ = ["__brief","__voice","s1","s3","s5","__out","__live"];
+  function at(id, side){
+    const el = document.querySelector(`[data-node="${id}"]`);
+    const b = document.getElementById("board").getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    return { x: (side==="r" ? r.right : r.left) - b.left, y: r.top - b.top + r.height/2 };
+  }
+  function wires(){
+    let d = "";
+    for (let i=0;i<SEQ.length-1;i++){
+      const a = at(SEQ[i],"r"), b = at(SEQ[i+1],"l");
+      const dx = Math.max(40,(b.x-a.x)/2);
+      d += `M${a.x} ${a.y} C${a.x+dx} ${a.y},${b.x-dx} ${b.y},${b.x} ${b.y} `;
+    }
+    // second-row skills branch off the spine
+    [["__voice","s2"],["s2","s4"],["s4","s6"],["s6","__out"]].forEach(([f,t])=>{
+      const a = at(f,"r"), b = at(t,"l");
+      const dx = Math.max(40,(b.x-a.x)/2);
+      d += `M${a.x} ${a.y} C${a.x+dx} ${a.y},${b.x-dx} ${b.y},${b.x} ${b.y} `;
+    });
+    document.getElementById("wire").setAttribute("d", d);
+  }
+
+  /* ---------- pan (hit-test blacklist mirrors use-canvas-pan.ts) ---------- */
+  const canvas = document.getElementById("canvas");
+  canvas.addEventListener("pointerdown", e => {
+    if (e.target.closest("[data-node], button, a, input, textarea, select, .resize")) return;
+    const sx=e.clientX, sy=e.clientY, l=canvas.scrollLeft, t=canvas.scrollTop;
+    const mv = ev => { canvas.scrollLeft = l-(ev.clientX-sx); canvas.scrollTop = t-(ev.clientY-sy); };
+    const up = () => { document.removeEventListener("pointermove",mv); document.removeEventListener("pointerup",up); };
+    document.addEventListener("pointermove",mv); document.addEventListener("pointerup",up);
+  });
+
+  /* ---------- node drag: mutate DOM live, commit on up ---------- */
+  document.querySelectorAll("[data-node]").forEach(node => {
+    const head = node.querySelector(".n-head") || node;
+    head.addEventListener("pointerdown", e => {
+      if (e.target.closest("button, input, .resize")) return;
+      const sx=e.clientX, sy=e.clientY;
+      const ox=parseFloat(node.style.left)||0, oy=parseFloat(node.style.top)||0;
+      const mv = ev => { node.style.left=(ox+ev.clientX-sx)+"px"; node.style.top=(oy+ev.clientY-sy)+"px"; wires(); };
+      const up = () => { document.removeEventListener("pointermove",mv); document.removeEventListener("pointerup",up); };
+      document.addEventListener("pointermove",mv); document.addEventListener("pointerup",up);
+      e.preventDefault();
+    });
+    const grip = node.querySelector(".resize");
+    if (grip) grip.addEventListener("pointerdown", e => {
+      e.stopPropagation();
+      const sx=e.clientX, ow=node.offsetWidth;
+      const mv = ev => { node.style.width = Math.min(520, Math.max(240, ow+ev.clientX-sx))+"px"; wires(); };
+      const up = () => { document.removeEventListener("pointermove",mv); document.removeEventListener("pointerup",up); };
+      document.addEventListener("pointermove",mv); document.addEventListener("pointerup",up);
+    });
+  });
+
+  /* ---------- toggles / selectors ---------- */
+  document.addEventListener("click", e => {
+    const t = e.target.closest(".tgl");
+    if (t) { t.classList.toggle("on"); return; }
+  });
+  const pickOne = (sel, itemSel) => document.querySelectorAll(sel+" "+itemSel).forEach(b =>
+    b.addEventListener("click", () => {
+      document.querySelectorAll(sel+" "+itemSel).forEach(x=>x.classList.remove("on"));
+      b.classList.add("on");
+    }));
+  pickOne("#presets",".tc"); pickOne("#voices",".vc"); pickOne("#when",".pill");
+
+  /* ---------- number subscription ---------- */
+  const NUMS = [
+    {n:"+1 (415) 555-0188", loc:"San Francisco, CA", voice:true, sms:true},
+    {n:"+1 (415) 555-0224", loc:"San Francisco, CA", voice:true, sms:true},
+    {n:"+1 (415) 555-0391", loc:"San Francisco, CA", voice:true, sms:false},
+    {n:"+1 (415) 555-0470", loc:"Daly City, CA", voice:true, sms:true},
+    {n:"+1 (415) 555-0612", loc:"San Rafael, CA", voice:true, sms:true},
+    {n:"+1 (415) 555-0755", loc:"Sausalito, CA", voice:true, sms:true},
+  ];
+  function renderNums(){
+    const g = document.getElementById("numgrid");
+    g.innerHTML = "";
+    NUMS.forEach((x,i)=>{
+      const b = document.createElement("button");
+      b.className = "ntile" + (i===0 ? " on" : "");
+      b.innerHTML = `<b>${x.n}</b><span class="loc">${x.loc}</span>
+        <span class="caps"><span class="cap2">📞 Voice</span><span class="cap2${x.sms?"":" no"}">💬 Texts</span></span>`;
+      b.addEventListener("click",()=>{
+        g.querySelectorAll(".ntile").forEach(t=>t.classList.remove("on"));
+        b.classList.add("on");
+        document.getElementById("numsel").textContent = x.n;
+      });
+      g.appendChild(b);
+    });
+    document.getElementById("numcount").textContent = NUMS.length + " available";
+  }
+  function searchNums(){ renderNums(); }
+  renderNums();
+
+  // the picker only belongs to "subscribe to a new number"
+  document.querySelectorAll("#numopts .numopt").forEach(b => b.addEventListener("click",()=>{
+    document.querySelectorAll("#numopts .numopt").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    document.getElementById("numpick").style.display = b.dataset.n === "new" ? "" : "none";
+  }));
+  document.querySelectorAll("#skills .skopt").forEach(b => b.addEventListener("click",()=>b.classList.toggle("on")));
+  document.querySelectorAll(".filt button").forEach(b => b.addEventListener("click",()=>{
+    b.parentElement.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+  }));
+  document.querySelectorAll("#calllist .call").forEach(b => b.addEventListener("click",()=>{
+    document.querySelectorAll("#calllist .call").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+  }));
+
+  /* ---------- waveform ---------- */
+  const wave = document.getElementById("wave");
+  for (let n=0;n<42;n++){ const i=document.createElement("i"); i.style.height=(20+Math.abs(Math.sin(n*0.7)*70))+"%"; wave.appendChild(i); }
+  function playWave(){ wave.classList.add("play"); setTimeout(()=>wave.classList.remove("play"),2400); }
+
+  /* ---------- view switching (mock-only) ---------- */
+  function show(v){
+    document.getElementById("brief").classList.toggle("on", v==="brief");
+    document.getElementById("scrim").classList.toggle("on", v==="brief");
+    document.getElementById("back").classList.toggle("on", v==="back");
+    document.querySelectorAll(".vsw button").forEach(b=>b.classList.toggle("on", b.dataset.view===v));
+  }
+  document.querySelectorAll(".vsw button").forEach(b=>b.addEventListener("click",()=>show(b.dataset.view)));
+
+  /* ---------- back-office tabs ---------- */
+  document.querySelectorAll("#botabs button").forEach(b=>b.addEventListener("click",()=>{
+    document.querySelectorAll("#botabs button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+    ["calls","controls","number"].forEach(t=>document.getElementById("t-"+t).style.display = t===b.dataset.t ? "" : "none");
+  }));
+
+  wires(); window.addEventListener("resize", wires);
+</script>

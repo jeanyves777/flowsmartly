@@ -1,0 +1,199 @@
+<title>Hub thumbnails v2 — clean product-UI quality</title>
+<style>
+  :root{
+    --ink:#1d2740; --ink2:#4a5470; --faint:#93a0b8; --line:rgba(22,34,72,.09);
+    --brand:#6d5efc; --brand2:#8b7bff; --indigo:#5b6ef5; --teal:#1fb6c9; --emerald:#1db981;
+    --grad:linear-gradient(120deg,#5b6ef5,#7c6bff 55%,#22b8cf);
+    --gradG:linear-gradient(90deg,#3f6fe0,#22b8a0 60%,#54c46b);
+    --cardsh:0 22px 48px -22px rgba(30,42,90,.28),0 2px 6px rgba(30,42,90,.06);
+    --page:#20232b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:#e9edf6;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;padding:26px 22px 46px}
+  .wrap{max-width:960px;margin:0 auto}
+  h1{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+  .sub{color:#a9b2c6;font-size:13px;margin:0 0 20px;max-width:76ch;line-height:1.6}
+  .sub b{color:#fff}
+  .grid{display:grid;grid-template-columns:1fr;gap:18px}
+  @media(min-width:720px){.grid{grid-template-columns:1fr 1fr}}
+
+  .card{border:1px solid #313743;border-radius:18px;overflow:hidden;background:#181b22;box-shadow:0 24px 50px -26px rgba(0,0,0,.7)}
+  .thumb{position:relative;width:100%;aspect-ratio:16/10;overflow:hidden}
+  .cap{padding:13px 15px}
+  .cap b{font-size:14.5px}.cap p{margin:3px 0 0;color:#9aa4ba;font-size:12px}
+
+  /* ---------- the LIGHT product-UI scene shell (matches the examples) ---------- */
+  .scn{position:absolute;inset:0;background:
+    radial-gradient(120px 120px at 12% 12%,rgba(84,196,107,.30),transparent 70%),
+    radial-gradient(150px 150px at 92% 8%,rgba(63,111,224,.24),transparent 70%),
+    radial-gradient(150px 150px at 88% 96%,rgba(124,107,255,.22),transparent 70%),
+    linear-gradient(160deg,#eef4fb,#eef1fb 55%,#eaf5f1)}
+  .panel{position:absolute;inset:9% 8%;background:#fff;border:1px solid var(--line);border-radius:15px;box-shadow:var(--cardsh);padding:13px 14px;color:var(--ink);overflow:hidden}
+  .num{font-variant-numeric:tabular-nums}
+  .ttl{font-weight:800;letter-spacing:-.02em}
+  .lbl{font-size:8px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+
+  /* soft 3-step reveals */
+  @keyframes r1{0%{opacity:0;transform:translateY(9px)}5%{opacity:1;transform:none}97%{opacity:1}100%{opacity:0}}
+  @keyframes r2{0%,32%{opacity:0;transform:translateY(9px)}38%{opacity:1;transform:none}97%{opacity:1}100%{opacity:0}}
+  @keyframes r3{0%,64%{opacity:0;transform:translateY(9px)}70%{opacity:1;transform:none}97%{opacity:1}100%{opacity:0}}
+  .s1{animation:r1 30s cubic-bezier(.16,1,.3,1) infinite}
+  .s2{animation:r2 30s cubic-bezier(.16,1,.3,1) infinite}
+  .s3{animation:r3 30s cubic-bezier(.16,1,.3,1) infinite}
+
+  /* CTA */
+  .cta{position:absolute;left:0;right:0;bottom:0;z-index:4;padding:11px 12px;display:flex;
+    background:linear-gradient(0deg,rgba(20,28,52,.28),transparent)}
+  .btn{font:800 10.5px ui-sans-serif;color:#fff;background:var(--grad);padding:7px 13px;border-radius:22px;display:inline-flex;gap:5px;align-items:center;position:relative;overflow:hidden;box-shadow:0 10px 22px -7px rgba(91,110,245,.75),inset 0 1px 0 rgba(255,255,255,.4)}
+  @keyframes shine{0%{left:-70%}22%,100%{left:130%}}
+  .btn::after{content:"";position:absolute;top:0;left:-70%;width:45%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.6),transparent);animation:shine 7s ease-in-out infinite}
+
+  /* shared controls */
+  .chips{display:flex;gap:6px}
+  .chip{flex:1;border:1px solid var(--line);border-radius:9px;padding:5px 7px;background:#fbfcfe;box-shadow:0 1px 0 rgba(20,30,60,.03)}
+  .chip .lbl{font-size:7px}
+  .chip b{display:block;font-size:10px;font-weight:800;margin-top:1px;color:var(--ink)}
+  .track{height:7px;border-radius:99px;background:#e9edf5;overflow:hidden}
+  .fill{height:100%;border-radius:99px;background:var(--gradG)}
+  @keyframes grow{0%,10%{width:6%}46%,100%{width:var(--w,72%)}}
+  .fill.anim{animation:grow 30s cubic-bezier(.16,1,.3,1) infinite}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fbfcfe}
+  .seg span{font-size:9px;font-weight:800;padding:5px 9px;color:var(--ink2)}
+  .seg span.on{background:var(--grad);color:#fff}
+  .slider{position:relative;height:5px;border-radius:99px;background:#e9edf5;margin:9px 2px}
+  .slider .sf{position:absolute;left:0;top:0;height:100%;border-radius:99px;background:var(--gradG);width:58%}
+  .slider .kn{position:absolute;top:50%;left:58%;width:12px;height:12px;border-radius:99px;background:#fff;box-shadow:0 2px 6px rgba(20,30,70,.35),0 0 0 2px var(--indigo);transform:translate(-50%,-50%)}
+  .send{width:30px;height:30px;border-radius:10px;background:var(--gradG);display:grid;place-items:center;color:#fff;box-shadow:0 8px 16px -5px rgba(63,111,224,.7);flex:none}
+  .avatar{width:26px;height:26px;border-radius:99px;background:var(--grad);color:#fff;display:grid;place-items:center;font:800 9px ui-sans-serif;box-shadow:0 4px 10px rgba(91,110,245,.4)}
+
+  svg{stroke-linecap:round;stroke-linejoin:round}
+
+  /* ===== Scene: AD PERFORMANCE (echoes the refund estimator) ===== */
+  .a-head{display:flex;align-items:baseline;justify-content:space-between}
+  .a-big{font-size:26px;font-weight:800;letter-spacing:-.02em;color:var(--ink);background:var(--gradG);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .a-chart{position:relative;height:34px;margin-top:8px}
+  .a-chart svg{position:absolute;inset:0;width:100%;height:100%}
+  @keyframes draw{0%{stroke-dashoffset:200}18%{stroke-dashoffset:200}62%{stroke-dashoffset:0}97%{stroke-dashoffset:0}100%{stroke-dashoffset:200}}
+  .a-line{fill:none;stroke:url(#gg);stroke-width:2.4;stroke-dasharray:200;animation:draw 30s ease-in-out infinite;filter:drop-shadow(0 3px 4px rgba(34,184,160,.4))}
+
+  /* ===== Scene: VOICE PLAYER ===== */
+  .v-wave{position:absolute;left:14px;right:14px;top:46%;bottom:34%;display:flex;align-items:center;gap:2px}
+  .v-wave i{flex:1;border-radius:3px;background:linear-gradient(180deg,#7c6bff,#5b6ef5);animation:vb 2.4s ease-in-out infinite}
+  @keyframes vb{0%,100%{transform:scaleY(.55)}50%{transform:scaleY(1)}}
+  .v-play{position:absolute;left:14px;bottom:12%;width:34px;height:34px;border-radius:99px;background:var(--grad);display:grid;place-items:center;color:#fff;box-shadow:0 10px 20px -6px rgba(91,110,245,.7)}
+  @keyframes vhead{0%{left:14px}96%{left:calc(100% - 14px)}100%{left:calc(100% - 14px)}}
+  .v-head{position:absolute;top:46%;bottom:34%;width:2px;background:#5b6ef5;box-shadow:0 0 8px rgba(91,110,245,.7);animation:vhead 30s linear infinite}
+  .v-ctrls{position:absolute;right:14px;bottom:15%;display:flex;gap:5px}
+  .v-ctrls span{font-size:8px;font-weight:800;color:var(--ink2);border:1px solid var(--line);border-radius:7px;padding:3px 6px;background:#fbfcfe}
+
+  /* ===== Scene: DESIGN EDITOR ===== */
+  .d-canvas{position:absolute;left:8%;top:9%;bottom:9%;width:52%;border-radius:12px;overflow:hidden;background:linear-gradient(160deg,#6d5efc,#8b7bff 60%,#b06bff);box-shadow:0 14px 26px -12px rgba(60,40,140,.6)}
+  .d-canvas .e{position:absolute;left:12px;top:14px;font:800 6px ui-sans-serif;letter-spacing:.16em;color:rgba(255,255,255,.85)}
+  .d-canvas .h{position:absolute;left:12px;top:26px;font:800 17px/.95 ui-sans-serif;color:#fff;letter-spacing:-.02em}
+  .d-canvas .ph{position:absolute;right:10px;bottom:30px;width:40%;height:32%;border-radius:7px;background:radial-gradient(60% 55% at 40% 32%,#ffe1ba,transparent),linear-gradient(150deg,#f6b93b,#f4476b)}
+  .d-canvas .c{position:absolute;left:12px;bottom:14px;font:800 6px ui-sans-serif;color:#3a1d00;background:#ffd15c;padding:4px 8px;border-radius:16px}
+  .d-props{position:absolute;right:8%;top:16%;width:30%;background:#fff;border:1px solid var(--line);border-radius:11px;box-shadow:var(--cardsh);padding:9px;display:flex;flex-direction:column;gap:7px}
+  .d-props .row{display:flex;gap:5px}
+  .d-props .sw{width:15px;height:15px;border-radius:5px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.06)}
+  .d-props .gen{margin-top:2px;font:800 7.5px ui-sans-serif;color:#fff;background:var(--grad);text-align:center;padding:5px;border-radius:8px}
+
+  /* ===== Scene: CAMPAIGN PORTAL (echoes the tax portal) ===== */
+  .p-steps{display:flex;align-items:center;gap:0;margin-top:2px}
+  .p-steps .st{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;position:relative}
+  .p-steps .st::before{content:"";position:absolute;top:5px;left:-50%;width:100%;height:2px;background:#e4e8f2;z-index:0}
+  .p-steps .st:first-child::before{display:none}
+  .p-steps .st.done::before{background:var(--gradG)}
+  .p-steps .dot{width:11px;height:11px;border-radius:99px;background:#dfe4ef;z-index:1;box-shadow:0 0 0 3px #fff}
+  .p-steps .st.done .dot{background:var(--gradG)}
+  .p-steps .st.now .dot{background:#fff;box-shadow:0 0 0 3px #fff,0 0 0 4px var(--indigo)}
+  .p-steps small{font-size:7px;font-weight:700;color:var(--ink2)}
+  .p-post{display:flex;align-items:center;gap:8px;margin-top:9px;background:#fbfcfe;border:1px solid var(--line);border-radius:9px;padding:7px}
+  .p-post .im{width:30px;height:30px;border-radius:7px;background:radial-gradient(60% 60% at 40% 35%,#ffe0b8,transparent),linear-gradient(150deg,#8b5cf6,#3bb6f8);flex:none}
+  .p-post .tx{flex:1;display:flex;flex-direction:column;gap:4px}
+  .p-post .tx i{height:4px;border-radius:3px;background:#dfe4ef}
+  .p-bubble{margin-top:8px;align-self:flex-start;max-width:80%;font:700 8px ui-sans-serif;color:#fff;background:var(--gradG);padding:6px 9px;border-radius:12px 12px 12px 3px;box-shadow:0 6px 14px -5px rgba(63,111,224,.5)}
+
+  .themetag{position:fixed;top:14px;right:16px;font-size:11px;color:#9aa4ba;border:1px solid #333a46;border-radius:8px;padding:5px 10px}
+</style>
+
+<div class="themetag">light product-UI · 30s · CTA</div>
+
+<div class="wrap">
+  <h1>Hub thumbnails v2 — the clean product-UI quality</h1>
+  <p class="sub">Matching the quality you showed: <b>light</b> scenes on a soft pastel wash, <b>white cards</b> with soft shadows, <b>real labels & values</b>, and <b>realistic controls</b> (sliders, toggles, steppers, progress, chat) with tasteful gradient accents. Still full-bleed, 30s / 3-step, CTA baked in. Here are 4 scenes redone at this bar — if you approve, I redo all 16.</p>
+
+  <div class="grid">
+    <!-- AD PERFORMANCE -->
+    <div class="card"><div class="thumb"><div class="scn">
+      <div class="panel">
+        <div class="a-head s1"><span class="ttl" style="font-size:11px">Campaign performance</span><span class="lbl">LIVE</span></div>
+        <div class="chips s1" style="margin-top:8px">
+          <div class="chip"><span class="lbl">Spend</span><b class="num">$2,400</b></div>
+          <div class="chip"><span class="lbl">Reach</span><b class="num">88k</b></div>
+          <div class="chip"><span class="lbl">CTR</span><b class="num">3.1%</b></div>
+        </div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:9px">
+          <span class="a-big num s2">4.8×</span><span class="lbl s2">ROAS · ▲ 62%</span>
+        </div>
+        <div class="a-chart s2">
+          <svg viewBox="0 0 100 34" preserveAspectRatio="none"><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3f6fe0"/><stop offset="1" stop-color="#54c46b"/></linearGradient></defs><path class="a-line" d="M2,28 L20,24 L40,26 L60,14 L80,9 L98,3"/></svg>
+        </div>
+        <div class="seg s3" style="margin-top:9px"><span class="on">7 days</span><span>30 days</span></div>
+      </div>
+      <div class="cta"><span class="btn">Launch an ad →</span></div>
+    </div></div><div class="cap"><b>Ad Builder</b><p>Launch ads & track spend / ROAS.</p></div></div>
+
+    <!-- VOICE PLAYER -->
+    <div class="card"><div class="thumb"><div class="scn" style="background:radial-gradient(140px 140px at 10% 10%,rgba(124,107,255,.28),transparent 70%),radial-gradient(150px 150px at 92% 90%,rgba(63,111,224,.22),transparent 70%),linear-gradient(160deg,#f0eefb,#eef1fb)">
+      <div class="panel">
+        <div style="display:flex;align-items:center;justify-content:space-between" class="s1">
+          <span class="ttl" style="font-size:11px">Voiceover · Emma</span><span class="lbl">NATURAL</span>
+        </div>
+        <div class="v-wave s2" id="vwave"></div>
+        <div class="v-head s2"></div>
+        <div class="v-play s3"><svg width="12" height="12" viewBox="0 0 24 24" fill="#fff" style="margin-left:2px"><path d="M8 5v14l11-7z"/></svg></div>
+        <div class="v-ctrls s3"><span>1.0×</span><span>0:12 / 0:30</span></div>
+      </div>
+      <div class="cta"><span class="btn">Create a voiceover →</span></div>
+    </div></div><div class="cap"><b>Voice Studio</b><p>AI voiceovers, narration & voice cloning.</p></div></div>
+
+    <!-- DESIGN EDITOR -->
+    <div class="card"><div class="thumb"><div class="scn">
+      <div class="d-canvas s1"><span class="e">SUMMER · 2026</span><span class="h">Big<br>Sale</span><span class="ph"></span><span class="c">Shop now →</span></div>
+      <div class="d-props s2">
+        <span class="lbl">Accent</span>
+        <div class="row"><span class="sw" style="background:#6d5efc"></span><span class="sw" style="background:#22b8c9"></span><span class="sw" style="background:#f6b93b"></span><span class="sw" style="background:#f4476b"></span></div>
+        <span class="lbl" style="margin-top:3px">Style</span>
+        <div class="seg" style="align-self:flex-start"><span class="on">Bold</span><span>Minimal</span></div>
+        <div class="gen s3">✦ Generate</div>
+      </div>
+      <div class="cta"><span class="btn">Open Design Studio →</span></div>
+    </div></div><div class="cap"><b>Design Studio</b><p>Graphics, posts, ads & print — one canvas.</p></div></div>
+
+    <!-- CAMPAIGN PORTAL -->
+    <div class="card"><div class="thumb"><div class="scn" style="background:radial-gradient(140px 140px at 88% 10%,rgba(84,196,107,.3),transparent 70%),radial-gradient(150px 150px at 10% 92%,rgba(63,111,224,.22),transparent 70%),linear-gradient(160deg,#ecf5f1,#eef1fb)">
+      <div class="panel">
+        <div style="display:flex;align-items:center;justify-content:space-between" class="s1">
+          <span class="ttl" style="font-size:11px">November campaign</span><span class="lbl">12 POSTS</span>
+        </div>
+        <div class="p-steps s1" style="margin-top:9px">
+          <div class="st done"><span class="dot"></span><small>Draft</small></div>
+          <div class="st done"><span class="dot"></span><small>Approved</small></div>
+          <div class="st now"><span class="dot"></span><small>Scheduling</small></div>
+          <div class="st"><span class="dot"></span><small>Live</small></div>
+        </div>
+        <div class="p-post s2"><span class="im"></span><div class="tx"><i style="width:80%"></i><i style="width:56%"></i></div><span class="lbl num">Fri 17:30</span></div>
+        <div class="p-bubble s3">Scheduled 12 posts across 3 channels ✓</div>
+      </div>
+      <div class="cta"><span class="btn">Plan a campaign →</span></div>
+    </div></div><div class="cap"><b>Content Campaign</b><p>Plan & auto-generate scheduled posts.</p></div></div>
+  </div>
+
+  <p class="sub" style="margin-top:22px"><b>Two calls before I redo all 16:</b> (1) light scenes like these on the dark hub — good? (2) accent gradient: keep <b>FlowSmartly violet→indigo</b> (used here), or the <b>blue→green</b> from your examples?</p>
+</div>
+
+<script>
+  const heights=[];for(let i=0;i<34;i++){const e=Math.sin((i/33)*Math.PI);const d=.5+.5*Math.abs(Math.sin(i*1.7))*Math.abs(Math.cos(i*.6));heights.push(Math.max(14,Math.round(e*d*100)))}
+  document.getElementById('vwave').innerHTML=heights.map((h,i)=>`<i style="height:${h}%;animation-delay:${(i%6)*-.3}s"></i>`).join('');
+</script>

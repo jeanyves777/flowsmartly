@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ThemeMenu } from "@/components/shared/theme-menu";
 import { ChevronDown, Menu, Sparkles, ArrowRight, HelpCircle, ShieldCheck, FileCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -113,14 +112,15 @@ export function PublicHeader() {
 
         <div className="hidden items-center gap-2 lg:flex">
           <Link href="/login" onMouseEnter={() => setMenu(null)} className="rounded-lg px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">Log in</Link>
+          <Button asChild variant="outline" className="h-11 gap-1.5 rounded-xl border-border px-4 font-semibold" onMouseEnter={() => setMenu(null)}>
+            <Link href="/#work">Watch it work</Link>
+          </Button>
           <Button asChild className="h-11 gap-1.5 rounded-xl bg-gradient-to-r from-brand-500 to-accent-purple px-5 font-bold text-white shadow-lg hover:opacity-90" onMouseEnter={() => setMenu(null)}>
             <Link href="/register">Start free <ArrowRight className="h-4 w-4" /></Link>
           </Button>
-          <ThemeMenu />
         </div>
 
         <div className="flex items-center gap-2 lg:hidden">
-          <ThemeMenu />
           <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Open menu"><Menu className="h-5 w-5" /></Button>
@@ -140,7 +140,8 @@ export function PublicHeader() {
                     );
                   })}
                 </div>
-                <Link href="/#work" onClick={() => setSheetOpen(false)} className="rounded-lg px-2 py-2 text-sm font-semibold hover:bg-muted">How it works</Link>
+                <Link href="/#work" onClick={() => setSheetOpen(false)} className="rounded-lg px-2 py-2 text-sm font-semibold hover:bg-muted">Watch it work</Link>
+                <Link href="/#reel" onClick={() => setSheetOpen(false)} className="rounded-lg px-2 py-2 text-sm font-semibold hover:bg-muted">Product in motion</Link>
                 <Link href="/pricing" onClick={() => setSheetOpen(false)} className="rounded-lg px-2 py-2 text-sm font-semibold hover:bg-muted">Pricing</Link>
                 <Link href="/login" onClick={() => setSheetOpen(false)} className="rounded-lg px-2 py-2 text-sm font-semibold hover:bg-muted">Log in</Link>
                 <Button asChild className="bg-gradient-to-r from-brand-500 to-accent-purple text-white">

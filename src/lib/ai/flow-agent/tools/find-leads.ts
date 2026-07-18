@@ -1,5 +1,7 @@
+import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db/client";
 import type { FlowAgentTool } from "../registry";
+import { foundLeadsView } from "@/lib/agent-views/templates";
 
 /** lowercase, strip accents/punctuation → single-spaced tokens, for loose matching. */
 function norm(v: string): string {
@@ -102,7 +104,7 @@ export const findLeads: FlowAgentTool = {
     // Persist — wrapped so a DB/schema error degrades to a clear message instead
     // of crashing the tool (handler contract: never throw).
     let listId = typeof input.listId === "string" ? input.listId : null;
-    const created: { id: string; name: string; title: string | null; company: string; isOrg: boolean }[] = [];
+    const created: { id: string; name: string; title: string | null; company: string; location: string | null; industry: string | null; isOrg: boolean }[] = [];
     try {
       if (listId) {
         const owned = await prisma.savedLeadList.findFirst({ where: { id: listId, userId: ctx.userId }, select: { id: true } });
@@ -143,7 +145,7 @@ export const findLeads: FlowAgentTool = {
           },
           select: { id: true, name: true, title: true, category: true },
         });
-        created.push({ id: lead.id, name: lead.name, title: lead.title, company: lead.category ?? l.company, isOrg });
+        created.push({ id: lead.id, name: lead.name, title: lead.title, company: lead.category ?? l.company, location: l.location, industry: l.industry, isOrg });
       }
 
       await prisma.savedLeadList.update({
@@ -161,6 +163,10 @@ export const findLeads: FlowAgentTool = {
     // Nudge the Lead studio to refresh if it's open.
     ctx.emit({ type: "canvas_update", patch: { __leads: { refresh: true, listId } } });
 
+    // Render a pickable table INLINE in the chat — the user reveals a lead or
+    // opens the studio without leaving the conversation. [[agent-writes-into-ui-element-not-chat]]
+    ctx.emit({ type: "agent_view", requestId: randomUUID(), spec: foundLeadsView(created, listId) });
+
     const orgCount = created.filter((c) => c.isOrg).length;
     const kind = orgCount === created.length ? "organization" : orgCount > 0 ? "lead" : "lead";
     return {
@@ -169,7 +175,7 @@ export const findLeads: FlowAgentTool = {
         listId,
         count: created.length,
         leads: created,
-        userMessage: `Saved ${created.length} ${kind}${created.length === 1 ? "" : "s"} to the list${orgCount > 0 && orgCount < created.length ? ` (${orgCount} organisation-level)` : ""}. Tell the user they can reveal contact details with "enrich" (billed per lead) or start outreach — do NOT tell them to research these themselves.`,
+        userMessage: `Saved ${created.length} ${kind}${created.length === 1 ? "" : "s"} to the list${orgCount > 0 && orgCount < created.length ? ` (${orgCount} organisation-level)` : ""}. A PICKABLE TABLE of them is ALREADY rendered in the chat (the user can tap Reveal to enrich a lead, or open the studio) — do NOT re-list the leads as text. Just add a brief one-line confirmation. Do NOT tell them to research these themselves.`,
       },
       resultRefType: "SavedLeadList",
       resultRefId: listId,

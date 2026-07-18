@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Scissors, Link2, Upload, X, Send, Sparkles, Loader2, Check, Clock, Trash2, RotateCcw, Plus, Minus, Pencil } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
+import { useResolvedChannels, SocialGlyph, ChannelLogo } from "@/components/agent-home/shared/publish-node";
 import { REEL_CHANNELS, type ReelChannelId } from "@/lib/reel/highlights";
+
+// reel-specific per-channel copy (format / native-reels), keyed by id
+const REEL_META = new Map(REEL_CHANNELS.map((c) => [c.id, c]));
 
 /**
  * Reel Studio surface (/home/reel). A new VIEW in the existing playground shell,
@@ -59,6 +63,7 @@ export function FocusedReel({
 }) {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const { connected: connectedCh } = useResolvedChannels(REEL_CHANNELS, "video");
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [briefOpen, setBriefOpen] = useState(false);
@@ -237,13 +242,14 @@ export function FocusedReel({
                 <b className="text-[13px]">Publish</b>
                 <span className="ml-auto rounded-full border border-[#1c3a5a] bg-[#0d1f33] px-2 py-0.5 text-[10px] font-bold text-[#7db3ff]">publish</span>
               </div>
-              <div className="px-3 pb-2 text-[12px] text-muted-foreground">Post or schedule all reels to your channels</div>
-              <div className="flex gap-1.5 px-3 pb-2">
-                {REEL_CHANNELS.slice(0, 5).map((ch) => (
-                  <span key={ch.id} className={cn("grid h-5 w-5 place-items-center rounded text-[9px] font-black text-white", channelColor(ch.id))}>{ch.name[0]}</span>
+              <div className="px-3 pb-2 text-[12px] text-muted-foreground">Post or schedule all reels to your connected channels</div>
+              <div className="flex min-h-[20px] items-center gap-1.5 px-3 pb-2">
+                {connectedCh.slice(0, 6).map((ch) => (
+                  <span key={ch.id} title={ch.name} className="grid h-5 w-5 place-items-center overflow-hidden rounded-md bg-background ring-1 ring-border"><SocialGlyph ch={ch} /></span>
                 ))}
+                {connectedCh.length === 0 && <span className="text-[11px] text-muted-foreground">No channels connected</span>}
               </div>
-              <div className="px-3 pb-3 text-[11px] text-muted-foreground">{posts.length ? `${posts.length} scheduled/posted · manage` : `${REEL_CHANNELS.length} channels · click to post`}</div>
+              <div className="px-3 pb-3 text-[11px] text-muted-foreground">{posts.length ? `${posts.length} scheduled/posted · manage` : connectedCh.length ? `${connectedCh.length} connected · click to post` : "Connect a channel to publish"}</div>
             </Node>
           </div>
         )}
@@ -432,13 +438,25 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function PublishSheet({ campaign, posts, onClose, onPublished }: { campaign: Campaign; posts: Post[]; onClose: () => void; onPublished: (p: Post[]) => void }) {
+  const { connected } = useResolvedChannels(REEL_CHANNELS, "video");
   const [selClips, setSelClips] = useState<Set<string>>(new Set(campaign.clips.slice(0, 3).map((c) => c.id)));
-  const [selCh, setSelCh] = useState<Set<ReelChannelId>>(new Set(["tiktok", "instagram", "youtube"] as ReelChannelId[]));
+  const [selCh, setSelCh] = useState<Set<ReelChannelId>>(new Set());
   const [when, setWhen] = useState<"now" | "sched">("now");
   const [posting, setPosting] = useState(false);
   const [tab, setTab] = useState<"compose" | "activity">("compose");
   const [live, setLive] = useState<Post[]>(posts);
+  const seeded = useRef(false);
   const toggle = <T,>(set: Set<T>, v: T, fn: (s: Set<T>) => void) => { const n = new Set(set); n.has(v) ? n.delete(v) : n.add(v); fn(n); };
+
+  // Seed channel selection from the user's real connections (default to the usual
+  // short-form three when connected, else every connected channel).
+  useEffect(() => {
+    if (seeded.current || connected.length === 0) return;
+    const ids = connected.map((c) => c.id as ReelChannelId);
+    const pref = ids.filter((id) => (["tiktok", "instagram", "youtube"] as ReelChannelId[]).includes(id));
+    setSelCh(new Set(pref.length ? pref : ids));
+    seeded.current = true;
+  }, [connected]);
 
   const doPublish = async () => {
     setPosting(true);
@@ -468,19 +486,24 @@ function PublishSheet({ campaign, posts, onClose, onPublished }: { campaign: Cam
               </button>
             ))}
           </div>
-          <p className="mb-2 mt-4 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Connected channels that support reels</p>
+          <p className="mb-2 mt-4 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Your connected channels that support reels</p>
+          {connected.length === 0 ? (
+            <a href="/home/connections" className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-background px-3 py-4 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/40 hover:text-foreground">Connect a channel to publish reels →</a>
+          ) : (
           <div className="space-y-2">
-            {REEL_CHANNELS.map((ch) => {
-              const on = selCh.has(ch.id); const st = live.find((p) => p.channel === ch.id);
+            {connected.map((ch) => {
+              const on = selCh.has(ch.id as ReelChannelId); const st = live.find((p) => p.channel === ch.id);
+              const meta = REEL_META.get(ch.id as ReelChannelId);
               return (
                 <div key={ch.id} className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5">
-                  <span className={cn("grid h-8 w-8 place-items-center rounded-lg text-[13px] font-black text-white", channelColor(ch.id))}>{ch.name[0]}</span>
-                  <div className="min-w-0"><div className="text-[12.5px] font-bold">{ch.name}</div><div className="text-[11px] text-muted-foreground">{ch.format}{ch.nativeReels ? " · reels" : ""}</div></div>
-                  <div className="ml-auto">{st ? <StatusPill status={st.status} scheduledAt={st.scheduledAt} /> : <button onClick={() => toggle(selCh, ch.id, setSelCh)} className={cn("grid h-5 w-5 place-items-center rounded-md border-2", on ? "border-brand-500 bg-brand-500 text-white" : "border-muted-foreground/40 text-transparent")}><Check className="h-3 w-3" /></button>}</div>
+                  <span className="grid h-8 w-8 place-items-center overflow-hidden rounded-lg bg-muted ring-1 ring-border"><SocialGlyph ch={ch} /></span>
+                  <div className="min-w-0"><div className="text-[12.5px] font-bold">{ch.name}</div><div className="text-[11px] text-muted-foreground">{ch.handle ? `@${ch.handle.replace(/^@+/, "")}` : `${meta?.format || "Video"}${meta?.nativeReels ? " · reels" : ""}`}</div></div>
+                  <div className="ml-auto">{st ? <StatusPill status={st.status} scheduledAt={st.scheduledAt} /> : <button onClick={() => toggle(selCh, ch.id as ReelChannelId, setSelCh)} className={cn("grid h-5 w-5 place-items-center rounded-md border-2", on ? "border-brand-500 bg-brand-500 text-white" : "border-muted-foreground/40 text-transparent")}><Check className="h-3 w-3" /></button>}</div>
                 </div>
               );
             })}
           </div>
+          )}
           <p className="mb-2 mt-4 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">When</p>
           <div className="flex w-fit gap-0.5 rounded-lg border border-border bg-background p-0.5">{(["now", "sched"] as const).map((w) => <button key={w} onClick={() => setWhen(w)} className={cn("rounded-md px-3 py-1.5 text-[11.5px] font-semibold", when === w ? "bg-muted text-foreground" : "text-muted-foreground")}>{w === "now" ? "Post now" : "Schedule"}</button>)}</div>
         </> : (
@@ -490,7 +513,7 @@ function PublishSheet({ campaign, posts, onClose, onPublished }: { campaign: Cam
               const clip = campaign.clips.find((c) => c.id === p.clipId);
               return (
                 <div key={p.id} className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2.5">
-                  <span className={cn("grid h-8 w-8 place-items-center rounded-lg text-[12px] font-black text-white", channelColor(p.channel))}>{p.channel[0].toUpperCase()}</span>
+                  <span className="grid h-8 w-8 place-items-center overflow-hidden rounded-lg bg-muted ring-1 ring-border"><ChannelLogo id={p.channel} className="h-[18px] w-[18px]" /></span>
                   <div className="min-w-0 flex-1"><div className="truncate text-[12px] font-bold">{clip?.title || "Clip"}</div><div className="mt-0.5"><StatusPill status={p.status} scheduledAt={p.scheduledAt} /></div></div>
                   <div className="flex gap-1.5 text-muted-foreground">
                     {p.externalUrl && <a href={p.externalUrl} target="_blank" rel="noreferrer" className="rounded-md border border-border px-2 py-1 text-[10.5px] font-semibold hover:text-foreground">View</a>}
@@ -521,9 +544,6 @@ function StatusPill({ status, scheduledAt }: { status: string; scheduledAt: stri
   if (status === "scheduled") return <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-400"><Clock className="h-3 w-3" /> {scheduledAt ? new Date(scheduledAt).toLocaleDateString() : "Scheduled"}</span>;
   if (status === "failed") return <span className="rounded-full border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[11px] font-semibold text-red-400">Failed</span>;
   return <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-semibold text-cyan-400"><Loader2 className="h-3 w-3 animate-spin" /> Posting…</span>;
-}
-function channelColor(id: string): string {
-  return ({ tiktok: "bg-black", instagram: "bg-gradient-to-br from-[#f9ce34] via-[#ee2a7b] to-[#6228d7]", youtube: "bg-red-600", facebook: "bg-blue-600", linkedin: "bg-sky-700", x: "bg-black" } as Record<string, string>)[id] || "bg-slate-600";
 }
 function BuildingOverlay() {
   return (

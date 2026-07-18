@@ -7,11 +7,104 @@
 
 import { ai } from "@/lib/ai/client";
 import { getFilm, saveFilm } from "./store";
-import { normalizeScene, type FilmProject, type FilmScene, type SceneEngine } from "./types";
+import { normalizeScene, normalizeContinuity, type FilmProject, type FilmScene, type FilmCharacter, type FilmContinuity, type SceneEngine } from "./types";
 import { listAvatarsForUser, listVoicesForUser } from "@/lib/avatar-studio";
 import { heygenClient } from "@/lib/ai/heygen-client";
 
 const ENGINE_SET = new Set<SceneEngine>(["ai", "avatar", "reel", "media", "design"]);
+
+// HYBRID cast render: MOST beats render via reference-to-video (identity from the
+// cast sheets, natural un-posed motion), which caps at ~10s per clip. A FEW pivotal
+// dialogue beats instead render via a generated SCENE keyframe → image-to-video,
+// which real prod renders confirm holds 15s — 50% more room for a longer exchange,
+// at the cost of a fixed first frame + slightly more posed motion. A cast scene is
+// therefore planned at ≤10s by default and ≤15s only when it's a marked pivotal beat;
+// anything the render can't keep just rushes/truncates the dialogue. Films still get
+// most of their length from MORE scenes, not longer clips. Keep in sync with
+// GROK_MAX_REF2VID_SECONDS / GROK_MAX_IMG2VID_SECONDS in video-router.ts.
+const CAST_SCENE_REF_SECONDS = 10;      // natural-motion reference-to-video cap (default beat)
+const CAST_SCENE_PIVOTAL_SECONDS = 15;  // scene-keyframe image-to-video cap (pivotal beat)
+// Words of dialogue a clip can hold at a natural, unhurried pace (~2.2 words/sec).
+// 10s ≈ 22 words, 15s ≈ 33. Used to keep the storyboard from over-writing a shot.
+const DIALOGUE_WORDS_PER_SEC = 2.2;
+
+/** One planned beat from the storyboard LLM (loose shape — coerced downstream). */
+type PlannedScene = {
+  engine?: string;
+  title?: string;
+  script?: string;
+  durationSec?: number;
+  cast?: { name?: string; dialogue?: string }[];
+  /** True only when this beat is the uninterrupted next moment of the previous AI shot. */
+  continuation?: boolean;
+};
+
+/**
+ * Parse the storyboard model output into scene objects — ROBUST to truncation.
+ * A long movie's JSON can overrun the token budget and get cut off mid-array; a
+ * strict parse then fails and we fell back to a single "Opening" scene. This first
+ * tries a clean parse, then salvages every COMPLETE {…} element from the scenes
+ * array (string-aware balanced braces), so a truncated response still yields the
+ * scenes that DID come through instead of just one.
+ */
+function extractScenes(raw: string): PlannedScene[] {
+  const text = (raw || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  try {
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) { const o = JSON.parse(m[0]) as { scenes?: unknown }; if (Array.isArray(o?.scenes)) return o.scenes as PlannedScene[]; }
+  } catch { /* truncated / malformed — fall through to salvage */ }
+  // Salvage: scan the scenes array and keep each complete object.
+  const arrStart = text.indexOf("[", text.indexOf('"scenes"') >= 0 ? text.indexOf('"scenes"') : 0);
+  const src = arrStart >= 0 ? text.slice(arrStart + 1) : text;
+  const out: PlannedScene[] = [];
+  let depth = 0, start = -1, inStr = false, esc = false;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inStr) { if (esc) esc = false; else if (ch === "\\") esc = true; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") { if (depth === 0) start = i; depth++; }
+    else if (ch === "}" && depth > 0) { depth--; if (depth === 0 && start >= 0) { try { out.push(JSON.parse(src.slice(start, i + 1)) as PlannedScene); } catch { /* partial tail object */ } start = -1; } }
+  }
+  return out;
+}
+
+/**
+ * Generate the storyboard with a RETRY. A single transient LLM error (rate limit,
+ * a blip) used to zero out the whole draft; two attempts + logging make it resilient.
+ * Never throws — returns [] if both attempts come back empty.
+ */
+async function storyboardPlanned(prompt: string): Promise<PlannedScene[]> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const raw = await ai.generate(prompt, { maxTokens: 4000, temperature: attempt === 0 ? 0.7 : 0.55 });
+      const scenes = extractScenes(raw).slice(0, 30);
+      if (scenes.length) return scenes;
+      console.warn(`[video-director] storyboard attempt ${attempt + 1} returned 0 scenes`);
+    } catch (e) {
+      console.error(`[video-director] storyboard attempt ${attempt + 1} failed:`, e instanceof Error ? e.message : e);
+    }
+  }
+  return [];
+}
+
+/**
+ * Deterministic multi-scene SKELETON for a movie when the LLM storyboard can't be
+ * produced — so a cast-driven film is never stuck at 0/1 scene. Lays out story
+ * beats across the approved cast; the user edits the scripts + dialogue and
+ * generates. Better than a dead-end retry loop.
+ */
+const STORY_BEATS = ["Opening", "The spark", "First step", "A challenge", "Turning point", "Setback", "The push", "A win", "The climb", "Payoff", "Resolution", "Closing"];
+function castSkeleton(castList: FilmCharacter[], brief: string, approx: number): PlannedScene[] {
+  const n = Math.max(3, Math.min(approx || 6, 12));
+  return Array.from({ length: n }, (_, i) => ({
+    engine: "ai", // every beat is a generatable cast shot (a "design" card would need an image)
+    title: STORY_BEATS[i] || `Scene ${i + 1}`,
+    script: `${STORY_BEATS[i] || `Beat ${i + 1}`} — ${brief}`,
+    durationSec: 8,
+    continuation: i > 0 && i % 2 === 1,
+    cast: castList.length ? [{ name: castList[Math.floor(i / 2) % castList.length].name, dialogue: "" }] : [],
+  }));
+}
 
 /**
  * Turn the brief's attached media into routing inputs: a product/reference image
@@ -34,6 +127,61 @@ async function resolveMedia(film: FilmProject): Promise<{ productImg: string | n
     } catch { /* fall back to a normal avatar */ }
   }
   return { productImg, photoAvatar };
+}
+
+/**
+ * Establish the film's CONTINUITY BIBLE (free, one LLM call): the single shared
+ * world — primary location(s), a held time-of-day/colour palette, and each cast
+ * member's LOCKED wardrobe. Woven into every shot + keyframe so scenes stop
+ * drifting into different places, lighting or clothes shot-to-shot.
+ */
+async function establishContinuity(
+  brief: string,
+  style: string | null | undefined,
+  target: number,
+  cast: FilmCharacter[],
+): Promise<FilmContinuity | null> {
+  const castBlock = cast.length
+    ? cast.map((c) => `- ${c.name} [${c.renderStyle === "3d" ? "3D animated" : "cinematic live-action"}]${c.wardrobe?.trim() ? ` (MUST wear: ${c.wardrobe.trim()})` : ""}: ${c.description}`).join("\n")
+    : "(no named cast — describe the on-screen people/subjects generically)";
+  try {
+    const json = await ai.generateJSON<FilmContinuity>(
+      `You are the CONTINUITY supervisor for a ${target}s ${style || "cinematic"} film. Brief: "${brief}".\n` +
+        `CAST:\n${castBlock}\n` +
+        `Define the film's CONTINUITY BIBLE so every scene shares ONE consistent world — the same place, the same look, the same clothes:\n` +
+        `- "location": the primary concrete setting(s) where the story happens — specific and vivid (e.g. "a sun-bleached municipal soccer pitch with chain-link fencing and worn wooden bleachers"). If the story genuinely moves, name the 2-3 key locations.\n` +
+        `- "timePalette": the time of day + the consistent lighting and colour palette held across the WHOLE film.\n` +
+        `- "wardrobe": for EACH cast member, the ONE fixed outfit they wear throughout (specific garments + colours). If a cast member already has a required outfit above, use it VERBATIM. Keep each outfit constant unless the story truly demands a change.\n` +
+        `Return JSON: {"location":"...","timePalette":"...","wardrobe":[{"name":"<cast name>","outfit":"..."}]}.`,
+      { maxTokens: 900, temperature: 0.5 },
+    );
+    const c = normalizeContinuity(json);
+    if (!c?.wardrobe) return c;
+    // Link each wardrobe entry back to its cast id (best-effort, by name).
+    const byName = new Map(cast.map((x) => [x.name.toLowerCase(), x.id]));
+    c.wardrobe = c.wardrobe.map((w) => ({ ...w, characterId: w.characterId || byName.get((w.name || "").toLowerCase()) }));
+    return c;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Run the storyboard in the BACKGROUND, then stamp the film's draftStatus so the
+ * canvas poll can reflect done/failed. The /draft route kicks this off and returns
+ * immediately, so a long movie storyboard can't hit the request timeout (which
+ * previously left the canvas empty). Never throws.
+ */
+export async function draftFilmAsync(filmId: string, userId: string): Promise<void> {
+  try {
+    const film = await draftFilmPipeline(filmId, userId);
+    const f = await getFilm(filmId, userId);
+    if (f) { f.draftStatus = film && film.scenes.length ? "ready" : "failed"; await saveFilm(filmId, userId, f); }
+  } catch (e) {
+    console.error("[video-director] async draft failed:", e);
+    const f = await getFilm(filmId, userId);
+    if (f) { f.draftStatus = "failed"; await saveFilm(filmId, userId, f); }
+  }
 }
 
 export async function draftFilmPipeline(filmId: string, userId: string): Promise<FilmProject | null> {
@@ -103,35 +251,88 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   if (!brief) return film;
 
   const target = film.targetSeconds || 30;
-  const approx = film.sceneCount ? Math.max(1, Math.min(10, film.sceneCount)) : Math.max(2, Math.min(8, Math.round(target / 8)));
+  // Cast shots render at ≤10s each (CAST_SCENE_MAX_SECONDS), so budget the scene
+  // count against a ~11s average (a few shorter design/silent beats pull it down
+  // from 10). A 5-min film → ~27 shots. Undershooting the count makes the film come
+  // out SHORTER than asked AND crams dialogue into too-few clips, so lean generous.
+  const approx = film.sceneCount ? Math.max(1, Math.min(40, film.sceneCount)) : Math.max(3, Math.min(32, Math.round(target / 11)));
   const hasSource = !!film.sourceVideoUrl;
 
-  let planned: { engine?: string; title?: string; script?: string; durationSec?: number }[] = [];
+  // A MOVIE is built around its approved CAST acting in AI shots — it never uses
+  // a talking-head avatar (that's the Avatar tab) unless the user attached their
+  // OWN photo to present. So avatar is off for movies by default.
+  const isMovie = film.filmType === "ai_film";
+  const approvedCast = (film.characters || []).filter((c) => c.approved);
+  const castList = approvedCast.length ? approvedCast : (film.characters || []);
+  const useCast = isMovie && castList.length > 0;
+  const allowAvatar = !isMovie || !!photoAvatar;
+
+  let planned: PlannedScene[] = [];
   try {
-    const json = await ai.generateJSON<{ scenes: { engine: string; title: string; script: string; durationSec: number }[] }>(
-      `You are a senior video DIRECTOR planning a ${target}s ${film.filmType.replace("_", " ")} as a sequence of scenes. Brief: "${brief}".\n` +
-      (photoAvatar ? `The user attached a PHOTO OF THEMSELVES — use "avatar" scenes for a PRESENTER that is them (open and/or close on the presenter, or have them speak between shots).\n` : "") +
-      (productImg ? `The user attached a PRODUCT/REFERENCE image — use "ai" shots to show that product (macro, in-use, hero) and a "design" end card featuring it.\n` : "") +
-      `Plan exactly ${approx} scenes that build one cohesive story. MIX the engines to deliver the best result. For EACH scene pick the best engine:\n` +
-      `- "ai": a cinematic AI-generated shot (product macro, b-roll, establishing, motion). script = a vivid SHOT PROMPT (what's on screen, mood, motion) — no dialogue.\n` +
-      `- "avatar": the user's talking-avatar${photoAvatar ? " (their own photo)" : " clone"} speaking to camera (hook, testimonial, explainer, spoken CTA). script = the SPOKEN words — first person, punchy, to one viewer.\n` +
-      `- "design": a branded still / end card (logo, offer, "Shop now"). script = the on-screen HEADLINE only.\n` +
-      (hasSource ? `- "reel": a scored clip cut from the user's uploaded long video (use for b-roll / real-footage beats). script = a short note on what moment to grab.\n` : "") +
-      `Open with a scroll-stopping beat and close with a clear call to action. Durations sum to ~${target}s (each 3-10s).\n` +
-      `Return JSON: {"scenes":[{"engine":"ai|avatar|design${hasSource ? "|reel" : ""}","title":"2-4 words","script":"...","durationSec":8}, ...]} with exactly ${approx} scenes.`,
-      { maxTokens: 1600, temperature: 0.7 },
-    );
-    planned = Array.isArray(json?.scenes) ? json.scenes.slice(0, 10) : [];
-  } catch {
+    let prompt: string;
+    if (useCast) {
+      const castBlock = castList.map((c) => `- ${c.name} [${c.renderStyle === "3d" ? "3D animated" : "cinematic live-action"}] — ${c.role}: ${c.description}`).join("\n");
+      prompt =
+        `You are a SCREENWRITER + director writing ONE continuous ${target}s ${film.style || "cinematic"} short FILM as a shot list. Brief: "${brief}".\n` +
+        `CAST — every character who appears OR speaks MUST be one of these EXACT people (use their names verbatim):\n${castBlock}\n` +
+        `HARD CASTING RULES: never invent a new name, a minor role, or an off-screen / "voice only" / background speaker — if none of the cast fits a beat, use one of them or make it a silent reaction; a line spoken by anyone not in this list is a failure. Within a single scene, never list the same person twice, and only put someone in a scene if they are truly present in it.\n` +
+        (productImg ? `A product/reference image is attached — you may feature it in a shot or a "design" end card.\n` : "") +
+        `Write the WHOLE film as one coherent story before you output — a clear beginning, middle and end — then break it into exactly ${approx} scenes IN ORDER.\n` +
+        `STORY CONTINUITY (this is the most important rule):\n` +
+        `- Each scene must flow DIRECTLY and NATURALLY from the one before it — continuous time/place or a purposeful cut, clear cause → effect. No jumping to unrelated moments, no non-sequiturs.\n` +
+        `- The DIALOGUE across all scenes must read as ONE real, logical conversation/screenplay. If a character asks a question, it gets ANSWERED (in the same scene or the very next) — NEVER leave a question hanging or switch topics abruptly. A question with no answer, or a line that ignores the previous line, is a hard failure.\n` +
+        `- Keep CONSISTENCY throughout: the same names, relationships, goals, wardrobe and tone; the plot advances logically scene to scene.\n` +
+        `- FILL SCENES WITH TALK, not silence: this is a movie of people TALKING, so almost every cast scene must carry real spoken dialogue that uses most of its length — dead air and people standing silently are the #1 failure to avoid. Only make a scene silent when the silence itself is the point (one deliberate establishing or emotional beat). Only include a character in a scene if they matter to that beat.\n` +
+        `- LONG CONVERSATIONS span CONSECUTIVE scenes: a single shot is short, so when two people really talk, write the exchange as a RUN of back-to-back scenes in the SAME place and framing — scene 4 they speak, scene 5 the reply, scene 6 the rebuttal — each continuing seamlessly so stitched together they play as ONE long, unhurried conversation. A conversation does NOT have to resolve in one scene; let it breathe across several.\n` +
+        `- CINEMATIC FLOW & COMPOSITION (so the film plays as ONE piece, not disconnected clips): write each scene to ENTER and EXIT in motion — begin with the action already underway and end on a beat that hands off to the next scene (a glance, a step, a line landing) so the cut feels motivated, never abrupt. Give ADJACENT scenes a visual through-line (the same place & light, a matched movement, or an eyeline that carries over).\n` +
+        `- ONE SHOT PER SCENE (critical — each scene is a SINGLE unbroken take): every scene is ONE continuous shot with ONE camera setup in ONE location. NEVER describe a cut, a second angle, or a change of place INSIDE a scene ("wide, then cut to a close-up", "we see the room, then his face") — that makes the render invent a brand-new background the moment the angle shifts. Vary the shot scale ACROSS scenes instead: make one scene an establishing WIDE, the next a MEDIUM two-shot for dialogue, another a CLOSE-UP for emotion — a different framing per scene, but each scene locked to its own single framing and place.\n` +
+        `For EACH scene give:\n` +
+        `- "engine": "ai" for a shot of the cast acting (the default), or "design" for a branded end card (use only for the final beat).\n` +
+        `- "title": 2-4 words.\n` +
+        `- "script": ONE continuous shot in ONE location with ONE framing (wide OR medium OR close) — the setting, the action, and the mood (what is ON SCREEN). Name WHO is in frame and WHERE (e.g. "Kofi at left facing Kwame across the table"), and attribute every physical action to a named person toward a named person (WHO reaches out, WHO shakes whose hand) — no ambiguous "they". The camera may drift or push gently, but do NOT write a cut, a new angle, or a change of place. NOT the dialogue.\n` +
+        `- "cast": ONLY the people truly on screen in this shot and what they SAY — [{"name":"<an EXACT cast name from above>","dialogue":"their spoken line — leave empty ONLY for a deliberate silent beat"}]. List each person AT MOST ONCE. Every speaker addresses another person present in the same scene; their lines continue the conversation from the previous scene.\n` +
+        `- "continuation": true ONLY when this scene is the immediate, uninterrupted next moment of the previous AI scene: same location, decor, lighting, people, wardrobe, framing, and camera direction, with no time jump or cut. It will be rendered by extending the previous scene's actual video, so use true for conversation runs and actions that must continue seamlessly. Use false for scene 1 and whenever the location, time, cast, framing, or camera setup changes. When true, "script" describes only what happens next and durationSec must be 2-10.\n` +
+        `- "durationSec": keep MOST beats 8-${CAST_SCENE_REF_SECONDS}s for the most natural motion. FILL each beat with talk — AIM FOR the word budget so there's no dead air, but never exceed it: ~2 words/sec → ${CAST_SCENE_REF_SECONDS}s ≈ ${Math.round(CAST_SCENE_REF_SECONDS * DIALOGUE_WORDS_PER_SEC)} words (a genuine two-line back-and-forth, both people speaking), 8s ≈ 16 words. A FEW PIVOTAL beats may run 11-${CAST_SCENE_PIVOTAL_SECONDS}s (≈ ${Math.round(CAST_SCENE_PIVOTAL_SECONDS * DIALOGUE_WORDS_PER_SEC)} words, ~3 short lines) when the moment earns it — sparingly (~1 in 4). Two failures to avoid at once: UNDER-writing a beat so it plays as awkward silence, and OVER-writing past the budget so the actors rush and swallow words. Hit the budget, then continue a longer conversation into the NEXT scene rather than cramming it into one shot.\n` +
+        `Open on a hook, build the story with connected beats, resolve it at the end. Return JSON: {"scenes":[{"engine":"ai","title":"...","script":"...","cast":[{"name":"...","dialogue":"..."}],"continuation":false,"durationSec":9}, ...]} with exactly ${approx} scenes.`;
+    } else {
+      const engines: string[] = ['"ai": a cinematic AI shot. script = a vivid SHOT PROMPT (what\'s on screen, mood, motion) — no dialogue.'];
+      if (allowAvatar) engines.push(`"avatar": the user's talking-avatar${photoAvatar ? " (their own photo)" : " clone"} speaking to camera. script = the SPOKEN words — first person, punchy.`);
+      engines.push('"design": a branded still / end card. script = the on-screen HEADLINE only.');
+      if (hasSource) engines.push('"reel": a scored clip cut from the uploaded long video. script = a short note on which moment to grab.');
+      prompt =
+        `You are a senior video DIRECTOR planning a ${target}s ${film.filmType.replace("_", " ")} as a sequence of scenes. Brief: "${brief}".\n` +
+        (photoAvatar ? `The user attached a PHOTO OF THEMSELVES — use "avatar" scenes for a PRESENTER that is them.\n` : "") +
+        (productImg ? `A PRODUCT/REFERENCE image is attached — use "ai" shots to show it and a "design" end card featuring it.\n` : "") +
+        `Plan exactly ${approx} scenes that build one cohesive story. For EACH scene pick the best engine:\n` +
+        engines.map((e) => `- ${e}`).join("\n") + "\n" +
+        `For every scene include "continuation": true only for an AI beat that is the immediate uninterrupted extension of the previous AI beat with the same location, decor, lighting, subject, framing, and camera direction. It will use the previous video's final frame. Otherwise use false; scene 1 is always false. Continuations last 2-10s.\n` +
+        `Open with a scroll-stopping beat and close with a clear call to action. Durations sum to ~${target}s (each 6-15s).\n` +
+        `Return JSON: {"scenes":[{"engine":"...","title":"2-4 words","script":"...","continuation":false,"durationSec":10}, ...]} with exactly ${approx} scenes.`;
+    }
+    // Drafting is async now (background), so token headroom + a retry are safe.
+    planned = await storyboardPlanned(prompt);
+  } catch (e) {
+    console.error("[video-director] storyboard build failed:", e instanceof Error ? e.message : e);
     planned = [];
   }
+
+  // Establish the shared world AFTER the storyboard (sequential, not parallel — two
+  // simultaneous LLM calls can trip a rate/concurrency limit and zero out the draft).
+  // Async draft means the extra latency is invisible. Stored for render-time keyframes.
+  film.continuity = await establishContinuity(brief, film.style, target, castList).catch(() => null);
+
   if (planned.length === 0) {
-    planned = [
-      { engine: "ai", title: "Hook", script: brief, durationSec: 8 },
-      { engine: "avatar", title: "Message", script: brief, durationSec: 12 },
-      { engine: "design", title: "Call to action", script: "Learn more", durationSec: 4 },
-    ];
+    // Never dead-end: a movie gets a real multi-scene skeleton to edit; other kinds
+    // get their usual 3-beat starter. (A blank canvas + retry loop helps no one.)
+    planned = useCast
+      ? castSkeleton(castList, brief, approx)
+      : [
+          { engine: "ai", title: "Hook", script: brief, durationSec: 8 },
+          { engine: allowAvatar ? "avatar" : "ai", title: "Message", script: brief, durationSec: 12 },
+          { engine: "design", title: "Call to action", script: "Learn more", durationSec: 4 },
+        ];
   }
+  const nameToId = new Map(castList.map((c) => [c.name.toLowerCase(), c.id]));
 
   // Presenter defaults — the brief's chosen avatar/voice (or the account's first)
   // so drafted avatar scenes are one-click generatable.
@@ -147,27 +348,52 @@ export async function draftFilmPipeline(filmId: string, userId: string): Promise
   }
   const avatarQuality = photoAvatar || film.quality === "avatar_iv" ? "avatar_iv" : "standard";
   const aiStyle = ["cinematic", "3d", "narrated"].includes(String(film.style)) ? String(film.style) : "cinematic";
+  const plannedEngines = planned.map((scene) => {
+    let engine = (ENGINE_SET.has(scene.engine as SceneEngine) ? scene.engine : "ai") as SceneEngine;
+    if (useCast && engine === "avatar") engine = "ai";
+    return engine;
+  });
+  const sceneIds = planned.map((_, i) => `sc_${i}_${Math.random().toString(36).slice(2, 7)}`);
 
   const scenes: FilmScene[] = planned.map((s, i) => {
-    const engine = (ENGINE_SET.has(s.engine as SceneEngine) ? s.engine : "ai") as SceneEngine;
+    const engine = plannedEngines[i];
+    // Only a direct AI→AI relationship can become an exact provider extension.
+    // This guards against malformed storyboard JSON linking a still/avatar beat.
+    const isContinuation = i > 0 && s.continuation === true && engine === "ai" && plannedEngines[i - 1] === "ai";
+    const sceneCast = Array.isArray(s.cast)
+      ? s.cast.filter((l) => l?.name).slice(0, 6).map((l) => ({
+          characterId: nameToId.get(String(l.name).toLowerCase()),
+          name: String(l.name).slice(0, 80),
+          dialogue: typeof l.dialogue === "string" ? l.dialogue.slice(0, 2000) : "",
+        }))
+      : undefined;
     return normalizeScene(
       {
-        id: `sc_${i}_${Math.random().toString(36).slice(2, 7)}`,
+        id: sceneIds[i],
         engine,
         title: (s.title || `Scene ${i + 1}`).slice(0, 60),
         script: (s.script || brief).slice(0, 4000),
-        durationSec: typeof s.durationSec === "number" ? Math.max(2, Math.min(15, Math.round(s.durationSec))) : engine === "design" ? 3 : 8,
+        cast: sceneCast,
+        // Cast beats plan ≤15s (a pivotal beat renders via a scene keyframe → 15s
+        // image-to-video; a normal beat via reference-to-video → the render caps it at
+        // 10s). A cast beat can't be planned longer than the clip it produces, else its
+        // dialogue overflows and rushes. Design/end-card beats stay short; non-cast ≤15s.
+        durationSec: typeof s.durationSec === "number"
+          ? Math.max(2, Math.min(isContinuation ? 10 : useCast ? CAST_SCENE_PIVOTAL_SECONDS : 15, Math.round(s.durationSec)))
+          : engine === "design" ? 3 : useCast ? 9 : 8,
         order: i,
         x: 340 + i * 250,
         y: 80 + (i % 2) * 210,
         status: "draft",
         captionsOn: true,
-        transitionIn: i === 0 ? "cut" : "crossfade", // planned transitions for a finished feel
+        transitionIn: isContinuation || i === 0 ? "cut" : "crossfade", // exact extensions already meet at the source's final frame
         quality: engine === "avatar" ? avatarQuality : undefined,
         style: engine === "ai" ? aiStyle : undefined,
-        aiProvider: engine === "ai" ? "veo" : undefined,
+        aiProvider: engine === "ai" ? (isContinuation ? "grok" : "veo") : undefined,
+        continuationMode: isContinuation ? "exact" : undefined,
+        continuationOf: isContinuation ? sceneIds[i - 1] : undefined,
         // route attached media: product image anchors AI shots + design cards
-        ...(engine === "ai" && productImg ? { referenceImageUrl: productImg } : {}),
+        ...(engine === "ai" && productImg && !isContinuation ? { referenceImageUrl: productImg } : {}),
         ...(engine === "design" && productImg ? { sourceUrl: productImg, thumbnailUrl: productImg } : {}),
         ...(engine === "reel" && film.sourceVideoUrl ? { sourceUrl: film.sourceVideoUrl } : {}),
         ...(engine === "avatar" && defAvatar ? { avatarId: defAvatar.id, avatarName: defAvatar.name } : {}),

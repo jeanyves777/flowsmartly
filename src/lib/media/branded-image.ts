@@ -143,7 +143,7 @@ export async function generateBrandedImage(
     ? `Include these REAL contact details, copied exactly (never invent), as a DESIGNED, on-brand contact treatment that suits this design — vary it (a footer bar, an icon-chip row, a rounded contact panel, or a slim pill; small icons/dividers, legible), not a bare line: ${contactLine}.`
     : null;
   const antiInventionPolicy =
-    "Render ONLY the messaging, names, dates, and visuals provided. Do not invent products, people, prices, dates, claims, or testimonials. Do NOT render any hashtags (#…) anywhere on the image.";
+    "Render ONLY the messaging, names, dates, and visuals provided. Do not invent products, people, prices, dates, claims, or testimonials. Do NOT render any hashtags (#…) anywhere on the image. NO YEAR OR DATE unless the brief above explicitly includes one: do not add a year, a \"Season 20XX\" / \"Tax Season 20XX\" badge, a copyright line, or any date stamp on your own — by default the design shows NO year at all.";
 
   const imagePrompt = withLanguagePrefix(
     [

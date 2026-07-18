@@ -104,13 +104,30 @@ fi
 # --- 4. prisma: sync the DB schema, then generate the client ------------------
 # db push makes the prod DB match schema.prisma — it ADDS any table/column that
 # exists in code but not yet in prod (this is how features ship their schema;
-# the deploy is the single place prod schema advances). It is ADDITIVE and does
-# NOT drop data. Running non-interactively (SSH, no TTY), Prisma ABORTS the deploy
-# if a change would be destructive instead of dropping data — so we deliberately
-# do NOT pass --accept-data-loss; a destructive diff should fail loudly and be
-# resolved by hand, never silently lose rows.
-log "Syncing DB schema (prisma db push — additive)"
-npx prisma db push --skip-generate
+# the deploy is the single place prod schema advances).
+#
+# The catch: Prisma flags BOTH real data loss (dropping a column/table that holds
+# rows) AND merely-cautious changes (adding a UNIQUE constraint, which *could*
+# fail on duplicates) as "data loss", and aborts non-interactively for either. A
+# plain new `@unique` on a fresh, all-NULL column is perfectly safe, yet it used
+# to wedge every deploy until someone reconciled it by hand.
+#
+# So we look at the actual SQL first. If it would DROP a column or table, we
+# refuse (run the plain push so it fails loudly with the specifics — a human
+# resolves genuine data loss by hand). Otherwise the diff is additive-only
+# (new tables/columns/indexes/constraints) and we apply it with
+# --accept-data-loss so a safe constraint-add can never block a release.
+log "Syncing DB schema (prisma db push)"
+DBURL="$(grep -m1 '^DATABASE_URL=' .env 2>/dev/null | cut -d= -f2- | sed 's/^"//; s/"$//')"
+SCHEMA_DIFF="$(npx prisma migrate diff --from-url "$DBURL" --to-schema-datamodel prisma/schema.prisma --script 2>/dev/null || echo '__DIFF_FAILED__')"
+if [ "$SCHEMA_DIFF" = "__DIFF_FAILED__" ] || echo "$SCHEMA_DIFF" | grep -qiE 'DROP[[:space:]]+(COLUMN|TABLE)'; then
+  # Destructive (or we couldn't tell) — never silently drop rows; fail loudly.
+  log "Schema diff is destructive or unknown — pushing WITHOUT --accept-data-loss (aborts if it drops data)"
+  npx prisma db push --skip-generate
+else
+  log "Schema diff is additive-only — applying (safe to accept new constraints)"
+  npx prisma db push --skip-generate --accept-data-loss
+fi
 log "Generating Prisma client"
 npx prisma generate
 

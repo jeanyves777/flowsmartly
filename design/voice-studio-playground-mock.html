@@ -1,0 +1,945 @@
+<title>Voice Studio — full playground (voiceover + narrated video)</title>
+<style>
+  :root{
+    --ground:#0b0b0f;--card:#15151c;--card2:#1b1b23;--border:#2a2a33;
+    --violet:#a78bfa;--violet2:#7c3aed;--amber:#fbbf24;--teal:#22d3ee;--emerald:#10b981;--rose:#fb7185;
+    --text:#ececf1;--muted:#9a9aa6;
+  }
+  *{box-sizing:border-box}html,body{margin:0;height:100%}
+  body{background:var(--ground);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+  .app{height:100vh;display:flex;flex-direction:column}
+  .top{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--border);background:rgba(11,11,15,.9);z-index:30}
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:linear-gradient(135deg,var(--violet),var(--violet2));color:#fff;font-size:15px}
+  .brand b{font-size:13.5px;font-weight:700;display:block;line-height:1.1}.brand span{font-size:11px;color:var(--muted)}
+  .spacer{flex:1}.stat{font-size:11.5px;color:var(--muted)}.stat b{color:var(--emerald)}
+  .btn{display:inline-flex;align-items:center;gap:6px;border-radius:9px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text)}
+  .btn:hover{border-color:var(--violet)}
+  .btn.vio{border:none;color:#fff;background:linear-gradient(135deg,var(--violet),var(--violet2))}
+  .btn.gen{border:none;color:#04231a;background:linear-gradient(135deg,#34d399,var(--emerald));font-weight:700}
+
+  .canvas{flex:1;position:relative;overflow:auto;background:radial-gradient(circle at 1px 1px,#20202b 1px,transparent 0) 0 0/24px 24px,var(--ground)}
+  .board{position:relative;width:2400px;height:1100px}
+  svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+
+  .empty{position:absolute;left:44%;top:40%;transform:translate(-50%,-50%);text-align:center}
+  .empty h2{font-size:17px;margin:0 0 4px}.empty p{color:var(--muted);font-size:12.5px;margin:0 0 16px}
+  .empty .cta{border:none;border-radius:12px;padding:12px 22px;font-size:14px;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--violet),var(--violet2));cursor:pointer}
+
+  .node{position:absolute;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .n-head{display:flex;align-items:center;gap:7px;padding:9px 11px 5px;cursor:grab}.n-head:active{cursor:grabbing}
+  .n-head .ic{width:19px;height:19px;border-radius:6px;display:grid;place-items:center;font-size:10px}
+  .n-head b{font-size:12px;font-weight:700}
+  .n-head .tag{margin-left:auto;font-size:9px;font-weight:700;border-radius:999px;padding:2px 7px}
+  .tag.brf{background:rgba(167,139,250,.14);color:var(--violet)}
+  .tag.take{background:rgba(34,211,238,.14);color:var(--teal)}
+  .tag.pub{background:rgba(16,185,129,.14);color:var(--emerald)}
+  .tag.fin{background:rgba(251,191,36,.14);color:var(--amber)}
+  .x{width:17px;height:17px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;margin-left:4px}
+  .x:hover{border-color:var(--rose);color:var(--rose)}
+
+  /* brief node */
+  .node.briefn{width:252px;border-color:rgba(167,139,250,.35)}
+  .pills{display:flex;flex-wrap:wrap;gap:4px;padding:0 11px}
+  .pill{font-size:9px;font-weight:600;background:var(--card2);border:1px solid var(--border);border-radius:999px;padding:2px 7px;color:var(--muted)}
+  .pill.on{border-color:rgba(167,139,250,.5);color:var(--violet)}
+  .bn-script{margin:7px 11px 0;padding:8px 9px;border-radius:10px;background:var(--card2);border:1px solid var(--border);font-size:10.5px;color:var(--muted);line-height:1.45;max-height:56px;overflow:hidden}
+  .bn-acts{display:flex;gap:5px;padding:9px 11px 11px}
+  .bn-a{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;border:1px solid var(--border);border-radius:9px;padding:6px;font-size:10.5px;font-weight:600;background:transparent;color:var(--text);cursor:pointer}
+  .bn-a:hover{border-color:var(--violet)}
+  .bn-a.prime{border:none;font-weight:700;background:linear-gradient(135deg,var(--violet),var(--violet2));color:#fff}
+
+  /* ---- scene / take cards ---- */
+  .take{width:250px}
+  .take .thumb{position:relative;margin:2px 11px 0;border-radius:12px;overflow:hidden;aspect-ratio:16/9;display:grid;place-items:center}
+  .thumb.still{background:linear-gradient(150deg,#243447,#3b2f52)}
+  .thumb.clip{background:linear-gradient(150deg,#1f3b34,#2b4a5e)}
+  .thumb.char{background:linear-gradient(150deg,#40243a,#5b2f46)}
+  .thumb .play{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.92);color:var(--violet2);display:grid;place-items:center;font-size:17px;cursor:pointer;z-index:2}
+  .thumb .dur{position:absolute;right:5px;bottom:5px;background:rgba(0,0,0,.6);color:#fff;font-size:8.5px;font-family:ui-monospace,monospace;border-radius:4px;padding:1px 5px}
+  .thumb .kind{position:absolute;left:5px;top:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 7px;background:rgba(0,0,0,.55);color:#fff;display:flex;gap:4px;align-items:center}
+  .thumb .src{position:absolute;right:5px;top:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 7px;background:rgba(167,139,250,.9);color:#1a1030;z-index:2}
+  .thumb .src.up{background:rgba(251,191,36,.92);color:#2b1d00}
+  .thumb .badge{position:absolute;left:5px;bottom:5px;font-size:8px;font-weight:800;border-radius:999px;padding:2px 6px}
+  .badge.ready{background:var(--emerald);color:#04231a}
+  .badge.rendering{background:rgba(167,139,250,.25);color:#c4b5fd}
+  .thumb .kb{position:absolute;inset:0;background:radial-gradient(circle at 30% 40%,rgba(255,255,255,.08),transparent 60%);animation:kb 6s ease-in-out infinite alternate}
+  @keyframes kb{from{transform:scale(1)}to{transform:scale(1.12)}}
+  .thumb .loader{position:absolute;inset:0;display:flex;flex-direction:column;gap:7px;align-items:center;justify-content:center;background:rgba(11,11,15,.82);z-index:3}
+  .sp{width:22px;height:22px;border-radius:50%;border:2.5px solid #333;border-top-color:var(--violet);animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .lbar{width:64%;height:4px;border-radius:999px;background:#2a2a33;overflow:hidden}
+  .lbar>span{display:block;height:100%;background:linear-gradient(90deg,var(--violet),var(--violet2));transition:width .3s}
+  .line{margin:8px 11px 0;font-size:10px;color:var(--muted);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .line b{color:var(--amber);font-weight:700}
+  .take .acts{display:flex;gap:4px;padding:8px 11px 11px}
+  .a{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:3px;border:1px solid var(--border);border-radius:8px;padding:5px;font-size:9.5px;font-weight:600;cursor:pointer;color:var(--text);background:transparent}
+  .a:hover{border-color:var(--violet)}
+  .a.prime{border:none;color:#fff;background:linear-gradient(135deg,var(--violet),var(--violet2))}
+  .resize{position:absolute;right:2px;bottom:2px;width:14px;height:14px;cursor:nwse-resize;color:var(--muted);font-size:11px}
+
+  /* ---- waveform (voiceover takes + final) ---- */
+  .wave{display:flex;align-items:center;gap:2px;height:44px;margin:6px 11px 0;padding:0 8px;border-radius:10px;background:var(--card2);border:1px solid var(--border);overflow:hidden}
+  .wave i{flex:1;background:linear-gradient(180deg,var(--violet),var(--violet2));border-radius:2px;opacity:.75;min-width:2px}
+  .wave.playing i{animation:bounce .7s ease-in-out infinite alternate}
+  @keyframes bounce{to{transform:scaleY(.35)}}
+  .wave i:nth-child(3n){animation-delay:.1s}.wave i:nth-child(3n+1){animation-delay:.22s}
+
+  /* final + publish */
+  .fin{width:236px;border-color:rgba(251,191,36,.35)}
+  .fin .screen{position:relative;margin:2px 11px 0;border-radius:12px;overflow:hidden;aspect-ratio:16/9;background:linear-gradient(150deg,#2a2438,#40304d);display:grid;place-items:center}
+  .fin .row{display:flex;gap:5px;padding:8px 11px 0}
+  .pub{width:212px;border-color:rgba(16,185,129,.3)}
+  .pub p{margin:0;padding:0 12px 6px;font-size:10px;color:var(--muted);line-height:1.4}
+  .pub .chips{display:flex;gap:5px;padding:0 12px 10px}
+  .chip{width:18px;height:18px;border-radius:6px;display:grid;place-items:center;font-size:8.5px;font-weight:900;color:#fff}
+  .c-tiktok{background:#000}.c-ig{background:linear-gradient(135deg,#f9ce34,#ee2a7b,#6228d7)}.c-yt{background:#dc2626}.c-fb{background:#2563eb}.c-li{background:#0369a1}.c-x{background:#000}
+
+  .addbtn{position:absolute;width:40px;height:40px;border-radius:50%;border:1px dashed var(--border);background:transparent;color:var(--muted);font-size:18px;cursor:pointer;display:grid;place-items:center}
+  .addbtn:hover{border-color:var(--violet);color:var(--violet)}
+
+  /* global loader */
+  .gload{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:25;display:none;align-items:center;gap:10px;border:1px solid var(--border);background:rgba(21,21,28,.96);border-radius:999px;padding:7px 14px;box-shadow:0 10px 30px rgba(0,0,0,.5);backdrop-filter:blur(8px)}
+  .gload.on{display:flex}
+  .gload b{font-size:11.5px}.gload .n{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .gbar{width:96px;height:6px;border-radius:999px;background:#2a2a33;overflow:hidden}
+  .gbar>span{display:block;height:100%;background:linear-gradient(90deg,#34d399,var(--emerald));transition:width .4s}
+
+  .hint{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);font-size:11px;color:var(--muted);background:rgba(21,21,28,.85);border:1px solid var(--border);border-radius:999px;padding:6px 13px;z-index:20}
+
+  /* cast chips + the drafted prompt on every scene */
+  .cast-row{display:flex;flex-wrap:wrap;gap:4px;margin:7px 11px 0}
+  .cc{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;border:1px solid var(--border);background:var(--card2);border-radius:999px;padding:2px 7px 2px 2px;color:var(--text)}
+  .cc i{width:13px;height:13px;border-radius:50%;display:grid;place-items:center;font-size:7px;font-style:normal;font-weight:900;color:#fff}
+  .cc.none{padding:2px 7px;color:#5f5f6b;border-style:dashed;font-weight:600}
+  .prompt{display:flex;align-items:flex-start;gap:5px;margin:6px 11px 0;padding:6px 7px;border-radius:9px;background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.22)}
+  .pl-l{font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--violet);flex:none;margin-top:1px}
+  .pt{flex:1;font-size:9px;line-height:1.4;color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .pe{flex:none;width:16px;height:16px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:9px;cursor:pointer}
+  .pe:hover{border-color:var(--violet);color:var(--violet)}
+  /* cast node */
+  .node.castn{width:238px;border-color:rgba(251,191,36,.35)}
+  .cast-grid{display:flex;gap:8px;padding:6px 11px 0}
+  .cm{flex:1;border-radius:10px;background:var(--card2);border:1px solid var(--border);padding:8px;text-align:center}
+  .cm .sheet{width:100%;aspect-ratio:1;border-radius:8px;display:grid;place-items:center;font-size:15px;font-weight:900;color:#fff;margin-bottom:5px}
+  .cm b{font-size:10px;display:block}.cm span{font-size:8px;color:var(--muted)}
+
+  /* per-scene controls (Director-grade: direct it after the draft) */
+  .ctl{margin:8px 11px 0;padding:8px 9px;border-radius:10px;background:var(--card2);border:1px solid var(--border);display:flex;flex-direction:column;gap:7px}
+  .ctl-row{display:flex;align-items:center;gap:7px}
+  .ctl-l{font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#6b6b78;width:26px;flex:none}
+  .ctl-v{font-size:9.5px;color:var(--muted);font-variant-numeric:tabular-nums;width:24px;text-align:right}
+  .seg.tiny{gap:3px;flex:1}
+  .seg.tiny .sg{padding:3px 6px;font-size:9px;border-radius:6px;flex:1}
+  .rng.tiny{width:auto;flex:1;height:3px}
+
+  /* insert-scene between nodes */
+  .ins{position:absolute;width:22px;height:22px;border-radius:50%;border:1px dashed var(--border);background:var(--ground);color:var(--muted);font-size:12px;cursor:pointer;display:grid;place-items:center;z-index:5}
+  .ins:hover{border-color:var(--violet);color:var(--violet);border-style:solid}
+
+  /* ---- docked timeline (mirrors the Director dock) ---- */
+  .dock{position:fixed;left:0;right:0;bottom:0;z-index:22;border-top:1px solid var(--border);background:rgba(15,15,21,.97);backdrop-filter:blur(10px);transition:transform .2s}
+  .dock.hid{transform:translateY(calc(100% - 34px))}
+  .d-head{display:flex;align-items:center;gap:9px;padding:7px 14px;border-bottom:1px solid var(--border)}
+  .d-head b{font-size:11.5px}.d-head .t{font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .d-head .btn{padding:4px 9px;font-size:10.5px}
+  .d-body{padding:9px 14px 12px;display:flex;flex-direction:column;gap:6px}
+  .trk{display:flex;align-items:center;gap:8px}
+  .trk .lbl{width:64px;flex:none;font-size:9px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#6b6b78}
+  .lane{flex:1;position:relative;height:34px;border-radius:8px;background:var(--card2);border:1px solid var(--border);overflow:hidden;display:flex}
+  .lane.small{height:22px}
+  .blk{position:relative;height:100%;border-right:1px solid rgba(11,11,15,.6);display:grid;place-items:center;font-size:8.5px;font-weight:700;color:#fff;cursor:grab;overflow:hidden}
+  .blk:last-child{border-right:none}
+  .blk.still{background:linear-gradient(150deg,#2f4763,#3b2f52)}
+  .blk.clip{background:linear-gradient(150deg,#1f4a41,#2b4a5e)}
+  .blk.char{background:linear-gradient(150deg,#54304c,#7b2f57)}
+  .blk:hover{filter:brightness(1.18)}
+  .blk.sel{outline:2px solid var(--violet);outline-offset:-2px}
+  .narr{position:absolute;inset:0;display:flex;align-items:center;gap:1.5px;padding:0 3px}
+  .narr i{flex:1;background:var(--amber);opacity:.55;border-radius:1px;min-width:1px}
+  .mus{position:absolute;inset:0;background:repeating-linear-gradient(90deg,rgba(34,211,238,.22) 0 6px,transparent 6px 13px)}
+  .ph{position:absolute;top:0;bottom:0;width:2px;background:var(--rose);z-index:4;pointer-events:none}
+  .ph::before{content:"";position:absolute;top:-3px;left:-4px;width:10px;height:10px;border-radius:50%;background:var(--rose)}
+
+  /* ---- BRIEF SHEET ---- */
+  .scrim{position:fixed;inset:0;z-index:40;display:none;background:rgba(6,6,9,.55)}.scrim.on{display:block}
+  .brief{position:fixed;left:12px;right:12px;bottom:12px;z-index:41;display:none;flex-direction:column;max-height:90vh;
+    border:1px solid var(--border);border-radius:18px;background:var(--card);box-shadow:0 -10px 60px rgba(0,0,0,.5);animation:rise .18s ease}
+  .brief.on{display:flex}@keyframes rise{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
+  .b-head{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .b-head .p{font-size:10px;font-weight:700;color:var(--violet);background:rgba(167,139,250,.12);border-radius:999px;padding:2px 8px}
+  .b-head b{font-size:13.5px}
+  .b-head .close{margin-left:auto;width:26px;height:26px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer}
+  .b-scroll{overflow:auto;padding:16px}
+  .b-lbl{font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin:0 0 9px;display:flex;align-items:center;gap:7px}
+  .b-lbl .tip{font-weight:600;letter-spacing:0;text-transform:none;color:#6b6b78}
+  .sec{margin-top:20px}
+
+  /* mode switch */
+  .modes{display:flex;gap:10px}
+  .mode{flex:1;max-width:290px;display:flex;gap:10px;align-items:center;border:2px solid var(--border);border-radius:14px;padding:11px 12px;background:var(--card2);cursor:pointer;transition:transform .12s}
+  .mode:hover{transform:translateY(-2px)}
+  .mode.on{border-color:var(--violet);background:rgba(167,139,250,.07)}
+  .mode .mi{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:16px;flex:none;background:linear-gradient(135deg,var(--violet),var(--violet2));color:#fff}
+  .mode h3{margin:0;font-size:12.5px}.mode p{margin:2px 0 0;font-size:10px;color:var(--muted);line-height:1.35}
+
+  /* script */
+  .script{width:100%;min-height:92px;resize:vertical;border-radius:12px;border:1px solid var(--border);background:var(--card2);color:var(--text);padding:11px 12px;font:12.5px/1.6 inherit}
+  .script:focus{outline:none;border-color:var(--violet)}
+  .srow{display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap}
+  .est{margin-left:auto;font-size:10.5px;color:var(--muted)}.est b{color:var(--amber)}
+
+  /* voices */
+  .vtabs{display:flex;gap:6px;margin-bottom:10px}
+  .vtab{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:999px;padding:4px 11px;font-size:10.5px;font-weight:700;cursor:pointer}
+  .vtab.on{border-color:var(--violet);color:var(--violet);background:rgba(167,139,250,.08)}
+  .voices{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+  .voice{flex:none;width:150px;border:2px solid transparent;border-radius:12px;background:var(--card2);cursor:pointer;padding:10px;transition:transform .12s}
+  .voice:hover{transform:translateY(-2px)}.voice.on{border-color:var(--violet)}
+  .voice .vh{display:flex;align-items:center;gap:8px}
+  .voice .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff;flex:none}
+  .voice h3{margin:0;font-size:11.5px}.voice .meta{font-size:9px;color:var(--muted)}
+  .voice .mini{display:flex;align-items:center;gap:1.5px;height:16px;margin-top:8px}
+  .voice .mini i{flex:1;background:var(--violet);opacity:.5;border-radius:1px;min-width:1.5px}
+  .voice .pl{margin-top:8px;width:100%;border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:7px;padding:4px;font-size:9.5px;font-weight:700;cursor:pointer}
+  .voice .pl:hover{border-color:var(--violet);color:var(--violet)}
+  .voice.mine{border-style:dashed;border-color:rgba(251,191,36,.4)}
+  .voice.mine .av{background:linear-gradient(135deg,var(--amber),#f59e0b)}
+  .clonecard{flex:none;width:150px;border:1.5px dashed var(--border);border-radius:12px;background:transparent;color:var(--muted);cursor:pointer;padding:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center}
+  .clonecard:hover{border-color:var(--amber);color:var(--amber)}
+  .clonecard .rec{width:28px;height:28px;border-radius:50%;background:rgba(251,113,133,.15);color:var(--rose);display:grid;place-items:center;font-size:12px}
+  .clonecard b{font-size:10.5px;color:var(--text)}.clonecard span{font-size:9px;line-height:1.3}
+
+  /* thumbnail pickers (styles / visuals) */
+  .tpls{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+  .tpl{flex:none;width:142px;border:2px solid transparent;border-radius:12px;overflow:hidden;background:var(--card2);cursor:pointer;transition:transform .12s}
+  .tpl:hover{transform:translateY(-2px)}.tpl.on{border-color:var(--violet)}
+  .tpl .pic{height:76px;display:grid;place-items:center;font-size:22px;color:#fff;position:relative}
+  .tpl .pic .t{position:absolute;left:6px;top:5px;font-size:8px;font-weight:700;background:rgba(0,0,0,.5);border-radius:999px;padding:1px 6px}
+  .tpl .b{padding:6px 8px 8px}.tpl .b h3{margin:0;font-size:11px}
+  .tpl .b p{margin:2px 0 0;font-size:9px;color:var(--muted);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+  /* config */
+  .cfg{display:flex;gap:22px;flex-wrap:wrap}
+  .cfg .g{min-width:130px}
+  .seg{display:flex;gap:5px;flex-wrap:wrap}
+  .sg{border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:8px;padding:5px 10px;font-size:10.5px;font-weight:700;cursor:pointer}
+  .sg.on{border-color:var(--violet);color:var(--violet);background:rgba(167,139,250,.08)}
+  .rng{width:150px;accent-color:var(--violet)}
+  .b-foot{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--border);background:var(--card)}
+  .b-foot .cost{font-size:11px;color:var(--muted)}.b-foot .cost b{color:var(--amber)}
+  .note{font-size:10px;color:#6b6b78;line-height:1.45;margin:9px 0 0;padding:8px 10px;border-left:2px solid rgba(251,191,36,.4);background:rgba(251,191,36,.05);border-radius:0 8px 8px 0}
+  .vo{display:none}.vo.show{display:block}
+</style>
+
+<div class="app">
+  <div class="top">
+    <div class="brand"><div class="ic">🎙</div><div><b>Voice Studio</b><span>Voiceover &amp; narrated video</span></div></div>
+    <div class="spacer"></div>
+    <span class="stat" id="stat"><b>0</b> ready · 0 rendering · 0 scenes</span>
+    <button class="btn" onclick="alert('Library — voices, narrations & narrated films')">📁 Library</button>
+    <button class="btn vio" onclick="openBrief()">✨ New narration</button>
+  </div>
+
+  <div class="canvas" id="canvas">
+    <div class="board" id="board">
+      <svg class="wires" id="wires"></svg>
+
+      <div class="gload" id="gload">
+        <div class="sp" style="width:15px;height:15px;border-width:2px"></div>
+        <b id="gtxt">Narrating…</b>
+        <span class="n" id="gn">0/0 done</span>
+        <div class="gbar"><span id="gfill" style="width:0%"></span></div>
+      </div>
+
+      <div class="empty" id="empty">
+        <h2>Tell it what to narrate</h2>
+        <p>A voiceover, or a narrated video — stills, clips and a talking character.</p>
+        <button class="cta" onclick="openBrief()">✨ Start a narration</button>
+      </div>
+
+      <div class="hint">Drag nodes freely · resize from the corner · every take lands on the canvas</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= DOCKED TIMELINE (narrated video) ================= -->
+<div class="dock hid" id="dock">
+  <div class="d-head">
+    <button class="btn ghost" onclick="document.getElementById('dock').classList.toggle('hid')" id="dockToggle">▲ Timeline</button>
+    <b>Narrated film</b>
+    <span class="t" id="dockT">0:29 · 5 scenes</span>
+    <div class="spacer"></div>
+    <button class="btn" onclick="alert('Play the whole film against the narration')">▶ Preview</button>
+    <button class="btn" onclick="alert('Compose: text, logo, captions, music layers — same composer as the Director')">⧉ Compose</button>
+    <button class="btn gen" onclick="alert('Stitch: scenes + narration + music → one film')">🎬 Stitch</button>
+  </div>
+  <div class="d-body">
+    <div class="trk">
+      <span class="lbl">Narration</span>
+      <div class="lane small"><div class="narr" id="narrTrk"></div><div class="ph" style="left:34%"></div></div>
+    </div>
+    <div class="trk">
+      <span class="lbl">Scenes</span>
+      <div class="lane" id="sceneTrk"><div class="ph" style="left:34%"></div></div>
+    </div>
+    <div class="trk">
+      <span class="lbl">Music</span>
+      <div class="lane small"><div class="mus"></div><div class="ph" style="left:34%"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= BRIEF SHEET ================= -->
+<div class="scrim" id="scrim" onclick="closeBrief()"></div>
+<div class="brief" id="brief">
+  <div class="b-head">
+    <span class="p">BRIEF</span><b id="bTitle">New narration</b>
+    <button class="close" onclick="closeBrief()">✕</button>
+  </div>
+
+  <div class="b-scroll">
+    <!-- MODE -->
+    <p class="b-lbl">What are we making?</p>
+    <div class="modes">
+      <div class="mode on" data-mode="vo" onclick="setMode('vo')">
+        <div class="mi">🎙</div>
+        <div><h3>Voiceover</h3><p>Audio only. Script → spoken takes you can drop anywhere.</p></div>
+      </div>
+      <div class="mode" data-mode="film" onclick="setMode('film')">
+        <div class="mi" style="background:linear-gradient(135deg,var(--amber),#f59e0b)">🎬</div>
+        <div><h3>Narrated video</h3><p>Stills with motion, quick clips &amp; an optional talking character — narrated end to end.</p></div>
+      </div>
+    </div>
+
+    <!-- SCRIPT -->
+    <div class="sec">
+      <p class="b-lbl">Script <span class="tip">— or just the topic, and it writes it</span></p>
+      <textarea class="script" id="script" oninput="estimate()">Every year, 40% of the food we grow never reaches a plate. Not because we can't grow enough — but because of what happens in the twelve hours after harvest. This is the story of the farmers rewriting those twelve hours.</textarea>
+      <div class="srow">
+        <button class="btn" onclick="writeForMe()">✨ Write it for me</button>
+        <button class="btn" onclick="alert('Rewrite tone: warmer / punchier / shorter')">🎚 Adjust tone</button>
+        <span class="est" id="est">≈ <b>0:00</b> · 0 words</span>
+      </div>
+    </div>
+
+    <!-- VOICE -->
+    <div class="sec">
+      <p class="b-lbl">Narrator <span class="tip">— your cloned voice, or one from the library</span></p>
+      <div class="vtabs">
+        <button class="vtab on" data-vt="mine" onclick="setVTab('mine')">My voices</button>
+        <button class="vtab" data-vt="lib" onclick="setVTab('lib')">Library</button>
+      </div>
+      <div class="voices" id="voicesMine">
+        <div class="voice mine on" data-v="clone-1" onclick="pickVoice(this,'My voice (clone)')">
+          <div class="vh"><div class="av">JY</div><div><h3>My voice</h3><div class="meta">Cloned · 4 min sample</div></div></div>
+          <div class="mini" data-mini></div>
+          <button class="pl" onclick="event.stopPropagation();playSample(this)">▶ Sample</button>
+        </div>
+        <div class="clonecard" onclick="alert('Record 60s → clone. Uses the existing ElevenLabs cloning already wired into Voice Studio.')">
+          <div class="rec">●</div><b>Clone my voice</b><span>Record 60 seconds</span>
+        </div>
+      </div>
+      <div class="voices" id="voicesLib" style="display:none"></div>
+    </div>
+
+    <!-- NARRATION STYLE -->
+    <div class="sec">
+      <p class="b-lbl">Narration style</p>
+      <div class="tpls" id="styles"></div>
+    </div>
+
+    <!-- VISUALS (narrated video only) -->
+    <div class="sec vo" id="visualSec">
+      <p class="b-lbl">Visuals <span class="tip">— how the narration is pictured</span></p>
+      <div class="tpls" id="visuals"></div>
+      <p class="note" id="charNote" style="display:none">
+        <b>Heads up on the talking character.</b> An on-camera character speaks with the video engine's own generated voice —
+        it can't lip-sync to your cloned voice. So a film that mixes both would switch voices mid-way.
+        Options: keep the narrator off-camera (clone narrates over stills/clips, character scenes stay silent B-roll),
+        or let the character carry the whole film in the engine's voice. Pick one per film — the mock defaults to the first.
+      </p>
+    </div>
+
+    <!-- CAST (narrated video only) -->
+    <div class="sec vo" id="castSec">
+      <p class="b-lbl">Cast <span class="tip">— recurring subjects, read from your script</span></p>
+      <div class="voices" id="castList"></div>
+      <p class="note">
+        <b>Why cast a narration?</b> The same person turns up across many images and video scenes. Each subject is anchored
+        by a turnaround sheet and fed into every shot that features them — the same pipeline the Filmmaking studio already uses —
+        so Ama looks like Ama in shot 2 and shot 9. They're <b>depicted, never speakers</b>: your narration is one continuous
+        voice across the whole story, so nothing here has to lip-sync.
+      </p>
+    </div>
+
+    <!-- CONFIG -->
+    <div class="sec">
+      <p class="b-lbl">Config</p>
+      <div class="cfg">
+        <div class="g">
+          <p class="b-lbl" style="margin-bottom:6px">Pace</p>
+          <div class="seg">
+            <button class="sg" onclick="seg(this)">Slow</button>
+            <button class="sg on" onclick="seg(this)">Natural</button>
+            <button class="sg" onclick="seg(this)">Brisk</button>
+          </div>
+        </div>
+        <div class="g vo" id="aspectG">
+          <p class="b-lbl" style="margin-bottom:6px">Aspect</p>
+          <div class="seg">
+            <button class="sg" onclick="seg(this)">9:16</button>
+            <button class="sg" onclick="seg(this)">1:1</button>
+            <button class="sg on" onclick="seg(this)">16:9</button>
+          </div>
+        </div>
+        <div class="g">
+          <p class="b-lbl" style="margin-bottom:6px">Music bed</p>
+          <div class="seg">
+            <button class="sg on" onclick="seg(this)">None</button>
+            <button class="sg" onclick="seg(this)">Subtle</button>
+            <button class="sg" onclick="seg(this)">Pick…</button>
+          </div>
+        </div>
+        <div class="g" id="takesG">
+          <p class="b-lbl" style="margin-bottom:6px">Takes <span class="tip" id="takesN">2</span></p>
+          <input class="rng" type="range" min="1" max="4" value="2" oninput="document.getElementById('takesN').textContent=this.value;takes=+this.value">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="b-foot">
+    <span class="cost">Estimated <b id="cost">18 cr</b></span>
+    <div class="spacer"></div>
+    <button class="btn" onclick="closeBrief()">Cancel</button>
+    <button class="btn gen" onclick="generate()">✨ Generate</button>
+  </div>
+</div>
+
+<script>
+/* ---------------- state ---------------- */
+let mode = "vo";           // vo | film
+let takes = 2;
+let voiceName = "My voice (clone)";
+let styleName = "Documentary";
+let visualName = "Stills with motion";
+let nodes = [];            // {id,type,el}
+let seq = 0;
+let briefPlaced = false;
+
+const STYLES = [
+  {id:"doc",  n:"Documentary", d:"Measured, cinematic, authoritative.", g:"linear-gradient(135deg,#334155,#0f172a)", e:"🎞"},
+  {id:"expl", n:"Explainer",   d:"Clear and friendly. Teaches fast.",   g:"linear-gradient(135deg,#0ea5e9,#2563eb)", e:"💡"},
+  {id:"ad",   n:"Commercial",  d:"Punchy, warm, sells without shouting.",g:"linear-gradient(135deg,#fb7185,#e11d48)", e:"📣"},
+  {id:"audio",n:"Audiobook",   d:"Intimate, unhurried, story-first.",   g:"linear-gradient(135deg,#a78bfa,#6d28d9)", e:"📖"},
+  {id:"news", n:"News read",   d:"Crisp, neutral, on the beat.",        g:"linear-gradient(135deg,#64748b,#1e293b)", e:"📰"},
+  {id:"calm", n:"Meditation",  d:"Soft, slow, lots of air.",            g:"linear-gradient(135deg,#34d399,#059669)", e:"🌙"},
+];
+const VISUALS = [
+  {id:"stills",n:"Image story",        d:"All images — AI-generated or your own — each on a slow push-in. Holds any length.", g:"linear-gradient(135deg,#3b82f6,#1e3a8a)", e:"🖼", t:"All images"},
+  {id:"mixed", n:"Images + video",     d:"Images carry the story; real AI-generated video (or your uploads) hits the moments.", g:"linear-gradient(135deg,#22d3ee,#0e7490)", e:"🎬", t:"Mixed"},
+  {id:"char",  n:"Character on camera",d:"A presenter delivers lines to camera between the visuals.",           g:"linear-gradient(135deg,#f472b6,#be185d)", e:"🗣", t:"Talking"},
+];
+const LIB_VOICES = [
+  {n:"Aria",   m:"Female · American · Warm",  c:"linear-gradient(135deg,#f472b6,#be185d)", i:"A"},
+  {n:"Marcus", m:"Male · British · Deep",     c:"linear-gradient(135deg,#38bdf8,#1d4ed8)", i:"M"},
+  {n:"Noor",   m:"Female · Neutral · Bright", c:"linear-gradient(135deg,#34d399,#047857)", i:"N"},
+  {n:"Kwame",  m:"Male · African · Rich",     c:"linear-gradient(135deg,#fbbf24,#b45309)", i:"K"},
+  {n:"Lena",   m:"Female · French · Soft",    c:"linear-gradient(135deg,#c084fc,#6d28d9)", i:"L"},
+];
+// Recurring subjects. The narration is ONE voice across the whole story, so cast are
+// DEPICTED, never speakers — which is why nothing here has to lip-sync. Each is anchored
+// by a turnaround sheet (same pipeline the Director already uses) so the same person
+// looks identical in every image and every video scene.
+const CAST = [
+  {id:"c1", n:"Ama", d:"Cocoa farmer, 40s, indigo headwrap, weathered hands.", c:"linear-gradient(135deg,#f59e0b,#b45309)", i:"A", in:[1,3,4]},
+  {id:"c2", n:"Kwesi", d:"Her son, 20s, green football shirt, quick smile.",   c:"linear-gradient(135deg,#34d399,#047857)", i:"K", in:[4,5]},
+];
+
+// "video" = a REAL AI-generated video, or one the user uploads. Never stock.
+// `p` is the DRAFTED prompt — every scene's prompt is written up front from the brief so
+// the whole flow is consistent, then each one stays editable.
+const SCENES = [
+  {k:"still", ic:"🖼", kind:"Image · push-in", src:"AI", cast:[], dur:"0:06",
+   line:"Every year, <b>40% of the food we grow</b> never reaches a plate.",
+   p:"Wide aerial, cocoa smallholding at first light, mist in the valley, warm low sun, documentary photography, shallow haze, 35mm."},
+  {k:"clip",  ic:"🎬", kind:"Video · generated", src:"AI", cast:["c1"], dur:"0:05",
+   line:"Not because we can't grow enough — but because of <b>the twelve hours after harvest</b>.",
+   p:"AMA walks a row of drying pods, hands brushing them, slow dolly follow, late afternoon, dust in the light."},
+  {k:"still", ic:"🖼", kind:"Image · push-in", src:"AI", cast:[], dur:"0:05",
+   line:"Heat. Distance. A truck that didn't come.",
+   p:"Empty red-dirt road to the horizon, heat shimmer, single tyre track, harsh midday, desaturated."},
+  {k:"clip",  ic:"🎬", kind:"Video · generated", src:"AI", cast:["c1","c2"], dur:"0:07",
+   line:"So they built the cold room themselves — twelve hours became three days.",
+   p:"AMA and KWESI lift crates into a small solar cold room, working together, handheld, practical light, breath visible."},
+  {k:"clip",  ic:"🎬", kind:"Video · yours", src:"Upload", cast:["c2"], dur:"0:06",
+   line:"This is the story of the farmers <b>rewriting those twelve hours</b>.",
+   p:"— your uploaded clip —"},
+];
+
+/* ---------------- brief ---------------- */
+function openBrief(){ document.getElementById('brief').classList.add('on'); document.getElementById('scrim').classList.add('on'); estimate(); }
+function closeBrief(){ document.getElementById('brief').classList.remove('on'); document.getElementById('scrim').classList.remove('on'); }
+function setMode(m){
+  mode = m;
+  document.querySelectorAll('.mode').forEach(x=>x.classList.toggle('on', x.dataset.mode===m));
+  document.querySelectorAll('.vo').forEach(x=>x.classList.toggle('show', m==='film'));
+  document.getElementById('takesG').style.display = m==='film' ? 'none' : '';
+  document.getElementById('bTitle').textContent = m==='film' ? 'New narrated video' : 'New voiceover';
+  estimate();
+}
+function setVTab(t){
+  document.querySelectorAll('.vtab').forEach(x=>x.classList.toggle('on', x.dataset.vt===t));
+  document.getElementById('voicesMine').style.display = t==='mine' ? '' : 'none';
+  document.getElementById('voicesLib').style.display  = t==='lib'  ? '' : 'none';
+}
+function pickVoice(el,name){
+  el.parentElement.parentElement.querySelectorAll('.voice').forEach(v=>v.classList.remove('on'));
+  el.classList.add('on'); voiceName = name;
+}
+function playSample(b){ b.textContent = b.textContent.startsWith('▶') ? '⏸ Playing' : '▶ Sample'; setTimeout(()=>b.textContent='▶ Sample', 1400); }
+function seg(b){ [...b.parentElement.children].forEach(x=>x.classList.remove('on')); b.classList.add('on'); }
+function writeForMe(){
+  document.getElementById('script').value =
+    "Twelve hours. That's all it takes for a perfect harvest to become a loss. Between the field and the first cold room, forty percent of what we grow quietly disappears. But in three villages outside Kumasi, a handful of farmers stopped accepting that number — and started rewriting it.";
+  estimate();
+}
+function estimate(){
+  const w = (document.getElementById('script').value.trim().match(/\S+/g)||[]).length;
+  const secs = Math.round(w / 2.4);            // ≈ natural narration pace
+  const m = Math.floor(secs/60), s = secs%60;
+  document.getElementById('est').innerHTML = `≈ <b>${m}:${String(s).padStart(2,'0')}</b> · ${w} words`;
+  const base = mode==='film' ? 12 + Math.ceil(secs/6)*9 : 6 * takes;
+  document.getElementById('cost').textContent = base + ' cr';
+}
+
+/* ---------------- canvas ---------------- */
+function briefNode(){
+  if (briefPlaced) { syncBriefNode(); return; }
+  briefPlaced = true;
+  const n = document.createElement('div');
+  n.className = 'node briefn'; n.style.left = '28px'; n.style.top = '86px'; n.dataset.node='__brief';
+  n.innerHTML = `
+    <div class="n-head"><div class="ic" style="background:rgba(167,139,250,.15);color:var(--violet)">✎</div>
+      <b>Brief</b><span class="tag brf">brief</span></div>
+    <div class="pills" id="bpills"></div>
+    <div class="bn-script" id="bscript"></div>
+    <div class="bn-acts">
+      <button class="bn-a" onclick="openBrief()">Edit</button>
+      <button class="bn-a prime" onclick="generate()">Generate</button>
+    </div>`;
+  document.getElementById('board').appendChild(n);
+  drag(n); syncBriefNode();
+}
+function syncBriefNode(){
+  const p = document.getElementById('bpills'); if(!p) return;
+  const bits = mode==='film'
+    ? [voiceName, styleName, visualName, '16:9']
+    : [voiceName, styleName, takes + (takes>1?' takes':' take')];
+  p.innerHTML = bits.map(b=>`<span class="pill on">${b}</span>`).join('');
+  document.getElementById('bscript').textContent = document.getElementById('script').value.trim();
+}
+function wave(el, n, playing){
+  el.innerHTML = Array.from({length:n},(_,i)=>{
+    const h = 18 + Math.abs(Math.sin(i*0.7)*70) + (i%3)*6;
+    return `<i style="height:${Math.min(96,h)}%"></i>`;
+  }).join('');
+  el.classList.toggle('playing', !!playing);
+}
+function miniWaves(){
+  document.querySelectorAll('[data-mini]').forEach(el=>{
+    if(el.children.length) return;
+    el.innerHTML = Array.from({length:26},(_,i)=>`<i style="height:${20+Math.abs(Math.sin(i*.8)*70)}%"></i>`).join('');
+  });
+}
+
+function addCastNode(x,y){
+  const n = document.createElement('div');
+  n.className='node castn'; n.style.left=x+'px'; n.style.top=y+'px'; n.dataset.node='__cast';
+  n.innerHTML = `
+    <div class="n-head"><div class="ic" style="background:rgba(251,191,36,.15);color:var(--amber)">👥</div>
+      <b>Cast</b><span class="tag fin">anchored</span></div>
+    <div class="cast-grid">${CAST.map(c=>`
+      <div class="cm">
+        <div class="sheet" style="background:${c.c}">${c.i}</div>
+        <b>${c.n}</b><span>in ${c.in.length} shots</span>
+      </div>`).join('')}</div>
+    <div class="acts">
+      <button class="a prime" onclick="alert('Review the cast: portrait + turnaround sheet per subject, re-roll a look, rename, or add someone the script missed.')">👥 Review cast</button>
+      <button class="a" onclick="alert('Reuse a subject already saved in your cast library — for a series that keeps the same people.')">📁 Reuse</button>
+    </div>`;
+  document.getElementById('board').appendChild(n);
+  drag(n);
+  return n;
+}
+function editPrompt(b){
+  const wrap = b.closest('.prompt');
+  const cur = wrap.querySelector('.pt').textContent;
+  const next = prompt('Drafted prompt for this shot — edit and only this shot re-renders.\n\nCast named here stay anchored to their sheet.', cur);
+  if(next && next.trim()){ wrap.querySelector('.pt').textContent = next.trim(); regenVisual(b.closest('.node').querySelector('.acts .a:nth-child(2)')); }
+}
+function addTakeNode(i, x, y){
+  const id = 'n'+(++seq);
+  const n = document.createElement('div');
+  n.className = 'node take'; n.style.left = x+'px'; n.style.top = y+'px'; n.dataset.node=id;
+  n.innerHTML = `
+    <div class="n-head"><div class="ic" style="background:rgba(34,211,238,.15);color:var(--teal)">🎙</div>
+      <b>Take ${i+1}</b><span class="tag take">voiceover</span>
+      <button class="x" onclick="this.closest('.node').remove();stats()">✕</button></div>
+    <div class="wave" data-wave></div>
+    <div class="line">${voiceName} · ${styleName}</div>
+    <div class="acts">
+      <button class="a prime" onclick="togglePlay(this)">▶ Play</button>
+      <button class="a" onclick="alert('Regenerate this take')">↻ Redo</button>
+      <button class="a" onclick="alert('Download / send to a film')">⤓</button>
+    </div>
+    <div class="resize">◢</div>`;
+  document.getElementById('board').appendChild(n);
+  const w = n.querySelector('[data-wave]');
+  const ld = document.createElement('div');
+  ld.className='loader'; ld.style.position='absolute';
+  wave(w, 40, false);
+  drag(n); resize(n);
+  return n;
+}
+function addSceneNode(s, i, x, y){
+  const id = 'n'+(++seq);
+  const n = document.createElement('div');
+  n.className = 'node take'; n.style.left = x+'px'; n.style.top = y+'px'; n.dataset.node=id;
+  n.innerHTML = `
+    <div class="n-head"><div class="ic" style="background:rgba(167,139,250,.15);color:var(--violet)">${s.ic}</div>
+      <b>Scene ${i+1}</b><span class="tag take">${s.k}</span>
+      <button class="x" onclick="this.closest('.node').remove();stats()">✕</button></div>
+    <div class="thumb ${s.k}">
+      ${s.k==='still'?'<div class="kb"></div>':''}
+      <div class="play" onclick="alert('Plays this scene inline')">▶</div>
+      <span class="kind">${s.ic} ${s.kind}</span>
+      <span class="src ${s.src==='Upload'?'up':''}">${s.src==='Upload'?'⤒ Yours':'✨ AI'}</span>
+      <span class="badge rendering">rendering</span>
+      <span class="dur">${s.dur}</span>
+      <div class="loader"><div class="sp"></div><div class="lbar"><span style="width:10%"></span></div></div>
+    </div>
+    <div class="line">${s.line}</div>
+    <div class="cast-row">${(s.cast||[]).map(id=>{
+      const c = CAST.find(x=>x.id===id); if(!c) return '';
+      return `<span class="cc" title="${c.n} — anchored to the cast sheet, so they look the same in every shot"><i style="background:${c.c}">${c.i}</i>${c.n}</span>`;
+    }).join('') || '<span class="cc none">no cast in this shot</span>'}</div>
+    <div class="prompt" title="The drafted prompt for this shot — edit it and only this shot re-renders">
+      <span class="pl-l">Prompt</span>
+      <span class="pt">${s.p}</span>
+      <button class="pe" onclick="editPrompt(this)">✎</button>
+    </div>
+    <div class="ctl">
+      <div class="ctl-row">
+        <span class="ctl-l">Type</span>
+        <div class="seg tiny">
+          <button class="sg ${s.k==='still'?'on':''}" onclick="segType(this,'still')">🖼 Still</button>
+          <button class="sg ${s.k==='clip'?'on':''}" onclick="segType(this,'clip')">🎬 Clip</button>
+          <button class="sg ${s.k==='char'?'on':''}" onclick="segType(this,'char')">🗣 Char</button>
+        </div>
+      </div>
+      <div class="ctl-row">
+        <span class="ctl-l">Hold</span>
+        <input class="rng tiny" type="range" min="2" max="15" value="${parseInt(s.dur.split(':')[1])}" oninput="setHold(this)">
+        <span class="ctl-v">${parseInt(s.dur.split(':')[1])}s</span>
+      </div>
+      <div class="ctl-row">
+        <span class="ctl-l">In</span>
+        <div class="seg tiny">
+          <button class="sg on" onclick="seg(this)">Cut</button>
+          <button class="sg" onclick="seg(this)">Fade</button>
+          <button class="sg" onclick="seg(this)">Slide</button>
+        </div>
+      </div>
+    </div>
+    <div class="acts">
+      <button class="a" onclick="alert('Edit the narration line for this scene — re-narrates just this beat in the same voice.')">✎ Line</button>
+      <button class="a" onclick="regenVisual(this)">↻ Redo</button>
+      <button class="a" onclick="useMine(this)">⤒ Mine</button>
+    </div>
+    <div class="resize">◢</div>`;
+  document.getElementById('board').appendChild(n);
+  drag(n); resize(n);
+  return n;
+}
+function addFinalNode(x,y){
+  const n = document.createElement('div');
+  n.className = 'node fin'; n.style.left = x+'px'; n.style.top = y+'px'; n.dataset.node='__out';
+  n.innerHTML = `
+    <div class="n-head"><div class="ic" style="background:rgba(251,191,36,.15);color:var(--amber)">🎞</div>
+      <b>${mode==='film'?'Narrated film':'Final narration'}</b><span class="tag fin">output</span></div>
+    ${mode==='film'
+      ? `<div class="screen"><div class="play" onclick="alert('Play the finished film')">▶</div><span class="dur">0:29</span></div>`
+      : `<div class="wave" data-wave style="height:56px"></div>`}
+    <div class="row">
+      <button class="a" onclick="alert('Music bed')">♪ Music</button>
+      <button class="a" onclick="alert('Captions burned from the narration script')">⌶ Captions</button>
+    </div>
+    <div class="acts"><button class="a prime" onclick="alert('Stitches the scenes + narration into one film')">${mode==='film'?'🎬 Stitch film':'⤓ Export'}</button></div>`;
+  document.getElementById('board').appendChild(n);
+  const w = n.querySelector('[data-wave]'); if(w) wave(w, 46, false);
+  drag(n);
+  return n;
+}
+function addPublishNode(x,y){
+  const n = document.createElement('div');
+  n.className = 'node pub'; n.style.left = x+'px'; n.style.top = y+'px'; n.dataset.node='__publish';
+  n.innerHTML = `
+    <div class="n-head"><div class="ic" style="background:rgba(16,185,129,.15);color:var(--emerald)">➤</div>
+      <b>Publish</b><span class="tag pub">publish</span></div>
+    <div class="chips">
+      <span class="chip c-tiktok">T</span><span class="chip c-ig">I</span><span class="chip c-yt">Y</span>
+      <span class="chip c-fb">F</span><span class="chip c-li">L</span><span class="chip c-x">X</span>
+    </div>
+    <p>Post or schedule to your connected channels</p>`;
+  document.getElementById('board').appendChild(n);
+  drag(n);
+  return n;
+}
+
+/* wires — brief → scenes → final → publish (the publish node IS wired) */
+function wires(){
+  const svg = document.getElementById('wires');
+  const board = document.getElementById('board').getBoundingClientRect();
+  // brief → cast → scenes → film → publish (publish IS wired — it's the last link)
+  const ids = ['__brief', ...(document.querySelector('[data-node="__cast"]') ? ['__cast'] : []),
+               ...nodes.map(n=>n.dataset.node), '__out', '__publish'];
+  let d = '';
+  for(let i=0;i<ids.length-1;i++){
+    const a = document.querySelector(`[data-node="${ids[i]}"]`), b = document.querySelector(`[data-node="${ids[i+1]}"]`);
+    if(!a||!b) continue;
+    const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
+    const ax = ra.right-board.left, ay = ra.top-board.top+ra.height/2;
+    const bx = rb.left-board.left,  by = rb.top-board.top+rb.height/2;
+    const dx = Math.max(40,(bx-ax)/2);
+    d += `M${ax} ${ay} C${ax+dx} ${ay},${bx-dx} ${by},${bx} ${by} `;
+  }
+  svg.innerHTML = `<path d="${d}" fill="none" stroke="#a78bfa" stroke-width="2" opacity=".45"/>`;
+}
+
+/* ---------------- generate ---------------- */
+function generate(){
+  closeBrief();
+  document.getElementById('empty').style.display='none';
+  document.querySelectorAll('.node.take,.node.fin,.node.pub,.node.castn,.ins').forEach(n=>n.remove());
+  nodes = [];
+  briefNode();
+
+  // Cast is drafted from the script BEFORE any visual, so every shot that features a
+  // subject renders against the same anchored sheet.
+  if(mode==='film') addCastNode(28, 470);
+
+  const list = mode==='film' ? SCENES : Array.from({length:takes},(_,i)=>i);
+  const startX = mode==='film' ? 316 : 330, gapX = 296, colY = [96, 470];
+  list.forEach((s,i)=>{
+    const x = startX + Math.floor(i/2)*gapX, y = colY[i%2];
+    nodes.push(mode==='film' ? addSceneNode(s,i,x,y) : addTakeNode(i,x,y));
+  });
+  // insert-a-scene between every pair (Director's +) — the draft is a starting point
+  if(mode==='film'){
+    nodes.forEach((n,i)=>{
+      if(i===nodes.length-1) return;
+      const b = document.createElement('button');
+      b.className='ins'; b.textContent='+';
+      b.title = `Insert a scene after ${i+1}`;
+      b.style.left = (parseFloat(n.style.left) + 258)+'px';
+      b.style.top  = (parseFloat(n.style.top) + 150)+'px';
+      b.onclick = ()=>alert('Inserts a scene here — pick still / clip / character, write its line, and it re-times the film around it.');
+      document.getElementById('board').appendChild(b);
+    });
+  }
+  const lastX = startX + Math.floor((list.length-1)/2)*gapX;
+  addFinalNode(lastX + gapX, 240);
+  addPublishNode(lastX + gapX + 268, 240);
+  miniWaves(); wires(); stats(); tl();
+
+  // simulate the batch: global loader + per-node progress + persistence note
+  const total = list.length; let done = 0;
+  const g = document.getElementById('gload'); g.classList.add('on');
+  document.getElementById('gtxt').textContent = mode==='film' ? 'Rendering scenes…' : 'Narrating…';
+  nodes.forEach((n,i)=>{
+    let p = 8;
+    const bar = n.querySelector('.lbar>span');
+    const tick = setInterval(()=>{
+      p += 6 + Math.random()*14;
+      if(bar) bar.style.width = Math.min(96,p)+'%';
+      if(p>=100){
+        clearInterval(tick);
+        const ld = n.querySelector('.loader'); if(ld) ld.remove();
+        const b = n.querySelector('.badge'); if(b){ b.className='badge ready'; b.textContent='ready'; }
+        done++;
+        document.getElementById('gn').textContent = `${done}/${total} done`;
+        document.getElementById('gfill').style.width = (done/total*100)+'%';
+        if(done===total){ setTimeout(()=>g.classList.remove('on'), 700); }
+        stats();
+      }
+    }, 300 + i*90);
+  });
+  document.getElementById('gn').textContent = `0/${total} done`;
+}
+/* ---- timeline dock: scene blocks sized by hold, narration under them ---- */
+function tl(){
+  const dock = document.getElementById('dock');
+  if(mode!=='film'){ dock.classList.add('hid'); dock.style.display='none'; return; }
+  dock.style.display='';
+  const cards = [...document.querySelectorAll('.node.take')];
+  const durs = cards.map(c=>{
+    const t = c.querySelector('.dur')?.textContent || '0:05';
+    return Math.max(2, parseInt(t.split(':')[1]) || 5);
+  });
+  const total = durs.reduce((a,b)=>a+b,0) || 1;
+  const lane = document.getElementById('sceneTrk');
+  lane.querySelectorAll('.blk').forEach(b=>b.remove());
+  cards.forEach((c,i)=>{
+    const kind = c.querySelector('.tag.take')?.textContent || 'still';
+    const b = document.createElement('div');
+    b.className = 'blk ' + kind;
+    b.style.width = (durs[i]/total*100)+'%';
+    b.textContent = (durs[i] >= 4 ? 'Scene '+(i+1) : i+1);
+    b.title = 'Scene '+(i+1)+' · '+durs[i]+'s — drag to reorder, click to select on canvas';
+    b.onclick = ()=>{
+      lane.querySelectorAll('.blk').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');
+      c.scrollIntoView({behavior:'smooth',block:'center',inline:'center'});
+      c.animate([{outline:'2px solid #a78bfa'},{outline:'2px solid transparent'}],{duration:1100});
+    };
+    lane.insertBefore(b, lane.querySelector('.ph'));
+  });
+  const n = document.getElementById('narrTrk');
+  n.innerHTML = Array.from({length:130},(_,i)=>`<i style="height:${18+Math.abs(Math.sin(i*.55)*74)}%"></i>`).join('');
+  const m = Math.floor(total/60), s = total%60;
+  document.getElementById('dockT').textContent = `${m}:${String(s).padStart(2,'0')} · ${cards.length} scenes`;
+  dock.classList.remove('hid');
+}
+/* Every visual is either AI-generated or the user's own file — the badge says which. */
+function useMine(b){
+  const n = b.closest('.node');
+  const kind = n.querySelector('.tag.take').textContent;
+  if(!confirm(`Swap in your own ${kind==='clip'?'video':'image'} — upload, or pick from the media library.\n\nOK = simulate picking your own file.`)) return;
+  const s = n.querySelector('.src');
+  s.className = 'src up'; s.textContent = '⤒ Yours';
+  n.querySelector('.kind').textContent = kind==='clip' ? '🎬 Video · yours' : '🖼 Image · yours';
+  const ld = n.querySelector('.loader'); if(ld) ld.remove();
+  const bd = n.querySelector('.badge'); if(bd){ bd.className='badge ready'; bd.textContent='ready'; }
+  stats();
+}
+function regenVisual(b){
+  const n = b.closest('.node');
+  const kind = n.querySelector('.tag.take').textContent;
+  const s = n.querySelector('.src');
+  s.className = 'src'; s.textContent = '✨ AI';
+  n.querySelector('.kind').textContent = {still:'🖼 Image · push-in', clip:'🎬 Video · generated', char:'🗣 Character · to camera'}[kind];
+  const bd = n.querySelector('.badge'); if(bd){ bd.className='badge rendering'; bd.textContent='rendering'; }
+  let ld = n.querySelector('.loader');
+  if(!ld){
+    ld = document.createElement('div');
+    ld.className='loader'; ld.innerHTML = '<div class="sp"></div><div class="lbar"><span style="width:8%"></span></div>';
+    n.querySelector('.thumb').appendChild(ld);
+  }
+  let p = 8; const bar = ld.querySelector('.lbar>span');
+  const t = setInterval(()=>{
+    p += 10 + Math.random()*16;
+    bar.style.width = Math.min(96,p)+'%';
+    if(p>=100){ clearInterval(t); ld.remove(); bd.className='badge ready'; bd.textContent='ready'; stats(); }
+  }, 260);
+}
+function setHold(input){
+  const v = +input.value;
+  const n = input.closest('.node');
+  n.querySelector('.dur').textContent = '0:' + String(v).padStart(2,'0');
+  input.nextElementSibling.textContent = v + 's';
+  tl();
+}
+function segType(b, kind){
+  [...b.parentElement.children].forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  const n = b.closest('.node');
+  const th = n.querySelector('.thumb');
+  th.className = 'thumb ' + kind;
+  n.querySelector('.tag.take').textContent = kind;
+  const kb = th.querySelector('.kb');
+  if(kind==='still' && !kb){ const d=document.createElement('div'); d.className='kb'; th.prepend(d); }
+  if(kind!=='still' && kb) kb.remove();
+  const own = n.querySelector('.src')?.classList.contains('up');
+  n.querySelector('.kind').textContent = own
+    ? (kind==='clip' ? '🎬 Video · yours' : '🖼 Image · yours')
+    : {still:'🖼 Image · push-in', clip:'🎬 Video · generated', char:'🗣 Character · to camera'}[kind];
+  n.querySelector('.n-head .ic').textContent = {still:'🖼',clip:'🎬',char:'🗣'}[kind];
+  tl();
+}
+function togglePlay(b){
+  const n = b.closest('.node'); const w = n.querySelector('[data-wave]');
+  const on = b.textContent.startsWith('▶');
+  b.textContent = on ? '⏸ Pause' : '▶ Play';
+  w.classList.toggle('playing', on);
+}
+function stats(){
+  const all = document.querySelectorAll('.node.take').length;
+  const ready = document.querySelectorAll('.badge.ready').length + document.querySelectorAll('.node.take .wave').length;
+  const rend = document.querySelectorAll('.badge.rendering').length;
+  document.getElementById('stat').innerHTML = `<b>${Math.min(ready,all)}</b> ready · ${rend} rendering · ${all} ${mode==='film'?'scenes':'takes'}`;
+  wires();
+}
+
+/* ---------------- drag / resize ---------------- */
+function drag(n){
+  const h = n.querySelector('.n-head'); if(!h) return;
+  h.onpointerdown = e=>{
+    if(e.target.closest('button')) return;
+    const sx=e.clientX, sy=e.clientY, ox=parseFloat(n.style.left), oy=parseFloat(n.style.top);
+    const mv = ev=>{ n.style.left=(ox+ev.clientX-sx)+'px'; n.style.top=(oy+ev.clientY-sy)+'px'; wires(); };
+    const up = ()=>{ document.removeEventListener('pointermove',mv); document.removeEventListener('pointerup',up); };
+    document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up);
+  };
+}
+function resize(n){
+  const r = n.querySelector('.resize'); if(!r) return;
+  r.onpointerdown = e=>{
+    e.stopPropagation();
+    const sx=e.clientX, ow=n.offsetWidth;
+    const mv = ev=>{ n.style.width = Math.max(190, Math.min(460, ow+ev.clientX-sx))+'px'; wires(); };
+    const up = ()=>{ document.removeEventListener('pointermove',mv); document.removeEventListener('pointerup',up); };
+    document.addEventListener('pointermove',mv); document.addEventListener('pointerup',up);
+  };
+}
+
+/* ---------------- build pickers ---------------- */
+document.getElementById('styles').innerHTML = STYLES.map((s,i)=>`
+  <div class="tpl ${i===0?'on':''}" onclick="pick(this,'styles','${s.n}')">
+    <div class="pic" style="background:${s.g}"><span class="t">STYLE</span>${s.e}</div>
+    <div class="b"><h3>${s.n}</h3><p>${s.d}</p></div>
+  </div>`).join('');
+document.getElementById('visuals').innerHTML = VISUALS.map((s,i)=>`
+  <div class="tpl ${i===0?'on':''}" onclick="pick(this,'visuals','${s.n}')">
+    <div class="pic" style="background:${s.g}"><span class="t">${s.t}</span>${s.e}</div>
+    <div class="b"><h3>${s.n}</h3><p>${s.d}</p></div>
+  </div>`).join('');
+document.getElementById('voicesLib').innerHTML = LIB_VOICES.map((v,i)=>`
+  <div class="voice" onclick="pickVoice(this,'${v.n}')">
+    <div class="vh"><div class="av" style="background:${v.c}">${v.i}</div><div><h3>${v.n}</h3><div class="meta">${v.m}</div></div></div>
+    <div class="mini" data-mini></div>
+    <button class="pl" onclick="event.stopPropagation();playSample(this)">▶ Sample</button>
+  </div>`).join('');
+document.getElementById('castList').innerHTML = CAST.map(c=>`
+  <div class="voice mine on" style="cursor:default">
+    <div class="vh"><div class="av" style="background:${c.c}">${c.i}</div>
+      <div><h3>${c.n}</h3><div class="meta">in ${c.in.length} shots</div></div></div>
+    <p style="margin:7px 0 0;font-size:9px;color:var(--muted);line-height:1.35">${c.d}</p>
+    <button class="pl" onclick="alert('Turnaround sheet + portrait — re-roll the look, or rename.')">👥 Sheet</button>
+  </div>`).join('') + `
+  <div class="clonecard" onclick="alert('Add a subject the script did not name — or reuse one from your cast library.')">
+    <div class="rec" style="background:rgba(167,139,250,.15);color:var(--violet)">+</div>
+    <b>Add subject</b><span>or reuse from library</span>
+  </div>`;
+
+function pick(el, group, name){
+  document.getElementById(group).querySelectorAll('.tpl').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  if(group==='styles') styleName = name; else visualName = name;
+  document.getElementById('charNote').style.display = (group==='visuals' && name==='Character on camera') ? '' : 'none';
+  syncBriefNode();
+}
+miniWaves(); estimate(); setMode('vo');
+document.getElementById('canvas').scrollLeft = 0;
+</script>

@@ -184,6 +184,11 @@ export interface TaskProgressEvent {
   progress?: number;
   message?: string;
   output?: unknown;
+  /** Live screenplay for a film/story-ad build — streamed as it's written so
+   *  the in-chat card can show the actual script. { title?, scenes:[...] }. */
+  script?: unknown;
+  /** Live per-scene render state for a film build (status + thumbnail). */
+  scenes?: unknown;
   error?: string;
   resultRefType?: string;
   resultRefId?: string;
@@ -410,6 +415,9 @@ function taskKindMeta(kind: string): { noun: string; media: "image" | "video" | 
       return { noun: "website", media: null, next: "review and edit it" };
     case "build_store":
       return { noun: "store", media: null, next: "review it and add products" };
+    case "create_content_campaign":
+    case "improve_content_campaign":
+      return { noun: "campaign", media: null, next: "review and tweak it in the inline campaign card" };
     case "create_proposal":
       return { noun: "proposal", media: null, next: "review and send it" };
     case "create_pitch":
@@ -442,7 +450,7 @@ async function persistTaskAnnouncement(args: {
 
     void resultUrl; // the finished asset already renders in the task card above
     const content = args.ok
-      ? `✅ Your ${meta.noun} is ready — it's the card above. Want me to ${meta.next}? Just tell me.`
+      ? `Your ${meta.noun} is ready. Want me to ${meta.next}? Just tell me.`
       : `⚠️ Your ${meta.noun} couldn't be finished${args.error ? `: ${args.error.slice(0, 160)}` : ""}. Want me to try again?`;
 
     // Text-only: the media already shows in the task card, so don't attach it

@@ -7,6 +7,7 @@ import type {
   PlanProposalCardData,
   MessageBlock,
 } from "@/components/flow-ai/agent-cards";
+import { normalizeFilmScript, normalizeFilmScenes } from "@/components/flow-ai/agent-cards";
 import {
   consumeAgentStreamWithReplay,
   useAgentSender,
@@ -17,6 +18,9 @@ import {
   fetchConversationCards,
   parseMessageBlocks,
 } from "@/components/flow-ai/use-agent-stream";
+import { proposalPitchView } from "@/lib/agent-views/templates";
+import { normalizeViewSpec } from "@/lib/agent-views/spec";
+import type { ViewBlock } from "@/lib/agent-views/spec";
 
 /**
  * Real Flow-AI conversation for the agent home. A third consumer of the
@@ -36,7 +40,7 @@ export interface HomeMessage {
   role: "user" | "assistant";
   content: string;
   /** Images the user attached to this turn (shown in their bubble). */
-  attachments?: { dataUrl?: string; url?: string; name: string }[];
+  attachments?: { dataUrl?: string; url?: string; name: string; mediaType?: "image" | "video" }[];
   blocks?: MessageBlock[];
   toolCalls?: AgentToolCardData[];
   planProposals?: PlanProposalCardData[];
@@ -79,8 +83,145 @@ export function useHomeAgent() {
     }
   }, []);
 
+  const appendProposalViewMessage = useCallback(async (task: AgentTaskCardData) => {
+    if (task.kind !== "create_proposal" && task.kind !== "create_visual_deck" && task.kind !== "create_pitch") return;
+    const pitchId = typeof task.output?.pitchId === "string" ? task.output.pitchId : task.resultRefType === "Pitch" ? task.resultRefId : null;
+    if (!pitchId) return;
+    const viewId = `pitch-view-${pitchId}`;
+    try {
+      const json = await fetch(`/api/pitch/${encodeURIComponent(pitchId)}`).then((r) => r.json()).catch(() => null);
+      const row = json?.data?.pitch;
+      const c = row?.pitchContent && typeof row.pitchContent === "object" ? row.pitchContent as Record<string, unknown> : {};
+      const str = (k: string) => (typeof c[k] === "string" && (c[k] as string).trim() ? (c[k] as string).trim() : undefined);
+      const list = (k: string) => (Array.isArray(c[k]) ? (c[k] as unknown[]).filter((x): x is string => typeof x === "string") : []);
+      const objList = (k: string) => (Array.isArray(c[k]) ? (c[k] as unknown[]).filter((x): x is Record<string, unknown> => !!x && typeof x === "object") : []);
+      const visualImages = c.visualAssets && typeof c.visualAssets === "object" && Array.isArray((c.visualAssets as { images?: unknown }).images)
+        ? (c.visualAssets as { images: unknown[] }).images.filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+        : [];
+      const sections: { key: string; label: string; text: string }[] = [];
+      const add = (key: string, label: string, text?: string) => { if (text) sections.push({ key, label, text }); };
+      add("clientNeed", "The need", str("clientNeed"));
+      add("aboutBrand", "About your brand", str("aboutBrand"));
+      add("personalizedHook", "Personalized hook", str("personalizedHook"));
+      add("opportunityParagraph", "Opportunity", str("opportunityParagraph"));
+      add("impactParagraph", "Impact", str("impactParagraph"));
+      const commitments = list("commitments"); if (commitments.length) sections.push({ key: "commitments", label: "Commitments", text: commitments.slice(0, 6).join(" | ") });
+      const benefits = list("benefits"); if (benefits.length) sections.push({ key: "benefits", label: "Benefits", text: benefits.slice(0, 6).join(" | ") });
+      const nextSteps = list("nextSteps"); if (nextSteps.length) sections.push({ key: "nextSteps", label: "Next steps", text: nextSteps.slice(0, 5).join(" | ") });
+      const findings = list("keyFindings"); if (findings.length) sections.push({ key: "keyFindings", label: "Key findings", text: findings.slice(0, 6).join(" | ") });
+      const solution = list("solutionBullets"); if (solution.length) sections.push({ key: "solutionBullets", label: "Solution", text: solution.slice(0, 6).join(" | ") });
+      const spec = proposalPitchView({
+        id: pitchId,
+        business: row?.businessName,
+        title: str("title") || str("headline") || `Pitch for ${row?.businessName || "lead"}`,
+        subject: str("subject"),
+        summary: str("executiveSummary") || str("personalizedHook"),
+        variant: c.studioDocType === "visual" ? "visual" : "deck",
+        coverImage: visualImages.find((im) => im.kind === "cover" && typeof im.url === "string")?.url as string | undefined,
+        metrics: objList("proofPoints").map((p) => ({ label: String(p.label ?? ""), value: String(p.metric ?? "") })).filter((p) => p.label || p.value),
+        deliverables: objList("deliverables").map((d) => ({ title: String(d.title ?? ""), description: String(d.description ?? "") })).filter((d) => d.title || d.description)
+          .concat(solution.slice(0, 4).map((s) => ({ title: s.split(":")[0]?.trim() || "Recommended action", description: s }))),
+        timeline: objList("timeline").map((t) => ({ label: String(t.label ?? ""), title: String(t.title ?? "") })).filter((t) => t.label || t.title),
+        sections,
+      });
+      setMessages((prev) => (
+        prev.some((m) => m.id === viewId)
+          ? prev
+          : [...prev, { id: viewId, role: "assistant", content: "", blocks: [{ type: "view", requestId: viewId, spec }] }]
+      ));
+    } catch {
+      /* best effort */
+    }
+  }, []);
+
+  const appendInlineTaskViewMessage = useCallback((task: AgentTaskCardData) => {
+    const inline = task.output?.inlineView;
+    if (!inline || typeof inline !== "object") return;
+    const requestId = typeof (inline as { requestId?: unknown }).requestId === "string"
+      ? (inline as { requestId: string }).requestId
+      : `task-view-${task.id}`;
+    const spec = normalizeViewSpec((inline as { spec?: unknown }).spec);
+    if (!spec) return;
+    setMessages((prev) => (
+      prev.some((m) => m.id === requestId)
+        ? prev
+        : [...prev, { id: requestId, role: "assistant", content: "", blocks: [{ type: "view", requestId, spec }] }]
+    ));
+  }, []);
+
+  const appendCompletedTaskViews = useCallback((task: AgentTaskCardData) => {
+    void appendProposalViewMessage(task);
+    appendInlineTaskViewMessage(task);
+  }, [appendInlineTaskViewMessage, appendProposalViewMessage]);
+
   const appendCompletionMessage = useCallback((msg: { id: string; content: string }) => {
     setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, { id: msg.id, role: "assistant", content: msg.content }]));
+  }, []);
+
+  const patchInlinePostMedia = useCallback((call: AgentToolCardData) => {
+    const output = call.output as {
+      ok?: boolean;
+      data?: { postId?: unknown; url?: unknown; mediaUrl?: unknown; mediaType?: unknown; inlineView?: unknown };
+      postId?: unknown;
+      url?: unknown;
+      mediaUrl?: unknown;
+      mediaType?: unknown;
+      inlineView?: unknown;
+      resultRefId?: unknown;
+    } | null | undefined;
+    if (output?.ok === false) return;
+    const data = output?.data && typeof output.data === "object" ? output.data : output;
+    const inline = data && typeof data === "object" && "inlineView" in data ? data.inlineView : output?.inlineView;
+    const inlineRequestId = inline && typeof inline === "object" && typeof (inline as { requestId?: unknown }).requestId === "string"
+      ? (inline as { requestId: string }).requestId
+      : `tool-view-${call.id}`;
+    const inlineSpec = inline && typeof inline === "object"
+      ? normalizeViewSpec((inline as { spec?: unknown }).spec)
+      : null;
+    const postId =
+      typeof data?.postId === "string" ? data.postId
+        : typeof output?.resultRefId === "string" ? output.resultRefId
+          : "";
+    const url =
+      typeof data?.url === "string" ? data.url
+        : typeof data?.mediaUrl === "string" ? data.mediaUrl
+          : "";
+    const appendInlineView = (prev: HomeMessage[]) => {
+      if (!inlineSpec) return prev;
+      const messageId = `tool-inline-${call.id}`;
+      if (prev.some((m) => m.id === messageId)) return prev;
+      return [...prev, { id: messageId, role: "assistant" as const, content: "", blocks: [{ type: "view" as const, requestId: inlineRequestId, spec: inlineSpec }] }];
+    };
+    if (!postId || !url) {
+      setMessages(appendInlineView);
+      return;
+    }
+    const mediaType = data?.mediaType === "video" || call.name === "regenerate_post_video" || /\.(mp4|webm|mov)(\?|$)/i.test(url) ? "video" : "image";
+    const patchBlocks = (blocks: ViewBlock[]): ViewBlock[] => blocks.map((block) => {
+      if (block.type === "mediaBox" && block.postId === postId) return { ...block, url, mediaType, label: "Media", status: undefined };
+      if (block.type === "buttonRow") {
+        return {
+          ...block,
+          buttons: block.buttons.map((button) => {
+            const payload = button.action.payload;
+            const matches = payload && typeof payload === "object" && "postId" in payload && payload.postId === postId;
+            if (!matches) return button;
+            if (!/add image|redo image|add video|redo video/i.test(button.label)) return button;
+            return { ...button, label: mediaType === "video" ? "Redo video" : "Redo image" };
+          }),
+        };
+      }
+      if ("children" in block && Array.isArray(block.children)) return { ...block, children: patchBlocks(block.children) } as ViewBlock;
+      return block;
+    });
+    setMessages((prev) => appendInlineView(prev.map((m) => ({
+      ...m,
+      blocks: m.blocks?.map((b) => (
+        b.type === "view" && b.spec.name === "content-campaign"
+          ? { ...b, spec: { ...b.spec, body: patchBlocks(b.spec.body) } }
+          : b
+      )),
+    }))));
   }, []);
 
   // ── Publish narration ── Compose's "Post now" streams per-channel status into
@@ -106,7 +247,7 @@ export function useHomeAgent() {
   }, []);
 
   const handleSend = useCallback(
-    async (text: string, superMode = false, canvasContext?: string, surfaceContext?: string, opts?: { hidden?: boolean; attachments?: { dataUrl?: string; url?: string; name: string }[] }) => {
+    async (text: string, superMode = false, canvasContext?: string, surfaceContext?: string, opts?: { hidden?: boolean; attachments?: { dataUrl?: string; url?: string; name: string; mediaType?: "image" | "video" }[] }) => {
       const trimmed = text.trim();
       const atts = opts?.attachments && opts.attachments.length ? opts.attachments : undefined;
       if ((!trimmed && !atts) || sending) return;
@@ -181,6 +322,7 @@ export function useHomeAgent() {
           },
           onToolCallResult: (call) => {
             toolCallsById.set(call.id, call);
+            patchInlinePostMedia(call);
             flushMessage();
           },
           onPlanProposal: (proposal) => {
@@ -194,12 +336,20 @@ export function useHomeAgent() {
             flushMessage();
             // A branded-design task → the open design canvas shows a live rendering state.
             if (task.kind === "create_branded_design") canvasUpdateRef.current?.({ generating: true });
-            startTaskSubscription(task.id, tasksById, flushMessage, taskStreamsRef.current, appendCompletionMessage, (patch) => canvasUpdateRef.current?.(patch));
+            startTaskSubscription(task.id, tasksById, flushMessage, taskStreamsRef.current, appendCompletionMessage, (patch) => canvasUpdateRef.current?.(patch), appendCompletedTaskViews);
           },
-          onTaskProgress: (taskId, progress, message) => {
+          onTaskProgress: (taskId, progress, message, extra) => {
             const existing = tasksById.get(taskId);
             if (existing) {
-              tasksById.set(taskId, { ...existing, progress: progress ?? existing.progress, progressMessage: message ?? existing.progressMessage });
+              const script = extra?.script ? normalizeFilmScript(extra.script) : null;
+              const scenes = extra?.scenes ? normalizeFilmScenes(extra.scenes) : null;
+              tasksById.set(taskId, {
+                ...existing,
+                progress: progress ?? existing.progress,
+                progressMessage: message ?? existing.progressMessage,
+                script: script ?? existing.script,
+                scenes: scenes ?? existing.scenes,
+              });
               flushMessage();
             }
           },
@@ -207,6 +357,7 @@ export function useHomeAgent() {
             const existing = tasksById.get(task.id);
             const merged = { ...(existing ?? task), ...task };
             tasksById.set(task.id, merged);
+            appendCompletedTaskViews(merged);
             flushMessage();
             // Apply the result to the open canvas here too — the live stream may
             // deliver completion before/instead of the per-task subscription
@@ -239,6 +390,12 @@ export function useHomeAgent() {
             if (!blocks.some((b) => b.type === "question" && b.requestId === requestId)) blocks.push({ type: "question", requestId, question, options, allowOther });
             flushMessage();
           },
+          onAgentView: (requestId, spec) => {
+            const existing = blocks.findIndex((b) => b.type === "view" && b.requestId === requestId);
+            if (existing >= 0) blocks[existing] = { type: "view", requestId, spec };
+            else blocks.push({ type: "view", requestId, spec });
+            flushMessage();
+          },
           onError: (message) => {
             assistantText = assistantText ? `${assistantText}\n\n⚠️ ${message}` : `⚠️ ${message}`;
             flushMessage();
@@ -263,7 +420,7 @@ export function useHomeAgent() {
         setSending(false);
       }
     },
-    [conversationId, send, sending, appendCompletionMessage],
+    [conversationId, send, sending, appendCompletionMessage, appendCompletedTaskViews, patchInlinePostMedia],
   );
 
   const handlePlanResponse = useCallback(
@@ -412,6 +569,7 @@ function startTaskSubscription(
   registry: Map<string, AbortController>,
   appendAssistantMessage?: (msg: { id: string; content: string }) => void,
   onCanvasImage?: (patch: Record<string, unknown>) => void,
+  onCompletedTask?: (task: AgentTaskCardData) => void,
 ) {
   if (registry.has(taskId)) return;
   const controller = subscribeToTaskStream(taskId, (event) => {
@@ -439,12 +597,18 @@ function startTaskSubscription(
       // The task may already be DONE when we connect — the stream sends a
       // *completed snapshot* (not a separate completed event) and closes, so we
       // must apply the canvas result here too or it's silently dropped.
-      if (event.status === "completed") applyCanvasResult(current.kind, next.output);
+      if (event.status === "completed") {
+        applyCanvasResult(current.kind, next.output);
+        onCompletedTask?.(next);
+      }
     } else if (event.type === "progress") {
-      next = { ...current, progress: event.progress ?? current.progress, progressMessage: event.message ?? current.progressMessage };
+      const script = event.script ? normalizeFilmScript(event.script) : null;
+      const scenes = event.scenes ? normalizeFilmScenes(event.scenes) : null;
+      next = { ...current, progress: event.progress ?? current.progress, progressMessage: event.message ?? current.progressMessage, script: script ?? current.script, scenes: scenes ?? current.scenes };
     } else if (event.type === "completed") {
       next = { ...current, status: "completed", output: event.output ?? current.output, resultRefType: event.resultRefType ?? current.resultRefType, resultRefId: event.resultRefId ?? current.resultRefId };
       applyCanvasResult(current.kind, next.output);
+      onCompletedTask?.(next);
       registry.get(taskId)?.abort();
       registry.delete(taskId);
     } else if (event.type === "failed") {

@@ -40,6 +40,10 @@ export interface FilmScene {
   style?: string;             // "cinematic" | "3d" | "narrated"
   aiProvider?: string;        // "veo" | "grok"
   cameraMotion?: string;
+  /** An exact continuation is rendered by extending continuationOf's final frame
+   * with xAI. A normal inserted scene leaves both fields unset. */
+  continuationMode?: "exact";
+  continuationOf?: string;
   // avatar clone (HeyGen)
   avatarId?: string; avatarName?: string;
   voiceId?: string; voiceName?: string;
@@ -53,16 +57,50 @@ export interface FilmScene {
   designId?: string; headline?: string;
   // a product/reference image that anchors this scene (AI shots use it as a reference frame)
   referenceImageUrl?: string | null;
+  // which cast members appear in this scene + their dialogue (movie scenes)
+  cast?: SceneCastLine[];
   // link to the real render job on the underlying backend
   refKind?: string;           // "avatar_video" | "story_ad" | "reel_clip" | "media" | "design"
   refId?: string;
   status: SceneStatus;
   progress?: number;
+  /** Epoch ms when this scene's render started — the watchdog fails orphaned
+   *  "rendering" scenes (e.g. the worker died on a deploy) past a threshold. */
+  renderStartedAt?: number;
+  /** Epoch ms of the last progress heartbeat from the live render worker. A row
+   *  with a stale heartbeat = its in-process worker died (deploy/restart); combined
+   *  with a persisted provider job (refKind/refId) the render is RESUMED, not lost. */
+  renderHeartbeatAt?: number;
   videoUrl?: string | null;
   thumbnailUrl?: string | null;
   error?: string | null;
+  // Independent xAI edit job. The base scene stays ready/playable while this
+  // renders, then videoUrl is atomically replaced only after the edit succeeds.
+  videoEdit?: FilmVideoEdit | null;
   // picture-in-picture overlay composited on top of this scene
   overlay?: FilmOverlay | null;
+}
+
+export interface FilmVideoEdit {
+  id: string;
+  prompt: string;
+  sourceVideoUrl: string;
+  durationSec?: number;
+  cost?: number;
+  status: SceneStatus;
+  progress?: number;
+  refId?: string;
+  startedAt?: number;
+  heartbeatAt?: number;
+  error?: string | null;
+}
+
+/** One character's appearance + spoken line within a scene (a "movie" scene can
+ *  have several cast members, each with their own dialogue). */
+export interface SceneCastLine {
+  characterId?: string;   // links to a FilmCharacter on the film
+  name: string;           // display name (denormalized for the LLM + node UI)
+  dialogue?: string;      // what this character says in this scene ("" = silent/background)
 }
 
 export type OverlayCorner = "tl" | "tr" | "bl" | "br";
@@ -90,6 +128,90 @@ export interface FilmOverlay {
   videoUrl?: string | null;
   thumbnailUrl?: string | null;
   error?: string | null;
+}
+
+export type FilmComposerLayerType = "text" | "image" | "logo" | "video" | "audio";
+export type FilmComposerFont = "sans" | "serif" | "display";
+
+/** A timed, selectable layer in the film-level composer. Positions and sizes are
+ * normalized to the output frame so one edit works for every aspect ratio. */
+export interface FilmComposerLayer {
+  id: string;
+  type: FilmComposerLayerType;
+  name: string;
+  sourceUrl?: string | null;
+  text?: string;
+  x: number;
+  y: number;
+  width: number;
+  opacity: number;
+  startSec: number;
+  endSec: number;
+  zIndex: number;
+  font?: FilmComposerFont;
+  fontSize?: number;
+  color?: string;
+  backgroundColor?: string;
+  volume?: number;
+}
+
+export interface FilmCaptionStyle {
+  enabled: boolean;
+  style: "clean" | "boxed" | "cinematic";
+  font: FilmComposerFont;
+  fontSize: number;
+  color: string;
+  backgroundColor: string;
+  position: "top" | "middle" | "bottom";
+}
+
+export interface FilmComposer {
+  layers: FilmComposerLayer[];
+  captions: FilmCaptionStyle;
+  musicVolume: number;
+}
+
+/** One character's LOCKED outfit for the whole film (continuity). */
+export interface FilmWardrobe {
+  characterId?: string;
+  name: string;
+  outfit: string;
+}
+
+/**
+ * The film's CONTINUITY BIBLE — the single source of truth for the world every
+ * scene shares: where it happens, the time-of-day/colour palette, and each
+ * character's fixed wardrobe. Established once from the brief + cast, then woven
+ * into every AI shot (its keyframe still + its prompt) so scenes don't drift into
+ * different locations, lighting or clothes shot-to-shot.
+ */
+export interface FilmContinuity {
+  location?: string;         // the primary recurring setting(s)
+  timePalette?: string;      // time of day + lighting/colour palette held across the film
+  wardrobe?: FilmWardrobe[]; // one locked outfit per character
+}
+
+export type CharacterPreviewStatus = "idle" | "generating" | "ready" | "failed";
+export type CharacterRenderStyle = "cinematic" | "3d";
+
+/**
+ * A cast member the film is built around. Generated (or uploaded) as a clean
+ * portrait + a multi-angle turnaround sheet, then APPROVED by the user before
+ * the film renders — the approved sheet is fed into every AI shot as a reference
+ * image so the SAME person appears across shots. Restores the story-ad cast step.
+ */
+export interface FilmCharacter {
+  id: string;
+  name: string;
+  role: string;
+  description: string;                 // visual description used for identity lock
+  renderStyle?: CharacterRenderStyle;  // per-character look; allows mixed live-action + 3D cast
+  wardrobe?: string | null;            // LOCKED outfit (user-chosen/preset) — overrides the wardrobe in `description` for the portrait/sheet + every shot
+  referenceImageUrl?: string | null;   // clean portrait (anchor)
+  characterSheetUrl?: string | null;   // multi-angle turnaround (cross-shot reference)
+  previewStatus?: CharacterPreviewStatus;
+  previewError?: string | null;
+  approved?: boolean;
 }
 
 /** A canvas wire between two scene ids (visual pipeline direction). */
@@ -123,7 +245,15 @@ export interface FilmProject {
   scenes: FilmScene[];
   edges: FilmEdge[];
   assets?: FilmAsset[];
+  /** Cast the film is built around — approved before scenes render (see FilmCharacter). */
+  characters?: FilmCharacter[];
+  /** The film's continuity bible — one shared world (location/palette/wardrobe) across all scenes. */
+  continuity?: FilmContinuity | null;
+  composer?: FilmComposer;
   music?: string | null;
+  /** Storyboarding lifecycle — the draft runs in the BACKGROUND (a long movie
+   *  storyboard can't fit a request timeout), and the canvas polls this. */
+  draftStatus?: "drafting" | "ready" | "failed" | null;
   /** Burn the brand logo onto the final cut (overlay). Default on. */
   brandLogo?: boolean;
   captionsOn?: boolean;
@@ -131,6 +261,13 @@ export interface FilmProject {
   finalThumbnailUrl?: string | null;
   finalStatus?: SceneStatus;
   finalProgress?: number;
+  /** Epoch ms, beaten while the stitch runs. A "rendering" film whose heartbeat has
+   *  gone quiet was orphaned (deploy/crash) and is safe to resume — without this a
+   *  dead stitch spins in the UI forever. */
+  finalHeartbeatAt?: number;
+  /** Resume attempts for the stitch, so a stitch that always dies fails honestly
+   *  instead of the cron restarting it forever. */
+  finalTries?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -160,6 +297,11 @@ export function emptyFilm(partial?: Partial<FilmProject>): FilmProject {
     scenes: [],
     edges: [],
     assets: [],
+    composer: {
+      layers: [],
+      captions: { enabled: true, style: "boxed", font: "sans", fontSize: 42, color: "#ffffff", backgroundColor: "#000000", position: "bottom" },
+      musicVolume: 0.28,
+    },
     music: null,
     brandLogo: true,
     captionsOn: true,
@@ -172,6 +314,100 @@ export function emptyFilm(partial?: Partial<FilmProject>): FilmProject {
 const VALID_ENGINES = new Set<SceneEngine>(SCENE_ENGINES);
 const VALID_STATUS = new Set<SceneStatus>(["draft", "queued", "rendering", "ready", "failed"]);
 const VALID_CORNERS = new Set<OverlayCorner>(["tl", "tr", "bl", "br"]);
+const VALID_PREVIEW_STATUS = new Set<CharacterPreviewStatus>(["idle", "generating", "ready", "failed"]);
+const VALID_COMPOSER_LAYER_TYPES = new Set<FilmComposerLayerType>(["text", "image", "logo", "video", "audio"]);
+const VALID_COMPOSER_FONTS = new Set<FilmComposerFont>(["sans", "serif", "display"]);
+
+const clamp = (value: unknown, fallback: number, min: number, max: number) =>
+  typeof value === "number" && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
+
+export function normalizeComposer(raw: Partial<FilmComposer> | null | undefined): FilmComposer {
+  const captionRaw = raw?.captions;
+  const layers = Array.isArray(raw?.layers)
+    ? raw.layers.filter(Boolean).slice(0, 40).map((layer, index): FilmComposerLayer => ({
+        id: String(layer.id || `layer_${index}`).slice(0, 80),
+        type: VALID_COMPOSER_LAYER_TYPES.has(layer.type as FilmComposerLayerType) ? (layer.type as FilmComposerLayerType) : "image",
+        name: String(layer.name || `Layer ${index + 1}`).slice(0, 120),
+        sourceUrl: typeof layer.sourceUrl === "string" ? layer.sourceUrl : null,
+        text: typeof layer.text === "string" ? layer.text.slice(0, 2000) : undefined,
+        x: clamp(layer.x, 0.1, 0, 0.95),
+        y: clamp(layer.y, 0.1, 0, 0.95),
+        width: clamp(layer.width, 0.3, 0.05, 1),
+        opacity: clamp(layer.opacity, 1, 0, 1),
+        startSec: clamp(layer.startSec, 0, 0, 3600),
+        endSec: clamp(layer.endSec, 3600, 0.1, 3600),
+        zIndex: Math.round(clamp(layer.zIndex, index, 0, 100)),
+        font: VALID_COMPOSER_FONTS.has(layer.font as FilmComposerFont) ? layer.font : "sans",
+        fontSize: clamp(layer.fontSize, 44, 12, 160),
+        color: typeof layer.color === "string" ? layer.color.slice(0, 20) : "#ffffff",
+        backgroundColor: typeof layer.backgroundColor === "string" ? layer.backgroundColor.slice(0, 20) : "#000000",
+        volume: clamp(layer.volume, 0.8, 0, 2),
+      }))
+    : [];
+  return {
+    layers,
+    captions: {
+      enabled: captionRaw?.enabled !== false,
+      style: captionRaw?.style === "clean" || captionRaw?.style === "cinematic" ? captionRaw.style : "boxed",
+      font: VALID_COMPOSER_FONTS.has(captionRaw?.font as FilmComposerFont) ? captionRaw!.font : "sans",
+      fontSize: clamp(captionRaw?.fontSize, 42, 18, 96),
+      color: typeof captionRaw?.color === "string" ? captionRaw.color.slice(0, 20) : "#ffffff",
+      backgroundColor: typeof captionRaw?.backgroundColor === "string" ? captionRaw.backgroundColor.slice(0, 20) : "#000000",
+      position: captionRaw?.position === "top" || captionRaw?.position === "middle" ? captionRaw.position : "bottom",
+    },
+    musicVolume: clamp(raw?.musicVolume, 0.28, 0, 1),
+  };
+}
+
+/** Coerce untrusted JSON into a safe FilmCharacter. */
+export function normalizeCharacter(raw: Partial<FilmCharacter>, idx: number): FilmCharacter {
+  return {
+    id: String(raw.id || `ch_${idx}_${Math.round((raw as { _r?: number })._r || 0)}`),
+    name: String(raw.name || `Character ${idx + 1}`).slice(0, 80),
+    role: String(raw.role || "").slice(0, 120),
+    description: String(raw.description || "").slice(0, 2000),
+    renderStyle: raw.renderStyle === "3d" ? "3d" : "cinematic",
+    wardrobe: typeof raw.wardrobe === "string" ? raw.wardrobe.slice(0, 600) : null,
+    referenceImageUrl: raw.referenceImageUrl ?? null,
+    characterSheetUrl: raw.characterSheetUrl ?? null,
+    previewStatus: VALID_PREVIEW_STATUS.has(raw.previewStatus as CharacterPreviewStatus) ? (raw.previewStatus as CharacterPreviewStatus) : "idle",
+    previewError: raw.previewError ?? null,
+    approved: !!raw.approved,
+  };
+}
+
+/** Coerce untrusted JSON into a safe FilmContinuity (or null if empty). */
+export function normalizeContinuity(raw: unknown): FilmContinuity | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Partial<FilmContinuity>;
+  const location = typeof r.location === "string" ? r.location.slice(0, 600) : undefined;
+  const timePalette = typeof r.timePalette === "string" ? r.timePalette.slice(0, 400) : undefined;
+  const wardrobe = Array.isArray(r.wardrobe)
+    ? r.wardrobe
+        .filter(Boolean)
+        .slice(0, 8)
+        .map((w) => ({
+          characterId: typeof w?.characterId === "string" ? w.characterId : undefined,
+          name: String(w?.name || "").slice(0, 80),
+          outfit: String(w?.outfit || "").slice(0, 600),
+        }))
+        .filter((w) => w.name || w.outfit)
+    : undefined;
+  if (!location && !timePalette && !(wardrobe && wardrobe.length)) return null;
+  return { location, timePalette, wardrobe };
+}
+
+/** Flatten a continuity bible into one compact directive line for a shot/keyframe prompt. */
+export function continuityText(c?: FilmContinuity | null): string {
+  if (!c) return "";
+  const parts: string[] = [];
+  if (c.location) parts.push(`Location — ${c.location}`);
+  if (c.timePalette) parts.push(`Time & palette — ${c.timePalette}`);
+  if (c.wardrobe?.length) {
+    parts.push(`Wardrobe (locked per person) — ${c.wardrobe.filter((w) => w.name || w.outfit).map((w) => `${w.name}: ${w.outfit}`).join("; ")}`);
+  }
+  return parts.join(". ");
+}
 
 /** Coerce untrusted JSON into a safe FilmOverlay. */
 export function normalizeOverlay(raw: Partial<FilmOverlay>): FilmOverlay {
@@ -195,6 +431,24 @@ export function normalizeOverlay(raw: Partial<FilmOverlay>): FilmOverlay {
   };
 }
 
+/** Coerce a persisted xAI video-edit job into the Director scene shape. */
+export function normalizeVideoEdit(raw: Partial<FilmVideoEdit>): FilmVideoEdit {
+  const status = VALID_STATUS.has(raw.status as SceneStatus) ? (raw.status as SceneStatus) : "draft";
+  return {
+    id: String(raw.id || `edit_${Date.now().toString(36)}`).slice(0, 80),
+    prompt: typeof raw.prompt === "string" ? raw.prompt.slice(0, 3900) : "",
+    sourceVideoUrl: typeof raw.sourceVideoUrl === "string" ? raw.sourceVideoUrl : "",
+    durationSec: typeof raw.durationSec === "number" ? Math.max(1, Math.min(8.7, raw.durationSec)) : undefined,
+    cost: typeof raw.cost === "number" ? Math.max(0, raw.cost) : undefined,
+    status,
+    progress: typeof raw.progress === "number" ? Math.max(0, Math.min(100, raw.progress)) : 0,
+    refId: typeof raw.refId === "string" ? raw.refId : undefined,
+    startedAt: typeof raw.startedAt === "number" ? raw.startedAt : undefined,
+    heartbeatAt: typeof raw.heartbeatAt === "number" ? raw.heartbeatAt : undefined,
+    error: raw.error ?? null,
+  };
+}
+
 /** Coerce untrusted JSON (from canvasData or an API body) into a safe FilmScene. */
 export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene {
   const engine = VALID_ENGINES.has(raw.engine as SceneEngine) ? (raw.engine as SceneEngine) : "ai";
@@ -211,6 +465,8 @@ export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene 
     transitionIn: raw.transitionIn,
     captionsOn: !!raw.captionsOn,
     style: raw.style, aiProvider: raw.aiProvider, cameraMotion: raw.cameraMotion,
+    continuationMode: raw.continuationMode === "exact" ? "exact" : undefined,
+    continuationOf: typeof raw.continuationOf === "string" ? raw.continuationOf.slice(0, 100) : undefined,
     avatarId: raw.avatarId, avatarName: raw.avatarName, voiceId: raw.voiceId, voiceName: raw.voiceName,
     voiceEmotion: raw.voiceEmotion ?? null, voiceSpeed: raw.voiceSpeed ?? null, motionPrompt: raw.motionPrompt ?? null,
     background: raw.background ?? null, quality: raw.quality,
@@ -218,12 +474,22 @@ export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene 
     clipStart: raw.clipStart, clipEnd: raw.clipEnd, score: raw.score, aspectAuto: raw.aspectAuto,
     designId: raw.designId, headline: raw.headline,
     referenceImageUrl: raw.referenceImageUrl ?? null,
+    cast: Array.isArray(raw.cast)
+      ? raw.cast.slice(0, 6).map((l) => ({
+          characterId: typeof l?.characterId === "string" ? l.characterId : undefined,
+          name: String(l?.name || "").slice(0, 80),
+          dialogue: typeof l?.dialogue === "string" ? l.dialogue.slice(0, 2000) : undefined,
+        }))
+      : undefined,
     refKind: raw.refKind, refId: raw.refId,
     status,
     progress: typeof raw.progress === "number" ? raw.progress : 0,
+    renderStartedAt: typeof raw.renderStartedAt === "number" ? raw.renderStartedAt : undefined,
+    renderHeartbeatAt: typeof raw.renderHeartbeatAt === "number" ? raw.renderHeartbeatAt : undefined,
     videoUrl: raw.videoUrl ?? null,
     thumbnailUrl: raw.thumbnailUrl ?? null,
     error: raw.error ?? null,
+    videoEdit: raw.videoEdit ? normalizeVideoEdit(raw.videoEdit) : null,
     overlay: raw.overlay ? normalizeOverlay(raw.overlay) : null,
   };
 }
@@ -231,7 +497,10 @@ export function normalizeScene(raw: Partial<FilmScene>, idx: number): FilmScene 
 /** Coerce untrusted JSON into a safe FilmProject (used on read + write). */
 export function normalizeFilm(raw: Partial<FilmProject> & { id: string }): FilmProject {
   const base = emptyFilm({ id: raw.id });
-  const scenes = Array.isArray(raw.scenes) ? raw.scenes.map((s, i) => normalizeScene(s, i)) : [];
+  // filter(Boolean) — a stored array must never contain a null/undefined hole, or
+  // normalizeScene/normalizeCharacter would throw and (in listFilms) blank the
+  // whole library on one bad row.
+  const scenes = Array.isArray(raw.scenes) ? raw.scenes.filter(Boolean).map((s, i) => normalizeScene(s, i)) : [];
   const sceneIds = new Set(scenes.map((s) => s.id));
   const edges = Array.isArray(raw.edges)
     ? raw.edges.filter((e): e is FilmEdge => Array.isArray(e) && e.length === 2 && sceneIds.has(e[1]))
@@ -247,5 +516,9 @@ export function normalizeFilm(raw: Partial<FilmProject> & { id: string }): FilmP
     scenes,
     edges,
     assets: Array.isArray(raw.assets) ? raw.assets.slice(0, 40) : [],
+    characters: Array.isArray(raw.characters) ? raw.characters.filter(Boolean).slice(0, 12).map((c, i) => normalizeCharacter(c, i)) : [],
+    continuity: normalizeContinuity(raw.continuity),
+    composer: normalizeComposer(raw.composer),
+    draftStatus: raw.draftStatus === "drafting" || raw.draftStatus === "ready" || raw.draftStatus === "failed" ? raw.draftStatus : null,
   };
 }

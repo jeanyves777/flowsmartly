@@ -101,10 +101,13 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { updateBrandIdentity } = await import("./tools/update-brand-identity");
   const { proposePlan } = await import("./tools/propose-plan");
   const { scheduleSocialPost } = await import("./tools/schedule-social-post");
+  const { previewSocialPost } = await import("./tools/preview-social-post");
   const { listScheduledPosts } = await import("./tools/list-scheduled-posts");
   const { cancelScheduledPost } = await import("./tools/cancel-scheduled-post");
   const { generateImage } = await import("./tools/generate-image");
   const { askChoice } = await import("./tools/ask-choice");
+  const { renderView } = await import("./tools/render-view");
+  const { listSavedViews, useSavedView } = await import("./tools/saved-views");
   const { createBrandedDesign } = await import("./tools/create-branded-design");
   const { addCanvasObject } = await import("./tools/add-canvas-object");
   const { editImage } = await import("./tools/edit-image");
@@ -113,6 +116,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { generateVideo } = await import("./tools/generate-video");
   const { startStoryAdCampaign } = await import("./tools/start-story-ad-campaign");
   const { draftStoryAdCampaign } = await import("./tools/draft-story-ad-campaign");
+  const { draftStoryAdScriptTool } = await import("./tools/draft-story-ad-script");
   const { createAvatarVideo } = await import("./tools/create-avatar-video");
   const { createPresentation } = await import("./tools/create-presentation");
   const { cloneAvatar } = await import("./tools/clone-avatar");
@@ -132,6 +136,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { sendTestEmailCampaign } = await import("./tools/send-test-email-campaign");
   const { analyzeUrl } = await import("./tools/analyze-url");
   const { createProposal } = await import("./tools/create-proposal");
+  const { createVisualDeck } = await import("./tools/create-visual-deck");
   const { createPitch } = await import("./tools/create-pitch");
   const { listLeads } = await import("./tools/list-leads");
   const { findLeads } = await import("./tools/find-leads");
@@ -141,10 +146,13 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { listOpportunities } = await import("./tools/list-pipeline");
   const { listPitches } = await import("./tools/list-pitches");
   const { getPitch } = await import("./tools/get-pitch");
+  const { showPitch } = await import("./tools/show-pitch");
   const { updatePitch } = await import("./tools/update-pitch");
   const { listContentCampaigns } = await import("./tools/list-content-campaigns");
+  const { showContentCampaign } = await import("./tools/show-content-campaign");
   const { listOrders, listProducts } = await import("./tools/list-store-items");
   const { listDesigns, listMedia } = await import("./tools/list-library");
+  const { listVisualDeckMaterials } = await import("./tools/list-visual-deck-materials");
   const { listAvatarVideosTool, listAdCampaigns, listVoiceovers } = await import("./tools/list-studio-outputs");
   const { getActivities, listSequences, listCompanies } = await import("./tools/list-crm-extra");
   const { listCustomers, listReviews } = await import("./tools/list-customers-reviews");
@@ -163,6 +171,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { addCampaignPost } = await import("./tools/add-campaign-post");
   const { regeneratePostImage } = await import("./tools/regenerate-post-image");
   const { regeneratePostVideo } = await import("./tools/regenerate-post-video");
+  const { attachMediaToPost } = await import("./tools/attach-media-to-post");
   const { listVoicesTool } = await import("./tools/list-voices");
   const { generateNarration } = await import("./tools/generate-narration");
   const { createDocument } = await import("./tools/create-document");
@@ -215,6 +224,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(updateBrandIdentity);
   flowAgentTools.register(proposePlan);
   flowAgentTools.register(scheduleSocialPost);
+  flowAgentTools.register(previewSocialPost);
   flowAgentTools.register(listScheduledPosts);
   flowAgentTools.register(cancelScheduledPost);
   flowAgentTools.register(generateImage);
@@ -222,6 +232,9 @@ export async function ensureToolsRegistered(): Promise<void> {
   // generates from the brief + brand kit on the fixed xAI@2K recipe, so neither
   // present_design_templates nor list_agent_design_templates is registered.
   flowAgentTools.register(askChoice);
+  flowAgentTools.register(renderView);
+  flowAgentTools.register(listSavedViews);
+  flowAgentTools.register(useSavedView);
   flowAgentTools.register(createBrandedDesign);
   flowAgentTools.register(addCanvasObject);
   flowAgentTools.register(editImage);
@@ -230,6 +243,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(generateVideo);
   flowAgentTools.register(startStoryAdCampaign);
   flowAgentTools.register(draftStoryAdCampaign);
+  flowAgentTools.register(draftStoryAdScriptTool);
   flowAgentTools.register(listContacts);
   flowAgentTools.register(addContact);
   flowAgentTools.register(updateContact);
@@ -250,17 +264,21 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(sendTestEmailCampaign);
   flowAgentTools.register(analyzeUrl);
   flowAgentTools.register(createProposal);
+  flowAgentTools.register(createVisualDeck);
   flowAgentTools.register(createPitch);
   flowAgentTools.register(listLeads);
   flowAgentTools.register(listOpportunities);
   flowAgentTools.register(listPitches);
   flowAgentTools.register(getPitch);
+  flowAgentTools.register(showPitch);
   flowAgentTools.register(updatePitch);
   flowAgentTools.register(listContentCampaigns);
+  flowAgentTools.register(showContentCampaign);
   flowAgentTools.register(listOrders);
   flowAgentTools.register(listProducts);
   flowAgentTools.register(listDesigns);
   flowAgentTools.register(listMedia);
+  flowAgentTools.register(listVisualDeckMaterials);
   flowAgentTools.register(listAvatarVideosTool);
   flowAgentTools.register(listAdCampaigns);
   flowAgentTools.register(listVoiceovers);
@@ -288,6 +306,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(addCampaignPost);
   flowAgentTools.register(regeneratePostImage);
   flowAgentTools.register(regeneratePostVideo);
+  flowAgentTools.register(attachMediaToPost);
   flowAgentTools.register(createAvatarVideo);
   flowAgentTools.register(createPresentation);
   flowAgentTools.register(cloneAvatar);

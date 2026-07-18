@@ -262,32 +262,32 @@ export function PricingPageContent() {
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm font-semibold shadow-sm">
               <CreditCard className="h-4 w-4 text-sky-600 dark:text-sky-300" />
-              Transparent pricing
+              Credits · not contracts
             </div>
             <h1 className="max-w-4xl text-balance text-4xl font-bold tracking-tight sm:text-5xl lg:text-5xl">
-              Pick the plan that matches your next stage
+              Pay for the work the agent does
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
-              Start free, grow into more credits and channels, and add extra
-              usage only when campaigns need it. The pricing story stays simple
-              even as your workspace gets stronger.
+              Start free with a full workspace. Monthly plans load credits for
+              ongoing work; top-up packs cover peaks. Every action shows its
+              price before it runs — no per-seat fees.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Button size="lg" className="bg-sky-600 font-semibold text-white hover:bg-sky-700" asChild>
+              <Button size="lg" className="bg-gradient-to-r from-brand-500 to-violet-500 font-semibold text-white hover:opacity-90" asChild>
                 <Link href="/register">
                   Start free
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
               <Button size="lg" variant="outline" className="font-semibold" asChild>
-                <Link href="#plans">Compare plans</Link>
+                <Link href="#credits">See credit packs</Link>
               </Button>
             </div>
             <div className="mt-8 hidden gap-3 sm:grid sm:grid-cols-3">
               {[
-                ["Free", "starter access"],
-                ["20%", "yearly savings"],
-                ["4", "growth tiers"],
+                ["$0", "to open your workspace"],
+                ["Credits", "spend only on delivery"],
+                ["No seats", "pay for work, not users"],
               ].map(([value, label]) => (
                 <div key={label} className="rounded-lg border bg-card p-4 shadow-sm">
                   <div className="text-2xl font-bold">{value}</div>
@@ -300,7 +300,7 @@ export function PricingPageContent() {
           <div className="relative">
             <div className="relative min-h-[390px] overflow-visible sm:min-h-[500px]">
               <div className="absolute left-4 top-4 z-10 rounded-lg border bg-card/90 px-4 py-3 text-sm font-semibold shadow-sm">
-                Plan fit review
+                Credit-based workspace
               </div>
               <Image
                 src={illustrationImages.pricingPageOperator}
@@ -313,9 +313,9 @@ export function PricingPageContent() {
               />
               <div className="absolute bottom-4 left-4 right-4 z-10 grid gap-3 sm:grid-cols-3">
                 {[
-                  ["Credits", "usage based"],
-                  ["Seats", "team ready"],
-                  ["Savings", "yearly option"],
+                  ["Credits", "pay per work"],
+                  ["Surfaces", "all included"],
+                  ["Approve", "before spend"],
                 ].map(([value, label]) => (
                   <div
                     key={label}
@@ -499,7 +499,7 @@ export function PricingPageContent() {
         </div>
       </section>
 
-      <section className="px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
+      <section id="credits" className="scroll-mt-28 px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div className="rounded-lg border bg-card p-6 shadow-sm sm:p-8">
             <div className="flex items-center gap-3">
@@ -508,16 +508,17 @@ export function PricingPageContent() {
               </div>
               <div>
                 <p className="text-sm font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-300">
-                  Extra credits
+                  Credit packs
                 </p>
                 <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                  Add usage without changing plans
+                  Top up when the agent needs to do more
                 </h2>
               </div>
             </div>
             <p className="mt-5 text-lg leading-8 text-muted-foreground">
-              Credit packages keep seasonal launches and one-off campaigns from
-              forcing a plan change. Buy what you need, keep the core plan stable.
+              Plans load a monthly credit balance. Packs cover peaks — launches,
+              big design batches, video campaigns — without locking you into a
+              higher seat tier.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
               <div className="rounded-lg border bg-background p-4 dark:bg-muted/30">
@@ -570,8 +571,8 @@ export function PricingPageContent() {
         <div className="mx-auto max-w-3xl">
           <SectionHeader
             eyebrow="Questions"
-            title="Plan details without the fine-print headache"
-            description="Clear answers help the pricing page feel professional and reduce friction before signup."
+            title="Credits, plans, and how billing works"
+            description="Straight answers on rollover, cancellations, and what you pay for."
           />
           <Accordion type="single" collapsible className="mt-10 w-full rounded-lg border bg-card px-4">
             {faqs.map((faq, index) => (

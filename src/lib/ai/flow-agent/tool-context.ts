@@ -1,4 +1,5 @@
 import type { CreditCostKey } from "@/lib/credits/costs";
+import type { ViewSpec } from "@/lib/agent-views/spec";
 
 /**
  * Per-request context handed to every tool handler.
@@ -39,12 +40,13 @@ export type AgentEvent =
   | { type: "tool_call_result"; id: string; name: string; output: unknown; durationMs: number; creditCost: number; errorCode?: string }
   | { type: "plan_proposal"; id: string; steps: PlanStep[]; summary: string; totalCreditCost: number }
   | { type: "task_started"; taskId: string; kind: string; summary: string }
-  | { type: "task_progress"; taskId: string; progress: number; message: string }
+  | { type: "task_progress"; taskId: string; progress: number; message: string; script?: unknown; scenes?: unknown }
   | { type: "task_completed"; taskId: string; resultRefType?: string; resultRefId?: string; output?: unknown }
   | { type: "task_failed"; taskId: string; error: string }
   | { type: "template_options"; requestId: string; templates: TemplateOptionData[] }
   | { type: "question_options"; requestId: string; question: string; options: QuestionOptionData[]; allowOther?: boolean }
   | { type: "canvas_update"; patch: Record<string, unknown> }
+  | { type: "agent_view"; requestId: string; spec: ViewSpec }
   | { type: "credits_charged"; amount: number; costKey: CreditCostKey; balanceAfter: number | null }
   | { type: "error"; message: string; recoverable: boolean }
   | { type: "done"; tokensUsed: number; creditsUsed: number; iterations: number };

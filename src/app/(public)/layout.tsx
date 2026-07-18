@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PublicHeader } from "@/components/layout/public-header";
 import { PublicFooter } from "@/components/layout/public-footer";
+import { MarketingShell } from "@/components/marketing/marketing-shell";
 
 export const metadata: Metadata = {
   title: {
@@ -15,10 +16,10 @@ export default function PublicLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex flex-col bg-background overflow-x-hidden">
+    <MarketingShell className="flex min-h-screen flex-col overflow-x-hidden">
       <PublicHeader />
       <main className="flex-1 pt-16">{children}</main>
       <PublicFooter />
-    </div>
+    </MarketingShell>
   );
 }

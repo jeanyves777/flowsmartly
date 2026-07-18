@@ -5,6 +5,7 @@ import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
+import { loadLogoBuffer } from "@/lib/media/logo-source";
 
 const execFileAsync = promisify(execFile);
 
@@ -20,11 +21,14 @@ const execFileAsync = promisify(execFile);
 export async function overlayBrandLogoOnVideo(
   videoBuffer: Buffer,
   logoSource: string,
+  /** Pre-fetched logo bytes — preferred, and the only reliable path for a stored
+   *  presigned URL whose signature has expired. */
+  logoBuffer?: Buffer | null,
 ): Promise<Buffer> {
   const ffmpegPath = findFFmpegPath();
   if (!ffmpegPath) return videoBuffer;
 
-  const logoBuf = await loadLogoBuffer(logoSource);
+  const logoBuf = (logoBuffer && logoBuffer.length ? logoBuffer : null) || (await loadLogoBuffer(logoSource));
   if (!logoBuf) return videoBuffer;
 
   const tmpDir = path.join(os.tmpdir(), `fs-vlogo-${randomUUID()}`);
@@ -73,24 +77,5 @@ export async function overlayBrandLogoOnVideo(
   }
 }
 
-async function loadLogoBuffer(src: string): Promise<Buffer | null> {
-  try {
-    if (src.startsWith("data:")) {
-      const b64 = src.replace(/^data:image\/[^;]+;base64,/, "");
-      return b64 ? Buffer.from(b64, "base64") : null;
-    }
-    if (src.startsWith("http://") || src.startsWith("https://")) {
-      const res = await fetch(src);
-      if (!res.ok) return null;
-      return Buffer.from(await res.arrayBuffer());
-    }
-    if (src.startsWith("/")) {
-      const local = path.join(process.cwd(), "public", src);
-      if (fs.existsSync(local)) return fs.readFileSync(local);
-    }
-    if (fs.existsSync(src)) return fs.readFileSync(src);
-    return null;
-  } catch {
-    return null;
-  }
-}
+// Logo loading lives in one shared place (@/lib/media/logo-source) — a stored
+// BrandKit URL is presigned and long expired by render time.

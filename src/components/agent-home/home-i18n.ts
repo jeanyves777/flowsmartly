@@ -27,7 +27,7 @@ const en: HomeStrings = {
   hint: "FlowSmartly confirms before anything that costs credits or publishes.",
   credits: "credits",
   fallbackChips: ["Design a branded post", "Plan my week's content", "Make a short video ad", "Start an online store"],
-  ws: { home: "Home", create: "Create", publish: "Publish", grow: "Grow", sell: "Sell", web: "Web", outreach: "Outreach", business: "Business" },
+  ws: { home: "Agent", create: "Create", publish: "Publish", grow: "Grow", sell: "Sell", web: "Web", outreach: "Outreach", business: "Business" },
 };
 
 export const HOME_STRINGS: Record<string, HomeStrings> = {
@@ -40,7 +40,7 @@ export const HOME_STRINGS: Record<string, HomeStrings> = {
     hint: "FlowSmartly confirme avant toute action payante ou publiée.",
     credits: "crédits",
     fallbackChips: ["Créer un visuel de marque", "Planifier ma semaine", "Faire une pub vidéo", "Ouvrir une boutique"],
-    ws: { home: "Accueil", create: "Créer", publish: "Publier", grow: "Développer", sell: "Vendre", web: "Web", outreach: "Contact", business: "Gestion" },
+    ws: { home: "Agent", create: "Créer", publish: "Publier", grow: "Développer", sell: "Vendre", web: "Web", outreach: "Contact", business: "Gestion" },
   },
   es: {
     greet: { morning: "Buenos días, {name} —", afternoon: "Buenas tardes, {name} —", evening: "Buenas noches, {name} —" },
@@ -50,7 +50,7 @@ export const HOME_STRINGS: Record<string, HomeStrings> = {
     hint: "FlowSmartly confirma antes de cualquier acción con coste o publicación.",
     credits: "créditos",
     fallbackChips: ["Diseñar un post de marca", "Planificar mi semana", "Crear un anuncio en vídeo", "Abrir una tienda"],
-    ws: { home: "Inicio", create: "Crear", publish: "Publicar", grow: "Crecer", sell: "Vender", web: "Web", outreach: "Contactos", business: "Negocio" },
+    ws: { home: "Agente", create: "Crear", publish: "Publicar", grow: "Crecer", sell: "Vender", web: "Web", outreach: "Contactos", business: "Negocio" },
   },
   pt: {
     greet: { morning: "Bom dia, {name} —", afternoon: "Boa tarde, {name} —", evening: "Boa noite, {name} —" },
@@ -60,7 +60,7 @@ export const HOME_STRINGS: Record<string, HomeStrings> = {
     hint: "O FlowSmartly confirma antes de qualquer ação paga ou publicação.",
     credits: "créditos",
     fallbackChips: ["Criar um post de marca", "Planejar minha semana", "Fazer um anúncio em vídeo", "Abrir uma loja"],
-    ws: { home: "Início", create: "Criar", publish: "Publicar", grow: "Crescer", sell: "Vender", web: "Web", outreach: "Contatos", business: "Negócio" },
+    ws: { home: "Agente", create: "Criar", publish: "Publicar", grow: "Crescer", sell: "Vender", web: "Web", outreach: "Contatos", business: "Negócio" },
   },
   de: {
     greet: { morning: "Guten Morgen, {name} —", afternoon: "Guten Tag, {name} —", evening: "Guten Abend, {name} —" },
@@ -70,7 +70,7 @@ export const HOME_STRINGS: Record<string, HomeStrings> = {
     hint: "FlowSmartly bestätigt vor allem, was Credits kostet oder veröffentlicht.",
     credits: "Credits",
     fallbackChips: ["Marken-Post gestalten", "Meine Woche planen", "Video-Anzeige erstellen", "Shop eröffnen"],
-    ws: { home: "Start", create: "Erstellen", publish: "Posten", grow: "Wachsen", sell: "Verkaufen", web: "Web", outreach: "Kontakte", business: "Verwaltung" },
+    ws: { home: "Agent", create: "Erstellen", publish: "Posten", grow: "Wachsen", sell: "Verkaufen", web: "Web", outreach: "Kontakte", business: "Verwaltung" },
   },
   ar: {
     greet: { morning: "صباح الخير يا {name} —", afternoon: "مساء الخير يا {name} —", evening: "مساء الخير يا {name} —" },
@@ -80,7 +80,7 @@ export const HOME_STRINGS: Record<string, HomeStrings> = {
     hint: "يؤكّد FlowSmartly قبل أي إجراء مدفوع أو نشر.",
     credits: "رصيد",
     fallbackChips: ["تصميم منشور بهوية علامتك", "تخطيط أسبوعي", "إنشاء إعلان فيديو", "افتتاح متجر"],
-    ws: { home: "الرئيسية", create: "إنشاء", publish: "نشر", grow: "تنمية", sell: "بيع", web: "الويب", outreach: "التواصل", business: "الأعمال" },
+    ws: { home: "الوكيل", create: "إنشاء", publish: "نشر", grow: "تنمية", sell: "بيع", web: "الويب", outreach: "التواصل", business: "الأعمال" },
   },
   zh: {
     greet: { morning: "早上好，{name} —", afternoon: "下午好，{name} —", evening: "晚上好，{name} —" },
@@ -90,7 +90,7 @@ export const HOME_STRINGS: Record<string, HomeStrings> = {
     hint: "任何消耗积分或发布的操作，FlowSmartly 都会先确认。",
     credits: "积分",
     fallbackChips: ["设计品牌帖子", "规划本周内容", "制作短视频广告", "开一家网店"],
-    ws: { home: "主页", create: "创作", publish: "发布", grow: "增长", sell: "销售", web: "网站", outreach: "触达", business: "管理" },
+    ws: { home: "助手", create: "创作", publish: "发布", grow: "增长", sell: "销售", web: "网站", outreach: "触达", business: "管理" },
   },
   hi: {
     greet: { morning: "सुप्रभात, {name} —", afternoon: "नमस्कार, {name} —", evening: "शुभ संध्या, {name} —" },
@@ -100,7 +100,7 @@ export const HOME_STRINGS: Record<string, HomeStrings> = {
     hint: "क्रेडिट खर्च या प्रकाशन से पहले FlowSmartly पुष्टि करता है।",
     credits: "क्रेडिट",
     fallbackChips: ["ब्रांडेड पोस्ट डिज़ाइन करें", "सप्ताह की योजना बनाएं", "वीडियो विज्ञापन बनाएं", "ऑनलाइन स्टोर शुरू करें"],
-    ws: { home: "होम", create: "बनाएँ", publish: "प्रकाशित", grow: "बढ़ाएँ", sell: "बेचें", web: "वेब", outreach: "संपर्क", business: "व्यवसाय" },
+    ws: { home: "एजेंट", create: "बनाएँ", publish: "प्रकाशित", grow: "बढ़ाएँ", sell: "बेचें", web: "वेब", outreach: "संपर्क", business: "व्यवसाय" },
   },
   ja: {
     greet: { morning: "おはようございます、{name} —", afternoon: "こんにちは、{name} —", evening: "こんばんは、{name} —" },
@@ -110,7 +110,7 @@ export const HOME_STRINGS: Record<string, HomeStrings> = {
     hint: "クレジットを消費する操作や公開の前に、FlowSmartly が確認します。",
     credits: "クレジット",
     fallbackChips: ["ブランド投稿をデザイン", "今週の計画を立てる", "動画広告を作成", "オンラインストアを開設"],
-    ws: { home: "ホーム", create: "作成", publish: "投稿", grow: "成長", sell: "販売", web: "ウェブ", outreach: "アウトリーチ", business: "管理" },
+    ws: { home: "エージェント", create: "作成", publish: "投稿", grow: "成長", sell: "販売", web: "ウェブ", outreach: "アウトリーチ", business: "管理" },
   },
 };
 

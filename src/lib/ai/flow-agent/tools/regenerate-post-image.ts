@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { generateBrandedImage } from "@/lib/media/branded-image";
+import { buildCampaignInlineView } from "./campaign-inline-view";
 import type { FlowAgentTool } from "../registry";
 
 /**
@@ -31,7 +32,7 @@ export const regeneratePostImage: FlowAgentTool = {
 
     const post = await prisma.post.findFirst({
       where: { id: postId, userId: ctx.userId, deletedAt: null },
-      select: { id: true, caption: true, mediaType: true, mediaMeta: true },
+      select: { id: true, caption: true, mediaType: true, mediaMeta: true, contentAutomation: { select: { campaignId: true } } },
     });
     if (!post) return { ok: false, error_code: "not_found", message: "That post was not found." };
 
@@ -51,9 +52,11 @@ export const regeneratePostImage: FlowAgentTool = {
     await prisma.post.update({ where: { id: postId }, data: { mediaUrl: d.imageUrl, mediaMeta: JSON.stringify([d.imageUrl]), mediaType: "image" } });
     ctx.emit({ type: "canvas_update", patch: { __post: { postId, image: true } } });
 
+    const inlineView = await buildCampaignInlineView({ userId: ctx.userId, campaignId: post.contentAutomation?.campaignId, postIdForRequest: postId });
+
     return {
       ok: true,
-      data: { postId, url: d.imageUrl, tier, userMessage: `Generated the ${tier} image for the post — it's on the card now. Don't repeat it in chat.` },
+      data: { postId, url: d.imageUrl, tier, inlineView, userMessage: `Generated the ${tier} image and refreshed the campaign card below with the media attached. Don't repeat the post list as plain text.` },
       resultRefType: "Post",
       resultRefId: postId,
     };

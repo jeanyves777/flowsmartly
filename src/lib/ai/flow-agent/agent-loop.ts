@@ -28,6 +28,7 @@ function friendlyActionLabel(toolName: string): string {
     generate_video: "Generate the video",
     create_avatar_video: "Create the avatar video",
     create_presentation: "Create the presentation",
+    create_visual_deck: "Create your visual deck",
     schedule_social_post: "Schedule the post",
     create_email_campaign: "Create the email campaign",
     send_email_campaign: "Send the email campaign",
@@ -306,6 +307,16 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
       }));
       messages[lastUserIdx] = { role: "user", content: [textPart, ...imageParts] };
     }
+  } else if (input.attachmentUrls && input.attachmentUrls.length > 0) {
+    const lastUserIdx = messages.length - 1;
+    if (lastUserIdx >= 0 && messages[lastUserIdx].role === "user") {
+      const existing = messages[lastUserIdx].content;
+      const note = `[The user attached hosted media URL(s): ${input.attachmentUrls.join(", ")}. Use these real URLs directly in tools such as attach_media_to_post or schedule_social_post. Do not generate replacement media unless the user explicitly asks.]`;
+      messages[lastUserIdx] = {
+        role: "user",
+        content: typeof existing === "string" ? `${existing}\n\n${note}` : `${input.userMessage}\n\n${note}`,
+      };
+    }
   } else if (mostRecentImageUrl) {
     // No fresh upload this turn, but the user shared an image earlier in the
     // conversation (before a follow-up turn or a system reload). Re-attach
@@ -410,10 +421,26 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
       if (planId && confirmedPlans.has(planId)) {
         resolvedPlanId = planId;
       } else if (!planId && confirmedPlans.size > 0) {
-        resolvedPlanId = Array.from(confirmedPlans).pop() ?? null;
+        const row = await prisma.agentPlanProposal.findFirst({
+          where: {
+            id: { in: Array.from(confirmedPlans) },
+            userId: input.userId,
+            conversationId: input.conversationId,
+            status: "confirmed",
+            steps: { contains: `"toolName":"${tool.name}"` },
+          },
+          orderBy: { seq: "desc" },
+          select: { id: true },
+        }).catch(() => null);
+        resolvedPlanId = row?.id ?? null;
       } else {
         const row = await prisma.agentPlanProposal.findFirst({
-          where: { userId: input.userId, conversationId: input.conversationId, status: "confirmed", ...(planId ? { id: planId } : {}) },
+          where: {
+            userId: input.userId,
+            conversationId: input.conversationId,
+            status: "confirmed",
+            ...(planId ? { id: planId } : { steps: { contains: `"toolName":"${tool.name}"` } }),
+          },
           orderBy: { seq: "desc" },
           select: { id: true },
         }).catch(() => null);
@@ -433,6 +460,34 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
         ));
         const label = est?.label ?? friendlyActionLabel(tool.name);
         const step = { id: "s1", title: label, detail: est?.detail, toolName: tool.name, creditCost: credits || undefined };
+        const existingAutoPlan = await prisma.agentPlanProposal.findFirst({
+          where: {
+            userId: input.userId,
+            conversationId: input.conversationId,
+            summary: label,
+            status: { in: ["pending", "confirmed"] },
+            steps: { contains: `"toolName":"${tool.name}"` },
+            createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) },
+          },
+          orderBy: { seq: "desc" },
+          select: { id: true, status: true },
+        }).catch(() => null);
+        if (existingAutoPlan) {
+          const confirmed = existingAutoPlan.status === "confirmed" ? true : await input.awaitConfirmation(existingAutoPlan.id);
+          if (!confirmed) {
+            const errResult: ToolResult = {
+              ok: false,
+              error_code: "user_canceled",
+              message: `The user didn't confirm "${label}". Don't run it. Briefly ask what they'd like to change.`,
+              recoverable: true,
+            };
+            await logToolCall(tool, rawInput, errResult, toolUseId, Date.now() - startMs, 0);
+            return errResult;
+          }
+          resolvedPlanId = existingAutoPlan.id;
+          confirmedPlans.add(existingAutoPlan.id);
+        }
+        if (!resolvedPlanId) {
         const autoPlanId = `plan_${randomUUID().slice(0, 12)}`;
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
         try {
@@ -476,6 +531,7 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
         }
         resolvedPlanId = autoPlanId;
         confirmedPlans.add(autoPlanId);
+        }
       }
     }
 

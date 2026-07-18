@@ -1,0 +1,257 @@
+<title>Agent-authored views — generative UI in the chat</title>
+<style>
+  :root{
+    --bg:#0a0e17; --card:#0f1523; --card2:#131b2c; --panel:#0b1019;
+    --line:#1f2937; --line2:#2a3547; --ink:#eef2f8; --muted:#8b93a7; --muted2:#5b6577;
+    --brand:#6366f1; --brand2:#8b5cf6; --emerald:#10b981; --amber:#f59e0b; --rose:#f43f5e; --cyan:#22d3ee; --pink:#ec4899;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#05070c;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.5;}
+  .page{max-width:1180px;margin:0 auto;padding:26px 16px 70px;}
+  .intro{margin:0 4px 16px;}
+  .intro .k{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand2);margin:0 0 6px;}
+  .intro h1{font-size:clamp(21px,2.7vw,29px);margin:0 0 6px;font-weight:800;letter-spacing:-.02em;text-wrap:balance;}
+  .intro p{margin:0;color:var(--muted);font-size:14px;max-width:90ch;}
+
+  /* flow strip */
+  .flow{display:flex;gap:8px;flex-wrap:wrap;margin:14px 4px 20px;}
+  .fstep{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:9px 12px;font-size:12px;}
+  .fstep .n{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:grid;place-items:center;font-size:11px;font-weight:800;color:#fff;}
+  .fstep b{color:var(--ink);} .fstep span{color:var(--muted);}
+  .farr{align-self:center;color:var(--muted2);}
+
+  .grid{display:grid;grid-template-columns:1.5fr .95fr;gap:20px;align-items:start;}
+  @media (max-width:920px){.grid{grid-template-columns:1fr;}}
+
+  /* chat */
+  .chat{border:1px solid var(--line);border-radius:18px;background:radial-gradient(120% 80% at 50% -10%, rgba(99,102,241,.06), transparent 60%), var(--bg);overflow:hidden;}
+  .chat-top{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);}
+  .brandmark{width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:grid;place-items:center;font-size:12px;color:#fff;}
+  .chat-top b{font-size:13px;} .chat-top .home{margin-left:auto;font-size:11px;color:var(--muted);}
+  .msgs{padding:16px 14px;display:flex;flex-direction:column;gap:13px;}
+  .u{align-self:flex-end;max-width:82%;background:linear-gradient(135deg,var(--brand),#5457d6);color:#fff;border-radius:14px 14px 4px 14px;padding:9px 12px;font-size:12.5px;}
+  .a{align-self:flex-start;max-width:96%;color:var(--ink);font-size:13px;}
+  .a .who{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--brand2);margin-bottom:4px;}
+
+  /* a rendered VIEW inside chat */
+  .view{align-self:flex-start;width:100%;border:1px solid var(--line2);border-radius:14px;overflow:hidden;background:linear-gradient(180deg,var(--card2),var(--card));}
+  .view-h{display:flex;align-items:center;gap:9px;padding:9px 11px;border-bottom:1px solid var(--line);}
+  .view-h .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-size:13px;}
+  .view-h .t b{font-size:12.5px;display:block;line-height:1.2;} .view-h .t span{font-size:10px;color:var(--muted);}
+  .vbadge{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:800;padding:3px 8px;border-radius:999px;}
+  .vbadge.lib{background:rgba(99,102,241,.14);color:#a9b0ff;}
+  .vbadge.gen{background:rgba(236,72,153,.16);color:#f9a8d4;}
+  .view-b{padding:11px;}
+  .vfoot{display:flex;gap:7px;align-items:center;padding:9px 11px;border-top:1px solid var(--line);}
+  .vfoot .lft{font-size:10.5px;color:var(--muted);}
+  .mini{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:transparent;color:var(--ink);font-family:inherit;font-size:11px;font-weight:700;padding:6px 10px;border-radius:9px;cursor:pointer;}
+  .mini:hover{border-color:color-mix(in srgb,var(--brand) 45%,transparent);}
+  .mini.p{border:0;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;}
+
+  /* view: film builder (compact) */
+  .film{display:flex;gap:6px;}
+  .film .c{flex:1;aspect-ratio:9/16;border-radius:7px;position:relative;overflow:hidden;border:1px solid var(--line);}
+  .film .c .g{position:absolute;inset:0;} .film .c .n{position:absolute;top:2px;left:3px;font-size:8px;font-weight:800;color:#fff;z-index:2;text-shadow:0 1px 2px #000;}
+  .film .c.busy{border-color:var(--brand);}
+  .film-bar{height:4px;border-radius:999px;background:#0a0f1b;margin-top:8px;overflow:hidden;} .film-bar>i{display:block;height:100%;width:62%;background:linear-gradient(90deg,var(--brand),var(--brand2));}
+
+  /* view: leads table */
+  table.leads{width:100%;border-collapse:collapse;font-size:11.5px;}
+  table.leads th{text-align:left;color:var(--muted);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:0 8px 6px;}
+  table.leads td{padding:7px 8px;border-top:1px solid var(--line);}
+  table.leads .sc{font-weight:800;color:#6ee7b7;font-family:var(--mono);}
+  table.leads .sv{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:7px;font-size:10px;font-weight:700;padding:3px 8px;cursor:pointer;}
+
+  /* GENERATED view: availability grid */
+  .gencode{font-family:var(--mono);font-size:10.5px;background:#080c14;border:1px solid var(--line);border-radius:9px;color:#93c5fd;white-space:pre-wrap;max-height:0;opacity:0;overflow:hidden;padding:0 11px;transition:max-height .5s,opacity .4s,padding .3s;}
+  .gencode.on{max-height:120px;opacity:1;padding:9px 11px;}
+  .gencode .cm{color:#5b6577;} .gencode .kw{color:#c4b5fd;} .gencode .st{color:#7ff0c6;}
+  .avail{opacity:0;max-height:0;overflow:hidden;transition:opacity .5s,max-height .6s;}
+  .avail.on{opacity:1;max-height:400px;}
+  .avail .days{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+  .avail .day{text-align:center;}
+  .avail .dh{font-size:9.5px;color:var(--muted);margin-bottom:5px;font-weight:700;}
+  .slot{height:22px;border-radius:5px;border:1px solid var(--line);background:var(--panel);margin-bottom:4px;cursor:pointer;transition:all .12s;}
+  .slot.on{background:linear-gradient(135deg,var(--emerald),#0d9668);border-color:transparent;}
+
+  .buildline{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);}
+  .buildline .sp{width:14px;height:14px;border:2px solid var(--line2);border-top-color:var(--brand);border-radius:50%;}
+  @media (prefers-reduced-motion:no-preference){.buildline .sp{animation:sp 0.8s linear infinite;}@keyframes sp{to{transform:rotate(360deg)}}}
+
+  .composer{display:flex;align-items:center;gap:8px;margin:6px 12px 12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px 6px 6px 12px;}
+  .composer .plus{width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--muted);cursor:pointer;}
+  .composer input{flex:1;background:transparent;border:0;color:var(--ink);font-family:inherit;font-size:13px;outline:none;padding:8px 0;}
+
+  /* right: library + how */
+  .side{display:flex;flex-direction:column;gap:14px;position:sticky;top:18px;}
+  .box{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:13px;}
+  .box h3{margin:0 0 3px;font-size:13px;} .box .cap{margin:0 0 11px;font-size:11.5px;color:var(--muted);}
+  .lib-card{display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:11px;padding:9px 10px;margin-bottom:8px;background:var(--panel);cursor:pointer;transition:border-color .15s;}
+  .lib-card:hover{border-color:color-mix(in srgb,var(--brand) 40%,transparent);}
+  .lib-card .li{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;font-size:14px;flex:0 0 auto;}
+  .lib-card .lb b{font-size:12px;display:block;} .lib-card .lb span{font-size:10px;color:var(--muted);}
+  .lib-card .use{margin-left:auto;text-align:right;} .lib-card .use b{font-size:11px;font-family:var(--mono);color:#a9b0ff;} .lib-card .use span{font-size:9px;color:var(--muted2);display:block;}
+  .lib-card.new{border-color:rgba(236,72,153,.4);background:linear-gradient(180deg,rgba(236,72,153,.06),transparent);}
+  .how li{font-size:12px;color:var(--muted);margin:7px 0;} .how b{color:var(--ink);}
+  .bigbtn{width:100%;border:0;cursor:pointer;font-family:inherit;font-weight:800;font-size:13px;border-radius:11px;padding:11px;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;margin-bottom:8px;}
+  .bigbtn.sec{background:transparent;border:1px solid var(--line);color:var(--muted);}
+  .note{margin:16px 4px 0;font-size:12.5px;color:var(--muted);} .note b{color:var(--ink);} .note code{color:var(--brand2);font-family:var(--mono);}
+</style>
+
+<div class="page">
+  <div class="intro">
+    <p class="k">Mock for approval · concept (mock-first, no code yet)</p>
+    <h1>Agent-authored views — a reusable UI layer in the chat</h1>
+    <p>Every agent skill can render an <b>interactive view inline in the chat</b>. The agent picks the best-fitting view for the skill + project from a shared <b>Views library</b>. If none fits, it <b>writes a new view</b> (sandboxed), renders it live, and <b>saves it to the library</b> — so next time that skill (or a similar one) reuses it. You interact with the view; the controls call back to the agent like tools.</p>
+  </div>
+
+  <div class="flow">
+    <div class="fstep"><span class="n">1</span> <span>Skill runs →</span> <b>pick a view</b></div>
+    <span class="farr">→</span>
+    <div class="fstep"><span class="n">2</span> <b>Match by skill + project</b> <span>(from the library)</span></div>
+    <span class="farr">→</span>
+    <div class="fstep"><span class="n">3</span> <span>No match →</span> <b>agent codes one</b> <span>(sandboxed)</span></div>
+    <span class="farr">→</span>
+    <div class="fstep"><span class="n">4</span> <b>Render inline + save</b> <span>· reusable</span></div>
+  </div>
+
+  <div class="grid">
+    <!-- CHAT -->
+    <div class="chat">
+      <div class="chat-top"><span class="brandmark">◆</span><b>FlowSmartly</b><span class="home">Home · chat · project: GlowSerum</span></div>
+      <div class="msgs">
+        <!-- 1) library view: film builder -->
+        <div class="u">Make a 40s cinematic story-ad.</div>
+        <div class="a"><div class="who">FlowSmartly</div>Building it — here's the live film view:</div>
+        <div class="view">
+          <div class="view-h"><span class="ic" style="background:rgba(167,139,250,.16);color:#c4b5fd;">🎬</span>
+            <div class="t"><b>Story-Ad Movie</b><span>skill: story_ad · 5 scenes</span></div>
+            <span class="vbadge lib">◆ from library · film-builder</span></div>
+          <div class="view-b">
+            <div class="film">
+              <div class="c"><span class="n">1</span><span class="g" style="background:radial-gradient(120% 90% at 40% 20%,#3730a3,#0a0f1b)"></span></div>
+              <div class="c"><span class="n">2</span><span class="g" style="background:linear-gradient(160deg,#164e63,#0a0f1b)"></span></div>
+              <div class="c busy"><span class="n">3</span><span class="g" style="background:radial-gradient(120% 90% at 60% 30%,#92400e,#0a0f1b)"></span></div>
+              <div class="c"><span class="n">4</span><span class="g" style="background:#0a0f1b"></span></div>
+              <div class="c"><span class="n">5</span><span class="g" style="background:#0a0f1b"></span></div>
+            </div>
+            <div class="film-bar"><i></i></div>
+          </div>
+          <div class="vfoot"><span class="lft">Rendering 62% · 2/5 ready</span><span style="flex:1"></span><button class="mini p">▶ Preview</button><button class="mini">Open studio →</button></div>
+        </div>
+
+        <!-- 2) library view: leads table -->
+        <div class="u">Find 3 salons near me to pitch.</div>
+        <div class="a"><div class="who">FlowSmartly</div>Found some — save the ones you like:</div>
+        <div class="view">
+          <div class="view-h"><span class="ic" style="background:rgba(34,211,238,.16);color:#67e8f9;">🔎</span>
+            <div class="t"><b>Leads</b><span>skill: find_leads · 3 results</span></div>
+            <span class="vbadge lib">◆ from library · leads-table</span></div>
+          <div class="view-b" style="padding:8px 11px 4px">
+            <table class="leads"><thead><tr><th>Business</th><th>Area</th><th>Score</th><th></th></tr></thead><tbody>
+              <tr><td>Lumière Hair Studio</td><td>Pittsfield, MA</td><td class="sc">88</td><td><button class="sv">＋ Save</button></td></tr>
+              <tr><td>The Glow Room</td><td>Pittsfield, MA</td><td class="sc">81</td><td><button class="sv">＋ Save</button></td></tr>
+              <tr><td>Bloom Beauty Bar</td><td>Lenox, MA</td><td class="sc">74</td><td><button class="sv">＋ Save</button></td></tr>
+            </tbody></table>
+          </div>
+          <div class="vfoot"><span class="lft">3 leads · click Save to keep</span><span style="flex:1"></span><button class="mini">Open Lead Studio →</button></div>
+        </div>
+
+        <!-- 3) GENERATED view -->
+        <div class="u">Let clients pick a booking slot for my salon this week.</div>
+        <div class="a" id="genMsg"><div class="who">FlowSmartly</div><div class="buildline" id="buildline" style="display:none"><span class="sp"></span> No view fits this yet — writing a custom one…</div><div id="genIntro">There's no view for weekly booking slots yet, so I'll build one:</div></div>
+
+        <div class="view" id="genView">
+          <div class="view-h"><span class="ic" style="background:rgba(236,72,153,.16);color:#f9a8d4;">🗓️</span>
+            <div class="t"><b>Weekly availability</b><span>skill: booking_slots · newly generated</span></div>
+            <span class="vbadge gen" id="genBadge">✨ generating…</span></div>
+          <div class="view-b">
+            <div class="gencode" id="gencode"><span class="cm">// availability-grid.view.tsx — generated for skill: booking_slots</span>
+<span class="kw">export function</span> AvailabilityGrid({ onChange }) {
+  <span class="kw">const</span> [slots, setSlots] = useState(<span class="st">{}</span>);
+  <span class="cm">// 7-day × 4-slot grid; toggles call back to the agent…</span></div>
+            <div class="avail" id="avail">
+              <div class="days" id="days"></div>
+            </div>
+          </div>
+          <div class="vfoot"><span class="lft" id="genFoot">building…</span><span style="flex:1"></span><button class="mini p" id="genSave" style="display:none">Save availability</button></div>
+        </div>
+        <div class="a" id="savedMsg" style="display:none"><div class="who">FlowSmartly</div>Saved this as the <b>availability-grid</b> view — I'll reuse it whenever a booking/scheduling skill needs one. ✨</div>
+      </div>
+
+      <div class="composer"><button class="plus">＋</button><input placeholder="Ask FlowSmartly to do something…" /><span>🎤</span></div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="side">
+      <div class="box">
+        <h3>See it build a view</h3>
+        <p class="cap">Watch the agent detect a missing view, write it, render it live, and save it.</p>
+        <button class="bigbtn" id="sim">✨ Generate the booking view</button>
+        <button class="bigbtn sec" id="reset">Reset</button>
+      </div>
+
+      <div class="box">
+        <h3>Views library</h3>
+        <p class="cap">Reusable, versioned skill-views. Matched to a skill + project; editable; shareable.</p>
+        <div class="lib-card"><span class="li" style="background:rgba(167,139,250,.16);color:#c4b5fd;">🎬</span><div class="lb"><b>film-builder</b><span>story_ad · director · avatar</span></div><div class="use"><b>42×</b><span>used</span></div></div>
+        <div class="lib-card"><span class="li" style="background:rgba(34,211,238,.16);color:#67e8f9;">🔎</span><div class="lb"><b>leads-table</b><span>find_leads · enrich_lead</span></div><div class="use"><b>128×</b><span>used</span></div></div>
+        <div class="lib-card"><span class="li" style="background:rgba(52,211,153,.16);color:#6ee7b7;">🎨</span><div class="lb"><b>design-picker</b><span>create_design · logo</span></div><div class="use"><b>67×</b><span>used</span></div></div>
+        <div class="lib-card"><span class="li" style="background:rgba(245,158,11,.16);color:#fcd34d;">📣</span><div class="lb"><b>campaign-approver</b><span>content_campaign</span></div><div class="use"><b>30×</b><span>used</span></div></div>
+        <div class="lib-card new" id="libNew" style="display:none"><span class="li" style="background:rgba(236,72,153,.16);color:#f9a8d4;">🗓️</span><div class="lb"><b>availability-grid</b><span>✨ just generated · booking_slots</span></div><div class="use"><b>1×</b><span>new</span></div></div>
+      </div>
+
+      <div class="box how">
+        <h3>How it works</h3>
+        <ul style="margin:0;padding-left:16px;">
+          <li>A skill can declare a <b>viewHint</b>; otherwise the agent <b>matches the best view</b> by skill + project intent.</li>
+          <li>Views render in a <b>sandbox</b> and talk to the agent through a small <b>contract</b> (emit events / call tools) — safe, not arbitrary access.</li>
+          <li>No match → the agent <b>writes a view</b> to that contract, it renders, and is <b>saved + versioned</b> in the library.</li>
+          <li>Reuse is <b>smart</b>: the same view serves related skills across projects; you can edit or fork it.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <p class="note"><b>Engineering reality (flagged early):</b> letting the agent author + persist + render UI needs a <b>safe runtime</b> (sandboxed render, no raw DOM/network — a fixed component contract), a <b>views registry</b> (name, code, version, skill/project match, usage), and a <b>skill→view resolver</b>. That's a real platform build — this mock is to align on the <i>shape</i> first. We'd start with a small set of <b>curated</b> library views (film/leads/design/campaign) + the resolver, then add the <b>generative</b> path behind the same contract.</p>
+</div>
+
+<script>
+  // build the 7×4 availability grid
+  var days=document.getElementById('days');
+  var DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  DAYS.forEach(d=>{ var col=document.createElement('div'); col.className='day'; col.innerHTML='<div class="dh">'+d+'</div>'+Array.from({length:4}).map(()=> '<div class="slot"></div>').join(''); days.appendChild(col); });
+  days.addEventListener('click', e=>{ var s=e.target.closest('.slot'); if(s) s.classList.toggle('on'); });
+
+  var buildline=document.getElementById('buildline'), genIntro=document.getElementById('genIntro'), gencode=document.getElementById('gencode');
+  var avail=document.getElementById('avail'), genBadge=document.getElementById('genBadge'), genFoot=document.getElementById('genFoot');
+  var genSave=document.getElementById('genSave'), savedMsg=document.getElementById('savedMsg'), libNew=document.getElementById('libNew');
+  var genView=document.getElementById('genView');
+  var tid=[];
+  function clearT(){ tid.forEach(clearTimeout); tid=[]; }
+  function reset(){
+    clearT();
+    buildline.style.display='none'; genIntro.style.display='block';
+    gencode.classList.remove('on'); avail.classList.remove('on'); genView.style.display='none';
+    genBadge.textContent='✨ generating…'; genFoot.textContent='building…'; genSave.style.display='none';
+    savedMsg.style.display='none'; libNew.style.display='none';
+    [...days.querySelectorAll('.slot')].forEach(s=>s.classList.remove('on'));
+  }
+  function simulate(){
+    reset();
+    genIntro.style.display='none'; buildline.style.display='flex';
+    tid.push(setTimeout(()=>{ genView.style.display='block'; },500));
+    tid.push(setTimeout(()=>{ gencode.classList.add('on'); genFoot.textContent='writing availability-grid.view.tsx…'; },900));
+    tid.push(setTimeout(()=>{ gencode.classList.remove('on'); avail.classList.add('on'); genFoot.textContent='rendered · try toggling slots'; genBadge.textContent='✨ generated'; buildline.style.display='none';
+      // preselect a few slots for life
+      var slots=[...days.querySelectorAll('.slot')]; [3,7,11,12,16].forEach(i=>slots[i]&&slots[i].classList.add('on')); },2600));
+    tid.push(setTimeout(()=>{ genSave.style.display='inline-flex'; },3000));
+    tid.push(setTimeout(()=>{ savedMsg.style.display='block'; libNew.style.display='flex'; genFoot.textContent='saved to your views · reusable'; },3800));
+  }
+  document.getElementById('sim').addEventListener('click', simulate);
+  document.getElementById('reset').addEventListener('click', reset);
+  genSave.addEventListener('click', ()=>{ savedMsg.style.display='block'; libNew.style.display='flex'; });
+  reset(); genView.style.display='none';
+</script>

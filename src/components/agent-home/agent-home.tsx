@@ -1,29 +1,36 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ThemeMenu } from "@/components/shared/theme-menu";
 import {
   Menu, Sparkles, X, ChevronDown, ChevronRight, Check, Shield, LogOut, SquarePen, History, Trash2, MessageSquare, User, Settings, Link2,
-  Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard,
-  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, UserSquare2, type LucideIcon,
+  Building2, Palette, Megaphone, Video, ShoppingBag, CalendarDays, Globe, TrendingUp, CreditCard, Shirt,
+  FileText, ClipboardList, Workflow, Users, Star, Search, Mail, MessageCircle, Gift, Images, Clapperboard, Truck, LayoutTemplate, Printer, PanelRight, Mic, UserSquare2, Monitor, PhoneCall, GraduationCap, type LucideIcon,
 } from "lucide-react";
 import { PageLoader } from "@/components/shared/page-loader";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 import { usePreferredLanguage } from "@/hooks/use-preferred-language";
 import { getHomeStrings, buildGreeting } from "./home-i18n";
-import { WORKSPACES } from "./workspaces";
+import { WORKSPACES, type Workspace } from "./workspaces";
 import { BrandMark, BrandWordmark } from "./brand-mark";
 import { LanguageSwitcher } from "./language-switcher";
 import { useHomeAgent, type ConversationSummary } from "./use-home-agent";
 import { AgentNavContext } from "@/components/flow-ai/agent-nav-context";
 import { HomeMessageView } from "./home-message";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
+import type { ViewEvent } from "@/lib/agent-views/spec";
 import { SetupBanners } from "./setup-banners";
 import { Composer } from "./composer";
+import { AgentIntro } from "./agent-intro";
+import { AGENT_GROUPS, AGENT_GROUP_KEYS, getAgentGroup, agentGroupContext } from "@/lib/ai/flow-agent/agent-groups";
+import { groupIcon } from "./group-icons";
 import { FocusedView, FocusedComingSoon } from "./focused-view";
 import { FocusedDesignStudio, DEFAULT_DESIGN, DESIGN_DRAFT_KEY, designCanvasContext, applyDesignPatch, type DesignDoc, type BrandContact } from "./focused/design-studio";
 import { FocusedPrintStudio } from "./focused/print-studio";
+import { HubThumb, HubThumbStyles, type HubScene } from "./hub-thumb";
 
 // The Print Studio canvas autosaves under its own key, fully separate from the
 // Create design draft (DESIGN_DRAFT_KEY) so the two never bleed into each other.
@@ -52,6 +59,10 @@ import { FocusedReferrals } from "./focused/referrals-workspace";
 import { FocusedMedia } from "./focused/media-workspace";
 import { FocusedLogo } from "./focused/logo-workspace";
 import { FocusedVoice } from "./focused/voice-workspace";
+import { FocusedNarration } from "./focused/narration-workspace";
+import { FocusedClone } from "./focused/clone-workspace";
+import { FocusedVoiceAgent } from "./focused/voice-agent-workspace";
+import { FocusedTraining } from "./focused/training-workspace";
 import { FocusedVideo } from "./focused/video-workspace";
 import { FocusedAvatar } from "./focused/avatar-workspace";
 import { FocusedDelivery } from "./focused/delivery-workspace";
@@ -66,6 +77,9 @@ import { FocusedWeb, FocusedLanding } from "./focused/web-workspace";
 import { FocusedPortfolio } from "./focused/portfolio-workspace";
 import { FocusedReel } from "./focused/reel-workspace";
 import { FocusedDirector } from "./focused/director-workspace";
+import { FocusedUgc } from "./focused/ugc-workspace";
+import { FocusedProductAds } from "./focused/product-ads-workspace";
+import { FocusedTryOn } from "./focused/try-on-workspace";
 import { FocusedOutreach } from "./focused/outreach-workspace";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 
@@ -117,6 +131,9 @@ const FOCUS_CHAT_HINT: Record<string, string> = {
   media: "Ask the agent to find or generate media — e.g. “make me a product image”.",
   logo: "Ask the agent to generate a logo for your brand.",
   video: "Ask the agent to create a video — an ad, promo, or reel.",
+  tryon: "Ask the agent for a virtual try-on — add a photo of the person and a photo of the outfit, and it animates the look.",
+  productads: "Ask the agent for a product ad — e.g. “a 10s luxury ad for my perfume”. Add a clean hero photo of the product.",
+  ugc: "Ask the agent for a UGC creator video — e.g. “a testimonial about my serum, 8 seconds”. Add a photo of the creator and the script they should say.",
   reel: "Ask the agent to turn a video into reels — paste a link and it finds the best moments, reframes to 9:16 and captions them.",
   avatar: "Ask the agent to make an avatar video — e.g. “a 30s intro of my avatar for our launch”.",
   delivery: "Ask the agent about deliveries — e.g. “which orders are out for delivery?”.",
@@ -157,9 +174,16 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   logo: { label: "Logo studio", subtitle: "Your generated logos", icon: Palette },
   video: { label: "Video studio", subtitle: "Brief → estimate → build, right on the canvas", icon: Clapperboard },
   reel: { label: "Reel studio", subtitle: "Link → find moments → clips, right on the canvas", icon: Clapperboard },
-  voice: { label: "Voice studio", subtitle: "Voiceovers, narration & voice cloning", icon: Mic },
+  voice: { label: "Voice studio", subtitle: "A voiceover, or a narrated video", icon: Mic },
+  voices: { label: "Voices & cloning", subtitle: "Clone your voice, manage the rest", icon: Mic },
+  clone: { label: "Clone yourself", subtitle: "Your face in any scene, outfit or pose", icon: UserSquare2 },
+  voiceagent: { label: "Voice Agent", subtitle: "An agent that answers your phone — books, takes messages, logs every call", icon: PhoneCall },
+  training: { label: "Training Room", subtitle: "Live rooms — everyone on video, a shared whiteboard, your docs on the board", icon: GraduationCap },
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
-  director: { label: "Video Studio", subtitle: "Direct AI, avatar & reel into one film", icon: Clapperboard },
+  director: { label: "Filmmaking", subtitle: "Direct a multi-scene cinematic film", icon: Clapperboard },
+  ugc: { label: "UGC Studio", subtitle: "Creator videos with lip-sync", icon: Sparkles },
+  productads: { label: "Product Ads", subtitle: "Cinematic ads from a product photo", icon: Megaphone },
+  tryon: { label: "Virtual Try-on", subtitle: "Animate a look from a person + an outfit", icon: Shirt },
   delivery: { label: "Delivery", subtitle: "Order delivery & drivers", icon: Truck },
   credits: { label: "Buy credits", subtitle: "Top up your credit balance", icon: CreditCard },
   plans: { label: "Plans", subtitle: "Compare & upgrade your plan", icon: Sparkles },
@@ -182,6 +206,12 @@ function focusedSurfaceContext(focused: string, brandName?: string | null, openR
       return `The user has the **Publish** workspace open (posts, scheduling, content calendar). Default their intent to creating, scheduling, or managing posts.`;
     case "portfolio":
       return `The user has the **Portfolio Studio** open — their Portfolio / Digital Résumé site (a shareable public page, distinct from the Website Studio). OPERATE it for them; don't tell them to open menus. To BUILD one they don't have: build_portfolio — ask business vs personal; for a personal résumé, have them upload their CV and READ it to extract experience/skills/education; pull business content from the Brand Kit. To EDIT: call get_portfolio_content first (current header, sections, style, hero media, access), then edit_portfolio — send a PARTIAL patch; the \`sections\` array is replaced wholesale so include existing items you keep. Pick a STYLE that reads like a portfolio/digital-ad piece (spotlight/cinematic/showcase/editorial/neon/card); spotlight/cinematic/neon support a full-bleed VIDEO hero. To gate access, set access.view or access.download to 'email' (visitors verify a 6-digit code and are saved to Contacts). To go live set status:'PUBLISHED'. For a CUSTOM DOMAIN, do it end-to-end: find_domain (search options + prices from their name/brand), then buy_portfolio_domain to purchase + AUTO-ATTACH the one they pick (charges their saved card on Confirm, registers it, publishes + wires DNS/SSL automatically — they never touch DNS), or connect_portfolio_domain if they already own one. Don't just describe steps — do the work.`;
+    case "tryon":
+      return `The user has the **Virtual Try-on** studio OPEN — a single-shot playground that animates a fashion look from TWO references: (1) a photo of the PERSON and (2) a photo of the OUTFIT. OPERATE it; don't narrate. The brief needs both photos plus the MOTION & SCENE direction (walking toward camera, a slow turn, fabric movement, the setting), aspect (3:4 suits fashion) and duration (≤10s). Several TAKES generate at once; the user keeps the best and can publish one. Coach them: reference 1 = the person to keep, reference 2 = the outfit to put on them; ask for subtle motion and say what must stay unchanged (face, hair, setting). Don't reply with a generic menu.`;
+    case "productads":
+      return `The user has the **Product Ads** studio OPEN — a single-shot playground that turns a product HERO STILL into a cinematic, timed TVC-style ad. OPERATE it; don't narrate. The brief needs: a clean product photo, the AD DIRECTION (a timed camera sequence — e.g. 0-3s orbit, 3-6s pull back, 6-10s hero end frame — plus lighting and mood), a mood (Luxury/Clean/Bold/Warm), aspect, and duration (≤10s). Several TAKES generate at once; the user keeps the best and can publish one. Help them write the direction in timed beats and name the lighting/colour grade. Never add on-screen text and never change the product itself. Don't reply with a generic menu.`;
+    case "ugc":
+      return `The user has the **UGC Studio** OPEN — a single-shot playground that turns a PHOTO of a creator + a SCRIPT into a lip-synced creator video (the person says the exact words). OPERATE it; don't narrate. The brief needs: (1) a creator photo, (2) OPTIONALLY a product photo — if the video is about a product (a review, unboxing, demo), ALWAYS ask for the product shot: we compose the creator holding it before filming, so the real product is on screen — (3) the spoken script (2-3 short sentences — it must fit 6-10s at ~2 words/sec), a style (Authentic / Testimonial / Unboxing / GRWM), aspect (9:16 or 1:1) and duration. Several TAKES can be generated at once and land on the canvas; the user keeps the ones they like and can publish a take to their channels. Help them write a natural, conversational script that sounds like a real creator — never salesy. Don't reply with a generic menu.`;
     case "reel":
       return `The user has the **Reel Studio** OPEN — a playground that turns a long video into scored 9:16 clips. OPERATE it; don't narrate. To BUILD reels: build_reels — pass the source \`transcript\` (transcribe the video's audio, or use provided captions), a title, and optional settings (clipLength/aspect/count). Clips appear on the canvas sorted by virality score and render to 9:16 after. To EDIT a clip, call get_reel_content first (for clip ids) then edit_clip. To POST/SCHEDULE, use publish_reels with clip ids + channels (tiktok/instagram/youtube/facebook/linkedin/x); omit scheduleAt to post now. Everything stays under the campaign to repost or delete. Don't reply with a generic menu.`;
     case "web":
@@ -235,6 +265,10 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
       return `The user is on the **Video Studio — Director**: one canvas that fuses AI cinematic shots, talking-avatar clones, and reel clips into a single film. A film is a pipeline of scene nodes, each rendered by its own engine, then stitched into one video. Help them brief the film, add/edit/reorder scenes, pick the right engine per beat, generate scenes, and stitch the final cut.`;
     case "voice":
       return `The user is on the **Voice Studio** (AI voiceovers, narration & voice cloning). Making a voiceover is a generative task — help them write a punchy script for their goal, then they set the voice (gender/accent/style/speed) and click Generate; the audio lands in the studio and their Media library. They can also clone a voice from a sample.`;
+    case "training":
+      return `The user is on the **Training Room** studio — live training sessions. A session has a PLAN (a canvas of segments: slides, whiteboard, document, video, illustration, breakout) and a LIVE room (everyone on video, a shared whiteboard, their deck/docs on the board, and the host draws on top of any of it). Help them describe the session so the agenda, the board and the room get built. Two rules to hold onto: the PEN is handed to one person at a time, while SCREEN SHARE is a permission you grant to as many people as you like — hosts and co-hosts always have both. Co-hosts can share, draw and admit people. Room time is billed for the minutes people are actually in the room, as it runs; recording and the transcript are small one-offs. Never name any video or infrastructure provider.`;
+    case "voiceagent":
+      return `The user is on the **Voice Agent** studio — an agent that answers their business phone. It has a brief (what it does, the business, its greeting), a voice, a set of skills (book / answer / qualify a lead / take a message / transfer / check an order), a phone number, and a live switch. Help them describe the business, pick the right skills, and get a number. Never name any telephony or model provider. Calls cost 9 credits a minute; a new number is 500 credits a month; building it is free.`;
     case "avatar":
       return `The user is on the **Avatar Studio**. Never name or hint at any third-party provider to the user — this is FlowSmartly's own studio. INTERVIEW first (goal, tone, length), then use create_avatar_video — it renders into the studio canvas live and saves to the Library. It has modes: 'talking' (write a script → talking-avatar video; recommend Standard for social/outreach or Avatar IV for photoreal hero/ad), 'translate' (dub one of their FINISHED videos into another language — set targetLanguage), and 'batch' (many videos at once — pass a list of scripts). For a multi-scene PRESENTATION (a presenter avatar plus product/reference images or B-roll in one stitched video), use create_presentation — it plans the scenes for free onto the canvas as a Presentation node; the user opens the storyboard to attach per-scene visuals and render (only autoRender if they explicitly ask). Costs are in credits (priced from the DB/admin — never quote dollars). For 'photo → video' the user uploads a photo in the studio UI. To make a reusable avatar or cloned voice, use clone_avatar (consent-gated).`;
     case "print":
@@ -269,11 +303,29 @@ A "pitch" is a cold-outreach email (create_pitch); a "proposal" is a branded ser
   }
 }
 
+// Home agent "hats" (composer switcher) → the surfaceContext that BIASES (not
+// restricts) the agent. Mirrors focusedSurfaceContext, but for the un-focused
+// home. Ignored while a focused surface is open (that context takes precedence).
+// The focused "app view" (studio the agent works on) each GROUP opens from the
+// Chat ⇄ View toggle — a representative surface + label per group. The
+// surfaceContext bias and the starter cards now come from AGENT_GROUPS
+// (agentGroupContext / the group's skills).
+const AGENT_VIEW: Record<string, { surface: string; label: string }> = {
+  create: { surface: "create", label: "Design Studio" },
+  film: { surface: "director", label: "Video Studio" },
+  publish: { surface: "compose", label: "Compose" },
+  grow: { surface: "campaign", label: "Campaign Studio" },
+  leads: { surface: "leads", label: "Lead Studio" },
+  sell: { surface: "sell", label: "Store Studio" },
+  web: { surface: "web", label: "Website Studio" },
+  business: { surface: "brand", label: "Brand Studio" },
+};
+
 // Focused surfaces that get their own traceable path (/home/<view>).
 // "grow" and "business" are category CONTAINERS (they open a nav panel, not a
 // real surface) — deliberately excluded so /home/grow and /home/business deep-
 // link cleanly to Home instead of a "coming soon" placeholder.
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "video", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "voices", "clone", "voiceagent", "training", "video", "director", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 
 /**
@@ -298,7 +350,7 @@ export function AgentHome() {
   const searchParams = useSearchParams();
   const { language, setLanguage, dir } = usePreferredLanguage();
   const s = getHomeStrings(language);
-  const { messages, sending, conversationId, conversations, send, handlePlanResponse, handlePickTemplate, handlePickOption, loadConversation, newConversation, refreshConversations, canvasUpdateRef, actionCount, beginPublishNarration, updatePublishNarration, endPublishNarration } = useHomeAgent();
+  const { messages, sending, conversationId, conversations, send: agentSend, handlePlanResponse, handlePickTemplate, handlePickOption, loadConversation: agentLoadConversation, newConversation: agentNewConversation, refreshConversations, canvasUpdateRef, actionCount, beginPublishNarration, updatePublishNarration, endPublishNarration } = useHomeAgent();
   // Bridge the Compose publish stream into the agent chat (keeps the agent involved).
   const publishNarrate = { begin: beginPublishNarration, update: updatePublishNarration, end: endPublishNarration };
 
@@ -334,10 +386,17 @@ export function AgentHome() {
   // so opening a menu over a focused view and closing it returns you to that view.
   const panelReturnWs = useRef("home");
   const [activeWs, setActiveWs] = useState("home");
+  // The composer's agent "hat" on the home (Creation/Film/Marketing) — biases the
+  // agent via surfaceContext and swaps the starter chips. See agentModeContext.
+  const [agentMode, setAgentMode] = useState("create");
+  // First-run "Meet your agent" overlay (shown once; localStorage-gated).
+  const [showIntro, setShowIntro] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [focused, setFocused] = useState<string | null>(null);
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(true); // Lead Studio section menu (toggled from the surface header)
   const [leadsInitialScreen, setLeadsInitialScreen] = useState("find");
+  // Deep-link a specific saved list open in the Lead Studio (from an in-chat card).
+  const [leadsInitialListId, setLeadsInitialListId] = useState<string | null>(null);
   const [design, setDesign] = useState<DesignDoc>(DEFAULT_DESIGN);
   // The Print Studio canvas is a SEPARATE document from the Create design — they
   // must not share state or a draft key, or opening a print format would pollute
@@ -352,6 +411,8 @@ export function AgentHome() {
   const [brandIcon, setBrandIcon] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const pinnedRef = useRef(true);
+  const forceNextScrollRef = useRef(true);
   const accountRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
@@ -359,7 +420,57 @@ export function AgentHome() {
   const savedDesignRef = useRef<DesignDoc>(DEFAULT_DESIGN);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const requestChatAutoscroll = useCallback(() => {
+    pinnedRef.current = true;
+    forceNextScrollRef.current = true;
+    const snap = () => bottomRef.current?.scrollIntoView({ block: "end" });
+    requestAnimationFrame(snap);
+    setTimeout(snap, 80);
+    setTimeout(snap, 260);
+  }, []);
+
+  const send = useCallback(
+    (...args: Parameters<typeof agentSend>) => {
+      requestChatAutoscroll();
+      return agentSend(...args);
+    },
+    [agentSend, requestChatAutoscroll],
+  );
+
+  const loadConversation = useCallback(
+    (id: string) => {
+      requestChatAutoscroll();
+      return agentLoadConversation(id);
+    },
+    [agentLoadConversation, requestChatAutoscroll],
+  );
+
+  const newConversation = useCallback(() => {
+    requestChatAutoscroll();
+    return agentNewConversation();
+  }, [agentNewConversation, requestChatAutoscroll]);
+
   useEffect(() => setMounted(true), []);
+
+  // Restore the user's default agent hat, and show the first-run "Meet your
+  // agent" overlay once (localStorage-gated — no DB field needed).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("fs-agent-default");
+      const migrate: Record<string, string> = { creation: "create", marketing: "grow" };
+      const def = raw ? (migrate[raw] ?? raw) : null;
+      if (def && AGENT_GROUP_KEYS.includes(def)) setAgentMode(def);
+      if (!localStorage.getItem("fs-agent-onboarded")) setShowIntro(true);
+    } catch { /* ignore */ }
+  }, []);
+  const finishIntro = useCallback((key: string | null) => {
+    try {
+      localStorage.setItem("fs-agent-onboarded", "1");
+      if (key) localStorage.setItem("fs-agent-default", key);
+    } catch { /* ignore */ }
+    if (key) setAgentMode(key);
+    setShowIntro(false);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -456,33 +567,52 @@ export function AgentHome() {
   // Keep the chat pinned to the newest content while the agent streams — the
   // message COUNT doesn't change as a single reply/plan/task card grows, so a
   // ResizeObserver on the list drives the scroll. We only auto-follow when the
-  // user is already near the bottom, and a brand-new turn always re-pins.
-  const pinnedRef = useRef(true);
-  const prevLenRef = useRef(0);
-  useEffect(() => {
-    if (messages.length > prevLenRef.current) pinnedRef.current = true;
-    prevLenRef.current = messages.length;
-  }, [messages.length]);
+  // user is already near the bottom. New sends / opened threads opt into one
+  // forced bottom snap through requestChatAutoscroll(); background cards should
+  // not yank the user away from older content they are reading.
   useEffect(() => {
     const anchor = bottomRef.current;
     const content = anchor?.parentElement;
     if (!anchor || !content) return;
     let sc: HTMLElement | null = content;
     while (sc && !/(auto|scroll)/.test(getComputedStyle(sc).overflowY)) sc = sc.parentElement;
-    const toBottom = () => anchor.scrollIntoView({ block: "end" });
+    const toBottom = () => {
+      if (sc) sc.scrollTop = sc.scrollHeight;
+      anchor.scrollIntoView({ block: "end" });
+    };
+    const scheduleBottom = () => {
+      if (!pinnedRef.current && !forceNextScrollRef.current) return;
+      requestAnimationFrame(() => {
+        toBottom();
+        setTimeout(toBottom, 80);
+        setTimeout(toBottom, 240);
+      });
+      forceNextScrollRef.current = false;
+    };
     const onScroll = () => { if (sc) pinnedRef.current = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 150; };
     sc?.addEventListener("scroll", onScroll, { passive: true });
-    const ro = new ResizeObserver(() => { if (pinnedRef.current) toBottom(); });
+    const ro = new ResizeObserver(() => {
+      scheduleBottom();
+    });
     ro.observe(content);
-    toBottom();
-    return () => { sc?.removeEventListener("scroll", onScroll); ro.disconnect(); };
+    const mo = new MutationObserver(() => scheduleBottom());
+    mo.observe(content, { childList: true, subtree: true, characterData: true });
+    if (pinnedRef.current || forceNextScrollRef.current) {
+      scheduleBottom();
+    }
+    return () => { sc?.removeEventListener("scroll", onScroll); ro.disconnect(); mo.disconnect(); };
   }, [messages.length === 0, conversationId, focused]);
   // Follow STREAMING growth too: the agent streams tokens / plan cards INTO an
   // existing message (message count unchanged), and the ResizeObserver above
   // misses it because the scroll container's own box size is fixed (flex-1) — only
   // its scrollHeight grows. Re-scroll on every message-content change while pinned.
   useEffect(() => {
-    if (pinnedRef.current) bottomRef.current?.scrollIntoView({ block: "end" });
+    if (!pinnedRef.current && !forceNextScrollRef.current) return;
+    const snap = () => bottomRef.current?.scrollIntoView({ block: "end" });
+    requestAnimationFrame(snap);
+    setTimeout(snap, 80);
+    setTimeout(snap, 240);
+    forceNextScrollRef.current = false;
   }, [messages, sending]);
 
   // Deep-link: load ?conversationId= on first mount, and keep the URL in sync
@@ -596,7 +726,12 @@ export function AgentHome() {
       const printCmd = (patch as { __print?: unknown }).__print;
       if (printCmd && typeof printCmd === "object") {
         const fmt = (printCmd as { format?: unknown }).format;
-        if (typeof fmt === "string") printOpsRef.current?.selectFormat(fmt);
+        if (typeof fmt === "string") {
+          // If the Print mode is live, open the format directly; otherwise flip the
+          // Design Studio into Print mode and let it open the format on mount.
+          if (printOpsRef.current) printOpsRef.current.selectFormat(fmt);
+          else { setPrintInitialFormat(fmt); setActiveWs("create"); setFocused("print"); }
+        }
         return;
       }
       const composeCmd = (patch as { __compose?: unknown }).__compose;
@@ -687,9 +822,23 @@ export function AgentHome() {
   const isConnectionsFocus = focused === "connections";
   const fws = focused && !isAccountFocus && !isProfileFocus && !isBrandFocus && !isAnalyticsFocus && !isBillingFocus && !isConnectionsFocus ? WORKSPACES.find((w) => w.key === focused) : undefined;
   const fMeta = focused ? FOCUS_META[focused] : undefined;
-  const fLabel = isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fMeta ? fMeta.label : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
-  const FIcon = isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fMeta ? fMeta.icon : fws?.icon ?? Sparkles;
-  const primaryWorkspaces = WORKSPACES.filter((w) => w.key !== "business");
+  // Design Studio & Print are ONE surface (screen vs print MODE) — same identity,
+  // same rail highlight; a Screen⇄Print toggle in the header switches modes while
+  // keeping the two documents (design / printDesign) isolated. [[print-studio-reuses-canvas]]
+  const isDesignSurface = focused === "create" || focused === "print";
+  const fLabel = isDesignSurface ? "Design Studio" : isProfileFocus ? "Profile" : isAccountFocus ? "Account & settings" : isBrandFocus ? "Brand identity" : isAnalyticsFocus ? "Analytics" : isBillingFocus ? "Billing & credits" : isConnectionsFocus ? "Connections" : fMeta ? fMeta.label : fws ? (s.ws[fws.key] ?? fws.label) : "Focused view";
+  const FIcon = isDesignSurface ? Palette : isProfileFocus ? User : isAccountFocus ? Settings : isBrandFocus ? Palette : isAnalyticsFocus ? TrendingUp : isBillingFocus ? CreditCard : isConnectionsFocus ? Link2 : fMeta ? fMeta.icon : fws?.icon ?? Sparkles;
+  // Consolidated rail: Print → Create, Campaign → Publish.
+  // Film and Leads are the two hero PRODUCTS — they get their own rail sections
+  // right after Agent, ahead of the tool groups. Each opens its group's card-grid
+  // menu. Leads absorbs the old "Outreach" section (Find leads, pitches, reviews,
+  // forms, contacts all live in the Leads group), so Outreach is dropped from the rail.
+  const FILM_WS: Workspace = { key: "film", label: "Film", icon: Clapperboard, route: "/home/director", items: [] };
+  const LEADS_WS: Workspace = { key: "leads", label: "Leads", icon: Search, route: "/home/leads", items: [] };
+  const CALL_WS: Workspace = { key: "callagent", label: "Call agent", icon: PhoneCall, route: "/home/voiceagent", items: [] };
+  const TRAIN_WS: Workspace = { key: "training", label: "Training Room", icon: GraduationCap, route: "/home/training", items: [] };
+  const basePrimary = WORKSPACES.filter((w) => !["business", "print", "campaign", "leads", "outreach"].includes(w.key));
+  const primaryWorkspaces = [basePrimary[0], FILM_WS, LEADS_WS, CALL_WS, TRAIN_WS, ...basePrimary.slice(1)];
   const businessWorkspace = WORKSPACES.find((w) => w.key === "business");
 
   const openWorkspace = (key: string) => {
@@ -716,6 +865,38 @@ export function AgentHome() {
     setPanelKey(key);
     setDrawerOpen(false);
   };
+  // A rail section now opens the AGENT MENU CHAT for its group — the home
+  // card-grid menu + composer set to that group — NOT the old browse panel.
+  // Rail keys map to agent-group keys (outreach → leads · connections → publish).
+  const RAIL_GROUP: Record<string, string> = { outreach: "leads", connections: "publish" };
+  // A rail section whose group holds exactly ONE product opens that product
+  // straight away — a card-grid menu of a single card is just an extra click.
+  const RAIL_DIRECT: Record<string, string> = { callagent: "voiceagent", training: "training" };
+  const openAgentGroup = (key: string) => {
+    const direct = RAIL_DIRECT[key];
+    if (direct) {
+      guardNav(() => {
+        setPanelKey(null);
+        setHistoryOpen(false);
+        setDrawerOpen(false);
+        setActiveWs(key);
+        setAgentMode(RAIL_GROUP[key] ?? key);
+        setFocused(direct);
+      });
+      return;
+    }
+    const group = RAIL_GROUP[key] ?? key;
+    if (!AGENT_GROUP_KEYS.includes(group)) { openWorkspace(key); return; }
+    guardNav(() => {
+      newConversation();
+      setFocused(null);
+      setPanelKey(null);
+      setHistoryOpen(false);
+      setDrawerOpen(false);
+      setActiveWs(key);
+      setAgentMode(group);
+    });
+  };
   const openFocused = (key: string) => { const target = key === "business" ? "brand" : key === "grow" ? "analytics" : key; setPanelKey(null); setActiveWs(key); setFocused(target); setDrawerOpen(false); if (target === "create") savedDesignRef.current = design; };
   const openBrand = () => { setHistoryOpen(false); setPanelKey(null); setActiveWs("business"); setFocused("brand"); setDrawerOpen(false); };
   const openAccount = () => { setUserMenuOpen(false); setHistoryOpen(false); setPanelKey(null); setSettingsDirty(false); setSettingsInitialTab(undefined); setActiveWs("business"); setFocused("account"); };
@@ -731,6 +912,17 @@ export function AgentHome() {
     setPanelKey(null);
     setFocused(key);
     setDrawerOpen(false);
+  };
+  // Flip the Design Studio between Screen (create) and Print modes — same surface,
+  // so it's NOT guarded like leaving a view (each mode autosaves its own document).
+  const switchDesignMode = (mode: "create" | "print") => {
+    if (focused === mode) return;
+    setHistoryOpen(false);
+    setPanelKey(null);
+    setDrawerOpen(false);
+    setActiveWs("create");
+    if (mode === "create") savedDesignRef.current = design;
+    setFocused(mode);
   };
   // Open Pitch Studio for a lead — set the target BEFORE switching surfaces so the
   // child mounts with it. Keeps the current rail (Leads).
@@ -764,6 +956,8 @@ export function AgentHome() {
       if (campaignId) { guardNav(() => openCampaignStudio({ campaignId })); return true; }
       const designId = url.searchParams.get("design");
       if (designId) { guardNav(() => openDesignById(designId)); return true; }
+      const leadListId = url.searchParams.get("leadList");
+      if (leadListId) { guardNav(() => { setLeadsInitialListId(leadListId); openView("leads", "contacts"); }); return true; }
       const seg = url.pathname.replace(/^\/home\/?/, "").split("/")[0];
       if (seg && FOCUS_VIEWS.has(seg)) { guardNav(() => openView(seg)); return true; }
       if (!seg) { guardNav(() => setFocused(null)); return true; }
@@ -787,17 +981,70 @@ export function AgentHome() {
               : focused === "reel" ? (reelOpsRef.current?.getContext() || undefined)
                 : undefined;
   const sendAction = (p: string) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true });
-  const sendActionFiles = (p: string, atts: { dataUrl?: string; url?: string; name: string }[]) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true, attachments: atts });
-  // Mobile "collect via chat" bridge: on phones, studios seed the composer with
-  // an editable starter (user edits + sends) instead of opening a data-fill
-  // modal. `seedComposer` fills the focused composer + reveals the chat overlay.
+  const sendActionFiles = (p: string, atts: { dataUrl?: string; url?: string; name: string; mediaType?: "image" | "video" }[]) => send(p, false, canvasCtxFor(), focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true, attachments: atts });
   const isMobile = useIsMobile();
   const [composerSeed, setComposerSeed] = useState<{ text: string; nonce: number } | null>(null);
+  // Which campaign post (if any) is picking media from the library modal. The
+  // modal supports BOTH selecting existing assets AND uploading new ones, so it
+  // is the single "Library"/"attach" entry point — no separate upload prompt.
+  const [mediaPicker, setMediaPicker] = useState<{ postId: string; campaignId: string } | null>(null);
   const [revealChat, setRevealChat] = useState(0);
   const seedComposer = useCallback((text: string) => {
     setComposerSeed((s) => ({ text, nonce: (s?.nonce ?? 0) + 1 }));
     setRevealChat((n) => n + 1);
   }, []);
+  // A user interaction with an agent-authored view rendered inline in the chat.
+  // A pure deep-link (open a studio/surface) navigates in place; every other
+  // interaction (tap/input/rate/pick) is relayed to the agent as a hidden
+  // instruction so it continues the flow without the user leaving the chat.
+  const handleViewEvent = (e: ViewEvent) => {
+    const href = e.action.href;
+    if (href && navigateInApp(href)) return;
+    if (href && /^\/api\/pitch\/[^/]+\/pdf(?:\?|$)/.test(href)) {
+      window.open(href, "_blank", "noopener,noreferrer");
+      return;
+    }
+    // "Library" button OR an empty media slot's "click to attach": open the
+    // media-library modal (it lists existing assets AND has its own Upload
+    // button), then attach whatever the user picks. One entry point for both
+    // "choose from library" and "upload new" — no separate Upload prompt.
+    if (e.action.event === "pick_campaign_post_media" || e.action.event === "upload_campaign_post_media") {
+      const payload = e.action.payload || {};
+      const postId = typeof payload.postId === "string" ? payload.postId : "";
+      const campaignId = typeof payload.campaignId === "string" ? payload.campaignId : "";
+      if (postId) { setMediaPicker({ postId, campaignId }); return; }
+    }
+    // "Add media" / "Redo media": ONE button for both image and video — hand off
+    // to the agent, which asks which type then generates it (regenerate_post_image
+    // / regenerate_post_video). Generation only; attaching an existing file is the
+    // Library button above.
+    if (e.action.event === "post_media") {
+      const payload = e.action.payload || {};
+      const postId = typeof payload.postId === "string" ? payload.postId : "";
+      const campaignId = typeof payload.campaignId === "string" ? payload.campaignId : "";
+      const hasMedia = payload.hasMedia === true;
+      sendAction([
+        `The user wants to ${hasMedia ? "replace the media on" : "add media to"} a campaign post.`,
+        postId ? `Post id: "${postId}".` : "",
+        campaignId ? `Campaign id: "${campaignId}".` : "",
+        "First ask ONE short question — image or video? — unless they've already said which.",
+        "Then generate it: regenerate_post_image for an image, regenerate_post_video for a video (pass that postId and campaignId, tier \"standard\").",
+        "Do NOT offer file upload here — that is the separate Library button.",
+      ].filter(Boolean).join(" "));
+      return;
+    }
+    const parts: string[] = [`The user interacted with the "${e.action.event}" control in a view you rendered.`];
+    if (e.name) parts.push(`Field: ${e.name}.`);
+    if (e.value !== undefined && e.value !== null && e.value !== "") {
+      const v = typeof e.value === "string" ? e.value : JSON.stringify(e.value);
+      parts.push(`Value: ${v.slice(0, 600)}.`);
+    }
+    if (e.action.payload && Object.keys(e.action.payload).length) parts.push(`Context: ${JSON.stringify(e.action.payload).slice(0, 600)}.`);
+    if (e.action.tool) parts.push(`The intended tool is ${e.action.tool}.`);
+    if (href) parts.push(`Related link: ${href}.`);
+    parts.push("Act on it and confirm — do not re-ask what the view already captured.");
+    sendAction(parts.join(" "));
+  };
   // A photo SLOT's "Generate" button — drive the agent to generate a contextual
   // photo and drop it into that exact slot (it may ask one clarifying question).
   const sendFillSlot = (layer: { id: string; label?: string; genHint?: string }, doc: DesignDoc) => send(
@@ -837,6 +1084,7 @@ export function AgentHome() {
 
   return (
     <AgentNavContext.Provider value={navigateInApp}>
+    {showIntro && user && <AgentIntro onDone={finishIntro} />}
     <div
       dir={dir}
       className="flex h-[100dvh] flex-col bg-background text-foreground"
@@ -979,26 +1227,21 @@ export function AgentHome() {
             const active = activeWs === w.key;
             return (
               <div key={w.key} className="contents">
-                <button onClick={() => openWorkspace(w.key)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                <button onClick={() => openAgentGroup(w.key)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
                   {active && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
                   <Icon className="h-[21px] w-[21px]" />
                   <span>{s.ws[w.key] ?? w.label}</span>
                 </button>
-                {(i === 0 || w.key === "leads") && <div className="my-1.5 h-px w-11 bg-border" />}
+                {(i === 0 || w.key === "leads" || w.key === "callagent") && <div className="my-1.5 h-px w-11 bg-border" />}
               </div>
             );
           })}
           <div className="mt-auto h-px w-11 bg-border" />
-          <button onClick={() => guardNav(openConnections)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", activeWs === "connections" ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
-            {activeWs === "connections" && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
-            <Link2 className="h-[21px] w-[21px]" />
-            <span>Social</span>
-          </button>
           {businessWorkspace && (() => {
             const Icon = businessWorkspace.icon;
             const active = activeWs === businessWorkspace.key;
             return (
-              <button onClick={() => openWorkspace(businessWorkspace.key)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
+              <button onClick={() => openAgentGroup(businessWorkspace.key)} className={cn("relative flex w-[66px] flex-col items-center gap-1.5 rounded-[13px] py-2.5 text-[10px] transition-colors", active ? "bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground")}>
                 {active && <span className="absolute inset-y-4 start-[-1px] w-[3px] rounded bg-gradient-to-b from-brand-500 to-violet-500" />}
                 <Icon className="h-[21px] w-[21px]" />
                 <span>{s.ws[businessWorkspace.key] ?? businessWorkspace.label}</span>
@@ -1014,11 +1257,22 @@ export function AgentHome() {
           {focused ? (
             <FocusedView
               title={fLabel}
-              subtitle={focused === "create" ? "Design canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "billing" ? "Credits · plan · usage · transactions" : focused === "connections" ? "Connect your social accounts" : fMeta ? fMeta.subtitle : WS_DESC[focused]}
+              subtitle={isDesignSurface ? "Graphics, ads & print — one canvas" : focused === "profile" ? "Your public profile" : focused === "account" ? "Notifications · security · billing" : focused === "brand" ? "Your brand kit — powers all AI" : focused === "analytics" ? "Performance · usage · activity" : focused === "billing" ? "Credits · plan · usage · transactions" : focused === "connections" ? "Connect your social accounts" : fMeta ? fMeta.subtitle : WS_DESC[focused]}
               icon={FIcon}
               agentBusy={sending}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
-              headerActions={focused === "leads" ? (
+              headerActions={isDesignSurface ? (
+                // Screen ⇄ Print mode switch — the deep Print↔Design merge. Both modes
+                // are the same "Design Studio" surface; each keeps its own document.
+                <div className="inline-flex overflow-hidden rounded-[10px] border border-border" role="tablist" aria-label="Design mode">
+                  <button onClick={() => switchDesignMode("create")} role="tab" aria-selected={focused === "create"} title="Design for screen — posts, ads & graphics" className={cn("inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[12px] font-semibold transition", focused === "create" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>
+                    <Monitor className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Screen</span>
+                  </button>
+                  <button onClick={() => switchDesignMode("print")} role="tab" aria-selected={focused === "print"} title="Print-ready formats — flyers, cards, brochures & product prints" className={cn("inline-flex items-center gap-1.5 border-s border-border px-2.5 py-1.5 text-[12px] font-semibold transition", focused === "print" ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:text-foreground")}>
+                    <Printer className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Print</span>
+                  </button>
+                </div>
+              ) : focused === "leads" ? (
                 <button onClick={() => setLeadsMenuOpen((v) => !v)} title="Show / hide menu" className="grid h-8 w-8 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground">
                   <PanelRight className="h-[18px] w-[18px]" />
                 </button>
@@ -1030,7 +1284,7 @@ export function AgentHome() {
                       <p className="mt-1 text-[12.5px] leading-relaxed text-muted-foreground">{(focused && FOCUS_CHAT_HINT[focused]) || DEFAULT_CHAT_HINT}</p>
                     ) : (
                       messages.map((m) => (
-                        <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} />
+                        <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} onViewEvent={handleViewEvent} />
                       ))
                     )}
                     <div ref={bottomRef} />
@@ -1220,7 +1474,7 @@ export function AgentHome() {
                 ) : focused === "reviews" ? (
                   <FocusedReviews onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "leads" ? (
-                  <FocusedLeads initialScreen={leadsInitialScreen} onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} onOpenPitch={(pitchId) => guardNav(() => openPitchStudio({ pitchId }))} />
+                  <FocusedLeads initialScreen={leadsInitialScreen} initialListId={leadsInitialListId} onAsk={sendAction} refreshKey={actionCount} menuOpen={leadsMenuOpen} agentBusy={sending} onPitchLead={(l) => guardNav(() => openPitchStudio({ leadId: l.id, leadName: l.name }))} onOpenPitch={(pitchId) => guardNav(() => openPitchStudio({ pitchId }))} />
                 ) : focused === "pitchstudio" ? (
                   <FocusedPitchStudio target={pitchTarget} onAsk={sendAction} refreshKey={actionCount} onOpenView={openView} onOpenResource={setOpenResource} onUseInAutomation={() => guardNav(() => openView("leads", "pipeline"))} />
                 ) : focused === "campaign" ? (
@@ -1242,11 +1496,25 @@ export function AgentHome() {
                 ) : focused === "logo" ? (
                   <FocusedLogo onAsk={sendAction} refreshKey={actionCount} working={sending} />
                 ) : focused === "voice" ? (
+                  <FocusedNarration />
+                ) : focused === "voices" ? (
                   <FocusedVoice onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
+                ) : focused === "clone" ? (
+                  <FocusedClone onOpenView={openView} />
+                ) : focused === "voiceagent" ? (
+                  <FocusedVoiceAgent onOpenView={openView} />
+                ) : focused === "training" ? (
+                  <FocusedTraining refreshKey={actionCount} />
                 ) : focused === "video" ? (
                   <AdBuilderCanvas embedded refreshKey={actionCount} canvasRef={videoOpsRef} />
                 ) : focused === "director" ? (
                   <FocusedDirector onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "ugc" ? (
+                  <FocusedUgc onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "productads" ? (
+                  <FocusedProductAds onAsk={sendAction} refreshKey={actionCount} />
+                ) : focused === "tryon" ? (
+                  <FocusedTryOn onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "avatar" ? (
                   <FocusedAvatar onAsk={sendAction} refreshKey={actionCount} />
                 ) : focused === "delivery" ? (
@@ -1272,30 +1540,92 @@ export function AgentHome() {
                 </h1>
                 <p className="mb-6 mt-2 text-[14px] leading-relaxed text-muted-foreground sm:text-[15px]">{s.sub}</p>
 
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                  {(suggestions.length ? suggestions : s.fallbackChips.map((label, i) => ({ label, hint: "", icon: ["palette", "calendar", "video", "bag"][i], prompt: label }))).map((sug, i) => {
-                    const Icon = SUG_ICON[sug.icon] ?? FALLBACK_ICONS[i] ?? Sparkles;
-                    return (
-                      <button key={i} onClick={() => send(sug.prompt)} className="flex items-start gap-3 rounded-[13px] border border-border bg-card p-3.5 text-start transition-all hover:-translate-y-0.5 hover:border-brand-500/60 hover:shadow-lg">
-                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Icon className="h-[18px] w-[18px]" /></span>
-                        <span className="min-w-0">
-                          <span className="block text-[13.5px] font-semibold">{sug.label}</span>
-                          {sug.hint && <span className="mt-0.5 block text-[11.5px] leading-snug text-muted-foreground">{sug.hint}</span>}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {!suggestionsLoaded && !suggestions.length && (
-                  <div className="mt-3"><FlowLoader size={24} withMark label="Personalizing suggestions…" /></div>
-                )}
+                {/* Agent home (activeWs === "home") shows quick custom-prompt
+                    chips; a GROUP section shows that group's card-grid menu. */}
+                {activeWs === "home" ? (
+                  <>
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                      {(suggestions.length ? suggestions : s.fallbackChips.map((label, i) => ({ label, hint: "", icon: ["palette", "calendar", "video", "bag"][i], prompt: label }))).map((sug, i) => {
+                        const Icon = SUG_ICON[sug.icon] ?? FALLBACK_ICONS[i] ?? Sparkles;
+                        return (
+                          <button key={i} onClick={() => send(sug.prompt)} className="flex items-start gap-3 rounded-[13px] border border-border bg-card p-3.5 text-start transition-all hover:-translate-y-0.5 hover:border-brand-500/60 hover:shadow-lg">
+                            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Icon className="h-[18px] w-[18px]" /></span>
+                            <span className="min-w-0">
+                              <span className="block text-[13.5px] font-semibold">{sug.label}</span>
+                              {sug.hint && <span className="mt-0.5 block text-[11.5px] leading-snug text-muted-foreground">{sug.hint}</span>}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {!suggestionsLoaded && !suggestions.length && (
+                      <div className="mt-3"><FlowLoader size={24} withMark label="Personalizing suggestions…" /></div>
+                    )}
+                  </>
+                ) : (() => {
+                  const grp = getAgentGroup(agentMode) ?? AGENT_GROUPS[0];
+                  const n = grp.skills.length;
+                  const cols = n === 4 ? 2 : 3;
+                  const fills = (cols - (n % cols)) % cols;
+                  const large = cols === 2; // 4-skill groups → fewer, larger cards
+                  const acc = grp.accent;
+                  const focusComposer = () => document.querySelector<HTMLTextAreaElement>(".pointer-events-auto textarea")?.focus();
+                  return (
+                    <>
+                      <div className="mb-3 flex items-center gap-2 text-[12.5px] text-muted-foreground">
+                        <span className="inline-flex h-2 w-2 rounded-full" style={{ background: acc }} />
+                        <b className="text-foreground">{grp.label}</b> · {grp.description}
+                      </div>
+                      <div className={cn("grid grid-cols-1 sm:grid-cols-2", cols === 3 ? "gap-3.5 lg:grid-cols-3" : "gap-4")}>
+                        {grp.skills.map((sk) => {
+                          const Icon = groupIcon(sk.icon);
+                          return (
+                            <button key={sk.id} onClick={() => guardNav(() => openView(sk.surface))} className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-start transition-all hover:-translate-y-1 hover:shadow-xl">
+                              <span className={cn("relative flex items-center justify-center overflow-hidden", large ? "aspect-[16/9]" : "aspect-[16/10]")} style={{ background: `linear-gradient(150deg, ${acc}26, ${acc}0a)` }}>
+                                {/* A real example still sells the studio far better than an icon;
+                                    skills without one fall back to the icon + accent gradient. */}
+                                {sk.thumb && (
+                                  <>
+                                    {/* `unoptimized` on purpose: the /_next/image optimizer 400s on this
+                                        deployment (even for existing public assets), so every Image here
+                                        bypasses it — the sources are pre-compressed instead. */}
+                                    <Image src={sk.thumb} alt="" fill sizes="(max-width: 768px) 50vw, 400px" unoptimized
+                                      className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
+                                    <span className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-black/20" />
+                                  </>
+                                )}
+                                <span className="absolute left-2.5 top-2.5 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">{sk.title}</span>
+                                {!sk.thumb && <Icon className={cn("opacity-90", large ? "h-10 w-10" : "h-7 w-7")} style={{ color: acc }} />}
+                              </span>
+                              <span className={large ? "p-5" : "p-3.5"}>
+                                <span className={cn("block font-bold", large ? "text-[17px]" : "text-[14.5px]")}>{sk.title}</span>
+                                <span className={cn("mt-1 block leading-snug text-muted-foreground", large ? "text-[13.5px]" : "min-h-[34px] text-[12.5px]")}>{sk.description}</span>
+                                <span className={cn("inline-block rounded-md border px-2 py-0.5 font-semibold", large ? "mt-3.5 text-[12px]" : "mt-2.5 text-[11px]")} style={{ color: acc, borderColor: `${acc}59`, background: `${acc}14` }}>{sk.costHint}</span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                        {Array.from({ length: fills }).map((_, i) => (
+                          <button key={`fill-${i}`} onClick={focusComposer} className="flex items-center justify-center rounded-2xl border border-dashed p-6 text-center transition-colors" style={{ borderColor: `${acc}73`, background: `${acc}0f` }}>
+                            <span className="flex flex-col items-center gap-2">
+                              <span className="grid h-11 w-11 place-items-center rounded-2xl" style={{ background: `${acc}2e`, color: acc }}><Sparkles className="h-5 w-5" /></span>
+                              <b className="text-[14.5px]">Something else?</b>
+                              <span className="max-w-[24ch] text-[12.5px] text-muted-foreground">Tell the {grp.label} agent anything — it does the rest.</span>
+                              <span className="text-[12.5px] font-bold" style={{ color: acc }}>Ask the agent →</span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  );
+                })()}
               </section>
             ) : (
               <div>
                 {messages.map((m) => (
-                  <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} />
+                  <HomeMessageView key={m.id} message={m} initials={initials} conversationId={conversationId} onPlanResponse={handlePlanResponse} onPickTemplate={handlePickTemplate} onPickOption={handlePickOption} onViewEvent={handleViewEvent} />
                 ))}
-                <div ref={bottomRef} />
+                <div ref={bottomRef} className="h-36 sm:h-40" />
               </div>
             )}
           </div>
@@ -1303,7 +1633,20 @@ export function AgentHome() {
           {/* composer */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/90 to-transparent px-3 pb-4 pt-3 sm:px-[clamp(16px,4vw,64px)] sm:pb-5">
             <div className="pointer-events-auto mx-auto max-w-[1040px]">
-              <Composer onSend={(t, sm, atts) => send(t, sm, undefined, undefined, { attachments: atts })} sending={sending} placeholder={s.placeholder} />
+              {/* Chat ⇄ View — stay in chat, or open the agent's studio canvas
+                  (the "app view" it works on). View maps to the current agent. */}
+              <div className="mb-2 flex items-center gap-2.5">
+                <div className="inline-flex rounded-full border border-border bg-card p-0.5">
+                  <button type="button" className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1 text-[12px] font-semibold text-white">
+                    <MessageSquare className="h-3.5 w-3.5" /> Chat
+                  </button>
+                  <button type="button" onClick={() => guardNav(() => openView(AGENT_VIEW[agentMode]?.surface ?? "create"))} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground">
+                    <LayoutTemplate className="h-3.5 w-3.5" /> View
+                  </button>
+                </div>
+                <span className="hidden text-[11px] text-muted-foreground sm:inline">Chat keeps results here · View opens the {AGENT_VIEW[agentMode]?.label ?? "studio"}, where the agent works on the canvas.</span>
+              </div>
+              <Composer showAgentSwitcher agentMode={agentMode} onAgentModeChange={(m) => { setAgentMode(m); setActiveWs(m); }} onSend={(t, sm, atts, am) => send(t, sm, undefined, agentGroupContext(am ?? agentMode), { attachments: atts })} sending={sending} placeholder={s.placeholder} />
             </div>
             <p className="mx-auto mt-2 hidden max-w-[1040px] text-center text-[11px] text-muted-foreground sm:block">{s.hint}</p>
           </div>
@@ -1314,7 +1657,7 @@ export function AgentHome() {
           {/* workspace panel — slides over the CURRENT view (home or any focused
               surface). Browsing it never resets the open view; closing returns to
               it. Only picking an item navigates (guarded for unsaved changes). */}
-          <aside className={cn("fixed inset-0 z-50 flex flex-col bg-card transition-transform duration-300 md:absolute md:inset-y-0 md:left-0 md:right-auto md:w-[440px] md:border-e md:border-border md:shadow-2xl", panelKey ? "translate-x-0" : "translate-x-full md:-translate-x-full")}>
+          <aside className={cn("fixed inset-0 z-50 flex flex-col bg-card transition-transform duration-300 md:absolute md:inset-y-0 md:left-0 md:right-auto md:border-e md:border-border md:shadow-2xl", panelKey && HUB_SECTIONS.has(panelKey) ? "md:right-0 md:w-auto" : "md:w-[440px]", panelKey ? "translate-x-0" : "translate-x-full md:-translate-x-full")}>
             {panelKey && (
               <WorkspacePanel
                 panelKey={panelKey}
@@ -1322,6 +1665,8 @@ export function AgentHome() {
                 hasStore={hasStore}
                 onClose={() => { setPanelKey(null); setActiveWs(panelReturnWs.current); }}
                 onAsk={(q) => { setPanelKey(null); setActiveWs(panelReturnWs.current); send(q, false, undefined, focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { hidden: true }); }}
+                onComposerSend={(t, sm, atts) => { setPanelKey(null); setActiveWs(panelReturnWs.current); send(t, sm, undefined, focused ? focusedSurfaceContext(focused, brandName, openResource) : undefined, { attachments: atts }); }}
+                working={sending}
                 onOpenView={(k, hint) => guardNav(() => openView(k, hint))}
               />
             )}
@@ -1364,19 +1709,16 @@ export function AgentHome() {
               {primaryWorkspaces.map((w) => {
                 const Icon = w.icon;
                 return (
-                  <button key={w.key} onClick={() => openWorkspace(w.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === w.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
+                  <button key={w.key} onClick={() => openAgentGroup(w.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === w.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
                     <Icon className="h-[18px] w-[18px]" /> {s.ws[w.key] ?? w.label}
                   </button>
                 );
               })}
               <div className="my-1.5 h-px w-full bg-border" />
-              <button onClick={() => guardNav(openConnections)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === "connections" ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
-                <Link2 className="h-[18px] w-[18px]" /> Social
-              </button>
               {businessWorkspace && (() => {
                 const Icon = businessWorkspace.icon;
                 return (
-                  <button key={businessWorkspace.key} onClick={() => openWorkspace(businessWorkspace.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === businessWorkspace.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
+                  <button key={businessWorkspace.key} onClick={() => openAgentGroup(businessWorkspace.key)} className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm", activeWs === businessWorkspace.key ? "bg-brand-500/10 text-brand-500" : "text-foreground hover:bg-muted")}>
                     <Icon className="h-[18px] w-[18px]" /> {s.ws[businessWorkspace.key] ?? businessWorkspace.label}
                   </button>
                 );
@@ -1410,6 +1752,28 @@ export function AgentHome() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Campaign-post media picker — select an existing asset OR upload a new one
+          (the picker has its own Upload button), then attach it to the post. */}
+      {mediaPicker && (
+        <MediaLibraryPicker
+          open
+          title="Attach media to post"
+          filterTypes={["image", "video"]}
+          onClose={() => setMediaPicker(null)}
+          onSelect={(url, file) => {
+            const { postId, campaignId } = mediaPicker;
+            setMediaPicker(null);
+            const ref = file?.id ? `mediaId "${file.id}"` : `mediaUrl "${url}"`;
+            sendAction([
+              "Attach this media to the campaign post — the user picked it from the media library.",
+              `Post id: "${postId}".`,
+              campaignId ? `Campaign id: "${campaignId}".` : "",
+              `Use attach_media_to_post with ${ref}${campaignId ? ` and campaignId "${campaignId}"` : ""}. Do not re-ask — just attach and confirm.`,
+            ].filter(Boolean).join(" "));
+          }}
+        />
       )}
     </div>
     </AgentNavContext.Provider>
@@ -1450,13 +1814,133 @@ function AccountMenu({ accountLabel, clients, isImpersonating, onSwitch, onExit,
   );
 }
 
-function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView }: {
+// Rail sections that render as a full-screen media-card HUB (vs the compact list).
+const HUB_SECTIONS = new Set(["create", "publish", "grow", "sell", "web", "outreach"]);
+// On-brand gradient backdrops for hub cards that don't have bespoke art.
+const HUB_GRADS = [
+  "linear-gradient(150deg,#0e2a4a,#3a1250)",
+  "linear-gradient(135deg,#12224a,#1e1150)",
+  "linear-gradient(135deg,#0b1a3a,#241243)",
+  "linear-gradient(135deg,#0c1a2e,#2a1440)",
+  "linear-gradient(135deg,#12143a,#241243)",
+  "linear-gradient(150deg,#1a2a12,#123a2a)",
+];
+
+// Curated (brand-neutral) thumbnail art for the Create hub cards — no external
+// assets; each studio gets a distinctive on-brand placeholder we control.
+const CREATE_STILL_THUMBS = {
+  design: "/create-hub-thumbs/design-studio-curated.png",
+  logo: "/create-hub-thumbs/logo-generator-curated.png",
+  media: "/create-hub-thumbs/media-library-curated.png",
+  voice: "/create-hub-thumbs/voice-studio-curated.png",
+} as const;
+
+// Each hub card gets a full-bleed, 30s, 3-step CSS scene (see hub-thumb.tsx) plus
+// a call-to-action. Keyed by `${panelKey}:${asciiLabel}` so accents (é) can't
+// break the match. Video Studio is the one exception — it keeps its real MP4.
+// Scenes are assigned so no two cards in the same row share one. [[menu-restructure-create-hub]]
+const scnKey = (pk: string, label: string) => `${pk}:${label.normalize("NFD").replace(/[̀-ͯ]/g, "")}`;
+const HUB_SCENES: Record<string, { scene: HubScene; cta: string }> = {
+  "create:Design Studio": { scene: "poster", cta: "Open Design Studio" },
+  "create:Logo Generator": { scene: "logo", cta: "Generate a logo" },
+  "create:Voice Studio": { scene: "voice", cta: "Create a voiceover" },
+  "create:Media Library": { scene: "gallery", cta: "Open Library" },
+
+  "publish:Content Campaign": { scene: "queue", cta: "Plan a campaign" },
+  "publish:Compose a post": { scene: "poster", cta: "Compose a post" },
+  "publish:Content Calendar": { scene: "calendar", cta: "Open calendar" },
+  "publish:Posts & scheduled": { scene: "gallery", cta: "See posts" },
+
+  "grow:Ad Builder": { scene: "analytics", cta: "Launch an ad" },
+  "grow:Automation": { scene: "flow", cta: "Build a flow" },
+  "grow:Email marketing": { scene: "queue", cta: "Send email" },
+  "grow:SMS marketing": { scene: "list", cta: "Send SMS" },
+  "grow:WhatsApp": { scene: "queue", cta: "Open WhatsApp" },
+
+  "sell:Store Dashboard": { scene: "analytics", cta: "Open dashboard" },
+  "sell:Products": { scene: "product", cta: "Manage products" },
+  "sell:Orders": { scene: "queue", cta: "View orders" },
+  "sell:Customers": { scene: "list", cta: "View customers" },
+  "sell:Delivery": { scene: "map", cta: "Track delivery" },
+
+  "web:Websites": { scene: "website", cta: "Build a site" },
+  "web:Portfolio & resume": { scene: "gallery", cta: "Build portfolio" },
+  "web:Landing pages": { scene: "poster", cta: "Build a page" },
+  "web:Domains": { scene: "globe", cta: "Manage domains" },
+
+  "outreach:Lead Finder": { scene: "map", cta: "Find leads" },
+  "outreach:Contacts & lists": { scene: "list", cta: "Open contacts" },
+  "outreach:Reviews / local SEO": { scene: "reviews", cta: "Boost reviews" },
+  "outreach:Pitch board": { scene: "proposal", cta: "Open pitches" },
+  "outreach:Forms & surveys": { scene: "form", cta: "Build a form" },
+};
+
+function CreateThumb({ kind }: { kind?: "design" | "logo" | "video" | "media" | "voice" }) {
+  const stillSrc = kind ? CREATE_STILL_THUMBS[kind as keyof typeof CREATE_STILL_THUMBS] : undefined;
+  if (stillSrc) return <img src={stillSrc} alt="" className={cn("absolute inset-0 h-full w-full bg-[#050914]", kind === "design" ? "object-contain" : "object-cover")} draggable={false} />;
+
+  if (kind === "design") return (
+    <div className="absolute inset-0 bg-gradient-to-br from-[#12224a] to-[#3a1259]">
+      <div className="absolute inset-[16%_30%] flex flex-col justify-center gap-1.5 rounded-lg bg-gradient-to-b from-brand-500 to-violet-500 p-3 shadow-xl">
+        <span className="h-2 w-[70%] rounded bg-white/95" /><span className="h-1.5 w-[45%] rounded bg-white/60" /><span className="mt-1 h-3.5 w-[38%] rounded-md bg-amber-400" />
+      </div>
+    </div>
+  );
+  if (kind === "logo") return (
+    <div className="absolute inset-0 flex items-center justify-center gap-3.5 bg-gradient-to-br from-[#0b1a3a] to-[#12143a]">
+      <span className="h-9 w-9 rounded-[10px] bg-gradient-to-br from-brand-500 to-violet-500" />
+      <span className="h-9 w-9 rounded-full bg-gradient-to-br from-amber-500 to-rose-500" />
+      <span className="h-9 w-9 bg-gradient-to-br from-emerald-500 to-green-600" style={{ clipPath: "polygon(50% 0,100% 100%,0 100%)" }} />
+    </div>
+  );
+  if (kind === "video") return (
+    <div className="absolute inset-0 grid grid-cols-2 gap-px bg-black">
+      <video
+        className="pointer-events-none h-full w-full object-cover"
+        src="/create-hub-video-thumbs/video-studio-spy-chase.mp4"
+        poster="/create-hub-video-thumbs/video-studio-spy-chase-poster.jpg"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+      />
+      <video
+        className="pointer-events-none h-full w-full object-cover"
+        src="/create-hub-video-thumbs/video-studio-forest-warrior.mp4"
+        poster="/create-hub-video-thumbs/video-studio-forest-warrior-poster.jpg"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+      />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/10" />
+    </div>
+  );
+  if (kind === "media") return (
+    <div className="absolute inset-0 grid grid-cols-4 gap-1 bg-[#0c1220] p-2.5">
+      {["from-sky-500 to-indigo-500", "from-amber-500 to-rose-500", "from-emerald-500 to-emerald-700", "from-violet-500 to-pink-500", "from-rose-500 to-amber-500", "from-cyan-500 to-blue-500", "from-lime-500 to-green-500", "from-purple-500 to-indigo-500"].map((g, i) => <span key={i} className={cn("rounded bg-gradient-to-br", g)} />)}
+    </div>
+  );
+  if (kind === "voice") return (
+    <div className="absolute inset-0 flex items-center justify-center gap-1 bg-gradient-to-br from-[#0b1630] to-[#241243]">
+      {[16, 30, 44, 26, 38, 22, 34].map((h, i) => <span key={i} className="w-1 rounded bg-gradient-to-b from-brand-500 to-violet-500" style={{ height: h }} />)}
+    </div>
+  );
+  return <div className="absolute inset-0 bg-gradient-to-br from-brand-500/20 to-violet-500/20" />;
+}
+
+function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView, onComposerSend, working }: {
   panelKey: string;
   label: string;
   hasStore: boolean | null;
   onClose: () => void;
   onAsk: (q: string) => void;
   onOpenView: (key: string, hint?: string) => void;
+  /** Send a typed request to the agent from the in-hub composer (closes the hub). */
+  onComposerSend: React.ComponentProps<typeof Composer>["onSend"];
+  working: boolean;
 }) {
   const ws = WORKSPACES.find((w) => w.key === panelKey);
   if (!ws) return null;
@@ -1471,7 +1955,78 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView 
         <b className="text-[15px]">{label}</b>
         <button onClick={onClose} className="ms-auto text-muted-foreground hover:text-foreground" aria-label="Close"><X className="h-[18px] w-[18px]" /></button>
       </div>
-      {sellNoStore ? (
+      {HUB_SECTIONS.has(panelKey) ? (
+        <div className="min-h-0 flex-1 overflow-auto px-5 py-5 md:px-8 md:py-7">
+          <HubThumbStyles />
+          <div className="mx-auto max-w-[1120px]">
+            {/* Prefer chat? Ask the agent right here — sending drops into the
+                conversation and closes the hub. Or pick a card below. */}
+            <div className="mb-2">
+              <Composer onSend={onComposerSend} sending={working} placeholder={`Ask FlowSmartly to help with ${label.toLowerCase()}…`} />
+            </div>
+            <p className="mb-5 text-center text-[11px] text-muted-foreground">FlowSmartly confirms before anything that costs credits or publishes.</p>
+            <div className="mb-4 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+              <span className="h-px flex-1 bg-border" />or pick a studio<span className="h-px flex-1 bg-border" />
+            </div>
+            {/* Full-width hero banner + ONE packed row of the remaining studios.
+                Deterministic aspect-ratios only — no grid row-span / flex-stretch —
+                so nothing is stranded beside or below the hero, and the bottom row
+                never leaves a single card sitting on its own. */}
+            {(() => {
+              const items = ws.items;
+              const hero = items[0];
+              const rest = items.slice(1);
+              const wideRow = rest.length >= 4; // 4 studios → a row of four; else three
+              const renderCard = (it: (typeof items)[number], idx: number, isHero: boolean) => {
+                const HubIcon = it.icon || (it.viewKey && FOCUS_META[it.viewKey]?.icon) || Icon;
+                const isVideo = it.thumb === "video";
+                const scn = isVideo ? null : HUB_SCENES[scnKey(panelKey, it.label)];
+                return (
+                  <button
+                    key={it.label}
+                    onClick={() => (it.viewKey ? onOpenView(it.viewKey, it.viewHint) : onAsk(`Open ${it.label} and help me get started.`))}
+                    className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition hover:-translate-y-0.5 hover:border-brand-500/50 hover:shadow-2xl"
+                  >
+                    <div className={cn("relative w-full overflow-hidden", isHero ? "aspect-[16/5]" : "aspect-[16/10]")}>
+                      {isVideo ? (
+                        <>
+                          <CreateThumb kind="video" />
+                          <span className="absolute inset-0 z-[4] grid place-items-center"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-[15px] text-brand-600 shadow-lg">▶</span></span>
+                          <div className="ht-cta"><span className="ht-btn">Direct a film <span className="ht-arr">→</span></span></div>
+                        </>
+                      ) : scn ? (
+                        <HubThumb scene={scn.scene} cta={scn.cta} />
+                      ) : (
+                        <div className="absolute inset-0 grid place-items-center" style={{ background: HUB_GRADS[idx % HUB_GRADS.length] }}><HubIcon className="h-9 w-9 text-white/85" /></div>
+                      )}
+                    </div>
+                    <div className="flex flex-1 flex-col gap-1.5 p-4">
+                      <div className="flex items-center gap-2"><span className="text-[15px] font-bold text-foreground">{it.label}</span><ChevronRight className="ms-auto h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-brand-500" /></div>
+                      <p className="text-[12px] leading-relaxed text-muted-foreground">{it.desc}</p>
+                      {it.includes && it.includes.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          {it.includes.map((t) => <span key={t} className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{t}</span>)}
+                        </div>
+                      )}
+                      {it.viewKey === "create" && (
+                        <span onClick={(e) => { e.stopPropagation(); onOpenView("print"); }} className="mt-1 self-start text-[11px] font-semibold text-brand-500 hover:underline">Print formats →</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              };
+              return (
+              <div className="flex flex-col gap-4">
+                {renderCard(hero, 0, true)}
+                <div className={cn("grid grid-cols-1 gap-4", wideRow ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3")}>
+                  {rest.map((it, i) => renderCard(it, i + 1, false))}
+                </div>
+              </div>
+              );
+            })()}
+          </div>
+        </div>
+      ) : sellNoStore ? (
         <div className="min-h-0 flex-1 overflow-auto p-4">
           <StoreCallToAction compact onBuild={(p) => onAsk(p)} onTopUp={() => onOpenView("credits")} />
         </div>

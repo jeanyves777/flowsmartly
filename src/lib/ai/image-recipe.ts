@@ -59,13 +59,16 @@ export function buildArtDirection(opts: {
       "• COPY ACCURACY: all text ultra-crisp, vector-sharp and PERFECTLY SPELLED. Render ONLY the actual marketing copy provided, EXACTLY — never misspell, duplicate, garble, truncate, or invent text. Kerned and grid-aligned. No lorem ipsum, no gibberish micro-text.",
     );
     parts.push(
+      "• NO INVENTED YEAR/DATE: do NOT append a year, a \"Season 20XX\" / \"Tax Season 20XX\" badge, a copyright line, or any date stamp that is not already in the provided copy — the current date is context only, not something to print. If no date is in the copy, the design shows no year at all.",
+    );
+    parts.push(
       "• NO DESIGN-SPEC ANNOTATIONS: this is a finished piece, not a design mockup. Do NOT render any font names, hex color codes (e.g. #E0D1FF), pt/px sizes, color names, measurements, rulers, spec labels, or annotation callouts anywhere — only the real copy.",
     );
   }
   if (recipe.singleLogo) {
     parts.push(
       hasLogo
-        ? "• LOGO — DRAW NONE, LEAVE THE TOP-LEFT CORNER EMPTY: do NOT render any logo, wordmark, emblem, icon mark, seal, crest, monogram, mascot, or brand-name lettering ANYWHERE. The user's REAL logo is added to the top-left corner afterward. So simply keep the top-left area (about the top 18% of the height and left 28% of the width) as PLAIN, CALM, UNCLUTTERED BACKGROUND — ordinary background only, exactly like the rest of the backdrop. Critically: do NOT draw a white box, rectangle, panel, frame, outline, or placeholder there, and do NOT write any label or words (never the words 'logo', 'reserved', 'zone', or 'brand') — it must look like normal empty background, not a marked-off area. Keep the eyebrow/tagline and headline out of that corner — start them to the right of or below it, never a line of text running across the top-left. Exactly one brand mark will exist — the real one added later."
+        ? "• LOGO — DRAW NONE AND RESERVE NOTHING: do NOT render any logo, wordmark, emblem, icon mark, seal, crest, monogram, mascot, or brand-name lettering ANYWHERE. The user's REAL logo is composited afterward. Do NOT make a blank logo area, pale block, white rectangle, panel, frame, outline, placeholder, reserved zone, label, or logo-space indicator anywhere. Let the artwork, gradients, photo, texture, and layout continue naturally edge-to-edge; if a corner is quiet, it should feel organic, not marked off. Exactly one brand mark will exist — the real one added later."
         : "• ONE brand mark only: if a brand name is shown, render it a SINGLE time in the header as clean text — never repeat it, and never invent a logo symbol, emblem, seal, or monogram the brand did not provide.",
     );
   }

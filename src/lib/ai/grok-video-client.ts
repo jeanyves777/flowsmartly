@@ -2,10 +2,12 @@
  * xAI Grok Video Generation Client
  *
  * Uses the grok-imagine-video model for AI video generation.
- * Supports text-to-video (up to 15s) with native audio generation.
+ * Supports text-to-video (up to 15s), video editing, and native audio.
  *
  * API endpoints:
  *   POST https://api.x.ai/v1/videos/generations — create video
+ *   POST https://api.x.ai/v1/videos/edits       — edit an existing video
+ *   POST https://api.x.ai/v1/videos/extensions  — continue an existing video
  *   GET  https://api.x.ai/v1/videos/{request_id} — poll status
  *
  * Model: grok-imagine-video
@@ -13,16 +15,38 @@
 
 const XAI_VIDEO_URL = "https://api.x.ai/v1/videos/generations";
 const XAI_VIDEO_EDITS_URL = "https://api.x.ai/v1/videos/edits";
+const XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions";
 const XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos";
 const XAI_VIDEO_PROMPT_LIMIT = 3900;
 
+// xAI enforces ~1 request/second per team for grok-imagine-video (429
+// "resource-exhausted") — and that limit counts the STATUS POLLS, not just the
+// generation POSTs. So EVERY request to the video API (create + poll) goes through
+// one global gate spaced ≥1.1s apart. This serializes concurrent scene renders'
+// traffic under 1 req/sec so they stop 429-ing each other. (Downloads from the
+// vidgen bucket are a different host, not gated.)
+let grokReqChain: Promise<unknown> = Promise.resolve();
+let lastGrokReqAt = 0;
+function grokRateLimit(): Promise<void> {
+  const p = grokReqChain.then(async () => {
+    const since = Date.now() - lastGrokReqAt;
+    if (since < 1100) await new Promise((r) => setTimeout(r, 1100 - since));
+    lastGrokReqAt = Date.now();
+  });
+  grokReqChain = p.catch(() => {});
+  return p;
+}
+
 type VideoAspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4" | "3:2" | "2:3";
-type VideoResolution = "480p" | "720p";
+type VideoResolution = "480p" | "720p" | "1080p";
 
 export interface GrokVideoResult {
   requestId: string;
   videoBuffer: Buffer;
   duration: number;
+  /** The xAI temporary clip URL — passed straight to extendVideo() to chain a
+   *  seamless continuation without re-uploading (enables >15s shots). */
+  videoUrl?: string;
 }
 
 class GrokVideoClient {
@@ -55,11 +79,18 @@ class GrokVideoClient {
   async generateVideo(
     prompt: string,
     options: {
+      /** Which xAI video model. Default "grok-imagine-video" (ref/img-to-video). Use
+       *  "grok-imagine-video-1.5" for image-to-video with EXACT scripted lip-sync (UGC). */
+      model?: string;
       duration?: number;
       aspectRatio?: VideoAspectRatio;
       resolution?: VideoResolution;
-      /** URL of a reference image to animate into video (image-to-video) */
+      /** URL of a reference image to animate into video (image-to-video, ≤8.7s, first-frame lock) */
       imageUrl?: string;
+      /** REFERENCE-to-video: up to 7 images that anchor the subject's appearance + scene
+       *  WITHOUT locking the first frame — natural generated motion, ≤10s. The identity
+       *  path we want (no stiff animated-photo look). Ignored if imageUrl is set. */
+      referenceImageUrls?: string[];
       /** Progress callback used by SSE routes to keep the browser connection alive. */
       onStatus?: (message: string) => void;
       /** Called with the upstream request_id the moment the job is created, so
@@ -70,10 +101,12 @@ class GrokVideoClient {
     } = {}
   ): Promise<GrokVideoResult> {
     const {
+      model = "grok-imagine-video",
       duration = 8,
       aspectRatio = "16:9",
       resolution = "720p",
       imageUrl,
+      referenceImageUrls,
       onStatus,
       onJobId,
       timeoutMs,
@@ -89,7 +122,7 @@ class GrokVideoClient {
     console.log(`[GrokVideo] Prompt (${safePrompt.length} chars): ${safePrompt.substring(0, 100)}...`);
 
     const bodyPayload: Record<string, unknown> = {
-      model: "grok-imagine-video",
+      model,
       prompt: safePrompt,
       duration,
       aspect_ratio: aspectRatio,
@@ -101,8 +134,13 @@ class GrokVideoClient {
     // `image_url` helper field.
     if (imageUrl) {
       bodyPayload.image = { type: "image_url", url: imageUrl };
+    } else if (referenceImageUrls?.length) {
+      // Reference-to-video: anchor appearance/scene without a first-frame lock.
+      // Each entry is an ImageUrl struct; up to 7.
+      bodyPayload.reference_images = referenceImageUrls.slice(0, 7).map((url) => ({ type: "image_url", url }));
     }
 
+    await grokRateLimit(); // ≤1 request/sec (create counts toward the same limit as polls)
     const response = await fetch(XAI_VIDEO_URL, {
       method: "POST",
       headers: {
@@ -134,7 +172,57 @@ class GrokVideoClient {
     onStatus?.("Video rendered. Downloading the final MP4...");
     const videoBuffer = await this.downloadVideo(result.url);
 
-    return { requestId, videoBuffer, duration: result.duration };
+    return { requestId, videoBuffer, duration: result.duration, videoUrl: result.url };
+  }
+
+  /** Edit an existing public MP4 with grok-imagine-video. xAI preserves the
+   * source duration/aspect/resolution and currently accepts clips up to 8.7s. */
+  async editVideo(
+    sourceVideoUrl: string,
+    prompt: string,
+    options: {
+      onStatus?: (message: string) => void;
+      onJobId?: (requestId: string) => void | Promise<void>;
+      timeoutMs?: number;
+    } = {},
+  ): Promise<GrokVideoResult> {
+    if (!this.apiKey) throw new Error("XAI_API_KEY is not configured");
+    if (!/^https:\/\//i.test(sourceVideoUrl)) throw new Error("xAI video editing requires a public HTTPS source video.");
+
+    const { onStatus, onJobId, timeoutMs } = options;
+    const safePrompt = clampVideoPrompt(prompt);
+    if (!safePrompt) throw new Error("Describe what should be fixed in the video.");
+
+    await grokRateLimit();
+    const response = await fetch(XAI_VIDEO_EDITS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "grok-imagine-video",
+        prompt: safePrompt,
+        video: { url: sourceVideoUrl },
+      }),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      throw new Error(`xAI video edit API error (${response.status}): ${errBody}`);
+    }
+
+    const data = await response.json();
+    const requestId = data.request_id;
+    if (!requestId) throw new Error("xAI video edit API did not return a request_id");
+
+    console.log(`[GrokVideo] Edit job created: ${requestId}`);
+    try { await onJobId?.(requestId); } catch { /* persistence best-effort */ }
+    onStatus?.("Video edit started. Waiting for xAI to finish...");
+    const result = await this.pollUntilDone(requestId, timeoutMs, onStatus);
+    onStatus?.("Video edit rendered. Downloading the final MP4...");
+    const videoBuffer = await this.downloadVideo(result.url);
+    return { requestId, videoBuffer, duration: result.duration, videoUrl: result.url };
   }
 
   /**
@@ -146,6 +234,7 @@ class GrokVideoClient {
     requestId: string,
   ): Promise<{ state: "pending" | "done" | "failed"; url?: string; duration?: number; error?: string }> {
     if (!this.apiKey) throw new Error("XAI_API_KEY is not configured");
+    await grokRateLimit(); // shares the 1-req/sec budget with live renders
     const response = await fetch(`${XAI_VIDEO_STATUS_URL}/${requestId}`, {
       headers: { Authorization: `Bearer ${this.apiKey}` },
     });
@@ -189,6 +278,7 @@ class GrokVideoClient {
       await new Promise((r) => setTimeout(r, pollInterval));
       attempts++;
 
+      await grokRateLimit(); // a poll counts toward the 1-req/sec limit too
       const response = await fetch(`${XAI_VIDEO_STATUS_URL}/${requestId}`, {
         headers: { Authorization: `Bearer ${this.apiKey}` },
       });
@@ -260,20 +350,24 @@ class GrokVideoClient {
       duration?: number;
       timeoutMs?: number;
       onStatus?: (message: string) => void;
+      /** Called with the extension's request_id so the caller can persist it and
+       *  resume THIS segment (not the base clip) after a restart. */
+      onJobId?: (requestId: string) => void | Promise<void>;
     } = {},
   ): Promise<GrokVideoResult> {
     if (!this.apiKey) throw new Error("XAI_API_KEY is not configured");
+    if (!/^https:\/\//i.test(sourceVideoUrl)) throw new Error("xAI video extension requires a public HTTPS source video.");
 
-    const { duration = 6, onStatus, timeoutMs } = options;
+    const { duration = 6, onStatus, onJobId, timeoutMs } = options;
     const extDur = Math.min(10, Math.max(2, Math.round(duration)));
     const safePrompt = clampVideoPrompt(prompt);
+    if (!safePrompt) throw new Error("Describe what should happen in the continuation.");
 
     console.log(`[GrokVideo] Extending video by ${extDur}s from: ${sourceVideoUrl.substring(0, 80)}...`);
 
-    // xAI REST: extension body uses a `video` object like image-to-video does for `image`.
-    // The Python SDK shim exposes a flat `video_url=` arg but the underlying REST wants:
-    //   { video: { type: "video_url", url: <URL> } }
-    const response = await fetch(XAI_VIDEO_EDITS_URL, {
+    // xAI's extension endpoint returns one combined clip: source + new segment.
+    await grokRateLimit(); // ≤1 request/sec (create counts toward the same limit as polls)
+    const response = await fetch(XAI_VIDEO_EXTENSIONS_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -281,28 +375,28 @@ class GrokVideoClient {
       },
       body: JSON.stringify({
         model: "grok-imagine-video",
-        mode: "extend-video",
-        video: { type: "video_url", url: sourceVideoUrl },
         prompt: safePrompt,
+        video: { url: sourceVideoUrl },
         duration: extDur,
       }),
     });
 
     if (!response.ok) {
       const errBody = await response.text();
-      throw new Error(`xAI video edit API error (${response.status}): ${errBody}`);
+      throw new Error(`xAI video extension API error (${response.status}): ${errBody}`);
     }
 
     const data = await response.json();
     const requestId = data.request_id;
-    if (!requestId) throw new Error("xAI video edit API did not return a request_id");
+    if (!requestId) throw new Error("xAI video extension API did not return a request_id");
 
     console.log(`[GrokVideo] Extension job created: ${requestId}`);
+    try { await onJobId?.(requestId); } catch { /* persistence best-effort */ }
     onStatus?.("Extension started — generating seamless continuation...");
 
     const result = await this.pollUntilDone(requestId, timeoutMs, onStatus);
     const videoBuffer = await this.downloadVideo(result.url);
-    return { requestId, videoBuffer, duration: result.duration };
+    return { requestId, videoBuffer, duration: result.duration, videoUrl: result.url };
   }
 
   /**

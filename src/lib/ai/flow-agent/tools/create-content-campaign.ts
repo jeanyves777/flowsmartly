@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { generateAutomationCopy } from "@/lib/content/automation-copy-generator";
+import { campaignTimelineView } from "@/lib/agent-views/templates";
 import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
@@ -58,6 +59,28 @@ function splitHashtags(caption: string): { body: string; tags: string[] } {
   if (!m) return { body: caption, tags: [] };
   const tags = m[1].split(/\s+/).map((t) => t.replace(/^#/, "")).filter(Boolean);
   return { body: caption.slice(0, m.index).trimEnd(), tags };
+}
+
+const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fmtWhen(d: Date | null): string {
+  if (!d) return "unscheduled";
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${DAYS_SHORT[d.getDay()]}, ${MONTHS_SHORT[d.getMonth()]} ${d.getDate()} - ${h}:${String(m).padStart(2, "0")} ${ampm}`;
+}
+function fmtPlatforms(raw: string | null): string {
+  try {
+    const a = JSON.parse(raw || "[]");
+    return Array.isArray(a) && a.length ? a.map((p: string) => String(p)).join(" | ") : "feed";
+  } catch {
+    return "feed";
+  }
+}
+function norm(v: string | null | undefined): string {
+  return clean(v, 2000).toLowerCase().replace(/\s+/g, " ");
 }
 
 export const createContentCampaign: FlowAgentTool = {
@@ -125,6 +148,72 @@ export const createContentCampaign: FlowAgentTool = {
       const schedule = computeSchedule(startMs, days, count);
       const startDate = new Date(schedule[0]);
       const endDate = new Date(schedule[schedule.length - 1]);
+
+      const recent = await prisma.contentCampaign.findMany({
+        where: {
+          userId: ctx.userId,
+          createdAt: { gte: new Date(Date.now() - 7 * 24 * 3600 * 1000) },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 12,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          status: true,
+          automations: {
+            select: {
+              posts: {
+                select: { id: true, caption: true, platforms: true, mediaUrl: true, mediaType: true, status: true, scheduledAt: true },
+              },
+            },
+          },
+        },
+      });
+      const requestedName = norm(name);
+      const requestedBrief = norm(brief);
+      const existing = recent.find((c) => {
+        const posts = c.automations.flatMap((a) => a.posts);
+        if (posts.length === 0) return false;
+        if (norm(c.name) !== requestedName) return false;
+        const existingBrief = norm(c.description);
+        return !requestedBrief || !existingBrief || existingBrief === requestedBrief || existingBrief.includes(requestedBrief.slice(0, 160));
+      });
+      if (existing) {
+        const posts = existing.automations
+          .flatMap((a) => a.posts)
+          .sort((a, b) => (a.scheduledAt?.getTime() ?? 0) - (b.scheduledAt?.getTime() ?? 0));
+        ctx.emit({
+          type: "agent_view",
+          requestId: `campaign-view-${existing.id}`,
+          spec: campaignTimelineView({
+            campaignId: existing.id,
+            name: existing.name,
+            status: existing.status,
+            posts: posts.map((p) => ({
+              id: p.id,
+              when: fmtWhen(p.scheduledAt),
+              platforms: fmtPlatforms(p.platforms),
+              caption: p.caption || "",
+              status: p.status,
+              hasMedia: !!p.mediaUrl,
+              mediaUrl: p.mediaUrl,
+              mediaType: p.mediaType,
+            })),
+          }),
+        });
+        return {
+          ok: true,
+          data: {
+            campaignId: existing.id,
+            existing: true,
+            posts: posts.length,
+            userMessage: `Found the existing "${existing.name}" campaign with ${posts.length} posts and rendered it inline. Do not create or propose a duplicate. Tell the user it was already created and is shown here.`,
+          },
+          resultRefType: "ContentCampaign",
+          resultRefId: existing.id,
+        };
+      }
 
       // Campaign + a disabled "container" automation (groups the posts + stores
       // the brief; enabled:false so the recurring scheduler never fires it).
@@ -227,19 +316,40 @@ export const createContentCampaign: FlowAgentTool = {
             kind: "create_content_campaign",
             ok: true,
             summary: `Your "${name}" campaign plan is ready — ${made} posts drafted`,
-            detail: "Open Campaign Studio to review + edit each post, generate its image/video, then approve to auto-publish.",
+            detail: "Review and edit each post directly in the chat, generate its image/video, then approve to auto-publish.",
             deepLink: `/home/campaign?campaign=${campaign.id}`,
           });
 
+          const drafted = await prisma.post.findMany({
+            where: { userId: ctx.userId, deletedAt: null, contentAutomationId: container.id },
+            orderBy: { scheduledAt: "asc" },
+            select: { id: true, caption: true, platforms: true, mediaUrl: true, mediaType: true, status: true, scheduledAt: true },
+          });
+          const inlineView = campaignTimelineView({
+            campaignId: campaign.id,
+            name,
+            status: "DRAFT",
+            posts: drafted.map((p) => ({
+              id: p.id,
+              when: fmtWhen(p.scheduledAt),
+              platforms: fmtPlatforms(p.platforms),
+              caption: p.caption || "",
+              status: p.status,
+              hasMedia: !!p.mediaUrl,
+              mediaUrl: p.mediaUrl,
+              mediaType: p.mediaType,
+            })),
+          });
+
           return {
-            output: { campaignId: campaign.id, posts: made, platforms, link: `/home/campaign?campaign=${campaign.id}` },
+            output: { campaignId: campaign.id, posts: made, platforms, inlineView: { requestId: `campaign-view-${campaign.id}`, spec: inlineView } },
             resultRefType: "ContentCampaign",
             resultRefId: campaign.id,
           };
         },
       });
 
-      ctx.emit({ type: "task_started", taskId, kind: "create_content_campaign", summary: `Planning a ${count}-post "${name}" campaign — captions + dates + media prompts. It opens in Campaign Studio for you to review; images/videos are generated per-post after you approve them.` });
+      ctx.emit({ type: "task_started", taskId, kind: "create_content_campaign", summary: `Planning a ${count}-post "${name}" campaign — captions + dates + media prompts. It will appear here as an inline campaign review card; images/videos are generated per-post after review.` });
 
       return {
         ok: true,
@@ -248,7 +358,7 @@ export const createContentCampaign: FlowAgentTool = {
           campaignId: campaign.id,
           plannedPosts: count,
           platforms,
-          userMessage: `Planning a ${count}-post "${name}" campaign across ${platforms.join(", ")} — captions + dates + a media prompt per post (no images/videos generated yet; that's per-post after review). It streams into Campaign Studio. Tell the user to review, tweak, then generate + approve each post.`,
+          userMessage: `Planning a ${count}-post "${name}" campaign across ${platforms.join(", ")} — captions + dates + a media prompt per post (no images/videos generated yet; that's per-post after review). Give the user ONE short "planning your campaign…" line and STOP. Do NOT call show_content_campaign, and do NOT say it's ready/done/above yet — the finished review card renders here AUTOMATICALLY when planning completes (calling show_content_campaign now shows a half-built 1-post card, then a duplicate). Confirm once when the card lands. Don't tell the user to open Campaign Studio.`,
         },
       };
     } catch (e) {

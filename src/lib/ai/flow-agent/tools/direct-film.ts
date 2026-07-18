@@ -53,6 +53,10 @@ export const directFilm: FlowAgentTool = {
     let generated = 0;
     if (input.autoGenerate) {
       for (const s of film.scenes) {
+        // Exact continuations depend on the preceding provider render. Leave them
+        // ready to generate from the canvas instead of immediately marking them
+        // failed while that asynchronous source render is still in flight.
+        if (s.continuationMode === "exact") continue;
         const r = await generateSceneRender(film.id, ctx.userId, s.id).catch(() => null);
         if (r?.ok) generated++;
       }

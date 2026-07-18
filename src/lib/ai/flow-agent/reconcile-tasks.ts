@@ -7,6 +7,12 @@ import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
 import { resumeAvatarRender } from "@/lib/avatar-studio";
+import { resumeStuckDirectorScenes, resumeStuckDirectorFinals } from "@/lib/video-director/engines";
+import { resumeStuckNarrations } from "@/lib/voice-studio/engines";
+import { resumeStuckCloneShots } from "@/lib/clone-studio/engines";
+import { resumeStuckUgcTakes } from "@/lib/ugc-studio/engines";
+import { resumeStuckAdTakes } from "@/lib/product-ads/engines";
+import { resumeStuckTryOnTakes } from "@/lib/try-on/engines";
 
 /**
  * AgentTask recovery — the safety net for Flow-AI background jobs.
@@ -380,6 +386,44 @@ export async function runTaskRecovery(): Promise<RecoveryResult> {
     const stuckRenders = await recoverStuckCartoonRenders();
     result.scanned += stuckRenders.scanned;
     result.failed += stuckRenders.failed;
+
+    // Video Director AI scenes orphaned by a restart: RESUME from the persisted xAI/Veo
+    // job (the provider kept rendering) so a deploy mid-render doesn't lose the shot —
+    // even for films the user has closed.
+    const directorScenes = await resumeStuckDirectorScenes().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += directorScenes.scanned;
+    result.recovered += directorScenes.changed;
+
+    // …and the final stitch itself. It holds no provider job, so an orphaned stitch
+    // has to be re-run — otherwise "Stitch film" spins forever with nothing to heal it.
+    const directorFinals = await resumeStuckDirectorFinals().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += directorFinals.scanned;
+    result.recovered += directorFinals.changed;
+
+    // Same for UGC Studio takes (batch renders that survive a page-leave / deploy restart).
+    const ugcTakes = await resumeStuckUgcTakes().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += ugcTakes.scanned;
+    result.recovered += ugcTakes.changed;
+
+    // …and Product Ads takes.
+    const adTakes = await resumeStuckAdTakes().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += adTakes.scanned;
+    result.recovered += adTakes.changed;
+
+    // …and Clone Studio image shots (no provider job — a dead one re-runs).
+    const cloneShots = await resumeStuckCloneShots().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += cloneShots.scanned;
+    result.recovered += cloneShots.changed;
+
+    // …and Voice Studio narrations (shots pull their xAI job; a dead stitch re-runs).
+    const narrations = await resumeStuckNarrations().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += narrations.scanned;
+    result.recovered += narrations.changed;
+
+    // …and Virtual Try-on takes.
+    const tryOnTakes = await resumeStuckTryOnTakes().catch(() => ({ scanned: 0, changed: 0 }));
+    result.scanned += tryOnTakes.scanned;
+    result.recovered += tryOnTakes.changed;
 
     if (result.recovered || result.failed) {
       console.log(

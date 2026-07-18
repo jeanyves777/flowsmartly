@@ -31,6 +31,7 @@ export const sendProposal: FlowAgentTool = {
       recipientEmail: { type: "string", description: "The email address to send it to. Required." },
       recipientName: { type: "string", description: "Optional recipient name." },
       message: { type: "string", description: "Optional short personal note shown at the top of the email." },
+      variant: { type: "string", description: "Optional PDF layout to attach: 'deck' or 'visual'. If omitted, uses the proposal's saved Studio type." },
     },
     required: ["planId", "pitchId", "recipientEmail"],
   },
@@ -42,6 +43,7 @@ export const sendProposal: FlowAgentTool = {
     const recipientEmail = typeof input.recipientEmail === "string" ? input.recipientEmail.trim() : "";
     const recipientName = typeof input.recipientName === "string" ? input.recipientName.trim() : undefined;
     const message = typeof input.message === "string" ? input.message.trim() : undefined;
+    const variant = input.variant === "visual" ? "visual" : input.variant === "deck" ? "deck" : undefined;
     if (!pitchId || !recipientEmail) {
       return { ok: false, error_code: "missing_input", message: "pitchId and recipientEmail are required." };
     }
@@ -59,7 +61,7 @@ export const sendProposal: FlowAgentTool = {
       };
     }
 
-    const res = await deliverProposal(ctx.userId, pitchId, { recipientEmail, recipientName, message });
+    const res = await deliverProposal(ctx.userId, pitchId, { recipientEmail, recipientName, message, variant });
     if (!res.ok) {
       return { ok: false, error_code: CODE_MAP[res.code || "error"], message: res.error || "Could not send the proposal." };
     }

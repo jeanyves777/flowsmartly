@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ArrowLeft, Check, FileCheck2, Ruler, Sparkles, SwatchBook } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuroraBackdrop, GradientText, Magnetic, Parallax, Reveal, RevealGroup, RevealItem } from "@/components/marketing/motion";
+import { ProductMedia } from "@/components/marketing/product-media";
 import { SURFACES, SURFACE_BY_KEY, type Surface } from "@/components/marketing/surfaces";
 import { FinalCta } from "@/components/marketing/sections/final-cta";
 import { cn } from "@/lib/utils/cn";
@@ -20,33 +21,40 @@ const galleryLabels: Record<string, string[]> = {
   print: ["Flyer proof", "Card system", "Brochure + product"],
 };
 
-/** A floating, parallaxed illustration for the surface (generated art, full-bleed). */
+/** A floating, parallaxed illustration — video when available, image fallback. */
 function FloatingArt({ surface }: { surface: Surface }) {
   const reduced = useReducedMotion();
   const isPrint = surface.key === "print";
   return (
     <Parallax speed={0.14} className="relative">
       <motion.div
-        className="relative mx-auto aspect-square w-full max-w-[440px] overflow-hidden rounded-[2rem] border border-border shadow-2xl"
+        className="relative mx-auto aspect-square w-full max-w-[440px] overflow-hidden rounded-[2rem] border border-border shadow-2xl ring-1 ring-brand-500/15"
         animate={reduced ? undefined : { y: [0, -12, 0] }}
         transition={reduced ? undefined : { duration: 6, repeat: Infinity, ease: "easeInOut" }}
       >
-        <Image src={surface.image} alt={`${surface.label} illustration`} fill unoptimized sizes="440px" className="object-cover" priority />
-        <motion.div
-          aria-hidden
-          className="absolute inset-0 bg-[linear-gradient(115deg,transparent_20%,rgba(255,255,255,0.28)_45%,transparent_68%)]"
-          animate={reduced ? undefined : { x: ["-120%", "120%"] }}
-          transition={reduced ? undefined : { duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
+        <ProductMedia
+          src={surface.video}
+          poster={surface.image}
+          alt={`${surface.label} illustration`}
+          priority
+          className="absolute inset-0 h-full w-full"
+          sizes="440px"
+          caption={surface.video ? `${surface.label} · agent output` : "Generated preview"}
         />
-        <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> Generated preview
-        </span>
+        {!surface.video && (
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,transparent_20%,rgba(255,255,255,0.28)_45%,transparent_68%)]"
+            animate={reduced ? undefined : { x: ["-120%", "120%"] }}
+            transition={reduced ? undefined : { duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
+          />
+        )}
         {isPrint && (
           <>
-            <div className="absolute left-4 top-4 rounded-2xl border border-white/55 bg-white/82 px-3 py-2 text-xs font-bold text-slate-900 shadow-lg backdrop-blur">
+            <div className="absolute left-4 top-4 z-10 rounded-2xl border border-white/55 bg-white/82 px-3 py-2 text-xs font-bold text-slate-900 shadow-lg backdrop-blur">
               300 DPI proof
             </div>
-            <div className="absolute bottom-4 right-4 grid gap-2">
+            <div className="absolute bottom-14 right-4 z-10 grid gap-2">
               {printProofItems.map((item, index) => {
                 const ItemIcon = item.icon;
                 return (

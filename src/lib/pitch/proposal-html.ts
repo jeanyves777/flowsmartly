@@ -72,7 +72,7 @@ export function renderProposalHtml(content: ServiceProposalContent, opts: Render
   // ── COVER ──
   const cta = esc(headings["ctaLabel"] ?? "Get started →");
   sections.push(`
-    <div class="cover">
+    <div class="cover ${isVisual ? "visual-cover" : ""}">
       <div class="cover-in">
         ${logo}
         <div class="prep">Prepared for ${esc(c.preparedFor || contact.name || "your team")}</div>
@@ -213,22 +213,30 @@ export function renderProposalHtml(content: ServiceProposalContent, opts: Render
     @page { size: A4; margin: 0; }
     * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     html,body { margin:0; padding:0; }
-    body { font-family: Georgia, 'Times New Roman', serif; color:${ink}; background:#fff; }
+    body { font-family: ${isVisual ? "-apple-system, Segoe UI, Roboto, Arial, sans-serif" : "Georgia, 'Times New Roman', serif"}; color:${ink}; background:#fff; }
     .doc { width: 794px; margin: 0 auto; background:#fff; }
     .logo { max-height: 34px; width:auto; object-fit:contain; }
     .brandname { font-family: Arial, sans-serif; font-size: 15px; font-weight: 800; letter-spacing:.04em; }
     .cover { position:relative; color:#fff; padding: 46px 54px 40px; background: linear-gradient(135deg, ${primaryInk}, ${secondaryInk}); display:flex; gap:28px; align-items:center; }
+    .cover.visual-cover { color:${ink}; background:#fff; min-height: 320px; overflow:hidden; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+    .cover.visual-cover:before { content:""; position:absolute; inset:0; background-image: linear-gradient(105deg,transparent 0 18%, rgba(226,232,240,0.55) 18.2%, transparent 18.6% 34%, rgba(226,232,240,0.55) 34.2%, transparent 34.6% 100%); }
+    .cover.visual-cover:after { content:""; position:absolute; right:-70px; top:-70px; width:220px; height:220px; border-radius:999px; background:${theme.accent}20; }
     .cover-in { flex:1; min-width:0; }
+    .visual-cover .cover-in, .visual-cover .cover-img { position:relative; z-index:1; }
     .cover-img { flex:0 0 34%; }
+    .visual-cover .cover-img { flex-basis: 38%; }
     .cover-img img { width:100%; border-radius:12px; background:rgba(255,255,255,.1); }
+    .visual-cover .cover-img img { max-height:250px; object-fit:contain; background:transparent; }
     .prep { margin-top: 22px; font-family: Arial, sans-serif; font-size:11px; letter-spacing:.14em; text-transform:uppercase; opacity:.85; }
     .title { margin: 6px 0 0; font-size: 33px; font-weight: 700; line-height: 1.12; }
+    .visual-cover .title { font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; font-size:42px; font-weight:900; letter-spacing:-.02em; max-width:500px; }
     .subtitle { margin: 10px 0 0; font-family: Arial, sans-serif; font-size: 14px; opacity:.92; }
+    .visual-cover .subtitle { max-width:460px; color:#334155; font-size:18px; line-height:1.5; font-weight:700; opacity:1; }
     .prep-by { display:inline-block; margin-top: 22px; border-radius: 999px; padding: 7px 14px; font-family: Arial, sans-serif; font-size: 11px; font-weight: 800; background:${theme.accent}; color:${textOnColor(theme.accent, ink)}; }
-    .sec { padding: 26px 54px; border-top: 1px solid #eef0f3; page-break-inside: avoid; }
+    .sec { padding: 26px 54px; border-top: 1px solid #eef0f3; break-inside: auto; page-break-inside: auto; }
     .kick { font-family: Arial, sans-serif; font-size: 10.5px; font-weight: 800; letter-spacing:.14em; text-transform: uppercase; color:${primaryInk}; margin-bottom: 8px; }
-    h2 { font-size: 22px; font-weight: 700; margin: 0; }
-    h3 { font-size: 16px; font-weight: 700; margin: 0 0 8px; }
+    h2 { font-size: ${isVisual ? "28px" : "22px"}; font-weight: ${isVisual ? "900" : "700"}; margin: 0; }
+    h3 { font-size: 16px; font-weight: ${isVisual ? "800" : "700"}; margin: 0 0 8px; }
     .body { font-size: 14px; line-height: 1.7; color:#26313f; margin: 8px 0 0; }
     .two { display:flex; gap:28px; align-items:flex-start; }
     .two.about { align-items:center; }
@@ -237,7 +245,7 @@ export function renderProposalHtml(content: ServiceProposalContent, opts: Render
     .side-img img { width:100%; border-radius:12px; }
     .two .body, .two > div { flex:1; min-width:0; }
     .cards { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
-    .card { border:1px solid #e7eaee; border-radius: 12px; padding: 14px; page-break-inside: avoid; }
+    .card { border:1px solid #e7eaee; border-radius: 12px; padding: 14px; break-inside: avoid; page-break-inside: avoid; }
     .chip { display:inline-block; height:26px; width:26px; border-radius:8px; background:${primaryInk}; }
     .card-title { margin-top: 8px; font-family: Arial, sans-serif; font-size: 13.5px; font-weight: 800; color:${secondaryInk}; }
     .card-desc { margin-top: 3px; font-size: 12.5px; color:#3a4757; line-height:1.5; }
@@ -249,7 +257,7 @@ export function renderProposalHtml(content: ServiceProposalContent, opts: Render
     .ringc { height: 84px; width: 84px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto; font-family: Arial, sans-serif; font-weight: 800; padding: 6px; overflow:hidden; word-break:break-word; line-height:1.05; }
     .ring small { display:block; margin-top: 7px; font-family: Arial, sans-serif; font-size: 11px; color:#55606e; }
     .tl { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-    .tlc { border:1px solid #e7eaee; border-radius: 12px; padding: 10px; page-break-inside: avoid; }
+    .tlc { border:1px solid #e7eaee; border-radius: 12px; padding: 10px; break-inside: avoid; page-break-inside: avoid; }
     .tll { font-family: Arial, sans-serif; font-size: 11px; font-weight: 800; text-transform:uppercase; letter-spacing:.05em; }
     .tlt { margin-top: 3px; font-size: 13px; font-weight: 700; }
     .tld { margin-top: 3px; font-size: 12px; color:#55606e; }

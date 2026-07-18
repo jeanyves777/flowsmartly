@@ -1,0 +1,227 @@
+<title>Director — scene inspector: cast avatars + picker</title>
+<style>
+  :root{
+    --bg:#080b12; --bg-2:#0b1019; --panel:#0f1523; --panel-2:#131b2c; --card:#0e1420;
+    --line:#1e2942; --line-2:#28344f; --ink:#eef2fb; --ink-2:#aeb9d0; --ink-3:#6b7690;
+    --brand:#6366f1; --brand-2:#8b5cf6; --teal:#22d3ee; --ok:#34d399; --amber:#f59e0b;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#05070c;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.45;}
+  .page{max-width:1080px;margin:0 auto;padding:24px 16px 60px;}
+  .intro .kick{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--brand-2);margin:0 0 6px;}
+  .intro h1{font-size:clamp(21px,3vw,28px);margin:0 0 6px;letter-spacing:-.02em;font-weight:800;}
+  .intro p{margin:0 0 18px;color:var(--ink-2);font-size:13.5px;max-width:80ch;}
+
+  .stage{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap;}
+
+  /* the right inspector panel (matches the app: ~340px, border-left, dark card) */
+  .inspector{position:relative;width:344px;flex:0 0 auto;border:1px solid var(--line);border-radius:16px;background:var(--card);box-shadow:0 40px 90px -50px #000;overflow:hidden;}
+  .ins-head{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding:11px 14px;}
+  .badge{border-radius:6px;padding:2px 7px;font-size:9.5px;font-weight:800;background:#a78bfa22;color:#c4b5fd;}
+  .ins-head b{font-size:13px;flex:1;}
+  .ins-head .x{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink-3);cursor:pointer;}
+  .ins-body{padding:12px 14px 16px;max-height:640px;overflow-y:auto;}
+  .lab{display:block;font-size:11px;font-weight:700;margin:14px 0 6px;}
+  .lab .mut{font-weight:400;color:var(--ink-3);}
+  .lab:first-child{margin-top:0;}
+  textarea,.inp{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;color:var(--ink);font-family:inherit;font-size:12.5px;padding:8px 10px;resize:none;line-height:1.5;}
+  textarea:focus,.inp:focus{outline:none;border-color:#6366f1a0;}
+
+  /* CAST LINES — the new bit */
+  .cast{display:flex;flex-direction:column;gap:7px;}
+  .cline{display:flex;align-items:center;gap:7px;}
+  .av{position:relative;width:34px;height:34px;flex:0 0 auto;border-radius:9px;overflow:hidden;border:1px solid var(--line-2);background:#1a2butt;cursor:zoom-in;}
+  .av img{width:100%;height:100%;object-fit:cover;}
+  .av.empty{display:grid;place-items:center;background:var(--panel-2);color:var(--ink-3);cursor:default;font-size:14px;}
+  .av .mag{position:absolute;inset:0;display:none;place-items:center;background:#00000066;color:#fff;font-size:11px;}
+  .av:hover .mag{display:grid;}
+  .namebtn{flex:0 0 auto;width:104px;display:flex;align-items:center;gap:5px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 8px;cursor:pointer;text-align:left;color:var(--ink);font-family:inherit;}
+  .namebtn:hover{border-color:#6366f180;}
+  .namebtn .nm{flex:1;min-width:0;font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .namebtn .nm.ph{color:var(--ink-3);font-weight:500;font-style:italic;}
+  .namebtn .cv{color:var(--ink-3);font-size:9px;}
+  .dlg{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--ink);font-family:inherit;font-size:11.5px;padding:7px 8px;}
+  .dlg:focus{outline:none;border-color:#6366f1a0;}
+  .rm{width:24px;height:24px;flex:0 0 auto;display:grid;place-items:center;border:0;background:transparent;color:var(--ink-3);border-radius:6px;cursor:pointer;}
+  .rm:hover{color:#f43f5e;}
+  .addline{display:inline-flex;align-items:center;gap:5px;margin-top:8px;border:1px dashed var(--line-2);background:transparent;color:var(--ink-2);border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .addline:hover{border-color:#6366f180;color:var(--brand-2);}
+  .budget{margin-top:8px;font-size:10px;color:var(--ink-3);}
+  .budget.over{color:var(--amber);font-weight:700;}
+
+  /* cast picker popover */
+  .pick{position:absolute;z-index:30;width:214px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:12px;box-shadow:0 24px 60px -24px #000;padding:6px;display:none;}
+  .pick.open{display:block;}
+  .pick .h{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);padding:5px 7px 6px;}
+  .prow{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:8px;cursor:pointer;}
+  .prow:hover{background:#6366f11a;}
+  .prow.sel{background:#6366f126;}
+  .prow img{width:28px;height:28px;border-radius:7px;object-fit:cover;flex:0 0 auto;}
+  .prow .t .n{font-size:11.5px;font-weight:700;line-height:1.1;}
+  .prow .t .r{font-size:9.5px;color:#a5b4fc;}
+  .prow .ck{margin-left:auto;color:var(--ok);font-size:12px;font-weight:900;}
+  .pick .custom{display:flex;align-items:center;gap:7px;padding:6px 7px;border-top:1px solid var(--line);margin-top:3px;color:var(--ink-2);font-size:11px;cursor:pointer;border-radius:8px;}
+  .pick .custom:hover{background:var(--panel);color:var(--ink);}
+
+  /* durations / transitions for context (static) */
+  .pills{display:flex;gap:6px;flex-wrap:wrap;}
+  .pill{border:1px solid var(--line-2);background:var(--panel);color:var(--ink-2);border-radius:999px;padding:6px 12px;font-size:11.5px;font-weight:700;}
+  .pill.on{background:#6366f11a;border-color:#6366f1;color:#c7d2fe;}
+
+  /* lightbox */
+  .lb{position:fixed;inset:0;z-index:200;display:none;place-items:center;background:#000000cc;backdrop-filter:blur(3px);padding:24px;}
+  .lb.open{display:grid;}
+  .lb img{max-height:88vh;max-width:88vw;object-fit:contain;border-radius:12px;box-shadow:0 40px 90px -30px #000;}
+  .lb .x{position:absolute;top:18px;right:18px;width:40px;height:40px;border-radius:50%;background:#ffffff1a;color:#fff;border:0;cursor:pointer;font-size:16px;}
+
+  .notes{flex:1;min-width:260px;}
+  .lg{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px;margin-bottom:10px;}
+  .lg b{font-size:12.5px;} .lg p{margin:5px 0 0;font-size:12px;color:var(--ink-2);}
+  .lg .num{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:6px;background:#6366f11a;color:#a5b4fc;font-size:11px;font-weight:900;margin-right:7px;}
+</style>
+
+<div class="page">
+  <div class="intro">
+    <p class="kick">Video Studio · Director — Scene inspector</p>
+    <h1>Cast avatars + character picker in the side details</h1>
+    <p>The AI-shot <b>Cast &amp; dialogue</b> rows now show each character's <b>avatar</b> (their approved
+      turnaround/portrait). The name field becomes a <b>picker</b> — choose from the film's real cast (with
+      their photos) so the line is linked to that character (locks their identity in the render). Click any
+      avatar to <b>review it full-size</b>. Free-typed names still work as a fallback.</p>
+  </div>
+
+  <div class="stage">
+    <!-- INSPECTOR -->
+    <div class="inspector">
+      <div class="ins-head">
+        <span class="badge">AI cinematic</span>
+        <b>The Outsider Arrives</b>
+        <button class="x">✕</button>
+      </div>
+      <div class="ins-body">
+        <label class="lab">Shot prompt</label>
+        <textarea rows="3">Wide shot of a dusty boys' soccer field at golden hour. A chain-link fence separates the pitch from a tree line. Maya Reeves walks toward the field alone, soccer ball under her arm.</textarea>
+
+        <label class="lab">Cast &amp; dialogue <span class="mut">— who's in the shot + what they say</span></label>
+        <div class="cast" id="cast"></div>
+        <button class="addline" id="addline">＋ Add a character line</button>
+        <p class="budget" id="budget">Dialogue budget: <b>0</b>/18 words for a 8s shot.</p>
+
+        <label class="lab">Duration <span class="mut">— caps this shot's dialogue</span></label>
+        <div class="pills"><span class="pill">3s</span><span class="pill">5s</span><span class="pill on">8s</span><span class="pill">10s</span><span class="pill">15s</span></div>
+
+        <label class="lab">Transition · captions</label>
+        <div class="pills"><span class="pill on">cut</span><span class="pill">crossfade</span><span class="pill">dissolve</span><span class="pill">▦ Captions</span></div>
+      </div>
+
+      <!-- cast picker popover (positioned by JS) -->
+      <div class="pick" id="pick">
+        <div class="h">Pick from cast</div>
+        <div id="pickRows"></div>
+        <div class="custom" id="pickCustom">✎ Type a custom name</div>
+      </div>
+    </div>
+
+    <!-- NOTES -->
+    <div class="notes">
+      <div class="lg"><b><span class="num">1</span>See who's in the shot</b><p>Each row shows the character's avatar + name, so you can tell at a glance who's on screen — no more guessing from a free-typed name.</p></div>
+      <div class="lg"><b><span class="num">2</span>Pick from the real cast</b><p>The picker lists the film's approved cast with photos. Choosing one links the line to that character, so the render locks their exact face + wardrobe.</p></div>
+      <div class="lg"><b><span class="num">3</span>Review full-size</b><p>Click any avatar to open the full turnaround sheet in a lightbox — the same viewer as the Cast panel.</p></div>
+      <div class="lg"><b><span class="num">4</span>Custom names still work</b><p>Need someone not in the cast? “Type a custom name” keeps the old free-text behaviour (no avatar, no identity lock).</p></div>
+    </div>
+  </div>
+
+  <div class="lb" id="lb"><button class="x" id="lbx">✕</button><img id="lbimg" src="" alt=""></div>
+</div>
+
+<script>
+  const CAST = [
+    { id:"c1", name:"Maya Reeves", role:"Striker", img:"https://images.unsplash.com/photo-1526232761682-d26e03ac148e?w=300&q=60" },
+    { id:"c2", name:"Coach Derek Walsh", role:"Mentor", img:"https://images.unsplash.com/photo-1552058544-f2b08422138a?w=300&q=60" },
+    { id:"c3", name:"Marcus Okafor", role:"Rival", img:"https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&q=60" },
+    { id:"c4", name:"Jordan Clarke", role:"Best friend", img:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&q=60" },
+  ];
+  // scene cast lines: characterId (or null for custom) + name + dialogue
+  let LINES = [
+    { characterId:"c1", name:"Maya Reeves", dialogue:"" },
+  ];
+  let pickForIdx = null;
+
+  const castEl = document.getElementById("cast");
+  const pick = document.getElementById("pick");
+  const pickRows = document.getElementById("pickRows");
+  const budget = document.getElementById("budget");
+
+  const charById = (id) => CAST.find(c => c.id === id);
+
+  function renderCast(){
+    castEl.innerHTML = "";
+    LINES.forEach((l, i) => {
+      const c = l.characterId ? charById(l.characterId) : null;
+      const row = document.createElement("div");
+      row.className = "cline";
+      row.innerHTML = `
+        ${c ? `<div class="av" data-zoom="${c.img}"><img src="${c.img}" alt=""><div class="mag">🔍</div></div>`
+             : `<div class="av empty">👤</div>`}
+        <button class="namebtn" data-pick="${i}">
+          <span class="nm ${l.name ? "" : "ph"}">${l.name || "Choose…"}</span>
+          <span class="cv">▾</span>
+        </button>
+        <input class="dlg" data-dlg="${i}" value="${l.dialogue.replace(/"/g,'&quot;')}" placeholder="their line (empty = silent)">
+        <button class="rm" data-rm="${i}">✕</button>`;
+      castEl.appendChild(row);
+    });
+    bind();
+    updateBudget();
+  }
+
+  function bind(){
+    castEl.querySelectorAll("[data-pick]").forEach(el => el.onclick = (e) => { e.stopPropagation(); openPick(+el.dataset.pick, el); });
+    castEl.querySelectorAll("[data-rm]").forEach(el => el.onclick = () => { LINES.splice(+el.dataset.rm,1); renderCast(); });
+    castEl.querySelectorAll("[data-dlg]").forEach(el => el.oninput = () => { LINES[+el.dataset.dlg].dialogue = el.value; updateBudget(); });
+    castEl.querySelectorAll("[data-zoom]").forEach(el => el.onclick = () => openLb(el.dataset.zoom));
+  }
+
+  function openPick(idx, anchor){
+    pickForIdx = idx;
+    const cur = LINES[idx];
+    pickRows.innerHTML = "";
+    CAST.forEach(c => {
+      const r = document.createElement("div");
+      r.className = "prow" + (cur.characterId === c.id ? " sel" : "");
+      r.innerHTML = `<img src="${c.img}" alt=""><div class="t"><div class="n">${c.name}</div><div class="r">${c.role}</div></div>${cur.characterId===c.id?'<span class="ck">✓</span>':''}`;
+      r.onclick = () => { LINES[idx] = { characterId:c.id, name:c.name, dialogue:cur.dialogue }; closePick(); renderCast(); };
+      pickRows.appendChild(r);
+    });
+    const ir = anchor.getBoundingClientRect();
+    const pr = document.querySelector(".inspector").getBoundingClientRect();
+    pick.style.left = Math.max(8, ir.left - pr.left) + "px";
+    pick.style.top = (ir.bottom - pr.top + 6) + "px";
+    pick.classList.add("open");
+  }
+  function closePick(){ pick.classList.remove("open"); pickForIdx = null; }
+  document.getElementById("pickCustom").onclick = () => {
+    const idx = pickForIdx; closePick();
+    const name = prompt("Character name:", LINES[idx].name || "");
+    if (name !== null){ LINES[idx] = { characterId:null, name:name.trim(), dialogue:LINES[idx].dialogue }; renderCast(); }
+  };
+  document.addEventListener("click", (e) => { if (pick.classList.contains("open") && !pick.contains(e.target) && !e.target.closest("[data-pick]")) closePick(); });
+
+  document.getElementById("addline").onclick = () => { LINES.push({ characterId:null, name:"", dialogue:"" }); renderCast(); };
+
+  function updateBudget(){
+    const used = LINES.reduce((n,l) => n + (l.dialogue.trim() ? l.dialogue.trim().split(/\s+/).length : 0), 0);
+    const max = 18;
+    budget.innerHTML = `Dialogue budget: <b>${used}</b>/${max} words for a 8s shot` + (used>max ? " — trim the lines or raise the duration." : ".");
+    budget.className = "budget" + (used>max ? " over" : "");
+  }
+
+  // lightbox
+  const lb = document.getElementById("lb");
+  function openLb(src){ document.getElementById("lbimg").src = src; lb.classList.add("open"); }
+  lb.onclick = (e) => { if (e.target.id !== "lbimg") lb.classList.remove("open"); };
+  document.getElementById("lbx").onclick = () => lb.classList.remove("open");
+
+  renderCast();
+</script>

@@ -19,6 +19,13 @@ import { isBlankVideoBuffer } from "@/lib/media/video-quality-guard";
  */
 
 const VEO_MAX_SINGLE_SHOT_SECONDS = 8;
+// xAI Grok renders a single clip up to 15s; longer shots are built by chaining
+// seamless extensions (2–10s each) from the last frame. Cap the total so a shot
+// can't balloon into an unbounded render (each extra segment is its own render).
+const GROK_MAX_SINGLE_SHOT_SECONDS = 15;   // text-to-video single clip
+const GROK_MAX_IMG2VID_SECONDS = 15;       // image-to-video (first-frame image) — real prod render confirmed 15s
+const GROK_MAX_REF2VID_SECONDS = 10;       // reference-to-video (reference_images) caps at 10s
+const GROK_MAX_LONGFORM_SECONDS = 30;
 
 export interface VideoGenInput {
   prompt: string;
@@ -62,7 +69,9 @@ export async function generateVideoForRole(
         const veoAspect: "16:9" | "9:16" = input.aspectRatio === "16:9" ? "16:9" : "9:16";
         const veoTier = step.veoTier ?? (isPremium ? "quality" : "fast");
         const result = await veoClient.generateVideoBuffer(input.prompt, {
-          durationSeconds: String(Math.min(VEO_MAX_SINGLE_SHOT_SECONDS, duration)) as "4" | "6" | "8",
+          // Veo ONLY accepts 4, 6, or 8 — clamp to the nearest valid (passing 3/5/7/10
+          // returned "durationSeconds out of bound"). Veo is already skipped for >8s.
+          durationSeconds: (duration <= 5 ? "4" : duration <= 7 ? "6" : "8") as "4" | "6" | "8",
           resolution: input.resolution || (isPremium ? "1080p" : "720p"),
           aspectRatio: veoAspect,
           tier: veoTier,
@@ -89,19 +98,32 @@ export async function generateVideoForRole(
       if (!grokVideoClient.isAvailable()) continue;
       consideredAny = true;
       try {
+        // ONE clip per mode — NO extension chaining. xAI's edit/extend endpoint caps its
+        // INPUT at 8.7s, so a 10-15s base can't be extended (the old loop just burned the
+        // 1-req/sec budget and failed "Video is too long"). Films get length from MULTIPLE
+        // scenes instead. Mode + cap, best first: REFERENCE-to-video (sheets anchor the
+        // subject WITHOUT a first-frame lock → natural motion + identity, ≤10s) >
+        // image-to-video (first-frame, ≤8s) > text-to-video (≤15s).
+        const useRefImages = !input.referenceImageUrl && !!input.characterReferenceUrls?.length;
+        const baseMax = input.referenceImageUrl
+          ? GROK_MAX_IMG2VID_SECONDS
+          : useRefImages
+            ? GROK_MAX_REF2VID_SECONDS
+            : GROK_MAX_SINGLE_SHOT_SECONDS;
         const result = await grokVideoClient.generateVideo(input.prompt, {
-          duration: Math.min(15, duration),
+          duration: Math.min(baseMax, duration),
           aspectRatio: input.aspectRatio,
-          // Grok tops out at 720p.
-          resolution: "720p",
+          resolution: input.resolution || "720p",
           imageUrl: input.referenceImageUrl ?? undefined,
+          referenceImageUrls: useRefImages ? (input.characterReferenceUrls?.filter(Boolean) as string[]) : undefined,
           onStatus: input.onStatus,
           onJobId: (jobId) => input.onJobId?.({ provider: "grok", jobId }),
         });
-        if (result.videoBuffer?.length) {
-          const vcheck = await isBlankVideoBuffer(result.videoBuffer);
+        const videoBuffer = result.videoBuffer;
+        if (videoBuffer?.length) {
+          const vcheck = await isBlankVideoBuffer(videoBuffer);
           if (!vcheck.blank) {
-            return { videoBuffer: result.videoBuffer, provider: "grok", model: "grok-imagine-video" };
+            return { videoBuffer, provider: "grok", model: "grok-imagine-video" };
           }
           console.warn(`[VideoRouter] Grok returned a blank/black video (${vcheck.reason}); trying next`);
         }

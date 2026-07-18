@@ -12,9 +12,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const film = await getFilm(id, session.userId);
   if (!film) return NextResponse.json({ success: false, error: { message: "Not found" } }, { status: 404 });
-  // Reconcile any scenes/overlays whose render lives in another table (avatar) before returning.
+  // Reconcile any scenes/overlays before returning. This also pulls completed
+  // provider videos for interrupted AI scenes that still have a Grok/Veo handle.
   const rendering = (st?: string) => st === "rendering" || st === "queued";
-  const synced = film.scenes.some((s) => rendering(s.status) || rendering(s.overlay?.status))
+  const recoverableFailed = (s: { status?: string; refKind?: string; refId?: string | null }) =>
+    s.status === "failed" && !!s.refId && (s.refKind === "grok" || s.refKind === "veo3");
+  const recoverableEdit = (s: FilmProject["scenes"][number]) =>
+    rendering(s.videoEdit?.status) || (s.videoEdit?.status === "failed" && !!s.videoEdit.refId);
+  const synced = film.scenes.some((s) => rendering(s.status) || recoverableFailed(s) || recoverableEdit(s) || rendering(s.overlay?.status))
     ? await syncFilmScenes(film, session.userId)
     : film;
   const data = await presignAllUrls({ film: synced });

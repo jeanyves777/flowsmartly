@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/client";
+import { sanitizeUserError } from "@/lib/ai/user-error";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { getUserPreferredLanguage, withLanguagePrefix } from "@/lib/ai/user-language";
 import { verifyDesignText } from "@/lib/media/verify-design-text";
@@ -40,7 +41,7 @@ export const createBrandedDesign: FlowAgentTool = {
       planId: { type: "string", description: "REQUIRED — planId from a confirmed propose_plan." },
       prompt: {
         type: "string",
-        description: "The creative brief: message/headline, occasion, mood, and any EXACT text to include (e.g. the Bible verse, the name 'Daniel'). Keep it focused on what the user asked for (e.g. 'a fun, festive birthday flyer with a Bible verse') — do NOT add brand-tone adjectives; the engine applies the brand separately.",
+        description: "The creative brief: message/headline, occasion, mood, and any EXACT text to include (e.g. the Bible verse, the name 'Daniel'). Keep it focused on what the user asked for (e.g. 'a fun, festive birthday flyer with a Bible verse') — do NOT add brand-tone adjectives; the engine applies the brand separately. The design must ADVERTISE the client's own business/services: if the request names a print medium (car sticker/decal, magnet, flyer, banner, mug, tee), that's the SURFACE the promo prints on — brief a design that promotes the client's business, NOT product-catalog copy selling that item ('Premium Vinyl Sticker', '6×6', 'Order yours today') unless the client actually sells it.",
       },
       tier: {
         type: "string",
@@ -149,17 +150,19 @@ export const createBrandedDesign: FlowAgentTool = {
         });
 
         if (!design.ok || !design.imageUrl) {
-          const msg = design.error || "The design could not be generated.";
+          // Log the real error; show the user only a friendly, non-technical line.
+          console.error("[create_branded_design] generation failed:", design.error);
+          const safeMsg = sanitizeUserError(design.error || "The design could not be generated.", "image");
           await notifyAgentTaskComplete({
             userId: ctx.userId,
             taskId,
             kind: "create_branded_design",
             ok: false,
             summary: "Your branded design hit a snag",
-            detail: msg,
+            detail: safeMsg,
             deepLink: `/flow-ai?conversationId=${ctx.conversationId}&taskId=${taskId}`,
           });
-          throw new Error(msg);
+          throw new Error(safeMsg);
         }
 
         let url = design.imageUrl;

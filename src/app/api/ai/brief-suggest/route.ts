@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     if (!session?.userId) return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const kind: BriefKind = body?.kind === "leads" ? "leads" : body?.kind === "proposal" ? "proposal" : "campaign";
+    const kind: BriefKind = body?.kind === "leads" ? "leads" : body?.kind === "proposal" ? "proposal" : body?.kind === "film" ? "film" : "campaign";
     const extra = typeof body?.context === "string" ? body.context.slice(0, 400) : "";
 
     const brand = await prisma.brandKit.findFirst({
@@ -41,7 +41,9 @@ export async function POST(req: NextRequest) {
     ].filter(Boolean).join("\n");
 
     const prompt =
-      kind === "leads"
+      kind === "film"
+        ? `${brandLine}\n\nPropose exactly 3 DISTINCT short-FILM ideas for this brand — each a REAL, emotional STORY with a character and an arc (a mini-movie / cinematic ad-film), NOT a product pitch or explainer. The story must stand on its own and be genuinely engaging; the brand is NOT mentioned until the very END, where "${brand.name}" lands naturally as the resolution/payoff (a subtle closing reveal that recontextualizes the story). For each return: title (the film's name, 2-5 words), summary (one line — the emotional hook), brief (a vivid 3-4 sentence FILM BRIEF: the protagonist and what they want, the setting/journey, the emotional turn, and the closing beat where ${brand.name} appears as the payoff — cinematic, specific, human, no ad-speak).\nReturn ONLY a JSON array, no markdown: [{"title":"","summary":"","brief":""}]`
+      : kind === "leads"
         ? `${brandLine}\n\nPropose exactly 3 DISTINCT ideal-customer lead-search briefs — WHO this brand should prospect to sell what it offers. For each brief return: title (3-6 words), summary (one sentence on why this segment is a strong fit), industry (the TARGET's industry, not this brand's), jobTitle (the decision-maker to reach), seniority (array, choose from: Owner, C-level, VP, Director, Manager), keywords (comma-separated buying signals).\nReturn ONLY a JSON array, no markdown: [{"title":"","summary":"","industry":"","jobTitle":"","seniority":[""],"keywords":""}]`
       : kind === "proposal"
         ? `${brandLine}\n\nPropose exactly 3 DISTINCT client-pitch briefs — WHO this brand should send a service proposal to and WHAT to offer them. For each return: title (3-6 words, the target client type), summary (one sentence on the fit), brief (one concrete sentence framed as "A proposal for [target] offering [our service], to [their goal]").\nReturn ONLY a JSON array, no markdown: [{"title":"","summary":"","brief":""}]`
@@ -49,7 +51,10 @@ export async function POST(req: NextRequest) {
 
     const raw = await ai.generate(prompt, {
       model: HAIKU_MODEL,
-      maxTokens: 700,
+      // Film ideas carry a 3-4 sentence brief EACH — 700 tokens truncated the JSON
+      // mid-array so it failed to parse ("Couldn't come up with ideas"). Give the
+      // longer kinds real headroom.
+      maxTokens: kind === "film" ? 1600 : 1000,
       temperature: 0.85,
       systemPrompt: "You are a sharp marketing strategist. You return concise, brand-specific, immediately usable ideas as STRICT JSON only — no prose, no markdown fences.",
     });
@@ -65,7 +70,37 @@ export async function POST(req: NextRequest) {
   }
 }
 
-type BriefKind = "campaign" | "leads" | "proposal";
+type BriefKind = "campaign" | "leads" | "proposal" | "film";
+
+/**
+ * Salvage complete top-level `{…}` objects from a string — used when the model's
+ * JSON array is truncated (e.g. hit the token cap mid-brief) so a strict parse of
+ * the whole array fails. Scans balanced braces (string-aware) and keeps every
+ * object that parses, so the leading, complete ideas still come through.
+ */
+function extractJsonObjects(text: string): unknown[] {
+  const out: unknown[] = [];
+  let depth = 0, start = -1, inStr = false, esc = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === "{") { if (depth === 0) start = i; depth++; }
+    else if (ch === "}" && depth > 0) {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        try { out.push(JSON.parse(text.slice(start, i + 1))); } catch { /* skip a partial object */ }
+        start = -1;
+      }
+    }
+  }
+  return out;
+}
 
 function parseProposals(raw: string, kind: BriefKind): Record<string, unknown>[] {
   let text = (raw || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
@@ -73,8 +108,10 @@ function parseProposals(raw: string, kind: BriefKind): Record<string, unknown>[]
   const end = text.lastIndexOf("]");
   if (start >= 0 && end > start) text = text.slice(start, end + 1);
   let arr: unknown;
-  try { arr = JSON.parse(text); } catch { return []; }
-  if (!Array.isArray(arr)) return [];
+  try { arr = JSON.parse(text); } catch { arr = null; }
+  // Fallback: a truncated array won't strict-parse — pull out the complete objects.
+  if (!Array.isArray(arr)) arr = extractJsonObjects(raw);
+  if (!Array.isArray(arr) || arr.length === 0) return [];
   const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
   return arr.slice(0, 3).map((p) => {
     const o = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
@@ -88,8 +125,8 @@ function parseProposals(raw: string, kind: BriefKind): Record<string, unknown>[]
         keywords: str(o.keywords),
       };
     }
-    if (kind === "proposal") {
-      return { title: str(o.title) || "Proposal", summary: str(o.summary), brief: str(o.brief) };
+    if (kind === "proposal" || kind === "film") {
+      return { title: str(o.title) || (kind === "film" ? "Untitled film" : "Proposal"), summary: str(o.summary), brief: str(o.brief) };
     }
     return {
       title: str(o.title) || "Campaign",
@@ -98,5 +135,5 @@ function parseProposals(raw: string, kind: BriefKind): Record<string, unknown>[]
       brief: str(o.brief),
       tone: ["casual", "professional", "playful", "bold"].includes(str(o.tone).toLowerCase()) ? str(o.tone).toLowerCase() : "casual",
     };
-  }).filter((p) => (kind === "leads" ? (p.industry || p.jobTitle) : kind === "proposal" ? p.brief : (p.name && p.brief)));
+  }).filter((p) => (kind === "leads" ? (p.industry || p.jobTitle) : (kind === "proposal" || kind === "film") ? p.brief : (p.name && p.brief)));
 }

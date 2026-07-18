@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent groups — card-grid menu views + bottom composer — FlowSmartly</title>
+<style>
+  :root[data-theme="dark"]{
+    --bg:#0b0e14; --bg2:#0d1117; --card:#151b23; --card2:#1a212b; --elev:#1e2732; --hover:#222c38;
+    --border:#232b36; --border2:#2f3a48; --fg:#e6edf3; --muted:#8b98a9; --muted2:#657186;
+    --blue:#3b82f6; --cyan:#38bdf8; --grad:linear-gradient(95deg,#38bdf8,#6366f1); --shadow:0 22px 55px -30px rgba(0,0,0,.85);
+  }
+  :root[data-theme="light"]{
+    --bg:#eef1f6; --bg2:#f6f8fc; --card:#fff; --card2:#f4f6fb; --elev:#fff; --hover:#eef2f8;
+    --border:#e3e7f0; --border2:#d6dce8; --fg:#141821; --muted:#5b6577; --muted2:#8a93a4;
+    --blue:#2563eb; --cyan:#0891b2; --grad:linear-gradient(95deg,#0ea5e9,#6366f1); --shadow:0 20px 46px -28px rgba(30,40,80,.28);
+  }
+  *{box-sizing:border-box} html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--fg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;font-size:14px;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  button{font:inherit;cursor:pointer;color:inherit} h1,h2,h3{margin:0}
+
+  .top{height:50px;display:flex;align-items:center;gap:9px;padding:0 14px;border-bottom:1px solid var(--border);background:var(--bg2);flex:none}
+  .brand{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14.5px}
+  .brand .mk{width:24px;height:24px;border-radius:7px;background:var(--grad);display:grid;place-items:center;color:#fff}
+  .brand .mk svg{width:14px;height:14px} .brand b{color:var(--blue)}
+  .sp{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid var(--border);background:var(--card);border-radius:8px;font-size:12px;font-weight:600}
+  .pill .z{color:#f5a524} .pill b{color:var(--cyan)}
+  .ib{width:30px;height:30px;border:1px solid var(--border);background:var(--card);border-radius:8px;display:grid;place-items:center;color:var(--muted)}
+
+  /* main scroll */
+  .scroll{flex:1;overflow:auto;padding:26px 24px 150px}
+  .head{max-width:1120px;margin:0 auto 20px;text-align:center}
+  .head h2{font-size:16px;font-weight:800}
+  .head p{margin:4px 0 0;font-size:13px;color:var(--muted)}
+  .grid{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:1fr;gap:18px}
+  /* 4-skill groups → fewer, LARGER cards */
+  .grid.cols2 .thumb{aspect-ratio:16/9}
+  .grid.cols2 .cbody{padding:18px 18px 20px}
+  .grid.cols2 .cbody b{font-size:16.5px}
+  .grid.cols2 .cbody p{font-size:13.5px;min-height:auto}
+  @media(min-width:680px){ .grid.cols2, .grid.cols3{grid-template-columns:1fr 1fr} }
+  @media(min-width:1000px){ .grid.cols3{grid-template-columns:1fr 1fr 1fr} }
+
+  /* the uniform skill card */
+  .card{display:flex;flex-direction:column;border:1px solid var(--border);background:var(--card);border-radius:16px;overflow:hidden;text-align:left;transition:.16s;cursor:pointer}
+  .card:hover{transform:translateY(-3px);border-color:color-mix(in srgb,var(--acc) 55%,var(--border));box-shadow:var(--shadow)}
+  .thumb{position:relative;aspect-ratio:16/10;overflow:hidden;background:var(--tg)}
+  .thumb::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 120% at 80% 10%,rgba(255,255,255,.10),transparent 60%)}
+  .thumb .tag{position:absolute;left:10px;top:10px;z-index:1;font-size:11px;font-weight:600;color:#fff;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);border-radius:999px;padding:3px 10px}
+  .thumb .ic{position:absolute;right:12px;bottom:12px;z-index:1;color:rgba(255,255,255,.9)} .thumb .ic svg{width:26px;height:26px}
+  .cbody{padding:13px 14px 15px}
+  .cbody b{display:block;font-size:14.5px;font-weight:750}
+  .cbody p{margin:4px 0 0;font-size:12.5px;color:var(--muted);line-height:1.45;min-height:36px}
+  .pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+  .pills span{font-size:11px;font-weight:600;color:var(--muted);background:var(--card2);border:1px solid var(--border);border-radius:7px;padding:3px 8px}
+  .pills span.cost{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 35%,transparent);background:color-mix(in srgb,var(--acc) 12%,transparent)}
+
+  /* agent "fill" card — occupies leftover grid cells on large screens so the
+     grid never looks broken, and invites free-form agent use. */
+  .card.fill{display:flex;border-style:dashed;border-color:color-mix(in srgb,var(--acc) 45%,var(--border));background:color-mix(in srgb,var(--acc) 6%,var(--card));align-items:center;justify-content:center;text-align:center}
+  .card.fill:hover{background:color-mix(in srgb,var(--acc) 12%,var(--card));border-color:color-mix(in srgb,var(--acc) 60%,transparent)}
+  .fillbody{padding:24px;display:flex;flex-direction:column;align-items:center;gap:9px}
+  .fillic{width:46px;height:46px;border-radius:14px;background:color-mix(in srgb,var(--acc) 18%,transparent);border:1px solid color-mix(in srgb,var(--acc) 40%,transparent);display:grid;place-items:center;color:var(--acc)}
+  .fillic svg{width:22px;height:22px}
+  .fill b{font-size:14.5px;font-weight:750}
+  .fill p{font-size:12.5px;color:var(--muted);max-width:24ch;margin:0}
+  .fillcta{margin-top:3px;font-size:12.5px;font-weight:700;color:var(--acc)}
+
+  /* bottom composer dock (ALWAYS at the bottom) */
+  .dock{position:absolute;left:0;right:0;bottom:0;padding:14px 24px 20px;background:linear-gradient(180deg,transparent,var(--bg) 42%);pointer-events:none}
+  .composer{pointer-events:auto;max-width:1120px;margin:0 auto;border:1px solid var(--border2);background:var(--card);border-radius:20px;box-shadow:var(--shadow)}
+  .comp-top{position:relative;padding:11px 12px 0}
+  .grp-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--acc);background:color-mix(in srgb,var(--acc) 12%,transparent);color:var(--acc);border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700}
+  .grp-btn .gi{width:20px;height:20px;border-radius:6px;background:var(--acc);display:grid;place-items:center;color:#fff}
+  .grp-btn .gi svg{width:12px;height:12px} .grp-btn .cur{color:var(--fg)}
+  .dropup{position:absolute;left:12px;bottom:calc(100% + 8px);width:300px;max-height:340px;overflow:auto;background:var(--elev);border:1px solid var(--border2);border-radius:16px;padding:7px;box-shadow:var(--shadow);display:none;z-index:20}
+  .dropup.open{display:block}
+  .du-lbl{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:7px 9px 5px}
+  .du-item{display:flex;gap:10px;align-items:center;width:100%;background:transparent;border:0;text-align:left;padding:9px 10px;border-radius:11px}
+  .du-item:hover{background:var(--hover)} .du-item.sel{background:color-mix(in srgb,var(--iacc) 14%,transparent)}
+  .du-ic{width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;color:#fff} .du-ic svg{width:16px;height:16px}
+  .du-tx b{display:block;font-size:13px;font-weight:700} .du-tx small{display:block;font-size:11px;color:var(--muted)}
+  .du-n{margin-left:auto;font-size:11px;color:var(--muted2)}
+  .comp-body{display:flex;align-items:center;gap:10px;padding:9px 12px 6px}
+  .plus{width:34px;height:34px;border-radius:999px;border:1px solid var(--border2);background:transparent;color:var(--muted);display:grid;place-items:center;flex:none}
+  .comp-body .ph{flex:1;font-size:14px;color:var(--muted)}
+  .send{width:34px;height:34px;border-radius:999px;border:0;color:#fff;display:grid;place-items:center;background:var(--grad);flex:none}
+  .comp-foot{display:flex;align-items:center;gap:8px;padding:0 12px 11px;font-size:11.5px;color:var(--muted)}
+  .comp-foot .seg{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:8px;padding:4px 9px}
+  .comp-foot .seg svg{width:12px;height:12px;color:var(--muted2)}
+  .themebtn{position:fixed;right:14px;bottom:120px;z-index:40;width:34px;height:34px;border-radius:9px;border:1px solid var(--border);background:var(--card);color:var(--muted);display:grid;place-items:center}
+  .note{position:fixed;left:0;right:0;bottom:2px;text-align:center;font-size:10.5px;color:var(--muted2)}
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="brand"><span class="mk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 7h16M4 12h10M4 17h6"/></svg></span>Flow<b>Smartly</b></div>
+    <span class="sp"></span>
+    <div class="pill"><span class="z">⚡</span> <b>18,425</b>&nbsp;credits</div>
+    <button class="ib" onclick="toggleTheme()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></button>
+  </div>
+
+  <div class="scroll" id="scroll">
+    <div class="head"><h2 id="grpTitle">Create</h2><p id="grpSub">Pick a skill to start — or just tell the agent what you want. It shows the exact cost before it runs.</p></div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="dock">
+    <div class="composer" id="composer">
+      <div class="comp-top">
+        <button class="grp-btn" id="grpBtn" onclick="toggleDropup(event)">
+          <span class="gi" id="grpIc"></span>
+          <span style="color:var(--muted)">Agent</span> · <span class="cur" id="grpCur">Create</span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="dropup" id="dropup"></div>
+      </div>
+      <div class="comp-body">
+        <button class="plus"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+        <span class="ph" id="ph">Ask FlowSmartly to design something…</span>
+        <button class="send"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+      </div>
+      <div class="comp-foot">
+        <span class="seg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 4V2M12 12l-2 6 6-2z"/></svg> Standard</span>
+        <span style="color:var(--muted2)">·</span>
+        <span>confirms before anything that costs credits</span>
+      </div>
+    </div>
+  </div>
+  <button class="themebtn" onclick="toggleTheme()">🌗</button>
+  <div class="note">Mockup · richer agent groups as card-grid menu views · composer docked at the bottom</div>
+
+<script>
+function toggleTheme(){const r=document.documentElement,n=r.getAttribute('data-theme')==='dark'?'light':'dark';r.setAttribute('data-theme',n);}
+const IC = {
+  create:'<path d="M15 4V2M9.5 9.5 5 5M12 12l-2 6 6-2z"/>', film:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h20M8 4v4M16 4v4"/>',
+  publish:'<path d="M4 4h16v12H5.2L4 18z"/>', grow:'<path d="M3 17l6-6 4 4 7-8"/><path d="M21 7v5h-5"/>',
+  leads:'<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.3 3-5 7-5M16 11l2 2 4-4"/>', sell:'<path d="M3 9l1-5h16l1 5M4 9v11h16V9M9 13h6"/>',
+  web:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>', biz:'<path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01"/>',
+};
+const GROUPS = [
+  { key:'create', label:'Create', acc:'#8b5cf6', ph:'Ask FlowSmartly to design something…', sub:'Design, logos, print & media — one canvas.', icon:IC.create, tg:'linear-gradient(150deg,#3a1e5a,#1e2a6a)',
+    skills:[
+      {t:'Branded design', d:'On-brand graphic for any platform.', tag:'Design', pills:['Image','from 15 cr']},
+      {t:'Logo & identity', d:'Primary, mark & wordmark set.', tag:'Brand', pills:['3 images','60 cr']},
+      {t:'Flyer / menu (print)', d:'Print-ready in minutes, bleed-safe.', tag:'Print', pills:['Print','from 15 cr']},
+      {t:'Background remover', d:'Cut out any subject cleanly.', tag:'Edit', pills:['Instant','1 cr']},
+      {t:'Media library', d:'Your generated images & videos.', tag:'Library', pills:['Browse']},
+    ]},
+  { key:'film', label:'Film', acc:'#ec4899', ph:'Ask FlowSmartly to make a video…', sub:'Video ads, reels, avatars & voice.', icon:IC.film, tg:'linear-gradient(150deg,#5a1030,#3a1250)',
+    skills:[
+      {t:'Video ad', d:'Multi-scene cinematic AI film.', tag:'Video', pills:['16:9','from 30 cr']},
+      {t:'Reel from a link', d:'Scored 9:16 clips from any video.', tag:'Reel', pills:['9:16','from 6 cr']},
+      {t:'Talking avatar', d:'Your spokesperson, on demand.', tag:'Avatar', pills:['30s','from 20 cr']},
+      {t:'Story-ad film', d:'Cinematic narrated short.', tag:'Film', pills:['multi-scene']},
+      {t:'Voiceover', d:'Narration & TTS in any voice.', tag:'Voice', pills:['Audio','from 5 cr']},
+    ]},
+  { key:'publish', label:'Publish', acc:'#38bdf8', ph:'Ask FlowSmartly to post something…', sub:'Compose, schedule & publish across channels.', icon:IC.publish, tg:'linear-gradient(150deg,#0e3a4a,#12224a)',
+    skills:[
+      {t:'Write a post', d:'Caption + media, now or scheduled.', tag:'Social', pills:['from 3 cr']},
+      {t:'Content calendar', d:'Plan the week across platforms.', tag:'Plan', pills:['Free']},
+      {t:'Connect accounts', d:'Link Instagram, TikTok, LinkedIn…', tag:'Setup', pills:['Free']},
+      {t:'Publish now', d:'Push a post across all channels.', tag:'Social', pills:['Free']},
+    ]},
+  { key:'grow', label:'Grow', acc:'#10b981', ph:'Ask FlowSmartly to grow your reach…', sub:'Campaigns, email, messaging, automations & ads.', icon:IC.grow, tg:'linear-gradient(150deg,#0c3a2a,#123a4a)',
+    skills:[
+      {t:'Content campaign', d:'Concrete posts → approve → publish.', tag:'Campaign', pills:['from 3 cr / post']},
+      {t:'Email campaign', d:'Draft, design & send.', tag:'Email', pills:['1 cr / email']},
+      {t:'SMS / WhatsApp blast', d:'Reach your subscribers directly.', tag:'Messaging', pills:['from 3 cr']},
+      {t:'Automations', d:'Personalized follow-up sequences.', tag:'Auto', pills:['5 cr']},
+      {t:'Ad builder', d:'Build & launch a paid ad.', tag:'Ads', pills:['your budget']},
+    ]},
+  { key:'leads', label:'Leads', acc:'#f59e0b', ph:'Ask FlowSmartly to find & close leads…', sub:'Find → enrich → pitch → close, plus reviews & forms.', icon:IC.leads, tg:'linear-gradient(150deg,#4a2c0a,#3a1e12)',
+    skills:[
+      {t:'Find local leads', d:'Scored, enriched contacts.', tag:'Leads', pills:['3 cr / search']},
+      {t:'Lead Studio', d:'Find → automate → close.', tag:'CRM', pills:['Open']},
+      {t:'Proposal / pitch', d:'Branded, ready to send.', tag:'Sales', pills:['from 8 cr']},
+      {t:'Reviews & local SEO', d:'Grow your local presence.', tag:'Local', pills:['varies']},
+      {t:'Forms & surveys', d:'Capture leads on your site.', tag:'Forms', pills:['Free']},
+    ]},
+  { key:'sell', label:'Sell', acc:'#f43f5e', ph:'Ask FlowSmartly to run your store…', sub:'Storefront, products, orders, customers & delivery.', icon:IC.sell, tg:'linear-gradient(150deg,#4a1024,#3a1040)',
+    skills:[
+      {t:'Build a store', d:'Full storefront, live.', tag:'Store', pills:['500 cr']},
+      {t:'Add a product', d:'List, price & describe.', tag:'Product', pills:['Free']},
+      {t:'Orders', d:'Fulfill & ship.', tag:'Orders', pills:['Free']},
+      {t:'Customers', d:'Segment & re-engage buyers.', tag:'CRM', pills:['Free']},
+      {t:'Delivery', d:'Drivers & fulfillment.', tag:'Ops', pills:['Free']},
+    ]},
+  { key:'web', label:'Web', acc:'#6366f1', ph:'Ask FlowSmartly to build your site…', sub:'Websites, landing pages, portfolios & domains.', icon:IC.web, tg:'linear-gradient(150deg,#1e2a6a,#2a1250)',
+    skills:[
+      {t:'Build a website', d:'Full multi-page site, live.', tag:'Web', pills:['500 cr']},
+      {t:'Landing page', d:'High-converting campaign page.', tag:'Web', pills:['20 cr']},
+      {t:'Portfolio / résumé', d:'Shareable public page.', tag:'Web', pills:['Free']},
+      {t:'Domains', d:'Buy, connect & manage.', tag:'Domain', pills:['buy or connect']},
+    ]},
+  { key:'biz', label:'Business', acc:'#64748b', ph:'Ask FlowSmartly about your business…', sub:'Brand kit, analytics, plans, credits & team.', icon:IC.biz, tg:'linear-gradient(150deg,#2a3340,#1e2732)',
+    skills:[
+      {t:'Brand kit', d:'Powers every AI output.', tag:'Brand', pills:['Free']},
+      {t:'Analytics', d:'Performance, usage & activity.', tag:'Data', pills:['Free']},
+      {t:'Business plan', d:'13-section AI plan + charts.', tag:'Plan', pills:['120 cr']},
+      {t:'Credits & billing', d:'Balance, top-ups & history.', tag:'Billing', pills:['—']},
+      {t:'Team', d:'Invite teammates & set roles.', tag:'Team', pills:['Free']},
+    ]},
+];
+const state = { grp:'create', open:false };
+function G(){ return GROUPS.find(g=>g.key===state.grp); }
+function iconSvg(m,stroke){ return `<svg viewBox="0 0 24 24" fill="none" stroke="${stroke||'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${m}</svg>`; }
+
+function renderGrid(){
+  const g=G();
+  const n = g.skills.length;
+  const cols = n === 4 ? 2 : 3;              // 4 → 2-col · 5/6 → 3-col
+  const fills = (cols - (n % cols)) % cols;  // leftover cells (5-in-3col → 1)
+  const cards = g.skills.map(sk=>`
+    <button class="card" style="--acc:${g.acc};--tg:${g.tg}">
+      <span class="thumb"><span class="tag">${sk.tag}</span><span class="ic">${iconSvg(g.icon,'currentColor')}</span></span>
+      <span class="cbody"><b>${sk.t}</b><p>${sk.d}</p>
+        <span class="pills">${sk.pills.map((p,i)=>`<span class="${i===sk.pills.length-1&&/cr|budget|—/.test(p)?'cost':''}">${p}</span>`).join('')}</span>
+      </span>
+    </button>`);
+  for (let i=0;i<fills;i++) cards.push(`
+    <button class="card fill" style="--acc:${g.acc}">
+      <span class="fillbody">
+        <span class="fillic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4V2M15 22v-2M8 12H2M22 12h-6M9.5 9.5 5 5M19 19l-4.5-4.5M12 12l-2 6 6-2z"/></svg></span>
+        <b>Something else?</b>
+        <p>Tell the ${g.label} agent anything — it does the rest.</p>
+        <span class="fillcta">Ask the agent →</span>
+      </span>
+    </button>`);
+  const gridEl = document.getElementById('grid');
+  gridEl.className = 'grid cols' + cols;
+  gridEl.innerHTML = cards.join('');
+  document.getElementById('grpTitle').textContent=g.label;
+  document.getElementById('grpSub').textContent=g.sub;
+  document.getElementById('grpCur').textContent=g.label;
+  document.getElementById('ph').textContent=g.ph;
+  document.getElementById('grpBtn').style.setProperty('--acc',g.acc);
+  document.getElementById('composer').style.setProperty('--acc',g.acc);
+  document.getElementById('grpIc').innerHTML=iconSvg(g.icon,'#fff');
+}
+function renderDropup(){
+  document.getElementById('dropup').innerHTML = `<div class="du-lbl">Agent groups</div>` + GROUPS.map(g=>`
+    <button class="du-item ${g.key===state.grp?'sel':''}" style="--iacc:${g.acc}" onclick="pickGroup('${g.key}')">
+      <span class="du-ic" style="background:${g.acc}">${iconSvg(g.icon,'#fff')}</span>
+      <span class="du-tx"><b>${g.label}</b><small>${g.sub}</small></span>
+      <span class="du-n">${g.skills.length}</span>
+    </button>`).join('');
+}
+function toggleDropup(e){ e.stopPropagation(); state.open=!state.open; document.getElementById('dropup').classList.toggle('open',state.open); }
+function pickGroup(k){ state.grp=k; state.open=false; document.getElementById('dropup').classList.remove('open'); renderGrid(); renderDropup(); document.getElementById('scroll').scrollTop=0; }
+document.addEventListener('click',()=>{ if(state.open){ state.open=false; document.getElementById('dropup').classList.remove('open'); }});
+
+renderGrid(); renderDropup();
+</script>
+</body>
+</html>

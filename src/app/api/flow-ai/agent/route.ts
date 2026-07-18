@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     // `dataUrl` = a base64 upload from the device file picker.
     // `url`     = an already-hosted image the user picked from their media
     //             library (no re-upload needed — fetched server-side for vision).
-    attachments?: Array<{ dataUrl?: string; url?: string; name?: string }>;
+    attachments?: Array<{ dataUrl?: string; url?: string; name?: string; mediaType?: "image" | "video" }>;
   };
   try {
     body = await req.json();
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
         // ~5 MB raw → ~6.7 MB base64
         if (dataBase64.length > 7_000_000) continue;
         base64Items.push({ mediaType: m[1] === "image/jpg" ? "image/jpeg" : m[1], dataBase64 });
-      } else if (typeof a?.url === "string" && /^https?:\/\//.test(a.url)) {
+      } else if (typeof a?.url === "string" && /^(https?:\/\/|\/)/.test(a.url)) {
         libraryUrls.push(a.url);
       }
     }
@@ -161,8 +161,10 @@ export async function POST(req: NextRequest) {
   // fetch it server-side into base64 so the model can SEE it too. No re-save.
   for (const url of libraryUrls.slice(0, Math.max(0, 4 - attachments.length))) {
     attachmentUrls.push(url);
-    const vision = await loadImageAsVisionBase64(url);
-    if (vision) attachments.push({ mediaType: vision.mediaType, dataBase64: vision.base64 });
+    if (!/\.(mp4|webm|mov|m4v)(?:\?|#|$)/i.test(url)) {
+      const vision = await loadImageAsVisionBase64(url);
+      if (vision) attachments.push({ mediaType: vision.mediaType, dataBase64: vision.base64 });
+    }
   }
 
   // A message OR at least one attachment is required.
@@ -203,8 +205,10 @@ export async function POST(req: NextRequest) {
   // Persist the user turn immediately so it survives a client disconnect.
   // Note: attachment images aren't persisted to the message row (they're
   // transient vision input); a marker keeps the thread readable on reload.
-  const imageCount = Math.max(attachments.length, attachmentUrls.length);
-  const persistedContent = message || (imageCount > 0 ? `[sent ${imageCount} image${imageCount > 1 ? "s" : ""}]` : "");
+  const mediaCount = Math.max(attachments.length, attachmentUrls.length);
+  const firstAttachment = Array.isArray(body.attachments) ? body.attachments.find((a) => a?.url === attachmentUrls[0] || !!a?.dataUrl) : undefined;
+  const firstMediaType = firstAttachment?.mediaType === "video" || /\.(mp4|webm|mov|m4v)(?:\?|#|$)/i.test(attachmentUrls[0] || "") ? "video" : attachmentUrls.length > 0 ? "image" : null;
+  const persistedContent = message || (mediaCount > 0 ? `[sent ${mediaCount} media file${mediaCount > 1 ? "s" : ""}]` : "");
   const userMsg = await prisma.aIMessage.create({
     data: {
       conversationId,
@@ -212,7 +216,7 @@ export async function POST(req: NextRequest) {
       content: persistedContent,
       // Surface the uploaded image in the thread (renders in the user
       // bubble + survives reload).
-      mediaType: attachmentUrls.length > 0 ? "image" : null,
+      mediaType: firstMediaType,
       mediaUrl: attachmentUrls[0] ?? null,
     },
     select: { id: true },
@@ -343,7 +347,8 @@ export async function POST(req: NextRequest) {
         | { type: "text"; text: string }
         | { type: "tool" | "proposal" | "task"; id: string }
         | { type: "templates"; requestId: string; templates: unknown[] }
-        | { type: "question"; requestId: string; question: string; options: unknown[]; allowOther?: boolean };
+        | { type: "question"; requestId: string; question: string; options: unknown[]; allowOther?: boolean }
+        | { type: "view"; requestId: string; spec: unknown };
       const blocks: Block[] = [];
       const pushCardBlock = (type: "tool" | "proposal" | "task", id: string) => {
         if (!blocks.some((b) => b.type === type && (b as { id?: string }).id === id)) blocks.push({ type, id });
@@ -387,6 +392,11 @@ export async function POST(req: NextRequest) {
           if (!blocks.some((b) => b.type === "question" && (b as { requestId?: string }).requestId === event.requestId)) {
             blocks.push({ type: "question", requestId: event.requestId, question: event.question, options: event.options, allowOther: event.allowOther });
           }
+        } else if (event.type === "agent_view") {
+          // Self-contained so a reloaded chat re-renders the interactive view from metadata.
+          if (!blocks.some((b) => b.type === "view" && (b as { requestId?: string }).requestId === event.requestId)) {
+            blocks.push({ type: "view", requestId: event.requestId, spec: event.spec });
+          }
         }
         send(event);
       };
@@ -401,7 +411,7 @@ export async function POST(req: NextRequest) {
           plan,
           conversationId,
           messageId: assistantMsg.id,
-          userMessage: message || "(see attached image)",
+          userMessage: message || "(see attached media)",
           attachments,
           attachmentUrls,
           history: history.map((m) => ({
@@ -470,7 +480,7 @@ export async function POST(req: NextRequest) {
         // stream close. Without this every conversation reads
         // "New Conversation" and they all look merged in the sidebar.
         if (isNewConversation) {
-          const titleSeed = message || "Shared an image";
+          const titleSeed = message || "Shared media";
           autoTitleConversation(conversationId, titleSeed).catch(() => {});
         }
 

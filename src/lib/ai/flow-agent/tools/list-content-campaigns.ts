@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db/client";
+import { contentCampaignsListView } from "@/lib/agent-views/templates";
+import { randomUUID } from "crypto";
 import type { FlowAgentTool } from "../registry";
 
 /**
@@ -15,6 +17,7 @@ export const listContentCampaigns: FlowAgentTool = {
     properties: {
       status: { type: "string", description: "Optional status filter (DRAFT | ACTIVE | PAUSED | CANCELED | COMPLETED)." },
       limit: { type: "number", description: "Max campaigns (1-50, default 20)." },
+      asView: { type: "boolean", description: "Render a pickable inline chat view. Default true." },
     },
   },
   plans: null,
@@ -36,22 +39,26 @@ export const listContentCampaigns: FlowAgentTool = {
         },
       });
       const parse = (v: string | null) => { try { const a = JSON.parse(v || "[]"); return Array.isArray(a) ? a : []; } catch { return []; } };
+      const items = campaigns.map((c) => ({
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        brief: c.description || "",
+        platforms: parse(c.defaultPlatforms),
+        postCount: c.automations.reduce((n, a) => n + a._count.posts, 0),
+        startDate: c.startDate?.toISOString() ?? null,
+        endDate: c.endDate?.toISOString() ?? null,
+        updatedAt: c.updatedAt.toISOString(),
+      }));
+      if (input.asView !== false && items.length > 0) {
+        ctx.emit({ type: "agent_view", requestId: randomUUID(), spec: contentCampaignsListView(items) });
+      }
       return {
         ok: true,
         data: {
           count: campaigns.length,
-          campaigns: campaigns.map((c) => ({
-            id: c.id,
-            name: c.name,
-            status: c.status,
-            brief: c.description || "",
-            platforms: parse(c.defaultPlatforms),
-            postCount: c.automations.reduce((n, a) => n + a._count.posts, 0),
-            startDate: c.startDate?.toISOString() ?? null,
-            endDate: c.endDate?.toISOString() ?? null,
-            updatedAt: c.updatedAt.toISOString(),
-          })),
-          userMessage: campaigns.length === 0 ? "No content campaigns yet." : `${campaigns.length} content campaign${campaigns.length === 1 ? "" : "s"}.`,
+          campaigns: items,
+          userMessage: campaigns.length === 0 ? "No content campaigns yet." : `${campaigns.length} content campaign${campaigns.length === 1 ? "" : "s"} shown in an inline picker. STOP and wait for the user's row action if they need to choose one.`,
         },
       };
     } catch (e) {

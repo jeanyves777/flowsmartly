@@ -22,7 +22,9 @@
     "test:store-build:keep": "npx tsx scripts/test-store-build.ts --keep",
     "test:reel-build": "npx tsx scripts/test-reel-build.ts",
     "test:reel-build:verbose": "npx tsx scripts/test-reel-build.ts --verbose",
-    "test:reel-render": "npx tsx scripts/test-reel-render.ts"
+    "test:reel-render": "npx tsx scripts/test-reel-render.ts",
+    "test:director-ui": "node scripts/test-director-composer-ui.mjs",
+    "test:voice-agent": "node scripts/test-voice-agent-ui.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.123",
@@ -75,11 +77,13 @@
     "jszip": "^3.10.1",
     "lenis": "^1.3.25",
     "lucide-react": "^0.473.0",
+    "mediasoup-client": "^3.21.0",
     "nanoid": "^5.0.9",
     "next": "^15.5.12",
     "next-themes": "^0.4.4",
     "nodemailer": "^8.0.1",
     "openai": "^6.17.0",
+    "perfect-freehand": "^1.2.3",
     "puppeteer": "^24.42.0",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",

@@ -1,12 +1,18 @@
 import Link from "next/link";
 import Image from "next/image";
+import { SURFACES } from "@/components/marketing/surfaces";
 
 const columns = [
   {
+    title: "Surfaces",
+    links: SURFACES.map((s) => ({ href: `/surfaces/${s.key}`, label: s.label })),
+  },
+  {
     title: "Product",
     links: [
-      { href: "/#surfaces", label: "Surfaces" },
       { href: "/#work", label: "How it works" },
+      { href: "/#reel", label: "Product in motion" },
+      { href: "/#surfaces", label: "All surfaces" },
       { href: "/pricing", label: "Pricing" },
       { href: "/register", label: "Start free" },
     ],
@@ -36,8 +42,8 @@ export function PublicFooter() {
   return (
     <footer className="border-t border-border bg-muted/20">
       <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
-          <div className="col-span-2 sm:col-span-1">
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <Link href="/" className="mb-4 flex items-center">
               <Image src="/logo.png" alt="FlowSmartly" width={150} height={38} className="h-7 w-auto" unoptimized />
             </Link>
@@ -50,7 +56,7 @@ export function PublicFooter() {
               <h3 className="mb-4 text-sm font-semibold text-foreground">{col.title}</h3>
               <ul className="space-y-2.5">
                 {col.links.map((link) => (
-                  <li key={link.href}>
+                  <li key={link.href + link.label}>
                     <Link href={link.href} className="text-sm text-muted-foreground transition-colors hover:text-foreground">
                       {link.label}
                     </Link>
@@ -61,8 +67,15 @@ export function PublicFooter() {
           ))}
         </div>
         <div className="mt-12 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 sm:flex-row">
-          <p className="text-sm text-muted-foreground">&copy; {new Date().getFullYear()} FlowSmartly · One agent, every surface.</p>
-          <a href="mailto:info@flowsmartly.com" className="text-sm text-muted-foreground transition-colors hover:text-foreground">info@flowsmartly.com</a>
+          <p className="text-sm text-muted-foreground">
+            &copy; {new Date().getFullYear()} FlowSmartly · One agent, every surface.
+          </p>
+          <a
+            href="mailto:info@flowsmartly.com"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            info@flowsmartly.com
+          </a>
         </div>
       </div>
     </footer>

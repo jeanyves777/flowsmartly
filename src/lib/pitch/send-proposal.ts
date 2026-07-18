@@ -4,7 +4,7 @@ import { renderProposalHtml, renderProposalEmailHtml } from "@/lib/pitch/proposa
 import { renderHtmlToPdf } from "@/lib/utils/html-renderer";
 import { sendEmail } from "@/lib/email/core";
 import { createTransporter, sendViaMailgunApi } from "@/lib/email/marketing-sender";
-import { getPresignedUrl } from "@/lib/utils/s3-client";
+import { getPresignedUrl, presignAllUrls } from "@/lib/utils/s3-client";
 import type { PitchContent } from "@/lib/pitch/generator";
 import type { ServiceProposalContent } from "@/lib/pitch/proposal-agent";
 import type { ResearchData } from "@/lib/pitch/researcher";
@@ -136,6 +136,7 @@ export async function deliverProposal(userId: string, pitchId: string, opts: Del
   try {
     pitchContent = JSON.parse(pitch.pitchContent || "{}") as PitchContent | ServiceProposalContent;
     research = JSON.parse(pitch.research || "{}") as ResearchData;
+    pitchContent = await presignAllUrls(pitchContent);
   } catch {
     return { ok: false, code: "error", error: "Proposal content is corrupted." };
   }

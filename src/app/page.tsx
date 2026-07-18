@@ -1,9 +1,11 @@
 import { PublicHeader } from "@/components/layout/public-header";
 import { PublicFooter } from "@/components/layout/public-footer";
+import { MarketingShell } from "@/components/marketing/marketing-shell";
 import { PublicMotionProvider } from "@/components/marketing/motion";
 import { HeroSection } from "@/components/home/hero-section";
 import { ProofMarquee } from "@/components/marketing/sections/proof-marquee";
 import { WatchItWork } from "@/components/marketing/sections/watch-it-work";
+import { ProductReel } from "@/components/marketing/sections/product-reel";
 import { SurfacesSection } from "@/components/marketing/sections/surfaces-section";
 import { WhyDifferent } from "@/components/marketing/sections/why-different";
 import { VideoShowcase } from "@/components/marketing/sections/video-showcase";
@@ -15,24 +17,27 @@ import { FinalCta } from "@/components/marketing/sections/final-cta";
 
 export default function HomePage() {
   return (
-    <PublicMotionProvider>
-      <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
-        <PublicHeader />
-        <main>
-          <HeroSection />
-          <ProofMarquee />
-          <WatchItWork />
-          <SurfacesSection />
-          <WhyDifferent />
-          <VideoShowcase />
-          <UseCasesSection />
-          <SocialProof />
-          <OutcomesSection />
-          <PricingPreview />
-          <FinalCta />
-        </main>
-        <PublicFooter />
-      </div>
-    </PublicMotionProvider>
+    <MarketingShell>
+      <PublicMotionProvider>
+        <div className="min-h-screen overflow-x-hidden">
+          <PublicHeader />
+          <main>
+            <HeroSection />
+            <ProofMarquee />
+            <WatchItWork />
+            <ProductReel />
+            <SurfacesSection />
+            <WhyDifferent />
+            <VideoShowcase />
+            <UseCasesSection />
+            <SocialProof />
+            <OutcomesSection />
+            <PricingPreview />
+            <FinalCta />
+          </main>
+          <PublicFooter />
+        </div>
+      </PublicMotionProvider>
+    </MarketingShell>
   );
 }

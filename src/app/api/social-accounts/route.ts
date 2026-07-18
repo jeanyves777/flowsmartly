@@ -307,7 +307,7 @@ export async function GET(request: NextRequest) {
           connected: whatsappAccounts.length > 0,
           count: whatsappAccounts.length,
           connectHref: "/api/social/whatsapp/connect",
-          workspaceHref: "/whatsapp",
+          workspaceHref: "/home/whatsapp",
         },
         plan: session.user.plan,
         connectedCount,
