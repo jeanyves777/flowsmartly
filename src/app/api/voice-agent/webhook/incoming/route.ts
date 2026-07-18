@@ -57,14 +57,17 @@ export async function POST(request: NextRequest) {
     include: { agent: true },
   });
 
-  // Verify the caller with the number's stored signing secret. A BYO number has
-  // its own `signingSecret`; without a match we refuse rather than let anyone
+  // Verify the caller. A BYO number carries both a dispatch `signingSecret` and the
+  // `webhookAuthToken` we set at registration — xAI may present either (the auth
+  // token in Authorization, or the dispatch secret as a signature), so accept a
+  // match on either. Without a secret at all we refuse, rather than let anyone
   // spend a tenant's credits by POSTing a call_id.
   const provided = request.headers.get("x-xai-signature") || request.headers.get("authorization") || "";
-  if (number?.signingSecret) {
-    const ok = provided.includes(number.signingSecret);
+  const secrets = [number?.signingSecret, number?.webhookAuthToken].filter((s): s is string => !!s);
+  if (secrets.length) {
+    const ok = provided.length > 0 && secrets.some((s) => provided.includes(s));
     if (!ok) {
-      console.warn("[voice webhook] signature mismatch for", number.e164);
+      console.warn("[voice webhook] signature mismatch for", number?.e164);
       return NextResponse.json({ ok: false }, { status: 401 });
     }
   }

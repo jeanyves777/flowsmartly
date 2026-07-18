@@ -433,6 +433,118 @@ function RequestCard({ req, onApproved }: { req: AgentRequest; onApproved: () =>
 }
 
 // ---------------------------------------------------------------------------
+// Direct SIP — connect a client's own number (BYO trunk), one click
+// ---------------------------------------------------------------------------
+
+interface NumberReq {
+  id: string;
+  e164: string | null;
+  country: string | null;
+  friendlyName: string | null;
+  requestNote: string | null;
+  requestedAt: string | null;
+  user: { id: string; email: string; name: string | null } | null;
+  agent: { id: string; name: string } | null;
+}
+type SipDetails = { host: string | null; uri: string; username: string; password: string };
+
+function SipResult({ sip }: { sip: SipDetails }) {
+  return (
+    <div className="mt-3 space-y-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3">
+      <p className="text-xs text-muted-foreground">Relay these to the client&apos;s carrier / PBX so their trunk points at us (the password is shown once):</p>
+      <CopyField label="SIP URI" value={sip.uri} mono />
+      <CopyField label="Username" value={sip.username} mono />
+      <CopyField label="Password" value={sip.password} mono />
+    </div>
+  );
+}
+
+function NumberConnectPanel() {
+  const { toast } = useToast();
+  const [reqs, setReqs] = useState<NumberReq[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [done, setDone] = useState<Record<string, SipDetails>>({});
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const j = await fetch("/api/admin/voice-agent/numbers").then((r) => r.json());
+      if (j.success) setReqs(j.requests || []);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+
+  const connect = async (id: string) => {
+    setBusyId(id);
+    try {
+      const j = await fetch("/api/admin/voice-agent/numbers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId: id }),
+      }).then((r) => r.json());
+      if (!j.success) {
+        toast({ title: j.error?.message || "Could not connect that number", variant: "destructive" });
+        return;
+      }
+      setDone((d) => ({ ...d, [id]: j.sip as SipDetails }));
+      toast({ title: "Number connected", description: "The client can switch their agent on now." });
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const justDone = Object.entries(done).filter(([id]) => !reqs.some((r) => r.id === id));
+  if (!loading && reqs.length === 0 && justDone.length === 0) return null;
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-5">
+        <div className="flex items-center gap-2">
+          <PhoneCall className="h-5 w-5 text-cyan-500" />
+          <h2 className="text-lg font-semibold">Direct SIP — numbers to connect</h2>
+          {reqs.length > 0 && <Badge variant="secondary">{reqs.length}</Badge>}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          A client gave us a number they already own. Click Connect to register it over Direct SIP —
+          we generate the SIP credentials; relay them to the client&apos;s carrier.
+        </p>
+        {reqs.map((r) => (
+          <div key={r.id} className="rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-mono font-semibold">{r.e164 || "—"}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {r.user?.email || "—"}
+                  {r.agent ? ` · ${r.agent.name}` : ""}
+                  {r.friendlyName ? ` · ${r.friendlyName}` : ""}
+                </div>
+              </div>
+              <Button onClick={() => connect(r.id)} disabled={busyId === r.id} className="shrink-0 gap-2">
+                {busyId === r.id ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plug className="h-4 w-4" />}
+                Connect (Direct SIP)
+              </Button>
+            </div>
+            {done[r.id] && <SipResult sip={done[r.id]} />}
+          </div>
+        ))}
+        {justDone.map(([id, sip]) => (
+          <div key={id} className="rounded-lg border p-3">
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-600">
+              <CheckCircle2 className="h-4 w-4" /> Connected
+            </div>
+            <SipResult sip={sip} />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -498,6 +610,9 @@ export default function VoiceAgentsQueuePage() {
           </Button>
         </div>
       </div>
+
+      {/* Direct SIP — client-provided numbers waiting to be connected (one click). */}
+      <NumberConnectPanel />
 
       {/* Body */}
       {loading ? (
