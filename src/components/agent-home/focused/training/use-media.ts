@@ -365,6 +365,36 @@ export function useMedia(sessionId: string | null, live: boolean) {
     };
   }, []);
 
+  // Leaving the training page (tab switch / navigating within the app) often MUTES
+  // the camera track without ending it — the control still reads "on" but the video
+  // is a black rectangle. On return, if the camera is meant to be on but its track is
+  // dead/muted, re-acquire it so it heals itself (no manual off/on).
+  const reacquireCam = useCallback(async () => {
+    const prod = producers.current.get("cam");
+    if (!prod) return; // camera isn't on — nothing to heal
+    const cur = rawCam.current?.getVideoTracks()[0];
+    if (cur && cur.readyState === "live" && !cur.muted) return; // still healthy
+    try {
+      const raw = await navigator.mediaDevices.getUserMedia({
+        video: { ...(camId.current ? { deviceId: { exact: camId.current } } : {}), width: 640, height: 480 },
+      });
+      watchTrack("cam", raw.getVideoTracks()[0]);
+      rawCam.current?.getTracks().forEach((t) => t.stop());
+      rawCam.current = raw;
+      const preview = await composeCam(raw);
+      await prod.replaceTrack({ track: preview.getVideoTracks()[0] });
+      setState((s) => ({ ...s, localCam: preview, camOn: true, needsAttention: false }));
+    } catch {
+      /* a hard failure falls through to the needsAttention recovery banner */
+    }
+  }, [watchTrack, composeCam]);
+
+  useEffect(() => {
+    const onVis = () => { if (document.visibilityState === "visible") void reacquireCam(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [reacquireCam]);
+
   // ------------------------------------------------------------------ produce
   const publish = useCallback(
     async (key: "cam" | "mic" | "screen", track: MediaStreamTrack) => {

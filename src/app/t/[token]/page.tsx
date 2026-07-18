@@ -26,11 +26,13 @@ interface Info {
 }
 interface Dev { deviceId: string; label: string }
 
-const SCENES: { key: string; label: string; from: string; to: string }[] = [
-  { key: "office", label: "Office", from: "#6b7280", to: "#374151" },
-  { key: "slate", label: "Slate", from: "#334155", to: "#0f172a" },
-  { key: "warm", label: "Warm", from: "#92400e", to: "#451a03" },
-  { key: "cool", label: "Cool", from: "#0ea5e9", to: "#1e3a8a" },
+// Real scene photos, bundled same-origin (no CORS taint) — the compositor puts you
+// in front of them. See public/training-bg.
+const SCENES: { key: string; label: string; url: string }[] = [
+  { key: "office", label: "Office", url: "/training-bg/office.jpg" },
+  { key: "library", label: "Library", url: "/training-bg/library.jpg" },
+  { key: "studio", label: "Studio", url: "/training-bg/studio.jpg" },
+  { key: "loft", label: "Loft", url: "/training-bg/loft.jpg" },
 ];
 const eq = (a: BackgroundSpec, b: BackgroundSpec) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -348,14 +350,13 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
               <BgTile on={bg.type === "blur"} label="Blur" onClick={() => void applyBg({ type: "blur" })}>
                 <span className="grid h-full w-full place-items-center bg-gradient-to-br from-slate-500 to-slate-800 text-[10px] font-bold text-white/70 [filter:blur(1px)]">blur</span>
               </BgTile>
-              <BgTile on={eq(bg, { type: "gradient", from: SCENES[0].from, to: SCENES[0].to })} label="Office" grad={[SCENES[0].from, SCENES[0].to]} onClick={() => void applyBg({ type: "gradient", from: SCENES[0].from, to: SCENES[0].to })} />
+              {SCENES.map((s) => (
+                <BgTile key={s.key} on={eq(bg, { type: "image", url: s.url })} label={s.label} bgUrl={s.url} onClick={() => void applyBg({ type: "image", url: s.url })} />
+              ))}
               <BgTile on={eq(bg, { type: "gradient", from: brand[0], to: brand[1] })} label="Brand" grad={[brand[0], brand[1]]} onClick={() => void applyBg({ type: "gradient", from: brand[0], to: brand[1] })} />
               <button onClick={() => uploadRef.current?.click()} className="grid aspect-[4/3] place-items-center rounded-xl border border-dashed border-white/15 bg-white/5 text-slate-400 hover:border-brand-500 hover:text-white">
                 <span className="flex flex-col items-center gap-1"><Upload className="h-4 w-4" /><span className="text-[10px] font-bold">Upload</span></span>
               </button>
-              {SCENES.slice(1).map((s) => (
-                <BgTile key={s.key} on={eq(bg, { type: "gradient", from: s.from, to: s.to })} label={s.label} grad={[s.from, s.to]} onClick={() => void applyBg({ type: "gradient", from: s.from, to: s.to })} />
-              ))}
               <input ref={uploadRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) onUpload(f); }} />
             </div>
           ) : null}
@@ -414,9 +415,11 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
   );
 }
 
-function BgTile({ on, label, grad, onClick, children }: { on: boolean; label: string; grad?: string[]; onClick: () => void; children?: React.ReactNode }) {
+function BgTile({ on, label, grad, bgUrl, onClick, children }: { on: boolean; label: string; grad?: string[]; bgUrl?: string; onClick: () => void; children?: React.ReactNode }) {
   return (
     <button onClick={onClick} className={`relative aspect-[4/3] overflow-hidden rounded-xl border-2 ${on ? "border-brand-500" : "border-transparent"}`} style={grad ? { background: `linear-gradient(135deg, ${grad[0]}, ${grad[1]})` } : undefined}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {bgUrl ? <img src={bgUrl} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
       {children}
       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1 text-left text-[10px] font-bold text-white">{label}</span>
       {on ? <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-brand-500"><Check className="h-3 w-3" /></span> : null}

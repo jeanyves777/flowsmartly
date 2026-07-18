@@ -131,12 +131,21 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!actor || actor.state !== "ADMITTED") return err("Access denied", 403);
 
   const b = (await request.json().catch(() => ({}))) as {
-    kind?: "cursor" | "laser" | "livestroke";
+    kind?: "cursor" | "laser" | "livestroke" | "liveitem";
     x?: number;
     y?: number;
     stroke?: { tool?: "pen" | "hi"; color?: string; size?: number; pts?: { x: number; y: number; p?: number }[] } | null;
+    item?: BoardItem | null;
     sessionKey?: string;
   };
+
+  // A mark being dragged/edited right now — streamed so others see it move live;
+  // the committed board:update lands on pointer-up. Never stored. `item:null` clears.
+  if (b.kind === "liveitem") {
+    const item = b.item && b.item.id ? (b.item as BoardItem) : null;
+    broadcast(id, { type: "liveitem", participantId: actor.participantId, item }, b.sessionKey);
+    return NextResponse.json({ success: true });
+  }
 
   if (b.kind === "livestroke") {
     // Clamp the payload so one client can't fan out an unbounded array.
