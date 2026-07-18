@@ -13,6 +13,13 @@ export const maxDuration = 600;
 const deny = (message: string, status: number) =>
   new Response(JSON.stringify({ error: message }), { status, headers: { "Content-Type": "application/json" } });
 
+// A phone that backgrounds the tab DROPS the SSE, but the person hasn't left. We
+// give them a grace window to come back before marking them LEFT — otherwise every
+// tab switch would evict them and, in a waiting-room room, force the host to admit
+// them all over again. Keyed by `${sessionId}:${participantId}`.
+const LEAVE_GRACE_MS = 60_000;
+const pendingLeave = new Map<string, ReturnType<typeof setTimeout>>();
+
 /**
  * GET — the live room stream.
  *
@@ -64,13 +71,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   if (!participantId) return deny("Unauthorized", 401);
 
-  // Returning after a leave (or a dropped connection): put the seat back before
-  // we snapshot, so the DTO includes them again. Hosts/co-hosts always return
-  // to their seat; a trainee/guest re-knocks if the room has a waiting room.
-  const existing = await prisma.trainingParticipant.findUnique({ where: { id: participantId }, select: { state: true, role: true } });
+  // Reconnecting cancels any pending "leave" from a dropped connection — they're
+  // back, so they keep their seat (no eviction, no re-admit).
+  const leaveKey = `${id}:${participantId}`;
+  const pend = pendingLeave.get(leaveKey);
+  if (pend) { clearTimeout(pend); pendingLeave.delete(leaveKey); }
+
+  // Returning after a real leave: put the seat back before we snapshot. Hosts and
+  // co-hosts always return admitted; a trainee/guest who was ALREADY admitted once
+  // (joinedAt set) comes straight back in — only a never-admitted knocker re-knocks.
+  const existing = await prisma.trainingParticipant.findUnique({ where: { id: participantId }, select: { state: true, role: true, joinedAt: true } });
   if (existing?.state === "LEFT") {
     const room = await prisma.trainingSession.findUnique({ where: { id }, select: { waitingRoom: true } });
-    const back = existing.role === "HOST" || existing.role === "COHOST" || !room?.waitingRoom ? "ADMITTED" : "WAITING";
+    const canControl = existing.role === "HOST" || existing.role === "COHOST";
+    const back = canControl || !room?.waitingRoom || existing.joinedAt ? "ADMITTED" : "WAITING";
     await prisma.trainingParticipant.update({ where: { id: participantId }, data: { state: back, leftAt: null } }).catch(() => {});
   }
 
@@ -131,14 +145,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (heartbeat) clearInterval(heartbeat);
       if (meterTick) clearInterval(meterTick);
       removeConn(id, sessionKey);
-      // Once their LAST tab is gone they've left: mark the seat LEFT so a later
-      // room:state re-broadcast can't resurrect them (a reconnect restores it).
-      // updateMany guards on state so a removed/denied row is never touched.
+      // Their last tab is gone — but a backgrounded phone drops the SSE without the
+      // person leaving. Wait out a grace window; only mark LEFT if they're still gone
+      // when it fires (a reconnect clears this timer). updateMany guards on state so a
+      // removed/denied row is never touched.
       if (!connectedIds(id).includes(pid)) {
-        void prisma.trainingParticipant
-          .updateMany({ where: { id: pid, state: { in: ["ADMITTED", "WAITING"] } }, data: { state: "LEFT", leftAt: new Date() } })
-          .catch(() => {});
-        broadcast(id, { type: "room:leave", participantId: pid });
+        const existing = pendingLeave.get(leaveKey);
+        if (existing) clearTimeout(existing);
+        pendingLeave.set(
+          leaveKey,
+          setTimeout(() => {
+            pendingLeave.delete(leaveKey);
+            if (connectedIds(id).includes(pid)) return; // came back on another tab
+            void prisma.trainingParticipant
+              .updateMany({ where: { id: pid, state: { in: ["ADMITTED", "WAITING"] } }, data: { state: "LEFT", leftAt: new Date() } })
+              .catch(() => {});
+            broadcast(id, { type: "room:leave", participantId: pid });
+          }, LEAVE_GRACE_MS),
+        );
       }
     },
   });

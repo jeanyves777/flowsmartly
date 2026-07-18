@@ -102,12 +102,14 @@ interface Props {
   me: TrainingParticipantDTO;
   cursors: BoardCursor[];
   liveStrokes?: Record<string, LiveStroke>;
+  liveItems?: Record<string, BoardItem>;
   connected: boolean;
   onAdd: (item: BoardItem) => void;
   onRemove: (itemId: string) => void;
   onUpdate: (item: BoardItem) => void;
   onPing: (x: number, y: number, laser: boolean) => void;
   onLiveStroke?: (stroke: LiveStroke | null) => void;
+  onLiveItem?: (item: BoardItem | null) => void;
   onUndo: () => void;
   onClear: () => void;
   act: (action: string, participantId?: string) => Promise<string | null>;
@@ -122,7 +124,7 @@ interface Props {
 
 type SheetKey = null | "invite" | "roster";
 
-export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, onRemove, onUpdate, onPing, onLiveStroke, onUndo, onClear, act, patch, messages, sendMessage, onLeave, onManage, onEnd }: Props) {
+export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connected, onAdd, onRemove, onUpdate, onPing, onLiveStroke, onLiveItem, onUndo, onClear, act, patch, messages, sendMessage, onLeave, onManage, onEnd }: Props) {
   const [tool, setTool] = useState<BoardTool>("pen");
   const [ink, setInk] = useState(INKS[0]);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rect");
@@ -136,6 +138,23 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
   const [seenChat, setSeenChat] = useState(0); // messages read → drives the unread badge
   const unread = Math.max(0, messages.length - seenChat);
   useEffect(() => { if (chatOpen) setSeenChat(messages.length); }, [chatOpen, messages.length]);
+  // A proper new-message notification: a toast pops up when a message lands while
+  // the chat is closed (and it isn't your own). Tap it to open the chat.
+  const [chatToast, setChatToast] = useState<TrainingMessageDTO | null>(null);
+  const prevMsgLen = useRef(messages.length);
+  useEffect(() => {
+    if (messages.length > prevMsgLen.current) {
+      const last = messages[messages.length - 1];
+      if (last && !chatOpen && last.participantId !== me.id) setChatToast(last);
+    }
+    prevMsgLen.current = messages.length;
+  }, [messages.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (chatOpen) setChatToast(null); }, [chatOpen]);
+  useEffect(() => {
+    if (!chatToast) return;
+    const t = setTimeout(() => setChatToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [chatToast]);
   // How the roster looks on a PHONE — the viewer's own choice (per device): a top
   // strip of tiles, or draggable floating bubbles over the board. Persisted local.
   const [mobileRoster, setMobileRoster] = useState<"float" | "top">("float");
@@ -146,32 +165,24 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
   const videoBtnRef = useRef<HTMLDivElement>(null);
   const moreBtnRef = useRef<HTMLDivElement>(null);
 
-  // The board is a strict, always-16:9 box computed from the stage's real size.
-  // (CSS aspect-video + max-h-full silently BREAKS the ratio when height binds,
-  // so the same fractional coordinate landed on different pixels in the studio vs
-  // the /m attendee view — marks looked "slightly off". A measured box is 16:9 on
-  // every mount, so coordinates agree everywhere.)
+  // The board is measured from the stage and FILLS it — on every screen — so there's
+  // no wasted black gutter around a letterboxed box. Marks are stored in fractional
+  // (0..1) board coordinates, so a stroke lands in the same relative place on every
+  // screen regardless of the board's aspect; the measured box just makes the render
+  // deterministic (CSS aspect-video + max-h-full silently broke the ratio before).
   const stageRef = useRef<HTMLDivElement>(null);
   const [boardBox, setBoardBox] = useState<{ w: number; h: number } | null>(null);
+  // The host can drag the spotlight tile anywhere over the stage.
+  const spotWrapRef = useRef<HTMLDivElement>(null);
+  const [spotPos, setSpotPos] = useState<{ x: number; y: number } | null>(null);
+  const spotDrag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
   useLayoutEffect(() => {
     const el = stageRef.current;
     if (!el) return;
     const fit = () => {
       const { width, height } = el.getBoundingClientRect();
       if (!width || !height) return;
-      // Phones are portrait — a 16:9 board would leave a big black gutter, so the
-      // board fills the stage there (the whiteboard should use most of the screen).
-      // Desktop keeps a centred 16:9 box. Coordinates stay fractional either way,
-      // so a mark lands in the same relative place on every screen.
-      const desktop = typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches;
-      if (!desktop) {
-        setBoardBox({ w: Math.round(width), h: Math.round(height) });
-        return;
-      }
-      let w = Math.min(width, 980);
-      let h = (w * 9) / 16;
-      if (h > height) { h = height; w = (h * 16) / 9; }
-      setBoardBox({ w: Math.round(w), h: Math.round(h) });
+      setBoardBox({ w: Math.round(width), h: Math.round(height) });
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -268,6 +279,25 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
   const onSpotlight = (id: string) => void patch({ spotlightId: session.spotlightId === id ? null : id });
   const rosterProps = { session, me, host, act, media, waiting, inRoom, onInvite: () => setSheet("invite"), onSpotlight };
 
+  // ---- draggable spotlight (host positions it anywhere over the stage) ----
+  const spotDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const wrap = spotWrapRef.current, tile = e.currentTarget;
+    if (!wrap) return;
+    const wr = wrap.getBoundingClientRect(), tr = tile.getBoundingClientRect();
+    spotDrag.current = { sx: e.clientX, sy: e.clientY, ox: spotPos?.x ?? tr.left - wr.left, oy: spotPos?.y ?? tr.top - wr.top, moved: false };
+    tile.setPointerCapture(e.pointerId);
+  };
+  const spotMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = spotDrag.current, wrap = spotWrapRef.current;
+    if (!d || !wrap) return;
+    if (Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) > 4) d.moved = true;
+    const wr = wrap.getBoundingClientRect(), tile = e.currentTarget;
+    const x = Math.max(6, Math.min(wr.width - tile.offsetWidth - 6, d.ox + (e.clientX - d.sx)));
+    const y = Math.max(6, Math.min(wr.height - tile.offsetHeight - 6, d.oy + (e.clientY - d.sy)));
+    setSpotPos({ x, y });
+  };
+  const spotUp = () => { spotDrag.current = null; };
+
   return (
     <div className="absolute inset-0 flex bg-background">
       {/* ---- desktop tool rail ---- */}
@@ -281,7 +311,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
       ) : null}
 
       {/* ---- stage column ---- */}
-      <div className="relative flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {/* top: sources */}
         <div className="flex items-center gap-1 overflow-x-auto border-b border-border bg-background/70 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
@@ -333,18 +363,25 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
         {layout === "top" ? <RosterStrip {...rosterProps} className="hidden md:flex" /> : null}
         {mobileRoster === "top" ? <RosterStrip {...rosterProps} className="md:hidden" /> : null}
 
-        {/* stage — the inner ref measures the space, the board is a fitted 16:9 box */}
-        <div className="relative flex flex-1 flex-col overflow-hidden bg-[#0e0e13] p-2.5 sm:p-3.5">
-          {/* spotlight — a big pinned tile everyone sees */}
+        {/* stage — the inner ref measures the space, the board fills it. min-h-0 lets
+            it SHRINK so the source bar + lesson card + control bar always stay on
+            screen (no page scroll to reach the top tabs or the bottom menu). */}
+        <div ref={spotWrapRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0e0e13] p-2.5 sm:p-3.5">
+          {/* spotlight — a big tile everyone sees; the host can DRAG it anywhere */}
           {spotlight ? (
-            <div className="pointer-events-none absolute right-3 top-3 z-[14] w-[38%] max-w-[240px]">
-              <div className="pointer-events-auto relative aspect-[4/3] overflow-hidden rounded-xl border-2 border-amber-400 bg-[#181820] shadow-2xl">
+            <div className="pointer-events-none absolute z-[14] w-[38%] max-w-[240px]" style={spotPos ? { left: spotPos.x, top: spotPos.y } : { right: 12, top: 12 }}>
+              <div
+                onPointerDown={host ? spotDown : undefined}
+                onPointerMove={host ? spotMove : undefined}
+                onPointerUp={host ? spotUp : undefined}
+                className={cn("pointer-events-auto relative aspect-[4/3] overflow-hidden rounded-xl border-2 border-amber-400 bg-[#181820] shadow-2xl", host && "cursor-move touch-none")}
+              >
                 {spotFeed ? <VideoFeed stream={spotFeed} muted mirror={spotlight.id === me.id} /> : (
                   <div className="grid h-full w-full place-items-center"><span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-brand-600 to-violet-700 text-lg font-black text-white">{spotlight.name.slice(0, 2).toUpperCase()}</span></div>
                 )}
-                <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-amber-400 px-1.5 py-0.5 text-[9px] font-black text-amber-950"><Star className="h-2.5 w-2.5 fill-current" /> Spotlight</span>
-                <span className="absolute inset-x-2 bottom-1 truncate text-[11px] font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.9)]">{spotlight.name}</span>
-                {host ? <button onClick={() => onSpotlight(spotlight.id)} title="Remove spotlight" className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-md bg-black/55 text-white hover:bg-black/75"><X className="h-3 w-3" /></button> : null}
+                <span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-amber-400 px-1.5 py-0.5 text-[9px] font-black text-amber-950"><Star className="h-2.5 w-2.5 fill-current" /> Spotlight</span>
+                <span className="pointer-events-none absolute inset-x-2 bottom-1 truncate text-[11px] font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.9)]">{spotlight.name}</span>
+                {host ? <button onPointerDown={(e) => e.stopPropagation()} onClick={() => onSpotlight(spotlight.id)} title="Remove spotlight" className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-md bg-black/55 text-white hover:bg-black/75"><X className="h-3 w-3" /></button> : null}
               </div>
             </div>
           ) : null}
@@ -374,10 +411,12 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
               canDraw={iCanDraw}
               cursors={cursors}
               liveStrokes={liveStrokes}
+              liveItems={liveItems}
               onAdd={onAdd}
               onRemove={onRemove}
               onPing={onPing}
               onLiveStroke={onLiveStroke}
+              onLiveItem={onLiveItem}
               backdrop={backdrop}
             />
             {paged && material ? (
@@ -571,6 +610,23 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
       ) : null}
 
       {chatOpen ? <ChatPanel messages={messages} me={me} sendMessage={sendMessage} onClose={() => setChatOpen(false)} /> : null}
+
+      {/* new-message notification — pops in above the control bar; tap to open chat */}
+      {chatToast && !chatOpen ? (
+        <button
+          onClick={() => { setChatOpen(true); setChatToast(null); }}
+          className="absolute bottom-[86px] right-3 z-[45] flex max-w-[300px] items-start gap-2.5 rounded-2xl border border-border bg-card px-3 py-2.5 text-left shadow-2xl sm:bottom-[74px]"
+        >
+          <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 text-white">
+            <MessageSquare className="h-4 w-4" />
+            <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-extrabold text-white ring-2 ring-card">{unread > 9 ? "9+" : unread}</span>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11.5px] font-bold">{chatToast.name}</span>
+            <span className="line-clamp-2 text-[11.5px] leading-snug text-muted-foreground">{chatToast.text}</span>
+          </span>
+        </button>
+      ) : null}
 
       <AudioSink remotes={media.remotes} spkId={media.spkId} />
     </div>
@@ -1180,8 +1236,11 @@ function ChatPanel({ messages, me, sendMessage, onClose }: {
   };
   return (
     <>
-      <div className="fixed inset-0 z-[54] bg-black/40 md:pointer-events-none md:bg-transparent" onClick={onClose} />
-      <div className="fixed inset-x-0 bottom-0 z-[55] flex max-h-[72%] flex-col rounded-t-3xl border-t border-border bg-card shadow-2xl md:inset-y-0 md:left-auto md:right-0 md:max-h-none md:w-[360px] md:rounded-none md:border-l md:border-t-0">
+      {/* On a phone: a bottom-sheet overlay (backdrop dims the room only). On desktop:
+          a STATIC side column in the flex row, so it sits BESIDE the board and the
+          presentation just narrows — never gets covered. */}
+      <div className="absolute inset-0 z-[54] bg-black/40 md:hidden" onClick={onClose} />
+      <div className="absolute inset-x-0 bottom-0 z-[55] flex max-h-[72%] flex-col rounded-t-3xl border-t border-border bg-card shadow-2xl md:static md:z-auto md:h-full md:max-h-none md:w-[300px] md:shrink-0 md:rounded-none md:border-l md:border-t-0 md:shadow-none">
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <MessageSquare className="h-4 w-4 text-brand-400" />
           <b className="text-[14px]">Chat</b>
