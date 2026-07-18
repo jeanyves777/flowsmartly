@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
 import { useMedia, type RemoteStream, type DeviceOption } from "./use-media";
 import { InviteSheet, Sheet } from "./invite-sheet";
+import { VideoSheet } from "./video-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
 import type { BoardItem, BoardTool, LiveStroke, StageSource, TrainingParticipantDTO, TrainingSessionDTO, TrainingMessageDTO } from "@/lib/training/types";
 
@@ -128,7 +129,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
   const [showTools, setShowTools] = useState(true); // desktop pen rail
   const [toolDock, setToolDock] = useState(false); // mobile overlay dock
   const [sheet, setSheet] = useState<SheetKey>(null);
-  const [devMenu, setDevMenu] = useState<null | "audio" | "video">(null); // anchored device popover
+  const [devMenu, setDevMenu] = useState<null | "audio">(null); // anchored mic/speaker popover
+  const [videoSheet, setVideoSheet] = useState(false); // camera + virtual background
   const [moreMenu, setMoreMenu] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [seenChat, setSeenChat] = useState(0); // messages read → drives the unread badge
@@ -459,7 +461,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
               Icon={me.camOn ? Video : VideoOff}
               danger={!me.camOn}
             />
-            {media.enabled ? <Caret onClick={() => setDevMenu((v) => (v === "video" ? null : "video"))} title="Camera devices" /> : null}
+            {media.enabled ? <Caret onClick={() => setVideoSheet(true)} title="Camera & background" /> : null}
           </div>
           {/* screen share — desktop bar only (phones reach it from More) */}
           {canShareScreen(me, session) ? (
@@ -528,13 +530,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, 
           />
         </AnchoredMenu>
       ) : null}
-      {devMenu === "video" ? (
-        <AnchoredMenu anchorRef={videoBtnRef} onClose={() => setDevMenu(null)} width={260}>
-          <DeviceGroups
-            onClose={() => setDevMenu(null)}
-            groups={[{ label: "Camera", Icon: Video, items: media.cameras, selected: media.camId, onPick: media.pickCamera }]}
-          />
-        </AnchoredMenu>
+      {videoSheet ? (
+        <VideoSheet media={media} session={session} onClose={() => setVideoSheet(false)} />
       ) : null}
       {moreMenu ? (
         <AnchoredMenu anchorRef={moreBtnRef} onClose={() => setMoreMenu(false)}>
