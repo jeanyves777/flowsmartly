@@ -1,14 +1,15 @@
 /**
- * Admin — fulfil voice number requests.
+ * Admin — connect a client's own number by Direct SIP (BYO trunk).
  *
- * The provider refuses to provision its own numbers over the API ("Use the
- * console instead"), so a human genuinely has to add the number there. This is
- * the queue for that, and the way the console number gets mapped back to the
- * tenant who asked.
+ * The client provides a number they already own; it lands here as a REQUESTED
+ * BYO line. One click runs the real xAI registration (`registerByoNumber`), which
+ * is the API equivalent of filling the console's "Direct SIP" modal: it generates
+ * the SIP credentials + webhook token, hands back the SIP host + a one-time dispatch
+ * signing secret, and we persist all of it. The admin then relays the SIP URI +
+ * credentials to the client's carrier so their trunk points at us.
  *
- * GET  → open requests + the team's numbers from the provider, side by side so
- *        an admin can see which console numbers aren't claimed yet.
- * POST → attach a provider number to a request and switch the line on.
+ * We never provision numbers (the provider refuses that over the API). GET lists the
+ * pending client-provided numbers; POST connects one.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -16,10 +17,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminSession } from "@/lib/admin/auth";
 import { auditAdmin } from "@/lib/audit/logger";
 import { prisma } from "@/lib/db/client";
-import { listXaiNumbers } from "@/lib/voice-agent/xai-phone";
+import { registerByoNumber } from "@/lib/voice-agent/xai-phone";
 
 function fail(message: string, status = 400) {
   return NextResponse.json({ success: false, error: { message } }, { status });
+}
+
+/** A long random secret for the per-number webhook + SIP credentials. */
+function secret(len = 28): string {
+  const abc = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let s = "";
+  const bytes = new Uint8Array(len);
+  crypto.getRandomValues(bytes);
+  for (let i = 0; i < len; i++) s += abc[bytes[i] % abc.length];
+  return s;
 }
 
 export async function GET() {
@@ -27,35 +38,17 @@ export async function GET() {
   if (!admin) return fail("Unauthorized", 401);
 
   try {
-    const [requests, claimed, provider] = await Promise.all([
-      prisma.phoneNumber.findMany({
-        where: { status: "REQUESTED" },
-        orderBy: { requestedAt: "asc" },
-        include: {
-          user: { select: { id: true, email: true, name: true } },
-          agent: { select: { id: true, name: true } },
-        },
-      }),
-      prisma.phoneNumber.findMany({
-        where: { status: "ACTIVE" },
-        select: { xaiPhoneNumberId: true, e164: true, userId: true },
-      }),
-      listXaiNumbers(),
-    ]);
-
-    const taken = new Set(claimed.map((c) => c.xaiPhoneNumberId).filter(Boolean));
-    // Numbers that exist at the provider but aren't attached to any tenant here
-    // — i.e. what an admin just added in the console and can now hand out.
-    const unclaimed = provider.ok
-      ? provider.numbers.filter((n) => !taken.has(n.phoneNumberId))
-      : [];
-
-    return NextResponse.json({
-      success: true,
-      requests,
-      unclaimed,
-      providerError: provider.ok ? null : provider.error,
+    const requests = await prisma.phoneNumber.findMany({
+      where: { status: "REQUESTED", origin: "BYO_TRUNK" },
+      orderBy: { requestedAt: "asc" },
+      select: {
+        id: true, e164: true, country: true, friendlyName: true, requestNote: true, requestedAt: true,
+        user: { select: { id: true, email: true, name: true } },
+        agent: { select: { id: true, name: true } },
+      },
     });
+
+    return NextResponse.json({ success: true, requests });
   } catch (error) {
     console.error("[admin/voice-numbers] GET error:", error);
     return fail("Could not load number requests", 500);
@@ -67,58 +60,80 @@ export async function POST(request: NextRequest) {
   if (!admin) return fail("Unauthorized", 401);
 
   try {
-    const body = await request.json();
-    const { requestId, xaiPhoneNumberId } = body as {
-      requestId?: string;
-      xaiPhoneNumberId?: string;
-    };
-    if (!requestId || !xaiPhoneNumberId) return fail("Pick a request and a number.");
+    const { requestId } = (await request.json()) as { requestId?: string };
+    if (!requestId) return fail("Which request?");
 
     const req = await prisma.phoneNumber.findUnique({ where: { id: requestId } });
     if (!req) return fail("Request not found", 404);
     if (req.status !== "REQUESTED") return fail("That request is already handled.");
+    if (!req.e164) return fail("That request has no number to connect.");
 
-    const provider = await listXaiNumbers();
-    if (!provider.ok) return fail(provider.error || "Could not reach the provider", 502);
-
-    const picked = provider.numbers.find((n) => n.phoneNumberId === xaiPhoneNumberId);
-    if (!picked?.phoneNumber) return fail("That number isn't at the provider.");
-
-    // Don't hand the same line to two tenants.
+    // Never connect the same line for two tenants.
     const clash = await prisma.phoneNumber.findFirst({
-      where: {
-        OR: [{ xaiPhoneNumberId }, { e164: picked.phoneNumber }],
-        status: { not: "RELEASED" },
-        NOT: { id: requestId },
-      },
+      where: { e164: req.e164, status: { not: "RELEASED" }, NOT: { id: requestId } },
     });
-    if (clash) return fail("That number is already assigned to someone.");
+    if (clash) return fail("That number is already connected for someone else.");
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const authToken = secret(32);
+    const sipUsername = `fs${secret(10).toLowerCase()}`;
+    const sipPassword = secret(24);
+
+    const reg = await registerByoNumber({
+      phoneNumber: req.e164,
+      name: `flowsmartly-${req.userId.slice(-8)}`,
+      webhookUrl: `${appUrl.replace(/\/$/, "")}/api/voice-agent/webhook/incoming`,
+      webhookAuthToken: authToken,
+      sipUsername,
+      sipPassword,
+    });
+
+    if (!reg.ok) {
+      if (reg.alreadyRegistered) {
+        return fail("That number is already registered at the provider — disconnect it there first.");
+      }
+      return fail(reg.error || "Could not connect that number", 502);
+    }
+
+    // The signing secret comes back ONCE — persist it (and the SIP creds) now, or
+    // inbound calls can never be verified and the number must be re-registered.
     const number = await prisma.phoneNumber.update({
       where: { id: requestId },
       data: {
-        e164: picked.phoneNumber,
         status: "ACTIVE",
-        xaiPhoneNumberId: picked.phoneNumberId,
-        xaiAgentId: picked.agentId ?? null,
-        sipHost: picked.sipHost ?? null,
-        region: picked.name ?? null,
+        origin: "BYO_TRUNK",
+        xaiPhoneNumberId: reg.number.phoneNumberId,
+        sipHost: reg.number.sipHost ?? null,
+        signingSecret: reg.number.dispatchSigningSecret ?? null,
+        sipUsername,
+        sipPassword,
+        webhookAuthToken: authToken,
         fulfilledAt: new Date(),
         fulfilledBy: admin.adminId,
       },
       include: { user: { select: { email: true } } },
     });
 
-    // Handing a phone line to a tenant is worth a trail.
-    await auditAdmin("voice_number.assign", admin.adminId, "PhoneNumber", number.id, {
-      e164: picked.phoneNumber,
-      xaiPhoneNumberId,
+    await auditAdmin("voice_number.connect", admin.adminId, "PhoneNumber", number.id, {
+      e164: req.e164,
+      xaiPhoneNumberId: reg.number.phoneNumberId,
       tenant: number.user?.email,
     });
 
-    return NextResponse.json({ success: true, number });
+    const host = reg.number.sipHost || "sip.voice.x.ai";
+    return NextResponse.json({
+      success: true,
+      number: { id: number.id, e164: number.e164, status: number.status },
+      // For the admin to relay to the client's carrier/PBX.
+      sip: {
+        host: reg.number.sipHost,
+        uri: `sip:${req.e164}@${host};transport=tls`,
+        username: sipUsername,
+        password: sipPassword,
+      },
+    });
   } catch (error) {
     console.error("[admin/voice-numbers] POST error:", error);
-    return fail("Could not assign that number", 500);
+    return fail("Could not connect that number", 500);
   }
 }

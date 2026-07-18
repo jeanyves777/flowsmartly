@@ -5993,6 +5993,13 @@ model PhoneNumber {
   // Returned exactly ONCE at registration. Without it an inbound call can never
   // be verified, and the only fix is to delete and re-register the number.
   signingSecret    String?
+  // BYO Direct-SIP credentials the client points their carrier/PBX at. Generated
+  // by us at registration and shown once; persisted so the connection steps can be
+  // re-shown and a call's Authorization header verified (xAI may present either the
+  // dispatch signingSecret or this webhook auth token).
+  sipUsername      String?
+  sipPassword      String?
+  webhookAuthToken String?
 
   // --- Retained from the Twilio-era model (deliberately NOT dropped) --------
   // These columns still back the SMS / number-rental system: a line can be

@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { syncAgentToXai } from "@/lib/voice-agent/agent-sync";
-import { DEFAULT_HOURS, type AgentSkill } from "@/lib/voice-agent/types";
+import { DEFAULT_HOURS, publicNumber, type AgentSkill } from "@/lib/voice-agent/types";
 import { bindNumberToAgent } from "@/lib/voice-agent/xai-phone";
 
 function fail(message: string, status = 400) {
@@ -45,6 +45,7 @@ function hydrate(row: Record<string, unknown>) {
   };
   return {
     ...row,
+    number: publicNumber(row.number as Record<string, unknown> | null | undefined),
     knowledge: parse(row.knowledge, []),
     keyterms: parse<string[]>(row.keyterms, []),
     pronunciations: parse<Record<string, string>>(row.pronunciations, {}),
@@ -180,15 +181,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
-    // A user can PAUSE a live agent and resume it — but they cannot ACTIVATE one.
-    // Going live is an admin approval (we build the real console agent + assign
-    // the number by hand). A REQUESTED agent stays requested until approved, so a
-    // user can never flip a green LIVE pill over a line that doesn't exist yet.
+    // Go-live: the user flips their own agent on once its number is actually
+    // CONNECTED — i.e. an admin has run the Direct SIP setup and the line is
+    // ACTIVE. A number that's still a pending request can't answer yet.
     if (typeof body.status === "string" && ["LIVE", "PAUSED"].includes(body.status)) {
       if (body.status === "LIVE") {
-        // Only allowed as a RESUME of an already-approved agent.
-        if (!existing.approvedAt || existing.status === "REQUESTED") {
-          return fail("Your agent is still being set up — we'll let you know the moment it's live.");
+        const numberId = "phoneNumberId" in data ? (data.phoneNumberId as string | null) : existing.phoneNumberId;
+        if (!numberId) {
+          return fail("Add a phone number first — the agent needs a line to answer.");
+        }
+        const num = existing.phoneNumberId === numberId
+          ? existing.number
+          : await prisma.phoneNumber.findUnique({ where: { id: numberId } });
+        if (!num || num.status !== "ACTIVE") {
+          return fail("Your number is still being connected — we'll tell you the moment it can go live.");
         }
       }
       data.status = body.status;

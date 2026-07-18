@@ -13,6 +13,7 @@ import {
   DEFAULT_HOURS,
   PRESET_BY_KEY,
   greetingFor,
+  publicNumber,
   skillsForPreset,
   type AgentSkill,
 } from "@/lib/voice-agent/types";
@@ -32,6 +33,7 @@ function hydrate(row: Record<string, unknown>) {
   };
   return {
     ...row,
+    number: publicNumber(row.number as Record<string, unknown> | null | undefined),
     knowledge: parse(row.knowledge, []),
     keyterms: parse<string[]>(row.keyterms, []),
     pronunciations: parse<Record<string, string>>(row.pronunciations, {}),
@@ -111,8 +113,10 @@ export async function POST(request: NextRequest) {
         userId: session.userId,
         name: (body.name || (kit?.name ? `${preset.title} — ${kit.name}` : preset.title)).slice(0, 80),
         preset: presetKey,
-        status: "REQUESTED",
-        requestedAt: new Date(),
+        // A new agent lands as a fully-editable DRAFT. It goes LIVE the moment the
+        // user connects their own number (Direct SIP) and flips it on — no admin
+        // approval, no waiting: the number path is self-serve now.
+        status: "DRAFT",
         phoneNumberId,
         business,
         greeting,
