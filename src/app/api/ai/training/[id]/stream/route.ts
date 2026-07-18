@@ -64,6 +64,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   if (!participantId) return deny("Unauthorized", 401);
 
+  // Returning after a leave (or a dropped connection): put the seat back before
+  // we snapshot, so the DTO includes them again. Hosts/co-hosts always return
+  // to their seat; a trainee/guest re-knocks if the room has a waiting room.
+  const existing = await prisma.trainingParticipant.findUnique({ where: { id: participantId }, select: { state: true, role: true } });
+  if (existing?.state === "LEFT") {
+    const room = await prisma.trainingSession.findUnique({ where: { id }, select: { waitingRoom: true } });
+    const back = existing.role === "HOST" || existing.role === "COHOST" || !room?.waitingRoom ? "ADMITTED" : "WAITING";
+    await prisma.trainingParticipant.update({ where: { id: participantId }, data: { state: back, leftAt: null } }).catch(() => {});
+  }
+
   const dto = await getSessionDTO(id);
   if (!dto) return deny("No such room", 404);
   const me = dto.participants.find((p) => p.id === participantId);
@@ -120,10 +130,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (heartbeat) clearInterval(heartbeat);
       if (meterTick) clearInterval(meterTick);
       removeConn(id, sessionKey);
-      // only announce a leave once their LAST tab is gone
+      // Once their LAST tab is gone they've left: mark the seat LEFT so a later
+      // room:state re-broadcast can't resurrect them (a reconnect restores it).
+      // updateMany guards on state so a removed/denied row is never touched.
       if (!connectedIds(id).includes(pid)) {
         void prisma.trainingParticipant
-          .update({ where: { id: pid }, data: { leftAt: new Date() } })
+          .updateMany({ where: { id: pid, state: { in: ["ADMITTED", "WAITING"] } }, data: { state: "LEFT", leftAt: new Date() } })
           .catch(() => {});
         broadcast(id, { type: "room:leave", participantId: pid });
       }

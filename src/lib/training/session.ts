@@ -181,6 +181,7 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
     openShare: row.openShare,
     openMic: row.openMic,
     locked: row.locked,
+    hideBoard: row.hideBoard,
 
     penHolderId: row.penHolderId,
     stageSource: row.stageSource as StageSource,
@@ -206,7 +207,9 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
       }),
     ),
     participants: row.participants
-      .filter((p) => p.state !== "REMOVED" && p.state !== "DENIED")
+      // LEFT people are gone until they reconnect (the stream restores their
+      // state on re-entry), so a later room:state broadcast can't re-add them.
+      .filter((p) => p.state !== "REMOVED" && p.state !== "DENIED" && p.state !== "LEFT")
       .map(
         (p): TrainingParticipantDTO => ({
           id: p.id,

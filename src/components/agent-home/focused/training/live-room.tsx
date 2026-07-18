@@ -127,10 +127,34 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
   const [sheet, setSheet] = useState<SheetKey>(null);
   const [devMenu, setDevMenu] = useState<null | "audio" | "video">(null); // anchored device popover
   const [moreMenu, setMoreMenu] = useState(false);
-  const [hideItems, setHideItems] = useState(false);
+  const hideItems = session.hideBoard; // synced: when the host hides, everyone hides
   const audioBtnRef = useRef<HTMLDivElement>(null);
   const videoBtnRef = useRef<HTMLDivElement>(null);
   const moreBtnRef = useRef<HTMLDivElement>(null);
+
+  // The board is a strict, always-16:9 box computed from the stage's real size.
+  // (CSS aspect-video + max-h-full silently BREAKS the ratio when height binds,
+  // so the same fractional coordinate landed on different pixels in the studio vs
+  // the /m attendee view — marks looked "slightly off". A measured box is 16:9 on
+  // every mount, so coordinates agree everywhere.)
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [boardBox, setBoardBox] = useState<{ w: number; h: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = stageRef.current;
+    if (!el) return;
+    const fit = () => {
+      const { width, height } = el.getBoundingClientRect();
+      if (!width || !height) return;
+      let w = Math.min(width, 980);
+      let h = (w * 9) / 16;
+      if (h > height) { h = height; w = (h * 16) / 9; }
+      setBoardBox({ w: Math.round(w), h: Math.round(h) });
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Camera/mic/screen + device menus. Optional: with no media server this
   // reports enabled:false and the room runs as a whiteboard session.
@@ -238,16 +262,18 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
           >
             {showTools ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
           </button>
-          <button
-            onClick={() => setHideItems((v) => !v)}
-            title={hideItems ? "Show everything on the board" : "Hide everything on the board"}
-            className={cn(
-              "me-1 grid h-[30px] w-[30px] shrink-0 place-items-center rounded-lg border transition",
-              hideItems ? "border-brand-500 bg-brand-500/15 text-brand-400" : "border-border bg-card text-muted-foreground hover:border-brand-500 hover:text-foreground",
-            )}
-          >
-            {hideItems ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
+          {host ? (
+            <button
+              onClick={() => void patch({ hideBoard: !hideItems })}
+              title={hideItems ? "Show the board to everyone" : "Hide the board for everyone"}
+              className={cn(
+                "me-1 grid h-[30px] w-[30px] shrink-0 place-items-center rounded-lg border transition",
+                hideItems ? "border-brand-500 bg-brand-500/15 text-brand-400" : "border-border bg-card text-muted-foreground hover:border-brand-500 hover:text-foreground",
+              )}
+            >
+              {hideItems ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          ) : null}
           {SOURCES.map(({ id, Icon, label }) => (
             <button
               key={id}
@@ -273,9 +299,10 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
           </span>
         </div>
 
-        {/* stage */}
-        <div className="relative flex flex-1 flex-col justify-center overflow-hidden bg-[#0e0e13] p-2.5 sm:p-3.5">
-          <div className="relative mx-auto aspect-video max-h-full w-full max-w-[980px] shadow-2xl">
+        {/* stage — the inner ref measures the space, the board is a fitted 16:9 box */}
+        <div className="relative flex flex-1 flex-col overflow-hidden bg-[#0e0e13] p-2.5 sm:p-3.5">
+          <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
+          <div className="relative shadow-2xl" style={boardBox ? { width: boardBox.w, height: boardBox.h } : { width: "100%", maxWidth: 980, aspectRatio: "16 / 9" }}>
             <TrainingBoard
               doc={session.boardDoc}
               tool={tool}
@@ -301,6 +328,7 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
                 </button>
               </div>
             ) : null}
+          </div>
           </div>
 
           {/* mobile tool dock — an overlay, so it never steals board width */}
@@ -665,13 +693,14 @@ function RecordingLayer({ recording, host, patch }: { recording: boolean; host: 
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevRec = useRef(recording); // seed with the value at mount
 
-  // Only a real OFF→ON flip plays the 3-2-1 pre-roll (a consent cue for the
-  // room). Joining a room that is ALREADY recording jumps straight to the live
-  // badge — no phantom countdown for late arrivals. OFF resets everything.
+  // The 3-2-1 pre-roll is the HOST's "you started recording" cue — only the
+  // person who flips it on ever sees it. Everyone else (and anyone joining a
+  // room that's already recording, or when the host resumes) goes straight to
+  // the live badge — no phantom countdown. OFF resets everything.
   useEffect(() => {
     const was = prevRec.current;
     prevRec.current = recording;
-    if (recording && !was) {
+    if (recording && !was && host) {
       setPhase("countdown"); setCd(3);
       let n = 3;
       const iv = setInterval(() => {
@@ -681,9 +710,9 @@ function RecordingLayer({ recording, host, patch }: { recording: boolean; host: 
       }, 900);
       return () => clearInterval(iv);
     }
-    if (recording && was) { setPhase((p) => (p === "idle" ? "live" : p)); return; }
-    if (!recording) { setPhase("idle"); setPaused(false); }
-  }, [recording]);
+    if (recording) { setPhase((p) => (p === "idle" ? "live" : p)); return; }
+    setPhase("idle"); setPaused(false);
+  }, [recording, host]);
 
   // The timer runs while live and NOT paused.
   useEffect(() => {
