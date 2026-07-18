@@ -47,6 +47,10 @@ interface Props {
   onLiveStroke?: (stroke: LiveStroke | null) => void;
   /** other participants' in-progress strokes, keyed by participantId — rendered live */
   liveStrokes?: Record<string, LiveStroke>;
+  /** stream MY mark being dragged (throttled) so others see it move; null clears it */
+  onLiveItem?: (item: BoardItem | null) => void;
+  /** marks being dragged by others right now, keyed by participantId — rendered live */
+  liveItems?: Record<string, BoardItem>;
   /** hide every drawn mark with one click (a presenter view toggle) */
   hideItems?: boolean;
   /** the deck/doc/screen sitting behind the ink, if any */
@@ -85,7 +89,7 @@ function toPath(points: number[][]): string {
   return d.join(" ");
 }
 
-export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, cursors, onAdd, onRemove, onUpdate, onPing, onLiveStroke, liveStrokes, hideItems, backdrop, className }: Props) {
+export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, cursors, onAdd, onRemove, onUpdate, onPing, onLiveStroke, liveStrokes, onLiveItem, liveItems, hideItems, backdrop, className }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [live, setLive] = useState<BoardPoint[] | null>(null);
@@ -286,7 +290,10 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
 
     if (drag.current) {
       const d = drag.current;
-      setDragItem(shiftItem(d.orig, pt.x - d.startX, pt.y - d.startY));
+      const moved = shiftItem(d.orig, pt.x - d.startX, pt.y - d.startY);
+      setDragItem(moved);
+      // stream the move (throttled) so others watch the mark travel, not jump on drop
+      if (onLiveItem && now - lastLive.current > 60) { lastLive.current = now; onLiveItem(moved); }
       return;
     }
     if (lasering.current) {
@@ -319,6 +326,8 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
       const d = drag.current;
       drag.current = null;
       setDragItem(null);
+      lastLive.current = 0;
+      if (onLiveItem) onLiveItem(null); // clear the live-drag preview on everyone else
       // only persist if it actually moved
       if (moved && (moved !== d.orig)) onUpdate(moved);
       return;
@@ -462,12 +471,16 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
     [box.w, box.h],
   );
 
-  // Items to render: hide-all wins; otherwise substitute the live drag preview.
+  // Items to render: hide-all wins; otherwise substitute the live-drag previews —
+  // my own drag AND anyone else's in-progress move (streamed via liveItems).
   const items = useMemo(() => {
     if (hideItems) return [] as BoardItem[];
     const src = doc.items ?? [];
-    return dragItem ? src.map((i) => (i.id === dragItem.id ? dragItem : i)) : src;
-  }, [doc.items, hideItems, dragItem]);
+    const overrides: Record<string, BoardItem> = {};
+    if (dragItem) overrides[dragItem.id] = dragItem;
+    if (liveItems) for (const k in liveItems) overrides[liveItems[k].id] = liveItems[k];
+    return Object.keys(overrides).length ? src.map((i) => overrides[i.id] ?? i) : src;
+  }, [doc.items, hideItems, dragItem, liveItems]);
   const selected = useMemo(() => (selId ? items.find((i) => i.id === selId) ?? null : null), [selId, items]);
   const ready = box.w > 0 && box.h > 0;
 

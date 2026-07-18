@@ -21,12 +21,13 @@ type Media = ReturnType<typeof useMedia>;
 interface SavedBg { url: string; label: string }
 const LIB_KEY = "tg-bg-library";
 
-const SCENES: { label: string; from: string; to: string }[] = [
-  { label: "Office", from: "#6b7280", to: "#374151" },
-  { label: "Slate", from: "#334155", to: "#0f172a" },
-  { label: "Warm", from: "#92400e", to: "#451a03" },
-  { label: "Cool", from: "#0ea5e9", to: "#1e3a8a" },
-  { label: "Sunset", from: "#f59e0b", to: "#7c2d12" },
+// Real scene photos, bundled same-origin (public/training-bg) so the canvas never
+// taints — the compositor puts the person in front of them.
+const SCENES: { label: string; url: string }[] = [
+  { label: "Office", url: "/training-bg/office.jpg" },
+  { label: "Library", url: "/training-bg/library.jpg" },
+  { label: "Studio", url: "/training-bg/studio.jpg" },
+  { label: "Loft", url: "/training-bg/loft.jpg" },
 ];
 
 export function VideoSheet({ media, session, onClose }: { media: Media; session: TrainingSessionDTO; onClose: () => void }) {
@@ -111,7 +112,7 @@ export function VideoSheet({ media, session, onClose }: { media: Media; session:
         <NoneSwatch on={bg.type === "none"} onClick={() => pick({ type: "none" })} />
         <BlurSwatch on={bg.type === "blur"} onClick={() => pick({ type: "blur" })} />
         {SCENES.map((s) => (
-          <Swatch key={s.label} on={eq(bg, { type: "gradient", from: s.from, to: s.to })} label={s.label} grad={[s.from, s.to]} onClick={() => pick({ type: "gradient", from: s.from, to: s.to })} />
+          <SceneSwatch key={s.label} on={bg.type === "image" && bg.url === s.url} label={s.label} url={s.url} onClick={() => pick({ type: "image", url: s.url })} />
         ))}
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void upload(f); }} />
         <ActionSwatch Icon={Upload} label={busy === "upload" ? "…" : "Upload"} onClick={() => fileRef.current?.click()} />
@@ -181,6 +182,17 @@ const SecLabel = ({ Icon, children }: { Icon: typeof Video; children: React.Reac
 function Swatch({ on, label, grad, onClick }: { on: boolean; label: string; grad: string[]; onClick: () => void }) {
   return (
     <button onClick={onClick} className={cn("relative aspect-[4/3] overflow-hidden rounded-xl border-2", on ? "border-brand-500" : "border-transparent")} style={{ background: `linear-gradient(135deg, ${grad[0]}, ${grad[1]})` }}>
+      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 py-1 text-left text-[10px] font-bold text-white">{label}</span>
+      {on ? <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-brand-500 text-white"><Check className="h-3 w-3" /></span> : null}
+    </button>
+  );
+}
+
+function SceneSwatch({ on, label, url, onClick }: { on: boolean; label: string; url: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className={cn("relative aspect-[4/3] overflow-hidden rounded-xl border-2", on ? "border-brand-500" : "border-transparent")}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt={label} className="absolute inset-0 h-full w-full object-cover" />
       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-1.5 py-1 text-left text-[10px] font-bold text-white">{label}</span>
       {on ? <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-brand-500 text-white"><Check className="h-3 w-3" /></span> : null}
     </button>

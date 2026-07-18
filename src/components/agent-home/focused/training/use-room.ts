@@ -35,6 +35,8 @@ interface RoomState {
   cursors: BoardCursor[];
   /** other participants' in-progress strokes, keyed by participantId */
   liveStrokes: Record<string, LiveStroke>;
+  /** marks being dragged/edited by others right now, keyed by participantId */
+  liveItems: Record<string, BoardItem>;
   messages: TrainingMessageDTO[];
   connected: boolean;
   error: string | null;
@@ -47,6 +49,7 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     me: null,
     cursors: [],
     liveStrokes: {},
+    liveItems: {},
     messages: [],
     connected: false,
     error: null,
@@ -56,6 +59,7 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
   const attempts = useRef(0);
   const cursorTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const liveStrokeTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const liveItemTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // ---------------------------------------------------------------- subscribe
   useEffect(() => {
@@ -146,8 +150,13 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
             }
             case "board:update": {
               if (!s.session) return s;
+              // a committed move supersedes any live-drag preview of the same mark
+              let liveItems = s.liveItems;
+              const dragger = Object.keys(liveItems).find((k) => liveItems[k].id === msg.item.id);
+              if (dragger) { liveItems = { ...liveItems }; delete liveItems[dragger]; }
               return {
                 ...s,
+                liveItems,
                 session: {
                   ...s.session,
                   boardDoc: {
@@ -202,6 +211,17 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
               return { ...s, liveStrokes: { ...s.liveStrokes, [msg.participantId]: msg.stroke } };
             }
 
+            case "liveitem": {
+              if (msg.participantId === s.me?.id) return s; // never render my own drag
+              if (!msg.item) {
+                if (!s.liveItems[msg.participantId]) return s;
+                const next = { ...s.liveItems };
+                delete next[msg.participantId];
+                return { ...s, liveItems: next };
+              }
+              return { ...s, liveItems: { ...s.liveItems, [msg.participantId]: msg.item } };
+            }
+
             default:
               return s;
           }
@@ -242,6 +262,28 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
             liveStrokeTimers.current.delete(id);
           }
         }
+
+        // Same sweep for a dropped live-DRAG (mover went away mid-drag).
+        if (msg.type === "liveitem") {
+          const id = msg.participantId;
+          const t = liveItemTimers.current.get(id);
+          if (t) clearTimeout(t);
+          if (msg.item) {
+            liveItemTimers.current.set(
+              id,
+              setTimeout(() => {
+                setState((s) => {
+                  if (!s.liveItems[id]) return s;
+                  const next = { ...s.liveItems };
+                  delete next[id];
+                  return { ...s, liveItems: next };
+                });
+              }, 2500),
+            );
+          } else {
+            liveItemTimers.current.delete(id);
+          }
+        }
       };
 
       es.onerror = () => {
@@ -266,6 +308,8 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
       cursorTimers.current.clear();
       liveStrokeTimers.current.forEach((t) => clearTimeout(t));
       liveStrokeTimers.current.clear();
+      liveItemTimers.current.forEach((t) => clearTimeout(t));
+      liveItemTimers.current.clear();
     };
   }, [sessionId, enabled, opts?.invite]);
 
@@ -377,6 +421,21 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     [sessionId],
   );
 
+  /** Stream a mark being dragged/edited so others see it move live; `null` clears it
+   *  (the committed move lands via updateItem on pointer-up). Fire-and-forget. */
+  const streamItem = useCallback(
+    (item: BoardItem | null) => {
+      if (!sessionId) return;
+      void fetch(`/api/ai/training/${sessionId}/board`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "liveitem", item, sessionKey: sessionKey.current }),
+        keepalive: true,
+      }).catch(() => {});
+    },
+    [sessionId],
+  );
+
   /** Any host control over a person. Returns the refusal message, or null. */
   const act = useCallback(
     async (action: string, participantId?: string): Promise<string | null> => {
@@ -440,5 +499,5 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     [sessionId],
   );
 
-  return { ...state, addItem, removeItem, updateItem, clearBoard, ping, streamStroke, act, patch, sendMessage, setSession };
+  return { ...state, addItem, removeItem, updateItem, clearBoard, ping, streamStroke, streamItem, act, patch, sendMessage, setSession };
 }

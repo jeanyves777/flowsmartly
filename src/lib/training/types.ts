@@ -231,6 +231,7 @@ export type RoomEvent =
   | { type: "cursor"; participantId: string; x: number; y: number }
   | { type: "laser"; participantId: string; x: number; y: number }
   | { type: "livestroke"; participantId: string; stroke: LiveStroke | null }
+  | { type: "liveitem"; participantId: string; item: BoardItem | null }
   | { type: "knock"; participant: TrainingParticipantDTO }
   | { type: "chat"; message: TrainingMessageDTO }
   | { type: "heartbeat" };
