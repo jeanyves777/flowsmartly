@@ -22,6 +22,11 @@ export interface RemoteStream {
   kind: "audio" | "video";
 }
 
+export interface DeviceOption {
+  deviceId: string;
+  label: string;
+}
+
 interface State {
   enabled: boolean;
   connected: boolean;
@@ -33,6 +38,16 @@ interface State {
   localCam: MediaStream | null;
   localScreen: MediaStream | null;
   remotes: RemoteStream[];
+  /** the picker menus, à la Zoom */
+  cameras: DeviceOption[];
+  mics: DeviceOption[];
+  speakers: DeviceOption[];
+  camId: string | null;
+  micId: string | null;
+  spkId: string | null;
+  /** a track died while we were away (tab backgrounded, device unplugged): the
+   *  camera/mic silently stopped and the UI must SAY so, not pretend it's live. */
+  needsAttention: boolean;
 }
 
 const INITIAL: State = {
@@ -45,6 +60,13 @@ const INITIAL: State = {
   localCam: null,
   localScreen: null,
   remotes: [],
+  cameras: [],
+  mics: [],
+  speakers: [],
+  camId: null,
+  micId: null,
+  spkId: null,
+  needsAttention: false,
 };
 
 export function useMedia(sessionId: string | null, live: boolean) {
@@ -246,6 +268,62 @@ export function useMedia(sessionId: string | null, live: boolean) {
     };
   }, [sessionId, live, rpc, consumeOne]);
 
+  // -------------------------------------------------------------- devices
+  // The selected ids live in refs so the toggle callbacks read the latest
+  // without being torn down and rebuilt on every pick.
+  const camId = useRef<string | null>(null);
+  const micId = useRef<string | null>(null);
+  const spkId = useRef<string | null>(null);
+  const wanted = useRef({ cam: false, mic: false }); // what the user last chose — drives resume
+
+  const refreshDevices = useCallback(async () => {
+    try {
+      const list = await navigator.mediaDevices.enumerateDevices();
+      const pick = (kind: MediaDeviceKind, fallback: string) =>
+        list
+          .filter((d) => d.kind === kind)
+          .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `${fallback} ${i + 1}` }));
+      setState((s) => ({
+        ...s,
+        cameras: pick("videoinput", "Camera"),
+        mics: pick("audioinput", "Microphone"),
+        speakers: pick("audiooutput", "Speaker"),
+      }));
+    } catch {
+      /* enumeration is best-effort — labels only fill in after a permission grant */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshDevices();
+    const md = navigator.mediaDevices;
+    if (!md?.addEventListener) return;
+    md.addEventListener("devicechange", refreshDevices);
+    // Coming back to a backgrounded tab: labels may have changed, and a track
+    // the OS stopped will already have fired `ended` (handled per-track below).
+    const onVisible = () => { if (document.visibilityState === "visible") void refreshDevices(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      md.removeEventListener("devicechange", refreshDevices);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshDevices]);
+
+  /** A track the OS killed (backgrounded tab, unplugged device) must flip the
+   *  flag OFF and raise `needsAttention`, so the room can never claim a dead
+   *  camera is live. */
+  const watchTrack = useCallback((key: "cam" | "mic", track: MediaStreamTrack) => {
+    track.onended = () => {
+      producers.current.get(key)?.close();
+      producers.current.delete(key);
+      setState((s) => ({
+        ...s,
+        ...(key === "cam" ? { camOn: false, localCam: null } : { micOn: false }),
+        needsAttention: true,
+      }));
+    };
+  }, []);
+
   // ------------------------------------------------------------------ produce
   const publish = useCallback(
     async (key: "cam" | "mic" | "screen", track: MediaStreamTrack) => {
@@ -272,6 +350,7 @@ export function useMedia(sessionId: string | null, live: boolean) {
   const toggleCam = useCallback(async (): Promise<string | null> => {
     if (producers.current.has("cam")) {
       await unpublish("cam");
+      wanted.current.cam = false;
       setState((s) => {
         s.localCam?.getTracks().forEach((t) => t.stop());
         return { ...s, camOn: false, localCam: null };
@@ -279,30 +358,93 @@ export function useMedia(sessionId: string | null, live: boolean) {
       return null;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
-      await publish("cam", stream.getVideoTracks()[0]);
-      setState((s) => ({ ...s, camOn: true, localCam: stream }));
+      const video: MediaTrackConstraints = { width: 640, height: 480 };
+      if (camId.current) video.deviceId = { exact: camId.current };
+      const stream = await navigator.mediaDevices.getUserMedia({ video });
+      const track = stream.getVideoTracks()[0];
+      watchTrack("cam", track);
+      await publish("cam", track);
+      wanted.current.cam = true;
+      setState((s) => ({ ...s, camOn: true, localCam: stream, needsAttention: false }));
+      void refreshDevices(); // labels fill in now that we have permission
       return null;
     } catch {
       return "We couldn't reach your camera — check the browser's permission.";
     }
-  }, [publish, unpublish]);
+  }, [publish, unpublish, watchTrack, refreshDevices]);
 
   const toggleMic = useCallback(async (): Promise<string | null> => {
     if (producers.current.has("mic")) {
       await unpublish("mic");
+      wanted.current.mic = false;
       setState((s) => ({ ...s, micOn: false }));
       return null;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      await publish("mic", stream.getAudioTracks()[0]);
-      setState((s) => ({ ...s, micOn: true }));
+      const audio: MediaTrackConstraints = {};
+      if (micId.current) audio.deviceId = { exact: micId.current };
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: Object.keys(audio).length ? audio : true });
+      const track = stream.getAudioTracks()[0];
+      watchTrack("mic", track);
+      await publish("mic", track);
+      wanted.current.mic = true;
+      setState((s) => ({ ...s, micOn: true, needsAttention: false }));
+      void refreshDevices();
       return null;
     } catch {
       return "We couldn't reach your microphone — check the browser's permission.";
     }
-  }, [publish, unpublish]);
+  }, [publish, unpublish, watchTrack, refreshDevices]);
+
+  /** Swap the live camera/mic without renegotiating — mediasoup replaceTrack. */
+  const pickCamera = useCallback(async (id: string) => {
+    camId.current = id;
+    setState((s) => ({ ...s, camId: id }));
+    const prod = producers.current.get("cam");
+    if (!prod) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: id }, width: 640, height: 480 } });
+      const track = stream.getVideoTracks()[0];
+      watchTrack("cam", track);
+      await prod.replaceTrack({ track });
+      setState((s) => {
+        s.localCam?.getTracks().forEach((t) => t.stop());
+        return { ...s, localCam: stream };
+      });
+    } catch {
+      /* keep the current camera if the new one won't open */
+    }
+  }, [watchTrack]);
+
+  const pickMic = useCallback(async (id: string) => {
+    micId.current = id;
+    setState((s) => ({ ...s, micId: id }));
+    const prod = producers.current.get("mic");
+    if (!prod) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: id } } });
+      const track = stream.getAudioTracks()[0];
+      watchTrack("mic", track);
+      await prod.replaceTrack({ track });
+    } catch {
+      /* keep the current mic */
+    }
+  }, [watchTrack]);
+
+  /** Speaker selection is applied on the audio elements (setSinkId). */
+  const pickSpeaker = useCallback((id: string) => {
+    spkId.current = id;
+    setState((s) => ({ ...s, spkId: id }));
+  }, []);
+
+  /** Turn the camera/mic back on after a leave-and-return killed the tracks. */
+  const resume = useCallback(async () => {
+    setState((s) => ({ ...s, needsAttention: false }));
+    if (wanted.current.mic && !producers.current.has("mic")) await toggleMic();
+    if (wanted.current.cam && !producers.current.has("cam")) await toggleCam();
+  }, [toggleCam, toggleMic]);
+
+  const dismissAttention = useCallback(() => setState((s) => ({ ...s, needsAttention: false })), []);
 
   const toggleScreen = useCallback(async (): Promise<string | null> => {
     if (producers.current.has("screen")) {
@@ -332,5 +474,5 @@ export function useMedia(sessionId: string | null, live: boolean) {
     }
   }, [publish, unpublish]);
 
-  return { ...state, toggleCam, toggleMic, toggleScreen };
+  return { ...state, toggleCam, toggleMic, toggleScreen, pickCamera, pickMic, pickSpeaker, resume, dismissAttention };
 }

@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       startsAt: body.startsAt ? new Date(body.startsAt) : null,
       access: body.access ?? "invite",
       waitingRoom: body.waitingRoom ?? true,
-      recording: body.recording ?? true,
+      recording: body.recording ?? false, // never auto-record — the host starts it explicitly
       transcript: body.transcript ?? true,
       openDraw: body.openDraw ?? false,
       openShare: body.openShare ?? false,

@@ -6186,7 +6186,9 @@ model TrainingSession {
 
   // room policy — "open*" = anyone may; otherwise hosts + whoever is granted
   waitingRoom Boolean @default(true)
-  recording   Boolean @default(true)
+  // Off by default: nobody is recorded until the host explicitly starts it
+  // (which plays a 3-2-1 consent countdown for the room).
+  recording   Boolean @default(false)
   transcript  Boolean @default(true)
   openDraw    Boolean @default(false)
   openShare   Boolean @default(false)

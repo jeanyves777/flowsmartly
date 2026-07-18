@@ -1,0 +1,968 @@
+<title>Training Room — mobile & device controls</title>
+<style>
+  /* ---- FlowSmartly-faithful tokens ---------------------------------------- */
+  :root{
+    --stage:#0e0e13; --bg:#0b0b0f; --card:#15151c; --card2:#1b1b24;
+    --tile:#181820; --border:#2a2a35; --border2:#33333f;
+    --fg:#f4f4f7; --muted:#9a9aab; --muted2:#6f6f80;
+    --brand:#6366f1; --brand2:#7c3aed; --violet:#8b5cf6;
+    --rose:#f43f5e; --emerald:#10b981; --amber:#f59e0b; --cyan:#22d3ee;
+    --grad:linear-gradient(135deg,var(--brand),var(--brand2));
+    --radius:14px; --sheet-ease:cubic-bezier(.22,.61,.36,1);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  :root[data-theme="light"]{
+    --stage:#0e0e13; --bg:#eef0f4; --card:#ffffff; --card2:#f6f7fb;
+    --tile:#0f1117; --border:#dfe2ea; --border2:#cdd2de;
+    --fg:#14151b; --muted:#5a6070; --muted2:#8b90a0;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    font-family:var(--font); background:var(--bg); color:var(--fg);
+    -webkit-font-smoothing:antialiased; overflow:hidden;
+  }
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  .ico{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:block}
+  .ico.sm{width:16px;height:16px}
+  .ico.xs{width:13px;height:13px}
+
+  /* ---- device frame so the mock reads as a phone on desktop --------------- */
+  .wrap{height:100%;display:grid;place-items:center;padding:0}
+  @media(min-width:760px){
+    .wrap{padding:22px;background:
+      radial-gradient(1200px 500px at 50% -10%, color-mix(in srgb,var(--brand) 12%, transparent), transparent 60%), var(--bg);}
+  }
+  .device{
+    position:relative;width:100%;height:100%;background:var(--stage);
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  @media(min-width:760px){
+    .device{
+      width:390px;height:844px;max-height:calc(100vh - 44px);
+      border-radius:44px;border:11px solid #05050a;
+      box-shadow:0 40px 90px rgba(0,0,0,.6),0 0 0 2px #1a1a24;
+    }
+    .desktop-note{position:fixed;left:26px;top:26px;max-width:230px;color:var(--muted);font-size:12px;line-height:1.55}
+    .desktop-note b{color:var(--fg)}
+  }
+  @media(max-width:759px){ .desktop-note{display:none} }
+
+  /* ---- top: source bar ---------------------------------------------------- */
+  .topbar{
+    display:flex;align-items:center;gap:7px;padding:9px 10px;
+    background:color-mix(in srgb,var(--bg) 82%, transparent);
+    border-bottom:1px solid var(--border); backdrop-filter:blur(8px);
+    position:relative;z-index:5;
+  }
+  .icobtn{
+    width:34px;height:34px;flex:0 0 auto;display:grid;place-items:center;
+    border-radius:10px;border:1px solid var(--border);background:var(--card);color:var(--muted);
+    transition:.15s;
+  }
+  .icobtn:hover{color:var(--fg);border-color:var(--brand)}
+  .icobtn.act{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 16%,transparent);color:#c7c9ff}
+  .sources{display:flex;gap:6px;overflow-x:auto;flex:1;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .sources::-webkit-scrollbar{display:none}
+  .chip{
+    flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;
+    padding:7px 11px;border-radius:10px;border:1px solid var(--border);background:var(--card);
+    color:var(--muted);font-size:12px;font-weight:700;white-space:nowrap;transition:.15s;
+  }
+  .chip.on{background:var(--grad);border-color:transparent;color:#fff;box-shadow:0 4px 14px color-mix(in srgb,var(--brand) 40%,transparent)}
+  .pen-status{
+    margin-left:auto;flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;
+    padding:6px 10px;border-radius:999px;font-size:11px;font-weight:800;
+    border:1px solid var(--border);color:var(--muted);background:var(--card);
+  }
+  .pen-status.mine{border-color:color-mix(in srgb,var(--emerald) 40%,transparent);background:color-mix(in srgb,var(--emerald) 12%,transparent);color:#6ee7b7}
+
+  /* ---- stage -------------------------------------------------------------- */
+  .stage{position:relative;flex:1;min-height:0;background:var(--stage);display:flex;flex-direction:column;justify-content:center;padding:12px}
+  .board{
+    position:relative;margin:0 auto;width:100%;max-width:980px;aspect-ratio:16/9;max-height:100%;
+    border-radius:12px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.55);
+    background:#f7f7f4;
+    background-image:radial-gradient(#dcdce4 1px, transparent 1px);background-size:22px 22px;
+  }
+  .board .note{
+    position:absolute;background:#fde68a;border-radius:8px;padding:10px 12px;
+    font-size:13px;font-weight:600;color:#3a2f12;box-shadow:0 6px 16px rgba(0,0,0,.18);
+    max-width:150px;
+  }
+  .board .ink{position:absolute;font-weight:800;color:#111}
+  .board-badge{
+    position:absolute;left:10px;bottom:10px;display:inline-flex;align-items:center;gap:6px;
+    padding:5px 10px;border-radius:999px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;font-weight:700;
+  }
+
+  /* mobile tool dock (overlay, not a permanent column) */
+  .toolfab{
+    position:absolute;left:12px;bottom:12px;z-index:12;width:46px;height:46px;border-radius:14px;
+    display:grid;place-items:center;background:var(--grad);color:#fff;
+    box-shadow:0 8px 22px color-mix(in srgb,var(--brand) 45%,transparent);
+  }
+  .tooldock{
+    position:absolute;left:12px;bottom:12px;z-index:13;width:52px;
+    display:flex;flex-direction:column;gap:4px;padding:6px;border-radius:16px;
+    background:color-mix(in srgb,var(--card) 94%,transparent);border:1px solid var(--border2);
+    box-shadow:0 12px 30px rgba(0,0,0,.5);backdrop-filter:blur(10px);
+    transform:translateY(8px) scale(.96);opacity:0;pointer-events:none;transition:.18s var(--sheet-ease);
+    transform-origin:bottom left;max-height:calc(100% - 24px);overflow:auto;scrollbar-width:none;
+  }
+  .tooldock::-webkit-scrollbar{display:none}
+  .tooldock.open{transform:none;opacity:1;pointer-events:auto}
+  .tool{
+    width:38px;height:38px;border-radius:10px;display:grid;place-items:center;color:var(--muted);transition:.12s;flex:0 0 auto;
+  }
+  .tool:hover{background:var(--card2);color:var(--fg)}
+  .tool.on{background:var(--grad);color:#fff}
+  .tool.close{color:var(--muted2)}
+  .swatches{display:flex;flex-direction:column;gap:5px;align-items:center;padding:4px 0}
+  .sw{width:18px;height:18px;border-radius:999px;border:2px solid transparent}
+  .sw.on{border-color:#fff}
+  .rule{height:1px;width:22px;background:var(--border2);margin:3px auto}
+
+  /* desktop-only left rail is emulated by keeping the dock open & docked; on phone it's an overlay */
+
+  /* ---- bottom control bar (Zoom-like) ------------------------------------- */
+  .controls{
+    position:relative;z-index:6;display:flex;align-items:center;gap:8px;
+    padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));
+    background:color-mix(in srgb,var(--bg) 92%,transparent);
+    border-top:1px solid var(--border);overflow-x:auto;scrollbar-width:none;
+  }
+  .controls::-webkit-scrollbar{display:none}
+  .cluster{position:relative;flex:0 0 auto}
+  .ctl{
+    width:48px;height:48px;border-radius:14px;display:grid;place-items:center;
+    border:1px solid var(--border);background:var(--card);color:var(--fg);transition:.15s;
+  }
+  .ctl:hover{border-color:var(--brand)}
+  .ctl.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 15%,transparent);color:#c7c9ff}
+  .ctl.danger{border-color:color-mix(in srgb,var(--rose) 55%,transparent);background:color-mix(in srgb,var(--rose) 16%,transparent);color:#fda4b4}
+  .ctl.paused{animation:pulseRing 1.4s infinite}
+  @keyframes pulseRing{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--amber) 55%,transparent)}50%{box-shadow:0 0 0 5px transparent}}
+  /* the little device caret, à la Zoom */
+  .caret{
+    position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:999px;
+    display:grid;place-items:center;background:var(--card2);border:1px solid var(--border2);color:var(--fg);
+  }
+  .caret:hover{border-color:var(--brand);color:#c7c9ff}
+  .ctl-label{position:absolute;left:50%;top:-20px;transform:translateX(-50%);font-size:9px;font-weight:800;color:var(--muted2);white-space:nowrap;letter-spacing:.04em;text-transform:uppercase}
+  .count{
+    position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;
+    background:var(--grad);color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center;
+  }
+  .leave{
+    margin-left:auto;flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;height:48px;padding:0 16px;
+    border-radius:14px;background:linear-gradient(135deg,#e11d48,#f43f5e);color:#fff;font-weight:800;font-size:13px;
+  }
+  .end{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;height:48px;padding:0 14px;border-radius:14px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-weight:800;font-size:13px}
+
+  /* ---- sheets & drawers --------------------------------------------------- */
+  .scrim{position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.2s}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .sheet{
+    position:absolute;left:0;right:0;bottom:0;z-index:21;background:var(--card);
+    border-top-left-radius:22px;border-top-right-radius:22px;border-top:1px solid var(--border2);
+    transform:translateY(101%);transition:transform .26s var(--sheet-ease);
+    max-height:82%;display:flex;flex-direction:column;box-shadow:0 -20px 50px rgba(0,0,0,.5);
+  }
+  .sheet.open{transform:none}
+  .grabber{width:38px;height:4px;border-radius:999px;background:var(--border2);margin:9px auto 3px}
+  .sheet h3{margin:4px 18px 2px;font-size:15px;font-weight:800}
+  .sheet .sub{margin:0 18px 10px;font-size:12px;color:var(--muted)}
+  .sheet-body{overflow:auto;padding:2px 12px 16px}
+  .dev-group{margin:14px 6px 4px;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);display:flex;align-items:center;gap:7px}
+  .dev{
+    display:flex;align-items:center;gap:12px;width:100%;padding:13px 12px;border-radius:12px;text-align:left;color:var(--fg);
+  }
+  .dev:hover{background:var(--card2)}
+  .dev .chk{width:20px;height:20px;flex:0 0 auto;color:var(--brand)}
+  .dev .chk.hide{visibility:hidden}
+  .dev .nm{font-size:14px;font-weight:600}
+  .dev .meta{font-size:11px;color:var(--muted)}
+  .dev.sel .nm{color:#c7c9ff}
+
+  /* roster drawer */
+  .roster{
+    position:absolute;top:0;right:0;bottom:0;z-index:21;width:min(86%,340px);background:var(--card);
+    border-left:1px solid var(--border2);transform:translateX(101%);transition:transform .26s var(--sheet-ease);
+    display:flex;flex-direction:column;box-shadow:-20px 0 50px rgba(0,0,0,.5);
+  }
+  .roster.open{transform:none}
+  .roster-head{display:flex;align-items:center;gap:8px;padding:14px 14px 10px;border-bottom:1px solid var(--border);font-weight:800;font-size:14px}
+  .roster-head .n{margin-left:auto;font-size:12px;color:var(--muted);font-weight:700}
+  .waiting{border-bottom:1px solid color-mix(in srgb,var(--amber) 30%,transparent);background:color-mix(in srgb,var(--amber) 6%,transparent);padding:8px 12px}
+  .waiting .lbl{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--amber);margin-bottom:5px}
+  .wrow{display:flex;align-items:center;gap:9px;padding:5px 0}
+  .wrow .av{width:28px;height:28px;border-radius:999px;background:linear-gradient(135deg,#f59e0b,#b45309);display:grid;place-items:center;font-size:10px;font-weight:800;color:#fff}
+  .wrow .nm{flex:1;font-size:13px;font-weight:600}
+  .admit{padding:6px 11px;border-radius:9px;background:var(--grad);color:#fff;font-size:12px;font-weight:800}
+  .deny{width:28px;height:28px;border-radius:9px;border:1px solid var(--border);color:var(--muted);display:grid;place-items:center}
+  .tiles{flex:1;overflow:auto;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .tile{position:relative;aspect-ratio:4/3;border-radius:14px;overflow:hidden;border:1px solid var(--border);background:var(--tile)}
+  .tile.host{border-color:color-mix(in srgb,var(--brand) 50%,transparent)}
+  .tile.me{border-color:color-mix(in srgb,var(--brand) 50%,transparent)}
+  .tile .av{position:absolute;inset:0;display:grid;place-items:center}
+  .tile .av span{width:44px;height:44px;border-radius:999px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:grid;place-items:center;font-size:15px;font-weight:900;color:#fff}
+  .tile video, .tile .cam{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#222}
+  .tile .cam{background:linear-gradient(135deg,#334155,#0f172a)}
+  .tile .foot{position:absolute;left:8px;right:8px;bottom:6px;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:800;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+  .tile .foot .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .badges{margin-left:auto;display:flex;gap:3px;flex:0 0 auto}
+  .pill{display:inline-flex;align-items:center;gap:2px;padding:2px 6px;border-radius:999px;font-size:9px;font-weight:900}
+  .pill.pen{background:var(--emerald);color:#052e1c}
+  .pill.co{background:var(--brand);color:#fff}
+  .pill.hand{background:var(--amber);color:#3a2600}
+  .pill.mute{background:color-mix(in srgb,var(--rose) 88%,#000);color:#fff}
+  .pill.screen{background:var(--cyan);color:#053b45}
+  .invite-cta{margin:auto 12px 12px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:13px;border-radius:14px;background:var(--grad);color:#fff;font-weight:800;font-size:13px;box-shadow:0 8px 22px color-mix(in srgb,var(--brand) 40%,transparent)}
+
+  /* invite sheet */
+  .link-card{margin:6px 6px 2px;display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;border:1px solid var(--border2);background:var(--card2)}
+  .link-card .lk{flex:1;min-width:0;font-size:12px;color:var(--muted);font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .link-card .cp{padding:7px 12px;border-radius:9px;background:color-mix(in srgb,var(--brand) 16%,transparent);color:#c7c9ff;font-size:12px;font-weight:800;flex:0 0 auto}
+  .link-card .cp.ok{background:color-mix(in srgb,var(--emerald) 18%,transparent);color:#6ee7b7}
+  .qrbtn{width:40px;height:40px;flex:0 0 auto;border-radius:10px;border:1px solid var(--border2);background:var(--card);display:grid;place-items:center;color:var(--muted)}
+  .method{display:flex;align-items:center;gap:13px;width:100%;padding:14px 12px;border-radius:12px;color:var(--fg)}
+  .method:hover{background:var(--card2)}
+  .method .mi{width:38px;height:38px;flex:0 0 auto;border-radius:11px;display:grid;place-items:center}
+  .method .mt{flex:1;text-align:left}
+  .method .mt .nm{display:block;font-size:14px;font-weight:700}
+  .method .mt .meta{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+  .method .arw{color:var(--muted2)}
+  .mi.email{background:color-mix(in srgb,var(--brand) 15%,transparent);color:#a5b4fc}
+  .mi.cal{background:color-mix(in srgb,var(--emerald) 15%,transparent);color:#6ee7b7}
+  .mi.chat{background:color-mix(in srgb,var(--violet) 18%,transparent);color:#c4b5fd}
+  .mi.link{background:color-mix(in srgb,var(--cyan) 15%,transparent);color:#67e8f9}
+  .mi.qr{background:color-mix(in srgb,var(--amber) 15%,transparent);color:#fcd34d}
+  /* method chevron rotates when its panel is open */
+  .method .arw{transition:transform .2s}
+  .method.open .arw{transform:rotate(90deg)}
+  /* expandable panel under each invite method */
+  .acc{overflow:hidden;max-height:0;transition:max-height .26s var(--sheet-ease);padding:0 8px}
+  .acc.open{max-height:260px}
+  .acc-in{padding:4px 4px 12px}
+  .email-panel{overflow:hidden;max-height:0;transition:max-height .24s var(--sheet-ease);padding:0 6px}
+  .email-panel.open{max-height:220px}
+  .email-panel textarea, .acc textarea{width:100%;min-height:60px;resize:none;border-radius:11px;border:1px solid var(--border2);background:var(--card2);color:var(--fg);padding:11px;font-size:13px;font-family:inherit;margin-top:8px}
+  .email-panel textarea:focus, .acc textarea:focus{outline:none;border-color:var(--brand)}
+  /* access selector (who can join) */
+  .access{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:4px}
+  .acbtn{display:flex;flex-direction:column;gap:2px;align-items:flex-start;padding:9px 11px;border-radius:11px;border:1px solid var(--border2);background:var(--card2);text-align:left}
+  .acbtn .t{font-size:12.5px;font-weight:800}
+  .acbtn .d{font-size:10.5px;color:var(--muted)}
+  .acbtn.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 14%,transparent)}
+  .acbtn.on .t{color:#c7c9ff}
+  /* sub-option buttons (calendar / chat targets) */
+  .opts{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .opt{display:inline-flex;align-items:center;gap:8px;padding:10px 13px;border-radius:12px;border:1px solid var(--border2);background:var(--card2);font-size:13px;font-weight:700;color:var(--fg)}
+  .opt:hover{border-color:var(--brand);color:#c7c9ff}
+  .opt svg{width:16px;height:16px}
+  .rolerow{display:flex;gap:7px;margin-top:8px;align-items:center;flex-wrap:wrap}
+  .role{padding:7px 12px;border-radius:999px;border:1px solid var(--border2);background:var(--card);color:var(--muted);font-size:12px;font-weight:700}
+  .role.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 15%,transparent);color:#c7c9ff}
+  .send{margin-left:auto;padding:9px 16px;border-radius:11px;background:var(--grad);color:#fff;font-weight:800;font-size:13px}
+  .qr-wrap{display:none;place-items:center;padding:14px}
+  .qr-wrap.show{display:grid}
+  .qr-box{width:172px;height:172px;border-radius:16px;background:#fff;padding:12px}
+  .qr-box svg{width:100%;height:100%}
+
+  /* ---- toast + reconnect banner ------------------------------------------ */
+  .banner{
+    position:absolute;left:0;right:0;top:0;z-index:15;display:flex;align-items:center;justify-content:center;gap:8px;
+    padding:8px 12px;font-size:12px;font-weight:700;background:color-mix(in srgb,var(--amber) 16%,var(--stage));
+    color:#fcd34d;border-bottom:1px solid color-mix(in srgb,var(--amber) 30%,transparent);
+    transform:translateY(-101%);transition:.25s var(--sheet-ease);
+  }
+  .banner.show{transform:none}
+  .banner .dot{width:8px;height:8px;border-radius:999px;background:var(--amber);animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.35}}
+  .resume-toast{
+    position:absolute;left:12px;right:12px;bottom:84px;z-index:22;display:flex;align-items:center;gap:11px;
+    padding:12px 14px;border-radius:16px;background:var(--card);border:1px solid var(--border2);
+    box-shadow:0 16px 40px rgba(0,0,0,.55);transform:translateY(20px);opacity:0;pointer-events:none;transition:.22s var(--sheet-ease);
+  }
+  .resume-toast.show{transform:none;opacity:1;pointer-events:auto}
+  .resume-toast .ic{width:38px;height:38px;flex:0 0 auto;border-radius:11px;display:grid;place-items:center;background:color-mix(in srgb,var(--amber) 16%,transparent);color:var(--amber)}
+  .resume-toast .tx{flex:1;font-size:12.5px;line-height:1.4}
+  .resume-toast .tx b{font-weight:800}
+  .resume-toast .go{padding:9px 14px;border-radius:11px;background:var(--grad);color:#fff;font-weight:800;font-size:12.5px;flex:0 0 auto}
+
+  /* demo control (not part of the product — a way to test leave/return) */
+  .demobar{
+    position:absolute;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:14;
+    display:flex;gap:6px;
+  }
+  .demobtn{padding:7px 12px;border-radius:999px;background:rgba(0,0,0,.62);color:#fff;font-size:11px;font-weight:700;border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(6px)}
+  .demobtn:hover{border-color:var(--brand)}
+
+  /* ---- video settings & backgrounds ------------------------------------- */
+  .self-preview{
+    position:relative;margin:4px 6px 2px;aspect-ratio:4/3;border-radius:16px;overflow:hidden;
+    border:1px solid var(--border2);background:#0f172a;display:grid;place-items:center;
+  }
+  .self-preview .subject{
+    position:relative;z-index:2;width:88px;height:88px;border-radius:999px;
+    background:radial-gradient(circle at 50% 38%, #f1c9a5 0 38%, transparent 39%),
+               linear-gradient(#5b6b8c,#39435c);
+    box-shadow:0 8px 30px rgba(0,0,0,.45);
+  }
+  .self-preview .subject::after{content:"";position:absolute;left:22px;bottom:-30px;width:44px;height:44px;border-radius:14px 14px 0 0;background:#39435c}
+  .self-preview .bg{position:absolute;inset:0;z-index:1;background-size:cover;background-position:center}
+  .self-preview .bg.blur{backdrop-filter:blur(9px)}
+  .self-preview .plabel{position:absolute;left:10px;bottom:9px;z-index:3;padding:4px 9px;border-radius:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;font-weight:700}
+  .self-preview .pcam{position:absolute;right:9px;top:9px;z-index:3;padding:4px 8px;border-radius:999px;background:rgba(0,0,0,.5);color:#fff;font-size:10px;font-weight:700;display:inline-flex;gap:4px;align-items:center}
+
+  .bg-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;padding:6px 6px 4px}
+  .grid-full{grid-column:1/-1;margin:8px 2px 0;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);display:flex;align-items:center;gap:7px}
+  .grid-full .bk{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:700;color:var(--muted);font-size:11px}
+  .bg-thumb .logo{position:relative;z-index:2;width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.92);display:grid;place-items:center;font-size:13px;font-weight:900;color:#4f46e5;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+  .bg-thumb .brandmark{position:absolute;left:6px;top:6px;z-index:2;font-size:10px;font-weight:900;color:rgba(255,255,255,.9)}
+  .bg-thumb{
+    position:relative;aspect-ratio:4/3;border-radius:12px;overflow:hidden;border:2px solid transparent;
+    background-size:cover;background-position:center;display:grid;place-items:center;color:#fff;
+  }
+  .bg-thumb .tl{position:absolute;left:0;right:0;bottom:0;padding:4px 6px;font-size:10px;font-weight:700;background:linear-gradient(transparent,rgba(0,0,0,.65));text-align:left}
+  .bg-thumb.sel{border-color:var(--brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand) 40%,transparent)}
+  .bg-thumb .chk{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:999px;background:var(--brand);display:none;place-items:center;color:#fff}
+  .bg-thumb.sel .chk{display:grid}
+  .bg-thumb.action{border:1px dashed var(--border2);background:var(--card2);color:var(--muted);flex-direction:column;gap:4px;font-size:11px;font-weight:700}
+  .bg-thumb.action:hover{border-color:var(--brand);color:#c7c9ff}
+  .bg-thumb.action .lbl{font-size:11px;font-weight:800}
+  .none-thumb{background:repeating-conic-gradient(#2a2a35 0 25%, #1b1b24 0 50%) 50%/16px 16px}
+
+  .ai-panel{overflow:hidden;max-height:0;transition:max-height .26s var(--sheet-ease);padding:0 6px}
+  .ai-panel.open{max-height:150px;padding:8px 6px 2px}
+  .ai-row{display:flex;gap:8px;align-items:center}
+  .ai-row input{flex:1;padding:11px 13px;border-radius:12px;border:1px solid var(--border2);background:var(--card2);color:var(--fg);font-size:13px;font-family:inherit}
+  .ai-row input:focus{outline:none;border-color:var(--brand)}
+  .ai-gen{padding:11px 15px;border-radius:12px;background:var(--grad);color:#fff;font-weight:800;font-size:13px;white-space:nowrap;display:inline-flex;gap:6px;align-items:center}
+  .ai-chips{display:flex;gap:6px;overflow-x:auto;padding:8px 2px 2px;scrollbar-width:none}
+  .ai-chips::-webkit-scrollbar{display:none}
+  .ai-chip{flex:0 0 auto;padding:6px 11px;border-radius:999px;border:1px solid var(--border2);background:var(--card);color:var(--muted);font-size:11.5px;font-weight:600;white-space:nowrap}
+  .ai-chip:hover{border-color:var(--brand);color:#c7c9ff}
+  .gen-spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:999px;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .sec-label{margin:14px 8px 2px;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--muted2);display:flex;align-items:center;gap:7px}
+
+  /* ---- recording -------------------------------------------------------- */
+  .rec-pill{
+    position:absolute;left:50%;top:10px;transform:translate(-50%,-120%);z-index:16;
+    display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;
+    background:color-mix(in srgb,var(--rose) 20%,#150409);border:1px solid color-mix(in srgb,var(--rose) 55%,transparent);
+    color:#fecdd3;font-size:12.5px;font-weight:800;letter-spacing:.02em;
+    box-shadow:0 8px 24px rgba(0,0,0,.4);transition:transform .25s var(--sheet-ease);
+  }
+  .rec-pill.show{transform:translateX(-50%)}
+  .rec-pill .rdot{width:9px;height:9px;border-radius:999px;background:var(--rose);animation:blink 1.1s infinite}
+  .rec-pill .time{font-variant-numeric:tabular-nums;min-width:42px;text-align:center}
+  .rec-pill .stop{margin-left:2px;width:22px;height:22px;border-radius:7px;display:grid;place-items:center;background:color-mix(in srgb,var(--rose) 30%,transparent);color:#fff}
+
+  .countdown{
+    position:absolute;inset:0;z-index:40;display:none;place-items:center;background:rgba(6,6,11,.66);backdrop-filter:blur(3px);
+  }
+  .countdown.show{display:grid}
+  .countdown .num{
+    font-size:120px;font-weight:900;color:#fff;line-height:1;
+    animation:pop .9s var(--sheet-ease);text-shadow:0 10px 40px color-mix(in srgb,var(--rose) 60%,transparent);
+  }
+  .countdown .cap{position:absolute;bottom:38%;color:var(--muted);font-size:14px;font-weight:700;letter-spacing:.04em}
+  @keyframes pop{0%{transform:scale(.4);opacity:0}30%{transform:scale(1);opacity:1}100%{transform:scale(1.25);opacity:0}}
+
+  /* ---- centered modal (stop warning + save) ----------------------------- */
+  .modal-scrim{position:absolute;inset:0;z-index:44;background:rgba(0,0,0,.6);display:none;place-items:center;padding:22px}
+  .modal-scrim.show{display:grid}
+  .modal{width:100%;max-width:340px;background:var(--card);border:1px solid var(--border2);border-radius:20px;padding:20px;box-shadow:0 30px 70px rgba(0,0,0,.6)}
+  .modal .mic-ic{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;margin-bottom:12px}
+  .mic-ic.warn{background:color-mix(in srgb,var(--rose) 16%,transparent);color:#fda4b4}
+  .mic-ic.save{background:color-mix(in srgb,var(--emerald) 16%,transparent);color:#6ee7b7}
+  .modal h4{margin:0 0 6px;font-size:17px;font-weight:800}
+  .modal p{margin:0 0 16px;font-size:13px;line-height:1.5;color:var(--muted)}
+  .modal .field{margin-bottom:14px}
+  .modal label{display:block;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px}
+  .modal input{width:100%;padding:12px 13px;border-radius:12px;border:1px solid var(--border2);background:var(--card2);color:var(--fg);font-size:14px;font-family:inherit}
+  .modal input:focus{outline:none;border-color:var(--brand)}
+  .modal .len{margin-top:7px;font-size:11.5px;color:var(--muted)}
+  .modal .row{display:flex;gap:9px}
+  .btn{flex:1;padding:12px;border-radius:12px;font-weight:800;font-size:13.5px;border:1px solid var(--border2);background:var(--card2);color:var(--fg)}
+  .btn:hover{border-color:var(--brand)}
+  .btn.grad{background:var(--grad);border-color:transparent;color:#fff}
+  .btn.rose{background:linear-gradient(135deg,#e11d48,#f43f5e);border-color:transparent;color:#fff}
+  .btn.ghost{background:transparent}
+
+  .hidden{display:none!important}
+  .toast{
+    position:absolute;left:50%;bottom:150px;transform:translate(-50%,10px);z-index:30;
+    background:#111;color:#fff;padding:9px 14px;border-radius:999px;font-size:12px;font-weight:700;
+    opacity:0;pointer-events:none;transition:.2s;border:1px solid rgba(255,255,255,.12);white-space:nowrap;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+
+<div class="wrap">
+  <div class="desktop-note">
+    <b>Training Room — mobile rebuild.</b><br>
+    Tap around: the <b>▴ carets</b> on mic &amp; camera open the device pickers (like Zoom), <b>People</b> slides the roster in, the <b>pen</b> button opens the tool dock, and <b>“Leave &amp; return”</b> shows how paused devices are now made obvious.<br><br>
+    Open this on your phone for the real thing — the whole layout adapts.
+  </div>
+
+  <div class="device" id="device">
+    <!-- reconnect banner -->
+    <div class="banner" id="banner"><span class="dot"></span> Reconnecting to the room…</div>
+
+    <!-- top: source bar -->
+    <div class="topbar">
+      <button class="icobtn" id="toolToggle" title="Drawing tools">
+        <svg class="ico sm" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      </button>
+      <button class="icobtn" id="hideMarks" title="Hide everything on the board">
+        <svg class="ico sm" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <div class="sources" id="sources">
+        <button class="chip" data-src>Slides</button>
+        <button class="chip on" data-src>Whiteboard</button>
+        <button class="chip" data-src>Document</button>
+        <button class="chip" data-src>Screen</button>
+        <button class="chip" data-src>Presenter</button>
+      </div>
+      <span class="pen-status mine"><svg class="ico xs" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> You</span>
+    </div>
+
+    <!-- stage -->
+    <div class="stage">
+      <div class="board">
+        <div class="note" style="left:9%;top:64%">I am the agent — testing the presentation flow.</div>
+        <div class="ink" style="left:10%;top:57%;font-size:15px">Hello 👋</div>
+        <div class="board-badge"><svg class="ico xs" viewBox="0 0 24 24"><path d="M2 3h20v14H2z"/><path d="M8 21h8M12 17v4"/></svg> Whiteboard</div>
+      </div>
+
+      <!-- mobile tool dock -->
+      <button class="toolfab" id="toolFab" title="Drawing tools">
+        <svg class="ico" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      </button>
+      <div class="tooldock" id="tooldock">
+        <button class="tool close" id="toolClose"><svg class="ico sm" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        <button class="tool" data-tool><svg class="ico sm" viewBox="0 0 24 24"><path d="m3 3 7 18 2-8 8-2Z"/></svg></button>
+        <button class="tool on" data-tool><svg class="ico sm" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+        <button class="tool" data-tool><svg class="ico sm" viewBox="0 0 24 24"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6-6-6L16 6Z"/></svg></button>
+        <button class="tool" data-tool><svg class="ico sm" viewBox="0 0 24 24"><path d="M20 20H7L3 16a2 2 0 0 1 0-3l9-9 8 8-5 5"/></svg></button>
+        <button class="tool" data-tool><svg class="ico sm" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/></svg></button>
+        <button class="tool" data-tool><svg class="ico sm" viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg></button>
+        <button class="tool" data-tool><svg class="ico sm" viewBox="0 0 24 24"><path d="M16 3H5v18l7-3 7 3V8Z"/></svg></button>
+        <span class="rule"></span>
+        <div class="swatches">
+          <button class="sw on" style="background:#111827" data-ink></button>
+          <button class="sw" style="background:#6366f1" data-ink></button>
+          <button class="sw" style="background:#e11d48" data-ink></button>
+          <button class="sw" style="background:#10b981" data-ink></button>
+          <button class="sw" style="background:#f59e0b" data-ink></button>
+        </div>
+        <span class="rule"></span>
+        <button class="tool" title="Undo"><svg class="ico sm" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7L3 9"/></svg></button>
+      </div>
+
+      <!-- demo: simulate leaving & returning -->
+      <div class="demobar">
+        <button class="demobtn" id="demoLeave">↩ Leave &amp; return (demo)</button>
+      </div>
+
+      <!-- resume prompt after returning -->
+      <div class="resume-toast" id="resume">
+        <div class="ic"><svg class="ico sm" viewBox="0 0 24 24"><path d="m1 1 22 22"/><path d="M9 9v3a3 3 0 0 0 5 2.1M12 6a3 3 0 0 1 3 3v1M19 10v2a7 7 0 0 1-.6 2.8M15 18.5A7 7 0 0 1 5 12v-2"/></svg></div>
+        <div class="tx"><b>Your camera and mic are off.</b><br>They paused when you left the tab.</div>
+        <button class="go" id="resumeGo">Turn back on</button>
+      </div>
+    </div>
+
+    <!-- bottom controls -->
+    <div class="controls" id="controls">
+      <div class="cluster">
+        <button class="ctl on" id="mic" title="Mute"><svg class="ico" id="micIco" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+        <button class="caret" data-dev="audio" title="Audio devices"><svg class="ico xs" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg></button>
+      </div>
+      <div class="cluster">
+        <button class="ctl on" id="cam" title="Turn camera off"><svg class="ico" id="camIco" viewBox="0 0 24 24"><path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></button>
+        <button class="caret" data-dev="video" title="Camera devices"><svg class="ico xs" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg></button>
+      </div>
+      <div class="cluster">
+        <button class="ctl" id="share" title="Share screen"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></button>
+      </div>
+      <div class="cluster">
+        <button class="ctl" id="hand" title="Raise hand"><svg class="ico" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8a6 6 0 0 0 6 6h1a6 6 0 0 0 6-6v-2a2 2 0 0 0-4 0"/></svg></button>
+      </div>
+      <div class="cluster">
+        <button class="ctl" id="people" title="Participants"><svg class="ico" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1A4 4 0 0 1 16 11"/></svg><span class="count">2</span></button>
+      </div>
+      <div class="cluster">
+        <button class="ctl" id="more" title="More"><svg class="ico" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+      </div>
+      <button class="leave"><svg class="ico sm" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg> Leave</button>
+    </div>
+
+    <!-- ===== scrim + sheets ===== -->
+    <div class="scrim" id="scrim"></div>
+
+    <!-- device picker (audio) -->
+    <div class="sheet" id="sheetAudio">
+      <div class="grabber"></div>
+      <h3>Audio</h3>
+      <p class="sub">Pick the microphone and speaker for this room.</p>
+      <div class="sheet-body">
+        <div class="dev-group"><svg class="ico xs" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg> Microphone</div>
+        <button class="dev sel" data-pick="mic"><svg class="ico chk" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><div><div class="nm">iPhone Microphone</div><div class="meta">Built-in · default</div></div></button>
+        <button class="dev" data-pick="mic"><svg class="ico chk hide" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><div><div class="nm">AirPods Pro</div><div class="meta">Bluetooth</div></div></button>
+        <button class="dev" data-pick="mic"><svg class="ico chk hide" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><div><div class="nm">Headset Microphone</div><div class="meta">Wired</div></div></button>
+        <div class="dev-group"><svg class="ico xs" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> Speaker</div>
+        <button class="dev sel" data-pick="spk"><svg class="ico chk" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><div><div class="nm">AirPods Pro</div><div class="meta">Bluetooth · default</div></div></button>
+        <button class="dev" data-pick="spk"><svg class="ico chk hide" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><div><div class="nm">iPhone Speaker</div><div class="meta">Built-in</div></div></button>
+      </div>
+    </div>
+
+    <!-- video settings: camera + virtual background -->
+    <div class="sheet" id="sheetVideo" style="max-height:88%">
+      <div class="grabber"></div>
+      <h3>Video &amp; background</h3>
+      <p class="sub">Preview yourself, pick a camera, and set a virtual background.</p>
+      <div class="sheet-body">
+        <!-- live self-preview with the chosen background composited -->
+        <div class="self-preview">
+          <div class="bg" id="pvBg"></div>
+          <div class="subject"></div>
+          <span class="plabel" id="pvLabel">No background</span>
+          <span class="pcam"><svg class="ico xs" viewBox="0 0 24 24" style="width:11px;height:11px"><path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg> Front camera</span>
+        </div>
+
+        <div class="bg-grid" id="bgGrid">
+          <div class="grid-full"><svg class="ico xs" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5ZM2 17l10 5 10-5M2 12l10 5 10-5"/></svg> From your brand <span class="bk">Northwind Studio</span></div>
+          <button class="bg-thumb" data-bg="brand" data-label="Brand gradient" style="background:linear-gradient(135deg,#6366f1,#7c3aed)"><span class="brandmark">NW</span><span class="chk"><svg class="ico xs" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span class="tl">Brand gradient</span></button>
+          <button class="bg-thumb" data-bg="brand" data-label="Logo backdrop" style="background:linear-gradient(160deg,#4f46e5,#312e81)"><span class="logo">NW</span><span class="chk"><svg class="ico xs" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span class="tl">Logo backdrop</span></button>
+          <button class="bg-thumb" data-bg="brand" data-label="On-brand office" style="background:linear-gradient(135deg,#818cf8,#4338ca)"><span class="brandmark">NW</span><span class="chk"><svg class="ico xs" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span class="tl">On-brand office</span></button>
+
+          <div class="grid-full"><svg class="ico xs" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m8 12 3 3 5-6"/></svg> Effects &amp; scenes</div>
+          <button class="bg-thumb none-thumb sel" data-bg="none" data-label="No background"><span class="chk"><svg class="ico xs" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span class="tl">None</span></button>
+          <button class="bg-thumb" data-bg="blur" data-label="Background blur" style="background:linear-gradient(135deg,#334155,#0f172a);"><span class="chk"><svg class="ico xs" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span class="tl">Blur</span></button>
+          <button class="bg-thumb" data-bg="office" data-label="Modern office" style="background:linear-gradient(135deg,#6b7280,#374151);"><span class="chk"><svg class="ico xs" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span class="tl">Office</span></button>
+          <button class="bg-thumb" data-bg="studio" data-label="Brand studio" style="background:linear-gradient(135deg,#6366f1,#7c3aed);"><span class="chk"><svg class="ico xs" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span class="tl">Studio</span></button>
+          <button class="bg-thumb" data-bg="shelf" data-label="Bookshelf" style="background:linear-gradient(135deg,#92400e,#451a03);"><span class="chk"><svg class="ico xs" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span class="tl">Shelf</span></button>
+          <button class="bg-thumb" data-bg="beach" data-label="Sunset beach" style="background:linear-gradient(135deg,#38bdf8,#fb923c);"><span class="chk"><svg class="ico xs" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span class="tl">Beach</span></button>
+          <button class="bg-thumb action" id="uploadBg"><svg class="ico sm" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg><span class="lbl">Upload</span></button>
+          <button class="bg-thumb action" id="aiBgBtn"><svg class="ico sm" viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/></svg><span class="lbl">Generate</span></button>
+        </div>
+
+        <!-- AI generate a background from a prompt -->
+        <div class="ai-panel" id="aiPanel">
+          <div class="ai-row">
+            <input id="aiPrompt" placeholder="Describe a background — “a bright modern office”" />
+            <button class="ai-gen" id="aiGen"><svg class="ico xs" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/></svg> Generate</button>
+          </div>
+          <div class="ai-chips">
+            <button class="ai-chip" data-prompt="A bright modern office with plants">Modern office</button>
+            <button class="ai-chip" data-prompt="A cozy library with warm bookshelves">Cozy library</button>
+            <button class="ai-chip" data-prompt="A minimal studio with brand colours">Brand studio</button>
+            <button class="ai-chip" data-prompt="A calm beach at sunset">Beach sunset</button>
+          </div>
+        </div>
+
+        <div class="sec-label"><svg class="ico xs" viewBox="0 0 24 24"><path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg> Camera</div>
+        <button class="dev sel" data-pick="cam"><svg class="ico chk" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><div><div class="nm">Front Camera</div><div class="meta">Selfie · default</div></div></button>
+        <button class="dev" data-pick="cam"><svg class="ico chk hide" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><div><div class="nm">Back Camera</div><div class="meta">Wide</div></div></button>
+        <button class="dev" data-pick="cam"><svg class="ico chk hide" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><div><div class="nm">Continuity Camera</div><div class="meta">Mac · nearby</div></div></button>
+      </div>
+    </div>
+
+    <!-- more sheet -->
+    <div class="sheet" id="sheetMore">
+      <div class="grabber"></div>
+      <h3>More</h3>
+      <p class="sub">Room actions.</p>
+      <div class="sheet-body">
+        <button class="dev" id="startRec"><svg class="ico" viewBox="0 0 24 24" style="color:var(--rose)"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></svg><div><div class="nm">Start recording</div><div class="meta">Nothing records until you start it</div></div></button>
+        <button class="dev"><svg class="ico" viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg><div><div class="nm">Whiteboard</div><div class="meta">Put the board on the stage</div></div></button>
+        <button class="dev"><svg class="ico" viewBox="0 0 24 24"><path d="m21.4 11.6-9-9a2 2 0 0 0-1.4-.6H4a2 2 0 0 0-2 2v7a2 2 0 0 0 .6 1.4l9 9a2 2 0 0 0 2.8 0l7-7a2 2 0 0 0 0-2.8Z"/></svg><div><div class="nm">Materials</div><div class="meta">Add a PDF, deck, image or video</div></div></button>
+        <button class="dev"><svg class="ico" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg><div><div class="nm">End session for everyone</div><div class="meta">Owner only</div></div></button>
+      </div>
+    </div>
+
+    <!-- roster drawer -->
+    <div class="roster" id="roster">
+      <div class="roster-head">
+        <svg class="ico sm" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        In the room <span class="n">2</span>
+        <button class="icobtn" id="rosterClose" style="width:30px;height:30px;margin-left:8px"><svg class="ico sm" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="waiting">
+        <div class="lbl">Waiting to join · 1</div>
+        <div class="wrow">
+          <span class="av">JD</span><span class="nm">Jordan Diaz</span>
+          <button class="admit">Admit</button>
+          <button class="deny"><svg class="ico xs" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>
+      </div>
+      <div class="tiles">
+        <div class="tile me host">
+          <div class="cam"></div>
+          <div class="foot"><span class="nm">keurtyves (you)</span><span class="badges"><span class="pill pen">PEN</span></span></div>
+        </div>
+        <div class="tile">
+          <div class="av"><span>LA</span></div>
+          <div class="foot"><span class="nm">Laikos Albany</span><span class="badges"><span class="pill hand"><svg class="ico xs" viewBox="0 0 24 24" style="width:9px;height:9px"><path d="M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8a6 6 0 0 0 6 6h1a6 6 0 0 0 6-6v-2a2 2 0 0 0-4 0"/></svg></span><span class="pill mute"><svg class="ico xs" viewBox="0 0 24 24" style="width:9px;height:9px"><path d="m1 1 22 22"/><path d="M9 9v3a3 3 0 0 0 5 2M15 9.3V5a3 3 0 0 0-5.7-1"/><path d="M17 11a5 5 0 0 1-.5 2M12 18v3"/></svg></span></span></div>
+        </div>
+      </div>
+      <button class="invite-cta" id="openInvite">
+        <svg class="ico sm" viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/></svg> Invite people
+      </button>
+    </div>
+
+    <!-- invite sheet -->
+    <div class="sheet" id="sheetInvite">
+      <div class="grabber"></div>
+      <h3 style="display:flex;align-items:center;gap:8px">
+        <svg class="ico sm" viewBox="0 0 24 24" style="color:var(--brand)"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/></svg>
+        Invite people <span style="margin-left:auto;font-size:12px;font-weight:700;color:var(--emerald)">0 sent</span>
+      </h3>
+      <p class="sub">No account needed — guests enter their name to join the waiting room.</p>
+      <div class="sheet-body">
+        <!-- 1) Public link — with an access setting, not just a copy -->
+        <button class="method" data-acc="accLink" id="linkMethod">
+          <span class="mi link"><svg class="ico sm" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></span>
+          <span class="mt"><span class="nm">Public link</span><span class="meta" id="linkMeta">Anyone with the link can join</span></span>
+          <svg class="ico sm arw" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <div class="acc" id="accLink"><div class="acc-in">
+          <div class="link-card">
+            <span class="lk">flowsmartly.com/t/yytcbplxi…</span>
+            <button class="qrbtn" id="qrToggle" title="Show QR code"><svg class="ico sm" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 14v.01M14 20v.01M17 20h3v.01M20 17v.01"/></svg></button>
+            <button class="cp" id="copyLink2">Copy</button>
+          </div>
+          <div class="qr-wrap" id="qrWrap"><div class="qr-box"><svg viewBox="0 0 25 25" shape-rendering="crispEdges" id="qrSvg"></svg></div></div>
+          <div class="access" id="accessSel">
+            <button class="acbtn on" data-acc-name="Anyone with the link can join"><span class="t">Open link</span><span class="d">Straight into the waiting room</span></button>
+            <button class="acbtn" data-acc-name="Guests enter their name"><span class="t">Ask for a name</span><span class="d">Name before they knock</span></button>
+            <button class="acbtn" data-acc-name="Guests enter name + email"><span class="t">Collect email</span><span class="d">Name + email to join</span></button>
+            <button class="acbtn" data-acc-name="Invite-only — no public link"><span class="t">Invite only</span><span class="d">Turn the public link off</span></button>
+          </div>
+        </div></div>
+
+        <!-- 2) Email invite — actually sends -->
+        <button class="method" data-acc="accEmail" id="emailMethod">
+          <span class="mi email"><svg class="ico sm" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 6 10 7 10-7"/></svg></span>
+          <span class="mt"><span class="nm">Email invite</span><span class="meta">Send a branded invite with the join link</span></span>
+          <svg class="ico sm arw" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <div class="acc" id="accEmail"><div class="acc-in">
+          <textarea placeholder="Email addresses — comma or space separated…"></textarea>
+          <div class="rolerow">
+            <button class="role on" data-role>Trainee</button>
+            <button class="role" data-role>Co-host</button>
+            <button class="send" id="sendEmails">Send invites</button>
+          </div>
+        </div></div>
+
+        <!-- 3) Calendar hold — real calendar targets -->
+        <button class="method" data-acc="accCal" id="calMethod">
+          <span class="mi cal"><svg class="ico sm" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+          <span class="mt"><span class="nm">Calendar hold</span><span class="meta">Put it on their calendar with the link</span></span>
+          <svg class="ico sm arw" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <div class="acc" id="accCal"><div class="acc-in">
+          <div class="opts">
+            <button class="opt" data-toast="Opening Google Calendar…"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Google</button>
+            <button class="opt" data-toast="Opening Outlook…"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg> Outlook</button>
+            <button class="opt" data-toast="Downloaded invite.ics"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> .ics file</button>
+          </div>
+        </div></div>
+
+        <!-- 4) Team chat — real share targets -->
+        <button class="method" data-acc="accChat" id="chatMethod">
+          <span class="mi chat"><svg class="ico sm" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg></span>
+          <span class="mt"><span class="nm">Team chat</span><span class="meta">Share to WhatsApp, Slack or your device</span></span>
+          <svg class="ico sm arw" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+        <div class="acc" id="accChat"><div class="acc-in">
+          <div class="opts">
+            <button class="opt" data-toast="Opening WhatsApp…"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.5L3 21l2-5.7A8.4 8.4 0 1 1 21 11.5Z"/></svg> WhatsApp</button>
+            <button class="opt" data-toast="Opening Slack…"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9h6v6H9z"/></svg> Slack</button>
+            <button class="opt" data-toast="Opening your share sheet…"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg> More…</button>
+          </div>
+        </div></div>
+
+        <!-- 5) Brand the join page -->
+        <button class="method" id="brandMethod">
+          <span class="mi qr"><svg class="ico sm" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5ZM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></span>
+          <span class="mt"><span class="nm">Brand the join page</span><span class="meta">Logo, welcome message &amp; collect email</span></span>
+          <svg class="ico sm arw" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- live recording indicator (tap to stop) -->
+    <button class="rec-pill" id="recPill">
+      <span class="rdot"></span> REC <span class="time" id="recTime">00:00</span>
+      <span class="stop"><svg class="ico xs" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/></svg></span>
+    </button>
+
+    <!-- 3-2-1 pre-roll before recording actually starts -->
+    <div class="countdown" id="countdown">
+      <div class="num" id="cdNum">3</div>
+      <div class="cap">Recording starts…</div>
+    </div>
+
+    <!-- stop warning -->
+    <div class="modal-scrim" id="stopModal">
+      <div class="modal">
+        <div class="mic-ic warn"><svg class="ico" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></div>
+        <h4>Stop recording?</h4>
+        <p>This ends the recording for everyone in the room. You’ll be able to name it and save it to your library.</p>
+        <div class="row">
+          <button class="btn ghost" id="stopCancel">Keep recording</button>
+          <button class="btn rose" id="stopConfirm">Stop</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- save with name -->
+    <div class="modal-scrim" id="saveModal">
+      <div class="modal">
+        <div class="mic-ic save"><svg class="ico" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></div>
+        <h4>Save recording</h4>
+        <p>It’ll appear in your recordings library, where you can share a public view link later.</p>
+        <div class="field">
+          <label>Name</label>
+          <input id="recName" value="Sales Onboarding — Jul 18" />
+          <div class="len" id="recLen">Duration 00:00 · ready to save</div>
+        </div>
+        <div class="row">
+          <button class="btn ghost" id="saveDiscard">Discard</button>
+          <button class="btn grad" id="saveConfirm">Save to library</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+  const $ = (s)=>document.querySelector(s);
+  const scrim = $("#scrim");
+  const sheets = { audio:$("#sheetAudio"), video:$("#sheetVideo"), more:$("#sheetMore"), invite:$("#sheetInvite") };
+  const roster = $("#roster");
+  let openSheet = null;
+
+  function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),1500); }
+
+  function closeAll(){
+    Object.values(sheets).forEach(s=>s.classList.remove("open"));
+    roster.classList.remove("open");
+    scrim.classList.remove("show");
+    openSheet=null;
+  }
+  function showSheet(key){ closeAll(); sheets[key].classList.add("open"); scrim.classList.add("show"); openSheet=key; }
+  function showRoster(){ closeAll(); roster.classList.add("open"); scrim.classList.add("show"); }
+  scrim.addEventListener("click", closeAll);
+
+  // device carets + more
+  document.querySelectorAll("[data-dev]").forEach(b=> b.addEventListener("click",()=>showSheet(b.dataset.dev)));
+  $("#more").addEventListener("click",()=>showSheet("more"));
+  $("#people").addEventListener("click", showRoster);
+  $("#rosterClose").addEventListener("click", closeAll);
+
+  // ---- invite sheet: each method is its OWN action (accordion) ------------
+  $("#openInvite").addEventListener("click",()=>showSheet("invite"));
+  function copyLink(btn){ btn.textContent="Copied"; btn.classList.add("ok"); toast("Join link copied"); setTimeout(()=>{btn.textContent="Copy";btn.classList.remove("ok");},1500); }
+  $("#copyLink2").addEventListener("click",e=>copyLink(e.currentTarget));
+  // open one method panel at a time
+  document.querySelectorAll(".method[data-acc]").forEach(m=>{
+    m.addEventListener("click",()=>{
+      const panel=$("#"+m.dataset.acc); const isOpen=panel.classList.contains("open");
+      document.querySelectorAll(".acc.open").forEach(p=>p.classList.remove("open"));
+      document.querySelectorAll(".method.open").forEach(x=>x.classList.remove("open"));
+      if(!isOpen){ panel.classList.add("open"); m.classList.add("open"); }
+    });
+  });
+  // roles
+  document.querySelectorAll("[data-role]").forEach(r=>r.addEventListener("click",()=>{
+    document.querySelectorAll("[data-role]").forEach(o=>o.classList.remove("on")); r.classList.add("on");
+  }));
+  $("#sendEmails").addEventListener("click",()=>{ toast("Invites sent ✓"); });
+  // sub-option buttons (calendar targets, chat targets) — each does its own thing
+  document.querySelectorAll("[data-toast]").forEach(o=>o.addEventListener("click",()=>toast(o.dataset.toast)));
+  // public-link access setting — changes who can join, updates the summary line
+  const linkMeta=$("#linkMeta");
+  document.querySelectorAll("#accessSel .acbtn").forEach(a=>a.addEventListener("click",()=>{
+    document.querySelectorAll("#accessSel .acbtn").forEach(o=>o.classList.remove("on")); a.classList.add("on");
+    linkMeta.textContent=a.dataset.accName; toast("Access updated");
+  }));
+  $("#brandMethod").addEventListener("click",()=>toast("Opening join-page branding…"));
+
+  // QR — a decorative, deterministic block pattern (real app renders the join URL)
+  const qrWrap=$("#qrWrap"), qrSvg=$("#qrSvg");
+  (function drawQR(){
+    let seed=1337; const rnd=()=>{ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; };
+    let cells="";
+    const finder=(x,y)=>`<rect x="${x}" y="${y}" width="7" height="7" fill="#000"/><rect x="${x+1}" y="${y+1}" width="5" height="5" fill="#fff"/><rect x="${x+2}" y="${y+2}" width="3" height="3" fill="#000"/>`;
+    for(let y=0;y<25;y++)for(let x=0;x<25;x++){
+      const inFinder=(x<8&&y<8)||(x>16&&y<8)||(x<8&&y>16);
+      if(inFinder) continue;
+      if(rnd()>0.55) cells+=`<rect x="${x}" y="${y}" width="1" height="1" fill="#000"/>`;
+    }
+    qrSvg.innerHTML=`<rect width="25" height="25" fill="#fff"/>`+cells+finder(0,0)+finder(18,0)+finder(0,18);
+  })();
+  $("#qrToggle").addEventListener("click",()=>{ qrWrap.classList.toggle("show"); });
+
+  // device selection (radio within a group)
+  document.querySelectorAll("[data-pick]").forEach(b=>{
+    b.addEventListener("click",()=>{
+      const group=b.dataset.pick;
+      document.querySelectorAll(`[data-pick="${group}"]`).forEach(o=>{
+        o.classList.remove("sel"); o.querySelector(".chk").classList.add("hide");
+      });
+      b.classList.add("sel"); b.querySelector(".chk").classList.remove("hide");
+      const name=b.querySelector(".nm").textContent;
+      toast(`${group==="cam"?"Camera":group==="spk"?"Speaker":"Mic"}: ${name}`);
+    });
+  });
+
+  // mic / cam state
+  const micOn = { v:true }, camOn = { v:true };
+  const micBtn=$("#mic"), camBtn=$("#cam"), micIco=$("#micIco"), camIco=$("#camIco");
+  const MIC_ON = '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>';
+  const MIC_OFF = '<path d="m1 1 22 22"/><path d="M9 9v3a3 3 0 0 0 5 2M15 9.3V5a3 3 0 0 0-5.7-1"/><path d="M17 11a5 5 0 0 1-.5 2M12 18v3"/>';
+  const CAM_ON = '<path d="m23 7-7 5 7 5V7Z"/><rect x="1" y="5" width="15" height="14" rx="2"/>';
+  const CAM_OFF = '<path d="m1 1 22 22"/><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h1m4 0h6a2 2 0 0 1 2 2v3l1 1 4-3v9"/>';
+  function renderMic(){ micBtn.classList.toggle("on",micOn.v); micBtn.classList.toggle("danger",!micOn.v); micIco.innerHTML=micOn.v?MIC_ON:MIC_OFF; micBtn.title=micOn.v?"Mute":"Unmute"; }
+  function renderCam(){ camBtn.classList.toggle("on",camOn.v); camBtn.classList.toggle("danger",!camOn.v); camIco.innerHTML=camOn.v?CAM_ON:CAM_OFF; camBtn.title=camOn.v?"Turn camera off":"Turn camera on"; }
+  micBtn.addEventListener("click",()=>{ micOn.v=!micOn.v; renderMic(); toast(micOn.v?"Microphone on":"Muted"); });
+  camBtn.addEventListener("click",()=>{ camOn.v=!camOn.v; renderCam(); toast(camOn.v?"Camera on":"Camera off"); });
+
+  // share / hand toggles
+  $("#share").addEventListener("click",e=>{ e.currentTarget.classList.toggle("on"); toast("Screen share requested"); });
+  $("#hand").addEventListener("click",e=>{ const on=e.currentTarget.classList.toggle("on"); toast(on?"Hand raised":"Hand lowered"); });
+
+  // sources
+  document.querySelectorAll("[data-src]").forEach(c=> c.addEventListener("click",()=>{
+    document.querySelectorAll("[data-src]").forEach(o=>o.classList.remove("on")); c.classList.add("on");
+  }));
+  // tools
+  document.querySelectorAll("[data-tool]").forEach(t=> t.addEventListener("click",()=>{
+    document.querySelectorAll("[data-tool]").forEach(o=>o.classList.remove("on")); t.classList.add("on");
+  }));
+  document.querySelectorAll("[data-ink]").forEach(s=> s.addEventListener("click",()=>{
+    document.querySelectorAll("[data-ink]").forEach(o=>o.classList.remove("on")); s.classList.add("on");
+  }));
+
+  // tool dock
+  const dock=$("#tooldock"), fab=$("#toolFab");
+  function toggleDock(open){ dock.classList.toggle("open",open); fab.classList.toggle("hidden",open); }
+  fab.addEventListener("click",()=>toggleDock(true));
+  $("#toolClose").addEventListener("click",()=>toggleDock(false));
+  $("#toolToggle").addEventListener("click",()=>toggleDock(!dock.classList.contains("open")));
+
+  // hide marks
+  $("#hideMarks").addEventListener("click",e=>{
+    const on=e.currentTarget.classList.toggle("act");
+    document.querySelectorAll(".board .note,.board .ink").forEach(n=>n.style.visibility=on?"hidden":"visible");
+    toast(on?"Board marks hidden":"Board marks shown");
+  });
+
+  // ---- the leave/return story (the reported bug) --------------------------
+  const banner=$("#banner"), resume=$("#resume");
+  $("#demoLeave").addEventListener("click",()=>{
+    // simulate: tab backgrounded -> socket drops, OS stops the tracks
+    banner.classList.add("show");
+    micOn.v=false; camOn.v=false; renderMic(); renderCam();
+    micBtn.classList.add("paused"); camBtn.classList.add("paused");
+    setTimeout(()=>{
+      banner.classList.remove("show");          // reconnected to the room…
+      resume.classList.add("show");             // …but devices are OFF and we SAY so
+    }, 1400);
+  });
+  $("#resumeGo").addEventListener("click",()=>{
+    micOn.v=true; camOn.v=true; renderMic(); renderCam();
+    micBtn.classList.remove("paused"); camBtn.classList.remove("paused");
+    resume.classList.remove("show");
+    toast("Camera & mic back on");
+  });
+
+  // ---- video background: upload / AI generate / pick / preview -----------
+  const pvBg=$("#pvBg"), pvLabel=$("#pvLabel"), bgGrid=$("#bgGrid");
+  const aiPanel=$("#aiPanel"), aiPrompt=$("#aiPrompt"), aiGen=$("#aiGen");
+  const AI_GRADS=["linear-gradient(135deg,#0ea5e9,#6366f1)","linear-gradient(135deg,#f472b6,#7c3aed)","linear-gradient(135deg,#22c55e,#0d9488)","linear-gradient(135deg,#f59e0b,#b45309)"];
+  let aiN=0;
+
+  function applyPreview(thumb){
+    const kind=thumb.dataset.bg;
+    pvLabel.textContent=thumb.dataset.label||"Background";
+    pvBg.className="bg"; pvBg.style.filter="";
+    if(kind==="none"){ pvBg.style.background="#0f172a"; }
+    else if(kind==="blur"){ pvBg.style.background="linear-gradient(135deg,#475569,#0f172a)"; pvBg.style.filter="blur(7px)"; }
+    else { pvBg.style.background=thumb.style.background; }
+  }
+  function selectBg(thumb){
+    bgGrid.querySelectorAll(".bg-thumb").forEach(t=>t.classList.remove("sel"));
+    thumb.classList.add("sel"); applyPreview(thumb);
+    toast(`Background: ${thumb.dataset.label}`);
+  }
+  function wireThumb(t){ t.addEventListener("click",()=>selectBg(t)); }
+  bgGrid.querySelectorAll(".bg-thumb:not(.action)").forEach(wireThumb);
+
+  function addBg(grad,label){
+    const t=document.createElement("button");
+    t.className="bg-thumb"; t.dataset.bg="custom"; t.dataset.label=label; t.style.background=grad;
+    t.innerHTML='<span class="chk"><svg class="ico xs" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span><span class="tl">'+label+'</span>';
+    bgGrid.insertBefore(t, $("#uploadBg")); wireThumb(t); selectBg(t);
+  }
+  // upload — the real app opens a file picker; here we simulate an added image
+  $("#uploadBg").addEventListener("click",()=>addBg("linear-gradient(135deg,#64748b,#1e293b)","My upload"));
+  // AI generate
+  $("#aiBgBtn").addEventListener("click",()=>{ aiPanel.classList.toggle("open"); if(aiPanel.classList.contains("open")) aiPrompt.focus(); });
+  document.querySelectorAll("[data-prompt]").forEach(c=>c.addEventListener("click",()=>{ aiPrompt.value=c.dataset.prompt; }));
+  $("#aiGen").addEventListener("click",()=>{
+    const q=aiPrompt.value.trim(); if(!q) return void toast("Describe the background first");
+    const label=q.length>16?q.slice(0,16)+"…":q;
+    aiGen.innerHTML='<span class="gen-spin"></span> Generating'; aiGen.style.pointerEvents="none";
+    setTimeout(()=>{
+      addBg(AI_GRADS[aiN++ % AI_GRADS.length], label);
+      aiGen.innerHTML='<svg class="ico xs" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/></svg> Generate';
+      aiGen.style.pointerEvents=""; aiPanel.classList.remove("open"); aiPrompt.value="";
+      toast("Background generated ✓");
+    },1300);
+  });
+
+  // ---- recording: explicit start, live timer, stop-warning, save-with-name
+  const recPill=$("#recPill"), recTime=$("#recTime"), countdown=$("#countdown"), cdNum=$("#cdNum");
+  const stopModal=$("#stopModal"), saveModal=$("#saveModal"), recLen=$("#recLen");
+  let recSecs=0, recTimer=null;
+  const fmt=(s)=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+
+  function beginRecording(){
+    // 3-2-1 pre-roll so nobody is recorded by surprise
+    let n=3; cdNum.textContent=n; countdown.classList.add("show");
+    const cd=setInterval(()=>{
+      n--;
+      if(n<=0){ clearInterval(cd); countdown.classList.remove("show"); startTimer(); }
+      else { cdNum.textContent=n; }
+    },900);
+  }
+  function startTimer(){
+    recSecs=0; recTime.textContent="00:00"; recPill.classList.add("show");
+    recTimer=setInterval(()=>{ recSecs++; recTime.textContent=fmt(recSecs); },1000);
+    toast("Recording started");
+  }
+  $("#startRec").addEventListener("click",()=>{ closeAll(); beginRecording(); });
+  // tapping the live pill asks to stop (never stops silently)
+  recPill.addEventListener("click",()=> stopModal.classList.add("show"));
+  $("#stopCancel").addEventListener("click",()=> stopModal.classList.remove("show"));
+  $("#stopConfirm").addEventListener("click",()=>{
+    clearInterval(recTimer); recPill.classList.remove("show"); stopModal.classList.remove("show");
+    recLen.textContent=`Duration ${fmt(recSecs)} · ready to save`;
+    saveModal.classList.add("show");
+  });
+  $("#saveConfirm").addEventListener("click",()=>{ saveModal.classList.remove("show"); toast("Saved to your library ✓"); });
+  $("#saveDiscard").addEventListener("click",()=>{ saveModal.classList.remove("show"); toast("Recording discarded"); });
+
+  renderMic(); renderCam();
+</script>
