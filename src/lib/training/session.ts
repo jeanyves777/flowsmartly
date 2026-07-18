@@ -15,6 +15,7 @@ import {
   type TrainingParticipantDTO,
   type TrainingMaterialDTO,
   type TrainingInviteDTO,
+  type TrainingMessageDTO,
   type SegmentKind,
   type SessionType,
   type SessionStatus,
@@ -39,6 +40,19 @@ export function parseBoard(raw: string | null | undefined): BoardDoc {
   const doc = json<Partial<BoardDoc>>(raw, {});
   if (!doc || !Array.isArray(doc.items)) return { ...EMPTY_BOARD, items: [] };
   return { v: 1, bg: doc.bg ?? "grid", items: doc.items };
+}
+
+/** The recent in-meeting chat, oldest→newest, for the stream's first frame. */
+export async function getRecentMessages(sessionId: string, take = 60): Promise<TrainingMessageDTO[]> {
+  const rows = await prisma.trainingMessage.findMany({
+    where: { sessionId },
+    orderBy: { createdAt: "desc" },
+    take,
+    select: { id: true, participantId: true, name: true, text: true, createdAt: true },
+  });
+  return rows
+    .reverse()
+    .map((m) => ({ id: m.id, participantId: m.participantId, name: m.name, text: m.text, at: m.createdAt.toISOString() }));
 }
 
 // ------------------------------------------------------------------ estimate

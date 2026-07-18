@@ -18,14 +18,14 @@ import {
   VideoOff, Circle, Users, LogOut, Paperclip, ChevronLeft, ChevronRight, Star, X,
   Minus, MoveUpRight, Triangle, Diamond, ChevronDown, ChevronUp, PanelLeftClose,
   PanelLeftOpen, Eye, EyeOff, MoreHorizontal,
-  Send, Check, Square as StopIcon, Save, Volume2, Pause, Play, Focus, Rows3, Columns3, PanelBottom,
+  Send, Check, Square as StopIcon, Save, Volume2, Pause, Play, Focus, Rows3, Columns3, PanelBottom, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
 import { useMedia, type RemoteStream, type DeviceOption } from "./use-media";
 import { InviteSheet } from "./invite-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
-import type { BoardItem, BoardTool, StageSource, TrainingParticipantDTO, TrainingSessionDTO } from "@/lib/training/types";
+import type { BoardItem, BoardTool, StageSource, TrainingParticipantDTO, TrainingSessionDTO, TrainingMessageDTO } from "@/lib/training/types";
 
 const SHAPES: { id: ShapeKind; Icon: typeof Square; label: string }[] = [
   { id: "rect", Icon: Square, label: "Rectangle" },
@@ -109,6 +109,8 @@ interface Props {
   onClear: () => void;
   act: (action: string, participantId?: string) => Promise<string | null>;
   patch: (body: Record<string, unknown>) => Promise<string | null>;
+  messages: TrainingMessageDTO[];
+  sendMessage: (text: string) => Promise<string | null>;
   onLeave: () => void;
   onManage: () => void;
   /** owner-only — ends the session for everyone */
@@ -117,7 +119,7 @@ interface Props {
 
 type SheetKey = null | "invite";
 
-export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onUpdate, onPing, onUndo, onClear, act, patch, onLeave, onManage, onEnd }: Props) {
+export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onUpdate, onPing, onUndo, onClear, act, patch, messages, sendMessage, onLeave, onManage, onEnd }: Props) {
   const [tool, setTool] = useState<BoardTool>("pen");
   const [ink, setInk] = useState(INKS[0]);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rect");
@@ -127,6 +129,10 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
   const [sheet, setSheet] = useState<SheetKey>(null);
   const [devMenu, setDevMenu] = useState<null | "audio" | "video">(null); // anchored device popover
   const [moreMenu, setMoreMenu] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [seenChat, setSeenChat] = useState(0); // messages read → drives the unread badge
+  const unread = Math.max(0, messages.length - seenChat);
+  useEffect(() => { if (chatOpen) setSeenChat(messages.length); }, [chatOpen, messages.length]);
   const hideItems = session.hideBoard; // synced: when the host hides, everyone hides
   const audioBtnRef = useRef<HTMLDivElement>(null);
   const videoBtnRef = useRef<HTMLDivElement>(null);
@@ -440,6 +446,10 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
             />
           ) : null}
           <Ctl on={me.handRaised} onClick={() => void act(me.handRaised ? "lower_hand" : "raise_hand", me.id)} title={me.handRaised ? "Lower your hand" : "Raise your hand"} Icon={Hand} />
+          <div className="relative shrink-0">
+            <Ctl on={chatOpen} onClick={() => setChatOpen((v) => !v)} title="Chat" Icon={MessageSquare} />
+            {unread ? <span className="pointer-events-none absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-extrabold text-white">{unread > 9 ? "9+" : unread}</span> : null}
+          </div>
           {layout === "side" ? (
             <div className="relative shrink-0">
               <Ctl on={rosterOpen} onClick={() => setRosterOpen((v) => !v)} title="Participants" Icon={Users} />
@@ -507,6 +517,8 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
       {sheet === "invite" ? (
         <InviteSheet session={session} onClose={() => setSheet(null)} />
       ) : null}
+
+      {chatOpen ? <ChatPanel messages={messages} me={me} sendMessage={sendMessage} onClose={() => setChatOpen(false)} /> : null}
 
       <AudioSink remotes={media.remotes} spkId={media.spkId} />
     </div>
@@ -902,6 +914,60 @@ function session_name() { return "Training session"; }
 function today() {
   const d = new Date();
   return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+/* --------------------------------------------------------------- meeting chat */
+/** The in-room text chat. A right-side panel on desktop, a bottom sheet on a
+ *  phone. History arrives in the stream's first frame; sends broadcast to all. */
+function ChatPanel({ messages, me, sendMessage, onClose }: {
+  messages: TrainingMessageDTO[]; me: TrainingParticipantDTO; sendMessage: (text: string) => Promise<string | null>; onClose: () => void;
+}) {
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { const el = listRef.current; if (el) el.scrollTop = el.scrollHeight; }, [messages.length]);
+  const send = async () => {
+    const t = text.trim();
+    if (!t || sending) return;
+    setSending(true); setText("");
+    await sendMessage(t);
+    setSending(false);
+  };
+  return (
+    <>
+      <div className="fixed inset-0 z-[54] bg-black/40 md:pointer-events-none md:bg-transparent" onClick={onClose} />
+      <div className="fixed inset-x-0 bottom-0 z-[55] flex max-h-[72%] flex-col rounded-t-3xl border-t border-border bg-card shadow-2xl md:inset-y-0 md:left-auto md:right-0 md:max-h-none md:w-[360px] md:rounded-none md:border-l md:border-t-0">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <MessageSquare className="h-4 w-4 text-brand-400" />
+          <b className="text-[14px]">Chat</b>
+          <button onClick={onClose} className="ms-auto rounded-lg px-2 py-1 text-[12px] font-bold text-muted-foreground hover:text-foreground">Close</button>
+        </div>
+        <div ref={listRef} className="flex-1 space-y-2.5 overflow-auto px-3 py-3">
+          {messages.length === 0 ? (
+            <p className="py-8 text-center text-[12.5px] text-muted-foreground">No messages yet — say hello 👋</p>
+          ) : messages.map((m) => {
+            const mine = m.participantId === me.id;
+            return (
+              <div key={m.id} className={cn("flex flex-col", mine && "items-end")}>
+                {!mine ? <span className="mb-0.5 px-1 text-[10.5px] font-bold text-muted-foreground">{m.name}</span> : null}
+                <div className={cn("max-w-[80%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-[13px] leading-snug", mine ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "bg-muted")}>{m.text}</div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2 border-t border-border p-2.5">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }}
+            placeholder="Message the room…"
+            className="flex-1 rounded-xl border border-border bg-muted px-3.5 py-2.5 text-[13px] outline-none focus:border-brand-500"
+          />
+          <button onClick={send} disabled={!text.trim() || sending} className="grid h-[40px] w-[40px] shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white disabled:opacity-50"><Send className="h-4 w-4" /></button>
+        </div>
+      </div>
+    </>
+  );
 }
 
 /* ------------------------------------------------------------- small controls */

@@ -17,6 +17,7 @@ import type {
   RoomEvent,
   TrainingParticipantDTO,
   TrainingSessionDTO,
+  TrainingMessageDTO,
 } from "@/lib/training/types";
 import type { BoardCursor } from "./training-board";
 
@@ -31,6 +32,7 @@ interface RoomState {
   session: TrainingSessionDTO | null;
   me: TrainingParticipantDTO | null;
   cursors: BoardCursor[];
+  messages: TrainingMessageDTO[];
   connected: boolean;
   error: string | null;
 }
@@ -41,6 +43,7 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     session: null,
     me: null,
     cursors: [],
+    messages: [],
     connected: false,
     error: null,
   });
@@ -79,10 +82,16 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
           switch (msg.type) {
             case "room:init":
               sessionKey.current = msg.sessionKey;
-              return { ...s, session: msg.session, me: msg.me, connected: true, error: null };
+              return { ...s, session: msg.session, me: msg.me, messages: msg.messages ?? [], connected: true, error: null };
 
             case "room:state":
               return s.session ? { ...s, session: { ...s.session, ...msg.patch } } : s;
+
+            case "chat":
+              // de-dupe our own optimistic echo by id
+              return s.messages.some((m) => m.id === msg.message.id)
+                ? s
+                : { ...s, messages: [...s.messages, msg.message].slice(-200) };
 
             case "room:join":
             case "room:participant":
@@ -342,5 +351,28 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     [sessionId, setSession],
   );
 
-  return { ...state, addItem, removeItem, updateItem, clearBoard, ping, act, patch, setSession };
+  const sendMessage = useCallback(
+    async (text: string): Promise<string | null> => {
+      if (!sessionId || !text.trim()) return null;
+      try {
+        const r = await fetch(`/api/ai/training/${sessionId}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        }).then((x) => x.json());
+        // the broadcast appends it for everyone; append locally too in case our
+        // own socket drops the echo.
+        if (r?.success && r.data?.message) {
+          setState((s) => (s.messages.some((m) => m.id === r.data.message.id) ? s : { ...s, messages: [...s.messages, r.data.message as TrainingMessageDTO].slice(-200) }));
+          return null;
+        }
+        return r?.error?.message || "Couldn't send";
+      } catch {
+        return "Couldn't send";
+      }
+    },
+    [sessionId],
+  );
+
+  return { ...state, addItem, removeItem, updateItem, clearBoard, ping, act, patch, sendMessage, setSession };
 }

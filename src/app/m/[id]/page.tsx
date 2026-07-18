@@ -131,6 +131,8 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
         onClear={() => void room.clearBoard()}
         act={async (a, p) => room.act(a, p)}
         patch={async (b) => room.patch(b)}
+        messages={room.messages}
+        sendMessage={room.sendMessage}
         onLeave={() => { window.location.href = "/"; }}
         onManage={() => { /* attendees have no back office */ }}
         onEnd={() => { /* attendees can't end the room */ }}
