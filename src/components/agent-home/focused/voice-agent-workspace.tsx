@@ -1336,6 +1336,7 @@ function BackOffice({ agent, calls, stats, onClose, onPatch, onRefresh, onOpenVi
             {agent.liveSince && ` · answering since ${new Date(agent.liveSince).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
           </p>
         </div>
+        <ConnectionPill state={agent.xaiSyncState} />
         <span className={cn(
           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-extrabold",
           live ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500" : "border-border text-muted-foreground",
@@ -1461,6 +1462,30 @@ function BackOffice({ agent, calls, stats, onClose, onPatch, onRefresh, onOpenVi
         {tab === "number" && <NumberTab agent={agent} onPatch={onPatch} onRefresh={onRefresh} />}
       </div>
     </div>
+  );
+}
+
+/**
+ * How this agent is wired to answer calls. Both "connected" states genuinely
+ * answer — the distinction is only how the line routes. No provider names shown
+ * (per the house rule), and never a raw error string.
+ */
+function ConnectionPill({ state }: { state?: string }) {
+  const map: Record<string, { label: string; cls: string; dot: string; pulse?: boolean }> = {
+    synced: { label: "Connected", cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-500", dot: "bg-emerald-500", pulse: true },
+    webhook: { label: "Connected", cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-500", dot: "bg-emerald-500" },
+    pending: { label: "Connecting…", cls: "border-border text-muted-foreground", dot: "bg-muted-foreground" },
+    error: { label: "Setup issue", cls: "border-amber-500/40 bg-amber-500/10 text-amber-500", dot: "bg-amber-500" },
+  };
+  const s = map[state || "pending"] || map.pending;
+  return (
+    <span
+      title={state === "error" ? "Reconnecting — calls still answer. We'll retry automatically." : undefined}
+      className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold", s.cls)}
+    >
+      <i className={cn("h-1.5 w-1.5 rounded-full", s.dot, s.pulse && "animate-pulse")} />
+      {s.label}
+    </span>
   );
 }
 

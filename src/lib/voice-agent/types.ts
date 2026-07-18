@@ -491,6 +491,9 @@ export interface VoiceAgentDraft {
   blockSpam: boolean;
   discloseAi: boolean;
   liveSince: string | null;
+  xaiSyncState?: string; // pending | synced | webhook | error
+  xaiAgentId?: string | null;
+  xaiSyncError?: string | null;
 }
 
 // ── Calls ──
