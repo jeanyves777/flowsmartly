@@ -447,7 +447,7 @@ export interface AgentNumber {
 
 // ── The agent ──
 
-export type AgentStatus = "DRAFT" | "LIVE" | "PAUSED";
+export type AgentStatus = "REQUESTED" | "DRAFT" | "LIVE" | "PAUSED";
 
 export interface VoiceAgentDraft {
   id: string;
@@ -494,6 +494,8 @@ export interface VoiceAgentDraft {
   xaiSyncState?: string; // pending | synced | webhook | error
   xaiAgentId?: string | null;
   xaiSyncError?: string | null;
+  requestedAt?: string | null;
+  approvedAt?: string | null;
 }
 
 // ── Calls ──

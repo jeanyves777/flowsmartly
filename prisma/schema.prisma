@@ -6097,6 +6097,13 @@ model VoiceAgent {
   // embedded in the connector URL so the relay knows which tenant is calling.
   mcpToken String? @unique
 
+  // Request -> admin-build -> approve -> activate. A new agent is REQUESTED
+  // (status), an admin builds the console agent + assigns a number, then approves.
+  requestedAt DateTime?
+  approvedAt  DateTime?
+  approvedBy  String?
+  adminNote   String? // internal note from the admin who built/approved it
+
   liveSince DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

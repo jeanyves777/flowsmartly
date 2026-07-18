@@ -107,9 +107,10 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
     })();
   }, [loadAgents, loadAgent]);
 
-  // Poll while live so the back office reflects calls as they land.
+  // Poll while live (calls land) OR while requested (so it flips to live the
+  // moment an admin approves it, without a manual refresh).
   useEffect(() => {
-    if (!agent || agent.status !== "LIVE") return;
+    if (!agent || (agent.status !== "LIVE" && agent.status !== "REQUESTED")) return;
     const id = agent.id;
     const t = setInterval(() => { void loadAgent(id); }, 15000);
     return () => clearInterval(t);
@@ -199,10 +200,13 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
           "inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10.5px] font-bold",
           agent.status === "LIVE"
             ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
-            : "border-border text-muted-foreground",
+            : agent.status === "REQUESTED"
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+              : "border-border text-muted-foreground",
         )}>
-          <i className={cn("h-1.5 w-1.5 rounded-full", agent.status === "LIVE" ? "animate-pulse bg-emerald-500" : "bg-muted-foreground")} />
-          {agent.status === "LIVE" ? "LIVE" : agent.status === "PAUSED" ? "PAUSED" : "DRAFT"}
+          <i className={cn("h-1.5 w-1.5 rounded-full",
+            agent.status === "LIVE" ? "animate-pulse bg-emerald-500" : agent.status === "REQUESTED" ? "bg-amber-500" : "bg-muted-foreground")} />
+          {agent.status === "LIVE" ? "LIVE" : agent.status === "REQUESTED" ? "PENDING" : agent.status === "PAUSED" ? "PAUSED" : "DRAFT"}
         </span>
       )}
       {agent && (
@@ -665,6 +669,11 @@ function LineNode({ agent, x, onOpen, onMove }: {
               {agent.status === "LIVE" ? "Receiving calls" : "Not answering yet"}
             </div>
           </>
+        ) : agent.status === "REQUESTED" ? (
+          <>
+            <b className="block text-[12px]">Number pending</b>
+            <span className="text-[9.5px] text-muted-foreground">We assign your line when we activate the agent.</span>
+          </>
         ) : (
           <>
             <b className="block text-[12px]">No number yet</b>
@@ -687,29 +696,34 @@ function LiveNode({ agent, stats, x, onToggle, onCalls, onMove }: {
 }) {
   const { ref, start } = useNodeDrag(onMove);
   const live = agent.status === "LIVE";
+  const requested = agent.status === "REQUESTED";
   return (
     <div ref={ref} data-node="__live" style={{ left: x, top: 120 }}
-      className="absolute w-[212px] overflow-hidden rounded-2xl border border-emerald-500/40 bg-gradient-to-b from-emerald-500/10 to-card shadow-sm">
-      <NodeHead icon={<Zap className="h-3 w-3" />} tone="bg-emerald-500/15 text-emerald-500"
-        title={live ? "Live" : "Go live"} tag={live ? "LIVE" : "OFF"}
-        tagTone={live ? "bg-emerald-500/15 text-emerald-500" : "bg-muted text-muted-foreground"}
+      className={cn("absolute w-[212px] overflow-hidden rounded-2xl border bg-gradient-to-b to-card shadow-sm",
+        requested ? "border-amber-500/40 from-amber-500/10" : "border-emerald-500/40 from-emerald-500/10")}>
+      <NodeHead icon={<Zap className="h-3 w-3" />} tone={requested ? "bg-amber-500/15 text-amber-500" : "bg-emerald-500/15 text-emerald-500"}
+        title={requested ? "Activation" : live ? "Live" : "Go live"}
+        tag={requested ? "PENDING" : live ? "LIVE" : "OFF"}
+        tagTone={requested ? "bg-amber-500/15 text-amber-500" : live ? "bg-emerald-500/15 text-emerald-500" : "bg-muted text-muted-foreground"}
         onPointerDown={start} />
-      <div className="mx-3 grid place-items-center gap-1.5 rounded-xl bg-gradient-to-br from-emerald-500/16 to-background/20 p-3.5 text-center">
-        <span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-emerald-600 shadow-lg">
-          {live ? <PhoneCall className="h-5 w-5" /> : <Power className="h-5 w-5" />}
+      <div className={cn("mx-3 grid place-items-center gap-1.5 rounded-xl bg-gradient-to-br to-background/20 p-3.5 text-center",
+        requested ? "from-amber-500/16" : "from-emerald-500/16")}>
+        <span className={cn("grid h-11 w-11 place-items-center rounded-full bg-white/90 shadow-lg",
+          requested ? "text-amber-600" : "text-emerald-600")}>
+          {requested ? <Sparkles className="h-5 w-5" /> : live ? <PhoneCall className="h-5 w-5" /> : <Power className="h-5 w-5" />}
         </span>
         <span>
           <b className="block text-[11.5px]">
-            {live && agent.liveSince
-              ? `Answering since ${new Date(agent.liveSince).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+            {requested ? "Being set up"
+              : live && agent.liveSince ? `Answering since ${new Date(agent.liveSince).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
               : live ? "Answering" : "Not answering"}
           </b>
           <span className="text-[9.5px] text-muted-foreground">
-            {ANSWER_MODES.find((m) => m.key === agent.answerMode)?.title}
+            {requested ? "We'll notify you when it's live" : ANSWER_MODES.find((m) => m.key === agent.answerMode)?.title}
           </span>
         </span>
       </div>
-      {stats && (
+      {!requested && stats && (
         <div className="mx-3 mt-2 flex gap-1.5">
           {[
             { v: stats.calls, k: "calls" },
@@ -723,18 +737,26 @@ function LiveNode({ agent, stats, x, onToggle, onCalls, onMove }: {
           ))}
         </div>
       )}
-      <div className="flex gap-1 p-3">
-        <button onClick={onCalls} className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-emerald-500">
-          <ClipboardList className="mx-auto h-3 w-3" />
-        </button>
-        <button onClick={onToggle}
-          className={cn(
-            "flex-1 rounded-lg py-1.5 text-[9.5px] font-bold text-white",
-            live ? "border border-border bg-transparent text-foreground hover:border-amber-500" : "bg-gradient-to-r from-emerald-500 to-emerald-600",
-          )}>
-          {live ? <PauseCircle className="mx-auto h-3 w-3" /> : <Power className="mx-auto h-3 w-3" />}
-        </button>
-      </div>
+      {requested ? (
+        <div className="p-3">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 py-1.5 text-center text-[9.5px] font-semibold text-amber-600">
+            Awaiting approval
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-1 p-3">
+          <button onClick={onCalls} className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-emerald-500">
+            <ClipboardList className="mx-auto h-3 w-3" />
+          </button>
+          <button onClick={onToggle}
+            className={cn(
+              "flex-1 rounded-lg py-1.5 text-[9.5px] font-bold text-white",
+              live ? "border border-border bg-transparent text-foreground hover:border-amber-500" : "bg-gradient-to-r from-emerald-500 to-emerald-600",
+            )}>
+            {live ? <PauseCircle className="mx-auto h-3 w-3" /> : <Power className="mx-auto h-3 w-3" />}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -774,25 +796,8 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
   const [answerMode, setAnswerMode] = useState<AnswerMode>(agent?.answerMode || "always");
   const [busy, setBusy] = useState(false);
 
-  // Numbers.
-  const [numbers, setNumbers] = useState<AgentNumber[]>([]);
-  const [linkable, setLinkable] = useState<{ e164: string; twilioSid: string } | null>(null);
-  const [numMode, setNumMode] = useState<"have" | "new">("new");
-  const [numberId, setNumberId] = useState<string | null>(agent?.phoneNumberId || null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const j = await fetch("/api/voice-agent/numbers?action=mine").then((r) => r.json());
-        if (j?.success) {
-          setNumbers(j.numbers);
-          setLinkable(j.linkable);
-          if (j.numbers.length && !numberId) setNumMode("have");
-          else if (j.linkable) setNumMode("have");
-        }
-      } catch { /* the picker just starts empty */ }
-    })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // The number is assigned by an admin on approval, not chosen here — so the
+  // brief no longer has a number picker.
 
   // The account already knows who the business is — never make them type it
   // again. Prefills only what's still blank, so it can't clobber typed input
@@ -858,7 +863,6 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
             .map((k) => SKILL_BY_KEY[k])
             .filter(Boolean)
             .map((d, i) => agent.skills.find((s) => s.key === d.key) || skillFromDef(d, `sk_${d.key}_${i}`)),
-          ...(numberId !== agent.phoneNumberId ? { phoneNumberId: numberId } : {}),
         });
         await onSaved(agent.id);
         return;
@@ -868,14 +872,14 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           preset, business, greeting, knowledge, skillKeys, answerMode, voiceId, voiceLabel, orderConfig: order,
-          phoneNumberId: numberId,
           name: PRESET_BY_KEY[preset]?.title,
         }),
       }).then((r) => r.json());
       if (!j?.success) {
-        toast({ title: j?.error?.message || "Could not build that agent", variant: "destructive" });
+        toast({ title: j?.error?.message || "Could not request that agent", variant: "destructive" });
         return;
       }
+      toast({ title: "Agent requested", description: "We're building it — you'll be notified when it's live." });
       await onSaved(j.agent.id);
     } finally {
       setBusy(false);
@@ -1012,20 +1016,6 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
           )}
 
           <div className="mt-5">
-            <SectionLabel hint="the agent needs a line to answer">Your number</SectionLabel>
-            <NumberPicker
-              numbers={numbers} linkable={linkable}
-              mode={numMode} onMode={setNumMode}
-              numberId={numberId} onNumberId={setNumberId}
-              onRefresh={async () => {
-                const j = await fetch("/api/voice-agent/numbers?action=mine").then((r) => r.json());
-                if (j?.success) { setNumbers(j.numbers); setLinkable(j.linkable); }
-              }}
-              ask={ask}
-            />
-          </div>
-
-          <div className="mt-5">
             <SectionLabel>When should it answer?</SectionLabel>
             <div className="flex flex-wrap gap-1.5">
               {ANSWER_MODES.map((m) => (
@@ -1046,8 +1036,9 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
 
         <div className="flex items-center gap-2 border-t border-border px-4 py-3">
           <span className="text-[11px] text-muted-foreground">
-            Building is free · calls cost <b className="text-amber-500">9 cr / min</b>
-            {numMode === "new" && <> · new number <b className="text-amber-500">500 cr / month</b></>}
+            {editing
+              ? <>Nothing is charged until it&apos;s live · calls cost <b className="text-amber-500">9 cr / min</b></>
+              : <>Free to request · we set up your number and notify you when it&apos;s live</>}
           </span>
           <div className="flex-1" />
           <button onClick={onClose} className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold">
@@ -1056,7 +1047,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
           <button onClick={submit} disabled={busy}
             className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60">
             {busy ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {editing ? "Save" : "Build my agent"}
+            {editing ? "Save changes" : "Request my agent"}
           </button>
         </div>
       </div>
@@ -1336,18 +1327,27 @@ function BackOffice({ agent, calls, stats, onClose, onPatch, onRefresh, onOpenVi
             {agent.liveSince && ` · answering since ${new Date(agent.liveSince).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
           </p>
         </div>
-        <ConnectionPill state={agent.xaiSyncState} />
+        {agent.status !== "REQUESTED" && <ConnectionPill state={agent.xaiSyncState} />}
         <span className={cn(
           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-extrabold",
-          live ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500" : "border-border text-muted-foreground",
+          live ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
+            : agent.status === "REQUESTED" ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+            : "border-border text-muted-foreground",
         )}>
-          <i className={cn("h-1.5 w-1.5 rounded-full", live && "animate-pulse bg-emerald-500")} />
-          {live ? "LIVE" : agent.status}
+          <i className={cn("h-1.5 w-1.5 rounded-full", live && "animate-pulse bg-emerald-500", agent.status === "REQUESTED" && "bg-amber-500")} />
+          {live ? "LIVE" : agent.status === "REQUESTED" ? "PENDING" : agent.status}
         </span>
-        <button onClick={() => onPatch({ status: live ? "PAUSED" : "LIVE" })}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500">
-          {live ? <><PauseCircle className="h-3.5 w-3.5" /> Pause</> : <><Power className="h-3.5 w-3.5" /> Go live</>}
-        </button>
+        {/* An agent can only be paused/resumed once approved — never self-activated. */}
+        {agent.status === "REQUESTED" ? (
+          <span className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[12px] font-semibold text-amber-600">
+            Awaiting approval
+          </span>
+        ) : (
+          <button onClick={() => onPatch({ status: live ? "PAUSED" : "LIVE" })}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500">
+            {live ? <><PauseCircle className="h-3.5 w-3.5" /> Pause</> : <><Power className="h-3.5 w-3.5" /> Go live</>}
+          </button>
+        )}
         <button onClick={() => void onRefresh()}
           className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500">
           <RefreshCw className="h-3.5 w-3.5" />

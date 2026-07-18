@@ -180,30 +180,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
-    // Going live needs a line that can ACTUALLY ring. A REQUESTED line is a
-    // number we've asked an admin to provision — it doesn't exist yet, so a
-    // green LIVE pill over it would be a lie the user only discovers when the
-    // phone never rings. Building and editing an agent is never blocked; only
-    // this switch is.
-    if (typeof body.status === "string" && ["DRAFT", "LIVE", "PAUSED"].includes(body.status)) {
+    // A user can PAUSE a live agent and resume it — but they cannot ACTIVATE one.
+    // Going live is an admin approval (we build the real console agent + assign
+    // the number by hand). A REQUESTED agent stays requested until approved, so a
+    // user can never flip a green LIVE pill over a line that doesn't exist yet.
+    if (typeof body.status === "string" && ["LIVE", "PAUSED"].includes(body.status)) {
       if (body.status === "LIVE") {
-        const numberId = (data.phoneNumberId as string | null | undefined) ?? existing.phoneNumberId;
-        if (!numberId) return fail("Give the agent a number to answer before switching it on.");
-
-        const line = await prisma.phoneNumber.findFirst({
-          where: { id: numberId, userId: session.userId },
-          select: { status: true, e164: true },
-        });
-        if (!line) return fail("That number isn't available.");
-        if (line.status === "REQUESTED") {
-          return fail("Your number is still being set up — we'll switch the agent on the moment it's ready.");
-        }
-        if (line.status !== "ACTIVE" || !line.e164) {
-          return fail("That number can't take calls yet.");
+        // Only allowed as a RESUME of an already-approved agent.
+        if (!existing.approvedAt || existing.status === "REQUESTED") {
+          return fail("Your agent is still being set up — we'll let you know the moment it's live.");
         }
       }
       data.status = body.status;
-      if (body.status === "LIVE" && !existing.liveSince) data.liveSince = new Date();
     }
 
     const agent = await prisma.voiceAgent.update({
