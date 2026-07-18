@@ -6218,7 +6218,8 @@ model TrainingSession {
   // guest (no account) can enter. Guests always give a name; email is optional.
   joinHeadline     String?
   joinMessage      String?
-  joinLogoUrl      String?
+  joinLogoUrl      String? // an uploaded override; the join page otherwise falls back to the Brand Kit logo
+  joinBannerUrl    String? // wide cover image (Facebook-banner style) at the top of the join page
   joinCollectEmail Boolean @default(false)
 
   // room policy — "open*" = anyone may; otherwise hosts + whoever is granted

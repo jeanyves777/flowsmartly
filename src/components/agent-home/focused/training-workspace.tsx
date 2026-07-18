@@ -402,6 +402,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           estimate={estimate}
           act={async (a, p) => { const e = await room.act(a, p); fail(e); return e; }}
           patch={async (b) => { const e = await room.patch(b); fail(e); return e; }}
+          onSession={(s) => room.setSession(s)}
           onAddMaterial={onPickMaterial}
           uploading={uploading}
           onPushMaterial={(id) => void room.patch({ stageSource: "doc", stageKey: id, stagePage: 1 }).then(() => setMode("live"))}

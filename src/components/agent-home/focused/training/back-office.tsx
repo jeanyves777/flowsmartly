@@ -7,11 +7,11 @@
  * materials, and past sessions. Every number here is DERIVED from the roster, so
  * the KPI and the table can never disagree. [[training-studio]]
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Users, DoorOpen, Circle, Pencil, Monitor, Mic, Star, X, Hand, SlidersHorizontal,
   Download, Puzzle, Square, FileText, Presentation, Clapperboard, ImageIcon, Plus, Eye,
-  Link as LinkIcon, Check,
+  Link as LinkIcon, Check, Upload, Sparkles, Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { canShareScreen } from "@/lib/training/access";
@@ -32,13 +32,14 @@ interface Props {
   estimate: { total: number } | null;
   act: (action: string, participantId?: string) => Promise<string | null>;
   patch: (body: Record<string, unknown>) => Promise<string | null>;
+  onSession: (session: TrainingSessionDTO) => void;
   onAddMaterial: () => void;
   uploading?: boolean;
   onPushMaterial: (materialId: string) => void;
   onEnd: () => void;
 }
 
-export function BackOffice({ session, me, estimate, act, patch, onAddMaterial, uploading, onPushMaterial, onEnd }: Props) {
+export function BackOffice({ session, me, estimate, act, patch, onSession, onAddMaterial, uploading, onPushMaterial, onEnd }: Props) {
   const owner = me?.role === "HOST";
   const waiting = useMemo(() => session.participants.filter((p) => p.state === "WAITING"), [session.participants]);
   const inRoom = useMemo(() => session.participants.filter((p) => p.state === "ADMITTED"), [session.participants]);
@@ -166,7 +167,7 @@ export function BackOffice({ session, me, estimate, act, patch, onAddMaterial, u
         </div>
 
         <H><LinkIcon className="h-3.5 w-3.5" /> Join page <span className="ms-auto text-[10.5px] font-normal text-muted-foreground">What people see at your link — no account needed to join</span></H>
-        <JoinPageCard session={session} patch={patch} />
+        <JoinPageCard session={session} patch={patch} onSession={onSession} />
 
         <H>
           <Puzzle className="h-3.5 w-3.5" /> Materials
@@ -207,19 +208,41 @@ export function BackOffice({ session, me, estimate, act, patch, onAddMaterial, u
 }
 
 /** Brand the public join page + choose what to collect before someone enters. */
-function JoinPageCard({ session, patch }: { session: TrainingSessionDTO; patch: (b: Record<string, unknown>) => Promise<string | null> }) {
+function JoinPageCard({ session, patch, onSession }: { session: TrainingSessionDTO; patch: (b: Record<string, unknown>) => Promise<string | null>; onSession: (s: TrainingSessionDTO) => void }) {
   const [headline, setHeadline] = useState(session.joinHeadline ?? "");
   const [message, setMessage] = useState(session.joinMessage ?? "");
-  const [logo, setLogo] = useState(session.joinLogoUrl ?? "");
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState<null | "logo" | "banner">(null);
+  const logoRef = useRef<HTMLInputElement>(null);
+  const bannerRef = useRef<HTMLInputElement>(null);
   const link = session.invites.find((i) => i.isActive && !i.email);
   const url = link ? `${typeof window !== "undefined" ? window.location.origin : ""}/t/${link.token}` : "";
 
+  // The join page shows an uploaded logo if there is one, otherwise the Brand Kit
+  // logo — never a blank "paste a URL" box.
+  const logo = session.joinLogoUrl || session.brandLogoUrl || "";
+  const usingBrandLogo = !session.joinLogoUrl && !!session.brandLogoUrl;
+
   const save = async () => {
-    await patch({ joinHeadline: headline || null, joinMessage: message || null, joinLogoUrl: logo || null });
+    await patch({ joinHeadline: headline || null, joinMessage: message || null });
     setSaved(true);
     setTimeout(() => setSaved(false), 1600);
+  };
+
+  const upload = async (kind: "logo" | "banner", file: File) => {
+    setBusy(kind);
+    try {
+      const form = new FormData();
+      form.append("kind", kind);
+      form.append("file", file);
+      const j = await fetch(`/api/ai/training/${session.id}/branding`, { method: "POST", body: form }).then((r) => r.json());
+      if (j?.success && j.data?.session) onSession(j.data.session as TrainingSessionDTO);
+    } finally { setBusy(null); }
+  };
+  const clearBrand = async (kind: "logo" | "banner") => {
+    const j = await fetch(`/api/ai/training/${session.id}/branding`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clear: kind }) }).then((r) => r.json());
+    if (j?.success && j.data?.session) onSession(j.data.session as TrainingSessionDTO);
   };
 
   return (
@@ -235,9 +258,42 @@ function JoinPageCard({ session, patch }: { session: TrainingSessionDTO; patch: 
             {copied ? "Copied" : "Copy link"}
           </button>
         </div>
+
+        {/* banner — a wide cover image, uploaded */}
+        <input ref={bannerRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void upload("banner", f); }} />
+        {session.joinBannerUrl ? (
+          <div className="relative overflow-hidden rounded-lg border border-border">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={session.joinBannerUrl} alt="" className="h-20 w-full object-cover" />
+            <button onClick={() => void clearBrand("banner")} title="Remove banner" className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-md bg-black/55 text-white hover:bg-black/75"><Trash2 className="h-3 w-3" /></button>
+            <button onClick={() => bannerRef.current?.click()} className="absolute bottom-1.5 right-1.5 rounded-md bg-black/55 px-2 py-1 text-[10px] font-bold text-white hover:bg-black/75">Replace</button>
+          </div>
+        ) : (
+          <button onClick={() => bannerRef.current?.click()} disabled={busy === "banner"} className="flex h-20 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted text-[11px] font-semibold text-muted-foreground hover:border-brand-500 hover:text-foreground disabled:opacity-60">
+            {busy === "banner" ? "Uploading…" : <><ImageIcon className="h-4 w-4" /> Add a top banner (cover image)</>}
+          </button>
+        )}
+
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted p-2">
+          <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void upload("logo", f); }} />
+          {logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logo} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+          ) : <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Users className="h-4 w-4" /></span>}
+          <div className="min-w-0 flex-1">
+            <p className="text-[11.5px] font-bold">Logo</p>
+            <p className="truncate text-[10px] text-muted-foreground">{usingBrandLogo ? <><Sparkles className="mb-0.5 inline h-2.5 w-2.5 text-brand-400" /> From your Brand Kit</> : session.joinLogoUrl ? "Uploaded for this room" : "No logo yet"}</p>
+          </div>
+          {session.joinLogoUrl && session.brandLogoUrl ? (
+            <button onClick={() => void clearBrand("logo")} className="rounded-md border border-border px-2 py-1 text-[10px] font-semibold hover:border-brand-500">Use Brand Kit</button>
+          ) : null}
+          <button onClick={() => logoRef.current?.click()} disabled={busy === "logo"} className="inline-flex items-center gap-1 rounded-md bg-brand-500/15 px-2.5 py-1 text-[10px] font-bold text-brand-400 hover:bg-brand-500/25 disabled:opacity-60">
+            <Upload className="h-3 w-3" /> {busy === "logo" ? "…" : usingBrandLogo || session.joinLogoUrl ? "Change" : "Upload"}
+          </button>
+        </div>
+
         <input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Headline — e.g. Welcome to onboarding" className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-[12px] outline-none focus:border-brand-500" />
         <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="A short welcome message (optional)" className="min-h-[54px] w-full resize-none rounded-lg border border-border bg-muted px-3 py-2 text-[12px] outline-none focus:border-brand-500" />
-        <input value={logo} onChange={(e) => setLogo(e.target.value)} placeholder="Logo image URL (optional)" className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-[12px] outline-none focus:border-brand-500" />
         <div className="flex items-center gap-2">
           <Tg on={session.joinCollectEmail} onClick={() => void patch({ joinCollectEmail: !session.joinCollectEmail })} Icon={Mic} t="Collect email before joining" s="Guests give their email, not just a name" />
         </div>
@@ -245,27 +301,34 @@ function JoinPageCard({ session, patch }: { session: TrainingSessionDTO; patch: 
           {saved ? <><Check className="h-3.5 w-3.5" /> Saved</> : "Save join page"}
         </button>
       </div>
+
       {/* live preview of what a guest sees */}
       <div className="rounded-xl border border-border bg-muted/40 p-3">
-        <div className="rounded-lg border border-border bg-card p-3 shadow-sm">
-          <div className="flex items-center gap-2">
-            {logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logo} alt="" className="h-8 w-8 rounded-lg object-cover" />
-            ) : <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Users className="h-4 w-4" /></span>}
-            <div>
-              <p className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground">Training Room</p>
-              <p className="text-[10px] font-bold">{headline || "You're invited to join"}</p>
+        <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          {session.joinBannerUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={session.joinBannerUrl} alt="" className="h-16 w-full object-cover" />
+          ) : null}
+          <div className="p-3">
+            <div className="flex items-center gap-2">
+              {logo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logo} alt="" className="h-8 w-8 rounded-lg object-cover" />
+              ) : <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Users className="h-4 w-4" /></span>}
+              <div>
+                <p className="text-[8px] font-bold uppercase tracking-wide text-muted-foreground">Training Room</p>
+                <p className="text-[10px] font-bold">{headline || "You're invited to join"}</p>
+              </div>
             </div>
+            <p className="mt-2 text-[12px] font-extrabold leading-tight">{session.title}</p>
+            {message ? <p className="mt-1 text-[9px] leading-snug text-muted-foreground">{message}</p> : null}
+            {session.joinCollectEmail ? (
+              <><div className="mt-2 rounded border border-border bg-muted px-2 py-1 text-[9px] text-muted-foreground">Your name</div><div className="mt-1 rounded border border-border bg-muted px-2 py-1 text-[9px] text-muted-foreground">Your email</div></>
+            ) : (
+              <div className="mt-2 rounded border border-border bg-muted px-2 py-1 text-[9px] text-muted-foreground">Your name</div>
+            )}
+            <div className="mt-2 rounded-md bg-gradient-to-br from-brand-500 to-violet-600 py-1.5 text-center text-[9px] font-bold text-white">Join the room</div>
           </div>
-          <p className="mt-2 text-[12px] font-extrabold leading-tight">{session.title}</p>
-          {message ? <p className="mt-1 text-[9px] leading-snug text-muted-foreground">{message}</p> : null}
-          {session.joinCollectEmail ? (
-            <><div className="mt-2 rounded border border-border bg-muted px-2 py-1 text-[9px] text-muted-foreground">Your name</div><div className="mt-1 rounded border border-border bg-muted px-2 py-1 text-[9px] text-muted-foreground">Your email</div></>
-          ) : (
-            <div className="mt-2 rounded border border-border bg-muted px-2 py-1 text-[9px] text-muted-foreground">Your name</div>
-          )}
-          <div className="mt-2 rounded-md bg-gradient-to-br from-brand-500 to-violet-600 py-1.5 text-center text-[9px] font-bold text-white">Join the room</div>
         </div>
       </div>
     </div>

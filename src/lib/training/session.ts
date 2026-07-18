@@ -148,6 +148,8 @@ function loadSessionRow(id: string) {
       participants: { orderBy: { createdAt: "asc" } },
       materials: { orderBy: { createdAt: "asc" } },
       invites: { orderBy: { createdAt: "asc" } },
+      // the owner's brand logo — the join page defaults to it (no re-upload)
+      user: { select: { brandKits: { orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], take: 1, select: { logo: true, iconLogo: true } } } },
     },
   });
 }
@@ -172,6 +174,8 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
     joinHeadline: row.joinHeadline,
     joinMessage: row.joinMessage,
     joinLogoUrl: row.joinLogoUrl,
+    joinBannerUrl: row.joinBannerUrl,
+    brandLogoUrl: row.user?.brandKits?.[0]?.logo || row.user?.brandKits?.[0]?.iconLogo || null,
     joinCollectEmail: row.joinCollectEmail,
     openDraw: row.openDraw,
     openShare: row.openShare,
