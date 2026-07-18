@@ -29,12 +29,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       joinHeadline: true,
       joinMessage: true,
       joinLogoUrl: true,
+      joinBannerUrl: true,
       joinCollectEmail: true,
-      user: { select: { name: true } },
+      user: { select: { name: true, brandKits: { orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], take: 1, select: { logo: true, iconLogo: true } } } },
       _count: { select: { participants: { where: { state: "ADMITTED" } } } },
     },
   });
   if (!s) return err("This room no longer exists", 404);
+
+  const brandLogo = s.user?.brandKits?.[0]?.logo || s.user?.brandKits?.[0]?.iconLogo || null;
 
   return NextResponse.json({
     success: true,
@@ -53,7 +56,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       collectEmail: s.joinCollectEmail || s.access === "link_email",
       headline: s.joinHeadline,
       message: s.joinMessage,
-      logoUrl: s.joinLogoUrl,
+      logoUrl: s.joinLogoUrl || brandLogo, // uploaded override, else the Brand Kit logo
+      bannerUrl: s.joinBannerUrl,
     },
   });
 }

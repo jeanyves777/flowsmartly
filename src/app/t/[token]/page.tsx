@@ -26,6 +26,7 @@ interface Info {
   headline: string | null;
   message: string | null;
   logoUrl: string | null;
+  bannerUrl: string | null;
 }
 
 export default function JoinPage({ params }: { params: Promise<{ token: string }> }) {
@@ -81,7 +82,12 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
 
   return (
     <div className="grid min-h-screen place-items-center bg-gradient-to-b from-background to-muted/40 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-2xl">
+        {info?.bannerUrl ? (
+          // full-bleed cover banner across the top of the card
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={info.bannerUrl} alt="" className="-mx-6 -mt-6 mb-5 block h-28 w-[calc(100%+3rem)] max-w-none object-cover" />
+        ) : null}
         <div className="mb-4 flex items-center gap-3">
           {info?.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
