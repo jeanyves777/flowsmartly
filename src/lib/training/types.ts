@@ -164,6 +164,8 @@ export interface TrainingSessionDTO {
   joinBannerUrl: string | null;
   /** the owner's Brand Kit logo — the join page uses it when joinLogoUrl is unset */
   brandLogoUrl: string | null;
+  /** the owner's Brand Kit colours — power the on-brand virtual-background presets */
+  brandColors: string[];
   joinCollectEmail: boolean;
   transcript: boolean;
   openDraw: boolean;

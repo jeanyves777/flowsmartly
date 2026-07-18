@@ -36,6 +36,21 @@ function json<T>(raw: string | null | undefined, fallback: T): T {
   }
 }
 
+/** Brand Kit `colors` is a JSON object/array of hex values — flatten to a list. */
+function brandColorList(colors: string | null | undefined): string[] {
+  if (!colors) return [];
+  try {
+    const parsed = JSON.parse(colors) as unknown;
+    const vals = Array.isArray(parsed) ? parsed : Object.values(parsed as Record<string, unknown>);
+    return vals
+      .filter((v): v is string => typeof v === "string" && /^#?[0-9a-fA-F]{3,8}$/.test(v))
+      .map((v) => (v.startsWith("#") ? v : `#${v}`))
+      .slice(0, 6);
+  } catch {
+    return [];
+  }
+}
+
 export function parseBoard(raw: string | null | undefined): BoardDoc {
   const doc = json<Partial<BoardDoc>>(raw, {});
   if (!doc || !Array.isArray(doc.items)) return { ...EMPTY_BOARD, items: [] };
@@ -162,8 +177,9 @@ function loadSessionRow(id: string) {
       participants: { orderBy: { createdAt: "asc" } },
       materials: { orderBy: { createdAt: "asc" } },
       invites: { orderBy: { createdAt: "asc" } },
-      // the owner's brand logo — the join page defaults to it (no re-upload)
-      user: { select: { brandKits: { orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], take: 1, select: { logo: true, iconLogo: true } } } },
+      // the owner's brand logo + colours — the join page defaults to the logo,
+      // and the virtual-background presets use the palette.
+      user: { select: { brandKits: { orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], take: 1, select: { logo: true, iconLogo: true, colors: true } } } },
     },
   });
 }
@@ -190,6 +206,7 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
     joinLogoUrl: row.joinLogoUrl,
     joinBannerUrl: row.joinBannerUrl,
     brandLogoUrl: row.user?.brandKits?.[0]?.logo || row.user?.brandKits?.[0]?.iconLogo || null,
+    brandColors: brandColorList(row.user?.brandKits?.[0]?.colors),
     joinCollectEmail: row.joinCollectEmail,
     openDraw: row.openDraw,
     openShare: row.openShare,

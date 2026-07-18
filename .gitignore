@@ -73,3 +73,6 @@ play-service-account.json
 flowsmartly-*.json
 google-services.json
 GoogleService-Info.plist
+
+# MediaPipe WASM is copied from node_modules at build time (next.config.ts), not committed
+public/mediapipe/wasm/
