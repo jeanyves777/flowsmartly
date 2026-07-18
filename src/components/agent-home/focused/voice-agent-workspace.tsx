@@ -15,7 +15,7 @@ import {
   Sparkles, X, Phone, Mic, Zap, ClipboardList, Plus, Pencil, Power, PhoneCall,
   Search, Coins, ListChecks, Settings, Hash, PauseCircle, PlayCircle, Trash2,
   ChevronRight, AlertTriangle, FileText, Link2, RefreshCw, Check, Loader2,
-  Volume2, Upload, Square,
+  Volume2, Upload, Square, Copy, PhoneForwarded,
 } from "lucide-react";
 
 import { useTextPrompt } from "@/components/agent-home/shared/text-prompt";
@@ -1549,6 +1549,95 @@ function Controls({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Par
   );
 }
 
+// Carrier call-forwarding codes, matched to when the agent should answer. The
+// landline/VoIP codes lead; the GSM codes cover mobiles. Codes vary by carrier,
+// so we say so rather than pretend one string fits all.
+function forwardingSteps(mode: AnswerMode, e164: string): {
+  headline: string; on: string; off: string; onGsm: string; offGsm: string;
+} {
+  const digits = e164.replace(/[^\d]/g, "");
+  if (mode === "missed" || mode === "afterhours" || mode === "open") {
+    return {
+      headline:
+        mode === "missed"
+          ? "Your phone rings first — the agent answers only what you miss."
+          : "Forward when you're closed or away; take calls yourself the rest of the time.",
+      on: `*92 ${digits}`,
+      off: "*93",
+      onGsm: `**61*${digits}#`,
+      offGsm: "##61#",
+    };
+  }
+  return {
+    headline: "Every call to your number goes straight to your agent.",
+    on: `*72 ${digits}`,
+    off: "*73",
+    onGsm: `**21*${digits}#`,
+    offGsm: "##21#",
+  };
+}
+
+function CopyChip({ text, big }: { text: string; big?: boolean }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      onClick={async () => { try { await navigator.clipboard.writeText(text); setDone(true); setTimeout(() => setDone(false), 1400); } catch { /* blocked */ } }}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-lg border border-border bg-background font-mono font-bold hover:border-brand-500",
+        big ? "px-3 py-2 text-[15px]" : "px-2 py-1 text-[11px]",
+      )}
+    >
+      {text}
+      {done ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
+    </button>
+  );
+}
+
+/** The star of the Number tab once a line is live: forward your calls here. */
+function ForwardingHero({ line, mode }: { line: AgentNumber; mode: AnswerMode }) {
+  const e164 = line.e164 || "";
+  const s = forwardingSteps(mode, e164);
+  return (
+    <div className="rounded-xl border border-brand-500/30 bg-brand-500/[0.04] p-4">
+      <div className="flex items-center gap-2 text-[12.5px] font-extrabold">
+        <PhoneForwarded className="h-4 w-4 text-brand-500" /> Forward your calls to your agent
+      </div>
+
+      {/* The answering line */}
+      <div className="mt-3">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Your agent answers on</span>
+        <div className="mt-1 flex items-center gap-2">
+          <b className="font-mono text-[19px] font-extrabold">{fmtNumber(e164)}</b>
+          <CopyChip text={e164.replace(/[^\d+]/g, "")} />
+        </div>
+        <p className="mt-1 text-[10.5px] text-muted-foreground">
+          Customers never dial this — they keep calling your own number. It just needs to ring here.
+        </p>
+      </div>
+
+      {/* The one step */}
+      <div className="mt-3 rounded-lg border border-border bg-card p-3">
+        <p className="text-[11.5px] font-bold">{s.headline}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11.5px]">
+          <span className="text-muted-foreground">From your business phone, dial</span>
+          <CopyChip text={s.on} big />
+          <span className="text-muted-foreground">then press call.</span>
+        </div>
+        <p className="mt-2 text-[10.5px] text-muted-foreground">
+          On a mobile, dial <span className="font-mono font-bold text-foreground">{s.onGsm}</span> instead.
+          To switch it off later: <span className="font-mono font-bold text-foreground">{s.off}</span> (mobile{" "}
+          <span className="font-mono font-bold text-foreground">{s.offGsm}</span>). Codes vary by carrier — if one
+          doesn&apos;t take, search &ldquo;your carrier + call forwarding.&rdquo;
+        </p>
+      </div>
+
+      <p className="mt-3 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+        ✓ Then call your own number — your agent should pick up.
+      </p>
+    </div>
+  );
+}
+
 function NumberTab({ agent, onPatch, onRefresh }: {
   agent: VoiceAgentDraft;
   onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void>;
@@ -1614,73 +1703,113 @@ function NumberTab({ agent, onPatch, onRefresh }: {
 
   const label = (s: string) => (s === "ACTIVE" ? "Connected" : s === "REQUESTED" ? "Being connected…" : s);
 
+  // The line assigned to THIS agent — what the client forwards their calls to.
+  const line = agent.number;
+  const ready = !!line && line.status === "ACTIVE" && !!line.e164;
+  const linePending = !!line && line.status === "REQUESTED";
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   return (
     <div className="max-w-[640px] space-y-3">
-      {/* Provide your own number */}
-      <div className="rounded-xl border border-border bg-card p-3.5">
-        <b className="text-[12.5px]">Use your own number</b>
-        <p className="mt-0.5 text-[10.5px] leading-relaxed text-muted-foreground">
-          Give us the business number you already own. We connect it over Direct SIP and handle the
-          setup — it stays your number, with no rent. You&apos;ll be able to switch the agent on once
-          it&apos;s connected.
-        </p>
-        <div className="mt-2.5 flex gap-2">
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") void provide(); }}
-            placeholder="+1 415 555 0142"
-            className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2.5 font-mono text-[13px] outline-none focus:border-brand-500"
-          />
-          <button
-            onClick={() => void provide()}
-            disabled={saving}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2.5 text-[12.5px] font-extrabold text-white disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />} Add number
-          </button>
+      {/* 1 · The main path: forward your number to the assigned line */}
+      {ready && line ? (
+        <ForwardingHero line={line} mode={agent.answerMode} />
+      ) : linePending ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.05] p-4">
+          <div className="flex items-center gap-2 text-[12.5px] font-extrabold text-amber-600 dark:text-amber-400">
+            <Loader2 className="h-4 w-4 animate-spin" /> Setting up your line
+          </div>
+          <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">
+            We&apos;re assigning the number your agent answers on. Once it&apos;s ready, this is where
+            you&apos;ll get the simple step to forward your business calls to it.
+          </p>
         </div>
-      </div>
+      ) : (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center gap-2 text-[12.5px] font-extrabold">
+            <PhoneForwarded className="h-4 w-4 text-brand-500" /> Your answering line is on the way
+          </div>
+          <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">
+            When your agent is approved we assign it a phone number. You&apos;ll then forward your own
+            business number to it — one quick code from your phone, and the agent answers your line.
+            Keep your number; nothing to port.
+          </p>
+        </div>
+      )}
 
-      {/* Your numbers */}
+      {/* 2 · Advanced: connect your own SIP/VoIP number directly (no forwarding) */}
       <div className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="border-b border-border px-3 py-2.5"><b className="text-[12px]">Your numbers</b></div>
-        <div className="space-y-2 p-3">
-          {numbers.length === 0 && (
-            <p className="text-[11.5px] text-muted-foreground">No numbers yet — add the one you want the agent to answer.</p>
-          )}
-          {numbers.map((n) => {
-            const active = n.status === "ACTIVE";
-            return (
-              <Row key={n.id}>
-                <span className="min-w-0 flex-1">
-                  <b className="block font-mono text-[11.5px]">{n.e164 ? fmtNumber(n.e164) : "—"}</b>
-                  <span className="text-[9.5px] text-muted-foreground">
-                    <span className={cn("font-bold", active ? "text-emerald-500" : "text-amber-500")}>{label(n.status)}</span>
-                    {" · "}
-                    {n.agent ? `${n.agent.name} answers it` : "not linked to an agent yet"}
-                  </span>
-                </span>
-                {active && !n.agent && agent.phoneNumberId !== n.id && (
-                  <button onClick={() => void onPatch({ phoneNumberId: n.id })}
-                    className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500">
-                    Use this
-                  </button>
-                )}
-                <button onClick={() => void remove(n)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-rose-500 hover:text-rose-500">
-                  <Trash2 className="h-3 w-3" /> Remove
-                </button>
-              </Row>
-            );
-          })}
-        </div>
-      </div>
+        <button
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="flex w-full items-center justify-between px-3.5 py-3 text-left"
+        >
+          <span>
+            <b className="block text-[12px]">Advanced — connect your own SIP number</b>
+            <span className="text-[10px] text-muted-foreground">
+              Only if your number is on a VoIP/SIP provider (Twilio, Telnyx, RingCentral, a PBX).
+            </span>
+          </span>
+          <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", showAdvanced && "rotate-90")} />
+        </button>
 
-      <p className="rounded-r-lg border-l-2 border-brand-500/40 bg-brand-500/5 py-2 pl-2.5 pr-3 text-[10px] leading-relaxed text-muted-foreground">
-        Your number stays with your carrier — we just point it at the agent over Direct SIP. Nothing to
-        port, and no rent.
-      </p>
+        {showAdvanced && (
+          <div className="space-y-3 border-t border-border p-3.5">
+            <p className="text-[10.5px] leading-relaxed text-muted-foreground">
+              Give us the number and we connect it over Direct SIP — the agent answers it directly, no
+              forwarding. This only works if your carrier can route the number to us; a regular phone-company
+              line can&apos;t, so use forwarding above instead.
+            </p>
+            <div className="flex gap-2">
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void provide(); }}
+                placeholder="+1 415 555 0142"
+                className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2.5 font-mono text-[13px] outline-none focus:border-brand-500"
+              />
+              <button
+                onClick={() => void provide()}
+                disabled={saving}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2.5 text-[12.5px] font-extrabold text-white disabled:opacity-60"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />} Add number
+              </button>
+            </div>
+
+            {/* Your numbers */}
+            <div className="space-y-2">
+              {numbers.length === 0 && (
+                <p className="text-[11px] text-muted-foreground">No SIP numbers connected.</p>
+              )}
+              {numbers.map((n) => {
+                const active = n.status === "ACTIVE";
+                return (
+                  <Row key={n.id}>
+                    <span className="min-w-0 flex-1">
+                      <b className="block font-mono text-[11.5px]">{n.e164 ? fmtNumber(n.e164) : "—"}</b>
+                      <span className="text-[9.5px] text-muted-foreground">
+                        <span className={cn("font-bold", active ? "text-emerald-500" : "text-amber-500")}>{label(n.status)}</span>
+                        {" · "}
+                        {n.agent ? `${n.agent.name} answers it` : "not linked to an agent yet"}
+                      </span>
+                    </span>
+                    {active && !n.agent && agent.phoneNumberId !== n.id && (
+                      <button onClick={() => void onPatch({ phoneNumberId: n.id })}
+                        className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500">
+                        Use this
+                      </button>
+                    )}
+                    <button onClick={() => void remove(n)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-rose-500 hover:text-rose-500">
+                      <Trash2 className="h-3 w-3" /> Remove
+                    </button>
+                  </Row>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
