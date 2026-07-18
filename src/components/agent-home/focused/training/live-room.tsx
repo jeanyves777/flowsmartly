@@ -10,7 +10,8 @@
  * screen — that combination is what makes this a training room rather than a
  * meeting. [[training-studio]]
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   MousePointer2, Pencil, Highlighter, Eraser, Square, Type, StickyNote, Flashlight,
   Undo2, Trash2, Presentation, PenLine, FileText, Monitor, Video, Hand, Mic, MicOff,
@@ -22,7 +23,7 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
 import { useMedia, type RemoteStream, type DeviceOption } from "./use-media";
-import { Sheet, InviteSheet } from "./invite-sheet";
+import { InviteSheet } from "./invite-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
 import type { BoardItem, BoardTool, StageSource, TrainingParticipantDTO, TrainingSessionDTO } from "@/lib/training/types";
 
@@ -114,7 +115,7 @@ interface Props {
   onEnd: () => void;
 }
 
-type SheetKey = null | "more" | "invite";
+type SheetKey = null | "invite";
 
 export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onUpdate, onPing, onUndo, onClear, act, patch, onLeave, onManage, onEnd }: Props) {
   const [tool, setTool] = useState<BoardTool>("pen");
@@ -125,7 +126,11 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
   const [rosterOpen, setRosterOpen] = useState(false); // mobile roster drawer
   const [sheet, setSheet] = useState<SheetKey>(null);
   const [devMenu, setDevMenu] = useState<null | "audio" | "video">(null); // anchored device popover
+  const [moreMenu, setMoreMenu] = useState(false);
   const [hideItems, setHideItems] = useState(false);
+  const audioBtnRef = useRef<HTMLDivElement>(null);
+  const videoBtnRef = useRef<HTMLDivElement>(null);
+  const moreBtnRef = useRef<HTMLDivElement>(null);
 
   // Camera/mic/screen + device menus. Optional: with no media server this
   // reports enabled:false and the room runs as a whiteboard session.
@@ -337,7 +342,7 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
         {/* ---- control bar ---- */}
         <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border bg-background/90 p-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* mic + device caret */}
-          <div className="relative shrink-0">
+          <div ref={audioBtnRef} className="relative shrink-0">
             <Ctl
               on={me.micOn}
               disabled={!media.enabled}
@@ -351,18 +356,9 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
               danger={!me.micOn}
             />
             {media.enabled ? <Caret onClick={() => setDevMenu((v) => (v === "audio" ? null : "audio"))} title="Audio devices" /> : null}
-            {devMenu === "audio" ? (
-              <DeviceMenu
-                onClose={() => setDevMenu(null)}
-                groups={[
-                  { label: "Microphone", Icon: Mic, items: media.mics, selected: media.micId, onPick: media.pickMic },
-                  { label: "Speaker", Icon: Volume2, items: media.speakers, selected: media.spkId, onPick: media.pickSpeaker },
-                ]}
-              />
-            ) : null}
           </div>
           {/* cam + device caret */}
-          <div className="relative shrink-0">
+          <div ref={videoBtnRef} className="relative shrink-0">
             <Ctl
               on={me.camOn}
               disabled={!media.enabled}
@@ -376,12 +372,6 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
               danger={!me.camOn}
             />
             {media.enabled ? <Caret onClick={() => setDevMenu((v) => (v === "video" ? null : "video"))} title="Camera devices" /> : null}
-            {devMenu === "video" ? (
-              <DeviceMenu
-                onClose={() => setDevMenu(null)}
-                groups={[{ label: "Camera", Icon: Video, items: media.cameras, selected: media.camId, onPick: media.pickCamera }]}
-              />
-            ) : null}
           </div>
           {canShareScreen(me, session) ? (
             <Ctl
@@ -401,7 +391,9 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
             <Ctl on={rosterOpen} onClick={() => setRosterOpen((v) => !v)} title="Participants" Icon={Users} />
             {inRoom.length ? <span className="pointer-events-none absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 px-1 text-[10px] font-extrabold text-white">{inRoom.length}</span> : null}
           </div>
-          <Ctl onClick={() => setSheet("more")} title="More" Icon={MoreHorizontal} />
+          <div ref={moreBtnRef} className="relative shrink-0">
+            <Ctl on={moreMenu} onClick={() => setMoreMenu((v) => !v)} title="More" Icon={MoreHorizontal} />
+          </div>
 
           <button onClick={onLeave} className="ms-auto inline-flex h-[44px] shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-br from-rose-600 to-rose-400 px-3.5 text-[12.5px] font-extrabold text-white sm:h-[38px]">
             <LogOut className="h-3.5 w-3.5" /> Leave
@@ -428,10 +420,33 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
         <RosterContent {...rosterProps} onCloseDrawer={() => setRosterOpen(false)} />
       </aside>
 
-      {/* ---- sheets ---- */}
-      {sheet === "more" ? (
-        <MoreSheet session={session} host={host} patch={patch} onManage={onManage} onClose={() => setSheet(null)} />
+      {/* ---- anchored popovers (portalled, so the control bar never clips them) ---- */}
+      {devMenu === "audio" ? (
+        <AnchoredMenu anchorRef={audioBtnRef} onClose={() => setDevMenu(null)} width={260}>
+          <DeviceGroups
+            onClose={() => setDevMenu(null)}
+            groups={[
+              { label: "Microphone", Icon: Mic, items: media.mics, selected: media.micId, onPick: media.pickMic },
+              { label: "Speaker", Icon: Volume2, items: media.speakers, selected: media.spkId, onPick: media.pickSpeaker },
+            ]}
+          />
+        </AnchoredMenu>
       ) : null}
+      {devMenu === "video" ? (
+        <AnchoredMenu anchorRef={videoBtnRef} onClose={() => setDevMenu(null)} width={260}>
+          <DeviceGroups
+            onClose={() => setDevMenu(null)}
+            groups={[{ label: "Camera", Icon: Video, items: media.cameras, selected: media.camId, onPick: media.pickCamera }]}
+          />
+        </AnchoredMenu>
+      ) : null}
+      {moreMenu ? (
+        <AnchoredMenu anchorRef={moreBtnRef} onClose={() => setMoreMenu(false)}>
+          <MoreRows session={session} host={host} patch={patch} onManage={onManage} onClose={() => setMoreMenu(false)} />
+        </AnchoredMenu>
+      ) : null}
+
+      {/* ---- sheets ---- */}
       {sheet === "invite" ? (
         <InviteSheet session={session} onClose={() => setSheet(null)} />
       ) : null}
@@ -560,57 +575,81 @@ function RosterContent({ session, me, host, act, media, waiting, inRoom, onInvit
 }
 
 /* ------------------------------------------------- device menu (anchored popover) */
-/** A compact Zoom-style dropdown that opens UPWARD from the caret — same on
- *  desktop and mobile, so it never becomes a full-width bottom sheet. */
-function DeviceMenu({ onClose, groups }: {
+/** A popover that opens UP from the button it's anchored to. Portalled to <body>
+ *  and fixed-positioned from the button's rect, so the control bar's horizontal
+ *  scroll (overflow-x-auto, which also clips vertically) can never hide it. */
+function AnchoredMenu({ anchorRef, onClose, width = 248, children }: {
+  anchorRef: React.RefObject<HTMLElement | null>; onClose: () => void; width?: number; children: React.ReactNode;
+}) {
+  const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    let left = r.left;
+    if (left + width > window.innerWidth - 8) left = window.innerWidth - width - 8;
+    if (left < 8) left = 8;
+    setPos({ left, bottom: window.innerHeight - r.top + 8 });
+  }, [anchorRef, width]);
+  if (typeof document === "undefined" || !pos) return null;
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[60]" onClick={onClose} />
+      <div className="fixed z-[61] overflow-hidden rounded-2xl border border-border bg-card p-1.5 shadow-2xl" style={{ left: pos.left, bottom: pos.bottom, width }}>
+        {children}
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+/** The mic / speaker / camera list — rendered inside an AnchoredMenu. */
+function DeviceGroups({ onClose, groups }: {
   onClose: () => void;
   groups: { label: string; Icon: typeof Mic; items: DeviceOption[]; selected: string | null; onPick: (id: string) => void }[];
 }) {
   return (
     <>
-      <div className="fixed inset-0 z-[35]" onClick={onClose} />
-      <div className="absolute bottom-full left-0 z-[36] mb-2 w-[260px] max-w-[80vw] overflow-hidden rounded-2xl border border-border bg-card p-1.5 shadow-2xl">
-        {groups.map((g) => (
-          <div key={g.label}>
-            <div className="mx-1.5 mb-0.5 mt-1.5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">
-              <g.Icon className="h-3 w-3" /> {g.label}
-            </div>
-            {g.items.length === 0 ? (
-              <p className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">Turn your {g.label.toLowerCase()} on to see the choices.</p>
-            ) : g.items.map((d, i) => {
-              const isSel = g.selected ? g.selected === d.deviceId : i === 0;
-              return (
-                <button key={d.deviceId || i} onClick={() => { g.onPick(d.deviceId); onClose(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted">
-                  <Check className={cn("h-4 w-4 shrink-0 text-brand-400", !isSel && "invisible")} />
-                  <span className={cn("truncate text-[12.5px] font-semibold", isSel && "text-brand-400")}>{d.label}</span>
-                </button>
-              );
-            })}
+      {groups.map((g) => (
+        <div key={g.label}>
+          <div className="mx-1.5 mb-0.5 mt-1.5 flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">
+            <g.Icon className="h-3 w-3" /> {g.label}
           </div>
-        ))}
-      </div>
+          {g.items.length === 0 ? (
+            <p className="px-2.5 py-1.5 text-[11.5px] text-muted-foreground">Turn your {g.label.toLowerCase()} on to see the choices.</p>
+          ) : g.items.map((d, i) => {
+            const isSel = g.selected ? g.selected === d.deviceId : i === 0;
+            return (
+              <button key={d.deviceId || i} onClick={() => { g.onPick(d.deviceId); onClose(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted">
+                <Check className={cn("h-4 w-4 shrink-0 text-brand-400", !isSel && "invisible")} />
+                <span className={cn("truncate text-[12.5px] font-semibold", isSel && "text-brand-400")}>{d.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ))}
     </>
   );
 }
 
-/* ----------------------------------------------------------------- more sheet */
-function MoreSheet({ session, host, patch, onManage, onClose }: {
+/* ---------------------------------------------- more menu content (in a popover) */
+function MoreRows({ session, host, patch, onManage, onClose }: {
   session: TrainingSessionDTO; host: boolean; patch: (b: Record<string, unknown>) => Promise<string | null>; onManage: () => void; onClose: () => void;
 }) {
   const Row = ({ Icon, name, meta, onClick, tone }: { Icon: typeof Circle; name: string; meta: string; onClick: () => void; tone?: string }) => (
-    <button onClick={() => { onClick(); onClose(); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3.5 text-left hover:bg-muted">
-      <span className={cn("grid h-[38px] w-[38px] shrink-0 place-items-center rounded-xl", tone ?? "bg-muted text-foreground")}><Icon className="h-4 w-4" /></span>
-      <span className="flex-1"><span className="block text-[14px] font-bold">{name}</span><span className="block text-[11.5px] text-muted-foreground">{meta}</span></span>
+    <button onClick={() => { onClick(); onClose(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted">
+      <span className={cn("grid h-[30px] w-[30px] shrink-0 place-items-center rounded-lg", tone ?? "bg-muted text-foreground")}><Icon className="h-3.5 w-3.5" /></span>
+      <span className="flex-1"><span className="block text-[12.5px] font-bold">{name}</span><span className="block text-[10.5px] text-muted-foreground">{meta}</span></span>
     </button>
   );
   return (
-    <Sheet title="More" sub="Room actions." onClose={onClose}>
+    <>
       {host && !session.recording ? (
         <Row Icon={Circle} name="Start recording" meta="Nothing records until you start it" tone="bg-rose-500/15 text-rose-400" onClick={() => void patch({ recording: true })} />
       ) : null}
       <Row Icon={PenLine} name="Whiteboard" meta="Put the board on the stage" onClick={() => void patch({ stageSource: "board" })} />
       {host ? <Row Icon={Paperclip} name="Materials" meta="Add a PDF, deck, image or video" onClick={onManage} tone="bg-brand-500/15 text-brand-400" /> : null}
-    </Sheet>
+    </>
   );
 }
 

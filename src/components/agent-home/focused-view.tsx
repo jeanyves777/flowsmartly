@@ -118,7 +118,8 @@ export function FocusedView({
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Icon className="h-[18px] w-[18px]" /></span>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[14px] font-bold leading-tight">{title}</div>
-            {subtitle && <div className="truncate text-[11.5px] text-muted-foreground">{subtitle}</div>}
+            {/* the tagline is noise on a phone — only show it once there's room */}
+            {subtitle && <div className="hidden truncate text-[11.5px] text-muted-foreground sm:block">{subtitle}</div>}
           </div>
           {/* Below lg, this whole cluster wraps to its own right-aligned row
               (w-full) so the meta + controls don't crush the title. The lg
@@ -130,6 +131,13 @@ export function FocusedView({
             {/* Surfaces (e.g. Pitch Studio) portal their own toolbar controls here,
                 so there's ONE header row instead of a duplicate title bar below. */}
             <div id="fv-header-slot" className="flex flex-wrap items-center justify-end gap-2 empty:hidden" />
+            {/* Chat access lives in the header on a phone, so the floating trigger
+                never covers a surface's own bottom control bar. */}
+            {mobileChat ? null : (
+              <button onClick={() => setMobileChat(true)} title="Open chat" aria-label="Open chat" className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border border-border text-muted-foreground hover:text-foreground md:hidden">
+                <MessageSquare className="h-4 w-4" />
+              </button>
+            )}
             <button onClick={onClose} className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground">
               <X className="h-4 w-4" /> Exit
             </button>
@@ -138,17 +146,8 @@ export function FocusedView({
         <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
       </div>
 
-      {/* mobile chat toggle — shown only while the chat overlay is CLOSED, so the
-          floating button never sits on top of the chat composer. The chat overlay's
-          own header has a back/close button to return to the canvas. */}
-      {!mobileChat && (
-        <button
-          onClick={() => setMobileChat(true)}
-          className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2 inline-flex items-center gap-1.5 rounded-full border border-border bg-popover px-4 py-2 text-[12.5px] font-semibold shadow-lg md:hidden"
-        >
-          <MessageSquare className="h-4 w-4" /> Open chat
-        </button>
-      )}
+      {/* The mobile chat toggle now lives in the header (above), so it can never
+          cover a surface's own bottom control bar. */}
     </div>
   );
 }
