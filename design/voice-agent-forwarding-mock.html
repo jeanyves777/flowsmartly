@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Voice Agent · Forward your number</title>
+<style>
+  :root{--bg:#0b0b0d;--card:#141416;--bg2:#0f0f11;--border:#26262b;--text:#f4f4f5;--muted:#a1a1aa;--brand:#7c5cff;--brand-soft:rgba(124,92,255,.05);--brand-border:rgba(124,92,255,.3);--amber:#f59e0b;--green:#22c55e;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:#000;color:var(--text);font:14px/1.5 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;}
+  .phone{max-width:680px;margin:24px auto;padding:0 16px 60px;}
+  .tabbar{display:flex;gap:6px;border-bottom:1px solid var(--border);padding:10px 4px;margin-bottom:16px;}
+  .tab{font-size:12px;padding:5px 12px;border-radius:8px;color:var(--muted);}
+  .tab.on{background:#1c1c20;color:var(--text);font-weight:700;}
+  .max{max-width:640px;}
+  .card{border:1px solid var(--border);background:var(--card);border-radius:14px;}
+  .hero{border:1px solid var(--brand-border);background:var(--brand-soft);border-radius:14px;padding:16px;}
+  .h1{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:800;}
+  .ic{color:var(--brand);}
+  .kicker{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);}
+  .line{font-family:ui-monospace,Menlo,monospace;font-size:19px;font-weight:800;}
+  .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--bg2);border-radius:9px;font-family:ui-monospace,monospace;font-weight:700;padding:5px 10px;font-size:11px;cursor:pointer;}
+  .chip.big{font-size:15px;padding:8px 12px;}
+  .chip:hover{border-color:var(--brand);}
+  .muted{color:var(--muted);}
+  .sub{border:1px solid var(--border);background:var(--card);border-radius:10px;padding:12px;}
+  .mono{font-family:ui-monospace,monospace;font-weight:700;}
+  .ok{color:#4ade80;font-weight:600;font-size:11px;}
+  .adv{border:1px solid var(--border);background:var(--card);border-radius:14px;overflow:hidden;}
+  .advhead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;}
+  .chev{color:var(--muted);}
+  .note{font-size:10.5px;color:var(--muted);}
+  .divider{height:1px;background:var(--border);margin:16px 0;}
+  .caption{font-size:11px;color:var(--muted);margin:26px 0 8px;text-transform:uppercase;letter-spacing:.05em;}
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <div class="tabbar">
+    <div class="tab">📞 Calls</div>
+    <div class="tab">⚙ Controls</div>
+    <div class="tab on"># Number</div>
+  </div>
+
+  <div class="max" style="display:flex;flex-direction:column;gap:12px">
+
+    <!-- Forwarding hero (ready state) -->
+    <div class="hero">
+      <div class="h1"><span class="ic">↪</span> Forward your calls to your agent</div>
+
+      <div style="margin-top:12px">
+        <div class="kicker">Your agent answers on</div>
+        <div style="margin-top:4px;display:flex;align-items:center;gap:8px">
+          <b class="line">+1 (774) 492-4790</b>
+          <span class="chip">+17744924790 ⧉</span>
+        </div>
+        <p class="note" style="margin-top:4px">Customers never dial this — they keep calling your own number. It just needs to ring here.</p>
+      </div>
+
+      <div class="sub" style="margin-top:12px">
+        <p style="font-size:11.5px;font-weight:700;margin:0">Every call to your number goes straight to your agent.</p>
+        <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11.5px">
+          <span class="muted">From your business phone, dial</span>
+          <span class="chip big">*72 17744924790 ⧉</span>
+          <span class="muted">then press call.</span>
+        </div>
+        <p class="note" style="margin-top:8px">
+          On a mobile, dial <span class="mono" style="color:#fff">**21*17744924790#</span> instead.
+          To switch it off later: <span class="mono" style="color:#fff">*73</span> (mobile <span class="mono" style="color:#fff">##21#</span>).
+          Codes vary by carrier — if one doesn&apos;t take, search &ldquo;your carrier + call forwarding.&rdquo;
+        </p>
+      </div>
+
+      <p class="ok" style="margin-top:12px">✓ Then call your own number — your agent should pick up.</p>
+    </div>
+
+    <!-- Advanced (collapsed) -->
+    <div class="adv">
+      <div class="advhead">
+        <span>
+          <b style="font-size:12px;display:block">Advanced — connect your own SIP number</b>
+          <span class="note">Only if your number is on a VoIP/SIP provider (Twilio, Telnyx, RingCentral, a PBX).</span>
+        </span>
+        <span class="chev">›</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="caption">— other states —</div>
+
+  <div class="max" style="display:flex;flex-direction:column;gap:12px">
+    <!-- Pending -->
+    <div class="card" style="border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.05);padding:16px">
+      <div class="h1" style="color:var(--amber)"><span>⟳</span> Setting up your line</div>
+      <p class="note" style="margin-top:4px">We&apos;re assigning the number your agent answers on. Once it&apos;s ready, this is where you&apos;ll get the simple step to forward your business calls to it.</p>
+    </div>
+
+    <!-- Missed-calls mode variant -->
+    <div class="hero">
+      <div class="h1"><span class="ic">↪</span> Forward your calls to your agent <span class="note" style="margin-left:6px">(answer mode: only missed)</span></div>
+      <div class="sub" style="margin-top:12px">
+        <p style="font-size:11.5px;font-weight:700;margin:0">Your phone rings first — the agent answers only what you miss.</p>
+        <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11.5px">
+          <span class="muted">From your business phone, dial</span>
+          <span class="chip big">*92 17744924790 ⧉</span>
+          <span class="muted">then press call.</span>
+        </div>
+        <p class="note" style="margin-top:8px">On a mobile, dial <span class="mono" style="color:#fff">**61*17744924790#</span>. Off: <span class="mono" style="color:#fff">*93</span> (mobile <span class="mono" style="color:#fff">##61#</span>).</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
