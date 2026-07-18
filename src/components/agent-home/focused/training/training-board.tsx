@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import getStroke from "perfect-freehand";
 import { cn } from "@/lib/utils/cn";
-import type { BoardDoc, BoardItem, BoardPoint, BoardTool } from "@/lib/training/types";
+import type { BoardDoc, BoardItem, BoardPoint, BoardTool, LiveStroke } from "@/lib/training/types";
 
 export interface BoardCursor {
   participantId: string;
@@ -43,6 +43,10 @@ interface Props {
   /** move / edit an existing mark (drag with the Select tool, or double-click text) */
   onUpdate: (item: BoardItem) => void;
   onPing: (x: number, y: number, laser: boolean) => void;
+  /** stream MY in-progress stroke (throttled) so others watch it appear; null clears it */
+  onLiveStroke?: (stroke: LiveStroke | null) => void;
+  /** other participants' in-progress strokes, keyed by participantId — rendered live */
+  liveStrokes?: Record<string, LiveStroke>;
   /** hide every drawn mark with one click (a presenter view toggle) */
   hideItems?: boolean;
   /** the deck/doc/screen sitting behind the ink, if any */
@@ -81,7 +85,7 @@ function toPath(points: number[][]): string {
   return d.join(" ");
 }
 
-export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, cursors, onAdd, onRemove, onUpdate, onPing, hideItems, backdrop, className }: Props) {
+export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, cursors, onAdd, onRemove, onUpdate, onPing, onLiveStroke, liveStrokes, hideItems, backdrop, className }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [live, setLive] = useState<BoardPoint[] | null>(null);
@@ -221,6 +225,7 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
 
   // ---- pointer ----
   const lastPing = useRef(0);
+  const lastLive = useRef(0); // throttle for streaming the in-progress stroke
   const onDown = (e: ReactPointerEvent) => {
     const pt0 = toFrac(e.nativeEvent);
     if (tool === "sel") {
@@ -300,6 +305,12 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
     if (!liveRef.current) return;
     liveRef.current = [...liveRef.current, pt];
     setLive(liveRef.current);
+    // Stream the in-progress stroke (throttled ~15/s) so attendees watch the ink
+    // appear as it's drawn, not only once the stroke is finished.
+    if (onLiveStroke && (tool === "pen" || tool === "hi") && now - lastLive.current > 60) {
+      lastLive.current = now;
+      onLiveStroke({ tool: tool === "hi" ? "hi" : "pen", color, size: TOOL_SIZE[tool] ?? TOOL_SIZE.pen, pts: liveRef.current });
+    }
   };
 
   const onUp = () => {
@@ -342,6 +353,8 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
     const pts = liveRef.current;
     liveRef.current = null;
     setLive(null);
+    lastLive.current = 0;
+    if (onLiveStroke) onLiveStroke(null); // clear the streamed preview on everyone else
     if (!pts || pts.length < 2) return;
     onAdd({
       id: uid("k"),
@@ -489,7 +502,7 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
             }
             return null;
           })}
-          {/* the stroke under the pen right now — drawn locally, before the server sees it */}
+          {/* the stroke under MY pen right now — drawn locally, before the server sees it */}
           {live && live.length > 1 ? (
             <path
               d={toPath(
@@ -502,6 +515,24 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
               opacity={tool === "hi" ? 0.32 : 1}
             />
           ) : null}
+          {/* everyone else's in-progress strokes — streamed live as they draw */}
+          {liveStrokes && !hideItems
+            ? Object.entries(liveStrokes).map(([pid, st]) =>
+                st.pts && st.pts.length > 1 ? (
+                  <path
+                    key={`live-${pid}`}
+                    d={toPath(
+                      getStroke(
+                        st.pts.map((p) => [p.x * box.w, p.y * box.h, p.p ?? 0.5]),
+                        strokeOptions(st.tool, st.size * box.w),
+                      ),
+                    )}
+                    fill={st.color}
+                    opacity={st.tool === "hi" ? 0.32 : 1}
+                  />
+                ) : null,
+              )
+            : null}
           {/* eraser ring — shows what the eraser will remove */}
           {eraseAt ? (
             <circle

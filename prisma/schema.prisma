@@ -6238,6 +6238,7 @@ model TrainingSession {
 
   // live stage state
   penHolderId   String? // TrainingParticipant.id holding the pen (presenter-authoritative)
+  activeSegmentId String? // TrainingSegment.id the room is currently on (the "lesson" pointer)
   stageSource   String  @default("board") // board | slides | doc | video | screen | cam
   stageKey      String? // material id, or the participant id who is screen-sharing
   stagePage     Int     @default(1)

@@ -119,11 +119,13 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
         session={session}
         me={me}
         cursors={room.cursors}
+        liveStrokes={room.liveStrokes}
         connected={room.connected}
         onAdd={(i) => void room.addItem(i)}
         onRemove={(itemId) => void room.removeItem(itemId)}
         onUpdate={(i) => void room.updateItem(i)}
         onPing={room.ping}
+        onLiveStroke={room.streamStroke}
         onUndo={() => {
           const mine = [...session.boardDoc.items].reverse().find((x) => x.by === me.id);
           if (mine) void room.removeItem(mine.id);

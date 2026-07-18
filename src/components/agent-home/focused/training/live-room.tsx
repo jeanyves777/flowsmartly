@@ -23,9 +23,9 @@ import {
 import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
 import { useMedia, type RemoteStream, type DeviceOption } from "./use-media";
-import { InviteSheet } from "./invite-sheet";
+import { InviteSheet, Sheet } from "./invite-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
-import type { BoardItem, BoardTool, StageSource, TrainingParticipantDTO, TrainingSessionDTO, TrainingMessageDTO } from "@/lib/training/types";
+import type { BoardItem, BoardTool, LiveStroke, StageSource, TrainingParticipantDTO, TrainingSessionDTO, TrainingMessageDTO } from "@/lib/training/types";
 
 const SHAPES: { id: ShapeKind; Icon: typeof Square; label: string }[] = [
   { id: "rect", Icon: Square, label: "Rectangle" },
@@ -100,11 +100,13 @@ interface Props {
   session: TrainingSessionDTO;
   me: TrainingParticipantDTO;
   cursors: BoardCursor[];
+  liveStrokes?: Record<string, LiveStroke>;
   connected: boolean;
   onAdd: (item: BoardItem) => void;
   onRemove: (itemId: string) => void;
   onUpdate: (item: BoardItem) => void;
   onPing: (x: number, y: number, laser: boolean) => void;
+  onLiveStroke?: (stroke: LiveStroke | null) => void;
   onUndo: () => void;
   onClear: () => void;
   act: (action: string, participantId?: string) => Promise<string | null>;
@@ -117,15 +119,14 @@ interface Props {
   onEnd: () => void;
 }
 
-type SheetKey = null | "invite";
+type SheetKey = null | "invite" | "roster";
 
-export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onUpdate, onPing, onUndo, onClear, act, patch, messages, sendMessage, onLeave, onManage, onEnd }: Props) {
+export function LiveRoom({ session, me, cursors, liveStrokes, connected, onAdd, onRemove, onUpdate, onPing, onLiveStroke, onUndo, onClear, act, patch, messages, sendMessage, onLeave, onManage, onEnd }: Props) {
   const [tool, setTool] = useState<BoardTool>("pen");
   const [ink, setInk] = useState(INKS[0]);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rect");
   const [showTools, setShowTools] = useState(true); // desktop pen rail
   const [toolDock, setToolDock] = useState(false); // mobile overlay dock
-  const [rosterOpen, setRosterOpen] = useState(false); // mobile roster drawer
   const [sheet, setSheet] = useState<SheetKey>(null);
   const [devMenu, setDevMenu] = useState<null | "audio" | "video">(null); // anchored device popover
   const [moreMenu, setMoreMenu] = useState(false);
@@ -151,6 +152,15 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
     const fit = () => {
       const { width, height } = el.getBoundingClientRect();
       if (!width || !height) return;
+      // Phones are portrait — a 16:9 board would leave a big black gutter, so the
+      // board fills the stage there (the whiteboard should use most of the screen).
+      // Desktop keeps a centred 16:9 box. Coordinates stay fractional either way,
+      // so a mark lands in the same relative place on every screen.
+      const desktop = typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches;
+      if (!desktop) {
+        setBoardBox({ w: Math.round(width), h: Math.round(height) });
+        return;
+      }
       let w = Math.min(width, 980);
       let h = (w * 9) / 16;
       if (h > height) { h = height; w = (h * 16) / 9; }
@@ -311,8 +321,9 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
           </span>
         </div>
 
-        {/* attendee strip on TOP */}
-        {layout === "top" ? <RosterStrip {...rosterProps} /> : null}
+        {/* attendee strip on TOP (desktop layouts only — a phone uses the
+            floating movable bubbles over the board instead) */}
+        {layout === "top" ? <RosterStrip {...rosterProps} className="hidden md:flex" /> : null}
 
         {/* stage — the inner ref measures the space, the board is a fitted 16:9 box */}
         <div className="relative flex flex-1 flex-col overflow-hidden bg-[#0e0e13] p-2.5 sm:p-3.5">
@@ -329,6 +340,17 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
               </div>
             </div>
           ) : null}
+          {/* phone: participants as movable floating bubbles over the board */}
+          <FloatingBubbles
+            className="md:hidden"
+            inRoom={inRoom}
+            me={me}
+            media={media}
+            session={session}
+            host={host}
+            onSpotlight={onSpotlight}
+            onOpenRoster={() => setSheet("roster")}
+          />
           <div ref={stageRef} className="relative flex min-h-0 flex-1 items-center justify-center">
           <div className="relative shadow-2xl" style={boardBox ? { width: boardBox.w, height: boardBox.h } : { width: "100%", maxWidth: 980, aspectRatio: "16 / 9" }}>
             <TrainingBoard
@@ -340,9 +362,11 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
               color={ink}
               canDraw={iCanDraw}
               cursors={cursors}
+              liveStrokes={liveStrokes}
               onAdd={onAdd}
               onRemove={onRemove}
               onPing={onPing}
+              onLiveStroke={onLiveStroke}
               backdrop={backdrop}
             />
             {paged && material ? (
@@ -395,15 +419,19 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
           ) : null}
         </div>
 
-        {/* attendee strip on the BOTTOM */}
-        {layout === "bottom" ? <RosterStrip {...rosterProps} /> : null}
+        {/* attendee strip on the BOTTOM (desktop layouts only) */}
+        {layout === "bottom" ? <RosterStrip {...rosterProps} className="hidden md:flex" /> : null}
 
-        {/* ---- control bar ---- */}
-        <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border bg-background/90 p-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* lesson progress + Next activity — phone only, host/co-host drives it */}
+        <LessonCard session={session} host={host} patch={patch} className="md:hidden" />
+
+        {/* ---- control bar ---- large touch targets, spread evenly on a phone ---- */}
+        <div className="flex shrink-0 items-center justify-between gap-1 border-t border-border bg-background/90 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:justify-start md:gap-1.5 md:overflow-x-auto md:px-2.5 md:py-2.5">
           {/* mic + device caret */}
           <div ref={audioBtnRef} className="relative shrink-0">
             <Ctl
               on={me.micOn}
+              label="Mic"
               disabled={!media.enabled}
               onClick={async () => {
                 const e = await media.toggleMic();
@@ -420,6 +448,7 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
           <div ref={videoBtnRef} className="relative shrink-0">
             <Ctl
               on={me.camOn}
+              label="Camera"
               disabled={!media.enabled}
               onClick={async () => {
                 const e = await media.toggleCam();
@@ -432,59 +461,59 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
             />
             {media.enabled ? <Caret onClick={() => setDevMenu((v) => (v === "video" ? null : "video"))} title="Camera devices" /> : null}
           </div>
+          {/* screen share — desktop bar only (phones reach it from More) */}
           {canShareScreen(me, session) ? (
-            <Ctl
-              on={me.sharing}
-              disabled={!media.enabled}
-              onClick={async () => {
-                const e = await media.toggleScreen();
-                if (e) return;
-                await act(media.screenOn ? "stop_share" : "start_share", me.id);
-              }}
-              title={!media.enabled ? "Video isn't switched on for this room" : me.sharing ? "Stop sharing" : "Share your screen"}
-              Icon={Monitor}
-            />
+            <div className="relative hidden shrink-0 md:block">
+              <Ctl
+                on={me.sharing}
+                disabled={!media.enabled}
+                onClick={async () => {
+                  const e = await media.toggleScreen();
+                  if (e) return;
+                  await act(media.screenOn ? "stop_share" : "start_share", me.id);
+                }}
+                title={!media.enabled ? "Video isn't switched on for this room" : me.sharing ? "Stop sharing" : "Share your screen"}
+                Icon={Monitor}
+              />
+            </div>
           ) : null}
-          <Ctl on={me.handRaised} onClick={() => void act(me.handRaised ? "lower_hand" : "raise_hand", me.id)} title={me.handRaised ? "Lower your hand" : "Raise your hand"} Icon={Hand} />
-          <div className="relative shrink-0">
+          <Ctl on={me.handRaised} label="Raise hand" onClick={() => void act(me.handRaised ? "lower_hand" : "raise_hand", me.id)} title={me.handRaised ? "Lower your hand" : "Raise your hand"} Icon={Hand} />
+          {/* people — opens the roster sheet (phone only; desktop has the column/strip) */}
+          <div className="shrink-0 md:hidden">
+            <Ctl label="People" onClick={() => setSheet("roster")} title="Participants" Icon={Users} badge={inRoom.length} />
+          </div>
+          {/* chat — desktop bar only (phones reach it from More) */}
+          <div className="relative hidden shrink-0 md:block">
             <Ctl on={chatOpen} onClick={() => setChatOpen((v) => !v)} title="Chat" Icon={MessageSquare} />
             {unread ? <span className="pointer-events-none absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-extrabold text-white">{unread > 9 ? "9+" : unread}</span> : null}
           </div>
-          {layout === "side" ? (
-            <div className="relative shrink-0">
-              <Ctl on={rosterOpen} onClick={() => setRosterOpen((v) => !v)} title="Participants" Icon={Users} />
-              {inRoom.length ? <span className="pointer-events-none absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 px-1 text-[10px] font-extrabold text-white">{inRoom.length}</span> : null}
-            </div>
-          ) : null}
           <div ref={moreBtnRef} className="relative shrink-0">
-            <Ctl on={moreMenu} onClick={() => setMoreMenu((v) => !v)} title="More" Icon={MoreHorizontal} />
+            <Ctl on={moreMenu} label="More" onClick={() => setMoreMenu((v) => !v)} title="More" Icon={MoreHorizontal} />
+            {/* unread rides on More for phones, since chat lives inside it there */}
+            {unread ? <span className="pointer-events-none absolute right-1 top-0 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-extrabold text-white md:hidden">{unread > 9 ? "9+" : unread}</span> : null}
           </div>
 
-          <button onClick={onLeave} className="ms-auto inline-flex h-[44px] shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-br from-rose-600 to-rose-400 px-3.5 text-[12.5px] font-extrabold text-white sm:h-[38px]">
-            <LogOut className="h-3.5 w-3.5" /> Leave
+          {/* leave — the red hang-up */}
+          <button onClick={onLeave} title="Leave the session" className="flex shrink-0 flex-col items-center gap-1 md:ms-auto md:flex-row md:gap-1.5 md:rounded-xl md:bg-gradient-to-br md:from-rose-600 md:to-rose-400 md:px-3.5 md:py-2">
+            <span className="grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-br from-rose-600 to-rose-400 text-white shadow-lg md:h-auto md:w-auto md:bg-none md:shadow-none">
+              <LogOut className="h-[19px] w-[19px] md:h-3.5 md:w-3.5" />
+            </span>
+            <span className="text-[10px] font-semibold leading-none text-rose-400 md:text-[12.5px] md:font-extrabold md:text-white">Leave</span>
           </button>
           {me.role === "HOST" ? (
-            <button onClick={onEnd} title="End the session for everyone" className="inline-flex h-[44px] shrink-0 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-[12.5px] font-extrabold text-muted-foreground hover:border-rose-500 hover:text-rose-400 sm:h-[38px]">
+            <button onClick={onEnd} title="End the session for everyone" className="hidden shrink-0 items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-[12.5px] font-extrabold text-muted-foreground hover:border-rose-500 hover:text-rose-400 md:inline-flex">
               <StopIcon className="h-3.5 w-3.5" /> End
             </button>
           ) : null}
         </div>
       </div>
 
-      {/* ---- side roster: desktop column + mobile drawer (only in the "side" layout) ---- */}
+      {/* ---- side roster: desktop column only. On a phone the "side" layout
+             renders the compact bottom strip above (never a full-height drawer). ---- */}
       {layout === "side" ? (
-        <>
-          <aside className="relative hidden w-[300px] shrink-0 flex-col border-s border-border bg-card md:flex">
-            <RosterContent {...rosterProps} />
-          </aside>
-          {rosterOpen ? <div className="absolute inset-0 z-[20] bg-black/50 md:hidden" onClick={() => setRosterOpen(false)} /> : null}
-          <aside className={cn(
-            "absolute inset-y-0 right-0 z-[21] flex w-[86%] max-w-[340px] flex-col border-s border-border bg-card shadow-2xl transition-transform duration-300 md:hidden",
-            rosterOpen ? "translate-x-0" : "translate-x-full",
-          )}>
-            <RosterContent {...rosterProps} onCloseDrawer={() => setRosterOpen(false)} />
-          </aside>
-        </>
+        <aside className="relative hidden w-[300px] shrink-0 flex-col border-s border-border bg-card md:flex">
+          <RosterContent {...rosterProps} />
+        </aside>
       ) : null}
 
       {/* ---- anchored popovers (portalled, so the control bar never clips them) ---- */}
@@ -509,13 +538,28 @@ export function LiveRoom({ session, me, cursors, connected, onAdd, onRemove, onU
       ) : null}
       {moreMenu ? (
         <AnchoredMenu anchorRef={moreBtnRef} onClose={() => setMoreMenu(false)}>
-          <MoreRows session={session} host={host} patch={patch} onManage={onManage} onClose={() => setMoreMenu(false)} />
+          <MoreRows
+            session={session}
+            host={host}
+            isOwner={me.role === "HOST"}
+            unread={unread}
+            patch={patch}
+            onManage={onManage}
+            onChat={() => setChatOpen(true)}
+            onEnd={onEnd}
+            onClose={() => setMoreMenu(false)}
+          />
         </AnchoredMenu>
       ) : null}
 
       {/* ---- sheets ---- */}
       {sheet === "invite" ? (
         <InviteSheet session={session} onClose={() => setSheet(null)} />
+      ) : null}
+
+      {/* roster bottom sheet — the phone's full participant list (People / bubbles chip) */}
+      {sheet === "roster" ? (
+        <RosterSheet {...rosterProps} onClose={() => setSheet(null)} />
       ) : null}
 
       {chatOpen ? <ChatPanel messages={messages} me={me} sendMessage={sendMessage} onClose={() => setChatOpen(false)} /> : null}
@@ -646,14 +690,14 @@ function RosterContent({ session, me, host, act, media, waiting, inRoom, onInvit
 /* ------------------------------------------------- roster strip (top / bottom) */
 /** A compact horizontal row of attendee tiles — the phone-friendly layout. Small
  *  video/initials thumbnails scroll sideways; the host can admit + invite inline. */
-function RosterStrip({ session, me, host, act, media, waiting, inRoom, onInvite, onSpotlight }: {
+function RosterStrip({ session, me, host, act, media, waiting, inRoom, onInvite, onSpotlight, className }: {
   session: TrainingSessionDTO; me: TrainingParticipantDTO; host: boolean;
   act: (action: string, participantId?: string) => Promise<string | null>;
   media: ReturnType<typeof useMedia>; waiting: TrainingParticipantDTO[]; inRoom: TrainingParticipantDTO[];
-  onInvite: () => void; onSpotlight: (id: string) => void;
+  onInvite: () => void; onSpotlight: (id: string) => void; className?: string;
 }) {
   return (
-    <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-y border-border bg-card/60 px-2.5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className={cn("flex shrink-0 items-center gap-1.5 overflow-x-auto border-y border-border bg-card/60 px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-2 sm:px-2.5 sm:py-2", className)}>
       {host && waiting.length ? (
         <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-2 py-1.5">
           <span className="text-[10px] font-extrabold text-amber-400">{waiting.length} waiting</span>
@@ -672,7 +716,7 @@ function RosterStrip({ session, me, host, act, media, waiting, inRoom, onInvite,
             key={p.id}
             onClick={() => host && onSpotlight(p.id)}
             title={host ? (spotlit ? `Remove ${p.name}'s spotlight` : `Spotlight ${p.name}`) : p.name}
-            className={cn("group relative h-[64px] w-[86px] shrink-0 overflow-hidden rounded-lg border-2 bg-[#181820]", spotlit ? "border-amber-400" : p.role === "HOST" ? "border-brand-500/50" : "border-border")}
+            className={cn("group relative h-[52px] w-[72px] shrink-0 overflow-hidden rounded-lg border-2 bg-[#181820] sm:h-[64px] sm:w-[86px]", spotlit ? "border-amber-400" : p.role === "HOST" ? "border-brand-500/50" : "border-border")}
           >
             {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : (
               <span className="grid h-full w-full place-items-center"><span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-brand-600 to-violet-700 text-[11px] font-black text-white">{p.name.slice(0, 2).toUpperCase()}</span></span>
@@ -690,8 +734,168 @@ function RosterStrip({ session, me, host, act, media, waiting, inRoom, onInvite,
         );
       })}
       {host ? (
-        <button onClick={onInvite} title="Invite people" className="grid h-[64px] w-[52px] shrink-0 place-items-center rounded-lg border border-dashed border-border bg-card text-muted-foreground hover:border-brand-500 hover:text-brand-400">
+        <button onClick={onInvite} title="Invite people" className="grid h-[52px] w-[46px] shrink-0 place-items-center rounded-lg border border-dashed border-border bg-card text-muted-foreground hover:border-brand-500 hover:text-brand-400 sm:h-[64px] sm:w-[52px]">
           <span className="flex flex-col items-center gap-0.5"><Send className="h-3.5 w-3.5" /><span className="text-[8.5px] font-bold">Invite</span></span>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/* -------------------------------------------- phone: movable participant bubbles */
+/** On a phone the roster isn't a strip or a drawer — each person is a small round
+ *  video bubble the user can DRAG anywhere over the board, plus a count chip that
+ *  opens the full list. Keeps the whiteboard full-bleed. A tap (no drag) spotlights
+ *  for a host, or opens the roster for everyone else. [[training-studio]] */
+function FloatingBubbles({ inRoom, me, media, session, host, onSpotlight, onOpenRoster, className }: {
+  inRoom: TrainingParticipantDTO[]; me: TrainingParticipantDTO; media: ReturnType<typeof useMedia>;
+  session: TrainingSessionDTO; host: boolean; onSpotlight: (id: string) => void; onOpenRoster: () => void; className?: string;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  const [pos, setPos] = useState<Record<string, { x: number; y: number }>>({});
+  const drag = useRef<{ id: string; ox: number; oy: number; sx: number; sy: number; moved: boolean } | null>(null);
+
+  const SIZE = 54, GAP = 10, MAX = 5;
+  const shown = inRoom.slice(0, MAX);
+  const ids = shown.map((p) => p.id).join(",");
+
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => { const r = el.getBoundingClientRect(); setBox({ w: r.width, h: r.height }); });
+    ro.observe(el);
+    const r = el.getBoundingClientRect();
+    setBox({ w: r.width, h: r.height });
+    return () => ro.disconnect();
+  }, []);
+
+  // give every new bubble a home position (top-right cascade); drop those who left
+  useEffect(() => {
+    if (!box.w) return;
+    setPos((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      shown.forEach((p, i) => {
+        if (!next[p.id]) { next[p.id] = { x: box.w - SIZE - 8, y: 8 + i * (SIZE + GAP) }; changed = true; }
+      });
+      for (const id of Object.keys(next)) {
+        if (!shown.some((p) => p.id === id)) { delete next[id]; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, [box.w, ids]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const clampPos = (x: number, y: number) => ({
+    x: Math.max(6, Math.min(Math.max(6, box.w - SIZE - 6), x)),
+    y: Math.max(6, Math.min(Math.max(6, box.h - SIZE - 6), y)),
+  });
+
+  const down = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
+    const p = pos[id] ?? { x: 0, y: 0 };
+    drag.current = { id, ox: p.x, oy: p.y, sx: e.clientX, sy: e.clientY, moved: false };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const move = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    if (Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) > 5) d.moved = true;
+    setPos((prev) => ({ ...prev, [d.id]: clampPos(d.ox + (e.clientX - d.sx), d.oy + (e.clientY - d.sy)) }));
+  };
+  const up = (id: string) => {
+    const d = drag.current;
+    drag.current = null;
+    if (d && !d.moved) { if (host) onSpotlight(id); else onOpenRoster(); }
+  };
+
+  return (
+    <div ref={boxRef} className={cn("pointer-events-none absolute inset-0 z-[13]", className)}>
+      {shown.map((p) => {
+        const pp = pos[p.id];
+        if (!pp) return null;
+        const feed = p.id === me.id ? media.localCam : media.remotes.find((r) => r.participantId === p.id && r.source === "cam" && r.kind === "video")?.stream ?? null;
+        const spotlit = session.spotlightId === p.id;
+        return (
+          <div
+            key={p.id}
+            onPointerDown={(e) => down(e, p.id)}
+            onPointerMove={move}
+            onPointerUp={() => up(p.id)}
+            className="pointer-events-auto absolute touch-none select-none"
+            style={{ left: pp.x, top: pp.y, width: SIZE }}
+          >
+            <div className={cn("relative grid place-items-center overflow-hidden rounded-full border-2 bg-[#181820] shadow-lg", spotlit ? "border-amber-400" : p.role === "HOST" ? "border-brand-400" : "border-white/70")} style={{ width: SIZE, height: SIZE }}>
+              {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : (
+                <span className="grid h-full w-full place-items-center bg-gradient-to-br from-brand-600 to-violet-700 text-[14px] font-black text-white">{p.name.slice(0, 2).toUpperCase()}</span>
+              )}
+              {session.penHolderId === p.id ? <span className="absolute left-0 top-0 grid h-4 w-4 place-items-center rounded-br-lg bg-emerald-500 text-white"><PenLine className="h-2.5 w-2.5" /></span> : null}
+              {!p.micOn ? <span className="absolute bottom-0 right-0 grid h-4 w-4 place-items-center rounded-tl-lg bg-rose-500 text-white"><MicOff className="h-2.5 w-2.5" /></span> : null}
+            </div>
+            <span className="mx-auto mt-0.5 block max-w-[64px] truncate rounded bg-black/45 px-1 text-center text-[8.5px] font-bold text-white">{p.id === me.id ? "You" : p.name}</span>
+          </div>
+        );
+      })}
+      {/* count chip → opens the full roster sheet */}
+      <button onClick={onOpenRoster} title="Participants" className="pointer-events-auto absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 rounded-full border border-border bg-card/95 px-2.5 py-1.5 text-[11px] font-extrabold shadow-lg backdrop-blur">
+        <Users className="h-3.5 w-3.5" /> {inRoom.length}
+      </button>
+    </div>
+  );
+}
+
+/* ------------------------------------------------- roster bottom sheet (phone) */
+function RosterSheet(props: {
+  session: TrainingSessionDTO; me: TrainingParticipantDTO; host: boolean;
+  act: (action: string, participantId?: string) => Promise<string | null>;
+  media: ReturnType<typeof useMedia>; waiting: TrainingParticipantDTO[]; inRoom: TrainingParticipantDTO[];
+  onInvite: () => void; onSpotlight: (id: string) => void; onClose: () => void;
+}) {
+  const { onClose, ...roster } = props;
+  return (
+    <Sheet
+      title="Participants"
+      sub={`${roster.inRoom.length} in the room${roster.waiting.length ? ` · ${roster.waiting.length} waiting` : ""}`}
+      onClose={onClose}
+    >
+      <RosterContent {...roster} />
+    </Sheet>
+  );
+}
+
+/* ------------------------------------------------- lesson progress (phone card) */
+/** The agenda as a one-line "Lesson N of M" progress strip with a Next button.
+ *  The active segment is synced (session.activeSegmentId) so everyone sees the
+ *  same lesson; only a host/co-host advances it. Hidden when there's no agenda. */
+function LessonCard({ session, host, patch, className }: {
+  session: TrainingSessionDTO; host: boolean; patch: (b: Record<string, unknown>) => Promise<string | null>; className?: string;
+}) {
+  const segs = session.segments;
+  if (!segs.length) return null;
+  const idx = Math.max(0, segs.findIndex((s) => s.id === session.activeSegmentId));
+  const cur = segs[idx];
+  const next = segs[idx + 1] ?? null;
+  const pct = Math.round(((idx + 1) / segs.length) * 100);
+  return (
+    <div className={cn("flex shrink-0 items-center gap-3 border-t border-border bg-card px-3 py-2.5", className)}>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Star className="h-4 w-4 fill-current" /></span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[13px] font-extrabold">Lesson {idx + 1} of {segs.length}</span>
+          <span className="ms-auto text-[11px] font-bold text-muted-foreground">{pct}%</span>
+        </div>
+        <p className="truncate text-[11.5px] text-muted-foreground">{cur?.note || cur?.title || "—"}</p>
+        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-600 transition-all" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+      {host ? (
+        <button
+          onClick={() => { if (next) void patch({ activeSegmentId: next.id }); }}
+          disabled={!next}
+          title={next ? `Next: ${next.title || next.note}` : "You're on the last activity"}
+          className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-3 py-2 text-[12px] font-extrabold text-white disabled:opacity-40"
+        >
+          Next <ChevronRight className="h-3.5 w-3.5" />
         </button>
       ) : null}
     </div>
@@ -757,8 +961,9 @@ function DeviceGroups({ onClose, groups }: {
 }
 
 /* ---------------------------------------------- more menu content (in a popover) */
-function MoreRows({ session, host, patch, onManage, onClose }: {
-  session: TrainingSessionDTO; host: boolean; patch: (b: Record<string, unknown>) => Promise<string | null>; onManage: () => void; onClose: () => void;
+function MoreRows({ session, host, isOwner, unread, patch, onManage, onChat, onEnd, onClose }: {
+  session: TrainingSessionDTO; host: boolean; isOwner: boolean; unread: number;
+  patch: (b: Record<string, unknown>) => Promise<string | null>; onManage: () => void; onChat: () => void; onEnd: () => void; onClose: () => void;
 }) {
   const Row = ({ Icon, name, meta, onClick, tone }: { Icon: typeof Circle; name: string; meta: string; onClick: () => void; tone?: string }) => (
     <button onClick={() => { onClick(); onClose(); }} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-muted">
@@ -773,14 +978,18 @@ function MoreRows({ session, host, patch, onManage, onClose }: {
   ];
   return (
     <>
+      {/* chat lives here on a phone (it isn't in the phone's control bar) */}
+      <div className="md:hidden">
+        <Row Icon={MessageSquare} name={unread ? `Chat · ${unread} new` : "Chat"} meta="Message the room" tone={unread ? "bg-rose-500/15 text-rose-400" : undefined} onClick={onChat} />
+      </div>
       {host && !session.recording ? (
         <Row Icon={Circle} name="Start recording" meta="Nothing records until you start it" tone="bg-rose-500/15 text-rose-400" onClick={() => void patch({ recording: true })} />
       ) : null}
       <Row Icon={PenLine} name="Whiteboard" meta="Put the board on the stage" onClick={() => void patch({ stageSource: "board" })} />
       {host ? <Row Icon={Paperclip} name="Materials" meta="Add a PDF, deck, image or video" onClick={onManage} tone="bg-brand-500/15 text-brand-400" /> : null}
       {host ? (
-        <div className="mt-1 px-2.5 pb-1 pt-2">
-          <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Attendees</div>
+        <div className="mt-1 hidden px-2.5 pb-1 pt-2 md:block">
+          <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Attendee layout</div>
           <div className="grid grid-cols-3 gap-1.5">
             {LAYOUTS.map((l) => (
               <button
@@ -792,6 +1001,12 @@ function MoreRows({ session, host, patch, onManage, onClose }: {
               </button>
             ))}
           </div>
+        </div>
+      ) : null}
+      {/* owner's End — in the phone menu since it isn't in the phone's control bar */}
+      {isOwner ? (
+        <div className="mt-1 border-t border-border pt-1 md:hidden">
+          <Row Icon={StopIcon} name="End session" meta="Ends the room for everyone" tone="bg-rose-500/15 text-rose-400" onClick={onEnd} />
         </div>
       ) : null}
     </>
@@ -971,18 +1186,21 @@ function ChatPanel({ messages, me, sendMessage, onClose }: {
 }
 
 /* ------------------------------------------------------------- small controls */
-function Ctl({ Icon, title, onClick, on, danger, disabled }: { Icon: typeof Mic; title: string; onClick: () => void; on?: boolean; danger?: boolean; disabled?: boolean }) {
+/** A meeting control. On a phone it renders as a big round button with a label
+ *  underneath (the Zoom/Meet pattern); on desktop it's a compact square icon. */
+function Ctl({ Icon, title, label, onClick, on, danger, disabled, badge }: { Icon: typeof Mic; title: string; label?: string; onClick: () => void; on?: boolean; danger?: boolean; disabled?: boolean; badge?: number }) {
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      disabled={disabled}
-      className={cn(
-        "grid h-[48px] w-[48px] shrink-0 place-items-center rounded-xl border transition disabled:opacity-40 sm:h-[42px] sm:w-[42px]",
-        danger ? "border-rose-500/45 bg-rose-500/15 text-rose-400" : on ? "border-brand-500 bg-brand-500/15 text-brand-400" : "border-border bg-card hover:border-brand-500",
-      )}
-    >
-      <Icon className="h-4 w-4" />
+    <button onClick={onClick} title={title} disabled={disabled} className="flex shrink-0 flex-col items-center gap-1 disabled:opacity-40">
+      <span
+        className={cn(
+          "relative grid h-[52px] w-[52px] place-items-center rounded-full border transition sm:h-[42px] sm:w-[42px] sm:rounded-xl",
+          danger ? "border-rose-500/45 bg-rose-500/15 text-rose-400" : on ? "border-brand-500 bg-brand-500/15 text-brand-400" : "border-border bg-card group-hover:border-brand-500",
+        )}
+      >
+        <Icon className="h-[19px] w-[19px] sm:h-4 sm:w-4" />
+        {badge ? <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 px-1 text-[10px] font-extrabold text-white">{badge > 9 ? "9+" : badge}</span> : null}
+      </span>
+      {label ? <span className="max-w-[58px] truncate text-[10px] font-semibold leading-none text-muted-foreground md:hidden">{label}</span> : null}
     </button>
   );
 }
