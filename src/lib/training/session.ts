@@ -200,6 +200,7 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
     spotlightId: row.spotlightId,
 
     penHolderId: row.penHolderId,
+    activeSegmentId: row.activeSegmentId ?? null,
     stageSource: row.stageSource as StageSource,
     stageKey: row.stageKey,
     stagePage: row.stagePage,

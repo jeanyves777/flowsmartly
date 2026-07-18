@@ -377,11 +377,13 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
             session={session}
             me={room.me}
             cursors={room.cursors}
+            liveStrokes={room.liveStrokes}
             connected={room.connected}
             onAdd={(i) => void room.addItem(i)}
             onRemove={(id) => void room.removeItem(id)}
             onUpdate={(i) => void room.updateItem(i)}
             onPing={room.ping}
+            onLiveStroke={room.streamStroke}
             onUndo={undo}
             onClear={() => void room.clearBoard()}
             act={async (a, p) => { const e = await room.act(a, p); fail(e); return e; }}

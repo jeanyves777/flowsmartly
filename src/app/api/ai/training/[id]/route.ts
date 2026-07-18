@@ -40,6 +40,7 @@ interface PatchBody {
   hideBoard?: boolean;
   rosterLayout?: "side" | "top" | "bottom";
   spotlightId?: string | null;
+  activeSegmentId?: string | null;
   joinHeadline?: string | null;
   joinMessage?: string | null;
   joinLogoUrl?: string | null;
@@ -76,6 +77,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   if (b.rosterLayout && ["side", "top", "bottom"].includes(b.rosterLayout)) data.rosterLayout = b.rosterLayout;
   if (b.spotlightId !== undefined) data.spotlightId = b.spotlightId || null;
+  if (b.activeSegmentId !== undefined) data.activeSegmentId = b.activeSegmentId || null;
   if (b.joinHeadline !== undefined) data.joinHeadline = b.joinHeadline ? String(b.joinHeadline).slice(0, 120) : null;
   if (b.joinMessage !== undefined) data.joinMessage = b.joinMessage ? String(b.joinMessage).slice(0, 400) : null;
   if (b.joinLogoUrl !== undefined) data.joinLogoUrl = b.joinLogoUrl || null;
@@ -105,6 +107,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         hideBoard: dto.hideBoard,
         rosterLayout: dto.rosterLayout,
         spotlightId: dto.spotlightId,
+        activeSegmentId: dto.activeSegmentId,
         title: dto.title,
       },
     });

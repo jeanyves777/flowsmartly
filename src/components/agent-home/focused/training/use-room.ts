@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   BoardItem,
+  LiveStroke,
   RoomEvent,
   TrainingParticipantDTO,
   TrainingSessionDTO,
@@ -32,6 +33,8 @@ interface RoomState {
   session: TrainingSessionDTO | null;
   me: TrainingParticipantDTO | null;
   cursors: BoardCursor[];
+  /** other participants' in-progress strokes, keyed by participantId */
+  liveStrokes: Record<string, LiveStroke>;
   messages: TrainingMessageDTO[];
   connected: boolean;
   error: string | null;
@@ -43,6 +46,7 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     session: null,
     me: null,
     cursors: [],
+    liveStrokes: {},
     messages: [],
     connected: false,
     error: null,
@@ -51,6 +55,7 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
   const esRef = useRef<EventSource | null>(null);
   const attempts = useRef(0);
   const cursorTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const liveStrokeTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // ---------------------------------------------------------------- subscribe
   useEffect(() => {
@@ -120,10 +125,19 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
 
             case "board:add": {
               if (!s.session) return s;
+              // a committed mark supersedes that author's live preview
+              let liveStrokes = s.liveStrokes;
+              if (msg.item.by && liveStrokes[msg.item.by]) {
+                liveStrokes = { ...liveStrokes };
+                delete liveStrokes[msg.item.by];
+              }
               // ignore the echo of our own optimistic mark
-              if (s.session.boardDoc.items.some((i) => i.id === msg.item.id)) return s;
+              if (s.session.boardDoc.items.some((i) => i.id === msg.item.id)) {
+                return liveStrokes === s.liveStrokes ? s : { ...s, liveStrokes };
+              }
               return {
                 ...s,
+                liveStrokes,
                 session: {
                   ...s.session,
                   boardDoc: { ...s.session.boardDoc, items: [...s.session.boardDoc.items, msg.item] },
@@ -158,7 +172,7 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
             }
             case "board:clear": {
               if (!s.session) return s;
-              return { ...s, session: { ...s.session, boardDoc: { ...s.session.boardDoc, items: [] } } };
+              return { ...s, liveStrokes: {}, session: { ...s.session, boardDoc: { ...s.session.boardDoc, items: [] } } };
             }
 
             case "cursor":
@@ -177,6 +191,17 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
               return { ...s, cursors: [...rest, cur] };
             }
 
+            case "livestroke": {
+              if (msg.participantId === s.me?.id) return s; // never render my own preview
+              if (!msg.stroke) {
+                if (!s.liveStrokes[msg.participantId]) return s;
+                const next = { ...s.liveStrokes };
+                delete next[msg.participantId];
+                return { ...s, liveStrokes: next };
+              }
+              return { ...s, liveStrokes: { ...s.liveStrokes, [msg.participantId]: msg.stroke } };
+            }
+
             default:
               return s;
           }
@@ -193,6 +218,29 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
               setState((s) => ({ ...s, cursors: s.cursors.filter((c) => c.participantId !== id) }));
             }, 4000),
           );
+        }
+
+        // A live-stroke preview that stops arriving (dropped final clear, or the
+        // drawer went away mid-stroke) is swept so a half-drawn ghost can't stick.
+        if (msg.type === "livestroke") {
+          const id = msg.participantId;
+          const t = liveStrokeTimers.current.get(id);
+          if (t) clearTimeout(t);
+          if (msg.stroke) {
+            liveStrokeTimers.current.set(
+              id,
+              setTimeout(() => {
+                setState((s) => {
+                  if (!s.liveStrokes[id]) return s;
+                  const next = { ...s.liveStrokes };
+                  delete next[id];
+                  return { ...s, liveStrokes: next };
+                });
+              }, 2500),
+            );
+          } else {
+            liveStrokeTimers.current.delete(id);
+          }
         }
       };
 
@@ -216,6 +264,8 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
       esRef.current = null;
       cursorTimers.current.forEach((t) => clearTimeout(t));
       cursorTimers.current.clear();
+      liveStrokeTimers.current.forEach((t) => clearTimeout(t));
+      liveStrokeTimers.current.clear();
     };
   }, [sessionId, enabled, opts?.invite]);
 
@@ -311,6 +361,22 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     [sessionId],
   );
 
+  /** Stream the stroke under the pen right now, so attendees watch the ink appear
+   *  live instead of only after the stroke finishes. Ephemeral + fire-and-forget;
+   *  `null` clears it (on pointer-up the committed stroke lands via addItem). */
+  const streamStroke = useCallback(
+    (stroke: LiveStroke | null) => {
+      if (!sessionId) return;
+      void fetch(`/api/ai/training/${sessionId}/board`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "livestroke", stroke, sessionKey: sessionKey.current }),
+        keepalive: true,
+      }).catch(() => {});
+    },
+    [sessionId],
+  );
+
   /** Any host control over a person. Returns the refusal message, or null. */
   const act = useCallback(
     async (action: string, participantId?: string): Promise<string | null> => {
@@ -374,5 +440,5 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     [sessionId],
   );
 
-  return { ...state, addItem, removeItem, updateItem, clearBoard, ping, act, patch, sendMessage, setSession };
+  return { ...state, addItem, removeItem, updateItem, clearBoard, ping, streamStroke, act, patch, sendMessage, setSession };
 }

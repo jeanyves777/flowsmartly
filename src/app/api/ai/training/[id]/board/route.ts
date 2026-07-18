@@ -115,8 +115,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 }
 
 /**
- * PUT — a cursor / laser ping. Never stored: it's pure presence, and writing it
- * to Postgres 20×/second per person would be absurd.
+ * PUT — a cursor / laser ping OR a live-stroke preview. Never stored: it's pure
+ * presence, and writing it to Postgres 20×/second per person would be absurd.
+ *
+ * `kind: "livestroke"` streams the in-progress stroke so attendees watch the ink
+ * appear as it's drawn; the committed BoardStroke still arrives via POST `add` on
+ * pointer-up (that path stays authoritative + canDraw-gated). A `stroke: null`
+ * clears the preview. We don't re-run canDraw here for the same reason cursors
+ * don't: it's a 20×/s ephemeral channel, and the preview can only touch the
+ * transient overlay — the stored board only changes through the gated POST.
  */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -124,11 +131,28 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!actor || actor.state !== "ADMITTED") return err("Access denied", 403);
 
   const b = (await request.json().catch(() => ({}))) as {
-    kind?: "cursor" | "laser";
+    kind?: "cursor" | "laser" | "livestroke";
     x?: number;
     y?: number;
+    stroke?: { tool?: "pen" | "hi"; color?: string; size?: number; pts?: { x: number; y: number; p?: number }[] } | null;
     sessionKey?: string;
   };
+
+  if (b.kind === "livestroke") {
+    // Clamp the payload so one client can't fan out an unbounded array.
+    let stroke = null as null | { tool: "pen" | "hi"; color: string; size: number; pts: { x: number; y: number; p?: number }[] };
+    if (b.stroke && Array.isArray(b.stroke.pts) && b.stroke.pts.length) {
+      stroke = {
+        tool: b.stroke.tool === "hi" ? "hi" : "pen",
+        color: typeof b.stroke.color === "string" ? b.stroke.color.slice(0, 32) : "#111827",
+        size: typeof b.stroke.size === "number" ? b.stroke.size : 0.004,
+        pts: b.stroke.pts.slice(-600).map((p) => ({ x: p.x, y: p.y, ...(typeof p.p === "number" ? { p: p.p } : {}) })),
+      };
+    }
+    broadcast(id, { type: "livestroke", participantId: actor.participantId, stroke }, b.sessionKey);
+    return NextResponse.json({ success: true });
+  }
+
   if (typeof b.x !== "number" || typeof b.y !== "number") return err("Bad ping");
 
   broadcast(

@@ -178,6 +178,8 @@ export interface TrainingSessionDTO {
   spotlightId: string | null;
 
   penHolderId: string | null;
+  /** the segment (lesson) the room is currently on — drives the progress card */
+  activeSegmentId: string | null;
   stageSource: StageSource;
   stageKey: string | null;
   stagePage: number;
@@ -202,6 +204,18 @@ export interface TrainingMessageDTO {
   at: string; // ISO timestamp
 }
 
+/** The stroke under the presenter's pen RIGHT NOW — streamed while they draw so
+ *  attendees see the ink appear live, not only once the stroke is finished. It's
+ *  ephemeral presence (never stored); the committed BoardStroke lands via
+ *  `board:add` on pointer-up and replaces this preview. [[training-studio]] */
+export interface LiveStroke {
+  tool: "pen" | "hi";
+  color: string;
+  /** stroke width as a fraction of board width (same units as BoardStroke.size) */
+  size: number;
+  pts: BoardPoint[];
+}
+
 export type RoomEvent =
   | { type: "room:init"; sessionKey: string; me: TrainingParticipantDTO; session: TrainingSessionDTO; messages: TrainingMessageDTO[] }
   | { type: "room:join"; participant: TrainingParticipantDTO }
@@ -214,6 +228,7 @@ export type RoomEvent =
   | { type: "board:clear" }
   | { type: "cursor"; participantId: string; x: number; y: number }
   | { type: "laser"; participantId: string; x: number; y: number }
+  | { type: "livestroke"; participantId: string; stroke: LiveStroke | null }
   | { type: "knock"; participant: TrainingParticipantDTO }
   | { type: "chat"; message: TrainingMessageDTO }
   | { type: "heartbeat" };
