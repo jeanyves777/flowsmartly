@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, X, Presentation, Loader2, PenLine, FileText, Bot,
+  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -43,7 +43,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const [wantDoc, setWantDoc] = useState(true);
   const [wantWb, setWantWb] = useState(true);
   const [wantVis, setWantVis] = useState(true);
-  const [busy, setBusy] = useState<null | "gen" | "regen" | "save">(null);
+  const [busy, setBusy] = useState<null | "gen" | "regen" | "save" | "narrate">(null);
 
   // local working copy of the deck (edits autosave)
   const [deck, setDeck] = useState<TrainingDeck | null>(mat?.deck ?? null);
@@ -83,6 +83,20 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const setPresenterActive = (v: boolean) => {
     setDeck((d) => { if (!d) return d; const next = { ...d, presenterActive: v, presenterId: presenter?.id ?? d.presenterId }; persist(next); return next; });
   };
+  // Generate spoken narration for the whole deck in the presenter's voice.
+  const narrate = async () => {
+    if (!mat) return;
+    setBusy("narrate");
+    try {
+      const j = await fetch("/api/ai/training/presenter/narrate", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id }),
+      }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't generate narration", variant: "destructive" }); return; }
+      onSession(j.data.session as TrainingSessionDTO);
+      toast({ title: `Narration ready`, description: `${j.data.narrated} slide${j.data.narrated === 1 ? "" : "s"} voiced in your presenter's voice.` });
+    } finally { setBusy(null); }
+  };
+  const narratedCount = deck?.slides.filter((s) => s.narration).length ?? 0;
 
   const generate = async (o?: AutoGen) => {
     const b = (o?.brief ?? brief).trim();
@@ -216,6 +230,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 <button onClick={() => setPresenterActive(!deck.presenterActive)} className={cn("rounded-lg px-2.5 py-1.5 text-[10.5px] font-bold transition", deck.presenterActive ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>{deck.presenterActive ? "On" : "Off"}</button>
               ) : null}
             </div>
+            {presenter && deck.presenterActive ? (
+              <button onClick={narrate} disabled={busy === "narrate"} className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-1.5 text-[10.5px] font-bold hover:border-brand-500 disabled:opacity-60">
+                {busy === "narrate" ? <><Loader2 className="h-3 w-3 animate-spin" /> Voicing your slides…</> : <><Volume2 className="h-3 w-3" /> {narratedCount ? `Narration · ${narratedCount}/${deck.slides.length} voiced` : "Generate presenter narration"}</>}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

@@ -173,6 +173,16 @@ export interface DeckSlide {
   /** whiteboard/livedraw only — a subject to render as a generated 3D asset and drop
    *  on the board. Kept so the asset can be regenerated. */
   assetPrompt?: string;
+  /** AI-presenter narration for this slide — the spoken script + synthesized audio the
+   *  co-host plays while the slide is on the stage. Generated from the presenter's voice. */
+  narration?: SlideNarration;
+}
+
+/** One slide's spoken narration (script + audio) for the AI presenter. */
+export interface SlideNarration {
+  text: string;
+  audioUrl: string;
+  durationMs: number;
 }
 export interface TrainingDeck {
   v: 1;
