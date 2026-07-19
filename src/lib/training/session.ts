@@ -264,6 +264,7 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
           joinedAt: p.joinedAt?.toISOString() ?? null,
           focusPct: p.focusPct,
           secondsIn: p.secondsIn,
+          isAI: p.isAI,
         }),
       ),
     materials: row.materials.map(

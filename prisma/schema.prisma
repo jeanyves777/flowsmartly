@@ -6343,6 +6343,9 @@ model TrainingParticipant {
   avatarUrl  String?
   role       String  @default("TRAINEE") // HOST | COHOST | TRAINEE | GUEST
   state      String  @default("WAITING") // WAITING | ADMITTED | DENIED | LEFT | REMOVED
+  /// a synthetic AI Presenter co-host (disclosed) — not a real connection
+  isAI              Boolean @default(false)
+  presenterProfileId String?
   canShare   Boolean @default(false)
   canDraw    Boolean @default(false)
   micOn      Boolean @default(false)

@@ -5,9 +5,42 @@ import { checkRoomAccess, canManageRoles } from "@/lib/training/access";
 import { estimateSession, getSessionDTO, meterRoom } from "@/lib/training/session";
 import { checkCreditsAvailable } from "@/lib/credits/costs";
 import { broadcast } from "@/lib/training/room";
+import type { TrainingParticipantDTO } from "@/lib/training/types";
 
 const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
+
+/**
+ * Put the AI Presenter into the room as a disclosed co-host when a presenter is
+ * active on the deck. It's a synthetic participant (isAI) — never a real connection.
+ * Idempotent: updates the existing AI co-host or creates one, then announces it.
+ * [[training-studio]]
+ */
+async function ensureAICohost(sessionId: string): Promise<void> {
+  const mats = await prisma.trainingMaterial.findMany({ where: { sessionId, kind: "slides" }, select: { deck: true } });
+  let presenterId: string | null = null;
+  for (const m of mats) {
+    if (!m.deck) continue;
+    try { const d = JSON.parse(m.deck) as { presenterActive?: boolean; presenterId?: string }; if (d.presenterActive && d.presenterId) { presenterId = d.presenterId; break; } } catch { /* skip */ }
+  }
+  if (!presenterId) return;
+  const presenter = await prisma.presenterProfile.findUnique({ where: { id: presenterId }, select: { name: true, portraitUrl: true } });
+  if (!presenter) return;
+
+  const existing = await prisma.trainingParticipant.findFirst({ where: { sessionId, isAI: true } });
+  const data = { name: presenter.name, avatarUrl: presenter.portraitUrl, role: "COHOST", state: "ADMITTED", presenterProfileId: presenterId, canShare: true, canDraw: true, camOn: true };
+  const p = existing
+    ? await prisma.trainingParticipant.update({ where: { id: existing.id }, data })
+    : await prisma.trainingParticipant.create({ data: { sessionId, isAI: true, joinedAt: new Date(), ...data } });
+
+  const dto: TrainingParticipantDTO = {
+    id: p.id, userId: p.userId, name: p.name, email: p.email, avatarUrl: p.avatarUrl,
+    role: "COHOST", state: "ADMITTED", canShare: p.canShare, canDraw: p.canDraw,
+    micOn: p.micOn, camOn: p.camOn, handRaised: p.handRaised, sharing: p.sharing,
+    joinedAt: p.joinedAt?.toISOString() ?? null, focusPct: p.focusPct, secondsIn: p.secondsIn, isAI: true,
+  };
+  broadcast(sessionId, { type: "room:join", participant: dto });
+}
 
 /**
  * POST — start or end the room.
@@ -54,6 +87,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       data: { status: "live", startedAt: room.startedAt ?? new Date() },
     });
     broadcast(id, { type: "room:state", patch: { status: "live" } });
+    await ensureAICohost(id).catch(() => {}); // the AI co-host joins if a presenter is active
     return NextResponse.json({ success: true, data: { session: await getSessionDTO(id), estimate: est } });
   }
 

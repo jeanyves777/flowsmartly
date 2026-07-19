@@ -124,6 +124,8 @@ export interface TrainingParticipantDTO {
   joinedAt: string | null;
   focusPct: number;
   secondsIn: number;
+  /** a disclosed AI Presenter co-host (synthetic participant, not a real connection) */
+  isAI: boolean;
 }
 
 export interface TrainingMaterialDTO {
