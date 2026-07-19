@@ -175,6 +175,10 @@ export interface DeckSlide {
 export interface TrainingDeck {
   v: 1;
   slides: DeckSlide[];
+  /** the AI presenter built for THIS presentation (a PresenterProfile id) + whether
+   *  it's switched on to deliver the room. Set from the presenter step in the builder. */
+  presenterId?: string | null;
+  presenterActive?: boolean;
 }
 
 // ------------------------------------------------------------ AI presenter

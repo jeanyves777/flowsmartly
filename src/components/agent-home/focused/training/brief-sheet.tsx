@@ -101,9 +101,11 @@ interface Props {
   presenter?: PresenterProfileDTO | null;
   onOpenPresenter?: () => void;
   onClearPresenter?: () => void;
+  wantsPresenter?: boolean;
+  onWantsPresenter?: (v: boolean) => void;
 }
 
-export function BriefSheet({ open, busy, onClose, onBuild, presenter, onOpenPresenter, onClearPresenter }: Props) {
+export function BriefSheet({ open, busy, onClose, onBuild, presenter, onOpenPresenter, onClearPresenter, wantsPresenter, onWantsPresenter }: Props) {
   const [d, setD] = useState<BriefDraft>(DEFAULT_BRIEF);
   const [est, setEst] = useState<Estimate | null>(null);
   const set = <K extends keyof BriefDraft>(k: K, v: BriefDraft[K]) => setD((p) => ({ ...p, [k]: v }));
@@ -185,6 +187,7 @@ export function BriefSheet({ open, busy, onClose, onBuild, presenter, onOpenPres
               onSeats={(v) => set("seats", v)} onAccess={(v) => set("access", v)}
               onWaiting={() => set("waitingRoom", !d.waitingRoom)} onRecording={() => set("recording", !d.recording)}
               presenter={presenter} onOpenPresenter={onOpenPresenter} onClearPresenter={onClearPresenter}
+              wantsPresenter={!!wantsPresenter} onWantsPresenter={onWantsPresenter}
             />
           ) : (
           /* Fill the workspace — no centered narrow column. The right rail is
@@ -408,13 +411,14 @@ const TONES = ["Practical & engaging", "Formal & precise", "Friendly & casual", 
 const FLOW = ["Hook", "Explain", "Demonstrate", "Draw", "Practice", "Summary"];
 
 /** "Build with AI" — the primary creation path: one objective in, a whole training out. */
-function AiTab({ ai, setAi, setAiK, seats, access, waitingRoom, recording, onSeats, onAccess, onWaiting, onRecording, presenter, onOpenPresenter, onClearPresenter }: {
+function AiTab({ ai, setAi, setAiK, seats, access, waitingRoom, recording, onSeats, onAccess, onWaiting, onRecording, presenter, onOpenPresenter, onClearPresenter, wantsPresenter, onWantsPresenter }: {
   ai: DeckDraft;
   setAi: Dispatch<SetStateAction<DeckDraft>>;
   setAiK: <K extends keyof DeckDraft>(k: K, v: DeckDraft[K]) => void;
   seats: number; access: AccessMode; waitingRoom: boolean; recording: boolean;
   onSeats: (v: number) => void; onAccess: (v: AccessMode) => void; onWaiting: () => void; onRecording: () => void;
   presenter?: PresenterProfileDTO | null; onOpenPresenter?: () => void; onClearPresenter?: () => void;
+  wantsPresenter?: boolean; onWantsPresenter?: (v: boolean) => void;
 }) {
   const pv = deckPreview(ai.durationMins, ai.wants);
   const toggleWant = (k: keyof DeckWants) => setAi((p) => ({ ...p, wants: { ...p.wants, [k]: !p.wants[k] } }));
@@ -568,25 +572,27 @@ function AiTab({ ai, setAi, setAiK, seats, access, waitingRoom, recording, onSea
         </Card>
 
         <Card title="AI Presenter Assistant" Icon={Bot}>
-          <p className="mb-2.5 text-[11px] text-muted-foreground">Let a presenter with your cloned voice &amp; likeness deliver this training as a disclosed co-host.</p>
-          {presenter ? (
-            <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5">
-              {presenter.portraitUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={presenter.portraitUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-              ) : (
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500/30 to-violet-600/30 text-[11px] font-black text-brand-300">{presenter.name.slice(0, 2).toUpperCase()}</span>
-              )}
-              <div className="min-w-0 flex-1">
-                <b className="block truncate text-[12px]">{presenter.name}</b>
-                <span className="text-[10px] text-muted-foreground">AI · {presenter.role === "cohost" ? "Co-host" : presenter.role === "host" ? "Host" : "Assistant"}{presenter.voiceName ? " · voice ready" : " · no voice yet"}</span>
+          <Tg on={!!wantsPresenter} onClick={() => onWantsPresenter?.(!wantsPresenter)} Icon={Bot} t="Let an AI presenter deliver this" s="Your cloned voice + likeness, as a disclosed co-host" />
+          {wantsPresenter ? (
+            presenter ? (
+              <div className="mt-2 flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5">
+                {presenter.portraitUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={presenter.portraitUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+                ) : (
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500/30 to-violet-600/30 text-[11px] font-black text-brand-300">{presenter.name.slice(0, 2).toUpperCase()}</span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <b className="block truncate text-[12px]">{presenter.name}</b>
+                  <span className="text-[10px] text-muted-foreground">AI · {presenter.role === "cohost" ? "Co-host" : presenter.role === "host" ? "Host" : "Assistant"}{presenter.voiceName ? " · voice ready" : " · no voice yet"}</span>
+                </div>
+                <button onClick={onOpenPresenter} className="rounded-lg border border-border px-2 py-1 text-[10.5px] font-semibold text-muted-foreground hover:text-foreground">Change</button>
+                <button onClick={onClearPresenter} title="Remove" className="grid h-6 w-6 place-items-center rounded-md border border-border text-muted-foreground hover:border-rose-500 hover:text-rose-400"><X className="h-3 w-3" /></button>
               </div>
-              <button onClick={onOpenPresenter} className="rounded-lg border border-border px-2 py-1 text-[10.5px] font-semibold text-muted-foreground hover:text-foreground">Change</button>
-              <button onClick={onClearPresenter} title="Remove" className="grid h-6 w-6 place-items-center rounded-md border border-border text-muted-foreground hover:border-rose-500 hover:text-rose-400"><X className="h-3 w-3" /></button>
-            </div>
-          ) : (
-            <button onClick={onOpenPresenter} className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted px-3 py-2.5 text-[12px] font-bold hover:border-brand-500 hover:text-brand-400"><Bot className="h-4 w-4" /> Set up an AI presenter</button>
-          )}
+            ) : (
+              <p className="mt-2 rounded-lg border border-brand-500/25 bg-brand-500/[0.06] px-2.5 py-2 text-[10.5px] leading-relaxed text-muted-foreground">You&apos;ll set the presenter up as a step in the builder, right after your presentation is generated.</p>
+            )
+          ) : null}
         </Card>
 
         <div className="flex items-center gap-3 rounded-2xl border border-brand-500/25 bg-brand-500/[0.06] p-3.5">

@@ -73,6 +73,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
   const [deckAutoGen, setDeckAutoGen] = useState<DeckAutoGen | null>(null);
   const [presenterOpen, setPresenterOpen] = useState(false);
   const [presenter, setPresenter] = useState<PresenterProfileDTO | null>(null);
+  const [wantsPresenter, setWantsPresenter] = useState(false);
 
   useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
 
@@ -462,7 +463,13 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           session={session}
           sessionId={sessionId!}
           autoGen={deckAutoGen}
-          onAutoConsumed={() => setDeckAutoGen(null)}
+          onAutoConsumed={() => {
+            setDeckAutoGen(null);
+            // The presenter step continues right after the presentation is built.
+            if (wantsPresenter) setPresenterOpen(true);
+          }}
+          presenter={presenter}
+          onOpenPresenter={() => setPresenterOpen(true)}
           onSession={(s) => room.setSession(s)}
           onPresent={(matId) => void room.patch({ stageSource: "slides", stageKey: matId, stagePage: 1, stageStep: 1 }).then(() => setMode("live"))}
           onExit={() => setMode(session.status === "live" ? "live" : "plan")}
@@ -496,9 +503,13 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
         onChange={onMaterialChosen}
       />
 
-      <BriefSheet open={briefOpen} busy={busy} onClose={() => setBriefOpen(false)} onBuild={build} presenter={presenter} onOpenPresenter={() => setPresenterOpen(true)} onClearPresenter={() => setPresenter(null)} />
+      <BriefSheet
+        open={briefOpen} busy={busy} onClose={() => setBriefOpen(false)} onBuild={build}
+        presenter={presenter} onOpenPresenter={() => setPresenterOpen(true)} onClearPresenter={() => setPresenter(null)}
+        wantsPresenter={wantsPresenter} onWantsPresenter={setWantsPresenter}
+      />
 
-      <PresenterSetup open={presenterOpen} onClose={() => setPresenterOpen(false)} onChoose={(p) => { setPresenter(p); setPresenterOpen(false); }} />
+      <PresenterSetup open={presenterOpen} onClose={() => setPresenterOpen(false)} onChoose={(p) => { setPresenter(p); setWantsPresenter(true); setPresenterOpen(false); }} />
 
       {listOpen ? (
         <>

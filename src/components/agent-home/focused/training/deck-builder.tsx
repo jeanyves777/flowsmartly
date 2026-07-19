@@ -10,22 +10,24 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, X, Presentation, Loader2, PenLine, FileText,
+  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, X, Presentation, Loader2, PenLine, FileText, Bot,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { DeckSlideView } from "./deck-slide-view";
-import type { DeckSlide, TrainingDeck, TrainingSessionDTO } from "@/lib/training/types";
+import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO } from "@/lib/training/types";
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
 interface AutoGen { brief: string; wantDoc: boolean; wantWhiteboard: boolean; wantVisuals: boolean; slideCount: number }
 
-export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, onSession, onPresent, onExit }: {
+export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, presenter, onOpenPresenter, onSession, onPresent, onExit }: {
   session: TrainingSessionDTO;
   sessionId: string;
   autoGen?: AutoGen | null;
   onAutoConsumed?: () => void;
+  presenter?: PresenterProfileDTO | null;
+  onOpenPresenter?: () => void;
   onSession: (s: TrainingSessionDTO) => void;
   onPresent: (materialId: string) => void;
   onExit: () => void;
@@ -65,6 +67,21 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, onSes
     if (!deck || !slide) return;
     const next: TrainingDeck = { ...deck, slides: deck.slides.map((s) => (s.id === slide.id ? { ...s, ...patch } : s)) };
     setDeck(next); persist(next);
+  };
+
+  // The presenter is part of THIS presentation: when one is chosen, record it on the
+  // deck; the step in the rail activates/deactivates it.
+  useEffect(() => {
+    if (!presenter) return;
+    setDeck((d) => {
+      if (!d || d.presenterId === presenter.id) return d;
+      const next = { ...d, presenterId: presenter.id, presenterActive: d.presenterActive ?? true };
+      persist(next);
+      return next;
+    });
+  }, [presenter?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const setPresenterActive = (v: boolean) => {
+    setDeck((d) => { if (!d) return d; const next = { ...d, presenterActive: v, presenterId: presenter?.id ?? d.presenterId }; persist(next); return next; });
   };
 
   const generate = async (o?: AutoGen) => {
@@ -176,6 +193,30 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, onSes
             </button>
           ))}
           <button onClick={addSlide} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-[11px] font-bold text-muted-foreground hover:border-brand-500 hover:text-brand-400"><Plus className="h-3.5 w-3.5" /> Add slide</button>
+        </div>
+        {/* Presenter — a step of this presentation: manage/edit, activate or deactivate */}
+        <div className="shrink-0 border-t border-border p-2.5">
+          <div className={cn("rounded-xl border-2 p-2.5 transition", deck.presenterActive ? "border-brand-500 bg-brand-500/[0.06]" : "border-border")}>
+            <div className="flex items-center gap-2">
+              {presenter?.portraitUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={presenter.portraitUrl} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+              ) : (
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Bot className="h-4 w-4" /></span>
+              )}
+              <div className="min-w-0 flex-1">
+                <b className="block text-[11.5px] leading-tight">AI Presenter</b>
+                <span className="block truncate text-[9.5px] text-muted-foreground">{presenter ? presenter.name : "Not set up"} · {deck.presenterActive ? "Active" : "Off"}</span>
+              </div>
+              <span className={cn("h-2 w-2 shrink-0 rounded-full", deck.presenterActive ? "bg-emerald-400" : "bg-muted-foreground/40")} />
+            </div>
+            <div className="mt-2 flex gap-1.5">
+              <button onClick={onOpenPresenter} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-border py-1.5 text-[10.5px] font-bold hover:border-brand-500">{presenter ? "Manage" : "Set up"}</button>
+              {presenter ? (
+                <button onClick={() => setPresenterActive(!deck.presenterActive)} className={cn("rounded-lg px-2.5 py-1.5 text-[10.5px] font-bold transition", deck.presenterActive ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>{deck.presenterActive ? "On" : "Off"}</button>
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
 
