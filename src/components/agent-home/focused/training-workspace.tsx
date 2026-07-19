@@ -13,7 +13,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { GraduationCap, FolderOpen, Sparkles, Radio, LayoutGrid, SlidersHorizontal, Users } from "lucide-react";
+import { GraduationCap, FolderOpen, Sparkles, Radio, LayoutGrid, SlidersHorizontal, Users, Presentation } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -21,11 +21,12 @@ import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { PlanCanvas } from "./training/plan-canvas";
 import { LiveRoom } from "./training/live-room";
 import { BackOffice } from "./training/back-office";
+import { DeckBuilder } from "./training/deck-builder";
 import { BriefSheet, type BriefDraft } from "./training/brief-sheet";
 import { useRoom } from "./training/use-room";
 import type { SegmentKind, TrainingSessionDTO } from "@/lib/training/types";
 
-type Mode = "plan" | "live" | "office";
+type Mode = "plan" | "live" | "office" | "deck";
 
 interface SessionRow {
   id: string;
@@ -274,6 +275,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           <div className="flex shrink-0 gap-0.5 rounded-xl border border-border bg-card p-0.5">
             {([
               ["plan", "Plan", LayoutGrid],
+              ["deck", "Build", Presentation],
               ["live", "Live room", Radio],
               ["office", "Back office", SlidersHorizontal],
             ] as [Mode, string, typeof Radio][]).map(([m, label, Icon]) => (
@@ -401,6 +403,14 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
             <FlowLoader label="Joining the room…" />
           </div>
         )
+      ) : mode === "deck" ? (
+        <DeckBuilder
+          session={session}
+          sessionId={sessionId!}
+          onSession={(s) => room.setSession(s)}
+          onPresent={(matId) => void room.patch({ stageSource: "slides", stageKey: matId, stagePage: 1, stageStep: 1 }).then(() => setMode("live"))}
+          onExit={() => setMode(session.status === "live" ? "live" : "plan")}
+        />
       ) : (
         <BackOffice
           session={session}
@@ -410,8 +420,13 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           patch={async (b) => { const e = await room.patch(b); fail(e); return e; }}
           onSession={(s) => room.setSession(s)}
           onAddMaterial={onPickMaterial}
+          onBuildDeck={() => setMode("deck")}
           uploading={uploading}
-          onPushMaterial={(id) => void room.patch({ stageSource: "doc", stageKey: id, stagePage: 1 }).then(() => setMode("live"))}
+          onPushMaterial={(id) => {
+            const m = session.materials.find((x) => x.id === id);
+            const isDeck = m?.kind === "slides";
+            void room.patch({ stageSource: isDeck ? "slides" : "doc", stageKey: id, stagePage: 1, stageStep: isDeck ? 1 : 0 }).then(() => setMode("live"));
+          }}
           onEnd={endLive}
         />
       )}

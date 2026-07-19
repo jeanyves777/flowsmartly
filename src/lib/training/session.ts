@@ -24,6 +24,7 @@ import {
   type ParticipantRole,
   type ParticipantState,
   type MaterialKind,
+  type TrainingDeck,
 } from "./types";
 
 /** Parse a JSON column without ever throwing into a route. */
@@ -221,6 +222,7 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
     stageSource: row.stageSource as StageSource,
     stageKey: row.stageKey,
     stagePage: row.stagePage,
+    stageStep: row.stageStep ?? 0,
     boardDoc: parseBoard(row.boardDoc),
     recordingUrl: row.recordingUrl,
     creditsSpent: row.creditsSpent,
@@ -272,6 +274,7 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
         url: m.url,
         pages: m.pages,
         sizeBytes: m.sizeBytes,
+        deck: m.deck ? json<TrainingDeck | null>(m.deck, null) : null,
       }),
     ),
     invites: row.invites.map(

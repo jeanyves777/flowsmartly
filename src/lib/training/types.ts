@@ -52,6 +52,8 @@ export interface BoardShape {
   size: number;
   from: BoardPoint;
   to: BoardPoint;
+  /** deck whiteboard slides only — the reveal step this mark appears at */
+  step?: number;
 }
 
 export interface BoardText {
@@ -65,6 +67,8 @@ export interface BoardText {
   size: number;
   /** a sticky note when set — the text sits on a coloured card */
   note?: string;
+  /** deck whiteboard slides only — the reveal step this mark appears at */
+  step?: number;
 }
 
 export interface BoardImage {
@@ -129,6 +133,41 @@ export interface TrainingMaterialDTO {
   url: string;
   pages: number;
   sizeBytes: number;
+  /** set only for AI-generated presentation decks (kind "slides") */
+  deck?: TrainingDeck | null;
+}
+
+// ------------------------------------------------------------ AI presentation deck
+/** A generated training deck: an ordered set of slides the host presents on the
+ *  Slides stage. Document slides are title + bullets + a visual; whiteboard slides
+ *  carry a pre-sketched diagram in the SAME BoardItem model as the live board, so
+ *  the host can draw right on top. [[training-studio]] */
+export type DeckSlideType = "doc" | "whiteboard";
+export interface DeckVisual {
+  kind: "emoji" | "image" | "none";
+  style?: "photo" | "3d" | "illustration"; // photoreal photography, a 3D render, or a flat illustration
+  emoji?: string;
+  url?: string; // a generated image stored in S3
+  prompt?: string; // kept so a visual can be regenerated
+  tag?: string; // caption, e.g. "AI illustration"
+  layout?: "right" | "left" | "top" | "full";
+}
+export interface DeckSlide {
+  id: string;
+  type: DeckSlideType;
+  title: string;
+  subtitle?: string;
+  bullets?: string[];
+  visual?: DeckVisual;
+  board?: BoardItem[]; // whiteboard face — fractional coords, same as BoardDoc.items
+  notes?: string;
+  /** how many progressive-reveal steps this slide has (bullets for doc, diagram
+   *  groups for whiteboard). The host reveals them one at a time as they present. */
+  steps?: number;
+}
+export interface TrainingDeck {
+  v: 1;
+  slides: DeckSlide[];
 }
 
 export interface TrainingInviteDTO {
@@ -185,6 +224,8 @@ export interface TrainingSessionDTO {
   stageSource: StageSource;
   stageKey: string | null;
   stagePage: number;
+  /** progressive-reveal step within the current deck slide (synced to attendees) */
+  stageStep: number;
   boardDoc: BoardDoc;
   recordingUrl: string | null;
   creditsSpent: number;

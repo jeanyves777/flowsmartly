@@ -6249,6 +6249,7 @@ model TrainingSession {
   stageSource   String  @default("board") // board | slides | doc | video | screen | cam
   stageKey      String? // material id, or the participant id who is screen-sharing
   stagePage     Int     @default(1)
+  stageStep     Int     @default(0) // progressive-reveal step within the current deck slide
   boardDoc      String  @default("{}") // JSON whiteboard document (the room's own board)
   recordingUrl  String?
   transcriptUrl String?
@@ -6363,6 +6364,8 @@ model TrainingMaterial {
   pages       Int     @default(1)
   sizeBytes   Int     @default(0)
   mediaFileId String?
+  // AI-generated presentation deck (JSON TrainingDeck) — null for uploaded files.
+  deck        String?
 
   createdAt DateTime @default(now())
 
