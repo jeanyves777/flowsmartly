@@ -142,7 +142,7 @@ export interface TrainingMaterialDTO {
  *  Slides stage. Document slides are title + bullets + a visual; whiteboard slides
  *  carry a pre-sketched diagram in the SAME BoardItem model as the live board, so
  *  the host can draw right on top. [[training-studio]] */
-export type DeckSlideType = "doc" | "whiteboard";
+export type DeckSlideType = "doc" | "whiteboard" | "livedraw";
 export interface DeckVisual {
   kind: "emoji" | "image" | "none";
   style?: "photo" | "3d" | "illustration"; // photoreal photography, a 3D render, or a flat illustration

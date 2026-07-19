@@ -155,7 +155,7 @@ export function DeckBuilder({ session, sessionId, onSession, onPresent, onExit }
       {/* stage */}
       <div className="flex min-w-0 flex-col">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <span className="text-[12px] font-bold">{slide?.type === "whiteboard" ? "Whiteboard slide" : "Document slide"}</span>
+          <span className="text-[12px] font-bold">{slide?.type === "livedraw" ? "Live Draw" : slide?.type === "whiteboard" ? "Whiteboard slide" : "Document slide"}{slide?.steps && slide.steps > 1 ? <span className="ms-1.5 font-normal text-muted-foreground">· {slide.steps} reveals</span> : null}</span>
           <button onClick={regenerate} disabled={busy === "regen"} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500">
             {busy === "regen" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Regenerate slide
           </button>
