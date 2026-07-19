@@ -195,6 +195,57 @@ export function PresenterSetup({ open, onClose, onChoose }: {
   const goStep = (i: number) => { setStep(i); cardRefs.current[i]?.scrollIntoView({ behavior: "smooth", block: "start" }); };
   const done = [!!f.voiceProfileId, !!f.name.trim(), false, false, false];
 
+  // Preview pieces — shown as the right column on wide screens, or as a compact bar
+  // at the top of the cards when the content area is narrow (agent panel open).
+  const previewCard = (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="mb-3 text-[13px] font-extrabold">Presenter preview</div>
+      <div className="relative aspect-[16/11] overflow-hidden rounded-xl bg-gradient-to-br from-[#241f38] to-[#14121f]">
+        {f.portraitUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={f.portraitUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        ) : (
+          <div className="absolute inset-0 grid place-items-center text-muted-foreground"><Portrait url={null} name={f.name} size={70} /></div>
+        )}
+        <div className="absolute inset-x-3 bottom-9 text-center text-[12px] font-semibold text-white drop-shadow">{playing ? "Speaking in your voice…" : "Preview your presenter"}</div>
+        <div className="absolute inset-x-3 bottom-2"><Waveform active={playing} mini /></div>
+      </div>
+      <div className="mt-3 flex items-center gap-3 text-muted-foreground">
+        <button onClick={testVoice} className="grid h-9 w-9 place-items-center rounded-full border border-border text-foreground hover:border-brand-500">{playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
+        <button onClick={restart} className="grid h-8 w-8 place-items-center rounded-full border border-border hover:border-brand-500"><RotateCcw className="h-3.5 w-3.5" /></button>
+        <Volume2 className="ms-auto h-4 w-4" />
+      </div>
+      {!f.sampleUrl ? <p className="mt-2 text-[10.5px] text-muted-foreground">Record or pick a voice to hear the preview.</p> : null}
+    </div>
+  );
+  const timelineCard = (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="mb-3 text-[12.5px] font-bold">Sync timeline</div>
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        {TIMELINE.map((t, i) => (
+          <div key={t.label} className="flex items-center gap-1.5">
+            <div className="w-[70px] shrink-0 text-center"><span className="mx-auto mb-1.5 grid h-9 w-9 place-items-center rounded-full text-white" style={{ background: t.c }}><t.Icon className="h-4 w-4" /></span><b className="block text-[9.5px] leading-tight">{t.label}</b><span className="text-[8px] text-muted-foreground">{t.t}</span></div>
+            {i < TIMELINE.length - 1 ? <span className="h-px w-3 bg-border" /> : null}
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 rounded-lg bg-muted px-2.5 py-2 text-[10px] text-muted-foreground">Each teaching moment plays in sync with your presentation — narration, reveals and Live-Draw strokes on one clock.</p>
+    </div>
+  );
+  const compactPreview = (
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-card p-2.5">
+      <div className="relative h-14 w-[86px] shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-[#241f38] to-[#14121f]">
+        {f.portraitUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={f.portraitUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        ) : <div className="grid h-full place-items-center"><Portrait url={null} name={f.name} size={34} /></div>}
+      </div>
+      <div className="min-w-0 flex-1"><b className="block text-[12px]">Presenter preview</b><span className="block truncate text-[10.5px] text-muted-foreground">{playing ? "Speaking in your voice…" : f.sampleUrl ? "Play to hear your voice" : "Record or pick a voice to preview"}</span></div>
+      <button onClick={testVoice} disabled={!f.sampleUrl} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border text-foreground hover:border-brand-500 disabled:opacity-40">{playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
+      <button onClick={restart} disabled={!f.sampleUrl} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-40"><RotateCcw className="h-3.5 w-3.5" /></button>
+    </div>
+  );
+
   if (!open) return null;
   return (
     <div className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background">
@@ -232,26 +283,28 @@ export function PresenterSetup({ open, onClose, onChoose }: {
           </div>
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[210px_minmax(0,1fr)_minmax(340px,400px)]">
-          {/* ---- left: stepper ---- */}
-          <div className="hidden flex-col justify-between border-e border-border p-4 lg:flex">
+        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[64px_minmax(0,1fr)] xl:grid-cols-[188px_minmax(0,1fr)] 2xl:grid-cols-[188px_minmax(0,1fr)_330px]">
+          {/* ---- left: stepper (icon-only when narrow, labelled when wide) ---- */}
+          <div className="hidden flex-col justify-between border-e border-border p-2.5 md:flex xl:p-4">
             <div className="flex flex-col gap-1">
               {STEPS.map((s, i) => (
-                <button key={s} onClick={() => goStep(i)} className={cn("flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition", i === step ? "bg-card ring-1 ring-inset ring-border" : "hover:bg-card/50")}>
-                  <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-extrabold", done[i] ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : i === step ? "text-foreground ring-2 ring-brand-500" : "bg-muted text-muted-foreground")}>{done[i] ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
-                  <span><b className="block text-[12.5px] leading-tight">{s}</b><span className="text-[10px] text-muted-foreground">{done[i] ? "Completed" : i === step ? "In progress" : "Pending"}</span></span>
+                <button key={s} onClick={() => goStep(i)} title={s} className={cn("flex items-center gap-3 rounded-xl px-1.5 py-2.5 text-left transition xl:px-3", i === step ? "bg-card ring-1 ring-inset ring-border" : "hover:bg-card/50")}>
+                  <span className={cn("mx-auto grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-extrabold xl:mx-0", done[i] ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : i === step ? "text-foreground ring-2 ring-brand-500" : "bg-muted text-muted-foreground")}>{done[i] ? <Check className="h-3.5 w-3.5" /> : i + 1}</span>
+                  <span className="hidden xl:block"><b className="block text-[12.5px] leading-tight">{s}</b><span className="text-[10px] text-muted-foreground">{done[i] ? "Completed" : i === step ? "In progress" : "Pending"}</span></span>
                 </button>
               ))}
             </div>
-            <div className="rounded-2xl border border-border bg-card p-3.5 text-[11px] text-muted-foreground">
+            <div className="hidden rounded-2xl border border-border bg-card p-3.5 text-[11px] text-muted-foreground xl:block">
               <div className="mb-1 flex items-center gap-1.5 font-bold text-foreground"><HelpCircle className="h-3.5 w-3.5" /> Need help?</div>
               Learn how the AI Presenter Assistant works.
             </div>
           </div>
 
           {/* ---- middle: stacked cards ---- */}
-          <div className="min-w-0 overflow-auto p-5 sm:p-6">
-            <div className="mx-auto flex max-w-[680px] flex-col gap-4">
+          <div className="min-w-0 overflow-auto p-4 sm:p-5">
+            <div className="mx-auto flex max-w-[720px] flex-col gap-4">
+              {/* preview inline when there's no room for the right column */}
+              <div className="2xl:hidden">{compactPreview}</div>
               {/* 1 · Voice */}
               <SectionCard n={1} title="Clone your voice" cardRef={(el) => (cardRefs.current[0] = el)} status={f.voiceProfileId ? "done" : undefined} badge={f.consentAccepted && f.consentOwnerName.trim() ? "Voice owner verified" : undefined}>
                 <p className="-mt-1 mb-3 text-[11.5px] text-muted-foreground">Read for about 60 seconds in a quiet room — your presenter speaks in this voice.</p>
@@ -361,40 +414,10 @@ export function PresenterSetup({ open, onClose, onChoose }: {
             </div>
           </div>
 
-          {/* ---- right: preview + sync timeline ---- */}
-          <div className="hidden flex-col gap-4 overflow-auto border-s border-border p-4 lg:flex">
-            <div className="rounded-2xl border border-border bg-card p-4">
-              <div className="mb-3 text-[13px] font-extrabold">Presenter preview</div>
-              <div className="relative aspect-[16/11] overflow-hidden rounded-xl bg-gradient-to-br from-[#241f38] to-[#14121f]">
-                {f.portraitUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={f.portraitUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                ) : (
-                  <div className="absolute inset-0 grid place-items-center text-muted-foreground"><Portrait url={null} name={f.name} size={70} /></div>
-                )}
-                <div className="absolute inset-x-3 bottom-9 text-center text-[12px] font-semibold text-white drop-shadow">{playing ? "Speaking in your voice…" : "Preview your presenter"}</div>
-                <div className="absolute inset-x-3 bottom-2"><Waveform active={playing} mini /></div>
-              </div>
-              <div className="mt-3 flex items-center gap-3 text-muted-foreground">
-                <button onClick={testVoice} className="grid h-9 w-9 place-items-center rounded-full border border-border text-foreground hover:border-brand-500">{playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
-                <button onClick={restart} className="grid h-8 w-8 place-items-center rounded-full border border-border hover:border-brand-500"><RotateCcw className="h-3.5 w-3.5" /></button>
-                <Volume2 className="ms-auto h-4 w-4" />
-              </div>
-              {!f.sampleUrl ? <p className="mt-2 text-[10.5px] text-muted-foreground">Record or pick a voice to hear the preview.</p> : null}
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-4">
-              <div className="mb-3 text-[12.5px] font-bold">Sync timeline</div>
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                {TIMELINE.map((t, i) => (
-                  <div key={t.label} className="flex items-center gap-1.5">
-                    <div className="w-[70px] shrink-0 text-center"><span className="mx-auto mb-1.5 grid h-9 w-9 place-items-center rounded-full text-white" style={{ background: t.c }}><t.Icon className="h-4 w-4" /></span><b className="block text-[9.5px] leading-tight">{t.label}</b><span className="text-[8px] text-muted-foreground">{t.t}</span></div>
-                    {i < TIMELINE.length - 1 ? <span className="h-px w-3 bg-border" /> : null}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 rounded-lg bg-muted px-2.5 py-2 text-[10px] text-muted-foreground">Each teaching moment plays in sync with your presentation — narration, reveals and Live-Draw strokes on one clock.</p>
-            </div>
+          {/* ---- right: preview + sync timeline (only when there's room) ---- */}
+          <div className="hidden flex-col gap-4 overflow-auto border-s border-border p-4 2xl:flex">
+            {previewCard}
+            {timelineCard}
           </div>
         </div>
       )}
