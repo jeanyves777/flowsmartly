@@ -164,6 +164,10 @@ export interface DeckSlide {
   /** how many progressive-reveal steps this slide has (bullets for doc, diagram
    *  groups for whiteboard). The host reveals them one at a time as they present. */
   steps?: number;
+  /** whiteboard/livedraw only — how many 16:9 frames wide the teaching canvas is
+   *  (1 = fits one frame; >1 = an endless horizontal canvas that pans left→right as
+   *  the reveal advances). Board coords are 0..1 of this WIDE canvas. */
+  wide?: number;
 }
 export interface TrainingDeck {
   v: 1;

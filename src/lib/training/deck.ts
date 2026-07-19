@@ -49,13 +49,20 @@ export function parseDeck(raw: string | null | undefined): TrainingDeck {
 }
 
 /** Lay out a small diagram as BoardItems in fractional (0..1) coords — the code
- *  analog of hand-sketching the "objection → reframe → close" flow. */
-export function diagramToBoard(d: RawSlide["diagram"], perElement = false): BoardItem[] {
+ *  analog of hand-sketching the "objection → reframe → close" flow.
+ *
+ *  A `flow` becomes an ENDLESS HORIZONTAL canvas: the steps march left→right and the
+ *  board grows wider than one frame, so during presentation the view pans across it
+ *  as the reveal advances. `cycle`/`tree` stay inside a single frame. The returned
+ *  `wide` is how many 16:9 frames the canvas spans; board coords are 0..1 of that
+ *  wide canvas (x is normalised by `wide`, y stays 0..1 of the frame height). */
+export function diagramToBoard(d: RawSlide["diagram"], perElement = false): { items: BoardItem[]; wide: number } {
   const nodes = (d?.nodes ?? []).slice(0, 6).map((s) => String(s).slice(0, 40));
-  if (!nodes.length) return [];
+  if (!nodes.length) return { items: [], wide: 1 };
   const shape = d?.shape ?? "flow";
   const ink = "#1e293b";
-  const NW = 0.2, NH = 0.16; // node box size (fraction)
+  const NW = 0.2, NH = 0.16; // node box size (fraction of ONE frame)
+  // centres in FRAME units — x MAY exceed 1.0 for a wide flow; y stays 0..1.
   const centers: { x: number; y: number }[] = [];
 
   if (shape === "cycle") {
@@ -72,16 +79,16 @@ export function diagramToBoard(d: RawSlide["diagram"], perElement = false): Boar
       centers.push({ x, y: 0.66 });
     }
   } else {
-    // flow — a left→right row (wraps to 2 rows past 3 nodes)
-    const perRow = nodes.length > 3 ? Math.ceil(nodes.length / 2) : nodes.length;
-    nodes.forEach((_, i) => {
-      const row = Math.floor(i / perRow), col = i % perRow;
-      const count = row === 0 ? Math.min(perRow, nodes.length) : nodes.length - perRow;
-      const x = count === 1 ? 0.5 : 0.14 + (col / (count - 1)) * 0.72;
-      const y = nodes.length > 3 ? (row === 0 ? 0.34 : 0.66) : 0.5;
-      centers.push({ x, y });
-    });
+    // flow — an ENDLESS left→right row. Each step sits a fixed distance further
+    // right, so the canvas extends horizontally instead of wrapping.
+    const GAP = 0.34; // frame-widths between node centres
+    nodes.forEach((_, i) => centers.push({ x: 0.18 + i * GAP, y: 0.5 }));
   }
+
+  // Canvas width in frames: rightmost node edge + a small margin (never < 1).
+  const maxX = Math.max(...centers.map((c) => c.x));
+  const wide = Math.max(1, maxX + NW / 2 + 0.06);
+  const nx = (x: number) => x / wide; // frame-unit x → 0..1 of the wide canvas
 
   const edges = d?.edges ?? (shape === "cycle"
     ? nodes.map((_, i) => [i, (i + 1) % nodes.length] as [number, number])
@@ -89,14 +96,23 @@ export function diagramToBoard(d: RawSlide["diagram"], perElement = false): Boar
 
   const ell = (i: number, step: number): BoardItem => {
     const c = centers[i];
-    return { id: uid("n"), t: "shape", by: "", shape: "ellipse", color: ink, size: 0.0035, from: { x: c.x - NW / 2, y: c.y - NH / 2 }, to: { x: c.x + NW / 2, y: c.y + NH / 2 }, step };
+    return { id: uid("n"), t: "shape", by: "", shape: "ellipse", color: ink, size: 0.0035, from: { x: nx(c.x - NW / 2), y: c.y - NH / 2 }, to: { x: nx(c.x + NW / 2), y: c.y + NH / 2 }, step };
   };
   const lab = (i: number, label: string, step: number): BoardItem => {
     const c = centers[i];
-    return { id: uid("t"), t: "text", by: "", at: { x: c.x - NW / 2 + 0.02, y: c.y - 0.02 }, text: label, color: ink, size: 0.03, step };
+    return { id: uid("t"), t: "text", by: "", at: { x: nx(c.x - NW / 2 + 0.02), y: c.y - 0.02 }, text: label, color: ink, size: 0.03, step };
   };
-  const arr = (a: number, b: number, step: number): BoardItem =>
-    ({ id: uid("e"), t: "shape", by: "", shape: "arrow", color: ink, size: 0.003, from: centers[a], to: centers[b], step });
+  // Arrows connect node EDGE→node EDGE (not centre→centre), so the arrowhead lands
+  // just outside the next node instead of buried inside it. Worked in the render's
+  // SVG space (x×1000, y×562) because that scale is non-uniform, then normalised back.
+  const rxS = (NW / 2) * 1000, ryS = (NH / 2) * 562;
+  const ellR = (t: number) => (rxS * ryS) / Math.sqrt((ryS * Math.cos(t)) ** 2 + (rxS * Math.sin(t)) ** 2);
+  const arr = (a: number, b: number, step: number): BoardItem => {
+    const ax = centers[a].x * 1000, ay = centers[a].y * 562, bx = centers[b].x * 1000, by = centers[b].y * 562;
+    const al = Math.atan2(by - ay, bx - ax), r = ellR(al), CWl = 1000 * wide;
+    const sx = ax + r * Math.cos(al), sy = ay + r * Math.sin(al), ex = bx - r * Math.cos(al), ey = by - r * Math.sin(al);
+    return { id: uid("e"), t: "shape", by: "", shape: "arrow", color: ink, size: 0.003, from: { x: sx / CWl, y: sy / 562 }, to: { x: ex / CWl, y: ey / 562 }, step };
+  };
 
   const items: BoardItem[] = [];
   if (perElement) {
@@ -121,7 +137,7 @@ export function diagramToBoard(d: RawSlide["diagram"], perElement = false): Boar
     for (const [a, b] of edges) { if (centers[a] && centers[b]) items.push(arr(a, b, Math.max(a, b))); }
     nodes.forEach((label, i) => { items.push(ell(i, i)); items.push(lab(i, label, i)); });
   }
-  return items;
+  return { items, wide };
 }
 
 /** How many reveal steps a set of stepped items has. */
@@ -173,14 +189,14 @@ Rules:
     const board2 = (s.type === "whiteboard" || s.type === "livedraw") && opts.wantWhiteboard;
     const type: DeckSlide["type"] = board2 ? (s.type as "whiteboard" | "livedraw") : "doc";
     if (type === "whiteboard" || type === "livedraw") {
-      const board = diagramToBoard(s.diagram, type === "livedraw");
+      const { items: board, wide } = diagramToBoard(s.diagram, type === "livedraw");
       const steps = Math.max(1, stepCount(board));
       return {
         id: uid("s"), type,
         title: (s.title || "Concept").slice(0, 120),
         subtitle: s.subtitle?.slice(0, 160),
         notes: s.notes?.slice(0, 400),
-        board, steps,
+        board, steps, wide,
       };
     }
     const style = s.visualStyle === "3d" ? "3d" : s.visualStyle === "illustration" ? "illustration" : "photo";

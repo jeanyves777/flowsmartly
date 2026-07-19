@@ -3,58 +3,28 @@
 /**
  * Renders one deck slide — the SAME component backs the builder stage and the live
  * room's Slides stage. A document slide is a title + talking points + a visual; a
- * whiteboard slide reuses the read-only TrainingBoard to draw its diagram, so the
- * host's live ink lands on top in exactly the same coordinate space. [[training-studio]]
+ * whiteboard / live-draw slide is an endless horizontal teaching canvas: the diagram
+ * marches left→right and the view pans across it as the reveal advances, so a long
+ * process reads like a board the presenter fills in while they talk. Live-draw goes
+ * one element at a time and the current mark visibly draws itself on. [[training-studio]]
  */
-import { TrainingBoard } from "./training-board";
 import { cn } from "@/lib/utils/cn";
 import type { BoardItem, DeckSlide } from "@/lib/training/types";
 
 export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; reveal?: number; className?: string }) {
-  // `reveal` = how many steps are shown (undefined = show everything, e.g. in the
-  // builder preview). Drives the progressive "drawing as you talk" reveal.
+  // `reveal` = how many steps are shown (undefined = show everything, e.g. a builder
+  // thumbnail). Drives the progressive "drawing as you talk" reveal.
 
-  // Live Draw — each element appears ONE AT A TIME and the current one visibly
-  // draws itself on; future elements stay hidden.
-  if (slide.type === "livedraw") {
+  // Whiteboard & Live Draw share one renderer — a wide horizontal canvas that pans
+  // to follow the reveal. Live Draw additionally animates the CURRENT element on.
+  if (slide.type === "whiteboard" || slide.type === "livedraw") {
     return (
       <div
-        className={cn("relative h-full w-full bg-[#f7f7f2]", className)}
+        className={cn("relative h-full w-full overflow-hidden bg-[#f7f7f2]", className)}
         style={{ backgroundImage: "radial-gradient(circle at 1px 1px,#dad9d0 1px,transparent 0)", backgroundSize: "22px 22px" }}
       >
-        <div className="absolute left-[6%] top-[5%] z-[2] text-[clamp(18px,3vw,32px)] font-extrabold text-[#1a1a1a]" style={{ fontFamily: '"Segoe Print","Comic Sans MS",cursive' }}>{slide.title}</div>
-        <LiveDrawBoard items={slide.board ?? []} reveal={reveal} />
-      </div>
-    );
-  }
-
-  if (slide.type === "whiteboard") {
-    const items = reveal === undefined ? (slide.board ?? []) : (slide.board ?? []).filter((it) => (("step" in it ? it.step : 0) ?? 0) < reveal);
-    return (
-      <div
-        className={cn("relative h-full w-full bg-[#f7f7f2]", className)}
-        style={{ backgroundImage: "radial-gradient(circle at 1px 1px,#dad9d0 1px,transparent 0)", backgroundSize: "22px 22px" }}
-      >
-        <div
-          className="absolute left-[6%] top-[5%] z-[2] text-[clamp(18px,3vw,32px)] font-extrabold text-[#1a1a1a]"
-          style={{ fontFamily: '"Segoe Print","Comic Sans MS",cursive' }}
-        >
-          {slide.title}
-        </div>
-        <div className="absolute inset-0">
-          <TrainingBoard
-            doc={{ v: 1, bg: "blank", items }}
-            tool="sel"
-            color="#1e293b"
-            canDraw={false}
-            cursors={[]}
-            onAdd={() => {}}
-            onRemove={() => {}}
-            onUpdate={() => {}}
-            onPing={() => {}}
-            className="!border-transparent !bg-transparent"
-          />
-        </div>
+        <div className="absolute left-[6%] top-[5%] z-[3] text-[clamp(18px,3vw,32px)] font-extrabold text-[#1a1a1a]" style={{ fontFamily: '"Segoe Print","Comic Sans MS",cursive' }}>{slide.title}</div>
+        <DiagramBoard items={slide.board ?? []} reveal={reveal} wide={slide.wide} animated={slide.type === "livedraw"} />
       </div>
     );
   }
@@ -100,41 +70,73 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   );
 }
 
-/** An animated whiteboard for Live Draw slides: revealed elements are static; the
- *  CURRENT element visibly draws itself on (paths draw via stroke-dashoffset, labels
- *  pop in); future elements are hidden. Coords are fractional (0..1) → a 16:9 viewBox. */
-function LiveDrawBoard({ items, reveal }: { items: BoardItem[]; reveal?: number }) {
-  const W = 1000, H = 562;
+/** An endless horizontal teaching canvas. Revealed marks are static; when `animated`
+ *  (Live Draw) the CURRENT mark visibly draws itself on (paths draw via
+ *  stroke-dashoffset, labels pop in). The canvas can be several 16:9 frames wide and
+ *  the viewport PANS to keep the freshly-revealed mark in view, so a long process
+ *  reads left→right. Coords are 0..1 of the WIDE canvas (x already normalised by
+ *  `wide`); y is 0..1 of the frame height. */
+function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; reveal?: number; wide?: number; animated?: boolean }) {
+  const FRAME = 1000, H = 562;
+  const frames = Math.max(1, wide ?? 1);
+  const CW = FRAME * frames;
   const shown = reveal === undefined ? items : items.filter((it) => (("step" in it ? it.step : 0) ?? 0) < reveal);
   const current = reveal === undefined ? -2 : reveal - 1;
+  const centerX = (it: BoardItem): number => (it.t === "text" ? it.at.x : it.t === "shape" ? (it.from.x + it.to.x) / 2 : 0.5);
+
+  // Pan the viewport to keep the freshly-revealed mark centred (wide canvases only).
+  const overview = reveal === undefined; // builder thumbnail — show the whole board
+  const cur = overview ? undefined : items.find((it) => ("step" in it ? it.step : -3) === current);
+  const targetX = cur ? centerX(cur) * CW : CW; // nothing current → rest at the end
+  const panX = frames <= 1 || overview ? 0 : Math.max(0, Math.min(CW - FRAME, targetX - FRAME / 2));
+  const x = (v: number) => v * CW, y = (v: number) => v * H;
+
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0 overflow-hidden">
       <style>{`@keyframes ld-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}@keyframes ld-pop{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:scale(1)}}`}</style>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
-        {shown.map((it) => {
-          const isNow = ("step" in it ? it.step : -3) === current;
-          if (it.t === "shape") {
-            const x1 = it.from.x * W, y1 = it.from.y * H, x2 = it.to.x * W, y2 = it.to.y * H;
-            const sw = Math.max(2, (it.size ?? 0.003) * W);
-            const draw = isNow ? { strokeDasharray: 1, strokeDashoffset: 1, animation: "ld-draw .7s ease forwards" } : undefined;
-            if (it.shape === "ellipse") {
-              return <ellipse key={`${it.id}-${isNow}`} cx={(x1 + x2) / 2} cy={(y1 + y2) / 2} rx={Math.abs(x2 - x1) / 2} ry={Math.abs(y2 - y1) / 2} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} style={draw} />;
+      <svg viewBox={overview ? `0 0 ${CW} ${H}` : `0 0 ${FRAME} ${H}`} preserveAspectRatio={overview ? "xMidYMid meet" : "none"} className="absolute inset-0 h-full w-full">
+        <g style={{ transform: `translateX(${-panX}px)`, transition: "transform .6s cubic-bezier(.4,0,.2,1)" }}>
+          {shown.map((it) => {
+            const isNow = !!animated && ("step" in it ? it.step : -3) === current;
+            if (it.t === "shape") {
+              const x1 = x(it.from.x), y1 = y(it.from.y), x2 = x(it.to.x), y2 = y(it.to.y);
+              const sw = Math.max(2, (it.size ?? 0.003) * FRAME);
+              const draw = isNow ? { strokeDasharray: 1, strokeDashoffset: 1, animation: "ld-draw .7s ease forwards" } : undefined;
+              if (it.shape === "ellipse") {
+                return <ellipse key={`${it.id}-${isNow}`} cx={(x1 + x2) / 2} cy={(y1 + y2) / 2} rx={Math.abs(x2 - x1) / 2} ry={Math.abs(y2 - y1) / 2} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} style={draw} />;
+              }
+              const ang = Math.atan2(y2 - y1, x2 - x1), ah = Math.max(12, sw * 4);
+              return (
+                <g key={`${it.id}-${isNow}`}>
+                  <line x1={x1} y1={y1} x2={x2} y2={y2} pathLength={1} stroke={it.color} strokeWidth={sw} strokeLinecap="round" style={draw} />
+                  <polyline points={`${x2 - ah * Math.cos(ang - Math.PI / 6)},${y2 - ah * Math.sin(ang - Math.PI / 6)} ${x2},${y2} ${x2 - ah * Math.cos(ang + Math.PI / 6)},${y2 - ah * Math.sin(ang + Math.PI / 6)}`} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={draw} />
+                </g>
+              );
             }
-            const ang = Math.atan2(y2 - y1, x2 - x1), ah = Math.max(12, sw * 4);
-            return (
-              <g key={`${it.id}-${isNow}`}>
-                <line x1={x1} y1={y1} x2={x2} y2={y2} pathLength={1} stroke={it.color} strokeWidth={sw} strokeLinecap="round" style={draw} />
-                <polyline points={`${x2 - ah * Math.cos(ang - Math.PI / 6)},${y2 - ah * Math.sin(ang - Math.PI / 6)} ${x2},${y2} ${x2 - ah * Math.cos(ang + Math.PI / 6)},${y2 - ah * Math.sin(ang + Math.PI / 6)}`} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={draw} />
-              </g>
-            );
-          }
-          if (it.t === "text") {
-            const fs = Math.max(11, (it.size ?? 0.03) * H);
-            return <text key={`${it.id}-${isNow}`} x={it.at.x * W} y={it.at.y * H + fs} fontSize={fs} fontWeight={700} fill={it.color} style={isNow ? { animation: "ld-pop .4s ease forwards" } : undefined}>{it.text}</text>;
-          }
-          return null;
-        })}
+            if (it.t === "text") {
+              const fs = Math.max(11, (it.size ?? 0.03) * H);
+              return <text key={`${it.id}-${isNow}`} x={x(it.at.x)} y={y(it.at.y) + fs} fontSize={fs} fontWeight={700} fill={it.color} style={isNow ? { animation: "ld-pop .4s ease forwards" } : undefined}>{it.text}</text>;
+            }
+            return null;
+          })}
+        </g>
       </svg>
+      {frames > 1 && !overview ? <CanvasMap panX={panX} frameW={FRAME} canvasW={CW} /> : null}
+    </div>
+  );
+}
+
+/** A tiny "you are here" strip for the endless canvas — the whole board as a track
+ *  with a lit window marking the visible section. Mirrors the mock's canvas mini-map. */
+function CanvasMap({ panX, frameW, canvasW }: { panX: number; frameW: number; canvasW: number }) {
+  const left = (panX / canvasW) * 100;
+  const w = Math.min(100, (frameW / canvasW) * 100);
+  return (
+    <div className="pointer-events-none absolute bottom-2.5 left-1/2 z-[3] flex -translate-x-1/2 items-center gap-2 rounded-full border border-black/10 bg-white/85 px-3 py-1 shadow-sm backdrop-blur">
+      <span className="text-[8.5px] font-extrabold uppercase tracking-wide text-black/45">Reveal ▸</span>
+      <div className="relative h-[5px] w-28 rounded-full bg-black/10">
+        <div className="absolute inset-y-0 rounded-full bg-[#1e293b] transition-[left] duration-500 ease-out" style={{ left: `${left}%`, width: `${w}%` }} />
+      </div>
     </div>
   );
 }
