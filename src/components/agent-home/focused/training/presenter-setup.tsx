@@ -8,7 +8,6 @@
  * [[training-studio]]
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   X, Check, Mic, Upload, Play, ShieldCheck, Sparkles, Trash2, Loader2, Plus, Square,
   Briefcase, MessageCircle, Zap, GraduationCap, Users, User, Bot, ChevronRight, ImageIcon,
@@ -156,8 +155,10 @@ export function PresenterSetup({ open, onClose, onChoose }: {
   };
 
   if (!open) return null;
-  const body = (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-background">
+  // Roots INSIDE the training workspace (a sibling of the brief sheet), not portaled
+  // full-screen — so the app shell (rail, header, chat) stays intact. [[training-studio]]
+  return (
+    <div className="absolute inset-0 z-50 flex flex-col overflow-hidden bg-background">
       {/* header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-border px-5 py-3.5">
         <span className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Bot className="h-4 w-4" /></span>
@@ -240,7 +241,6 @@ export function PresenterSetup({ open, onClose, onChoose }: {
       ) : null}
     </div>
   );
-  return createPortal(body, document.body);
 }
 
 const ROLE_LABEL: Record<string, string> = { cohost: "Co-host", host: "Host", assistant: "Assistant" };
