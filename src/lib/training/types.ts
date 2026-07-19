@@ -332,7 +332,20 @@ export type RoomEvent =
   | { type: "liveitem"; participantId: string; item: BoardItem | null }
   | { type: "knock"; participant: TrainingParticipantDTO }
   | { type: "chat"; message: TrainingMessageDTO }
+  | { type: "presenter:answer"; answer: PresenterAnswer }
   | { type: "heartbeat" };
+
+/** A live Q&A answer from the AI presenter — what it says back to a question, plus the
+ *  spoken audio, and whether it was confident (else it hands off to the host). */
+export interface PresenterAnswer {
+  id: string;
+  question: string;
+  askedBy: string;
+  answer: string;
+  audioUrl: string | null;
+  durationMs: number;
+  confident: boolean;
+}
 
 // ------------------------------------------------------------------- defaults
 export const SEGMENT_KINDS: Record<SegmentKind, { label: string; note: string; mins: number }> = {

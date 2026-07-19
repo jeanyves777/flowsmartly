@@ -19,6 +19,7 @@ import type {
   TrainingParticipantDTO,
   TrainingSessionDTO,
   TrainingMessageDTO,
+  PresenterAnswer,
 } from "@/lib/training/types";
 import type { BoardCursor } from "./training-board";
 
@@ -38,6 +39,8 @@ interface RoomState {
   /** marks being dragged/edited by others right now, keyed by participantId */
   liveItems: Record<string, BoardItem>;
   messages: TrainingMessageDTO[];
+  /** the AI presenter's current live Q&A answer (null when none is showing) */
+  presenterAnswer: PresenterAnswer | null;
   connected: boolean;
   error: string | null;
 }
@@ -51,6 +54,7 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     liveStrokes: {},
     liveItems: {},
     messages: [],
+    presenterAnswer: null,
     connected: false,
     error: null,
   });
@@ -101,6 +105,10 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
               return s.messages.some((m) => m.id === msg.message.id)
                 ? s
                 : { ...s, messages: [...s.messages, msg.message].slice(-200) };
+
+            case "presenter:answer":
+              // the AI presenter's live answer — every client shows + plays it
+              return { ...s, presenterAnswer: msg.answer };
 
             case "room:join":
             case "room:participant":
@@ -499,5 +507,18 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     [sessionId],
   );
 
-  return { ...state, addItem, removeItem, updateItem, clearBoard, ping, streamStroke, streamItem, act, patch, sendMessage, setSession };
+  // Ask the AI presenter a question — it answers (or hands off) for the whole room.
+  const askPresenter = useCallback(async (question: string): Promise<string | null> => {
+    if (!sessionId || !question.trim()) return null;
+    try {
+      const r = await fetch(`/api/ai/training/${sessionId}/presenter/answer`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }),
+      }).then((x) => x.json());
+      if (r?.success && r.data?.answer) { setState((s) => ({ ...s, presenterAnswer: r.data.answer as PresenterAnswer })); return null; }
+      return r?.error?.message || "The presenter couldn't answer that";
+    } catch { return "The presenter couldn't answer that"; }
+  }, [sessionId]);
+  const clearAnswer = useCallback(() => setState((s) => (s.presenterAnswer ? { ...s, presenterAnswer: null } : s)), []);
+
+  return { ...state, addItem, removeItem, updateItem, clearBoard, ping, streamStroke, streamItem, act, patch, sendMessage, askPresenter, clearAnswer, setSession };
 }

@@ -28,7 +28,7 @@ import { InviteSheet, Sheet } from "./invite-sheet";
 import { DeckSlideView } from "./deck-slide-view";
 import { VideoSheet } from "./video-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
-import type { BoardItem, BoardTool, LiveStroke, StageSource, TrainingParticipantDTO, TrainingSessionDTO, TrainingMessageDTO } from "@/lib/training/types";
+import type { BoardItem, BoardTool, LiveStroke, StageSource, TrainingParticipantDTO, TrainingSessionDTO, TrainingMessageDTO, PresenterAnswer } from "@/lib/training/types";
 
 const SHAPES: { id: ShapeKind; Icon: typeof Square; label: string }[] = [
   { id: "rect", Icon: Square, label: "Rectangle" },
@@ -118,6 +118,9 @@ interface Props {
   patch: (body: Record<string, unknown>) => Promise<string | null>;
   messages: TrainingMessageDTO[];
   sendMessage: (text: string) => Promise<string | null>;
+  presenterAnswer?: PresenterAnswer | null;
+  onAsk?: (question: string) => Promise<string | null>;
+  onClearAnswer?: () => void;
   onLeave: () => void;
   onManage: () => void;
   /** owner-only — ends the session for everyone */
@@ -126,7 +129,7 @@ interface Props {
 
 type SheetKey = null | "invite" | "roster";
 
-export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connected, onAdd, onRemove, onUpdate, onPing, onLiveStroke, onLiveItem, onUndo, onClear, act, patch, messages, sendMessage, onLeave, onManage, onEnd }: Props) {
+export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connected, onAdd, onRemove, onUpdate, onPing, onLiveStroke, onLiveItem, onUndo, onClear, act, patch, messages, sendMessage, presenterAnswer, onAsk, onClearAnswer, onLeave, onManage, onEnd }: Props) {
   const [tool, setTool] = useState<BoardTool>("pen");
   const [ink, setInk] = useState(INKS[0]);
   const [shapeKind, setShapeKind] = useState<ShapeKind>("rect");
@@ -294,6 +297,26 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     setTookOver(true);
     await patch({ aiPlaying: false });
     if (media.enabled && !media.micOn) { await media.toggleMic().catch(() => {}); await act("unmute", me.id); }
+  };
+
+  // ----- live Q&A ----- the answer plays for everyone (pausing narration) + overlays
+  const answerAudioRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    const a = answerAudioRef.current;
+    if (!a || !presenterAnswer?.audioUrl) return;
+    aiAudioRef.current?.pause();
+    a.src = presenterAnswer.audioUrl; a.currentTime = 0; a.play().catch(() => {});
+  }, [presenterAnswer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [askOpen, setAskOpen] = useState(false);
+  const [askText, setAskText] = useState("");
+  const [asking, setAsking] = useState(false);
+  const submitAsk = async () => {
+    const q = askText.trim();
+    if (!q || !onAsk || asking) return;
+    setAsking(true);
+    const e = await onAsk(q);
+    setAsking(false);
+    if (!e) { setAskText(""); setAskOpen(false); }
   };
 
   const backdrop = useMemo(() => {
@@ -528,6 +551,32 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
               <div className="pointer-events-none absolute bottom-[92px] left-1/2 z-[6] w-[min(80%,560px)] -translate-x-1/2 rounded-xl border border-amber-500/40 bg-amber-500/[0.16] px-4 py-2 text-center text-[12.5px] font-bold text-amber-200 backdrop-blur-sm">
                 <Hand className="me-1.5 inline h-3.5 w-3.5 align-middle" /> You have the floor — the AI is paused at its spot. Press <b>Resume AI</b> to continue.
               </div>
+            ) : null}
+            {/* live Q&A — the presenter's answer to a raised question */}
+            {presenterAnswer ? (
+              <div className="absolute bottom-[84px] left-1/2 z-[7] w-[min(86%,660px)] -translate-x-1/2 rounded-2xl border border-border bg-background/95 p-3 shadow-2xl backdrop-blur">
+                <div className="mb-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 font-bold text-amber-400"><Hand className="h-2.5 w-2.5" /> {presenterAnswer.askedBy} asked</span>
+                  <span className="truncate italic">“{presenterAnswer.question}”</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 text-[8.5px] font-black text-[#04222a]"><Volume2 className="h-2.5 w-2.5" /> AI</span>
+                  <p className="min-w-0 flex-1 text-[13px] font-semibold leading-snug">{presenterAnswer.answer}</p>
+                  {host ? <button onClick={() => { answerAudioRef.current?.pause(); onClearAnswer?.(); }} className="shrink-0 rounded-md border border-border px-2 py-1 text-[10px] font-semibold text-muted-foreground hover:text-foreground">Dismiss</button> : null}
+                </div>
+              </div>
+            ) : null}
+            {/* Ask the presenter — any participant, while the AI presenter is on */}
+            {aiPresenter && onAsk ? (
+              askOpen ? (
+                <div className="absolute bottom-3 right-3 z-[8] flex w-[min(88%,340px)] items-center gap-1 rounded-full border border-border bg-background/95 p-1.5 shadow-2xl backdrop-blur">
+                  <input value={askText} onChange={(e) => setAskText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void submitAsk(); if (e.key === "Escape") setAskOpen(false); }} autoFocus placeholder="Ask the presenter a question…" className="min-w-0 flex-1 bg-transparent px-2 text-[12px] outline-none placeholder:text-muted-foreground" />
+                  <button onClick={() => void submitAsk()} disabled={asking || !askText.trim()} className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-cyan-400 to-brand-500 text-[#04222a] disabled:opacity-50"><Send className={cn("h-3.5 w-3.5", asking && "animate-pulse")} /></button>
+                  <button onClick={() => setAskOpen(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-border text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
+                </div>
+              ) : (
+                <button onClick={() => setAskOpen(true)} className="absolute bottom-3 right-3 z-[6] inline-flex items-center gap-1.5 rounded-full border border-brand-500/50 bg-background/90 px-3 py-1.5 text-[11px] font-bold text-brand-400 shadow-lg backdrop-blur hover:border-brand-500"><MessageSquare className="h-3.5 w-3.5" /> Ask the presenter</button>
+              )
             ) : null}
             {paged && material ? (
               <>
@@ -783,6 +832,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
       <AudioSink remotes={media.remotes} spkId={media.spkId} />
       {/* AI presenter narration audio — played on every client, synced by aiPlaying */}
       <audio ref={aiAudioRef} className="hidden" />
+      {/* live Q&A answer audio — plays once, then clears the overlay */}
+      <audio ref={answerAudioRef} className="hidden" onEnded={() => onClearAnswer?.()} />
     </div>
   );
 }

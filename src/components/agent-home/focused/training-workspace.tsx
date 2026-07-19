@@ -449,6 +449,9 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
             patch={async (b) => { const e = await room.patch(b); fail(e); return e; }}
             messages={room.messages}
             sendMessage={room.sendMessage}
+            presenterAnswer={room.presenterAnswer}
+            onAsk={room.askPresenter}
+            onClearAnswer={room.clearAnswer}
             onLeave={() => setMode("plan")}
             onManage={() => setMode("office")}
             onEnd={endLive}
