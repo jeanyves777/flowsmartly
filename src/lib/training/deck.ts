@@ -9,7 +9,7 @@
  * [[training-studio]]
  */
 import { ai } from "@/lib/ai/client";
-import { generateImageXaiFirst } from "@/lib/ai/image-router";
+import { generateImageXaiFirst, generateImageWithProvider } from "@/lib/ai/image-router";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import type { BoardItem, DeckSlide, DeckVisual, TrainingDeck } from "./types";
 
@@ -40,6 +40,13 @@ function imgPrompt(style: RawSlide["visualStyle"], subject: string): string {
     return `${s}. A clean modern vector illustration, tasteful brand colours, soft shapes, no text, no watermark.`;
   // default: photoreal
   return `${s}. Hyper-realistic professional photography, natural lighting, shallow depth of field, high detail, shot on a full-frame camera, no text, no watermark.`;
+}
+
+/** A 3D asset that drops onto a whiteboard as a CLEAN TRANSPARENT CUTOUT — a single
+ *  object floating in the design, not a photo in a box. Rendered by gpt-image, which
+ *  understands "isolated on transparent background" far better. */
+function assetPrompt3D(subject: string): string {
+  return `${subject.slice(0, 240)}. A single 3D isometric object icon, glossy tactile materials, vibrant colours, soft studio lighting, centered. ISOLATED as a clean cutout on a FULLY TRANSPARENT background — absolutely no ground, no shadow, no floor, no backdrop, no card, no scene, no border, no frame. Just the object. High detail, crisp edges, no text, no watermark.`;
 }
 
 export function parseDeck(raw: string | null | undefined): TrainingDeck {
@@ -74,74 +81,77 @@ function boxEdge(c: { x: number; y: number }, b: NodeBox, to: { x: number; y: nu
   return { x: c.x + dx * t, y: c.y + dy * t };
 }
 
+export interface AssetBox { x: number; y: number; w: number; h: number }
+
 /** Lay out a small diagram as rounded-rectangle node cards + connecting arrows, in
- *  fractional (0..1) coords. A `flow` marches left→right across an ENDLESS horizontal
- *  canvas (the view pans across it during presentation); a `tree` puts a root over a
- *  wide row of children; a `cycle` sits on a ring sized so the cards never touch.
- *  Every node is sized to its label so text never overflows. Returns how many 16:9
- *  frames wide the canvas is (`wide`); x is normalised by the full width, y by one
- *  frame's height. */
-export function diagramToBoard(d: RawSlide["diagram"], perElement = false): { items: BoardItem[]; wide: number } {
+ *  fractional (0..1) coords that ALL FIT INSIDE ONE 16:9 frame — the whole diagram is
+ *  uniformly scaled into a middle band so nothing is ever hidden or panned off-screen.
+ *  A `flow` is one row, a `tree` a root over a child row, a `cycle` a ring. The title
+ *  sits above the band and sticky notes sit in a reserved lane below it. `assetBox` is
+ *  where a 3D cutout should sit with reason: the empty centre of a cycle, else a clear
+ *  top-right corner. Every node is sized to its label so text never overflows. */
+export function diagramToBoard(d: RawSlide["diagram"], perElement = false): { items: BoardItem[]; wide: number; assetBox: AssetBox | null } {
   const labels = (d?.nodes ?? []).slice(0, 6).map((s) => String(s).slice(0, 44));
-  if (!labels.length) return { items: [], wide: 1 };
+  if (!labels.length) return { items: [], wide: 1, assetBox: null };
   const shape = d?.shape ?? "flow";
   const ink = "#1e293b";
   const box = labels.map(measure);
 
-  // centres in SVG px (x may exceed FRAME_W for a wide diagram; y within a frame).
-  const centers: { x: number; y: number }[] = [];
-  let CW = FRAME_W;
-
+  // ---- 1. natural layout (px, un-fitted, origin arbitrary) ----
+  const raw: { x: number; y: number }[] = [];
+  let cycleCenter: { x: number; y: number } | null = null;
   if (shape === "tree" && labels.length > 1) {
-    // root on top, the rest as a wide row beneath it
-    let cur = MARGIN;
+    let cur = 0;
     const kidX = box.slice(1).map((b) => { const cx = cur + b.w / 2; cur += b.w + NODE_GAP; return cx; });
-    CW = Math.max(FRAME_W, cur - NODE_GAP + MARGIN);
-    centers.push({ x: (kidX[0] + kidX[kidX.length - 1]) / 2, y: FRAME_H * 0.24 });
-    kidX.forEach((x) => centers.push({ x, y: FRAME_H * 0.66 }));
+    raw.push({ x: (kidX[0] + kidX[kidX.length - 1]) / 2, y: 0 });
+    kidX.forEach((x) => raw.push({ x, y: 250 }));
   } else if (shape === "cycle" && labels.length > 2) {
     const maxW = Math.max(...box.map((b) => b.w)), n = labels.length;
-    const rx = Math.max(FRAME_W * 0.3, (maxW + NODE_GAP) / (2 * Math.sin(Math.PI / n)));
-    const ry = Math.min(FRAME_H * 0.34, rx * 0.6);
-    CW = Math.max(FRAME_W, 2 * rx + maxW + 2 * MARGIN);
-    const cx = CW / 2, cy = FRAME_H / 2;
-    labels.forEach((_, i) => {
-      const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
-      centers.push({ x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) });
-    });
+    const rx = Math.max(300, (maxW + NODE_GAP) / (2 * Math.sin(Math.PI / n)));
+    const ry = rx * 0.62;
+    labels.forEach((_, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / n; raw.push({ x: rx * Math.cos(a), y: ry * Math.sin(a) }); });
+    cycleCenter = { x: 0, y: 0 };
   } else {
-    // flow — one wide left→right row
-    let cur = MARGIN;
-    box.forEach((b) => { centers.push({ x: cur + b.w / 2, y: FRAME_H * 0.5 }); cur += b.w + NODE_GAP; });
-    CW = Math.max(FRAME_W, cur - NODE_GAP + MARGIN);
+    let cur = 0;
+    box.forEach((b) => { raw.push({ x: cur + b.w / 2, y: 0 }); cur += b.w + NODE_GAP; });
   }
 
-  const wide = CW / FRAME_W;
-  const nx = (px: number) => px / CW;       // svg px → 0..1 of the wide canvas
-  const ny = (py: number) => py / FRAME_H;  // svg px → 0..1 of one frame's height
+  // ---- 2. uniformly fit the bounding box into the middle band of one frame ----
+  const half = (i: number) => ({ hw: box[i].w / 2, hh: box[i].h / 2 });
+  const minX = Math.min(...raw.map((c, i) => c.x - half(i).hw)), maxX = Math.max(...raw.map((c, i) => c.x + half(i).hw));
+  const minY = Math.min(...raw.map((c, i) => c.y - half(i).hh)), maxY = Math.max(...raw.map((c, i) => c.y + half(i).hh));
+  const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY);
+  const REGION_X = FRAME_W - 2 * MARGIN;               // usable width
+  const REGION_TOP = FRAME_H * 0.17, REGION_BOT = FRAME_H * 0.70; // band (title above, notes below)
+  const s = Math.min(1, REGION_X / bw, (REGION_BOT - REGION_TOP) / bh);
+  const cx0 = (minX + maxX) / 2, cy0 = (minY + maxY) / 2;
+  const tCx = FRAME_W / 2, tCy = (REGION_TOP + REGION_BOT) / 2;
+  const fx = (x: number) => tCx + (x - cx0) * s;   // fitted px
+  const fy = (y: number) => tCy + (y - cy0) * s;
+  const centers = raw.map((c) => ({ x: fx(c.x), y: fy(c.y) }));
+  const bs = box.map((b) => ({ w: b.w * s, h: b.h * s, fs: b.fs * s, label: b.label }));
 
+  const nx = (px: number) => px / FRAME_W, ny = (py: number) => py / FRAME_H;
   const edges: [number, number][] = (d?.edges?.map((e) => [e[0], e[1]] as [number, number])) ?? (
     shape === "cycle" ? labels.map((_, i) => [i, (i + 1) % labels.length] as [number, number])
     : shape === "tree" ? labels.slice(1).map((_, i) => [0, i + 1] as [number, number])
     : labels.slice(1).map((_, i) => [i, i + 1] as [number, number]));
 
   const node = (i: number, step: number): BoardItem => {
-    const c = centers[i], b = box[i];
+    const c = centers[i], b = bs[i];
     return { id: uid("n"), t: "shape", by: "", shape: "rect", color: ink, size: 0.003, from: { x: nx(c.x - b.w / 2), y: ny(c.y - b.h / 2) }, to: { x: nx(c.x + b.w / 2), y: ny(c.y + b.h / 2) }, step };
   };
   const lab = (i: number, step: number): BoardItem => {
     const c = centers[i];
-    return { id: uid("t"), t: "text", by: "", at: { x: nx(c.x), y: ny(c.y) }, text: box[i].label, color: ink, size: box[i].fs / FRAME_H, step };
+    return { id: uid("t"), t: "text", by: "", at: { x: nx(c.x), y: ny(c.y) }, text: bs[i].label, color: ink, size: bs[i].fs / FRAME_H, step };
   };
   const arr = (a: number, b: number, step: number): BoardItem => {
-    const s = boxEdge(centers[a], box[a], centers[b]), e = boxEdge(centers[b], box[b], centers[a]);
-    return { id: uid("e"), t: "shape", by: "", shape: "arrow", color: ink, size: 0.0026, from: { x: nx(s.x), y: ny(s.y) }, to: { x: nx(e.x), y: ny(e.y) }, step };
+    const s0 = boxEdge(centers[a], bs[a], centers[b]), e0 = boxEdge(centers[b], bs[b], centers[a]);
+    return { id: uid("e"), t: "shape", by: "", shape: "arrow", color: ink, size: 0.0026, from: { x: nx(s0.x), y: ny(s0.y) }, to: { x: nx(e0.x), y: ny(e0.y) }, step };
   };
 
   const items: BoardItem[] = [];
   if (perElement) {
-    // Live Draw — every element is its own step in natural drawing order (card,
-    // label, then any edge whose endpoints are both already on the board).
     let step = 0;
     const drawn = new Set<number>(), edgeDone = new Set<string>();
     labels.forEach((_, i) => {
@@ -157,7 +167,17 @@ export function diagramToBoard(d: RawSlide["diagram"], perElement = false): { it
     for (const [a, b] of edges) { if (centers[a] && centers[b]) items.push(arr(a, b, Math.max(a, b))); }
     labels.forEach((_, i) => { items.push(node(i, i)); items.push(lab(i, i)); });
   }
-  return { items, wide };
+
+  // ---- 3. where a 3D cutout belongs: the empty centre of a cycle, else top-right ----
+  let assetBox: AssetBox | null;
+  if (cycleCenter) {
+    const cw = 0.19, ch = 0.3;
+    assetBox = { x: nx(fx(cycleCenter.x)) - cw / 2, y: ny(fy(cycleCenter.y)) - ch / 2, w: cw, h: ch };
+  } else {
+    assetBox = { x: 0.74, y: 0.035, w: 0.225, h: 0.28 };
+  }
+
+  return { items, wide: 1, assetBox };
 }
 
 /** How many reveal steps a set of stepped items has. */
@@ -223,22 +243,25 @@ Rules:
     ?? (await ai.generateJSON<{ title?: string; slides?: RawSlide[] }>(prompt, { temperature: 0.25, maxTokens: 3500 }));
   if (!raw?.slides?.length) return null;
 
+  const assetBoxes: Record<string, AssetBox> = {}; // slide id → where its 3D cutout sits
   const slides: DeckSlide[] = raw.slides.slice(0, n).map((s): DeckSlide => {
     const board2 = (s.type === "whiteboard" || s.type === "livedraw") && opts.wantWhiteboard;
     const type: DeckSlide["type"] = board2 ? (s.type as "whiteboard" | "livedraw") : "doc";
     if (type === "whiteboard" || type === "livedraw") {
-      const { items: board, wide } = diagramToBoard(s.diagram, type === "livedraw");
-      // sticky-note callouts along the BOTTOM band (title sits top-left, the 3D asset
-      // top-right, the diagram in the middle), revealed after the diagram is drawn.
+      const id = uid("s");
+      const { items: board, wide, assetBox } = diagramToBoard(s.diagram, type === "livedraw");
+      if (assetBox) assetBoxes[id] = assetBox;
+      // sticky-note callouts in the RESERVED BOTTOM LANE — the diagram is fitted into
+      // the band above, so notes never overlap a node. Revealed after the diagram.
       const anns = (s.annotations ?? []).map((t) => String(t).slice(0, 100).trim()).filter(Boolean).slice(0, 2);
       const dMax = stepCount(board);
       anns.forEach((text, i) => {
-        const atx = anns.length === 1 ? 0.3 : 0.12 + i * 0.44;
-        board.push({ id: uid("note"), t: "text", by: "", at: { x: atx, y: 0.74 }, text, color: "#4a3c07", size: 0.03, note: "#fde68a", step: dMax + i });
+        const atx = anns.length === 1 ? 0.3 : 0.1 + i * 0.44;
+        board.push({ id: uid("note"), t: "text", by: "", at: { x: atx, y: 0.82 }, text, color: "#4a3c07", size: 0.028, note: "#fde68a", step: dMax + i });
       });
       const steps = Math.max(1, stepCount(board));
       return {
-        id: uid("s"), type,
+        id, type,
         title: (s.title || "Concept").slice(0, 120),
         subtitle: s.subtitle?.slice(0, 160),
         notes: s.notes?.slice(0, 400),
@@ -278,16 +301,18 @@ Rules:
       }));
     }
 
-    // A generated 3D asset for each whiteboard/livedraw slide, dropped top-right of
-    // the board so the concept has something concrete beside the diagram.
+    // A generated 3D asset per whiteboard/livedraw slide — a TRANSPARENT cutout from
+    // gpt-image (better at "isolated on transparent background"), dropped into the
+    // clear zone the layout reserved for it (a cycle's empty centre, else a corner).
     const boards = slides.filter((s) => (s.type === "whiteboard" || s.type === "livedraw") && s.assetPrompt);
     for (const s of boards) {
+      const abx = assetBoxes[s.id];
+      if (!abx) continue;
       try {
-        const r = await generateImageXaiFirst(imgPrompt("3d", s.assetPrompt!), 1024, 768, { quality: "high" });
+        const r = await generateImageWithProvider("openai", assetPrompt3D(s.assetPrompt!), 1024, 1024, { transparent: true, quality: "high" });
         if (r.base64) {
           const url = await uploadToS3(`training/${opts.sessionId}/deck/${s.id}-asset.png`, Buffer.from(r.base64, "base64"), "image/png");
-          const CW = 1000 * (s.wide ?? 1), AW = 250, AH = 188, ax = 1000 - 44 - AW, ay = 44;
-          s.board = [...(s.board ?? []), { id: uid("img"), t: "image", by: "", at: { x: ax / CW, y: ay / 562 }, w: AW / CW, h: AH / 562, url }];
+          s.board = [...(s.board ?? []), { id: uid("img"), t: "image", by: "", at: { x: abx.x, y: abx.y }, w: abx.w, h: abx.h, url }];
           s.steps = Math.max(1, stepCount(s.board));
         }
       } catch { /* skip the asset — the diagram stands on its own */ }
