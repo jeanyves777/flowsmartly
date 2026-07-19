@@ -856,9 +856,13 @@ function RosterStrip({ session, me, host, act, media, waiting, inRoom, onInvite,
             title={host ? (spotlit ? `Remove ${p.name}'s spotlight` : `Spotlight ${p.name}`) : p.name}
             className={cn("group relative h-[52px] w-[72px] shrink-0 overflow-hidden rounded-lg border-2 bg-[#181820] sm:h-[64px] sm:w-[86px]", spotlit ? "border-amber-400" : p.role === "HOST" ? "border-brand-500/50" : "border-border")}
           >
-            {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : (
+            {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : p.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
               <span className="grid h-full w-full place-items-center"><span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-brand-600 to-violet-700 text-[11px] font-black text-white">{p.name.slice(0, 2).toUpperCase()}</span></span>
             )}
+            {p.isAI ? <span className="absolute left-1 top-1 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1 py-px text-[7.5px] font-black text-[#04222a]">AI</span> : null}
             <span className="absolute inset-x-1 bottom-0.5 flex items-center gap-0.5 text-[8.5px] font-bold text-white [text-shadow:0_1px_2px_rgba(0,0,0,.9)]">
               <span className="truncate">{p.name}</span>
               <span className="ms-auto flex shrink-0 gap-0.5">
@@ -967,12 +971,15 @@ function FloatingBubbles({ inRoom, me, media, session, host, onSpotlight, onOpen
             {/* the badges sit on THIS wrapper (not the clipped circle) so the
                 mute / pen indicators are never cut off inside the bubble */}
             <div className="relative" style={{ width: SIZE, height: SIZE }}>
-              <div className={cn("grid h-full w-full place-items-center overflow-hidden rounded-full border-2 bg-[#181820] shadow-lg", spotlit ? "border-amber-400" : p.role === "HOST" ? "border-brand-400" : "border-white/70")}>
-                {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : (
+              <div className={cn("grid h-full w-full place-items-center overflow-hidden rounded-full border-2 bg-[#181820] shadow-lg", spotlit ? "border-amber-400" : p.isAI ? "border-cyan-400" : p.role === "HOST" ? "border-brand-400" : "border-white/70")}>
+                {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : p.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
                   <span className="grid h-full w-full place-items-center bg-gradient-to-br from-brand-600 to-violet-700 text-[14px] font-black text-white">{p.name.slice(0, 2).toUpperCase()}</span>
                 )}
               </div>
-              {session.penHolderId === p.id ? <span className="absolute -left-0.5 -top-0.5 grid h-[17px] w-[17px] place-items-center rounded-full bg-emerald-500 text-white ring-2 ring-[#0e0e13]"><PenLine className="h-2.5 w-2.5" /></span> : null}
+              {p.isAI ? <span className="absolute -left-0.5 -top-0.5 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1 py-px text-[7.5px] font-black text-[#04222a] ring-2 ring-[#0e0e13]">AI</span> : session.penHolderId === p.id ? <span className="absolute -left-0.5 -top-0.5 grid h-[17px] w-[17px] place-items-center rounded-full bg-emerald-500 text-white ring-2 ring-[#0e0e13]"><PenLine className="h-2.5 w-2.5" /></span> : null}
               {!p.micOn ? <span className="absolute -bottom-0.5 -right-0.5 grid h-[17px] w-[17px] place-items-center rounded-full bg-rose-500 text-white ring-2 ring-[#0e0e13]"><MicOff className="h-2.5 w-2.5" /></span> : null}
             </div>
             <span className="mx-auto mt-1 block max-w-[54px] truncate rounded bg-black/55 px-1 text-center text-[8.5px] font-bold text-white">{p.id === me.id ? "You" : p.name}</span>
@@ -1388,11 +1395,15 @@ function Tile({ p, session, me, host, act, onSpotlight, feed }: {
     <div className={cn("group relative aspect-[4/3] overflow-hidden rounded-xl border bg-[#181820]", spotlit ? "border-amber-400" : p.sharing ? "border-cyan-500/60" : p.role === "HOST" ? "border-brand-500/50" : "border-border")}>
       {feed ? (
         <VideoFeed stream={feed} muted mirror={p.id === me.id} />
+      ) : p.avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />
       ) : (
         <div className="grid h-full w-full place-items-center bg-[#181820]">
           <span className="grid h-[38px] w-[38px] place-items-center rounded-full bg-gradient-to-br from-brand-600 to-violet-700 text-[13px] font-black text-white">{p.name.slice(0, 2).toUpperCase()}</span>
         </div>
       )}
+      {p.isAI ? <span className="absolute left-1.5 top-1.5 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 text-[8.5px] font-black text-[#04222a]">AI</span> : null}
       <div className="absolute inset-x-1.5 bottom-1 flex items-center gap-1 text-[9.5px] font-bold text-white [text-shadow:0_1px_3px_rgba(0,0,0,.9)]">
         <span className="truncate">{p.name}</span>
         <span className="ms-auto flex shrink-0 gap-0.5">
