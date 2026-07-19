@@ -19,6 +19,7 @@ import {
   Minus, MoveUpRight, Triangle, Diamond, ChevronDown, ChevronUp, PanelLeftClose,
   PanelLeftOpen, Eye, EyeOff, MoreHorizontal,
   Send, Check, Square as StopIcon, Save, Volume2, Pause, Play, Focus, Rows3, Columns3, PanelBottom, MessageSquare, LayoutGrid,
+  SkipForward, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
@@ -246,7 +247,9 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const narration = deckSlide?.narration ?? null;
   const aiAudioRef = useRef<HTMLAudioElement | null>(null);
   const aiPlaying = !!session.aiPlaying;
-  // every client plays the current slide's narration while the AI is delivering
+  const [tookOver, setTookOver] = useState(false);
+  // every client plays the current slide's narration while the AI is delivering. On a
+  // NEW slide the audio restarts from 0; resuming the SAME slide keeps its position.
   useEffect(() => {
     const a = aiAudioRef.current;
     if (!a) return;
@@ -255,26 +258,43 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
       a.play().catch(() => {});
     } else { a.pause(); }
   }, [aiPlaying, narration?.audioUrl]);
-  // host = conductor: reveal steps across the narration, then advance to the next slide
+  // host = conductor. Reveals track the AUDIO POSITION (so pause/resume/repeat just
+  // work), and the deck advances when the narration ends. Latest state via a ref so the
+  // listeners attach once and never read stale values.
+  const aiStateRef = useRef({ session, deckSteps, pages: material?.pages ?? 1 });
+  aiStateRef.current = { session, deckSteps, pages: material?.pages ?? 1 };
   useEffect(() => {
     const a = aiAudioRef.current;
-    if (!host || !aiPlaying || !deckSlide) return;
-    const dur = Math.max(2500, narration?.durationMs ?? 4500);
-    const remaining = Math.max(0, deckSteps - 1);
-    const timers = Array.from({ length: remaining }, (_, k) => setTimeout(() => void patch({ stageStep: 2 + k }), (dur / (remaining + 1)) * (k + 1)));
-    let done = false;
-    const advance = () => {
-      if (done) return; done = true;
-      const pages = material?.pages ?? 1;
-      if (session.stagePage < pages) void patch({ stagePage: session.stagePage + 1, stageStep: 1 });
+    if (!host || !a) return;
+    const onTime = () => {
+      const { session: s, deckSteps: steps } = aiStateRef.current;
+      if (!s.aiPlaying || !a.duration || !isFinite(a.duration) || steps < 1) return;
+      const target = Math.min(steps, Math.max(1, Math.floor((a.currentTime / a.duration) * steps) + 1));
+      if (target > (s.stageStep || 1)) void patch({ stageStep: target });
+    };
+    let advancing = false;
+    const onEnd = () => {
+      const { session: s, pages } = aiStateRef.current;
+      if (advancing || !s.aiPlaying) return;
+      advancing = true; setTimeout(() => { advancing = false; }, 900);
+      if (s.stagePage < pages) void patch({ stagePage: s.stagePage + 1, stageStep: 1 });
       else void patch({ aiPlaying: false });
     };
-    a?.addEventListener("ended", advance);
-    const fallback = setTimeout(advance, dur + 1500); // in case the audio never loaded
-    return () => { timers.forEach(clearTimeout); clearTimeout(fallback); a?.removeEventListener("ended", advance); };
-  }, [host, aiPlaying, session.stagePage]); // eslint-disable-line react-hooks/exhaustive-deps
-  const playAI = () => { if (!deckSlide) return; void patch({ stageStep: 1, aiPlaying: true }); };
+    a.addEventListener("timeupdate", onTime);
+    a.addEventListener("ended", onEnd);
+    return () => { a.removeEventListener("timeupdate", onTime); a.removeEventListener("ended", onEnd); };
+  }, [host]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Controls — audio position IS the saved position, so resume never restarts a slide.
+  const resumeAI = () => { setTookOver(false); void patch({ aiPlaying: true }); };
   const pauseAI = () => { aiAudioRef.current?.pause(); void patch({ aiPlaying: false }); };
+  const skipAI = () => { const pages = material?.pages ?? 1; if (session.stagePage < pages) void patch({ stagePage: session.stagePage + 1, stageStep: 1, aiPlaying: true }); else void patch({ aiPlaying: false }); };
+  const repeatAI = () => { const a = aiAudioRef.current; if (a) { a.currentTime = 0; } void patch({ stageStep: 1, aiPlaying: true }); };
+  const takeoverAI = async () => {
+    aiAudioRef.current?.pause();
+    setTookOver(true);
+    await patch({ aiPlaying: false });
+    if (media.enabled && !media.micOn) { await media.toggleMic().catch(() => {}); await act("unmute", me.id); }
+  };
 
   const backdrop = useMemo(() => {
     if (session.stageSource === "board") return null;
@@ -504,6 +524,10 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                 <span className="me-1.5 inline-flex items-center gap-1 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 align-middle text-[8.5px] font-black text-[#04222a]"><Volume2 className="h-2.5 w-2.5" /> AI</span>
                 {narration.text}
               </div>
+            ) : tookOver && aiPresenter ? (
+              <div className="pointer-events-none absolute bottom-[92px] left-1/2 z-[6] w-[min(80%,560px)] -translate-x-1/2 rounded-xl border border-amber-500/40 bg-amber-500/[0.16] px-4 py-2 text-center text-[12.5px] font-bold text-amber-200 backdrop-blur-sm">
+                <Hand className="me-1.5 inline h-3.5 w-3.5 align-middle" /> You have the floor — the AI is paused at its spot. Press <b>Resume AI</b> to continue.
+              </div>
             ) : null}
             {paged && material ? (
               <>
@@ -542,9 +566,14 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                     <ChevronRight className="h-3 w-3" />
                   </button>
                   {host && aiPresenter ? (
-                    <button onClick={aiPlaying ? pauseAI : playAI} title={aiPlaying ? "Pause the AI presenter" : "Let the AI presenter deliver this"} className={cn("ms-0.5 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9.5px] font-extrabold", aiPlaying ? "bg-gradient-to-br from-cyan-400 to-brand-500 text-[#04222a]" : "border border-brand-500/50 text-brand-400 hover:border-brand-500")}>
-                      {aiPlaying ? <><Pause className="h-2.5 w-2.5" /> Pause AI</> : <><Volume2 className="h-2.5 w-2.5" /> Present with AI</>}
-                    </button>
+                    <span className="ms-0.5 inline-flex items-center gap-1">
+                      <button onClick={aiPlaying ? pauseAI : resumeAI} title={aiPlaying ? "Pause the AI presenter" : tookOver ? "Resume the AI presenter from where it paused" : "Let the AI presenter deliver this"} className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9.5px] font-extrabold", aiPlaying ? "bg-gradient-to-br from-cyan-400 to-brand-500 text-[#04222a]" : "border border-brand-500/50 text-brand-400 hover:border-brand-500")}>
+                        {aiPlaying ? <><Pause className="h-2.5 w-2.5" /> Pause AI</> : <><Volume2 className="h-2.5 w-2.5" /> {tookOver ? "Resume AI" : "Present with AI"}</>}
+                      </button>
+                      <button onClick={repeatAI} title="Repeat this slide" className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500"><RotateCcw className="h-3 w-3" /></button>
+                      <button onClick={skipAI} title="Skip to the next slide" className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500"><SkipForward className="h-3 w-3" /></button>
+                      <button onClick={takeoverAI} title="Take over — pause the AI and open your mic" className="grid h-[22px] w-[22px] place-items-center rounded border border-amber-500/50 text-amber-400 hover:border-amber-500"><Hand className="h-3 w-3" /></button>
+                    </span>
                   ) : host && deckSlide && deckSteps > 1 ? (
                     <button onClick={() => setAutoReveal((v) => !v)} title="Auto-reveal — draw along hands-free" className={cn("ms-0.5 rounded-full px-2 py-0.5 text-[9.5px] font-extrabold", autoReveal ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>
                       AUTO
