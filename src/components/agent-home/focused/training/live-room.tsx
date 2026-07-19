@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
 import { useMedia, type RemoteStream, type DeviceOption } from "./use-media";
 import { InviteSheet, Sheet } from "./invite-sheet";
+import { DeckSlideView } from "./deck-slide-view";
 import { VideoSheet } from "./video-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
 import type { BoardItem, BoardTool, LiveStroke, StageSource, TrainingParticipantDTO, TrainingSessionDTO, TrainingMessageDTO } from "@/lib/training/types";
@@ -202,6 +203,24 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const sharer = useMemo(() => session.participants.find((p) => p.sharing) ?? null, [session.participants]);
   const material = useMemo(() => session.materials.find((m) => m.id === session.stageKey) ?? null, [session.materials, session.stageKey]);
   const paged = session.stageSource === "slides" || session.stageSource === "doc";
+  // A generated deck reveals STEP-BY-STEP within each slide; the pager drives both
+  // the reveal step and the slide, so "next" builds the current slide up, then moves on.
+  const deckSlide = material?.kind === "slides" && material.deck?.slides.length
+    ? material.deck.slides[Math.min(session.stagePage, material.deck.slides.length) - 1]
+    : null;
+  const deckSteps = deckSlide?.steps ?? 0;
+  const revealNext = () => {
+    if (deckSlide && session.stageStep < deckSteps) return void patch({ stageStep: session.stageStep + 1 });
+    const nextPage = Math.min(material?.pages ?? 1, session.stagePage + 1);
+    void patch({ stagePage: nextPage, stageStep: nextPage !== session.stagePage ? 1 : session.stageStep });
+  };
+  const revealPrev = () => {
+    if (deckSlide && session.stageStep > 1) return void patch({ stageStep: session.stageStep - 1 });
+    const prevPage = Math.max(1, session.stagePage - 1);
+    void patch({ stagePage: prevPage, stageStep: 999 });
+  };
+  const atStart = session.stagePage <= 1 && (!deckSlide || session.stageStep <= 1);
+  const atEnd = session.stagePage >= (material?.pages ?? 1) && (!deckSlide || session.stageStep >= deckSteps);
 
   const backdrop = useMemo(() => {
     if (session.stageSource === "board") return null;
@@ -248,6 +267,12 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           </span>
         </div>
       );
+    }
+    // A generated AI deck — render the current slide, revealed up to stageStep so it
+    // builds progressively as the host presents. The host draws right on top.
+    if (material?.kind === "slides" && material.deck?.slides.length) {
+      const slide = material.deck.slides[Math.min(session.stagePage, material.deck.slides.length) - 1];
+      return slide ? <DeckSlideView slide={slide} reveal={session.stageStep} /> : null;
     }
     if (material?.kind === "image" || material?.kind === "video") {
       // eslint-disable-next-line @next/next/no-img-element
@@ -421,11 +446,13 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
             />
             {paged && material ? (
               <div className="absolute bottom-3 left-1/2 z-[6] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-background/85 px-2 py-1.5 backdrop-blur">
-                <button onClick={() => void patch({ stagePage: Math.max(1, session.stagePage - 1) })} disabled={!host || session.stagePage <= 1} className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30">
+                <button onClick={revealPrev} disabled={!host || atStart} className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30">
                   <ChevronLeft className="h-3 w-3" />
                 </button>
-                <span className="min-w-[62px] text-center text-[10.5px] text-muted-foreground">Page {session.stagePage} / {material.pages}</span>
-                <button onClick={() => void patch({ stagePage: Math.min(material.pages, session.stagePage + 1) })} disabled={!host || session.stagePage >= material.pages} className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30">
+                <span className="min-w-[62px] text-center text-[10.5px] text-muted-foreground">
+                  {deckSlide ? <>Slide {session.stagePage}/{material.pages}{deckSteps > 1 ? ` · reveal ${Math.min(session.stageStep, deckSteps)}/${deckSteps}` : ""}</> : <>Page {session.stagePage} / {material.pages}</>}
+                </span>
+                <button onClick={revealNext} disabled={!host || atEnd} className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30">
                   <ChevronRight className="h-3 w-3" />
                 </button>
               </div>

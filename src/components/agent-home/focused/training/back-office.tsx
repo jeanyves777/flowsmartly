@@ -34,12 +34,13 @@ interface Props {
   patch: (body: Record<string, unknown>) => Promise<string | null>;
   onSession: (session: TrainingSessionDTO) => void;
   onAddMaterial: () => void;
+  onBuildDeck?: () => void;
   uploading?: boolean;
   onPushMaterial: (materialId: string) => void;
   onEnd: () => void;
 }
 
-export function BackOffice({ session, me, estimate, act, patch, onSession, onAddMaterial, uploading, onPushMaterial, onEnd }: Props) {
+export function BackOffice({ session, me, estimate, act, patch, onSession, onAddMaterial, onBuildDeck, uploading, onPushMaterial, onEnd }: Props) {
   const owner = me?.role === "HOST";
   const waiting = useMemo(() => session.participants.filter((p) => p.state === "WAITING"), [session.participants]);
   const inRoom = useMemo(() => session.participants.filter((p) => p.state === "ADMITTED"), [session.participants]);
@@ -201,6 +202,17 @@ export function BackOffice({ session, me, estimate, act, patch, onSession, onAdd
               <span className="text-[9px] text-muted-foreground">PDF, deck, image, video</span>
             </span>
           </button>
+          {onBuildDeck ? (
+            <button onClick={onBuildDeck} className="overflow-hidden rounded-xl border border-brand-500/40 bg-gradient-to-br from-brand-500/10 to-violet-500/10 text-left hover:border-brand-500">
+              <span className="grid aspect-[16/10] place-items-center">
+                <Sparkles className="h-5 w-5 text-brand-400" />
+              </span>
+              <span className="block px-2.5 py-2">
+                <b className="block text-[10.5px] text-brand-400">Build with AI</b>
+                <span className="text-[9px] text-muted-foreground">A presentation from a brief</span>
+              </span>
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

@@ -48,6 +48,7 @@ interface PatchBody {
   stageSource?: StageSource;
   stageKey?: string | null;
   stagePage?: number;
+  stageStep?: number;
 }
 
 /**
@@ -84,6 +85,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (b.stageSource) data.stageSource = b.stageSource;
   if (b.stageKey !== undefined) data.stageKey = b.stageKey;
   if (typeof b.stagePage === "number") data.stagePage = Math.max(1, b.stagePage);
+  if (typeof b.stageStep === "number") data.stageStep = Math.max(0, b.stageStep);
 
   if (!Object.keys(data).length) return err("Nothing to change");
 
@@ -98,6 +100,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         stageSource: dto.stageSource,
         stageKey: dto.stageKey,
         stagePage: dto.stagePage,
+        stageStep: dto.stageStep,
         openDraw: dto.openDraw,
         openShare: dto.openShare,
         openMic: dto.openMic,
