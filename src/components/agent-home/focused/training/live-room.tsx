@@ -221,6 +221,14 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   };
   const atStart = session.stagePage <= 1 && (!deckSlide || session.stageStep <= 1);
   const atEnd = session.stagePage >= (material?.pages ?? 1) && (!deckSlide || session.stageStep >= deckSteps);
+  // Auto-reveal: hands-free draw-along — advance a step every few seconds until the
+  // current slide is fully revealed, then stop (the host stays in control of slides).
+  const [autoReveal, setAutoReveal] = useState(false);
+  useEffect(() => {
+    if (!autoReveal || !host || !deckSlide || session.stageStep >= deckSteps) return;
+    const t = setTimeout(() => void patch({ stageStep: session.stageStep + 1 }), 3200);
+    return () => clearTimeout(t);
+  }, [autoReveal, host, deckSlide, deckSteps, session.stageStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const backdrop = useMemo(() => {
     if (session.stageSource === "board") return null;
@@ -455,6 +463,11 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                 <button onClick={revealNext} disabled={!host || atEnd} className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30">
                   <ChevronRight className="h-3 w-3" />
                 </button>
+                {host && deckSlide && deckSteps > 1 ? (
+                  <button onClick={() => setAutoReveal((v) => !v)} title="Auto-reveal — draw along hands-free" className={cn("ms-0.5 rounded-full px-2 py-0.5 text-[9.5px] font-extrabold", autoReveal ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>
+                    AUTO
+                  </button>
+                ) : null}
               </div>
             ) : null}
           </div>

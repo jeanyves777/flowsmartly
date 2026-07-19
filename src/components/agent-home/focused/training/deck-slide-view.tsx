@@ -8,11 +8,26 @@
  */
 import { TrainingBoard } from "./training-board";
 import { cn } from "@/lib/utils/cn";
-import type { DeckSlide } from "@/lib/training/types";
+import type { BoardItem, DeckSlide } from "@/lib/training/types";
 
 export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; reveal?: number; className?: string }) {
   // `reveal` = how many steps are shown (undefined = show everything, e.g. in the
   // builder preview). Drives the progressive "drawing as you talk" reveal.
+
+  // Live Draw — each element appears ONE AT A TIME and the current one visibly
+  // draws itself on; future elements stay hidden.
+  if (slide.type === "livedraw") {
+    return (
+      <div
+        className={cn("relative h-full w-full bg-[#f7f7f2]", className)}
+        style={{ backgroundImage: "radial-gradient(circle at 1px 1px,#dad9d0 1px,transparent 0)", backgroundSize: "22px 22px" }}
+      >
+        <div className="absolute left-[6%] top-[5%] z-[2] text-[clamp(18px,3vw,32px)] font-extrabold text-[#1a1a1a]" style={{ fontFamily: '"Segoe Print","Comic Sans MS",cursive' }}>{slide.title}</div>
+        <LiveDrawBoard items={slide.board ?? []} reveal={reveal} />
+      </div>
+    );
+  }
+
   if (slide.type === "whiteboard") {
     const items = reveal === undefined ? (slide.board ?? []) : (slide.board ?? []).filter((it) => (("step" in it ? it.step : 0) ?? 0) < reveal);
     return (
@@ -81,6 +96,45 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/** An animated whiteboard for Live Draw slides: revealed elements are static; the
+ *  CURRENT element visibly draws itself on (paths draw via stroke-dashoffset, labels
+ *  pop in); future elements are hidden. Coords are fractional (0..1) → a 16:9 viewBox. */
+function LiveDrawBoard({ items, reveal }: { items: BoardItem[]; reveal?: number }) {
+  const W = 1000, H = 562;
+  const shown = reveal === undefined ? items : items.filter((it) => (("step" in it ? it.step : 0) ?? 0) < reveal);
+  const current = reveal === undefined ? -2 : reveal - 1;
+  return (
+    <div className="absolute inset-0">
+      <style>{`@keyframes ld-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}@keyframes ld-pop{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:scale(1)}}`}</style>
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
+        {shown.map((it) => {
+          const isNow = ("step" in it ? it.step : -3) === current;
+          if (it.t === "shape") {
+            const x1 = it.from.x * W, y1 = it.from.y * H, x2 = it.to.x * W, y2 = it.to.y * H;
+            const sw = Math.max(2, (it.size ?? 0.003) * W);
+            const draw = isNow ? { strokeDasharray: 1, strokeDashoffset: 1, animation: "ld-draw .7s ease forwards" } : undefined;
+            if (it.shape === "ellipse") {
+              return <ellipse key={`${it.id}-${isNow}`} cx={(x1 + x2) / 2} cy={(y1 + y2) / 2} rx={Math.abs(x2 - x1) / 2} ry={Math.abs(y2 - y1) / 2} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} style={draw} />;
+            }
+            const ang = Math.atan2(y2 - y1, x2 - x1), ah = Math.max(12, sw * 4);
+            return (
+              <g key={`${it.id}-${isNow}`}>
+                <line x1={x1} y1={y1} x2={x2} y2={y2} pathLength={1} stroke={it.color} strokeWidth={sw} strokeLinecap="round" style={draw} />
+                <polyline points={`${x2 - ah * Math.cos(ang - Math.PI / 6)},${y2 - ah * Math.sin(ang - Math.PI / 6)} ${x2},${y2} ${x2 - ah * Math.cos(ang + Math.PI / 6)},${y2 - ah * Math.sin(ang + Math.PI / 6)}`} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={draw} />
+              </g>
+            );
+          }
+          if (it.t === "text") {
+            const fs = Math.max(11, (it.size ?? 0.03) * H);
+            return <text key={`${it.id}-${isNow}`} x={it.at.x * W} y={it.at.y * H + fs} fontSize={fs} fontWeight={700} fill={it.color} style={isNow ? { animation: "ld-pop .4s ease forwards" } : undefined}>{it.text}</text>;
+          }
+          return null;
+        })}
+      </svg>
     </div>
   );
 }

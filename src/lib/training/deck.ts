@@ -16,7 +16,7 @@ import type { BoardItem, DeckSlide, DeckVisual, TrainingDeck } from "./types";
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
 interface RawSlide {
-  type?: "doc" | "whiteboard";
+  type?: "doc" | "whiteboard" | "livedraw";
   title?: string;
   subtitle?: string;
   bullets?: string[];
@@ -50,7 +50,7 @@ export function parseDeck(raw: string | null | undefined): TrainingDeck {
 
 /** Lay out a small diagram as BoardItems in fractional (0..1) coords — the code
  *  analog of hand-sketching the "objection → reframe → close" flow. */
-export function diagramToBoard(d: RawSlide["diagram"]): BoardItem[] {
+export function diagramToBoard(d: RawSlide["diagram"], perElement = false): BoardItem[] {
   const nodes = (d?.nodes ?? []).slice(0, 6).map((s) => String(s).slice(0, 40));
   if (!nodes.length) return [];
   const shape = d?.shape ?? "flow";
@@ -83,22 +83,52 @@ export function diagramToBoard(d: RawSlide["diagram"]): BoardItem[] {
     });
   }
 
-  const items: BoardItem[] = [];
-  // Each mark carries a reveal `step` so the diagram builds up node-by-node as the
-  // presenter talks (node i at step i; an edge appears with its later node).
   const edges = d?.edges ?? (shape === "cycle"
     ? nodes.map((_, i) => [i, (i + 1) % nodes.length] as [number, number])
     : nodes.slice(1).map((_, i) => [i, i + 1] as [number, number]));
-  for (const [a, b] of edges) {
-    if (!centers[a] || !centers[b]) continue;
-    items.push({ id: uid("e"), t: "shape", by: "", shape: "arrow", color: ink, size: 0.003, from: centers[a], to: centers[b], step: Math.max(a, b) });
-  }
-  nodes.forEach((label, i) => {
+
+  const ell = (i: number, step: number): BoardItem => {
     const c = centers[i];
-    items.push({ id: uid("n"), t: "shape", by: "", shape: "ellipse", color: ink, size: 0.0035, from: { x: c.x - NW / 2, y: c.y - NH / 2 }, to: { x: c.x + NW / 2, y: c.y + NH / 2 }, step: i });
-    items.push({ id: uid("t"), t: "text", by: "", at: { x: c.x - NW / 2 + 0.02, y: c.y - 0.02 }, text: label, color: ink, size: 0.03, step: i });
-  });
+    return { id: uid("n"), t: "shape", by: "", shape: "ellipse", color: ink, size: 0.0035, from: { x: c.x - NW / 2, y: c.y - NH / 2 }, to: { x: c.x + NW / 2, y: c.y + NH / 2 }, step };
+  };
+  const lab = (i: number, label: string, step: number): BoardItem => {
+    const c = centers[i];
+    return { id: uid("t"), t: "text", by: "", at: { x: c.x - NW / 2 + 0.02, y: c.y - 0.02 }, text: label, color: ink, size: 0.03, step };
+  };
+  const arr = (a: number, b: number, step: number): BoardItem =>
+    ({ id: uid("e"), t: "shape", by: "", shape: "arrow", color: ink, size: 0.003, from: centers[a], to: centers[b], step });
+
+  const items: BoardItem[] = [];
+  if (perElement) {
+    // Live Draw — EVERY element is its own step, in natural drawing order (node,
+    // label, then any edge whose endpoints are both on the board), so it draws one
+    // stroke at a time as the presenter narrates.
+    let step = 0;
+    const drawn = new Set<number>(), edgeDone = new Set<string>();
+    nodes.forEach((label, i) => {
+      items.push(ell(i, step++));
+      items.push(lab(i, label, step++));
+      drawn.add(i);
+      for (const [a, b] of edges) {
+        const key = `${a}-${b}`;
+        if (!edgeDone.has(key) && centers[a] && centers[b] && drawn.has(a) && drawn.has(b)) {
+          items.push(arr(a, b, step++)); edgeDone.add(key);
+        }
+      }
+    });
+  } else {
+    // node i at step i; an edge appears with its later node
+    for (const [a, b] of edges) { if (centers[a] && centers[b]) items.push(arr(a, b, Math.max(a, b))); }
+    nodes.forEach((label, i) => { items.push(ell(i, i)); items.push(lab(i, label, i)); });
+  }
   return items;
+}
+
+/** How many reveal steps a set of stepped items has. */
+export function stepCount(items: BoardItem[]): number {
+  let max = -1;
+  for (const it of items) if ("step" in it && typeof it.step === "number") max = Math.max(max, it.step);
+  return max + 1;
 }
 
 /** Turn a brief into a deck. Returns null only if the model gives nothing usable. */
@@ -120,7 +150,7 @@ export async function generateDeck(opts: {
 Produce EXACTLY ${n} slides as ${faces || "document"} slides. Teach it like a great presenter: mix photorealistic imagery, 3D explainers, and step-by-step whiteboard sections.
 Return JSON: { "title": string, "slides": Slide[] } where Slide is:
 {
-  "type": "doc" | "whiteboard",
+  "type": "doc" | "whiteboard" | "livedraw",
   "title": short slide title,
   "subtitle": one short supporting line,
   "bullets": [3-4 concise talking points],       // "doc" slides
@@ -128,10 +158,10 @@ Return JSON: { "title": string, "slides": Slide[] } where Slide is:
   "emoji": one relevant emoji,                   // "doc" slides
   "visualStyle": "photo" | "3d" | "illustration",// "doc" slides — photo for real-world scenes/people, 3d for abstract concepts/systems, illustration otherwise
   "imagePrompt": a vivid prompt for the visual (no text in the image, no watermark), // "doc" slides
-  "diagram": { "shape": "cycle"|"flow"|"tree", "nodes": [3-6 short labels], "edges": [[fromIndex,toIndex]] } // "whiteboard" slides
+  "diagram": { "shape": "cycle"|"flow"|"tree", "nodes": [3-6 short labels], "edges": [[fromIndex,toIndex]] } // "whiteboard" and "livedraw" slides
 }
 Rules:
-- ${opts.wantWhiteboard ? "Use whiteboard slides GENEROUSLY for concepts, processes and frameworks — aim for at least a third of the deck as whiteboard explainers with rich multi-step diagrams (4-6 nodes)." : "Do NOT use whiteboard slides."}
+- ${opts.wantWhiteboard ? "Use whiteboard/livedraw slides GENEROUSLY for concepts, processes and frameworks — aim for at least a third of the deck. Use \"livedraw\" for the SINGLE most important concept that lands best when sketched stroke-by-stroke while talking; use \"whiteboard\" for the rest. Rich multi-step diagrams (4-6 nodes)." : "Do NOT use whiteboard or livedraw slides."}
 - Choose visualStyle deliberately: real photography for real-world/people scenes, 3D for abstract or systemic concepts, illustration for the rest.
 - Open with a title/agenda slide and close with a summary or call-to-action. Every line tight and presentable.`;
 
@@ -140,12 +170,13 @@ Rules:
   if (!raw?.slides?.length) return null;
 
   const slides: DeckSlide[] = raw.slides.slice(0, n).map((s): DeckSlide => {
-    const type: DeckSlide["type"] = s.type === "whiteboard" && opts.wantWhiteboard ? "whiteboard" : "doc";
-    if (type === "whiteboard") {
-      const board = diagramToBoard(s.diagram);
-      const steps = Math.max(1, (s.diagram?.nodes ?? []).slice(0, 6).length);
+    const board2 = (s.type === "whiteboard" || s.type === "livedraw") && opts.wantWhiteboard;
+    const type: DeckSlide["type"] = board2 ? (s.type as "whiteboard" | "livedraw") : "doc";
+    if (type === "whiteboard" || type === "livedraw") {
+      const board = diagramToBoard(s.diagram, type === "livedraw");
+      const steps = Math.max(1, stepCount(board));
       return {
-        id: uid("s"), type: "whiteboard",
+        id: uid("s"), type,
         title: (s.title || "Concept").slice(0, 120),
         subtitle: s.subtitle?.slice(0, 160),
         notes: s.notes?.slice(0, 400),
