@@ -648,6 +648,11 @@ function LineNode({ agent, x, onOpen, onMove }: {
 }) {
   const { ref, start } = useNodeDrag(onMove);
   const n = agent.number;
+  // A provisioned line is one WE give the agent — the business keeps their own
+  // number and forwards it here. (A number they brought themselves is dialled
+  // directly, so it needs no forwarding.)
+  const needsForward = !!n && n.status === "ACTIVE" && !!n.e164 && n.origin === "XAI_PROVISIONED";
+  const fwd = needsForward && n?.e164 ? forwardingSteps(agent.answerMode, n.e164) : null;
   return (
     <div ref={ref} data-node="__out" style={{ left: x, top: 120 }}
       className="absolute w-[236px] overflow-hidden rounded-2xl border border-cyan-500/40 bg-gradient-to-b from-cyan-500/10 to-card shadow-sm">
@@ -676,6 +681,27 @@ function LineNode({ agent, x, onOpen, onMove }: {
           </>
         )}
       </div>
+
+      {/* Forwarding step — the one thing the business does to point their own
+          number at this provisioned line. */}
+      {fwd && (
+        <button
+          onClick={onOpen}
+          className="mx-3 mt-2 block w-[calc(100%-24px)] rounded-xl border border-brand-500/30 bg-brand-500/[0.06] p-2.5 text-left transition-colors hover:border-brand-500/60"
+        >
+          <span className="flex items-center gap-1.5 text-[9.5px] font-extrabold text-brand-500">
+            <PhoneForwarded className="h-3 w-3" /> Forward your number here
+          </span>
+          <span className="mt-1 block text-[8.5px] leading-snug text-muted-foreground">
+            Customers keep calling your own number — from your phone, dial:
+          </span>
+          <span className="mt-1.5 block rounded-lg border border-border bg-background px-2 py-1.5 text-center font-mono text-[12px] font-extrabold">
+            {fwd.on}
+          </span>
+          <span className="mt-1.5 block text-[8.5px] font-bold text-brand-500">Full steps →</span>
+        </button>
+      )}
+
       <div className="flex gap-1 p-3">
         <button onClick={onOpen} className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-cyan-500">
           <Settings className="mx-auto h-3 w-3" />
