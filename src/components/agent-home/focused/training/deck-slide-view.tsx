@@ -20,10 +20,10 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   if (slide.type === "whiteboard" || slide.type === "livedraw") {
     return (
       <div
-        className={cn("relative h-full w-full overflow-hidden bg-[#f7f7f2]", className)}
+        className={cn("relative h-full w-full overflow-hidden bg-[#f7f7f2] [container-type:inline-size]", className)}
         style={{ backgroundImage: "radial-gradient(circle at 1px 1px,#dad9d0 1px,transparent 0)", backgroundSize: "22px 22px" }}
       >
-        <div className="absolute left-[6%] top-[5%] z-[3] text-[clamp(18px,3vw,32px)] font-extrabold text-[#1a1a1a]" style={{ fontFamily: '"Segoe Print","Comic Sans MS",cursive' }}>{slide.title}</div>
+        <div className="absolute left-[6%] top-[5%] z-[3] text-[clamp(8px,3.6cqw,32px)] font-extrabold text-[#1a1a1a]" style={{ fontFamily: '"Segoe Print","Comic Sans MS",cursive' }}>{slide.title}</div>
         <DiagramBoard items={slide.board ?? []} reveal={reveal} wide={slide.wide} animated={slide.type === "livedraw"} />
       </div>
     );
@@ -33,7 +33,7 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   const left = v?.layout === "left";
   const full = v?.layout === "full";
   return (
-    <div className={cn("relative h-full w-full overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] text-white", className)}>
+    <div className={cn("relative h-full w-full overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] text-white [container-type:inline-size]", className)}>
       <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
       {full && v?.kind === "image" && v.url ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -41,12 +41,12 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
       ) : null}
       <div className={cn("relative grid h-full w-full gap-[5%] p-[6%] pl-[8%]", full ? "grid-cols-1" : left ? "grid-cols-[.85fr_1.15fr]" : "grid-cols-[1.15fr_.85fr]")}>
         <div className={cn("flex flex-col justify-center", left && "order-2")}>
-          <h1 className="text-[clamp(18px,3.1vw,34px)] font-extrabold leading-tight tracking-tight">{slide.title}</h1>
-          {slide.subtitle ? <p className="mt-1.5 text-[clamp(11px,1.5vw,16px)] font-bold text-violet-300">{slide.subtitle}</p> : null}
+          <h1 className="text-[clamp(8px,3.6cqw,36px)] font-extrabold leading-tight tracking-tight">{slide.title}</h1>
+          {slide.subtitle ? <p className="mt-1.5 text-[clamp(5px,1.7cqw,16px)] font-bold text-violet-300">{slide.subtitle}</p> : null}
           {slide.bullets?.length ? (
             <ul className="mt-4 flex flex-col gap-2.5">
               {(reveal === undefined ? slide.bullets : slide.bullets.slice(0, reveal)).map((b, i) => (
-                <li key={i} className="flex gap-2.5 text-[clamp(11px,1.35vw,15px)] leading-snug text-[#cfcde0] duration-300 animate-in fade-in slide-in-from-bottom-2">
+                <li key={i} className="flex gap-2.5 text-[clamp(5px,1.6cqw,15px)] leading-snug text-[#cfcde0] duration-300 animate-in fade-in slide-in-from-bottom-2">
                   <span className="mt-[6px] h-[7px] w-[7px] shrink-0 rounded-full bg-violet-400" />
                   {b}
                 </li>
@@ -60,7 +60,7 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
               // eslint-disable-next-line @next/next/no-img-element
               <img src={v.url} alt="" className="absolute inset-0 h-full w-full object-cover" />
             ) : (
-              <span className="text-[clamp(38px,7vw,72px)] drop-shadow-lg">{v?.emoji ?? "🎯"}</span>
+              <span className="text-[clamp(14px,8cqw,72px)] drop-shadow-lg">{v?.emoji ?? "🎯"}</span>
             )}
             {v?.tag ? <span className="absolute bottom-2 left-2 rounded-md bg-black/55 px-2 py-0.5 text-[9px] font-extrabold">{v.tag}</span> : null}
           </div>

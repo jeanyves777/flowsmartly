@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   X, Check, Mic, Upload, Play, Pause, RotateCcw, Volume2, ShieldCheck, Sparkles, Trash2, Loader2, Plus, Square,
   Briefcase, MessageCircle, Zap, GraduationCap, Users, User, Bot, ImageIcon, HelpCircle, Boxes, PenLine, CheckCircle2,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
@@ -191,8 +192,7 @@ export function PresenterSetup({ open, onClose, onChoose }: {
   const del = async (id: string) => { await fetch(`/api/ai/training/presenter?id=${id}&deleteVoice=1`, { method: "DELETE" }).catch(() => {}); toast({ title: "Presenter removed" }); await load(); };
 
   // stepper → scroll to card
-  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const goStep = (i: number) => { setStep(i); cardRefs.current[i]?.scrollIntoView({ behavior: "smooth", block: "start" }); };
+  const goStep = (i: number) => setStep(i);
   const done = [!!f.voiceProfileId, !!f.name.trim(), false, false, false];
 
   // Preview pieces — shown as the right column on wide screens, or as a compact bar
@@ -283,7 +283,7 @@ export function PresenterSetup({ open, onClose, onChoose }: {
           </div>
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[64px_minmax(0,1fr)] xl:grid-cols-[188px_minmax(0,1fr)] 2xl:grid-cols-[188px_minmax(0,1fr)_330px]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[52px_minmax(0,1fr)_248px] lg:grid-cols-[56px_minmax(0,1fr)_296px] xl:grid-cols-[180px_minmax(0,1fr)_320px] 2xl:grid-cols-[190px_minmax(0,1fr)_360px]">
           {/* ---- left: stepper (icon-only when narrow, labelled when wide) ---- */}
           <div className="hidden flex-col justify-between border-e border-border p-2.5 md:flex xl:p-4">
             <div className="flex flex-col gap-1">
@@ -300,13 +300,13 @@ export function PresenterSetup({ open, onClose, onChoose }: {
             </div>
           </div>
 
-          {/* ---- middle: stacked cards ---- */}
-          <div className="min-w-0 overflow-auto p-4 sm:p-5">
-            <div className="mx-auto flex max-w-[720px] flex-col gap-4">
-              {/* preview inline when there's no room for the right column */}
-              <div className="2xl:hidden">{compactPreview}</div>
+          {/* ---- middle: ONE step at a time, filling the full content area ---- */}
+          <div className="min-w-0 overflow-auto p-4 sm:p-5 lg:p-6">
+            <div className="flex w-full flex-col gap-4">
+              {/* preview inline only on mobile (no room for the right column) */}
+              <div className="md:hidden">{compactPreview}</div>
               {/* 1 · Voice */}
-              <SectionCard n={1} title="Clone your voice" cardRef={(el) => (cardRefs.current[0] = el)} status={f.voiceProfileId ? "done" : undefined} badge={f.consentAccepted && f.consentOwnerName.trim() ? "Voice owner verified" : undefined}>
+              <SectionCard n={1} title="Clone your voice" show={step === 0} status={f.voiceProfileId ? "done" : undefined} badge={f.consentAccepted && f.consentOwnerName.trim() ? "Voice owner verified" : undefined}>
                 <p className="-mt-1 mb-3 text-[11.5px] text-muted-foreground">Read for about 60 seconds in a quiet room — your presenter speaks in this voice.</p>
                 <div className="mb-3 rounded-xl border border-brand-500/30 bg-brand-500/[0.06] p-3.5">
                   <label className="flex cursor-pointer items-start gap-2.5 text-[12px]">
@@ -337,7 +337,7 @@ export function PresenterSetup({ open, onClose, onChoose }: {
               </SectionCard>
 
               {/* 2 · Presenter */}
-              <SectionCard n={2} title="Choose your presenter" cardRef={(el) => (cardRefs.current[1] = el)} status={f.name.trim() ? "done" : undefined}>
+              <SectionCard n={2} title="Choose your presenter" show={step === 1} status={f.name.trim() ? "done" : undefined}>
                 <div className="flex items-center gap-4">
                   <Portrait url={f.portraitUrl} name={f.name} size={78} />
                   <div className="flex flex-1 flex-col gap-2.5">
@@ -368,7 +368,7 @@ export function PresenterSetup({ open, onClose, onChoose }: {
               </SectionCard>
 
               {/* 3 · Delivery */}
-              <SectionCard n={3} title="Delivery style" cardRef={(el) => (cardRefs.current[2] = el)}>
+              <SectionCard n={3} title="Delivery style" show={step === 2}>
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                   {STYLE_OPTS.map((s) => (<button key={s.v} onClick={() => set("deliveryStyle", s.v)} className={cn("flex flex-col items-center gap-1.5 rounded-xl border-2 px-3 py-3 text-[12px] font-semibold", f.deliveryStyle === s.v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/50")}><s.Icon className="h-4.5 w-4.5" /> {s.label}</button>))}
                 </div>
@@ -389,7 +389,7 @@ export function PresenterSetup({ open, onClose, onChoose }: {
               </SectionCard>
 
               {/* 4 · Questions */}
-              <SectionCard n={4} title="Question behavior" cardRef={(el) => (cardRefs.current[3] = el)}>
+              <SectionCard n={4} title="Question behavior" show={step === 3}>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Toggle on={f.q.stopOnHand} onClick={() => set("q", { ...f.q, stopOnHand: !f.q.stopOnHand })} label="Stop when a hand is raised" />
                   <Toggle on={f.q.afterEachSection} onClick={() => set("q", { ...f.q, afterEachSection: !f.q.afterEachSection })} label="Take questions after each section" />
@@ -404,7 +404,7 @@ export function PresenterSetup({ open, onClose, onChoose }: {
               </SectionCard>
 
               {/* 5 · Review */}
-              <SectionCard n={5} title="Review &amp; save" cardRef={(el) => (cardRefs.current[4] = el)}>
+              <SectionCard n={5} title="Review &amp; save" show={step === 4}>
                 <div className="flex items-center gap-4 rounded-2xl border border-border bg-muted p-4">
                   <Portrait url={f.portraitUrl} name={f.name} size={60} />
                   <div><b className="text-[15px]">{f.name || "Your presenter"}</b><div className="mt-0.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-brand-400"><span className="rounded bg-brand-500/15 px-1.5 py-0.5">AI</span> {ROLE_LABEL[f.role]}</div></div>
@@ -414,8 +414,8 @@ export function PresenterSetup({ open, onClose, onChoose }: {
             </div>
           </div>
 
-          {/* ---- right: preview + sync timeline (only when there's room) ---- */}
-          <div className="hidden flex-col gap-4 overflow-auto border-s border-border p-4 2xl:flex">
+          {/* ---- right: preview + sync timeline (kept on tablet, just compacted) ---- */}
+          <div className="hidden flex-col gap-4 overflow-auto border-s border-border p-3.5 md:flex xl:p-4">
             {previewCard}
             {timelineCard}
           </div>
@@ -426,9 +426,15 @@ export function PresenterSetup({ open, onClose, onChoose }: {
       {mode === "wizard" ? (
         <div className="flex shrink-0 items-center gap-3 border-t border-border bg-muted px-5 py-3">
           <ShieldCheck className="h-4 w-4 text-muted-foreground" /><span className="text-[11px] text-muted-foreground">Voice and identity are used only with your permission.</span>
+          <span className="hidden text-[11px] tabular-nums text-muted-foreground sm:inline">Step {step + 1} of {STEPS.length}</span>
           <div className="ms-auto flex items-center gap-2">
-            {data?.presenters.length ? <button onClick={() => setMode("list")} className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500">Back to list</button> : null}
-            <button onClick={save} disabled={busy === "save"} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12.5px] font-bold text-white disabled:opacity-60">{busy === "save" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {f.id ? "Save changes" : "Save presenter"}</button>
+            {data?.presenters.length ? <button onClick={() => setMode("list")} className="hidden rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500 sm:inline-flex">Back to list</button> : null}
+            {step > 0 ? <button onClick={() => setStep(step - 1)} className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500"><ChevronLeft className="h-3.5 w-3.5" /> Back</button> : null}
+            {step < STEPS.length - 1 ? (
+              <button onClick={() => setStep(step + 1)} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12.5px] font-bold text-white">Next <ChevronRight className="h-3.5 w-3.5" /></button>
+            ) : (
+              <button onClick={save} disabled={busy === "save"} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12.5px] font-bold text-white disabled:opacity-60">{busy === "save" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {f.id ? "Save changes" : "Save presenter"}</button>
+            )}
           </div>
         </div>
       ) : null}
@@ -511,9 +517,10 @@ function Portrait({ url, name, size }: { url: string | null; name: string; size:
   );
 }
 
-function SectionCard({ n, title, status, badge, cardRef, children }: { n: number; title: string; status?: "done"; badge?: string; cardRef?: (el: HTMLDivElement | null) => void; children: React.ReactNode }) {
+function SectionCard({ n, title, status, badge, show = true, children }: { n: number; title: string; status?: "done"; badge?: string; show?: boolean; children: React.ReactNode }) {
+  if (!show) return null;
   return (
-    <div ref={cardRef} className="scroll-mt-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
+    <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 lg:p-6">
       <div className="mb-3 flex items-center gap-2.5">
         <span className="grid h-6 w-6 place-items-center rounded-lg bg-muted text-[11px] font-extrabold text-muted-foreground">{n}</span>
         <h3 className="text-[14px] font-extrabold">{title}</h3>
