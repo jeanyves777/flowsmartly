@@ -1582,12 +1582,9 @@ function forwardingSteps(mode: AnswerMode, e164: string): {
   headline: string; on: string; off: string; onGsm: string; offGsm: string;
 } {
   const digits = e164.replace(/[^\d]/g, "");
-  if (mode === "missed" || mode === "afterhours" || mode === "open") {
+  if (mode === "missed") {
     return {
-      headline:
-        mode === "missed"
-          ? "Your phone rings first — the agent answers only what you miss."
-          : "Forward when you're closed or away; take calls yourself the rest of the time.",
+      headline: "Your phone rings first — the agent answers only what you miss.",
       on: `*92 ${digits}`,
       off: "*93",
       onGsm: `**61*${digits}#`,
@@ -1601,6 +1598,23 @@ function forwardingSteps(mode: AnswerMode, e164: string): {
     onGsm: `**21*${digits}#`,
     offGsm: "##21#",
   };
+}
+
+// Every forwarding condition, each with its turn-on / turn-off code for landline
+// (star codes) and mobile (GSM MMI). Codes are the widely-used North-American
+// defaults — carriers vary, which the UI says.
+interface FwdRule { key: string; label: string; hint: string; on: string; off: string; gsmOn: string; gsmOff: string; }
+function forwardingRules(e164: string): FwdRule[] {
+  const d = e164.replace(/[^\d]/g, "");
+  return [
+    { key: "all", label: "Every call", hint: "The agent answers everything.", on: `*72 ${d}`, off: "*73", gsmOn: `**21*${d}#`, gsmOff: "##21#" },
+    { key: "noanswer", label: "When you don't pick up", hint: "Your phone rings first; the agent catches the rest.", on: `*92 ${d}`, off: "*93", gsmOn: `**61*${d}#`, gsmOff: "##61#" },
+    { key: "busy", label: "When you're on another call", hint: "Only overflow reaches the agent.", on: `*90 ${d}`, off: "*91", gsmOn: `**67*${d}#`, gsmOff: "##67#" },
+  ];
+}
+/** Which condition matches the agent's answer mode. */
+function recommendedRule(mode: AnswerMode): string {
+  return mode === "missed" ? "noanswer" : "all";
 }
 
 function CopyChip({ text, big }: { text: string; big?: boolean }) {
@@ -1622,7 +1636,9 @@ function CopyChip({ text, big }: { text: string; big?: boolean }) {
 /** The star of the Number tab once a line is live: forward your calls here. */
 function ForwardingHero({ line, mode }: { line: AgentNumber; mode: AnswerMode }) {
   const e164 = line.e164 || "";
-  const s = forwardingSteps(mode, e164);
+  const rules = forwardingRules(e164);
+  const recKey = recommendedRule(mode);
+  const [mobile, setMobile] = useState(false);
   return (
     <div className="rounded-xl border border-brand-500/30 bg-brand-500/[0.04] p-4">
       <div className="flex items-center gap-2 text-[12.5px] font-extrabold">
@@ -1637,27 +1653,60 @@ function ForwardingHero({ line, mode }: { line: AgentNumber; mode: AnswerMode })
           <CopyChip text={e164.replace(/[^\d+]/g, "")} />
         </div>
         <p className="mt-1 text-[10.5px] text-muted-foreground">
-          Customers never dial this — they keep calling your own number. It just needs to ring here.
+          Customers never dial this — they keep calling your own number. From your business phone,
+          set forwarding to this line with one code.
         </p>
       </div>
 
-      {/* The one step */}
-      <div className="mt-3 rounded-lg border border-border bg-card p-3">
-        <p className="text-[11.5px] font-bold">{s.headline}</p>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11.5px]">
-          <span className="text-muted-foreground">From your business phone, dial</span>
-          <CopyChip text={s.on} big />
-          <span className="text-muted-foreground">then press call.</span>
-        </div>
-        <p className="mt-2 text-[10.5px] text-muted-foreground">
-          On a mobile, dial <span className="font-mono font-bold text-foreground">{s.onGsm}</span> instead.
-          To switch it off later: <span className="font-mono font-bold text-foreground">{s.off}</span> (mobile{" "}
-          <span className="font-mono font-bold text-foreground">{s.offGsm}</span>). Codes vary by carrier — if one
-          doesn&apos;t take, search &ldquo;your carrier + call forwarding.&rdquo;
-        </p>
+      {/* Landline / mobile toggle */}
+      <div className="mt-3 inline-flex rounded-lg border border-border bg-card p-0.5 text-[10.5px] font-bold">
+        {(["landline", "mobile"] as const).map((k) => (
+          <button
+            key={k}
+            onClick={() => setMobile(k === "mobile")}
+            className={cn("rounded-md px-2.5 py-1", (k === "mobile") === mobile ? "bg-brand-500 text-white" : "text-muted-foreground")}
+          >
+            {k === "landline" ? "Landline / VoIP" : "Mobile"}
+          </button>
+        ))}
       </div>
 
-      <p className="mt-3 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+      {/* Every condition: turn on + turn off (remove) */}
+      <div className="mt-2 space-y-2">
+        {rules.map((r) => {
+          const on = mobile ? r.gsmOn : r.on;
+          const off = mobile ? r.gsmOff : r.off;
+          const rec = r.key === recKey;
+          return (
+            <div
+              key={r.key}
+              className={cn("rounded-lg border p-2.5", rec ? "border-brand-500/50 bg-brand-500/[0.05]" : "border-border bg-card")}
+            >
+              <div className="flex items-center gap-2">
+                <b className="text-[11.5px]">{r.label}</b>
+                {rec && <span className="rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[8.5px] font-extrabold text-brand-500">RECOMMENDED</span>}
+              </div>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">{r.hint}</p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10.5px]">
+                <span className="flex items-center gap-1.5">
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">Turn on</span>
+                  <CopyChip text={on} />
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="font-semibold text-muted-foreground">Remove</span>
+                  <CopyChip text={off} />
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="mt-2.5 text-[9.5px] text-muted-foreground">
+        Dial the code from your business phone, then press call. Codes are the common defaults — if one
+        doesn&apos;t take, search &ldquo;your carrier + call forwarding.&rdquo;
+      </p>
+      <p className="mt-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
         ✓ Then call your own number — your agent should pick up.
       </p>
     </div>
