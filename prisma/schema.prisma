@@ -6286,6 +6286,7 @@ model TrainingSession {
   stageKey      String? // material id, or the participant id who is screen-sharing
   stagePage     Int     @default(1)
   stageStep     Int     @default(0) // progressive-reveal step within the current deck slide
+  aiPlaying     Boolean @default(false) // the AI presenter is delivering (synced to everyone)
   boardDoc      String  @default("{}") // JSON whiteboard document (the room's own board)
   recordingUrl  String?
   transcriptUrl String?

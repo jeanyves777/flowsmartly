@@ -223,6 +223,7 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
     stageKey: row.stageKey,
     stagePage: row.stagePage,
     stageStep: row.stageStep ?? 0,
+    aiPlaying: row.aiPlaying ?? false,
     boardDoc: parseBoard(row.boardDoc),
     recordingUrl: row.recordingUrl,
     creditsSpent: row.creditsSpent,
