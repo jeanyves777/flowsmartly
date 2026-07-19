@@ -13,7 +13,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { GraduationCap, FolderOpen, Sparkles, Radio, LayoutGrid, SlidersHorizontal, Users, Presentation } from "lucide-react";
+import { GraduationCap, FolderOpen, Sparkles, Radio, LayoutGrid, SlidersHorizontal, Users, Presentation, Bot } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -23,9 +23,10 @@ import { LiveRoom } from "./training/live-room";
 import { BackOffice } from "./training/back-office";
 import { DeckBuilder } from "./training/deck-builder";
 import { BriefSheet, type BriefDraft, type DeckDraft } from "./training/brief-sheet";
+import { PresenterSetup } from "./training/presenter-setup";
 import { useRoom } from "./training/use-room";
 import { slideCountForDuration } from "@/lib/training/deck-cost";
-import type { SegmentKind, TrainingSessionDTO } from "@/lib/training/types";
+import type { SegmentKind, TrainingSessionDTO, PresenterProfileDTO } from "@/lib/training/types";
 
 /** Turn the "Build with AI" draft into the rich brief the deck generator reads. */
 function composeDeckBrief(deck: DeckDraft): string {
@@ -70,6 +71,8 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [deckAutoGen, setDeckAutoGen] = useState<DeckAutoGen | null>(null);
+  const [presenterOpen, setPresenterOpen] = useState(false);
+  const [presenter, setPresenter] = useState<PresenterProfileDTO | null>(null);
 
   useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
 
@@ -348,6 +351,9 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
             ))}
           </div>
           {session ? <SessionMeta session={session} /> : null}
+          <button onClick={() => setPresenterOpen(true)} title="AI Presenter" className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border px-2.5 py-2 text-[12px] font-semibold hover:border-brand-500 max-md:min-w-[38px]">
+            <Bot className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Presenter</span>
+          </button>
           <button onClick={() => setListOpen(true)} title="Sessions" className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border px-2.5 py-2 text-[12px] font-semibold hover:border-brand-500 max-md:min-w-[38px]">
             <FolderOpen className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Sessions</span>
           </button>
@@ -490,7 +496,9 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
         onChange={onMaterialChosen}
       />
 
-      <BriefSheet open={briefOpen} busy={busy} onClose={() => setBriefOpen(false)} onBuild={build} />
+      <BriefSheet open={briefOpen} busy={busy} onClose={() => setBriefOpen(false)} onBuild={build} presenter={presenter} onOpenPresenter={() => setPresenterOpen(true)} onClearPresenter={() => setPresenter(null)} />
+
+      <PresenterSetup open={presenterOpen} onClose={() => setPresenterOpen(false)} onChoose={(p) => { setPresenter(p); setPresenterOpen(false); }} />
 
       {listOpen ? (
         <>

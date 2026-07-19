@@ -170,6 +170,7 @@ model User {
   blocksReceived        UserBlock[]                     @relation("UserBlocks_blocked")
   trainingSessions      TrainingSession[]
   trainingParticipation TrainingParticipant[]
+  presenterProfiles     PresenterProfile[]
 
   // Onboarding
   onboardingComplete Boolean @default(false)
@@ -4593,8 +4594,43 @@ model VoiceProfile {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   generations VoiceGeneration[]
+  presenters  PresenterProfile[]
+
+  @@index([userId])
+}
+
+/// A reusable AI Presenter — a disclosed co-host that delivers a training in the
+/// owner's cloned voice + likeness. Built in "Build with AI"; consent is captured
+/// on creation and the profile can be deleted at any time. [[training-studio]]
+model PresenterProfile {
+  id              String  @id @default(cuid())
+  userId          String
+  name            String
+  portraitUrl     String?
+  /// the cloned VoiceProfile this presenter speaks with (reuses Voice Studio cloning)
+  voiceProfileId  String?
+  deliveryStyle   String  @default("conversational") // professional | conversational | energetic | teacher
+  pace            Float   @default(1.0)
+  expressiveness  Int     @default(65)
+  pauseMs         Int     @default(1200)
+  role            String  @default("cohost") // cohost | host | assistant
+  followNotes     Boolean @default(true)
+  describeVisuals Boolean @default(true)
+  advanceReveals  Boolean @default(true)
+  useLiveDraw     Boolean @default(true)
+  /// question behaviour, JSON: { stopOnHand, afterEachSection, hostApproves, answerMode }
+  questionBehavior String?
+  // consent — cloning a real person requires explicit owner consent
+  consentAcceptedAt DateTime?
+  consentOwnerName  String?
+  consentUsage      String?   @default("training_presentations")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voice VoiceProfile? @relation(fields: [voiceProfileId], references: [id], onDelete: SetNull)
 
   @@index([userId])
 }

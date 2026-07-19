@@ -13,11 +13,11 @@ import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetState
 import {
   Sparkles, X, Presentation, PenLine, FileText, Clapperboard, ImageIcon, Users,
   Upload, Plus, DoorOpen, Circle, Pencil, Monitor, ScrollText, Star, Zap,
-  Palette, ChevronRight, Check, Clock, ArrowRight, Wand2,
+  Palette, ChevronRight, Check, Clock, ArrowRight, Wand2, Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { deckPreview, slideCountForDuration, type DeckWants } from "@/lib/training/deck-cost";
-import { SEGMENT_KINDS, type SegmentKind, type SessionType, type AccessMode } from "@/lib/training/types";
+import { SEGMENT_KINDS, type SegmentKind, type SessionType, type AccessMode, type PresenterProfileDTO } from "@/lib/training/types";
 
 /** What the "Build with AI" tab collected — consumed after the room is built to draft
  *  the presentation. `sources` are files to attach; never JSON-posted with the room. */
@@ -98,9 +98,12 @@ interface Props {
   busy?: boolean;
   onClose: () => void;
   onBuild: (d: BriefDraft) => void;
+  presenter?: PresenterProfileDTO | null;
+  onOpenPresenter?: () => void;
+  onClearPresenter?: () => void;
 }
 
-export function BriefSheet({ open, busy, onClose, onBuild }: Props) {
+export function BriefSheet({ open, busy, onClose, onBuild, presenter, onOpenPresenter, onClearPresenter }: Props) {
   const [d, setD] = useState<BriefDraft>(DEFAULT_BRIEF);
   const [est, setEst] = useState<Estimate | null>(null);
   const set = <K extends keyof BriefDraft>(k: K, v: BriefDraft[K]) => setD((p) => ({ ...p, [k]: v }));
@@ -181,6 +184,7 @@ export function BriefSheet({ open, busy, onClose, onBuild }: Props) {
               seats={d.seats} access={d.access} waitingRoom={d.waitingRoom} recording={d.recording}
               onSeats={(v) => set("seats", v)} onAccess={(v) => set("access", v)}
               onWaiting={() => set("waitingRoom", !d.waitingRoom)} onRecording={() => set("recording", !d.recording)}
+              presenter={presenter} onOpenPresenter={onOpenPresenter} onClearPresenter={onClearPresenter}
             />
           ) : (
           /* Fill the workspace — no centered narrow column. The right rail is
@@ -404,12 +408,13 @@ const TONES = ["Practical & engaging", "Formal & precise", "Friendly & casual", 
 const FLOW = ["Hook", "Explain", "Demonstrate", "Draw", "Practice", "Summary"];
 
 /** "Build with AI" — the primary creation path: one objective in, a whole training out. */
-function AiTab({ ai, setAi, setAiK, seats, access, waitingRoom, recording, onSeats, onAccess, onWaiting, onRecording }: {
+function AiTab({ ai, setAi, setAiK, seats, access, waitingRoom, recording, onSeats, onAccess, onWaiting, onRecording, presenter, onOpenPresenter, onClearPresenter }: {
   ai: DeckDraft;
   setAi: Dispatch<SetStateAction<DeckDraft>>;
   setAiK: <K extends keyof DeckDraft>(k: K, v: DeckDraft[K]) => void;
   seats: number; access: AccessMode; waitingRoom: boolean; recording: boolean;
   onSeats: (v: number) => void; onAccess: (v: AccessMode) => void; onWaiting: () => void; onRecording: () => void;
+  presenter?: PresenterProfileDTO | null; onOpenPresenter?: () => void; onClearPresenter?: () => void;
 }) {
   const pv = deckPreview(ai.durationMins, ai.wants);
   const toggleWant = (k: keyof DeckWants) => setAi((p) => ({ ...p, wants: { ...p.wants, [k]: !p.wants[k] } }));
@@ -560,6 +565,28 @@ function AiTab({ ai, setAi, setAiK, seats, access, waitingRoom, recording, onSea
           </Field>
           <Tg on={waitingRoom} onClick={onWaiting} Icon={DoorOpen} t="Waiting room" s="Admit people yourself" />
           <Tg on={recording} onClick={onRecording} Icon={Circle} t="Record it" s="Saved to your library" />
+        </Card>
+
+        <Card title="AI Presenter Assistant" Icon={Bot}>
+          <p className="mb-2.5 text-[11px] text-muted-foreground">Let a presenter with your cloned voice &amp; likeness deliver this training as a disclosed co-host.</p>
+          {presenter ? (
+            <div className="flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5">
+              {presenter.portraitUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={presenter.portraitUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+              ) : (
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500/30 to-violet-600/30 text-[11px] font-black text-brand-300">{presenter.name.slice(0, 2).toUpperCase()}</span>
+              )}
+              <div className="min-w-0 flex-1">
+                <b className="block truncate text-[12px]">{presenter.name}</b>
+                <span className="text-[10px] text-muted-foreground">AI · {presenter.role === "cohost" ? "Co-host" : presenter.role === "host" ? "Host" : "Assistant"}{presenter.voiceName ? " · voice ready" : " · no voice yet"}</span>
+              </div>
+              <button onClick={onOpenPresenter} className="rounded-lg border border-border px-2 py-1 text-[10.5px] font-semibold text-muted-foreground hover:text-foreground">Change</button>
+              <button onClick={onClearPresenter} title="Remove" className="grid h-6 w-6 place-items-center rounded-md border border-border text-muted-foreground hover:border-rose-500 hover:text-rose-400"><X className="h-3 w-3" /></button>
+            </div>
+          ) : (
+            <button onClick={onOpenPresenter} className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted px-3 py-2.5 text-[12px] font-bold hover:border-brand-500 hover:text-brand-400"><Bot className="h-4 w-4" /> Set up an AI presenter</button>
+          )}
         </Card>
 
         <div className="flex items-center gap-3 rounded-2xl border border-brand-500/25 bg-brand-500/[0.06] p-3.5">
