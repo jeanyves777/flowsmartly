@@ -168,6 +168,9 @@ export interface DeckSlide {
    *  (1 = fits one frame; >1 = an endless horizontal canvas that pans left→right as
    *  the reveal advances). Board coords are 0..1 of this WIDE canvas. */
   wide?: number;
+  /** whiteboard/livedraw only — a subject to render as a generated 3D asset and drop
+   *  on the board. Kept so the asset can be regenerated. */
+  assetPrompt?: string;
 }
 export interface TrainingDeck {
   v: 1;

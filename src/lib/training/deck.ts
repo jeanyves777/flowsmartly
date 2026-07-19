@@ -25,6 +25,10 @@ interface RawSlide {
   imagePrompt?: string;
   visualStyle?: "photo" | "3d" | "illustration";
   diagram?: { shape?: "cycle" | "flow" | "tree"; nodes?: string[]; edges?: [number, number, string?][] };
+  /** whiteboard/livedraw — short sticky-note callouts (a key insight / watch-out) */
+  annotations?: string[];
+  /** whiteboard/livedraw — a subject to render as a 3D asset dropped on the board */
+  assetPrompt?: string;
 }
 
 /** Turn a visual style + subject into a rich image prompt (photoreal / 3D / flat). */
@@ -48,94 +52,110 @@ export function parseDeck(raw: string | null | undefined): TrainingDeck {
   }
 }
 
-/** Lay out a small diagram as BoardItems in fractional (0..1) coords — the code
- *  analog of hand-sketching the "objection → reframe → close" flow.
- *
- *  A `flow` becomes an ENDLESS HORIZONTAL canvas: the steps march left→right and the
- *  board grows wider than one frame, so during presentation the view pans across it
- *  as the reveal advances. `cycle`/`tree` stay inside a single frame. The returned
- *  `wide` is how many 16:9 frames the canvas spans; board coords are 0..1 of that
- *  wide canvas (x is normalised by `wide`, y stays 0..1 of the frame height). */
+// A frame is 1000×562 SVG px. Node boxes are sized in px from their label so the
+// text always fits, then laid out with real spacing (no overlap) and normalised to
+// 0..1 of the possibly-wider canvas.
+const FRAME_W = 1000, FRAME_H = 562;
+const NODE_H = 66, NODE_GAP = 54, MARGIN = 44, PAD_X = 30, MAX_INNER = 300, BASE_FS = 15;
+
+interface NodeBox { label: string; w: number; h: number; fs: number }
+/** Size a node to its label (shrinking the font only for very long labels). */
+function measure(label: string): NodeBox {
+  let fs = BASE_FS;
+  let inner = label.length * 0.55 * fs;
+  if (inner > MAX_INNER) { fs = Math.max(9, MAX_INNER / (label.length * 0.55)); inner = MAX_INNER; }
+  return { label, w: Math.max(120, Math.round(inner + PAD_X)), h: NODE_H, fs };
+}
+/** Where a straight line from a box centre toward `to` crosses the box edge. */
+function boxEdge(c: { x: number; y: number }, b: NodeBox, to: { x: number; y: number }): { x: number; y: number } {
+  const dx = to.x - c.x, dy = to.y - c.y;
+  if (!dx && !dy) return { x: c.x, y: c.y };
+  const t = Math.min(dx ? b.w / 2 / Math.abs(dx) : Infinity, dy ? b.h / 2 / Math.abs(dy) : Infinity);
+  return { x: c.x + dx * t, y: c.y + dy * t };
+}
+
+/** Lay out a small diagram as rounded-rectangle node cards + connecting arrows, in
+ *  fractional (0..1) coords. A `flow` marches left→right across an ENDLESS horizontal
+ *  canvas (the view pans across it during presentation); a `tree` puts a root over a
+ *  wide row of children; a `cycle` sits on a ring sized so the cards never touch.
+ *  Every node is sized to its label so text never overflows. Returns how many 16:9
+ *  frames wide the canvas is (`wide`); x is normalised by the full width, y by one
+ *  frame's height. */
 export function diagramToBoard(d: RawSlide["diagram"], perElement = false): { items: BoardItem[]; wide: number } {
-  const nodes = (d?.nodes ?? []).slice(0, 6).map((s) => String(s).slice(0, 40));
-  if (!nodes.length) return { items: [], wide: 1 };
+  const labels = (d?.nodes ?? []).slice(0, 6).map((s) => String(s).slice(0, 44));
+  if (!labels.length) return { items: [], wide: 1 };
   const shape = d?.shape ?? "flow";
   const ink = "#1e293b";
-  const NW = 0.2, NH = 0.16; // node box size (fraction of ONE frame)
-  // centres in FRAME units — x MAY exceed 1.0 for a wide flow; y stays 0..1.
-  const centers: { x: number; y: number }[] = [];
+  const box = labels.map(measure);
 
-  if (shape === "cycle") {
-    const cx = 0.5, cy = 0.5, r = 0.3;
-    nodes.forEach((_, i) => {
-      const a = -Math.PI / 2 + (i * 2 * Math.PI) / nodes.length;
-      centers.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) * 0.82 });
+  // centres in SVG px (x may exceed FRAME_W for a wide diagram; y within a frame).
+  const centers: { x: number; y: number }[] = [];
+  let CW = FRAME_W;
+
+  if (shape === "tree" && labels.length > 1) {
+    // root on top, the rest as a wide row beneath it
+    let cur = MARGIN;
+    const kidX = box.slice(1).map((b) => { const cx = cur + b.w / 2; cur += b.w + NODE_GAP; return cx; });
+    CW = Math.max(FRAME_W, cur - NODE_GAP + MARGIN);
+    centers.push({ x: (kidX[0] + kidX[kidX.length - 1]) / 2, y: FRAME_H * 0.24 });
+    kidX.forEach((x) => centers.push({ x, y: FRAME_H * 0.66 }));
+  } else if (shape === "cycle" && labels.length > 2) {
+    const maxW = Math.max(...box.map((b) => b.w)), n = labels.length;
+    const rx = Math.max(FRAME_W * 0.3, (maxW + NODE_GAP) / (2 * Math.sin(Math.PI / n)));
+    const ry = Math.min(FRAME_H * 0.34, rx * 0.6);
+    CW = Math.max(FRAME_W, 2 * rx + maxW + 2 * MARGIN);
+    const cx = CW / 2, cy = FRAME_H / 2;
+    labels.forEach((_, i) => {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+      centers.push({ x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) });
     });
-  } else if (shape === "tree") {
-    centers.push({ x: 0.5, y: 0.24 }); // root
-    const kids = nodes.length - 1;
-    for (let i = 1; i < nodes.length; i++) {
-      const x = kids === 1 ? 0.5 : 0.16 + ((i - 1) / (kids - 1)) * 0.68;
-      centers.push({ x, y: 0.66 });
-    }
   } else {
-    // flow — an ENDLESS left→right row. Each step sits a fixed distance further
-    // right, so the canvas extends horizontally instead of wrapping.
-    const GAP = 0.34; // frame-widths between node centres
-    nodes.forEach((_, i) => centers.push({ x: 0.18 + i * GAP, y: 0.5 }));
+    // flow — one wide left→right row
+    let cur = MARGIN;
+    box.forEach((b) => { centers.push({ x: cur + b.w / 2, y: FRAME_H * 0.5 }); cur += b.w + NODE_GAP; });
+    CW = Math.max(FRAME_W, cur - NODE_GAP + MARGIN);
   }
 
-  // Canvas width in frames: rightmost node edge + a small margin (never < 1).
-  const maxX = Math.max(...centers.map((c) => c.x));
-  const wide = Math.max(1, maxX + NW / 2 + 0.06);
-  const nx = (x: number) => x / wide; // frame-unit x → 0..1 of the wide canvas
+  const wide = CW / FRAME_W;
+  const nx = (px: number) => px / CW;       // svg px → 0..1 of the wide canvas
+  const ny = (py: number) => py / FRAME_H;  // svg px → 0..1 of one frame's height
 
-  const edges = d?.edges ?? (shape === "cycle"
-    ? nodes.map((_, i) => [i, (i + 1) % nodes.length] as [number, number])
-    : nodes.slice(1).map((_, i) => [i, i + 1] as [number, number]));
+  const edges: [number, number][] = (d?.edges?.map((e) => [e[0], e[1]] as [number, number])) ?? (
+    shape === "cycle" ? labels.map((_, i) => [i, (i + 1) % labels.length] as [number, number])
+    : shape === "tree" ? labels.slice(1).map((_, i) => [0, i + 1] as [number, number])
+    : labels.slice(1).map((_, i) => [i, i + 1] as [number, number]));
 
-  const ell = (i: number, step: number): BoardItem => {
-    const c = centers[i];
-    return { id: uid("n"), t: "shape", by: "", shape: "ellipse", color: ink, size: 0.0035, from: { x: nx(c.x - NW / 2), y: c.y - NH / 2 }, to: { x: nx(c.x + NW / 2), y: c.y + NH / 2 }, step };
+  const node = (i: number, step: number): BoardItem => {
+    const c = centers[i], b = box[i];
+    return { id: uid("n"), t: "shape", by: "", shape: "rect", color: ink, size: 0.003, from: { x: nx(c.x - b.w / 2), y: ny(c.y - b.h / 2) }, to: { x: nx(c.x + b.w / 2), y: ny(c.y + b.h / 2) }, step };
   };
-  const lab = (i: number, label: string, step: number): BoardItem => {
+  const lab = (i: number, step: number): BoardItem => {
     const c = centers[i];
-    return { id: uid("t"), t: "text", by: "", at: { x: nx(c.x - NW / 2 + 0.02), y: c.y - 0.02 }, text: label, color: ink, size: 0.03, step };
+    return { id: uid("t"), t: "text", by: "", at: { x: nx(c.x), y: ny(c.y) }, text: box[i].label, color: ink, size: box[i].fs / FRAME_H, step };
   };
-  // Arrows connect node EDGE→node EDGE (not centre→centre), so the arrowhead lands
-  // just outside the next node instead of buried inside it. Worked in the render's
-  // SVG space (x×1000, y×562) because that scale is non-uniform, then normalised back.
-  const rxS = (NW / 2) * 1000, ryS = (NH / 2) * 562;
-  const ellR = (t: number) => (rxS * ryS) / Math.sqrt((ryS * Math.cos(t)) ** 2 + (rxS * Math.sin(t)) ** 2);
   const arr = (a: number, b: number, step: number): BoardItem => {
-    const ax = centers[a].x * 1000, ay = centers[a].y * 562, bx = centers[b].x * 1000, by = centers[b].y * 562;
-    const al = Math.atan2(by - ay, bx - ax), r = ellR(al), CWl = 1000 * wide;
-    const sx = ax + r * Math.cos(al), sy = ay + r * Math.sin(al), ex = bx - r * Math.cos(al), ey = by - r * Math.sin(al);
-    return { id: uid("e"), t: "shape", by: "", shape: "arrow", color: ink, size: 0.003, from: { x: sx / CWl, y: sy / 562 }, to: { x: ex / CWl, y: ey / 562 }, step };
+    const s = boxEdge(centers[a], box[a], centers[b]), e = boxEdge(centers[b], box[b], centers[a]);
+    return { id: uid("e"), t: "shape", by: "", shape: "arrow", color: ink, size: 0.0026, from: { x: nx(s.x), y: ny(s.y) }, to: { x: nx(e.x), y: ny(e.y) }, step };
   };
 
   const items: BoardItem[] = [];
   if (perElement) {
-    // Live Draw — EVERY element is its own step, in natural drawing order (node,
-    // label, then any edge whose endpoints are both on the board), so it draws one
-    // stroke at a time as the presenter narrates.
+    // Live Draw — every element is its own step in natural drawing order (card,
+    // label, then any edge whose endpoints are both already on the board).
     let step = 0;
     const drawn = new Set<number>(), edgeDone = new Set<string>();
-    nodes.forEach((label, i) => {
-      items.push(ell(i, step++));
-      items.push(lab(i, label, step++));
+    labels.forEach((_, i) => {
+      items.push(node(i, step++));
+      items.push(lab(i, step++));
       drawn.add(i);
       for (const [a, b] of edges) {
         const key = `${a}-${b}`;
-        if (!edgeDone.has(key) && centers[a] && centers[b] && drawn.has(a) && drawn.has(b)) {
-          items.push(arr(a, b, step++)); edgeDone.add(key);
-        }
+        if (!edgeDone.has(key) && centers[a] && centers[b] && drawn.has(a) && drawn.has(b)) { items.push(arr(a, b, step++)); edgeDone.add(key); }
       }
     });
   } else {
-    // node i at step i; an edge appears with its later node
     for (const [a, b] of edges) { if (centers[a] && centers[b]) items.push(arr(a, b, Math.max(a, b))); }
-    nodes.forEach((label, i) => { items.push(ell(i, i)); items.push(lab(i, label, i)); });
+    labels.forEach((_, i) => { items.push(node(i, i)); items.push(lab(i, i)); });
   }
   return { items, wide };
 }
@@ -147,6 +167,21 @@ export function stepCount(items: BoardItem[]): number {
   return max + 1;
 }
 
+/** The clamped slide count a deck will have — the single source of truth shared by
+ *  the generator and the credit estimate (client + server). */
+export function deckSlideCount(slideCount?: number): number {
+  return Math.min(12, Math.max(3, slideCount ?? 6));
+}
+
+/** How many generated illustrations a built deck actually carries (what we charge) —
+ *  doc-slide visuals plus any 3D assets dropped on whiteboard/livedraw boards. */
+export function deckImageCount(deck: TrainingDeck): number {
+  return deck.slides.reduce(
+    (n, s) => n + (s.visual?.kind === "image" ? 1 : 0) + (s.board?.filter((i) => i.t === "image").length ?? 0),
+    0,
+  );
+}
+
 /** Turn a brief into a deck. Returns null only if the model gives nothing usable. */
 export async function generateDeck(opts: {
   brief: string;
@@ -156,7 +191,7 @@ export async function generateDeck(opts: {
   wantVisuals?: boolean;
   slideCount?: number;
 }): Promise<TrainingDeck | null> {
-  const n = Math.min(12, Math.max(3, opts.slideCount ?? 6));
+  const n = deckSlideCount(opts.slideCount);
   const faces = [opts.wantDoc !== false ? "document" : "", opts.wantWhiteboard ? "whiteboard" : ""].filter(Boolean).join(" and ");
 
   const prompt = `You are an expert instructional designer building a COMPLETE VISUAL TEACHING EXPERIENCE (not plain bullet slides) from this brief:
@@ -174,10 +209,13 @@ Return JSON: { "title": string, "slides": Slide[] } where Slide is:
   "emoji": one relevant emoji,                   // "doc" slides
   "visualStyle": "photo" | "3d" | "illustration",// "doc" slides — photo for real-world scenes/people, 3d for abstract concepts/systems, illustration otherwise
   "imagePrompt": a vivid prompt for the visual (no text in the image, no watermark), // "doc" slides
-  "diagram": { "shape": "cycle"|"flow"|"tree", "nodes": [3-6 short labels], "edges": [[fromIndex,toIndex]] } // "whiteboard" and "livedraw" slides
+  "diagram": { "shape": "cycle"|"flow"|"tree", "nodes": [3-6 short labels], "edges": [[fromIndex,toIndex]] }, // "whiteboard" and "livedraw" slides
+  "annotations": [1-2 very short sticky-note callouts — a key insight, tip or watch-out], // "whiteboard"/"livedraw" slides
+  "assetPrompt": a vivid subject for a 3D asset that illustrates this concept (an object/system/scene, no text, no watermark) // "whiteboard"/"livedraw" slides
 }
 Rules:
 - ${opts.wantWhiteboard ? "Use whiteboard/livedraw slides GENEROUSLY for concepts, processes and frameworks — aim for at least a third of the deck. Use \"livedraw\" for the SINGLE most important concept that lands best when sketched stroke-by-stroke while talking; use \"whiteboard\" for the rest. Rich multi-step diagrams (4-6 nodes)." : "Do NOT use whiteboard or livedraw slides."}
+- For EVERY whiteboard/livedraw slide, ALWAYS add 1-2 short \`annotations\` (sticky-note callouts) and an \`assetPrompt\` describing a 3D asset that makes the concept concrete.
 - Choose visualStyle deliberately: real photography for real-world/people scenes, 3D for abstract or systemic concepts, illustration for the rest.
 - Open with a title/agenda slide and close with a summary or call-to-action. Every line tight and presentable.`;
 
@@ -190,6 +228,14 @@ Rules:
     const type: DeckSlide["type"] = board2 ? (s.type as "whiteboard" | "livedraw") : "doc";
     if (type === "whiteboard" || type === "livedraw") {
       const { items: board, wide } = diagramToBoard(s.diagram, type === "livedraw");
+      // sticky-note callouts along the BOTTOM band (title sits top-left, the 3D asset
+      // top-right, the diagram in the middle), revealed after the diagram is drawn.
+      const anns = (s.annotations ?? []).map((t) => String(t).slice(0, 100).trim()).filter(Boolean).slice(0, 2);
+      const dMax = stepCount(board);
+      anns.forEach((text, i) => {
+        const atx = anns.length === 1 ? 0.3 : 0.12 + i * 0.44;
+        board.push({ id: uid("note"), t: "text", by: "", at: { x: atx, y: 0.74 }, text, color: "#4a3c07", size: 0.03, note: "#fde68a", step: dMax + i });
+      });
       const steps = Math.max(1, stepCount(board));
       return {
         id: uid("s"), type,
@@ -197,6 +243,7 @@ Rules:
         subtitle: s.subtitle?.slice(0, 160),
         notes: s.notes?.slice(0, 400),
         board, steps, wide,
+        assetPrompt: s.assetPrompt?.slice(0, 200),
       };
     }
     const style = s.visualStyle === "3d" ? "3d" : s.visualStyle === "illustration" ? "illustration" : "photo";
@@ -229,6 +276,21 @@ Rules:
           }
         } catch { /* keep the emoji */ }
       }));
+    }
+
+    // A generated 3D asset for each whiteboard/livedraw slide, dropped top-right of
+    // the board so the concept has something concrete beside the diagram.
+    const boards = slides.filter((s) => (s.type === "whiteboard" || s.type === "livedraw") && s.assetPrompt);
+    for (const s of boards) {
+      try {
+        const r = await generateImageXaiFirst(imgPrompt("3d", s.assetPrompt!), 1024, 768, { quality: "high" });
+        if (r.base64) {
+          const url = await uploadToS3(`training/${opts.sessionId}/deck/${s.id}-asset.png`, Buffer.from(r.base64, "base64"), "image/png");
+          const CW = 1000 * (s.wide ?? 1), AW = 250, AH = 188, ax = 1000 - 44 - AW, ay = 44;
+          s.board = [...(s.board ?? []), { id: uid("img"), t: "image", by: "", at: { x: ax / CW, y: ay / 562 }, w: AW / CW, h: AH / 562, url }];
+          s.steps = Math.max(1, stepCount(s.board));
+        }
+      } catch { /* skip the asset — the diagram stands on its own */ }
     }
   }
 

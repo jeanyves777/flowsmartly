@@ -18,7 +18,7 @@ import {
   VideoOff, Circle, Users, LogOut, Paperclip, ChevronLeft, ChevronRight, Star, X,
   Minus, MoveUpRight, Triangle, Diamond, ChevronDown, ChevronUp, PanelLeftClose,
   PanelLeftOpen, Eye, EyeOff, MoreHorizontal,
-  Send, Check, Square as StopIcon, Save, Volume2, Pause, Play, Focus, Rows3, Columns3, PanelBottom, MessageSquare,
+  Send, Check, Square as StopIcon, Save, Volume2, Pause, Play, Focus, Rows3, Columns3, PanelBottom, MessageSquare, LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
@@ -203,24 +203,32 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const sharer = useMemo(() => session.participants.find((p) => p.sharing) ?? null, [session.participants]);
   const material = useMemo(() => session.materials.find((m) => m.id === session.stageKey) ?? null, [session.materials, session.stageKey]);
   const paged = session.stageSource === "slides" || session.stageSource === "doc";
+  const [navOpen, setNavOpen] = useState(false);
   // A generated deck reveals STEP-BY-STEP within each slide; the pager drives both
   // the reveal step and the slide, so "next" builds the current slide up, then moves on.
   const deckSlide = material?.kind === "slides" && material.deck?.slides.length
     ? material.deck.slides[Math.min(session.stagePage, material.deck.slides.length) - 1]
     : null;
   const deckSteps = deckSlide?.steps ?? 0;
+  const deckSlides = material?.kind === "slides" ? material.deck?.slides ?? null : null;
+  const stepsOf = (page: number) => deckSlides ? (deckSlides[Math.min(page, deckSlides.length) - 1]?.steps ?? 1) : 1;
+  // The stored step can be a "show everything" sentinel; work off the clamped value so
+  // Prev/Next always move a real step instead of silently decrementing 999→998→…
+  const curStep = deckSlide ? Math.min(session.stageStep || 1, deckSteps) : session.stageStep;
   const revealNext = () => {
-    if (deckSlide && session.stageStep < deckSteps) return void patch({ stageStep: session.stageStep + 1 });
+    if (deckSlide && curStep < deckSteps) return void patch({ stageStep: curStep + 1 });
     const nextPage = Math.min(material?.pages ?? 1, session.stagePage + 1);
-    void patch({ stagePage: nextPage, stageStep: nextPage !== session.stagePage ? 1 : session.stageStep });
+    void patch({ stagePage: nextPage, stageStep: nextPage !== session.stagePage ? 1 : curStep });
   };
   const revealPrev = () => {
-    if (deckSlide && session.stageStep > 1) return void patch({ stageStep: session.stageStep - 1 });
+    if (deckSlide && curStep > 1) return void patch({ stageStep: curStep - 1 });
     const prevPage = Math.max(1, session.stagePage - 1);
-    void patch({ stagePage: prevPage, stageStep: 999 });
+    void patch({ stagePage: prevPage, stageStep: stepsOf(prevPage) }); // land the previous slide fully revealed
   };
-  const atStart = session.stagePage <= 1 && (!deckSlide || session.stageStep <= 1);
-  const atEnd = session.stagePage >= (material?.pages ?? 1) && (!deckSlide || session.stageStep >= deckSteps);
+  // Jump straight to a slide (from the thumbnail navigator), fully revealed.
+  const jumpTo = (page: number) => { setNavOpen(false); void patch({ stagePage: page, stageStep: stepsOf(page) }); };
+  const atStart = session.stagePage <= 1 && (!deckSlide || curStep <= 1);
+  const atEnd = session.stagePage >= (material?.pages ?? 1) && (!deckSlide || curStep >= deckSteps);
   // Auto-reveal: hands-free draw-along — advance a step every few seconds until the
   // current slide is fully revealed, then stop (the host stays in control of slides).
   const [autoReveal, setAutoReveal] = useState(false);
@@ -453,22 +461,48 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
               backdrop={backdrop}
             />
             {paged && material ? (
-              <div className="absolute bottom-3 left-1/2 z-[6] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-background/85 px-2 py-1.5 backdrop-blur">
-                <button onClick={revealPrev} disabled={!host || atStart} className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30">
-                  <ChevronLeft className="h-3 w-3" />
-                </button>
-                <span className="min-w-[62px] text-center text-[10.5px] text-muted-foreground">
-                  {deckSlide ? <>Slide {session.stagePage}/{material.pages}{deckSteps > 1 ? ` · reveal ${Math.min(session.stageStep, deckSteps)}/${deckSteps}` : ""}</> : <>Page {session.stagePage} / {material.pages}</>}
-                </span>
-                <button onClick={revealNext} disabled={!host || atEnd} className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30">
-                  <ChevronRight className="h-3 w-3" />
-                </button>
-                {host && deckSlide && deckSteps > 1 ? (
-                  <button onClick={() => setAutoReveal((v) => !v)} title="Auto-reveal — draw along hands-free" className={cn("ms-0.5 rounded-full px-2 py-0.5 text-[9.5px] font-extrabold", autoReveal ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>
-                    AUTO
-                  </button>
+              <>
+                {/* clickable slide navigator — jump straight to any slide */}
+                {navOpen && deckSlides ? (
+                  <div className="absolute bottom-[52px] left-1/2 z-[7] w-[min(92%,640px)] -translate-x-1/2 rounded-2xl border border-border bg-background/95 p-2 shadow-2xl backdrop-blur">
+                    <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
+                      {deckSlides.map((s, i) => (
+                        <button
+                          key={s.id}
+                          onClick={() => jumpTo(i + 1)}
+                          disabled={!host}
+                          title={s.title}
+                          className={cn("relative shrink-0 overflow-hidden rounded-lg border-2 disabled:cursor-default", i + 1 === session.stagePage ? "border-brand-500" : "border-transparent hover:border-border")}
+                        >
+                          <div className="h-[64px] w-[112px]"><DeckSlideView slide={s} /></div>
+                          <span className="absolute left-1 top-1 grid h-4 min-w-4 place-items-center rounded bg-black/60 px-1 text-[9px] font-extrabold text-white">{i + 1}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ) : null}
-              </div>
+                <div className="absolute bottom-3 left-1/2 z-[6] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-background/85 px-2 py-1.5 backdrop-blur">
+                  {deckSlides ? (
+                    <button onClick={() => setNavOpen((v) => !v)} title="All slides" className={cn("grid h-[22px] w-[22px] place-items-center rounded border transition", navOpen ? "border-brand-500 text-brand-400" : "border-border text-muted-foreground hover:border-brand-500")}>
+                      <LayoutGrid className="h-3 w-3" />
+                    </button>
+                  ) : null}
+                  <button onClick={revealPrev} disabled={!host || atStart} className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30">
+                    <ChevronLeft className="h-3 w-3" />
+                  </button>
+                  <span className="min-w-[62px] text-center text-[10.5px] text-muted-foreground">
+                    {deckSlide ? <>Slide {session.stagePage}/{material.pages}{deckSteps > 1 ? ` · reveal ${curStep}/${deckSteps}` : ""}</> : <>Page {session.stagePage} / {material.pages}</>}
+                  </span>
+                  <button onClick={revealNext} disabled={!host || atEnd} className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30">
+                    <ChevronRight className="h-3 w-3" />
+                  </button>
+                  {host && deckSlide && deckSteps > 1 ? (
+                    <button onClick={() => setAutoReveal((v) => !v)} title="Auto-reveal — draw along hands-free" className={cn("ms-0.5 rounded-full px-2 py-0.5 text-[9.5px] font-extrabold", autoReveal ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>
+                      AUTO
+                    </button>
+                  ) : null}
+                </div>
+              </>
             ) : null}
           </div>
           </div>

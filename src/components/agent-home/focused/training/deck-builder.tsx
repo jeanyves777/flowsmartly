@@ -19,9 +19,13 @@ import type { DeckSlide, TrainingDeck, TrainingSessionDTO } from "@/lib/training
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
-export function DeckBuilder({ session, sessionId, onSession, onPresent, onExit }: {
+interface AutoGen { brief: string; wantDoc: boolean; wantWhiteboard: boolean; wantVisuals: boolean; slideCount: number }
+
+export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, onSession, onPresent, onExit }: {
   session: TrainingSessionDTO;
   sessionId: string;
+  autoGen?: AutoGen | null;
+  onAutoConsumed?: () => void;
   onSession: (s: TrainingSessionDTO) => void;
   onPresent: (materialId: string) => void;
   onExit: () => void;
@@ -63,13 +67,14 @@ export function DeckBuilder({ session, sessionId, onSession, onPresent, onExit }
     setDeck(next); persist(next);
   };
 
-  const generate = async () => {
-    if (brief.trim().length < 8) { toast({ title: "Tell the agent what the session is about first" }); return; }
+  const generate = async (o?: AutoGen) => {
+    const b = (o?.brief ?? brief).trim();
+    if (b.length < 8) { toast({ title: "Tell the agent what the session is about first" }); return; }
     setBusy("gen");
     try {
       const j = await fetch(`/api/ai/training/${sessionId}/deck`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brief: brief.trim(), wantDoc, wantWhiteboard: wantWb, wantVisuals: wantVis }),
+        body: JSON.stringify({ brief: b, wantDoc: o?.wantDoc ?? wantDoc, wantWhiteboard: o?.wantWhiteboard ?? wantWb, wantVisuals: o?.wantVisuals ?? wantVis, slideCount: o?.slideCount }),
       }).then((r) => r.json());
       if (!j?.success) { toast({ title: j?.error?.message || "Couldn't build that deck", variant: "destructive" }); return; }
       onSession(j.data.session as TrainingSessionDTO);
@@ -77,6 +82,15 @@ export function DeckBuilder({ session, sessionId, onSession, onPresent, onExit }
       toast({ title: "Deck ready", description: "Edit any slide, then present it." });
     } finally { setBusy(null); }
   };
+
+  // Built from the brief's "Build with AI" tab — draft the deck automatically once.
+  const didAuto = useRef(false);
+  useEffect(() => {
+    if (didAuto.current || !autoGen || mat) return;
+    didAuto.current = true;
+    setBrief(autoGen.brief); setWantDoc(autoGen.wantDoc); setWantWb(autoGen.wantWhiteboard); setWantVis(autoGen.wantVisuals);
+    void generate(autoGen).finally(() => onAutoConsumed?.());
+  }, [autoGen, mat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const regenerate = async () => {
     if (!mat || !slide) return;
@@ -103,6 +117,19 @@ export function DeckBuilder({ session, sessionId, onSession, onPresent, onExit }
     setDeck(next); persist(next); setPage(Math.max(0, page - 1));
   };
 
+  // ---- building (manual generate or auto from the brief) ----
+  if (busy === "gen" && (!mat || !deck)) {
+    return (
+      <div className="absolute inset-0 grid place-items-center bg-background p-4">
+        <div className="text-center">
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-600"><Loader2 className="h-6 w-6 animate-spin text-white" /></span>
+          <p className="mt-3 text-[14px] font-extrabold">Drafting your presentation…</p>
+          <p className="mt-1 text-[12px] text-muted-foreground">Writing the slides, sketching the diagrams and making the visuals.</p>
+        </div>
+      </div>
+    );
+  }
+
   // ---- brief step (no deck yet) ----
   if (!mat || !deck) {
     return (
@@ -123,7 +150,7 @@ export function DeckBuilder({ session, sessionId, onSession, onPresent, onExit }
             <Toggle on={wantWb} onClick={() => setWantWb((v) => !v)} Icon={PenLine} label="Whiteboard slides" />
             <Toggle on={wantVis} onClick={() => setWantVis((v) => !v)} Icon={Sparkles} label="Generate visuals" />
           </div>
-          <button onClick={generate} disabled={busy === "gen"} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 py-3 text-[14px] font-extrabold text-white disabled:opacity-60">
+          <button onClick={() => generate()} disabled={busy === "gen"} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 py-3 text-[14px] font-extrabold text-white disabled:opacity-60">
             {busy === "gen" ? <><Loader2 className="h-4 w-4 animate-spin" /> Building your presentation…</> : <><Sparkles className="h-4 w-4" /> Turn this into meeting materials</>}
           </button>
           {decks.length ? <button onClick={() => setMatId(decks[0].id)} className="mt-2 w-full text-center text-[11.5px] font-semibold text-brand-400">Open your existing deck</button> : null}
