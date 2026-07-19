@@ -101,7 +101,12 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
             if (it.t === "shape") {
               const x1 = x(it.from.x), y1 = y(it.from.y), x2 = x(it.to.x), y2 = y(it.to.y);
               const sw = Math.max(2, (it.size ?? 0.003) * FRAME);
-              const draw = isNow ? { strokeDasharray: 1, strokeDashoffset: 1, animation: "ld-draw .7s ease forwards" } : undefined;
+              const draw = isNow ? { strokeDasharray: 1, strokeDashoffset: 1, animation: "ld-draw .7s ease forwards" as const } : undefined;
+              const pop = isNow ? { transformBox: "fill-box" as const, transformOrigin: "center", animation: "ld-pop .45s ease forwards" as const } : undefined;
+              if (it.shape === "rect") {
+                const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
+                return <rect key={`${it.id}-${isNow}`} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={w} height={h} rx={Math.min(15, h / 2.4)} fill="#ffffff" stroke={it.color} strokeWidth={sw} style={pop} />;
+              }
               if (it.shape === "ellipse") {
                 return <ellipse key={`${it.id}-${isNow}`} cx={(x1 + x2) / 2} cy={(y1 + y2) / 2} rx={Math.abs(x2 - x1) / 2} ry={Math.abs(y2 - y1) / 2} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} style={draw} />;
               }
@@ -113,9 +118,37 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
                 </g>
               );
             }
+            if (it.t === "image") {
+              const ix = x(it.at.x), iy = y(it.at.y), iw = it.w * CW, ih = it.h * H, cid = `dc-${it.id}`;
+              return (
+                <g key={`${it.id}-${isNow}`}>
+                  <defs><clipPath id={cid}><rect x={ix} y={iy} width={iw} height={ih} rx={16} /></clipPath></defs>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <image href={it.url} x={ix} y={iy} width={iw} height={ih} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${cid})`} />
+                  <rect x={ix} y={iy} width={iw} height={ih} rx={16} fill="none" stroke="rgba(0,0,0,.16)" strokeWidth={2.5} />
+                </g>
+              );
+            }
             if (it.t === "text") {
-              const fs = Math.max(11, (it.size ?? 0.03) * H);
-              return <text key={`${it.id}-${isNow}`} x={x(it.at.x)} y={y(it.at.y) + fs} fontSize={fs} fontWeight={700} fill={it.color} style={isNow ? { animation: "ld-pop .4s ease forwards" } : undefined}>{it.text}</text>;
+              const fs = Math.max(9, (it.size ?? 0.03) * H);
+              // sticky-note callout — a yellow card with wrapped text
+              if (it.note) {
+                const cardW = 224, padX = 13, padY = 11, lh = fs * 1.3;
+                const maxChars = Math.max(6, Math.floor((cardW - 2 * padX) / (fs * 0.52)));
+                const lines = wrapLines(it.text, maxChars).slice(0, 4);
+                const cardH = lines.length * lh + 2 * padY;
+                const px = x(it.at.x), py = y(it.at.y);
+                return (
+                  <g key={`${it.id}-${isNow}`} style={isNow ? { transformBox: "fill-box", transformOrigin: "center", animation: "ld-pop .4s ease forwards" } : undefined}>
+                    <rect x={px + 2} y={py + 3} width={cardW} height={cardH} rx={9} fill="rgba(0,0,0,.12)" />
+                    <rect x={px} y={py} width={cardW} height={cardH} rx={9} fill={it.note} stroke="rgba(0,0,0,.12)" strokeWidth={1.5} />
+                    {lines.map((ln, i) => (
+                      <text key={i} x={px + padX} y={py + padY + lh * (i + 0.82)} fontSize={fs} fontWeight={600} fill={it.color}>{ln}</text>
+                    ))}
+                  </g>
+                );
+              }
+              return <text key={`${it.id}-${isNow}`} x={x(it.at.x)} y={y(it.at.y)} fontSize={fs} fontWeight={700} fill={it.color} textAnchor="middle" dominantBaseline="central" style={isNow ? { transformBox: "fill-box", transformOrigin: "center", animation: "ld-pop .4s ease forwards" } : undefined}>{it.text}</text>;
             }
             return null;
           })}
@@ -124,6 +157,19 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
       {frames > 1 && !overview ? <CanvasMap panX={panX} frameW={FRAME} canvasW={CW} /> : null}
     </div>
   );
+}
+
+/** Greedy word-wrap for sticky-note text (SVG has no auto-wrap). */
+function wrapLines(text: string, maxChars: number): string[] {
+  const words = text.split(/\s+/), lines: string[] = [];
+  let line = "";
+  for (const w of words) {
+    if (!line) line = w;
+    else if ((line + " " + w).length <= maxChars) line += " " + w;
+    else { lines.push(line); line = w; }
+  }
+  if (line) lines.push(line);
+  return lines;
 }
 
 /** A tiny "you are here" strip for the endless canvas — the whole board as a track

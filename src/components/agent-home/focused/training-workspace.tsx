@@ -22,9 +22,28 @@ import { PlanCanvas } from "./training/plan-canvas";
 import { LiveRoom } from "./training/live-room";
 import { BackOffice } from "./training/back-office";
 import { DeckBuilder } from "./training/deck-builder";
-import { BriefSheet, type BriefDraft } from "./training/brief-sheet";
+import { BriefSheet, type BriefDraft, type DeckDraft } from "./training/brief-sheet";
 import { useRoom } from "./training/use-room";
+import { slideCountForDuration } from "@/lib/training/deck-cost";
 import type { SegmentKind, TrainingSessionDTO } from "@/lib/training/types";
+
+/** Turn the "Build with AI" draft into the rich brief the deck generator reads. */
+function composeDeckBrief(deck: DeckDraft): string {
+  const w = deck.wants, prefs: string[] = [];
+  if (w.photos) prefs.push("include photorealistic example imagery");
+  if (w.threeD) prefs.push("use 3D explainer visuals for abstract concepts");
+  if (w.livedraw) prefs.push("include at least one Live Draw section that builds stroke by stroke");
+  if (w.whiteboard) prefs.push("use whiteboard diagrams for processes and frameworks");
+  if (deck.brandKit) prefs.push("match the brand style");
+  return [
+    deck.objective.trim(),
+    `Audience: ${deck.audience}. Experience level: ${deck.experience}. Tone: ${deck.tone}. Target length: about ${deck.durationMins} minutes.`,
+    prefs.length ? `Please ${prefs.join(", ")}.` : "",
+    deck.advanced.trim() ? `Additional instructions: ${deck.advanced.trim()}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+interface DeckAutoGen { brief: string; wantDoc: boolean; wantWhiteboard: boolean; wantVisuals: boolean; slideCount: number }
 
 type Mode = "plan" | "live" | "office" | "deck";
 
@@ -50,6 +69,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
   const [estimate, setEstimate] = useState<{ total: number; room: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [deckAutoGen, setDeckAutoGen] = useState<DeckAutoGen | null>(null);
 
   useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
 
@@ -140,21 +160,49 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
   }, [session?.seats, session?.plannedMins, session?.recording, session?.transcript]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- actions ----
+  // Best-effort: attach the "Build with AI" source files once the room exists.
+  const uploadSources = async (sid: string, files: File[]) => {
+    for (const file of files.slice(0, 8)) {
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        await fetch(`/api/ai/training/${sid}/materials`, { method: "POST", body: form });
+      } catch { /* a failed attachment shouldn't derail the build */ }
+    }
+  };
+
   const build = async (d: BriefDraft) => {
     setBusy(true);
     try {
+      const { deck, ...roomFields } = d;
+      const roomBrief = deck?.objective?.trim() || d.brief;
       const j = await fetch("/api/ai/training", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...d, startsAt: d.startsAt || null }),
+        body: JSON.stringify({ ...roomFields, brief: roomBrief, startsAt: d.startsAt || null }),
       }).then((r) => r.json());
       if (!j?.success) { toast({ title: j?.error?.message || "Couldn't build the room", variant: "destructive" }); return; }
       const built = j.data.session as TrainingSessionDTO;
       setSessionId(built.id);
       setBriefOpen(false);
-      setMode("plan");
       await loadList();
-      toast({ title: `Room built — ${built.segments.length} segments on the canvas` });
+
+      if (deck && deck.objective.trim().length >= 8) {
+        // Built with AI — draft the presentation and land in the editor.
+        if (deck.sources?.length) void uploadSources(built.id, deck.sources);
+        setDeckAutoGen({
+          brief: composeDeckBrief(deck),
+          wantDoc: deck.wants.slides,
+          wantWhiteboard: deck.wants.whiteboard || deck.wants.livedraw,
+          wantVisuals: deck.wants.photos || deck.wants.threeD,
+          slideCount: slideCountForDuration(deck.durationMins),
+        });
+        setMode("deck");
+        toast({ title: "Room built — drafting your presentation…" });
+      } else {
+        setMode("plan");
+        toast({ title: `Room built — ${built.segments.length} segments on the canvas` });
+      }
     } catch {
       toast({ title: "Couldn't build the room", variant: "destructive" });
     } finally {
@@ -407,6 +455,8 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
         <DeckBuilder
           session={session}
           sessionId={sessionId!}
+          autoGen={deckAutoGen}
+          onAutoConsumed={() => setDeckAutoGen(null)}
           onSession={(s) => room.setSession(s)}
           onPresent={(matId) => void room.patch({ stageSource: "slides", stageKey: matId, stagePage: 1, stageStep: 1 }).then(() => setMode("live"))}
           onExit={() => setMode(session.status === "live" ? "live" : "plan")}

@@ -3,13 +3,18 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { checkRoomAccess, canControlRoom } from "@/lib/training/access";
 import { getSessionDTO } from "@/lib/training/session";
-import { generateDeck, parseDeck } from "@/lib/training/deck";
+import { generateDeck, parseDeck, deckSlideCount, deckImageCount } from "@/lib/training/deck";
+import { DECK_BASE_CREDITS, DECK_IMAGE_CREDITS } from "@/lib/training/deck-cost";
+import { creditService } from "@/lib/credits";
 import type { TrainingDeck } from "@/lib/training/types";
 
 const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
 
 export const maxDuration = 300; // deck + illustrations can take a bit
+// Generation cost basis lives in deck-cost.ts so the client estimate and the server
+// charge stay in lock-step: base (AI outline + deterministic diagrams) + one image
+// per document slide that carries a generated visual.
 
 async function guard(id: string) {
   const session = await getSession();
@@ -69,8 +74,25 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // ---- generate a fresh deck ----
+  const session = await getSession();
   const brief = (body.brief || "").trim();
   if (brief.length < 8) return err("Tell the agent what the session is about first.");
+
+  // Charge the MAX up front (every slide could carry an image), then refund the
+  // unused part once we know how many illustrations were actually generated. The
+  // number the client showed as "Estimated generation" is this same basis.
+  const n = deckSlideCount(body.slideCount);
+  const maxCharge = DECK_BASE_CREDITS + (body.wantVisuals !== false ? n * DECK_IMAGE_CREDITS : 0);
+  if (session) {
+    const charge = await creditService.deductCredits({
+      userId: session.userId, type: "USAGE", amount: maxCharge,
+      description: "Training Room: AI presentation", referenceType: "training_deck", referenceId: id,
+    });
+    if (!charge.success) return err(charge.error || "Not enough credits to build the presentation", 402);
+  }
+  const refund = async (amount: number) => {
+    if (session && amount > 0) await creditService.addCredits?.({ userId: session.userId, type: "REFUND", amount, description: "Refund: unused presentation credits", referenceType: "training_deck", referenceId: id }).catch(() => {});
+  };
 
   const deck = await generateDeck({
     brief,
@@ -80,7 +102,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     wantVisuals: body.wantVisuals,
     slideCount: body.slideCount,
   });
-  if (!deck?.slides.length) return err("The agent couldn't build a deck from that — add a little more detail.", 502);
+  if (!deck?.slides.length) { await refund(maxCharge); return err("The agent couldn't build a deck from that — add a little more detail.", 502); }
+
+  // Refund the difference between the max and what was really generated.
+  const actualCharge = DECK_BASE_CREDITS + deckImageCount(deck) * DECK_IMAGE_CREDITS;
+  await refund(maxCharge - actualCharge);
 
   const title = deck.slides[0]?.title?.slice(0, 80) || "Training deck";
   const mat = await prisma.trainingMaterial.create({
