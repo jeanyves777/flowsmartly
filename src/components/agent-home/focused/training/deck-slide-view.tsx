@@ -82,20 +82,15 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
   const CW = FRAME * frames;
   const shown = reveal === undefined ? items : items.filter((it) => (("step" in it ? it.step : 0) ?? 0) < reveal);
   const current = reveal === undefined ? -2 : reveal - 1;
-  const centerX = (it: BoardItem): number => (it.t === "text" ? it.at.x : it.t === "shape" ? (it.from.x + it.to.x) / 2 : 0.5);
-
-  // Pan the viewport to keep the freshly-revealed mark centred (wide canvases only).
-  const overview = reveal === undefined; // builder thumbnail — show the whole board
-  const cur = overview ? undefined : items.find((it) => ("step" in it ? it.step : -3) === current);
-  const targetX = cur ? centerX(cur) * CW : CW; // nothing current → rest at the end
-  const panX = frames <= 1 || overview ? 0 : Math.max(0, Math.min(CW - FRAME, targetX - FRAME / 2));
   const x = (v: number) => v * CW, y = (v: number) => v * H;
 
+  // The whole board always fits in view (no panning) so nothing already revealed is
+  // ever hidden — the reveal just fades elements in where they belong.
   return (
     <div className="absolute inset-0 overflow-hidden">
       <style>{`@keyframes ld-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}@keyframes ld-pop{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:scale(1)}}`}</style>
-      <svg viewBox={overview ? `0 0 ${CW} ${H}` : `0 0 ${FRAME} ${H}`} preserveAspectRatio={overview ? "xMidYMid meet" : "none"} className="absolute inset-0 h-full w-full">
-        <g style={{ transform: `translateX(${-panX}px)`, transition: "transform .6s cubic-bezier(.4,0,.2,1)" }}>
+      <svg viewBox={`0 0 ${CW} ${H}`} preserveAspectRatio="xMidYMid meet" className="absolute inset-0 h-full w-full">
+        <g>
           {shown.map((it) => {
             const isNow = !!animated && ("step" in it ? it.step : -3) === current;
             if (it.t === "shape") {
@@ -119,14 +114,12 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
               );
             }
             if (it.t === "image") {
-              const ix = x(it.at.x), iy = y(it.at.y), iw = it.w * CW, ih = it.h * H, cid = `dc-${it.id}`;
+              // A transparent 3D cutout — no box, no border. It just floats in the
+              // design (preserveAspectRatio "meet" keeps the object un-cropped).
+              const ix = x(it.at.x), iy = y(it.at.y), iw = it.w * CW, ih = it.h * H;
               return (
-                <g key={`${it.id}-${isNow}`}>
-                  <defs><clipPath id={cid}><rect x={ix} y={iy} width={iw} height={ih} rx={16} /></clipPath></defs>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <image href={it.url} x={ix} y={iy} width={iw} height={ih} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${cid})`} />
-                  <rect x={ix} y={iy} width={iw} height={ih} rx={16} fill="none" stroke="rgba(0,0,0,.16)" strokeWidth={2.5} />
-                </g>
+                // eslint-disable-next-line @next/next/no-img-element
+                <image key={`${it.id}-${isNow}`} href={it.url} x={ix} y={iy} width={iw} height={ih} preserveAspectRatio="xMidYMid meet" style={{ filter: "drop-shadow(0 6px 14px rgba(0,0,0,.18))" }} />
               );
             }
             if (it.t === "text") {
@@ -154,7 +147,6 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
           })}
         </g>
       </svg>
-      {frames > 1 && !overview ? <CanvasMap panX={panX} frameW={FRAME} canvasW={CW} /> : null}
     </div>
   );
 }
@@ -172,17 +164,3 @@ function wrapLines(text: string, maxChars: number): string[] {
   return lines;
 }
 
-/** A tiny "you are here" strip for the endless canvas — the whole board as a track
- *  with a lit window marking the visible section. Mirrors the mock's canvas mini-map. */
-function CanvasMap({ panX, frameW, canvasW }: { panX: number; frameW: number; canvasW: number }) {
-  const left = (panX / canvasW) * 100;
-  const w = Math.min(100, (frameW / canvasW) * 100);
-  return (
-    <div className="pointer-events-none absolute bottom-2.5 left-1/2 z-[3] flex -translate-x-1/2 items-center gap-2 rounded-full border border-black/10 bg-white/85 px-3 py-1 shadow-sm backdrop-blur">
-      <span className="text-[8.5px] font-extrabold uppercase tracking-wide text-black/45">Reveal ▸</span>
-      <div className="relative h-[5px] w-28 rounded-full bg-black/10">
-        <div className="absolute inset-y-0 rounded-full bg-[#1e293b] transition-[left] duration-500 ease-out" style={{ left: `${left}%`, width: `${w}%` }} />
-      </div>
-    </div>
-  );
-}
