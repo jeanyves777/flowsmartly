@@ -63,7 +63,11 @@ export function PresenterSetup({ open, onClose, onChoose }: {
   const [step, setStep] = useState(0);
   const [f, setF] = useState<Form>(BLANK);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }));
-  const [busy, setBusy] = useState<null | "load" | "clone" | "portrait" | "save">(null);
+  const [busy, setBusy] = useState<null | "load" | "clone" | "portrait" | "style" | "save">(null);
+  // the ORIGINAL uploaded photo — kept so we can restyle it (background / clothing).
+  const [portraitFile, setPortraitFile] = useState<File | null>(null);
+  const [bg, setBg] = useState("studio");
+  const [cloth, setCloth] = useState("keep");
 
   const load = useCallback(async () => {
     setBusy("load");
@@ -128,12 +132,26 @@ export function PresenterSetup({ open, onClose, onChoose }: {
 
   const onPortrait = async (file?: File | null) => {
     if (!file) return;
+    setPortraitFile(file);
     setBusy("portrait");
     try {
       const fd = new FormData(); fd.append("file", file);
       const j = await fetch("/api/ai/training/presenter/portrait", { method: "POST", body: fd }).then((r) => r.json());
       if (j?.success) set("portraitUrl", j.data.url);
       else toast({ title: j?.error?.message || "Couldn't upload that image", variant: "destructive" });
+    } finally { setBusy(null); }
+  };
+  // Turn the uploaded photo into a presentation-ready clone (identity-preserving),
+  // restyled with the chosen background + clothing.
+  const makeReady = async () => {
+    if (!portraitFile) { toast({ title: "Upload a photo first" }); return; }
+    setBusy("style");
+    try {
+      const fd = new FormData();
+      fd.append("file", portraitFile); fd.append("background", bg); fd.append("clothing", cloth);
+      const j = await fetch("/api/ai/training/presenter/style", { method: "POST", body: fd }).then((r) => r.json());
+      if (j?.success) { set("portraitUrl", j.data.url); toast({ title: "Presentation-ready", description: "Your presenter clone is set." }); }
+      else toast({ title: j?.error?.message || "Couldn't make that presentation-ready", variant: "destructive" });
     } finally { setBusy(null); }
   };
 
@@ -278,6 +296,21 @@ export function PresenterSetup({ open, onClose, onChoose }: {
                     </div>
                   </div>
                 </div>
+                {portraitFile ? (
+                  <div className="mt-4 rounded-2xl border border-border bg-muted/60 p-3.5">
+                    <div className="mb-2 flex items-center gap-1.5 text-[11.5px] font-bold"><Sparkles className="h-3.5 w-3.5 text-brand-400" /> Make it presentation-ready</div>
+                    <p className="mb-2.5 text-[10.5px] text-muted-foreground">We keep your exact face and turn the photo into a polished presenter shot — pick a background and outfit.</p>
+                    <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Background</div>
+                    <div className="mb-2.5 flex flex-wrap gap-1.5">
+                      {BG_OPTS.map((o) => (<button key={o.v} onClick={() => setBg(o.v)} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition", bg === o.v ? "border-brand-500 bg-brand-500/10 text-brand-400" : "border-border hover:border-brand-500")}>{o.label}</button>))}
+                    </div>
+                    <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Clothing</div>
+                    <div className="mb-3 flex flex-wrap gap-1.5">
+                      {CLOTH_OPTS.map((o) => (<button key={o.v} onClick={() => setCloth(o.v)} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition", cloth === o.v ? "border-brand-500 bg-brand-500/10 text-brand-400" : "border-border hover:border-brand-500")}>{o.label}</button>))}
+                    </div>
+                    <button onClick={makeReady} disabled={busy === "style"} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12px] font-bold text-white disabled:opacity-60">{busy === "style" ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating your clone…</> : <><Sparkles className="h-4 w-4" /> Make presentation-ready</>}<span className="ms-1 rounded-md bg-white/15 px-1.5 py-0.5 text-[9.5px]">~18 credits</span></button>
+                  </div>
+                ) : null}
                 <p className="mt-3 rounded-xl border border-border bg-muted px-3.5 py-2.5 text-[11.5px] text-muted-foreground">In the room the presenter appears as a disclosed co-host with an <b className="text-brand-400">AI</b> badge — participants always know it&apos;s an AI.</p>
               </SectionCard>
 
@@ -423,6 +456,20 @@ const ROLE_OPTS = [
   { v: "cohost", label: "Co-host", Icon: Users },
   { v: "host", label: "Host", Icon: User },
   { v: "assistant", label: "Assistant", Icon: Bot },
+] as const;
+const BG_OPTS = [
+  { v: "studio", label: "Studio grey" },
+  { v: "office", label: "Modern office" },
+  { v: "home", label: "Warm home" },
+  { v: "neon", label: "Neon accent" },
+  { v: "blur", label: "Soft blur" },
+] as const;
+const CLOTH_OPTS = [
+  { v: "keep", label: "Keep original" },
+  { v: "tee", label: "Dark tee" },
+  { v: "shirt", label: "Light-blue shirt" },
+  { v: "blazer", label: "Navy blazer" },
+  { v: "knit", label: "Charcoal knit" },
 ] as const;
 const TIMELINE = [
   { label: "Speak", t: "0:00", c: "linear-gradient(135deg,#6366f1,#8b5cf6)", Icon: Volume2 },
