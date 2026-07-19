@@ -281,6 +281,8 @@ export interface TrainingSessionDTO {
   stagePage: number;
   /** progressive-reveal step within the current deck slide (synced to attendees) */
   stageStep: number;
+  /** the AI presenter is delivering right now (plays narration + auto-reveals, synced) */
+  aiPlaying: boolean;
   boardDoc: BoardDoc;
   recordingUrl: string | null;
   creditsSpent: number;

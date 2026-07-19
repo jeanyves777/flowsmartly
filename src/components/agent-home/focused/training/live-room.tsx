@@ -238,6 +238,44 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     return () => clearTimeout(t);
   }, [autoReveal, host, deckSlide, deckSteps, session.stageStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ----- AI presenter runtime -----
+  // A narrated deck + an active presenter can be DELIVERED by the AI co-host: it plays
+  // each slide's narration, reveals the diagram across it, and (host = conductor) moves
+  // to the next slide when the audio ends. `aiPlaying` is synced so everyone hears it.
+  const aiPresenter = deckSlide && material?.deck?.presenterActive && (material.deck.slides ?? []).some((s) => s.narration);
+  const narration = deckSlide?.narration ?? null;
+  const aiAudioRef = useRef<HTMLAudioElement | null>(null);
+  const aiPlaying = !!session.aiPlaying;
+  // every client plays the current slide's narration while the AI is delivering
+  useEffect(() => {
+    const a = aiAudioRef.current;
+    if (!a) return;
+    if (aiPlaying && narration?.audioUrl) {
+      if (a.getAttribute("data-src") !== narration.audioUrl) { a.src = narration.audioUrl; a.setAttribute("data-src", narration.audioUrl); a.currentTime = 0; }
+      a.play().catch(() => {});
+    } else { a.pause(); }
+  }, [aiPlaying, narration?.audioUrl]);
+  // host = conductor: reveal steps across the narration, then advance to the next slide
+  useEffect(() => {
+    const a = aiAudioRef.current;
+    if (!host || !aiPlaying || !deckSlide) return;
+    const dur = Math.max(2500, narration?.durationMs ?? 4500);
+    const remaining = Math.max(0, deckSteps - 1);
+    const timers = Array.from({ length: remaining }, (_, k) => setTimeout(() => void patch({ stageStep: 2 + k }), (dur / (remaining + 1)) * (k + 1)));
+    let done = false;
+    const advance = () => {
+      if (done) return; done = true;
+      const pages = material?.pages ?? 1;
+      if (session.stagePage < pages) void patch({ stagePage: session.stagePage + 1, stageStep: 1 });
+      else void patch({ aiPlaying: false });
+    };
+    a?.addEventListener("ended", advance);
+    const fallback = setTimeout(advance, dur + 1500); // in case the audio never loaded
+    return () => { timers.forEach(clearTimeout); clearTimeout(fallback); a?.removeEventListener("ended", advance); };
+  }, [host, aiPlaying, session.stagePage]); // eslint-disable-line react-hooks/exhaustive-deps
+  const playAI = () => { if (!deckSlide) return; void patch({ stageStep: 1, aiPlaying: true }); };
+  const pauseAI = () => { aiAudioRef.current?.pause(); void patch({ aiPlaying: false }); };
+
   const backdrop = useMemo(() => {
     if (session.stageSource === "board") return null;
     if (session.stageSource === "screen") {
@@ -460,6 +498,13 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
               onLiveItem={onLiveItem}
               backdrop={backdrop}
             />
+            {/* AI presenter caption — what the co-host is saying right now */}
+            {aiPlaying && narration?.text ? (
+              <div className="pointer-events-none absolute bottom-[92px] left-1/2 z-[6] w-[min(80%,620px)] -translate-x-1/2 rounded-xl bg-black/70 px-4 py-2 text-center text-[13px] font-semibold text-white shadow-lg backdrop-blur-sm">
+                <span className="me-1.5 inline-flex items-center gap-1 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 align-middle text-[8.5px] font-black text-[#04222a]"><Volume2 className="h-2.5 w-2.5" /> AI</span>
+                {narration.text}
+              </div>
+            ) : null}
             {paged && material ? (
               <>
                 {/* clickable slide navigator — jump straight to any slide */}
@@ -496,7 +541,11 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                   <button onClick={revealNext} disabled={!host || atEnd} className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30">
                     <ChevronRight className="h-3 w-3" />
                   </button>
-                  {host && deckSlide && deckSteps > 1 ? (
+                  {host && aiPresenter ? (
+                    <button onClick={aiPlaying ? pauseAI : playAI} title={aiPlaying ? "Pause the AI presenter" : "Let the AI presenter deliver this"} className={cn("ms-0.5 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9.5px] font-extrabold", aiPlaying ? "bg-gradient-to-br from-cyan-400 to-brand-500 text-[#04222a]" : "border border-brand-500/50 text-brand-400 hover:border-brand-500")}>
+                      {aiPlaying ? <><Pause className="h-2.5 w-2.5" /> Pause AI</> : <><Volume2 className="h-2.5 w-2.5" /> Present with AI</>}
+                    </button>
+                  ) : host && deckSlide && deckSteps > 1 ? (
                     <button onClick={() => setAutoReveal((v) => !v)} title="Auto-reveal — draw along hands-free" className={cn("ms-0.5 rounded-full px-2 py-0.5 text-[9.5px] font-extrabold", autoReveal ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>
                       AUTO
                     </button>
@@ -703,6 +752,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
       ) : null}
 
       <AudioSink remotes={media.remotes} spkId={media.spkId} />
+      {/* AI presenter narration audio — played on every client, synced by aiPlaying */}
+      <audio ref={aiAudioRef} className="hidden" />
     </div>
   );
 }
