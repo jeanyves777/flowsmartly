@@ -177,6 +177,38 @@ export interface TrainingDeck {
   slides: DeckSlide[];
 }
 
+// ------------------------------------------------------------ AI presenter
+/** Question behaviour for an AI presenter. */
+export interface PresenterQuestionBehavior {
+  stopOnHand: boolean;       // pause automatically when a hand is raised
+  afterEachSection: boolean; // accept questions at section breaks
+  hostApproves: boolean;     // host approves questions before the AI answers
+  answerMode: "independent" | "handoff"; // answer itself, or hand to the host
+}
+
+/** A reusable AI presenter profile — the owner's cloned voice + likeness that can
+ *  deliver a training as a disclosed co-host. Built in "Build with AI". */
+export interface PresenterProfileDTO {
+  id: string;
+  name: string;
+  portraitUrl: string | null;
+  voiceProfileId: string | null;
+  voiceName: string | null;
+  deliveryStyle: "professional" | "conversational" | "energetic" | "teacher";
+  pace: number;
+  expressiveness: number;
+  pauseMs: number;
+  role: "cohost" | "host" | "assistant";
+  followNotes: boolean;
+  describeVisuals: boolean;
+  advanceReveals: boolean;
+  useLiveDraw: boolean;
+  questionBehavior: PresenterQuestionBehavior | null;
+  consentAcceptedAt: string | null;
+  consentOwnerName: string | null;
+  createdAt: string;
+}
+
 export interface TrainingInviteDTO {
   id: string;
   token: string;

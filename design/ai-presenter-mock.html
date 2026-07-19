@@ -1,0 +1,529 @@
+<title>AI Presenter — FlowSmartly Training Room</title>
+<style>
+  :root{
+    --bg:#0a0a10; --bg2:#0e0e16; --panel:#14141e; --panel2:#191926; --line:#262633;
+    --ink:#e9e9f2; --muted:#9a9ab2; --faint:#6a6a82;
+    --brand1:#6366f1; --brand2:#8b5cf6; --ai:#22d3ee; --live:#f43f5e;
+    --ok:#34d399; --warn:#f59e0b; --grad:linear-gradient(135deg,var(--brand1),var(--brand2));
+    --r:16px; font-synthesis:none;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#151527 0,var(--bg) 55%);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;line-height:1.45}
+  h1,h2,h3,h4{margin:0;letter-spacing:-.02em;text-wrap:balance}
+  button{font:inherit;color:inherit;cursor:pointer;border:none;background:none}
+  .wrap{max-width:1240px;margin:0 auto;padding:20px 20px 60px}
+
+  /* top bar */
+  .top{display:flex;align-items:center;gap:16px;padding:10px 4px 18px}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px}
+  .logo .mk{width:26px;height:26px;border-radius:8px;background:var(--grad);display:grid;place-items:center;color:#fff;font-size:13px}
+  .nav{display:flex;gap:4px;margin-left:8px}
+  .nav a{padding:8px 12px;border-radius:10px;font-size:12.5px;font-weight:600;color:var(--muted)}
+  .nav a.on{background:var(--panel);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+  .top .pill{margin-left:auto;display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;
+    background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);font-size:12px;color:var(--muted)}
+  .shield{width:14px;height:14px;border-radius:4px;background:conic-gradient(from 180deg,var(--brand1),var(--ai));}
+
+  /* segmented */
+  .seg{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:4px;gap:4px;margin:2px 0 22px}
+  .seg button{padding:9px 16px;border-radius:10px;font-size:13px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:8px}
+  .seg button.on{background:var(--grad);color:#fff;box-shadow:0 4px 18px -6px var(--brand2)}
+
+  .eyebrow{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .lede{color:var(--muted);font-size:14px;max-width:60ch}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+  .badge-ai{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;letter-spacing:.03em;
+    color:#04222a;background:linear-gradient(135deg,#67e8f9,#22d3ee);padding:3px 7px;border-radius:6px}
+  .tag-ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent);padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;display:inline-flex;gap:5px;align-items:center}
+
+  .view{display:none}.view.on{display:block;animation:fade .4s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ---------- SETUP ---------- */
+  .setupHead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+  .setupGrid{display:grid;grid-template-columns:230px minmax(0,1fr) minmax(320px,400px);gap:18px}
+  @media(max-width:1080px){.setupGrid{grid-template-columns:1fr}}
+  .steps{padding:16px}
+  .step{display:flex;gap:12px;padding:12px;border-radius:12px;position:relative}
+  .step+.step{margin-top:2px}
+  .step.cur{background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line)}
+  .dot{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;flex:none;
+    background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);color:var(--muted)}
+  .step.done .dot{background:var(--grad);color:#fff;box-shadow:none}
+  .step.cur .dot{box-shadow:0 0 0 3px color-mix(in srgb,var(--brand2) 30%,transparent);color:var(--ink)}
+  .step b{font-size:13px}.step span{font-size:11.5px;color:var(--muted);display:block;margin-top:1px}
+  .step .ln{position:absolute;left:27px;top:44px;bottom:-6px;width:2px;background:var(--line)}
+  .step.done .ln{background:linear-gradient(var(--brand2),transparent)}
+  .step:last-child .ln{display:none}
+
+  .block{padding:16px 18px}
+  .block+.block{margin-top:14px}
+  .block h3{font-size:14px;display:flex;align-items:center;gap:9px}
+  .num{width:22px;height:22px;border-radius:7px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);display:grid;place-items:center;font-size:11px;font-weight:800;color:var(--muted)}
+  .rowbtns{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .obtn{flex:1;min-width:120px;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:11px;
+    background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);font-size:12.5px;font-weight:600;color:var(--ink);transition:.15s}
+  .obtn:hover{box-shadow:inset 0 0 0 1px var(--brand2)}
+  .wave{height:52px;margin:14px 0 4px;border-radius:10px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);
+    display:flex;align-items:center;gap:2px;padding:0 12px;overflow:hidden}
+  .wave i{flex:1;background:linear-gradient(var(--brand1),var(--brand2));border-radius:2px;opacity:.85}
+  .avatar{width:74px;height:74px;border-radius:50%;flex:none;background:
+      radial-gradient(circle at 50% 34%,#c9b8ff 0 22%,transparent 23%),
+      linear-gradient(160deg,#3a3357,#221f38);box-shadow:inset 0 0 0 1px var(--line);position:relative}
+  .avatar .chk{position:absolute;right:-2px;bottom:-2px;width:22px;height:22px;border-radius:50%;background:var(--ok);
+    display:grid;place-items:center;color:#04140d;font-size:12px;box-shadow:0 0 0 3px var(--panel)}
+  .styleGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:6px}
+  @media(max-width:560px){.styleGrid{grid-template-columns:repeat(2,1fr)}}
+  .sc{padding:14px 10px;border-radius:12px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);text-align:center;font-size:12px;font-weight:600;transition:.15s}
+  .sc:hover{box-shadow:inset 0 0 0 1px var(--brand2)}
+  .sc.on{background:color-mix(in srgb,var(--brand2) 16%,transparent);box-shadow:inset 0 0 0 1.5px var(--brand2)}
+  .sc .ic{font-size:18px;display:block;margin-bottom:6px}
+  .sliders{display:grid;grid-template-columns:1fr 1fr;gap:14px 26px;margin-top:16px}
+  @media(max-width:560px){.sliders{grid-template-columns:1fr}}
+  .sld{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+  .sld label{width:96px;flex:none}
+  .track{flex:1;height:5px;border-radius:3px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);position:relative}
+  .track::after{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--v,55%);border-radius:3px;background:var(--grad)}
+  .track .knob{position:absolute;top:50%;left:var(--v,55%);width:13px;height:13px;border-radius:50%;background:#fff;transform:translate(-50%,-50%);box-shadow:0 1px 4px rgba(0,0,0,.5)}
+  .val{width:38px;text-align:right;color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+  .toggles{display:flex;flex-direction:column;gap:12px;justify-content:center}
+  .tg{display:flex;align-items:center;gap:10px;font-size:12.5px}
+  .sw{margin-left:auto;width:36px;height:20px;border-radius:999px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);position:relative;flex:none;transition:.2s}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--faint);transition:.2s}
+  .sw.on{background:var(--brand2)}.sw.on::after{left:18px;background:#fff}
+  .roleRow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+  .role{padding:12px;border-radius:11px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:600}
+  .role.on{box-shadow:inset 0 0 0 1.5px var(--brand2);background:color-mix(in srgb,var(--brand2) 14%,transparent)}
+  .rdo{width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--faint);margin-left:auto;flex:none}
+  .role.on .rdo{box-shadow:inset 0 0 0 5px var(--brand2)}
+
+  /* preview + sync */
+  .preview{padding:16px}
+  .pvid{aspect-ratio:16/10;border-radius:12px;overflow:hidden;position:relative;
+    background:linear-gradient(160deg,#241f38,#14121f);box-shadow:inset 0 0 0 1px var(--line)}
+  .pvid .subj{position:absolute;inset:0;background:
+    radial-gradient(60% 70% at 50% 30%,rgba(255,255,255,.05),transparent),
+    radial-gradient(circle at 50% 40%,#d7c9ff 0 15%,transparent 16%),
+    linear-gradient(180deg,transparent 55%,#0d0b16 100%)}
+  .pvid .cap{position:absolute;left:12px;right:12px;bottom:44px;text-align:center;font-size:13px;font-weight:600;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.7)}
+  .pvid .pwave{position:absolute;left:12px;right:12px;bottom:14px;height:20px;display:flex;gap:2px;align-items:center}
+  .pvid .pwave i{flex:1;background:#a4b0ff;border-radius:2px;opacity:.75}
+  .pctrl{display:flex;align-items:center;gap:14px;margin-top:12px;color:var(--muted)}
+  .pctrl .ply{width:34px;height:34px;border-radius:50%;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);display:grid;place-items:center;color:var(--ink)}
+  .synced{display:flex;align-items:center;gap:6px;margin:18px 4px 12px;font-size:13px;font-weight:700}
+  .flow{display:flex;align-items:center;gap:6px;overflow-x:auto;padding-bottom:6px}
+  .fm{flex:none;text-align:center;width:88px}
+  .fm .fd{width:44px;height:44px;border-radius:50%;margin:0 auto 7px;display:grid;place-items:center;font-size:17px;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
+  .fm b{font-size:11px;display:block}.fm span{font-size:9.5px;color:var(--faint)}
+  .fm .cn{height:2px;background:var(--line)}
+  .note{margin-top:12px;display:flex;gap:10px;padding:12px;border-radius:12px;background:color-mix(in srgb,var(--brand2) 8%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--brand2) 22%,transparent);font-size:11.5px;color:var(--muted)}
+
+  .foot{display:flex;align-items:center;gap:14px;margin-top:22px;padding:16px 18px;border-radius:var(--r);background:var(--panel);border:1px solid var(--line)}
+  .foot .sec{font-size:12px;color:var(--muted)}
+  .btn{padding:11px 18px;border-radius:12px;font-size:13px;font-weight:800;display:inline-flex;align-items:center;gap:8px}
+  .btn.ghost{background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line)}
+  .btn.grad{background:var(--grad);color:#fff;box-shadow:0 8px 24px -8px var(--brand2)}
+
+  /* ---------- LIVE ---------- */
+  .liveHead{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+  .rec{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:800;color:var(--live)}
+  .rec .d{width:8px;height:8px;border-radius:50%;background:var(--live);animation:blink 1.4s infinite}
+  @keyframes blink{50%{opacity:.35}}
+  .statepill{display:inline-flex;align-items:center;gap:8px;padding:7px 13px;border-radius:999px;font-size:12px;font-weight:700;
+    background:var(--panel);box-shadow:inset 0 0 0 1px var(--line)}
+  .statepill .d{width:8px;height:8px;border-radius:50%;background:var(--ai)}
+  .statepill.human .d{background:var(--warn)}
+  .liveGrid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px}
+  @media(max-width:1020px){.liveGrid{grid-template-columns:1fr}}
+  .stage{position:relative;background:#f6f6f1;border-radius:var(--r);aspect-ratio:16/9;overflow:hidden;box-shadow:inset 0 0 0 1px var(--line);
+    background-image:radial-gradient(circle at 1px 1px,#dcdcd2 1px,transparent 0);background-size:22px 22px}
+  .stage .ttl{position:absolute;left:5%;top:7%;font:800 clamp(18px,3vw,30px)/1 "Segoe Print","Comic Sans MS",cursive;color:#151515}
+  .stage .ttl::after{content:"";display:block;height:3px;width:78%;margin-top:8px;border-radius:2px;background:#2563eb;transform-origin:left;transition:transform .5s}
+  .cohost{position:absolute;right:14px;top:14px;width:210px;aspect-ratio:16/11;border-radius:12px;overflow:hidden;
+    box-shadow:0 10px 30px -8px rgba(0,0,0,.5),0 0 0 2px #2563eb;background:linear-gradient(160deg,#2a2440,#15121f)}
+  .cohost .face{position:absolute;inset:0;background:
+    radial-gradient(circle at 50% 38%,#e7dcff 0 17%,transparent 18%),
+    radial-gradient(60% 50% at 50% 34%,rgba(255,255,255,.06),transparent),
+    linear-gradient(180deg,transparent 50%,#0c0a14 100%)}
+  .cohost .lbl{position:absolute;left:8px;bottom:8px;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 4px #000}
+  .cohost .aib{position:absolute;right:8px;bottom:8px}
+  .cohost.speaking{animation:glow 1.6s ease-in-out infinite}
+  @keyframes glow{50%{box-shadow:0 10px 30px -8px rgba(0,0,0,.5),0 0 0 2px #22d3ee}}
+  .mprog{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:rgba(255,255,255,.92);border-radius:999px;
+    padding:7px 14px;font-size:11px;color:#334;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.15);display:flex;align-items:center;gap:10px}
+  .mprog .bar{width:120px;height:4px;border-radius:2px;background:#d8d8e2;overflow:hidden}
+  .mprog .bar i{display:block;height:100%;width:0;background:#2563eb;transition:width .4s}
+  .cap{position:absolute;left:14px;right:14px;bottom:64px;text-align:center;font-size:13px;color:#1a1a1a;font-weight:600;
+    background:rgba(255,255,255,.7);padding:6px 12px;border-radius:10px;backdrop-filter:blur(2px);transition:opacity .3s}
+  svg .stroke{stroke:#2563eb;stroke-width:5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+  svg .lbl{font:700 30px "Segoe Print","Comic Sans MS",cursive;fill:#1a1a1a}
+
+  .rail{display:flex;flex-direction:column;gap:14px}
+  .panel{padding:14px}
+  .panel h4{font-size:12.5px;display:flex;align-items:center;gap:8px}
+  .who{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px}
+  .who+.who{margin-top:2px}
+  .who .pf{width:32px;height:32px;border-radius:50%;flex:none;background:linear-gradient(150deg,#3a3357,#221f38);box-shadow:inset 0 0 0 1px var(--line)}
+  .who.ai .pf{background:linear-gradient(150deg,#123,#0a2a33);box-shadow:inset 0 0 0 1px #164e5b}
+  .who b{font-size:12.5px}.who span{font-size:10.5px;color:var(--muted)}
+  .who .rt{margin-left:auto;display:flex;gap:6px;align-items:center;color:var(--muted)}
+  .qcard{padding:10px;border-radius:10px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);font-size:12px}
+  .qcard .qh{display:flex;align-items:center;gap:7px;font-weight:700;font-size:11.5px;margin-bottom:5px}
+  .aiState{padding:14px;border-radius:var(--r);background:linear-gradient(160deg,color-mix(in srgb,var(--brand2) 12%,var(--panel)),var(--panel));border:1px solid color-mix(in srgb,var(--brand2) 30%,var(--line))}
+  .aiState .big{display:flex;align-items:center;gap:12px}
+  .aiState .icn{width:46px;height:46px;border-radius:14px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);display:grid;place-items:center;font-size:18px;flex:none}
+  .aiState b{font-size:14px}.aiState p{margin:2px 0 0;font-size:11.5px;color:var(--muted)}
+  .dots{display:flex;gap:6px;margin-top:12px}
+  .dots i{flex:1;height:5px;border-radius:3px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line)}
+  .dots i.on{background:var(--grad);box-shadow:none}
+
+  .controls{margin-top:16px;padding:16px;border-radius:var(--r);background:var(--panel);border:1px solid var(--line)}
+  .controls .ch{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.1em}
+  .cbar{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}
+  .cbtn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 16px;border-radius:12px;min-width:82px;
+    background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);font-size:11.5px;font-weight:700;transition:.15s}
+  .cbtn:hover{box-shadow:inset 0 0 0 1px var(--brand2)}
+  .cbtn .ci{font-size:17px}
+  .cbtn.primary{background:var(--grad);color:#fff;box-shadow:0 8px 22px -8px var(--brand2);min-width:200px;flex-direction:row}
+  .cbtn.danger{color:var(--live);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--live) 40%,transparent)}
+  .cbtn.take{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--brand2) 55%,transparent)}
+  .cbtn:disabled{opacity:.4;cursor:not-allowed}
+  .hint{margin-left:auto;align-self:center;font-size:11.5px;color:var(--muted);max-width:230px}
+  .fsm{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap;font-size:11.5px;color:var(--faint)}
+  .fsm .s{display:inline-flex;align-items:center;gap:7px;font-weight:600}
+  .fsm .s .n{width:20px;height:20px;border-radius:50%;box-shadow:inset 0 0 0 1px var(--line);display:grid;place-items:center;font-size:10px}
+  .fsm .s.on{color:var(--ink)}.fsm .s.on .n{background:var(--grad);color:#fff;box-shadow:none}
+  .fsm .ar{color:var(--faint)}
+
+  .devnote{margin-top:26px;padding:16px 18px;border-radius:var(--r);background:var(--bg2);border:1px dashed var(--line);font-size:12px;color:var(--muted)}
+  .devnote b{color:var(--ink)}
+  .devnote code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:11px;color:var(--ai)}
+  .kbd{display:inline-block;padding:1px 6px;border-radius:5px;background:var(--panel2);box-shadow:inset 0 0 0 1px var(--line);font-size:11px}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div class="logo"><span class="mk">F</span> FlowSmartly <span class="badge-ai">AI</span></div>
+    <nav class="nav">
+      <a>Training Room</a><a>Plan</a><a class="on">Build</a><a>Live room</a><a>Back office</a>
+    </nav>
+    <span class="pill"><span class="shield"></span> Your data is private &amp; secure</span>
+  </div>
+
+  <div class="seg" role="tablist">
+    <button class="on" data-v="setup">◐ AI Presenter setup</button>
+    <button data-v="live">◉ Live presentation</button>
+  </div>
+
+  <!-- ================= SETUP ================= -->
+  <section class="view on" id="setup">
+    <div class="setupHead">
+      <div>
+        <div class="eyebrow">Build with AI · add-on</div>
+        <h1 style="font-size:26px;margin:6px 0 6px">AI Presenter Assistant</h1>
+        <p class="lede">A presenter that represents you — your cloned voice and likeness — joins the room as a disclosed co-host and delivers the whole training in sync with the slides.</p>
+      </div>
+      <span class="tag-ok">✓ Voice &amp; identity used only with your permission</span>
+    </div>
+
+    <div class="setupGrid">
+      <!-- stepper -->
+      <div class="card steps">
+        <div class="step done"><div class="dot">✓</div><div><b>Clone voice</b><span>Completed</span></div><div class="ln"></div></div>
+        <div class="step done"><div class="dot">✓</div><div><b>Create presenter</b><span>Completed</span></div><div class="ln"></div></div>
+        <div class="step cur"><div class="dot">3</div><div><b>Delivery style</b><span>In progress</span></div><div class="ln"></div></div>
+        <div class="step"><div class="dot">4</div><div><b>Question behavior</b><span>Pending</span></div><div class="ln"></div></div>
+        <div class="step"><div class="dot">5</div><div><b>Review &amp; save</b><span>Pending</span></div></div>
+      </div>
+
+      <!-- middle -->
+      <div>
+        <div class="card block">
+          <h3><span class="num">1</span> Clone your voice <span class="tag-ok" style="margin-left:auto">✓ Owner verified</span></h3>
+          <div class="wave" id="wave"></div>
+          <div style="display:flex;justify-content:space-between;font-size:10.5px;color:var(--faint)">00:00<span>Read ~60s in a quiet room</span>01:02</div>
+          <div class="rowbtns">
+            <button class="obtn">🎙 Record sample</button>
+            <button class="obtn">⤴ Upload audio</button>
+            <button class="obtn">▷ Test voice</button>
+          </div>
+        </div>
+
+        <div class="card block">
+          <h3><span class="num">2</span> Choose your presenter <span class="tag-ok" style="margin-left:auto">✓ Identity approved</span></h3>
+          <div style="display:flex;gap:16px;align-items:center;margin-top:14px">
+            <div class="avatar"><span class="chk">✓</span></div>
+            <div class="rowbtns" style="margin:0;flex:1">
+              <button class="obtn">🖼 Upload photo</button>
+              <button class="obtn">✦ Create avatar</button>
+              <button class="obtn">📷 Camera clone</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card block">
+          <h3><span class="num">3</span> Delivery style</h3>
+          <div class="styleGrid" id="styleGrid">
+            <button class="sc" data-s><span class="ic">💼</span>Professional</button>
+            <button class="sc on" data-s><span class="ic">💬</span>Conversational</button>
+            <button class="sc" data-s><span class="ic">⚡</span>Energetic</button>
+            <button class="sc" data-s><span class="ic">🎓</span>Teacher</button>
+          </div>
+          <div class="sliders">
+            <div class="sld"><label>Speaking pace</label><div class="track" style="--v:52%"><span class="knob"></span></div><span class="val">1.0×</span></div>
+            <div class="toggles">
+              <div class="tg">Follow speaker notes <span class="sw on" data-sw></span></div>
+              <div class="tg">Describe visuals naturally <span class="sw on" data-sw></span></div>
+            </div>
+            <div class="sld"><label>Expressiveness</label><div class="track" style="--v:65%"><span class="knob"></span></div><span class="val">65%</span></div>
+            <div class="toggles">
+              <div class="tg">Advance progressive reveals <span class="sw on" data-sw></span></div>
+              <div class="tg">Use Live Draw timing <span class="sw on" data-sw></span></div>
+            </div>
+            <div class="sld"><label>Pause length</label><div class="track" style="--v:40%"><span class="knob"></span></div><span class="val">1.2s</span></div>
+          </div>
+          <div style="margin-top:16px" class="eyebrow">Presenter role</div>
+          <div class="roleRow" id="roleRow">
+            <button class="role on" data-r>👥 Co-host <span class="rdo"></span></button>
+            <button class="role" data-r>👤 Host <span class="rdo"></span></button>
+            <button class="role" data-r>🤖 Assistant <span class="rdo"></span></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- preview -->
+      <div>
+        <div class="card preview">
+          <h4 style="margin-bottom:12px">Presenter preview</h4>
+          <div class="pvid">
+            <div class="subj"></div>
+            <div class="cap">“Let’s begin by understanding what an AI agent actually does.”</div>
+            <div class="pwave" id="pwave"></div>
+          </div>
+          <div class="pctrl">
+            <button class="ply">▶</button><button class="ply">❚❚</button><button class="ply">↻</button>
+            <div class="track" style="--v:30%;flex:1;margin-left:6px"><span class="knob"></span></div>
+            <span style="font-size:11px">🔊</span>
+          </div>
+          <div class="synced">◷ Sync timeline</div>
+          <div class="flow">
+            <div class="fm"><div class="fd" style="background:linear-gradient(135deg,#6366f1,#8b5cf6)">🔊</div><b>Speak</b><span>0:00–0:06</span></div>
+            <div class="cn" style="flex:1"></div>
+            <div class="fm"><div class="fd" style="background:linear-gradient(135deg,#0ea5e9,#22d3ee)">🖼</div><b>Show photo</b><span>0:06–0:12</span></div>
+            <div class="cn" style="flex:1"></div>
+            <div class="fm"><div class="fd" style="background:linear-gradient(135deg,#10b981,#34d399)">◆</div><b>Reveal 3D</b><span>0:12–0:20</span></div>
+            <div class="cn" style="flex:1"></div>
+            <div class="fm"><div class="fd" style="background:linear-gradient(135deg,#f59e0b,#f97316)">✎</div><b>Live Draw</b><span>0:20–0:32</span></div>
+            <div class="cn" style="flex:1"></div>
+            <div class="fm"><div class="fd" style="background:linear-gradient(135deg,#eab308,#f59e0b)">?</div><b>Ask</b><span>0:32–0:40</span></div>
+          </div>
+          <div class="note">✦ Every teaching moment is compiled to timed events that play in lock-step with the slides, strokes and reveals.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <span class="shield"></span>
+      <span class="sec">Voice and identity are used only with your permission. <a style="color:var(--brand2)">Learn more</a></span>
+      <div style="margin-left:auto;display:flex;gap:12px">
+        <button class="btn ghost">🔖 Save presenter</button>
+        <button class="btn grad" onclick="go('live')">Generate presenter narration ✦</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= LIVE ================= -->
+  <section class="view" id="live">
+    <div class="liveHead">
+      <div class="logo"><span class="mk">F</span></div>
+      <b style="font-size:14px">Agentic AI Training</b>
+      <span class="rec"><span class="d"></span> LIVE</span>
+      <span style="color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums" id="clock">18:42</span>
+      <span class="statepill" id="statepill" style="margin-left:auto"><span class="d"></span> <span id="stateLabel">AI Presenter · Ready</span></span>
+      <span class="statepill"><span class="d" style="background:var(--ok)"></span> Jean · Listening</span>
+    </div>
+
+    <div class="liveGrid">
+      <!-- stage -->
+      <div>
+        <div class="stage" id="stage">
+          <div class="ttl" id="stageTitle">How an AI Agent Completes a Task</div>
+          <svg viewBox="0 0 900 460" style="position:absolute;inset:0;width:100%;height:100%">
+            <ellipse id="s0" class="stroke reveal" cx="230" cy="300" rx="92" ry="70"></ellipse>
+            <text id="s1" class="lbl reveal" x="230" y="312" text-anchor="middle">Goal</text>
+            <line  id="s2" class="stroke reveal" x1="330" y1="300" x2="440" y2="300"></line>
+            <polyline id="s2b" class="stroke reveal" points="420,286 442,300 420,314"></polyline>
+            <path  id="s3" class="stroke reveal" d="M600 300 a92 70 0 1 0 -1 0"></path>
+            <path  id="s4" class="stroke reveal" d="M556 262 a70 55 0 1 0 -1 0"></path>
+          </svg>
+          <div class="cap" id="cap">Ready when you are — press <b>Play</b> to let the presenter begin.</div>
+          <div class="cohost" id="cohost"><div class="face"></div><div class="lbl">Jean AI · Co-host</div><span class="aib badge-ai">AI</span></div>
+          <div class="mprog"><span id="momentLbl">Moment 1 of 7</span><span style="color:#889">·</span><span id="strokeLbl">Stroke 0 of 6</span><div class="bar"><i id="mbar"></i></div></div>
+        </div>
+
+        <!-- presenter controls -->
+        <div class="controls">
+          <div class="ch">◐ Presenter controls <span class="badge-ai">AI</span></div>
+          <div class="cbar">
+            <button class="cbtn" id="btnPause"><span class="ci">❚❚</span> Pause AI</button>
+            <button class="cbtn primary" id="btnPlay"><span class="ci">▶</span> <span id="playLbl">Play presentation</span></button>
+            <button class="cbtn" id="btnSkip"><span class="ci">⤼</span> Skip moment</button>
+            <button class="cbtn" id="btnRepeat"><span class="ci">↻</span> Repeat</button>
+            <button class="cbtn take" id="btnTake"><span class="ci">👤</span> Human takeover</button>
+            <button class="cbtn danger" id="btnEnd"><span class="ci">⏹</span> End AI</button>
+            <span class="hint" id="ctrlHint">The AI presenter drives every slide, stroke and reveal on one shared clock. Pause any time to jump in.</span>
+          </div>
+          <div class="fsm" id="fsm">
+            <span class="s" data-st="READY"><span class="n">1</span> Ready</span><span class="ar">→</span>
+            <span class="s" data-st="PLAYING"><span class="n">2</span> AI speaking</span><span class="ar">→</span>
+            <span class="s" data-st="WAITING_FOR_QUESTION"><span class="n">3</span> Question pause</span><span class="ar">→</span>
+            <span class="s" data-st="HUMAN_TAKEOVER"><span class="n">4</span> Human speaking</span><span class="ar">→</span>
+            <span class="s" data-st="RESUMING"><span class="n">5</span> Resume AI</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- rail -->
+      <div class="rail">
+        <div class="card panel">
+          <h4>👥 Participants <span style="color:var(--muted);margin-left:auto">4</span></h4>
+          <div style="margin-top:8px">
+            <div class="who"><div class="pf"></div><b>Jean</b> <span>· Host</span><div class="rt"><span style="color:var(--ok)">●</span>🎙</div></div>
+            <div class="who ai"><div class="pf"></div><b>Jean AI</b> <span>· Co-host</span><div class="rt"><span class="badge-ai">AI</span><span id="aiMeter">▮</span></div></div>
+            <div class="who"><div class="pf"></div><b>Laikos</b><div class="rt">✋🎙</div></div>
+            <div class="who"><div class="pf"></div><b>Keurtyves</b><div class="rt">🎙</div></div>
+          </div>
+        </div>
+
+        <div class="card panel">
+          <h4>❔ Questions <span style="color:var(--muted);margin-left:auto">1</span></h4>
+          <div class="qcard" style="margin-top:8px">
+            <div class="qh">✋ Laikos <span style="color:var(--faint);margin-left:auto;font-weight:500">2m ago</span></div>
+            Can the agent use multiple tools?
+          </div>
+        </div>
+
+        <div class="aiState" id="aiState">
+          <div class="big">
+            <div class="icn" id="aiIcon">▶</div>
+            <div><b id="aiTitle">Ready to present</b><p id="aiSub">Press Play — the presenter delivers moment by moment.</p></div>
+          </div>
+          <div class="dots" id="aiDots"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="devnote">
+      <b>Runtime model.</b> One shared clock drives narration audio, the avatar animation loop, lip-sync, slide changes, 3D reveals and Live-Draw strokes. Narration is pre-compiled into short <code>narration_segments</code> and timed <code>presentation_events</code> per moment. <span class="kbd">Pause AI</span> freezes the clock and saves <code>{presentationTimeMs, audioTimeMs, animationTimeMs, momentId, strokeIndex}</code>; <span class="kbd">Human takeover</span> opens your mic and holds the position; <span class="kbd">Resume</span> continues from the exact saved event. Live questions answer in real time and hand off to the host on low confidence.
+    </div>
+  </div>
+</section>
+</div>
+
+<script>
+  // tabs
+  function go(v){document.querySelectorAll('.seg button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+    document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id===v));window.scrollTo({top:0,behavior:'smooth'});}
+  document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>go(b.dataset.v));
+  document.querySelectorAll('#styleGrid .sc').forEach(b=>b.onclick=()=>{document.querySelectorAll('#styleGrid .sc').forEach(x=>x.classList.remove('on'));b.classList.add('on')});
+  document.querySelectorAll('#roleRow .role').forEach(b=>b.onclick=()=>{document.querySelectorAll('#roleRow .role').forEach(x=>x.classList.remove('on'));b.classList.add('on')});
+  document.querySelectorAll('[data-sw]').forEach(s=>s.onclick=()=>s.classList.toggle('on'));
+
+  // waveforms
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+  const fill=(el,n,min,max)=>{el.innerHTML='';for(let i=0;i<n;i++){const b=document.createElement('i');b.style.height=rnd(min,max)+'%';el.appendChild(b)}};
+  fill(document.getElementById('wave'),90,12,100);
+  fill(document.getElementById('pwave'),64,20,95);
+
+  // ---------------- live runtime state machine ----------------
+  const strokes=['s0','s1','s2','s2b','s3','s4'];
+  strokes.forEach(id=>{const el=document.getElementById(id);const len=el.getTotalLength?el.getTotalLength():300;
+    el.style.strokeDasharray=len;el.style.strokeDashoffset=len;el.dataset.len=len;
+    if(el.tagName==='text'){el.style.opacity=0;}});
+  document.getElementById('stageTitle').style.setProperty('--u','0');
+  const title=document.getElementById('stageTitle');title.style.setProperty('transition','none');
+  title.querySelectorAll('*');
+  // moments: each is a set of narration + optional stroke reveal + optional question pause
+  const MOMENTS=[
+    {cap:"An AI agent is given a goal — a clear outcome to reach.",stroke:0},
+    {cap:"It labels that goal so every step stays anchored to it.",stroke:1},
+    {cap:"Then it plans a path from the goal toward the work.",stroke:2},
+    {cap:"…choosing the right tools as it goes.",stroke:4},
+    {cap:"It loops — act, observe, adjust — until the goal is met.",stroke:5},
+    {cap:"Quick check-in — does the loop make sense so far?",question:true},
+    {cap:"Great. That loop is the whole idea behind an agent.",stroke:null},
+  ];
+  let idx=-1, state='READY', timer=null, revealedTitle=false;
+  const $=id=>document.getElementById(id);
+  const setStroke=(n,on)=>{const el=$(strokes[n]);if(!el)return;
+    if(el.tagName==='text'){el.style.transition='opacity .5s';el.style.opacity=on?1:0;}
+    else{el.style.transition='stroke-dashoffset .9s ease';el.style.strokeDashoffset=on?0:el.dataset.len;}};
+  function setState(s){state=s;
+    const p=$('statepill'),lab=$('stateLabel');
+    const map={READY:['AI Presenter · Ready',''],PLAYING:['AI Presenter · Speaking',''],
+      WAITING_FOR_QUESTION:['AI Presenter · Waiting for question','human'],
+      HUMAN_TAKEOVER:['You are speaking','human'],RESUMING:['AI Presenter · Resuming',''],
+      ANSWERING:['AI Presenter · Answering',''],COMPLETED:['Presentation complete','']};
+    lab.textContent=map[s][0];p.classList.toggle('human',map[s][1]==='human');
+    document.querySelectorAll('#fsm .s').forEach(x=>x.classList.toggle('on',x.dataset.st===s
+      || (s==='ANSWERING'&&x.dataset.st==='WAITING_FOR_QUESTION')));
+    $('cohost').classList.toggle('speaking',s==='PLAYING'||s==='ANSWERING'||s==='RESUMING');
+    $('aiMeter').textContent=(s==='PLAYING'||s==='ANSWERING')?'▮▮▮':'▯';
+    // ai state panel
+    const A={READY:['▶','Ready to present','Press Play — the presenter delivers moment by moment.'],
+      PLAYING:['🔊','Presenting','Narration, strokes and reveals play on one clock.'],
+      WAITING_FOR_QUESTION:['❚❚','Paused for question','Waiting for host or participant.'],
+      HUMAN_TAKEOVER:['👤','You have the floor','Your mic is open; timeline position is held.'],
+      RESUMING:['▶','Resuming','Continuing from the saved event.'],
+      ANSWERING:['💬','Answering live','Pulling from notes + source materials.'],
+      COMPLETED:['✓','Complete','That’s the full session.']};
+    $('aiIcon').textContent=A[s][0];$('aiTitle').textContent=A[s][1];$('aiSub').textContent=A[s][2];
+    // buttons
+    const playing=s==='PLAYING'||s==='RESUMING'||s==='ANSWERING';
+    $('btnPlay').querySelector('#playLbl').textContent = (s==='READY')?'Play presentation':(s==='COMPLETED')?'Replay':'Resume presentation';
+    $('btnPause').disabled=!playing;$('btnPlay').disabled=playing;
+    $('btnTake').disabled=false;
+    $('ctrlHint').textContent = s==='WAITING_FOR_QUESTION'?'A hand is raised — your mic opens and the AI holds its exact position.'
+      : s==='HUMAN_TAKEOVER'?'You’re speaking. Press Resume and the AI picks up from the saved event.'
+      : 'The AI presenter drives every slide, stroke and reveal on one shared clock.';
+  }
+  function dots(){const d=$('aiDots');d.innerHTML='';MOMENTS.forEach((m,i)=>{const s=document.createElement('i');if(i<=idx)s.classList.add('on');d.appendChild(s)})}
+  function moment(i){
+    idx=i;const m=MOMENTS[i];
+    $('cap').style.opacity=0;
+    setTimeout(()=>{$('cap').textContent=m.cap;$('cap').style.opacity=1;},260);
+    if(!revealedTitle){revealedTitle=true;} // underline handled in css
+    if(m.stroke!=null)setStroke(m.stroke,true);
+    $('momentLbl').textContent='Moment '+(i+1)+' of '+MOMENTS.length;
+    const drawn=MOMENTS.slice(0,i+1).filter(x=>x.stroke!=null).length;
+    $('strokeLbl').textContent='Stroke '+drawn+' of '+strokes.length;
+    $('mbar').style.width=((i+1)/MOMENTS.length*100)+'%';
+    dots();
+    if(m.question){setState('WAITING_FOR_QUESTION');stop();return;}
+    setState(i===MOMENTS.length-1?'COMPLETED':'PLAYING');
+    if(i===MOMENTS.length-1){stop();}
+  }
+  function tick(){ if(idx<MOMENTS.length-1) moment(idx+1); else stop(); }
+  function play(){ if(state==='COMPLETED'||idx>=MOMENTS.length-1){reset();}
+    if(state==='WAITING_FOR_QUESTION'||state==='HUMAN_TAKEOVER'){setState('RESUMING');}
+    setTimeout(()=>{ if(state!=='COMPLETED')setState(idx<0?'PLAYING':state==='RESUMING'?'PLAYING':'PLAYING');
+      if(idx<0)moment(0); stop(); timer=setInterval(tick,2600);},state==='RESUMING'?600:0);}
+  function stop(){clearInterval(timer);timer=null;}
+  function pause(){stop();if(state==='PLAYING')setState('WAITING_FOR_QUESTION');}
+  function reset(){stop();idx=-1;revealedTitle=false;strokes.forEach((_,n)=>setStroke(n,false));setState('READY');dots();
+    $('cap').textContent='Ready when you are — press Play to let the presenter begin.';
+    $('momentLbl').textContent='Moment 1 of '+MOMENTS.length;$('strokeLbl').textContent='Stroke 0 of '+strokes.length;$('mbar').style.width='0%';}
+  $('btnPlay').onclick=play;
+  $('btnPause').onclick=()=>{stop();setState('WAITING_FOR_QUESTION');};
+  $('btnSkip').onclick=()=>{stop();if(idx<MOMENTS.length-1)moment(idx+1);};
+  $('btnRepeat').onclick=()=>{const m=MOMENTS[Math.max(0,idx)];$('cap').textContent=m.cap;};
+  $('btnTake').onclick=()=>{stop();setState('HUMAN_TAKEOVER');};
+  $('btnEnd').onclick=reset;
+  dots();setState('READY');
+
+  // ticking clock
+  let mm=18,ss=42;setInterval(()=>{ss++;if(ss>59){ss=0;mm++;}$('clock').textContent=String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0');},1000);
+  // animate ai meter subtly while speaking
+  setInterval(()=>{if(state==='PLAYING'||state==='ANSWERING'){$('aiMeter').textContent=['▮▮▯','▮▯▮','▯▮▮','▮▮▮'][Math.floor(Math.random()*4)];}},300);
+</script>
