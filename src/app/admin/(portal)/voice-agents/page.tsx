@@ -62,6 +62,16 @@ interface ConsoleSheet {
   deployment: { escalateTo: string | null };
 }
 
+interface LiveAgent {
+  id: string;
+  name: string;
+  status: string;
+  user: { id: string; email: string; name: string | null } | null;
+  currentE164: string | null;
+  currentXaiAgentId: string | null;
+  liveSince: string | null;
+}
+
 interface AgentRequest {
   id: string;
   requestedAt: string | null;
@@ -548,8 +558,116 @@ function NumberConnectPanel() {
 // Page
 // ---------------------------------------------------------------------------
 
+/** An approved agent with an inline "replace the number it answers on" form. */
+function LiveAgentCard({ agent, onSaved }: { agent: LiveAgent; onSaved: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [e164, setE164] = useState(agent.currentE164 || "");
+  const [xaiAgentId, setXaiAgentId] = useState(agent.currentXaiAgentId || "");
+  const [xaiPhoneNumberId, setXaiPhoneNumberId] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (!/^\+[1-9]\d{7,14}$/.test(e164)) {
+      toast({ title: "Check the number", description: "Full international format, like +14155550142.", variant: "destructive" });
+      return;
+    }
+    if (!xaiAgentId.trim()) {
+      toast({ title: "Missing agent id", description: "Paste the agent id from the console.", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/voice-agent/agents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId: agent.id,
+          e164: e164.trim(),
+          xaiAgentId: xaiAgentId.trim(),
+          xaiPhoneNumberId: xaiPhoneNumberId.trim() || undefined,
+          note: note.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: "Number updated", description: `${agent.name} now answers on ${e164}.` });
+        setOpen(false);
+        onSaved();
+      } else {
+        toast({ title: "Could not update", description: data.error?.message || "Try again.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Could not update", description: "Network error — try again.", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">{agent.name}</span>
+              <Badge variant={agent.status === "LIVE" ? "default" : "secondary"} className={agent.status === "LIVE" ? "bg-emerald-600 hover:bg-emerald-600" : ""}>
+                {agent.status}
+              </Badge>
+            </div>
+            <p className="mt-0.5 text-sm text-muted-foreground">{agent.user?.email || agent.user?.name || "—"}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="font-mono text-sm">{agent.currentE164 || "no number"}</p>
+              {agent.currentXaiAgentId && <p className="font-mono text-[11px] text-muted-foreground">{agent.currentXaiAgentId}</p>}
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setOpen((v) => !v)}>
+              {open ? "Cancel" : "Replace number"}
+            </Button>
+          </div>
+        </div>
+
+        {open && (
+          <div className="rounded-lg border bg-muted/20 p-4">
+            <p className="mb-3 text-xs text-muted-foreground">
+              Assign a different line — releases it from any paused agent that still holds it. Keeps this agent&apos;s status.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Phone number (E.164)</label>
+                <Input value={e164} onChange={(e) => setE164(e.target.value)} placeholder="+14155550142" className="font-mono text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Console agent id</label>
+                <Input value={xaiAgentId} onChange={(e) => setXaiAgentId(e.target.value)} placeholder="agent_…" className="font-mono text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Number id (optional)</label>
+                <Input value={xaiPhoneNumberId} onChange={(e) => setXaiPhoneNumberId(e.target.value)} placeholder="phone_…" className="font-mono text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Internal note (optional)</label>
+                <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="why the change" className="text-sm" />
+              </div>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <Button onClick={submit} disabled={saving} className="gap-2">
+                {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {saving ? "Saving…" : "Save number"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function VoiceAgentsQueuePage() {
   const [requests, setRequests] = useState<AgentRequest[]>([]);
+  const [live, setLive] = useState<LiveAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -560,6 +678,7 @@ export default function VoiceAgentsQueuePage() {
       const data = await res.json();
       if (data.success) {
         setRequests(data.requests || []);
+        setLive(data.live || []);
         setError(null);
       } else {
         setError(data.error?.message || "Could not load requests");
@@ -644,6 +763,22 @@ export default function VoiceAgentsQueuePage() {
         <div className="space-y-4">
           {requests.map((req) => (
             <RequestCard key={req.id} req={req} onApproved={fetchRequests} />
+          ))}
+        </div>
+      )}
+
+      {/* Approved agents — edit / replace the line they answer on */}
+      {!loading && live.length > 0 && (
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">Live agents</h2>
+            <Badge variant="secondary">{live.length}</Badge>
+          </div>
+          <p className="-mt-1 text-sm text-muted-foreground">
+            Change the number an agent answers on — e.g. after re-provisioning it in the console.
+          </p>
+          {live.map((a) => (
+            <LiveAgentCard key={a.id} agent={a} onSaved={fetchRequests} />
           ))}
         </div>
       )}
