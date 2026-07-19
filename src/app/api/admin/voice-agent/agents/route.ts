@@ -142,7 +142,23 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ success: true, requests: rows });
+    // Already-approved agents, so an admin can edit / replace the line they answer on.
+    const liveAgents = await prisma.voiceAgent.findMany({
+      where: { status: { in: ["LIVE", "PAUSED"] } },
+      orderBy: [{ liveSince: "desc" }, { updatedAt: "desc" }],
+      include: { user: { select: { id: true, email: true, name: true } }, number: true },
+    });
+    const live = liveAgents.map((a) => ({
+      id: a.id,
+      name: a.name,
+      status: a.status,
+      user: a.user,
+      currentE164: a.number?.e164 || null,
+      currentXaiAgentId: a.xaiAgentId || null,
+      liveSince: a.liveSince,
+    }));
+
+    return NextResponse.json({ success: true, requests: rows, live });
   } catch (error) {
     console.error("[admin/voice-agents] GET error:", error);
     return fail("Could not load agent requests", 500);
@@ -252,6 +268,109 @@ export async function POST(request: NextRequest) {
   }).catch((e) => console.error("[admin/voice-agents] notify failed:", e));
 
   await auditAdmin("voice_agent.approve", admin.adminId, "VoiceAgent", agentId, {
+    e164,
+    xaiAgentId,
+    tenant: agent.user?.email,
+    ...(releasedFrom ? { releasedFromAgent: releasedFrom } : {}),
+  });
+
+  return NextResponse.json({ success: true });
+}
+
+/**
+ * Edit / replace the number an already-approved agent answers on — e.g. after a
+ * number is re-provisioned in the console. Same atomic hand-off as approval, but
+ * it keeps the agent's current status instead of activating it.
+ */
+export async function PATCH(request: NextRequest) {
+  const admin = await getAdminSession();
+  if (!admin) return fail("Unauthorized", 401);
+
+  const body = await request.json().catch(() => ({}));
+  const { agentId, e164, xaiAgentId, xaiPhoneNumberId, note } = body as {
+    agentId?: string;
+    e164?: string;
+    xaiAgentId?: string;
+    xaiPhoneNumberId?: string;
+    note?: string;
+  };
+  if (!agentId) return fail("Which agent?");
+  if (!e164 || !/^\+[1-9]\d{7,14}$/.test(e164)) return fail("Enter the number in full international format, like +14155550142.");
+  if (!xaiAgentId) return fail("Enter the agent id from the console.");
+
+  const agent = await prisma.voiceAgent.findUnique({ where: { id: agentId }, include: { user: true } });
+  if (!agent) return fail("Agent not found", 404);
+  if (agent.status === "REQUESTED") return fail("This agent hasn't been approved yet — use Approve in the queue.");
+
+  const now = new Date();
+  let releasedFrom: string | null = null;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const number = await tx.phoneNumber.upsert({
+        where: { e164 },
+        create: {
+          userId: agent.userId,
+          e164,
+          origin: "XAI_PROVISIONED",
+          status: "ACTIVE",
+          xaiPhoneNumberId: xaiPhoneNumberId || null,
+          xaiAgentId,
+          fulfilledAt: now,
+          fulfilledBy: admin.adminId,
+        },
+        update: {
+          userId: agent.userId,
+          status: "ACTIVE",
+          xaiPhoneNumberId: xaiPhoneNumberId || undefined,
+          xaiAgentId,
+        },
+        select: { id: true },
+      });
+
+      const holder = await tx.voiceAgent.findFirst({
+        where: { phoneNumberId: number.id, NOT: { id: agentId } },
+        select: { id: true, name: true, status: true },
+      });
+      if (holder?.status === "LIVE") {
+        throw new ApproveError(`That number is already live on “${holder.name}”. Pause that agent first, then reassign.`);
+      }
+      if (holder) {
+        await tx.voiceAgent.update({ where: { id: holder.id }, data: { phoneNumberId: null, status: "PAUSED" } });
+        releasedFrom = holder.id;
+      }
+
+      // Keep the agent's current status — this only swaps the line + console id.
+      await tx.voiceAgent.update({
+        where: { id: agentId },
+        data: {
+          phoneNumberId: number.id,
+          xaiAgentId,
+          xaiSyncState: "synced",
+          ...(note !== undefined ? { adminNote: note || null } : {}),
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof ApproveError) return fail(error.message);
+    const code = error && typeof error === "object" && "code" in error ? (error as { code?: string }).code : "";
+    if (code === "P2002") {
+      return fail("That number is already assigned to another agent. Release it there first, then reassign.");
+    }
+    console.error("[admin/voice-agents] PATCH error:", error);
+    return fail("Could not update the number", 500);
+  }
+
+  await prisma.notification.create({
+    data: {
+      userId: agent.userId,
+      type: "VOICE_AGENT_LIVE",
+      title: "Your phone agent number changed",
+      message: `${agent.name} now answers on ${e164}.`,
+    },
+  }).catch((e) => console.error("[admin/voice-agents] notify failed:", e));
+
+  await auditAdmin("voice_agent.reassign_number", admin.adminId, "VoiceAgent", agentId, {
     e164,
     xaiAgentId,
     tenant: agent.user?.email,
