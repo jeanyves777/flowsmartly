@@ -54,7 +54,7 @@ export async function GET() {
     }),
     prisma.voiceProfile.findMany({
       where: { userId: session.userId, type: "cloned" },
-      select: { id: true, name: true, elevenLabsVoiceId: true, openaiVoiceId: true, createdAt: true },
+      select: { id: true, name: true, elevenLabsVoiceId: true, openaiVoiceId: true, sampleUrl: true, createdAt: true },
       orderBy: { createdAt: "desc" },
     }),
   ]);
@@ -63,7 +63,7 @@ export async function GET() {
     success: true,
     data: {
       presenters: presenters.map((p) => toDTO(p as PresenterRow)),
-      voices: voices.map((v) => ({ id: v.id, name: v.name, provider: v.elevenLabsVoiceId ? "elevenlabs" : v.openaiVoiceId ? "openai" : null })),
+      voices: voices.map((v) => ({ id: v.id, name: v.name, provider: v.elevenLabsVoiceId ? "elevenlabs" : v.openaiVoiceId ? "openai" : null, sampleUrl: v.sampleUrl })),
       voiceCloning: { available: isElevenLabsEnabled() || isOpenAIVoiceCloningEnabled(), provider: isElevenLabsEnabled() ? "elevenlabs" : isOpenAIVoiceCloningEnabled() ? "openai" : null },
     },
   });
