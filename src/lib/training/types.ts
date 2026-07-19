@@ -126,6 +126,8 @@ export interface TrainingParticipantDTO {
   secondsIn: number;
   /** a disclosed AI Presenter co-host (synthetic participant, not a real connection) */
   isAI: boolean;
+  /** for an AI co-host: a looping "moving avatar" clip to play in the tile (muted). */
+  videoUrl?: string | null;
 }
 
 export interface TrainingMaterialDTO {
@@ -191,6 +193,9 @@ export interface TrainingDeck {
    *  it's switched on to deliver the room. Set from the presenter step in the builder. */
   presenterId?: string | null;
   presenterActive?: boolean;
+  /** the presenter's looping avatar clip (copied from the profile) so the live room can
+   *  show a MOVING co-host without a profile lookup. */
+  presenterVideoUrl?: string | null;
 }
 
 // ------------------------------------------------------------ AI presenter
@@ -208,6 +213,7 @@ export interface PresenterProfileDTO {
   id: string;
   name: string;
   portraitUrl: string | null;
+  loopVideoUrl: string | null;
   voiceProfileId: string | null;
   voiceName: string | null;
   deliveryStyle: "professional" | "conversational" | "energetic" | "teacher";
