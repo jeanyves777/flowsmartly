@@ -96,15 +96,31 @@ export function PresenterSetup({ open, onClose, onChoose }: {
   // ---- audio preview / test voice ----
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
-  const testVoice = () => {
-    const url = f.sampleUrl;
-    if (!url) { toast({ title: "Record or pick a voice first to hear it" }); return; }
+  const [previewing, setPreviewing] = useState(false);
+  const cloneUrls = useRef<Record<string, string>>({}); // voiceProfileId → CLONE preview url
+  const testVoice = async () => {
     const a = audioRef.current;
     if (!a) return;
     if (playing) { a.pause(); return; }
+    // For a CLONED voice, audition the CLONE ITSELF (a sample spoken by it) so you can
+    // confirm it matches the original — not the raw recording we sent to clone it.
+    let url = f.sampleUrl;
+    if (f.voiceProfileId) {
+      const cached = cloneUrls.current[f.voiceProfileId];
+      if (cached) url = cached;
+      else {
+        setPreviewing(true);
+        try {
+          const j = await fetch("/api/ai/training/presenter/preview-voice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voiceProfileId: f.voiceProfileId }) }).then((r) => r.json());
+          if (j?.success && j.data.previewUrl) { url = j.data.previewUrl; cloneUrls.current[f.voiceProfileId] = j.data.previewUrl; }
+          else { toast({ title: j?.error?.message || "Couldn't preview the cloned voice", variant: "destructive" }); return; }
+        } finally { setPreviewing(false); }
+      }
+    }
+    if (!url) { toast({ title: "Record or pick a voice first to hear it" }); return; }
     a.src = url; a.currentTime = 0; a.play().then(() => setPlaying(true)).catch(() => toast({ title: "Couldn't play that sample" }));
   };
-  const restart = () => { const a = audioRef.current; if (a && f.sampleUrl) { a.currentTime = 0; a.play().then(() => setPlaying(true)).catch(() => {}); } };
+  const restart = () => { const a = audioRef.current; if (a && a.src) { a.currentTime = 0; a.play().then(() => setPlaying(true)).catch(() => {}); } };
 
   // ---- voice: record (via modal) or upload → reuse Voice Studio cloning ----
   const recRef = useRef<MediaRecorder | null>(null);
@@ -258,7 +274,7 @@ export function PresenterSetup({ open, onClose, onChoose }: {
         <div className="absolute inset-x-3 bottom-2"><Waveform active={playing} mini /></div>
       </div>
       <div className="mt-3 flex items-center gap-3 text-muted-foreground">
-        <button onClick={testVoice} className="grid h-9 w-9 place-items-center rounded-full border border-border text-foreground hover:border-brand-500">{playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
+        <button onClick={() => void testVoice()} className="grid h-9 w-9 place-items-center rounded-full border border-border text-foreground hover:border-brand-500">{previewing ? <Loader2 className="h-4 w-4 animate-spin" /> : playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
         <button onClick={restart} className="grid h-8 w-8 place-items-center rounded-full border border-border hover:border-brand-500"><RotateCcw className="h-3.5 w-3.5" /></button>
         <Volume2 className="ms-auto h-4 w-4" />
       </div>
@@ -288,7 +304,7 @@ export function PresenterSetup({ open, onClose, onChoose }: {
         ) : <div className="grid h-full place-items-center"><Portrait url={null} name={f.name} size={34} /></div>}
       </div>
       <div className="min-w-0 flex-1"><b className="block text-[12px]">Presenter preview</b><span className="block truncate text-[10.5px] text-muted-foreground">{playing ? "Speaking in your voice…" : f.sampleUrl ? "Play to hear your voice" : "Record or pick a voice to preview"}</span></div>
-      <button onClick={testVoice} disabled={!f.sampleUrl} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border text-foreground hover:border-brand-500 disabled:opacity-40">{playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
+      <button onClick={() => void testVoice()} disabled={(!f.sampleUrl && !f.voiceProfileId) || previewing} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border text-foreground hover:border-brand-500 disabled:opacity-40">{previewing ? <Loader2 className="h-4 w-4 animate-spin" /> : playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
       <button onClick={restart} disabled={!f.sampleUrl} className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-40"><RotateCcw className="h-3.5 w-3.5" /></button>
     </div>
   );
@@ -367,7 +383,7 @@ export function PresenterSetup({ open, onClose, onChoose }: {
                 <div className="grid gap-2.5 sm:grid-cols-3">
                   <button onClick={openRecord} disabled={!data?.voiceCloning.available || busy === "clone"} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 text-[12px] font-semibold hover:border-brand-500 disabled:opacity-40"><Mic className="h-4 w-4" /> Record sample</button>
                   <label className={cn("flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 text-[12px] font-semibold hover:border-brand-500", (!data?.voiceCloning.available || busy === "clone") && "pointer-events-none opacity-40")}><Upload className="h-4 w-4" /> Upload audio<input type="file" accept="audio/*" className="hidden" onChange={(e) => { onUploadAudio(e.target.files?.[0]); e.target.value = ""; }} /></label>
-                  <button onClick={testVoice} disabled={!f.sampleUrl} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 text-[12px] font-semibold hover:border-brand-500 disabled:opacity-40">{busy === "clone" ? <><Loader2 className="h-4 w-4 animate-spin" /> Cloning…</> : playing ? <><Pause className="h-4 w-4" /> Playing…</> : <><Play className="h-4 w-4" /> Test voice</>}</button>
+                  <button onClick={() => void testVoice()} disabled={(!f.sampleUrl && !f.voiceProfileId) || previewing} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 text-[12px] font-semibold hover:border-brand-500 disabled:opacity-40">{busy === "clone" || previewing ? <><Loader2 className="h-4 w-4 animate-spin" /> {previewing ? "Preparing clone…" : "Cloning…"}</> : playing ? <><Pause className="h-4 w-4" /> Playing…</> : <><Play className="h-4 w-4" /> {f.voiceProfileId ? "Hear the clone" : "Test voice"}</>}</button>
                 </div>
                 {!data?.voiceCloning.available ? <p className="mt-2 text-[11px] text-amber-400/90">Recording a new voice isn&apos;t available in this environment — pick an existing cloned voice below, or clone one in the live app.</p> : null}
                 {data?.voices.length ? (
