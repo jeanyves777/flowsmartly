@@ -40,38 +40,59 @@ const STYLE_MAP: Record<string, "professional" | "conversational" | "energetic" 
   professional: "professional", conversational: "conversational", energetic: "energetic", teacher: "warm",
 };
 
-/** Synthesize one script in the presenter's voice (cloned when available, else preset). */
-export async function synthesize(text: string, voice: ClonedVoice | null, pace: number, style: string): Promise<{ buffer: Buffer; durationMs: number }> {
+/** Synthesize one script in the presenter's voice. Tries the cloned voice first, but a
+ *  clone failure must NEVER block narration — it falls back to a preset voice so slides
+ *  still get audio (`usedClone` records which path actually produced the sound). */
+export async function synthesize(text: string, voice: ClonedVoice | null, pace: number, style: string): Promise<{ buffer: Buffer; durationMs: number; usedClone: boolean }> {
   const words = text.split(/\s+/).filter(Boolean).length;
   const fallbackMs = Math.max(1500, Math.round((words / 150) * 60 * 1000 / (pace || 1)));
-  if (voice?.openaiVoiceId) return { buffer: await generateWithClonedVoice({ text, voiceId: voice.openaiVoiceId, speed: pace }), durationMs: fallbackMs };
-  if (voice?.elevenLabsVoiceId) return { buffer: await generateWithElevenLabs({ text, voiceId: voice.elevenLabsVoiceId }), durationMs: fallbackMs };
+  // 1. the presenter's cloned voice (ElevenLabs is true cloning; try it first)
+  if (voice?.elevenLabsVoiceId) {
+    try { return { buffer: await generateWithElevenLabs({ text, voiceId: voice.elevenLabsVoiceId }), durationMs: fallbackMs, usedClone: true }; }
+    catch (e) { console.error("[narration] ElevenLabs voice failed, falling back to preset:", e instanceof Error ? e.message : e); }
+  }
+  if (voice?.openaiVoiceId) {
+    try { return { buffer: await generateWithClonedVoice({ text, voiceId: voice.openaiVoiceId, speed: pace }), durationMs: fallbackMs, usedClone: true }; }
+    catch (e) { console.error("[narration] OpenAI voice failed, falling back to preset:", e instanceof Error ? e.message : e); }
+  }
+  // 2. preset voice — always available (never lets narration fail outright)
   const r = await generateVoice({ text, gender: "male", accent: "american", style: STYLE_MAP[style] ?? "conversational", speed: pace });
-  return { buffer: r.audioBuffer, durationMs: r.estimatedDurationMs || fallbackMs };
+  return { buffer: r.audioBuffer, durationMs: r.estimatedDurationMs || fallbackMs, usedClone: false };
 }
 
-/** Narrate a whole deck: write scripts, synthesize each slide, return per-slide audio.
- *  Returns a map slideId → narration (only for slides that succeeded). */
+export interface NarrateResult {
+  narrations: Record<string, SlideNarration>;
+  /** the presenter asked for a cloned voice */
+  cloneRequested: boolean;
+  /** at least one slide actually used the cloned voice (vs the preset fallback) */
+  cloneUsed: boolean;
+}
+
+/** Narrate a whole deck: write scripts, synthesize each slide, return per-slide audio
+ *  plus whether the cloned voice was actually reachable. */
 export async function narrateDeck(opts: {
   slides: DeckSlide[];
   sessionId: string;
   voice: ClonedVoice | null;
   pace: number;
   style: string;
-}): Promise<Record<string, SlideNarration>> {
+}): Promise<NarrateResult> {
   const scripts = await writeDeckScripts(opts.slides, opts.style);
   const out: Record<string, SlideNarration> = {};
+  const cloneRequested = !!(opts.voice?.elevenLabsVoiceId || opts.voice?.openaiVoiceId);
+  let cloneUsed = false;
   const LIMIT = 3;
   for (let i = 0; i < opts.slides.length; i += LIMIT) {
     await Promise.all(opts.slides.slice(i, i + LIMIT).map(async (s, j) => {
       const text = scripts[i + j];
       if (!text) return;
       try {
-        const { buffer, durationMs } = await synthesize(text, opts.voice, opts.pace, opts.style);
+        const { buffer, durationMs, usedClone } = await synthesize(text, opts.voice, opts.pace, opts.style);
+        if (usedClone) cloneUsed = true;
         const audioUrl = await uploadToS3(`training/${opts.sessionId}/narration/${s.id}.mp3`, buffer, "audio/mpeg");
         out[s.id] = { text, audioUrl, durationMs };
-      } catch { /* a slide without audio just won't auto-play; the deck still presents */ }
+      } catch (e) { console.error(`[narration] slide ${s.id} synthesis failed:`, e instanceof Error ? e.message : e); }
     }));
   }
-  return out;
+  return { narrations: out, cloneRequested, cloneUsed };
 }
