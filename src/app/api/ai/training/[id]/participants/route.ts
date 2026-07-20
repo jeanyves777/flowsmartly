@@ -4,7 +4,51 @@ import { canControlRoom, canManageRoles, canShareScreen } from "@/lib/training/a
 import { getTrainingActor } from "@/lib/training/guest";
 import { getSessionDTO } from "@/lib/training/session";
 import { broadcast, sendTo } from "@/lib/training/room";
-import type { ParticipantRole } from "@/lib/training/types";
+import { synthesize } from "@/lib/training/narration";
+import { uploadToS3 } from "@/lib/utils/s3-client";
+import { nanoid } from "nanoid";
+import type { ParticipantRole, PresenterAnswer, TrainingDeck } from "@/lib/training/types";
+
+/**
+ * When someone raises a hand while the AI co-host is delivering, PAUSE the AI and have
+ * the presenter acknowledge them by voice ("Hi {name}, do you have a question?") so the
+ * host can let them ask or click Resume. Best-effort + free (a short courtesy line).
+ */
+async function greetHandRaise(id: string, participantId: string): Promise<void> {
+  const room = await prisma.trainingSession.findUnique({ where: { id }, select: { aiPlaying: true, userId: true, materials: { where: { kind: "slides" }, select: { deck: true } } } });
+  if (!room?.aiPlaying) return; // only interrupt when the AI is actually presenting
+
+  let deck: TrainingDeck | null = null;
+  for (const m of room.materials) {
+    if (!m.deck) continue;
+    try { const d = JSON.parse(m.deck) as TrainingDeck; if (d.presenterActive && d.presenterId) { deck = d; break; } } catch { /* skip */ }
+  }
+  if (!deck?.presenterId) return;
+
+  const [presenter, asker] = await Promise.all([
+    prisma.presenterProfile.findFirst({ where: { id: deck.presenterId, userId: room.userId }, select: { deliveryStyle: true, pace: true, voiceProfileId: true } }),
+    prisma.trainingParticipant.findUnique({ where: { id: participantId }, select: { name: true } }),
+  ]);
+  if (!presenter) return;
+  const name = (asker?.name || "there").split(/\s+/)[0];
+
+  // pause the AI narration so the room stops for the question
+  await prisma.trainingSession.update({ where: { id }, data: { aiPlaying: false } }).catch(() => {});
+  broadcast(id, { type: "room:state", patch: { aiPlaying: false } });
+
+  const line = `Hi ${name}, it looks like you have a question. Go ahead — I'm listening.`;
+  let audioUrl: string | null = null;
+  let durationMs = 0;
+  try {
+    const voice = presenter.voiceProfileId ? await prisma.voiceProfile.findFirst({ where: { id: presenter.voiceProfileId }, select: { openaiVoiceId: true, elevenLabsVoiceId: true } }) : null;
+    const { buffer, durationMs: d } = await synthesize(line, voice, presenter.pace ?? 1, presenter.deliveryStyle ?? "conversational");
+    audioUrl = await uploadToS3(`training/${id}/handraise/${nanoid(8)}.mp3`, buffer, "audio/mpeg");
+    durationMs = d;
+  } catch { /* text-only acknowledgement if TTS is unavailable */ }
+
+  const answer: PresenterAnswer = { id: nanoid(8), question: `${asker?.name || "Someone"} raised their hand ✋`, askedBy: asker?.name || "Someone", answer: line, audioUrl, durationMs, confident: true };
+  broadcast(id, { type: "presenter:answer", answer });
+}
 
 const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
@@ -209,6 +253,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       break;
     case "raise_hand":
       await prisma.trainingParticipant.update({ where: { id: participantId }, data: { handRaised: true } });
+      await greetHandRaise(id, participantId).catch(() => {}); // pause AI + voice acknowledgement
       break;
     case "lower_hand":
       await prisma.trainingParticipant.update({ where: { id: participantId }, data: { handRaised: false } });

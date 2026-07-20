@@ -11,6 +11,17 @@
 import { cn } from "@/lib/utils/cn";
 import type { BoardItem, DeckSlide } from "@/lib/training/types";
 
+/** Strip markdown at render so decks built before the generator was fixed don't show
+ *  literal `**bold**` / `_italics_` / list markers on the slide. */
+const md = (s: string | undefined | null): string =>
+  (s ?? "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/(^|\s)\*(\S.*?\S|\S)\*(?=\s|$)/g, "$1$2")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^\s*[-*•]\s+/, "")
+    .replace(/#+\s*/g, "");
+
 export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; reveal?: number; className?: string }) {
   // `reveal` = how many steps are shown (undefined = show everything, e.g. a builder
   // thumbnail). Drives the progressive "drawing as you talk" reveal.
@@ -23,7 +34,7 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
         className={cn("relative h-full w-full overflow-hidden bg-[#f7f7f2] [container-type:inline-size]", className)}
         style={{ backgroundImage: "radial-gradient(circle at 1px 1px,#dad9d0 1px,transparent 0)", backgroundSize: "22px 22px" }}
       >
-        <div className="absolute left-[6%] top-[5%] z-[3] text-[clamp(8px,3.6cqw,32px)] font-extrabold text-[#1a1a1a]" style={{ fontFamily: '"Segoe Print","Comic Sans MS",cursive' }}>{slide.title}</div>
+        <div className="absolute left-[6%] top-[5%] z-[3] text-[clamp(8px,3.6cqw,32px)] font-extrabold text-[#1a1a1a]" style={{ fontFamily: '"Segoe Print","Comic Sans MS",cursive' }}>{md(slide.title)}</div>
         <DiagramBoard items={slide.board ?? []} reveal={reveal} wide={slide.wide} animated={slide.type === "livedraw"} />
       </div>
     );
@@ -41,14 +52,14 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
       ) : null}
       <div className={cn("relative grid h-full w-full gap-[5%] p-[6%] pl-[8%]", full ? "grid-cols-1" : left ? "grid-cols-[.85fr_1.15fr]" : "grid-cols-[1.15fr_.85fr]")}>
         <div className={cn("flex flex-col justify-center", left && "order-2")}>
-          <h1 className="text-[clamp(8px,3.6cqw,36px)] font-extrabold leading-tight tracking-tight">{slide.title}</h1>
-          {slide.subtitle ? <p className="mt-1.5 text-[clamp(5px,1.7cqw,16px)] font-bold text-violet-300">{slide.subtitle}</p> : null}
+          <h1 className="text-[clamp(8px,3.6cqw,36px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
+          {slide.subtitle ? <p className="mt-1.5 text-[clamp(5px,1.7cqw,16px)] font-bold text-violet-300">{md(slide.subtitle)}</p> : null}
           {slide.bullets?.length ? (
             <ul className="mt-4 flex flex-col gap-2.5">
               {(reveal === undefined ? slide.bullets : slide.bullets.slice(0, reveal)).map((b, i) => (
                 <li key={i} className="flex gap-2.5 text-[clamp(5px,1.6cqw,15px)] leading-snug text-[#cfcde0] duration-300 animate-in fade-in slide-in-from-bottom-2">
                   <span className="mt-[6px] h-[7px] w-[7px] shrink-0 rounded-full bg-violet-400" />
-                  {b}
+                  {md(b)}
                 </li>
               ))}
             </ul>
