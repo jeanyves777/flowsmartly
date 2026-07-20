@@ -1,0 +1,149 @@
+<title>Store onboarding — canonical brief modal (matches Filmmaking)</title>
+<style>
+  :root{
+    --ground:#0b0b0f;--card:#15151c;--card2:#1b1b23;--border:#26262f;--input:#33333f;
+    --text:#ececf1;--muted:#9a9aa6;--faint:#6c6c78;
+    --brand:#6366f1;--violet:#7c3aed;--emerald:#10b981;--amber:#fbbf24;--rose:#fb7185;
+  }
+  :root[data-theme="light"]{--ground:#f6f6fa;--card:#fff;--card2:#f1f1f6;--border:#e6e6ee;--input:#e2e2ea;--text:#191922;--muted:#65656f;--faint:#9a9aa6}
+  @media(prefers-color-scheme:light){:root:not([data-theme="dark"]){--ground:#f6f6fa;--card:#fff;--card2:#f1f1f6;--border:#e6e6ee;--input:#e2e2ea;--text:#191922;--muted:#65656f;--faint:#9a9aa6}}
+  *{box-sizing:border-box}html,body{margin:0;height:100%}
+  body{background:var(--ground);color:var(--text);font:13.5px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+  .app{height:100vh;display:flex;flex-direction:column}
+  .top{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)}
+  .top .mk{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff;font-weight:800}
+  .top b{font-size:13px}.top .sub{font-size:11px;color:var(--muted)}
+  .top .sp{flex:1}
+  .themebtn{cursor:pointer;font-size:11.5px;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:5px 11px;background:var(--card)}
+  .body{flex:1;position:relative;overflow:hidden}
+  /* landing card behind the modal */
+  .landing{position:absolute;inset:0;display:grid;place-items:start center;padding-top:6vh;overflow:auto}
+  .lcard{width:min(520px,92vw);border:1px solid var(--border);border-radius:16px;background:var(--card);padding:22px;text-align:center;opacity:.5}
+  .lcard .ic{width:56px;height:56px;margin:0 auto;border-radius:16px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(124,58,237,.2));color:var(--brand);font-size:24px}
+  .lcard h2{font-size:19px;margin:12px 0 4px}.lcard p{color:var(--muted);font-size:13px;margin:0}
+
+  /* the brief modal — same shell as film */
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+  .sheet{position:absolute;left:12px;right:12px;bottom:12px;max-height:92%;display:flex;flex-direction:column;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  @media(min-width:640px){.sheet{left:20px;right:20px;bottom:16px}}
+  .shead{position:relative;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding:10px 16px 8px}
+  .shead .handle{position:absolute;left:50%;top:6px;transform:translateX(-50%);width:36px;height:4px;border-radius:999px;background:var(--border)}
+  .badge{border-radius:6px;background:rgba(99,102,241,.1);color:var(--brand);font-size:10.5px;font-weight:800;padding:2px 6px}
+  .shead .node{font-size:11px;color:var(--muted)}
+  .shead .ttl{margin-left:2px;font-size:12.5px;font-weight:800}
+  .x{margin-left:auto;width:26px;height:26px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+  .sbody{min-height:0;flex:1;overflow-y:auto;padding:12px 16px}
+  .hint{font-size:11.5px;color:var(--muted);margin:0 0 12px}
+
+  /* BriefSuggest */
+  .bs{border:1px solid rgba(99,102,241,.3);border-radius:12px;background:linear-gradient(135deg,rgba(99,102,241,.07),rgba(124,58,237,.05));padding:12px;margin-bottom:16px}
+  .bs-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+  .bs .ic{width:28px;height:28px;flex:none;border-radius:9px;display:grid;place-items:center;background:rgba(99,102,241,.15);color:var(--brand);font-size:14px}
+  .bs .txt{flex:1;min-width:0}.bs .txt b{font-size:12.5px;display:block}.bs .txt span{font-size:11.5px;color:var(--muted)}
+  .bs button.sug{flex:none;display:inline-flex;align-items:center;gap:6px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff;font-size:12px;font-weight:700;padding:7px 12px;cursor:pointer}
+  .bs-grid{display:grid;gap:8px;grid-template-columns:1fr 1fr 1fr;margin-top:2px}
+  @media(max-width:640px){.bs-grid{grid-template-columns:1fr}}
+  .bs .pick{border:1px solid var(--border);border-radius:10px;background:var(--card);padding:10px;text-align:left;cursor:pointer}
+  .bs .pick:hover{border-color:rgba(99,102,241,.5)}
+  .bs .pick.on{border-color:var(--brand);background:rgba(99,102,241,.1)}
+  .bs .pick b{font-size:12.5px;display:block}
+  .bs .pick .sm{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .bs .pick .pv{font-size:10.5px;font-weight:700;color:var(--brand);margin-top:6px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .bs .applied{font-size:11px;color:var(--emerald);font-weight:600;margin:8px 0 0}
+  .spin{width:13px;height:13px;border-radius:50%;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;animation:sp .7s linear infinite;display:inline-block}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 20px}
+  .full{grid-column:1/-1}
+  .lab{display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:5px}
+  .inp,textarea,select{width:100%;border:1px solid var(--input);background:var(--ground);color:var(--text);border-radius:10px;padding:9px 11px;font-size:13px;outline:none;font-family:inherit}
+  .inp:focus,textarea:focus,select:focus{border-color:var(--brand)}
+  textarea{resize:vertical;min-height:48px}
+  .fade{animation:fd .5s ease}@keyframes fd{from{background:rgba(99,102,241,.14)}to{background:var(--ground)}}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{border:1px solid var(--border);border-radius:999px;padding:5px 11px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;background:transparent}
+  .chip.on{border-color:var(--brand);background:rgba(99,102,241,.1);color:var(--brand)}
+  .costs{margin-top:16px;border:1px solid var(--border);border-radius:12px;background:var(--card2);padding:12px}
+  .costs .r{display:flex;gap:8px;font-size:12px;padding:2px 0}.costs .r span{flex:1;color:var(--muted)}.costs .r b{font-weight:700}.good{color:var(--emerald)!important}
+  .sfoot{display:flex;align-items:center;gap:10px;border-top:1px solid var(--border);padding:12px 16px}
+  .sfoot .build{display:inline-flex;align-items:center;gap:7px;border:none;border-radius:11px;background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff;font-size:13px;font-weight:700;padding:10px 16px;cursor:pointer}
+  .sfoot .note{margin-left:auto;font-size:11px;color:var(--muted)}
+</style>
+
+<div class="app">
+  <div class="top"><span class="mk">F</span><b>FlowSmartly</b><span class="sub">· Sell — store onboarding</span><span class="sp"></span><span class="themebtn" id="themeToggle">◐ Theme</span></div>
+  <div class="body">
+    <div class="landing"><div class="lcard"><div class="ic">🏪</div><h2>Launch your online store</h2><p>Tell the agent what you sell and it builds the whole store — in minutes.</p></div></div>
+
+    <div class="scrim"></div>
+    <div class="sheet">
+      <div class="shead">
+        <span class="handle"></span>
+        <span class="badge">Brief</span><span class="node">store</span><span class="ttl">Launch your store</span>
+        <button class="x">✕</button>
+      </div>
+      <div class="sbody">
+        <p class="hint">The agent builds the whole branded store with these details — no back-and-forth.</p>
+
+        <div class="bs" id="bs">
+          <div class="bs-row">
+            <span class="ic">✦</span>
+            <div class="txt"><b>Not sure where to start?</b><span>Let the agent suggest a store concept from your brand — pick one and it fills the form.</span></div>
+            <button class="sug" id="sug">✦ Suggest ideas</button>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div><label class="lab">Store name *</label><input class="inp f-name" value="General Computing Solutions" /></div>
+          <div><label class="lab">Currency</label><select><option>USD</option><option>EUR</option><option>GBP</option></select></div>
+          <div class="full"><label class="lab">What you sell *</label><textarea class="f-sells" placeholder="e.g. handmade ceramic mugs & homeware for cozy kitchens"></textarea></div>
+          <div class="full"><label class="lab">A few starter products (optional)</label><textarea class="f-prod" placeholder="List a few products with prices — e.g. Blue Mug $20, Mug Set of 4 $70"></textarea></div>
+          <div class="full"><label class="lab">Store style / vibe</label><div class="chips" id="chips"></div></div>
+        </div>
+
+        <div class="costs">
+          <div class="r"><span>Activation & hosting</span><b class="good">Free — no monthly fee</b></div>
+          <div class="r"><span>Platform fee per sale</span><b>Small % of each order</b></div>
+          <div class="r"><span>AI store build</span><b>500 credits · $5 once</b></div>
+        </div>
+      </div>
+      <div class="sfoot"><button class="build">✦ Build my store</button><span class="note">Uses your brand kit · the agent confirms before anything bills.</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STYLES=["Modern","Bold","Minimal","Elegant","Playful"];
+let style="Modern";
+const chips=document.getElementById('chips');
+function renderChips(){chips.innerHTML=STYLES.map(s=>`<span class="chip ${s===style?'on':''}" data-s="${s}">${s}</span>`).join('')}
+renderChips();
+chips.onclick=e=>{const s=e.target.getAttribute('data-s');if(s){style=s;renderChips()}};
+
+// 3 store-concept proposals (what BriefSuggest kind="store" returns from the brand)
+const IDEAS=[
+  {title:"Managed IT Store",summary:"Sell the hardware + setup your SMB clients already ask you for.",sells:"Business laptops, networking gear & managed-setup bundles for small businesses.",products:"ThinkPad Pro Bundle $1,290, Wi-Fi 6 Mesh Kit $340, Managed Setup (per device) $75, SSD Upgrade Kit $120, Backup Drive 4TB $160",style:"Modern"},
+  {title:"Refurb & Ready",summary:"Certified refurbished machines with a warranty — great margin.",sells:"Certified refurbished laptops & desktops for budget-conscious buyers & schools.",products:"Refurb Latitude 14\" $420, Refurb OptiPlex Desktop $360, 24\" Monitor $95, Wireless Combo $28, 1-Yr Warranty $49",style:"Minimal"},
+  {title:"Home Office Kits",summary:"Curated work-from-home bundles for remote teams.",sells:"Ready-to-go home-office bundles — laptop, monitor, dock & accessories — for remote workers.",products:"Starter WFH Kit $780, Dual-Monitor Kit $310, USB-C Dock $140, Ergo Keyboard $65, Webcam 1080p $55",style:"Elegant"},
+];
+
+document.getElementById('sug').onclick=()=>{
+  const bs=document.getElementById('bs');
+  bs.querySelector('.sug').innerHTML='<span class="spin"></span> Thinking…';
+  setTimeout(()=>{
+    bs.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="color:var(--brand)">✦</span><b style="font-size:12px">Pick an idea — the agent fills the rest</b><span style="margin-left:auto;font-size:11px;color:var(--muted);cursor:pointer">↻ More ideas</span></div>
+      <div class="bs-grid">${IDEAS.map((it,i)=>`<button class="pick" data-i="${i}"><b>${it.title}</b><div class="sm">${it.summary}</div><div class="pv">${it.sells}</div></button>`).join('')}</div>
+      <p class="applied" id="applied" style="display:none">✓ Applied — tweak anything below, then continue.</p>`;
+    bs.querySelectorAll('.pick').forEach(b=>b.onclick=()=>{
+      bs.querySelectorAll('.pick').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+      const it=IDEAS[+b.getAttribute('data-i')];
+      const sells=document.querySelector('.f-sells'),prod=document.querySelector('.f-prod');
+      sells.value=it.sells;prod.value=it.products;style=it.style;renderChips();
+      sells.classList.add('fade');prod.classList.add('fade');
+      document.getElementById('applied').style.display='block';
+    });
+  },850);
+};
+
+document.getElementById('themeToggle').onclick=()=>{const r=document.documentElement;const cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
+</script>

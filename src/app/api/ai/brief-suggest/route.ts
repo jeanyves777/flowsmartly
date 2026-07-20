@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     if (!session?.userId) return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
-    const kind: BriefKind = body?.kind === "leads" ? "leads" : body?.kind === "proposal" ? "proposal" : body?.kind === "film" ? "film" : "campaign";
+    const kind: BriefKind = body?.kind === "leads" ? "leads" : body?.kind === "proposal" ? "proposal" : body?.kind === "film" ? "film" : body?.kind === "store" ? "store" : "campaign";
     const extra = typeof body?.context === "string" ? body.context.slice(0, 400) : "";
 
     const brand = await prisma.brandKit.findFirst({
@@ -41,7 +41,9 @@ export async function POST(req: NextRequest) {
     ].filter(Boolean).join("\n");
 
     const prompt =
-      kind === "film"
+      kind === "store"
+        ? `${brandLine}\n\nThis brand wants to launch an online STORE but may not know exactly what to sell. Propose exactly 3 DISTINCT, focused, realistic store concepts they could launch today, each grounded in this brand. For each return: title (the store concept, 3-6 words), summary (one line on why it fits this brand), sells (ONE sentence: what the store sells — the products/category — and who it's for), products (a comma-separated list of 4-6 concrete starter products WITH prices, e.g. "Blue Mug $20, Mug Set of 4 $70, Espresso Cup $14"), style (exactly one of: Modern, Bold, Minimal, Elegant, Playful). Make the products specific to THIS business — never generic filler; keep each concept coherent.\nReturn ONLY a JSON array, no markdown: [{"title":"","summary":"","sells":"","products":"","style":""}]`
+      : kind === "film"
         ? `${brandLine}\n\nPropose exactly 3 DISTINCT short-FILM ideas for this brand — each a REAL, emotional STORY with a character and an arc (a mini-movie / cinematic ad-film), NOT a product pitch or explainer. The story must stand on its own and be genuinely engaging; the brand is NOT mentioned until the very END, where "${brand.name}" lands naturally as the resolution/payoff (a subtle closing reveal that recontextualizes the story). For each return: title (the film's name, 2-5 words), summary (one line — the emotional hook), brief (a vivid 3-4 sentence FILM BRIEF: the protagonist and what they want, the setting/journey, the emotional turn, and the closing beat where ${brand.name} appears as the payoff — cinematic, specific, human, no ad-speak).\nReturn ONLY a JSON array, no markdown: [{"title":"","summary":"","brief":""}]`
       : kind === "leads"
         ? `${brandLine}\n\nPropose exactly 3 DISTINCT ideal-customer lead-search briefs — WHO this brand should prospect to sell what it offers. For each brief return: title (3-6 words), summary (one sentence on why this segment is a strong fit), industry (the TARGET's industry, not this brand's), jobTitle (the decision-maker to reach), seniority (array, choose from: Owner, C-level, VP, Director, Manager), keywords (comma-separated buying signals).\nReturn ONLY a JSON array, no markdown: [{"title":"","summary":"","industry":"","jobTitle":"","seniority":[""],"keywords":""}]`
@@ -70,7 +72,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-type BriefKind = "campaign" | "leads" | "proposal" | "film";
+type BriefKind = "campaign" | "leads" | "proposal" | "film" | "store";
 
 /**
  * Salvage complete top-level `{…}` objects from a string — used when the model's
@@ -128,6 +130,15 @@ function parseProposals(raw: string, kind: BriefKind): Record<string, unknown>[]
     if (kind === "proposal" || kind === "film") {
       return { title: str(o.title) || (kind === "film" ? "Untitled film" : "Proposal"), summary: str(o.summary), brief: str(o.brief) };
     }
+    if (kind === "store") {
+      return {
+        title: str(o.title) || "Store idea",
+        summary: str(o.summary),
+        sells: str(o.sells),
+        products: str(o.products),
+        style: ["Modern", "Bold", "Minimal", "Elegant", "Playful"].includes(str(o.style)) ? str(o.style) : "Modern",
+      };
+    }
     return {
       title: str(o.title) || "Campaign",
       summary: str(o.summary),
@@ -135,5 +146,5 @@ function parseProposals(raw: string, kind: BriefKind): Record<string, unknown>[]
       brief: str(o.brief),
       tone: ["casual", "professional", "playful", "bold"].includes(str(o.tone).toLowerCase()) ? str(o.tone).toLowerCase() : "casual",
     };
-  }).filter((p) => (kind === "leads" ? (p.industry || p.jobTitle) : (kind === "proposal" || kind === "film") ? p.brief : (p.name && p.brief)));
+  }).filter((p) => (kind === "leads" ? (p.industry || p.jobTitle) : (kind === "proposal" || kind === "film") ? p.brief : kind === "store" ? p.sells : (p.name && p.brief)));
 }
