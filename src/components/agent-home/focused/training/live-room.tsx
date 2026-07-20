@@ -232,6 +232,9 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const material = useMemo(() => session.materials.find((m) => m.id === session.stageKey) ?? null, [session.materials, session.stageKey]);
   const paged = session.stageSource === "slides" || session.stageSource === "doc";
   const [navOpen, setNavOpen] = useState(false);
+  const [rosterCollapsed, setRosterCollapsed] = useState(false); // desktop side panel collapse
+  // opening chat collapses the participant panel so they don't fight for the right side
+  useEffect(() => { if (chatOpen) setRosterCollapsed(true); }, [chatOpen]);
   // A generated deck reveals STEP-BY-STEP within each slide; the pager drives both
   // the reveal step and the slide, so "next" builds the current slide up, then moves on.
   const deckSlide = material?.kind === "slides" && material.deck?.slides.length
@@ -688,7 +691,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           {/* ---- presentation control bar — BELOW the stage, host only (keeps the
                  presentation screen clean; attendees don't drive the deck) ---- */}
           {paged && material && host ? (
-            <div className="relative flex shrink-0 items-center justify-center gap-2 border-t border-border bg-background/70 px-3 py-2">
+            <div className="relative flex shrink-0 items-center justify-center bg-[#0e0e13] px-3 py-2.5">
               {navOpen && deckSlides ? (
                 <div className="absolute bottom-full left-1/2 z-[7] mb-2 w-[min(92%,640px)] -translate-x-1/2 rounded-2xl border border-border bg-background/95 p-2 shadow-2xl backdrop-blur">
                   <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
@@ -701,6 +704,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                   </div>
                 </div>
               ) : null}
+              <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-[#181820] px-3 py-1.5 text-foreground shadow-lg">
               {deckSlides ? (
                 <button onClick={() => setNavOpen((v) => !v)} title="All slides" className={cn("grid h-[26px] w-[26px] place-items-center rounded-lg border transition", navOpen ? "border-brand-500 text-brand-400" : "border-border text-muted-foreground hover:border-brand-500")}>
                   <LayoutGrid className="h-3.5 w-3.5" />
@@ -723,6 +727,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
               ) : deckSlide && deckSteps > 1 ? (
                 <button onClick={() => setAutoReveal((v) => !v)} title="Auto-reveal — draw along hands-free" className={cn("ms-1 rounded-full px-2.5 py-1 text-[10.5px] font-extrabold", autoReveal ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>AUTO</button>
               ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -862,9 +867,16 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
       {/* ---- side roster: desktop column only. On a phone the "side" layout
              renders the compact bottom strip above (never a full-height drawer). ---- */}
       {layout === "side" ? (
-        <aside className="relative hidden w-[300px] shrink-0 flex-col border-s border-border bg-card md:flex">
-          <RosterContent {...rosterProps} />
-        </aside>
+        rosterCollapsed ? (
+          <aside className="relative hidden w-11 shrink-0 flex-col items-center gap-2 border-s border-border bg-card py-2.5 md:flex">
+            <button onClick={() => setRosterCollapsed(false)} title="Show participants" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><PanelLeftClose className="h-4 w-4" /></button>
+            <div className="relative grid h-8 w-8 place-items-center rounded-lg bg-muted text-muted-foreground"><Users className="h-4 w-4" /><span className="absolute -right-1 -top-1 grid h-[15px] min-w-[15px] place-items-center rounded-full bg-brand-500 px-1 text-[8.5px] font-black text-white">{inRoom.length}</span></div>
+          </aside>
+        ) : (
+          <aside className="relative hidden w-[248px] shrink-0 flex-col border-s border-border bg-card md:flex">
+            <RosterContent {...rosterProps} onCollapse={() => setRosterCollapsed(true)} />
+          </aside>
+        )
       ) : null}
 
       {/* ---- anchored popovers (portalled, so the control bar never clips them) ---- */}
@@ -1006,15 +1018,18 @@ function ToolRail({ tool, setTool, shapeKind, setShapeKind, ink, setInk, iCanDra
 }
 
 /* ------------------------------------------------------------------- roster */
-function RosterContent({ session, me, host, act, media, waiting, inRoom, onInvite, onSpotlight, onCloseDrawer }: {
+function RosterContent({ session, me, host, act, media, waiting, inRoom, onInvite, onSpotlight, onCloseDrawer, onCollapse }: {
   session: TrainingSessionDTO; me: TrainingParticipantDTO; host: boolean;
   act: (action: string, participantId?: string) => Promise<string | null>;
   media: ReturnType<typeof useMedia>; waiting: TrainingParticipantDTO[]; inRoom: TrainingParticipantDTO[];
-  onInvite: () => void; onSpotlight: (id: string) => void; onCloseDrawer?: () => void;
+  onInvite: () => void; onSpotlight: (id: string) => void; onCloseDrawer?: () => void; onCollapse?: () => void;
 }) {
   return (
     <>
       <div className="flex items-center gap-1.5 border-b border-border px-3 py-2.5 text-[11px] font-bold">
+        {onCollapse ? (
+          <button onClick={onCollapse} title="Collapse panel" className="grid h-6 w-6 place-items-center rounded-md border border-border text-muted-foreground hover:border-brand-500"><PanelLeftOpen className="h-3.5 w-3.5" /></button>
+        ) : null}
         <Users className="h-3.5 w-3.5" /> In the room
         <span className="ms-auto text-[10px] text-muted-foreground">{inRoom.length}</span>
         {onCloseDrawer ? (
@@ -1039,7 +1054,7 @@ function RosterContent({ session, me, host, act, media, waiting, inRoom, onInvit
       ) : !media.enabled && media.reason ? (
         <p className="border-b border-border bg-muted px-3 py-1.5 text-[10px] leading-snug text-muted-foreground">{media.reason} The board, your docs and the chat all work as normal.</p>
       ) : null}
-      <div className="flex flex-1 flex-col gap-1.5 overflow-auto p-2">
+      <div className="grid flex-1 auto-rows-min grid-cols-2 gap-1.5 overflow-auto p-2">
         {inRoom.map((p) => (
           <Tile
             key={p.id} p={p} session={session} me={me} host={host} act={act} onSpotlight={onSpotlight}
