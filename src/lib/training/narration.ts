@@ -45,18 +45,21 @@ const STYLE_MAP: Record<string, "professional" | "conversational" | "energetic" 
  *  still get audio (`usedClone` records which path actually produced the sound). */
 export async function synthesize(text: string, voice: ClonedVoice | null, pace: number, style: string): Promise<{ buffer: Buffer; durationMs: number; usedClone: boolean }> {
   const words = text.split(/\s+/).filter(Boolean).length;
-  const fallbackMs = Math.max(1500, Math.round((words / 150) * 60 * 1000 / (pace || 1)));
+  // Deliver a touch slower than the raw pace for a natural, measured cadence (the default
+  // delivery was rushing). Reveals track the audio, so this paces the whole timeline too.
+  const speed = Math.min(1.1, Math.max(0.7, (pace || 1) * 0.9));
+  const fallbackMs = Math.max(1500, Math.round((words / 150) * 60 * 1000 / speed));
   // 1. the presenter's cloned voice (ElevenLabs is true cloning; try it first)
   if (voice?.elevenLabsVoiceId) {
-    try { return { buffer: await generateWithElevenLabs({ text, voiceId: voice.elevenLabsVoiceId }), durationMs: fallbackMs, usedClone: true }; }
+    try { return { buffer: await generateWithElevenLabs({ text, voiceId: voice.elevenLabsVoiceId, speed }), durationMs: fallbackMs, usedClone: true }; }
     catch (e) { console.error("[narration] ElevenLabs voice failed, falling back to preset:", e instanceof Error ? e.message : e); }
   }
   if (voice?.openaiVoiceId) {
-    try { return { buffer: await generateWithClonedVoice({ text, voiceId: voice.openaiVoiceId, speed: pace }), durationMs: fallbackMs, usedClone: true }; }
+    try { return { buffer: await generateWithClonedVoice({ text, voiceId: voice.openaiVoiceId, speed }), durationMs: fallbackMs, usedClone: true }; }
     catch (e) { console.error("[narration] OpenAI voice failed, falling back to preset:", e instanceof Error ? e.message : e); }
   }
   // 2. preset voice — always available (never lets narration fail outright)
-  const r = await generateVoice({ text, gender: "male", accent: "american", style: STYLE_MAP[style] ?? "conversational", speed: pace });
+  const r = await generateVoice({ text, gender: "male", accent: "american", style: STYLE_MAP[style] ?? "conversational", speed });
   return { buffer: r.audioBuffer, durationMs: r.estimatedDurationMs || fallbackMs, usedClone: false };
 }
 

@@ -82,11 +82,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const gate = await checkCreditsAvailable(session.userId, upfront, false, false);
     if (gate) return NextResponse.json({ success: false, error: gate }, { status: 402 });
 
+    // Put the presentation on the stage from the first second — prefer a slides deck
+    // (the presenter's deck first) so the room never opens to an empty stage.
+    const decks = await prisma.trainingMaterial.findMany({ where: { sessionId: id, kind: "slides" }, select: { id: true, deck: true, createdAt: true }, orderBy: { createdAt: "asc" } });
+    const staged = decks.find((m) => { try { return !!(m.deck && (JSON.parse(m.deck) as { presenterActive?: boolean }).presenterActive); } catch { return false; } }) ?? decks[0] ?? null;
+    const stagePatch = staged ? { stageSource: "slides" as const, stageKey: staged.id, stagePage: 1, stageStep: 1 } : {};
+
     await prisma.trainingSession.update({
       where: { id },
-      data: { status: "live", startedAt: room.startedAt ?? new Date() },
+      data: { status: "live", startedAt: room.startedAt ?? new Date(), ...stagePatch },
     });
-    broadcast(id, { type: "room:state", patch: { status: "live" } });
+    broadcast(id, { type: "room:state", patch: { status: "live", ...stagePatch } });
     await ensureAICohost(id).catch(() => {}); // the AI co-host joins if a presenter is active
     return NextResponse.json({ success: true, data: { session: await getSessionDTO(id), estimate: est } });
   }

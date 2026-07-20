@@ -57,6 +57,30 @@ function VideoFeed({ stream, mirror, muted, className }: { stream: MediaStream; 
   );
 }
 
+/** The AI presenter's looping avatar clip. It MOVES only while `speaking` (the narration
+ *  audio is playing) and FREEZES otherwise — so the avatar is driven by the voice instead
+ *  of looping forever. Muted (the cloned voice plays through the shared narration audio).
+ *  Falls back to the still portrait poster before the first play. */
+function AvatarVideo({ url, poster, speaking, className }: { url: string; poster?: string | null; speaking: boolean; className?: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    if (speaking) { v.play().catch(() => {}); } else { try { v.pause(); } catch { /* ignore */ } }
+  }, [speaking]);
+  return (
+    <video
+      ref={ref}
+      src={url}
+      poster={poster ?? undefined}
+      muted
+      loop
+      playsInline
+      className={cn("h-full w-full object-cover", className)}
+    />
+  );
+}
+
 /** Remote audio has to be in the DOM to be heard, but must never be seen.
  *  When a speaker device is chosen we route playback there via setSinkId. */
 function AudioSink({ remotes, spkId }: { remotes: RemoteStream[]; spkId: string | null }) {
@@ -354,6 +378,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         <div className="relative grid h-full w-full place-items-center bg-gradient-to-br from-[#221a3a] to-[#3a2c5e]">
           {feed ? (
             <VideoFeed stream={feed} muted mirror={presenter.id === me.id} className="object-contain" />
+          ) : presenter.isAI && presenter.videoUrl ? (
+            <AvatarVideo url={presenter.videoUrl} poster={presenter.avatarUrl} speaking={!!session.aiPlaying} className="object-contain" />
           ) : (
             <span className="grid h-20 w-20 place-items-center rounded-full bg-brand-600 text-2xl font-black text-white">
               {presenter.name.slice(0, 2).toUpperCase()}
@@ -391,7 +417,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         <p className="text-[12px] text-slate-400">Nothing on the stage yet — add a material.</p>
       </div>
     );
-  }, [session.stageSource, session.stagePage, session.penHolderId, session.participants, material, sharer, me, media.localCam, media.localScreen, media.remotes]);
+  }, [session.stageSource, session.stagePage, session.penHolderId, session.participants, session.aiPlaying, material, sharer, me, media.localCam, media.localScreen, media.remotes]);
 
   const layout = session.rosterLayout ?? "side";
   const spotlight = session.spotlightId ? inRoom.find((p) => p.id === session.spotlightId) ?? null : null;
@@ -498,7 +524,9 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                 onPointerUp={host ? spotUp : undefined}
                 className={cn("pointer-events-auto relative aspect-[4/3] overflow-hidden rounded-xl border-2 border-amber-400 bg-[#181820] shadow-2xl", host && "cursor-move touch-none")}
               >
-                {spotFeed ? <VideoFeed stream={spotFeed} muted mirror={spotlight.id === me.id} /> : (
+                {spotFeed ? <VideoFeed stream={spotFeed} muted mirror={spotlight.id === me.id} /> : spotlight.isAI && spotlight.videoUrl ? (
+                  <AvatarVideo url={spotlight.videoUrl} poster={spotlight.avatarUrl} speaking={!!session.aiPlaying} />
+                ) : (
                   <div className="grid h-full w-full place-items-center"><span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-brand-600 to-violet-700 text-lg font-black text-white">{spotlight.name.slice(0, 2).toUpperCase()}</span></div>
                 )}
                 <span className="pointer-events-none absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-amber-400 px-1.5 py-0.5 text-[9px] font-black text-amber-950"><Star className="h-2.5 w-2.5 fill-current" /> Spotlight</span>
@@ -543,8 +571,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
             />
             {/* AI presenter caption — what the co-host is saying right now */}
             {aiPlaying && narration?.text ? (
-              <div className="pointer-events-none absolute bottom-[92px] left-1/2 z-[6] w-[min(80%,620px)] -translate-x-1/2 rounded-xl bg-black/70 px-4 py-2 text-center text-[13px] font-semibold text-white shadow-lg backdrop-blur-sm">
-                <span className="me-1.5 inline-flex items-center gap-1 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 align-middle text-[8.5px] font-black text-[#04222a]"><Volume2 className="h-2.5 w-2.5" /> AI</span>
+              <div className="pointer-events-none absolute bottom-[46px] left-1/2 z-[6] line-clamp-2 w-[min(78%,640px)] -translate-x-1/2 rounded-lg bg-black/60 px-3.5 py-1.5 text-center text-[12px] font-semibold leading-snug text-white shadow-lg backdrop-blur-sm">
+                <span className="me-1.5 inline-flex items-center gap-1 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 align-middle text-[8px] font-black text-[#04222a]"><Volume2 className="h-2.5 w-2.5" /> AI</span>
                 {narration.text}
               </div>
             ) : tookOver && aiPresenter ? (
@@ -988,7 +1016,7 @@ function RosterStrip({ session, me, host, act, media, waiting, inRoom, onInvite,
             className={cn("group relative h-[52px] w-[72px] shrink-0 overflow-hidden rounded-lg border-2 bg-[#181820] sm:h-[64px] sm:w-[86px]", spotlit ? "border-amber-400" : p.role === "HOST" ? "border-brand-500/50" : "border-border")}
           >
             {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : p.isAI && p.videoUrl ? (
-              <video src={p.videoUrl} autoPlay muted loop playsInline poster={p.avatarUrl ?? undefined} className="h-full w-full object-cover" />
+              <AvatarVideo url={p.videoUrl} poster={p.avatarUrl} speaking={!!session.aiPlaying} />
             ) : p.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />
@@ -1106,7 +1134,7 @@ function FloatingBubbles({ inRoom, me, media, session, host, onSpotlight, onOpen
             <div className="relative" style={{ width: SIZE, height: SIZE }}>
               <div className={cn("grid h-full w-full place-items-center overflow-hidden rounded-full border-2 bg-[#181820] shadow-lg", spotlit ? "border-amber-400" : p.isAI ? "border-cyan-400" : p.role === "HOST" ? "border-brand-400" : "border-white/70")}>
                 {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : p.isAI && p.videoUrl ? (
-                  <video src={p.videoUrl} autoPlay muted loop playsInline poster={p.avatarUrl ?? undefined} className="h-full w-full object-cover" />
+                  <AvatarVideo url={p.videoUrl} poster={p.avatarUrl} speaking={!!session.aiPlaying} />
                 ) : p.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />
@@ -1531,7 +1559,7 @@ function Tile({ p, session, me, host, act, onSpotlight, feed }: {
       {feed ? (
         <VideoFeed stream={feed} muted mirror={p.id === me.id} />
       ) : p.isAI && p.videoUrl ? (
-        <video src={p.videoUrl} autoPlay muted loop playsInline poster={p.avatarUrl ?? undefined} className="h-full w-full object-cover" />
+        <AvatarVideo url={p.videoUrl} poster={p.avatarUrl} speaking={!!session.aiPlaying} />
       ) : p.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />
