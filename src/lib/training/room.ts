@@ -66,12 +66,21 @@ export function connectedIds(sessionId: string): string[] {
   return [...ids];
 }
 
+// A big ignored SSE comment appended to every frame. Without it, a SMALL event (e.g. a
+// stage-step change) can sit in a proxy/gzip buffer until a LARGER write pushes it out —
+// which made attendees see the presentation advance only when another event arrived
+// (a hand raise, a new slide). Padding past the buffer forces each event to flush now.
+const FLUSH_PAD = `:${" ".repeat(4096)}\n\n`;
+export function frameEvent(event: RoomEvent): Uint8Array {
+  return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n${FLUSH_PAD}`);
+}
+
 /** Push an event to everyone in the room, optionally skipping the sender. */
 export function broadcast(sessionId: string, event: RoomEvent, excludeSessionKey?: string): void {
   const m = rooms.get(sessionId);
   if (!m) return;
 
-  const encoded = new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
+  const encoded = frameEvent(event);
   for (const [key, c] of m) {
     if (key === excludeSessionKey) continue;
     if (!c.controller) continue;
@@ -87,7 +96,7 @@ export function broadcast(sessionId: string, event: RoomEvent, excludeSessionKey
 export function sendTo(sessionId: string, participantId: string, event: RoomEvent): void {
   const m = rooms.get(sessionId);
   if (!m) return;
-  const encoded = new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
+  const encoded = frameEvent(event);
   for (const [key, c] of m) {
     if (c.participantId !== participantId || !c.controller) continue;
     try {
