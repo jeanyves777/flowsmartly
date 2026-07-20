@@ -15,7 +15,7 @@ import type { DeckSlide, SlideNarration } from "./types";
 export interface ClonedVoice { openaiVoiceId?: string | null; elevenLabsVoiceId?: string | null }
 
 /** What the presenter should say — one short spoken script per slide, in one AI call. */
-export async function writeDeckScripts(slides: DeckSlide[], style: string): Promise<string[]> {
+export async function writeDeckScripts(slides: DeckSlide[], style: string, presenterName?: string): Promise<string[]> {
   const outline = slides.map((s, i) => {
     const labels = (s.board ?? []).filter((b) => b.t === "text" && !("note" in b && b.note)).map((b) => (b as { text: string }).text);
     const facts = [s.subtitle, ...(s.bullets ?? []), s.notes, labels.length ? `Diagram: ${labels.join(" → ")}` : ""].filter(Boolean).join(" | ");
@@ -33,7 +33,12 @@ Return JSON: { "scripts": string[] } with EXACTLY ${slides.length} entries, in o
     ?? (await ai.generateJSON<{ scripts?: string[] }>(prompt, { temperature: 0.35, maxTokens: 2200 }));
   const scripts = raw?.scripts ?? [];
   // Always return one script per slide (fall back to a plain read of the title).
+  const who = (presenterName || "").trim().split(/\s+/)[0] || "your A I co-host";
   return slides.map((s, i) => {
+    // The opening slide is the AI co-host's disclosed self-introduction.
+    if (s.intro) {
+      return `Hi everyone, and welcome! I'm ${who}, your A I co-host for today's session — yes, I'm an A I, presenting right alongside your host. I'll walk us through the material, and you can raise your hand or use Ask the presenter any time. Let's get started.`;
+    }
     // Quiz slides read the question + options, then the runtime pauses for a hand-raise
     // check before the host reveals the answer on screen.
     if (s.quiz) {
@@ -91,8 +96,9 @@ export async function narrateDeck(opts: {
   voice: ClonedVoice | null;
   pace: number;
   style: string;
+  presenterName?: string;
 }): Promise<NarrateResult> {
-  const scripts = await writeDeckScripts(opts.slides, opts.style);
+  const scripts = await writeDeckScripts(opts.slides, opts.style, opts.presenterName);
   const out: Record<string, SlideNarration> = {};
   const cloneRequested = !!(opts.voice?.elevenLabsVoiceId || opts.voice?.openaiVoiceId);
   let cloneUsed = false;

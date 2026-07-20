@@ -186,6 +186,9 @@ export interface DeckSlide {
   /** an on-screen quiz: the co-host reads the question + options and pauses for a quick
    *  hand-raise check; the host reveals the answer (reveal step 2) then continues. */
   quiz?: QuizQuestion;
+  /** the opening slide: the AI co-host appears on the Presenter stage and introduces
+   *  itself (a disclosed self-intro), then the room moves on to the first slide. */
+  intro?: boolean;
 }
 
 export interface QuizQuestion {

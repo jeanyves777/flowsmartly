@@ -377,14 +377,18 @@ function quizSlide(q: QuizQuestion): DeckSlide {
   return { id: uid("quiz"), type: "doc", quiz: q, title: "Quick check", subtitle: q.question, steps: 2 };
 }
 
-/** Weave interactive moments into a deck — spaced quiz checks + a Q&A checkpoint, and a
- *  wrap-up Q&A right before the conclusion — so the training engages the room. */
+function introSlide(): DeckSlide {
+  return { id: uid("intro"), type: "doc", intro: true, title: "Welcome", subtitle: "Your AI co-host is getting started…", steps: 1 };
+}
+
+/** Weave interactive moments into a deck — an opening AI-co-host intro, spaced quiz checks
+ *  + a Q&A checkpoint, and a wrap-up Q&A right before the conclusion. */
 function withInteractions(slides: DeckSlide[], quizzes: QuizQuestion[]): DeckSlide[] {
   const n = slides.length;
-  if (n < 4) return slides;
+  if (n < 4) return [introSlide(), ...slides];
   const checkpointAt = Math.max(1, Math.floor(n * 0.62));
   const quizAt = [Math.max(1, Math.floor(n * 0.4)), Math.max(2, n - 2)];
-  const out: DeckSlide[] = [];
+  const out: DeckSlide[] = [introSlide()]; // the AI co-host opens the session
   let qi = 0;
   slides.forEach((s, i) => {
     if (i === n - 1) out.push(qaSlide("final")); // wrap-up Q&A just before the conclusion
