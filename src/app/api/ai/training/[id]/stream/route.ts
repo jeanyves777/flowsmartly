@@ -123,7 +123,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         } catch {
           if (heartbeat) clearInterval(heartbeat);
         }
-      }, 4_000);
+      }, 2_000);
 
       // Bill the room from the HOST's connection only, so N attendees don't
       // each charge the tab N times. Incremental, so a room that never gets
