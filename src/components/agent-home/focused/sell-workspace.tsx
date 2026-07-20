@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type ElementType } from "rea
 import Image from "next/image";
 import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users, Palette, LayoutGrid, FolderTree, BarChart3, Settings, Landmark, Ticket } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
-import { StoreCallToAction } from "./store-cta";
+import { StoreCallToAction, StoreBriefModal } from "./store-cta";
 import { StoreStudio } from "./store-studio";
 import { ProductEditor } from "./product-editor";
 import { StoreOverview } from "./store-overview";
@@ -105,6 +105,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
   const [loading, setLoading] = useState(true);
   const [section, setSection] = useState<Section>("overview");
   const [studioOpen, setStudioOpen] = useState(false);
+  const [briefOpen, setBriefOpen] = useState(false); // store-build brief modal (no-store state)
 
   // Product editor drawer: "new" (add), a product id (edit), or null (closed).
   const [editing, setEditing] = useState<"new" | string | null>(null);
@@ -325,18 +326,30 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
   // No store yet → show the benefits + exact charges, then have the agent build
   // it (a heavy generative build → agent-driven).
   if (!hasStore) {
+    // A positioned, non-scrolling content-pane wrapper so the brief modal's
+    // `absolute inset-0` fills THIS pane (like the film studio's canvas) — not the
+    // whole focused view (which includes the agent chat panel).
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto p-6 sm:p-8">
-        <div className="mx-auto mt-[2vh] max-w-lg space-y-4">
-          {armed && (
-            <AgentWorkingCard
-              working={working}
-              title="Setting up your store"
-              sub={working ? "The agent is building your branded store — it'll appear here." : "Answer the agent's questions in the chat and your store will land here."}
-            />
-          )}
-          <StoreCallToAction onBuild={(p) => { setArmed(true); onAsk(p); }} onTopUp={() => onOpenView("credits")} />
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="h-full overflow-y-auto p-6 sm:p-8">
+          <div className="mx-auto mt-[2vh] max-w-lg space-y-4">
+            {armed && (
+              <AgentWorkingCard
+                working={working}
+                title="Setting up your store"
+                sub={working ? "The agent is building your branded store — it'll appear here." : "Answer the agent's questions in the chat and your store will land here."}
+              />
+            )}
+            <StoreCallToAction onBuild={(p) => { setArmed(true); onAsk(p); }} onTopUp={() => onOpenView("credits")} onStart={() => setBriefOpen(true)} />
+          </div>
         </div>
+        {briefOpen && (
+          <StoreBriefModal
+            onTopUp={() => onOpenView("credits")}
+            onClose={() => setBriefOpen(false)}
+            onBuild={(p) => { setBriefOpen(false); setArmed(true); onAsk(p); }}
+          />
+        )}
       </div>
     );
   }

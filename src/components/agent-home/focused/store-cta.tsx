@@ -41,25 +41,22 @@ function usd(credits: number): string {
   return `$${Number.isInteger(d) ? d : d.toFixed(2)}`;
 }
 
-export function StoreCallToAction({ onBuild, onTopUp, compact }: { onBuild: (prompt: string) => void; onTopUp?: () => void; compact?: boolean }) {
+export function StoreCallToAction({ onBuild, onTopUp, compact, onStart }: { onBuild: (prompt: string) => void; onTopUp?: () => void; compact?: boolean; onStart?: () => void }) {
+  // `onStart` lets the parent surface own the brief modal (so it fills the content
+  // pane, not the whole focused view). Without it (compact side panel), the CTA
+  // opens the modal itself as a fixed overlay.
   const [briefing, setBriefing] = useState(false);
   const { isMobile, seedComposer } = useMobileChat();
-  // Live pricing + balance (no hardcoded prices). null = still loading.
-  const [cost, setCost] = useState<number | null>(null);
-  const [balance, setBalance] = useState<number | null>(null);
+  const [cost, setCost] = useState<number | null>(null); // for the landing Charges (no hardcoded prices)
 
   useEffect(() => {
     let alive = true;
     fetch("/api/credits/costs?keys=AI_STORE_GENERATE").then((r) => r.json()).then((j) => { if (alive) { const c = j?.data?.costs?.AI_STORE_GENERATE; if (typeof c === "number") setCost(c); } }).catch(() => {});
-    fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (alive) { const b = j?.data?.user?.aiCredits; if (typeof b === "number") setBalance(b); } }).catch(() => {});
     return () => { alive = false; };
   }, []);
 
-  // Can't afford only when we KNOW both numbers and the cost is > 0.
-  const shortfall = cost != null && cost > 0 && balance != null && balance < cost;
-
-  // Desktop opens the brief modal; mobile seeds the composer (agent collects in chat).
-  const start = () => { if (isMobile) { seedComposer(STORE_STARTER); return; } setBriefing(true); };
+  // Desktop opens the brief modal (parent-owned when onStart is given); mobile seeds the composer.
+  const start = () => { if (isMobile) { seedComposer(STORE_STARTER); return; } if (onStart) { onStart(); return; } setBriefing(true); };
 
   return (
     <>
@@ -93,12 +90,11 @@ export function StoreCallToAction({ onBuild, onTopUp, compact }: { onBuild: (pro
         </div>
       </div>
 
+      {/* Compact side panel owns its own (fixed) modal. In a focused surface the
+          parent passes onStart and renders StoreBriefModal itself. */}
       {briefing && (
         <StoreBriefModal
           compact={compact}
-          cost={cost}
-          balance={balance}
-          shortfall={shortfall}
           onTopUp={onTopUp}
           onClose={() => setBriefing(false)}
           onBuild={(p) => { setBriefing(false); onBuild(p); }}
@@ -141,11 +137,8 @@ function Charges({ cost, className }: { cost: number | null; className?: string 
       shell the Filmmaking / Campaign / Leads studios use). Gathered in the UI,
       assembled into a detailed prompt, handed to the agent via onBuild().
       Fills the focused surface's <main> (which is relative), like the film brief. */
-function StoreBriefModal({ compact, cost, balance, shortfall, onTopUp, onClose, onBuild }: {
+export function StoreBriefModal({ compact, onTopUp, onClose, onBuild }: {
   compact?: boolean;
-  cost: number | null;
-  balance: number | null;
-  shortfall: boolean;
   onTopUp?: () => void;
   onClose: () => void;
   onBuild: (prompt: string) => void;
@@ -156,10 +149,16 @@ function StoreBriefModal({ compact, cost, balance, shortfall, onTopUp, onClose, 
   const [style, setStyle] = useState("Modern");
   const [currency, setCurrency] = useState("USD");
   const [error, setError] = useState("");
+  // Live pricing + balance (no hardcoded prices).
+  const [cost, setCost] = useState<number | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
+  const shortfall = cost != null && cost > 0 && balance != null && balance < cost;
 
-  // Prefill the store name from the Brand Kit so the user rarely types it.
   useEffect(() => {
     let alive = true;
+    fetch("/api/credits/costs?keys=AI_STORE_GENERATE").then((r) => r.json()).then((j) => { if (alive) { const c = j?.data?.costs?.AI_STORE_GENERATE; if (typeof c === "number") setCost(c); } }).catch(() => {});
+    fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (alive) { const b = j?.data?.user?.aiCredits; if (typeof b === "number") setBalance(b); } }).catch(() => {});
+    // Prefill the store name from the Brand Kit so the user rarely types it.
     fetch("/api/brand").then((r) => r.json()).then((j) => { if (alive && j?.data?.brandKit?.name) setName((n) => n || String(j.data.brandKit.name)); }).catch(() => {});
     return () => { alive = false; };
   }, []);
