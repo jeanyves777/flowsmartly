@@ -18,7 +18,7 @@ import {
   VideoOff, Circle, Users, LogOut, Paperclip, ChevronLeft, ChevronRight, Star, X,
   Minus, MoveUpRight, Triangle, Diamond, ChevronDown, ChevronUp, PanelLeftClose,
   PanelLeftOpen, Eye, EyeOff, MoreHorizontal,
-  Send, Check, Square as StopIcon, Save, Volume2, Pause, Play, Focus, Rows3, Columns3, PanelBottom, MessageSquare, LayoutGrid,
+  Send, Check, Square as StopIcon, Save, Volume2, Pause, Play, Focus, Rows3, Columns3, PanelBottom, MessageSquare, LayoutGrid, HelpCircle,
   SkipForward, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
@@ -603,7 +603,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                   <button onClick={() => setAskOpen(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-border text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
                 </div>
               ) : (
-                <button onClick={() => setAskOpen(true)} className="absolute bottom-3 right-3 z-[6] inline-flex items-center gap-1.5 rounded-full border border-brand-500/50 bg-background/90 px-3 py-1.5 text-[11px] font-bold text-brand-400 shadow-lg backdrop-blur hover:border-brand-500"><MessageSquare className="h-3.5 w-3.5" /> Ask the presenter</button>
+                <button onClick={() => setAskOpen(true)} className="absolute bottom-3 right-3 z-[6] hidden items-center gap-1.5 rounded-full border border-brand-500/50 bg-background/90 px-3 py-1.5 text-[11px] font-bold text-brand-400 shadow-lg backdrop-blur hover:border-brand-500 md:inline-flex"><MessageSquare className="h-3.5 w-3.5" /> Ask the presenter</button>
               )
             ) : null}
             {paged && material ? (
@@ -701,11 +701,12 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         {/* attendee strip on the BOTTOM (desktop layouts only) */}
         {layout === "bottom" ? <RosterStrip {...rosterProps} className="hidden md:flex" /> : null}
 
-        {/* lesson progress + Next activity — phone only, host/co-host drives it */}
-        <LessonCard session={session} host={host} patch={patch} className="md:hidden" />
+        {/* lesson progress + Next activity — phone only, and only for the host who drives
+            it; participants don't need the agenda taking up their small screen. */}
+        {host ? <LessonCard session={session} host={host} patch={patch} className="md:hidden" /> : null}
 
         {/* ---- control bar ---- large touch targets, spread evenly on a phone ---- */}
-        <div className="flex shrink-0 items-center justify-between gap-1 border-t border-border bg-background/90 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:justify-start md:gap-1.5 md:overflow-x-auto md:px-2.5 md:py-2.5">
+        <div className="flex shrink-0 items-center justify-between gap-1 overflow-x-auto border-t border-border bg-background/90 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:justify-start md:gap-1.5 md:px-2.5 md:py-2.5">
           {/* mic + device caret */}
           <div ref={audioBtnRef} className="relative shrink-0">
             <Ctl
@@ -760,6 +761,17 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           {/* people — opens the roster sheet (phone only; desktop has the column/strip) */}
           <div className="shrink-0 md:hidden">
             <Ctl label="People" onClick={() => setSheet("roster")} title="Participants" Icon={Users} badge={inRoom.length} />
+          </div>
+          {/* ask the presenter — phone quick access when the AI co-host is delivering */}
+          {aiPresenter && onAsk ? (
+            <div className="shrink-0 md:hidden">
+              <Ctl on={askOpen} label="Ask" onClick={() => setAskOpen((v) => !v)} title="Ask the presenter" Icon={HelpCircle} />
+            </div>
+          ) : null}
+          {/* chat — phone quick access (desktop has its own button below) */}
+          <div className="relative shrink-0 md:hidden">
+            <Ctl on={chatOpen} label="Chat" onClick={() => setChatOpen((v) => !v)} title="Chat" Icon={MessageSquare} />
+            {unread ? <span className="pointer-events-none absolute right-0 top-0 grid h-[16px] min-w-[16px] place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-extrabold text-white">{unread > 9 ? "9+" : unread}</span> : null}
           </div>
           {/* chat — desktop bar only (phones reach it from More) */}
           <div className="relative hidden shrink-0 md:block">
@@ -1013,7 +1025,7 @@ function RosterStrip({ session, me, host, act, media, waiting, inRoom, onInvite,
             key={p.id}
             onClick={() => host && onSpotlight(p.id)}
             title={host ? (spotlit ? `Remove ${p.name}'s spotlight` : `Spotlight ${p.name}`) : p.name}
-            className={cn("group relative h-[52px] w-[72px] shrink-0 overflow-hidden rounded-lg border-2 bg-[#181820] sm:h-[64px] sm:w-[86px]", spotlit ? "border-amber-400" : p.role === "HOST" ? "border-brand-500/50" : "border-border")}
+            className={cn("group relative h-[40px] w-[56px] shrink-0 overflow-hidden rounded-lg border-2 bg-[#181820] sm:h-[56px] sm:w-[78px]", spotlit ? "border-amber-400" : p.role === "HOST" ? "border-brand-500/50" : "border-border")}
           >
             {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : p.isAI && p.videoUrl ? (
               <AvatarVideo url={p.videoUrl} poster={p.avatarUrl} speaking={!!session.aiPlaying} />
@@ -1037,7 +1049,7 @@ function RosterStrip({ session, me, host, act, media, waiting, inRoom, onInvite,
         );
       })}
       {host ? (
-        <button onClick={onInvite} title="Invite people" className="grid h-[52px] w-[46px] shrink-0 place-items-center rounded-lg border border-dashed border-border bg-card text-muted-foreground hover:border-brand-500 hover:text-brand-400 sm:h-[64px] sm:w-[52px]">
+        <button onClick={onInvite} title="Invite people" className="grid h-[40px] w-[40px] shrink-0 place-items-center rounded-lg border border-dashed border-border bg-card text-muted-foreground hover:border-brand-500 hover:text-brand-400 sm:h-[56px] sm:w-[46px]">
           <span className="flex flex-col items-center gap-0.5"><Send className="h-3.5 w-3.5" /><span className="text-[8.5px] font-bold">Invite</span></span>
         </button>
       ) : null}
@@ -1059,7 +1071,7 @@ function FloatingBubbles({ inRoom, me, media, session, host, onSpotlight, onOpen
   const [pos, setPos] = useState<Record<string, { x: number; y: number }>>({});
   const drag = useRef<{ id: string; ox: number; oy: number; sx: number; sy: number; moved: boolean } | null>(null);
 
-  const SIZE = 54, GAP = 10, MAX = 5;
+  const SIZE = 44, GAP = 8, MAX = 5;
   const shown = inRoom.slice(0, MAX);
   const ids = shown.map((p) => p.id).join(",");
 
