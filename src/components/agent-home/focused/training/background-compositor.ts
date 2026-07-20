@@ -123,6 +123,14 @@ export class BackgroundCompositor {
     if (!this.running) return;
     this.raf = requestAnimationFrame(this.loop);
     if (this.video.readyState < 2) return; // no camera frame decoded yet
+    // Size the canvas to the ACTUAL decoded frame, not track.getSettings() (which can
+    // report the requested constraint, e.g. 640x480, while the camera delivers 16:9 →
+    // the composite stretches). Match it here so the person is never squished.
+    const vw = this.video.videoWidth, vh = this.video.videoHeight;
+    if (vw && vh && (this.canvas.width !== vw || this.canvas.height !== vh)) {
+      this.canvas.width = vw;
+      this.canvas.height = vh;
+    }
     const seg = this.segmenter;
     const w = this.canvas.width, h = this.canvas.height;
     // No segmenter (unavailable) → pass the raw camera through, never a black frame.
