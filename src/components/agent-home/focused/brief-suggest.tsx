@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils/cn";
 export type BriefProposal = Record<string, unknown> & { title?: string; summary?: string };
 
 export function BriefSuggest({ kind, context, onApply }: {
-  kind: "campaign" | "leads" | "proposal" | "film";
+  kind: "campaign" | "leads" | "proposal" | "film" | "store";
   context?: string;
   onApply: (p: BriefProposal) => void;
 }) {
@@ -38,8 +38,10 @@ export function BriefSuggest({ kind, context, onApply }: {
     ? [str(p.industry), str(p.jobTitle)].filter(Boolean).join(" · ")
     : (kind === "proposal" || kind === "film")
       ? str(p.brief)
-      : [str(p.name), str(p.tone)].filter(Boolean).join(" · ");
-  const whatText = kind === "leads" ? "who to target" : kind === "proposal" ? "who to pitch + what to offer" : kind === "film" ? "a real story that ends on your brand" : "campaign ideas";
+      : kind === "store"
+        ? str(p.sells)
+        : [str(p.name), str(p.tone)].filter(Boolean).join(" · ");
+  const whatText = kind === "leads" ? "who to target" : kind === "proposal" ? "who to pitch + what to offer" : kind === "film" ? "a real story that ends on your brand" : kind === "store" ? "a store concept from your brand" : "campaign ideas";
 
   return (
     <div className="rounded-[12px] border border-brand-500/30 bg-gradient-to-br from-brand-500/[0.07] to-violet-500/[0.05] p-3">

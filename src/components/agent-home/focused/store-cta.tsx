@@ -1,24 +1,25 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Store, Sparkles, Check, BadgePercent, CreditCard, Wallet, Gift, ArrowLeft, AlertTriangle } from "lucide-react";
-import { FlowLoader } from "@/components/shared/flow-loader";
+import { Store, Sparkles, Check, BadgePercent, CreditCard, Wallet, Gift, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useMobileChat } from "../mobile-chat-context";
+import { BriefSuggest, type BriefProposal } from "./brief-suggest";
 
 // Mobile "collect via chat" starter (edit + send; the agent builds the store).
 const STORE_STARTER = "Build me a branded online store called [store name] selling [what you sell], modern style, with a few starter products.";
 
 /**
- * StoreCallToAction — the "no store yet" surface for the Sell workspace. Instead
- * of showing empty Products/Orders/Customers menus, a user without a store sees
- * what they get and exactly what it costs, then one button that reveals an INLINE
- * brief. Only the brief's final "Build my store" button spins the agent with the
- * gathered details. Used by the Sell side panel and the Sell focused view.
+ * StoreCallToAction — the "no store yet" surface for the Sell workspace. Shows
+ * what the user gets + exact costs, then "Create my store" opens the store BRIEF
+ * in the app's canonical bottom-sheet brief modal (same shell as the Filmmaking /
+ * Campaign / Leads briefs) — with the shared BriefSuggest "Suggest ideas" helper
+ * (kind: "store") that reads the Brand Kit and proposes what to sell. Only the
+ * brief's "Build my store" button spins the agent. [[brief-modals-unified]]
  *
  * Pricing is NEVER hardcoded — the AI store-build credit cost is read live from
- * /api/credits/costs (admin-editable; could be 0). The "Build my store" button is
- * DISABLED when the user can't afford it, with a top-up CTA. [[credit-based-not-plan-based]]
+ * /api/credits/costs (admin-editable; could be 0). "Build my store" is DISABLED
+ * when the user can't afford it, with a top-up CTA. [[credit-based-not-plan-based]]
  */
 
 // What the store gives them — grounded in the real ecommerce feature set.
@@ -41,8 +42,6 @@ function usd(credits: number): string {
 }
 
 export function StoreCallToAction({ onBuild, onTopUp, compact }: { onBuild: (prompt: string) => void; onTopUp?: () => void; compact?: boolean }) {
-  // The CTA gathers a brief in the UI BEFORE spinning the agent. "Create my
-  // store" reveals the inline form; only "Build my store" calls onBuild().
   const [briefing, setBriefing] = useState(false);
   const { isMobile, seedComposer } = useMobileChat();
   // Live pricing + balance (no hardcoded prices). null = still loading.
@@ -59,19 +58,13 @@ export function StoreCallToAction({ onBuild, onTopUp, compact }: { onBuild: (pro
   // Can't afford only when we KNOW both numbers and the cost is > 0.
   const shortfall = cost != null && cost > 0 && balance != null && balance < cost;
 
+  // Desktop opens the brief modal; mobile seeds the composer (agent collects in chat).
+  const start = () => { if (isMobile) { seedComposer(STORE_STARTER); return; } setBriefing(true); };
+
   return (
-    <div className={compact ? "w-full" : "mx-auto w-full max-w-lg"}>
-      <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
-        {/* Header — icon + headline. Collapses to a compact row once briefing. */}
-        {briefing ? (
-          <div className="flex items-center gap-2">
-            <button onClick={() => setBriefing(false)} aria-label="Back" className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ArrowLeft className="h-4 w-4" /></button>
-            <div className="min-w-0">
-              <h2 className="text-[15px] font-bold leading-tight">Tell us about your store</h2>
-              <p className="text-[11.5px] text-muted-foreground">The agent builds the whole branded store with these details — no back-and-forth.</p>
-            </div>
-          </div>
-        ) : (
+    <>
+      <div className={compact ? "w-full" : "mx-auto w-full max-w-lg"}>
+        <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
           <div className="text-center">
             <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500">
               <Store className="h-7 w-7" />
@@ -81,33 +74,37 @@ export function StoreCallToAction({ onBuild, onTopUp, compact }: { onBuild: (pro
               Tell the agent what you sell and it builds the whole store — branded storefront, products, and secure checkout — in minutes.
             </p>
           </div>
-        )}
 
-        {briefing ? (
-          <StoreBrief onBuild={onBuild} onTopUp={onTopUp} cost={cost} balance={balance} shortfall={shortfall} />
-        ) : (
-          <>
-            {/* benefits */}
-            <ul className="mt-4 space-y-2 text-left">
-              {BENEFITS.map((b) => (
-                <li key={b} className="flex items-start gap-2.5 text-[12.5px] leading-relaxed">
-                  <span className="mt-0.5 grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full bg-emerald-500/12 text-emerald-500"><Check className="h-3 w-3" /></span>
-                  <span>{b}</span>
-                </li>
-              ))}
-            </ul>
+          <ul className="mt-4 space-y-2 text-left">
+            {BENEFITS.map((b) => (
+              <li key={b} className="flex items-start gap-2.5 text-[12.5px] leading-relaxed">
+                <span className="mt-0.5 grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full bg-emerald-500/12 text-emerald-500"><Check className="h-3 w-3" /></span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
 
-            {/* charges — transparent, live (no hardcoded prices) */}
-            <Charges cost={cost} />
+          <Charges cost={cost} />
 
-            <button onClick={() => { if (isMobile) { seedComposer(STORE_STARTER); return; } setBriefing(true); }} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
-              <Sparkles className="h-4 w-4" /> Create my store
-            </button>
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">No charge until you launch — you confirm before anything bills.</p>
-          </>
-        )}
+          <button onClick={start} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
+            <Sparkles className="h-4 w-4" /> Create my store
+          </button>
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">No charge until you launch — you confirm before anything bills.</p>
+        </div>
       </div>
-    </div>
+
+      {briefing && (
+        <StoreBriefModal
+          compact={compact}
+          cost={cost}
+          balance={balance}
+          shortfall={shortfall}
+          onTopUp={onTopUp}
+          onClose={() => setBriefing(false)}
+          onBuild={(p) => { setBriefing(false); onBuild(p); }}
+        />
+      )}
+    </>
   );
 }
 
@@ -140,17 +137,25 @@ function Charges({ cost, className }: { cost: number | null; className?: string 
   );
 }
 
-/* ── The inline brief — gathered in the UI, then assembled into a detailed prompt
-      and handed to the agent via onBuild(). */
-function StoreBrief({ onBuild, onTopUp, cost, balance, shortfall }: { onBuild: (prompt: string) => void; onTopUp?: () => void; cost: number | null; balance: number | null; shortfall: boolean }) {
+/* ── The store BRIEF — in the app's canonical bottom-sheet brief modal (the same
+      shell the Filmmaking / Campaign / Leads studios use). Gathered in the UI,
+      assembled into a detailed prompt, handed to the agent via onBuild().
+      Fills the focused surface's <main> (which is relative), like the film brief. */
+function StoreBriefModal({ compact, cost, balance, shortfall, onTopUp, onClose, onBuild }: {
+  compact?: boolean;
+  cost: number | null;
+  balance: number | null;
+  shortfall: boolean;
+  onTopUp?: () => void;
+  onClose: () => void;
+  onBuild: (prompt: string) => void;
+}) {
   const [name, setName] = useState("");
   const [sells, setSells] = useState("");
   const [products, setProducts] = useState("");
   const [style, setStyle] = useState("Modern");
   const [currency, setCurrency] = useState("USD");
   const [error, setError] = useState("");
-  const [suggesting, setSuggesting] = useState(false);
-  const [suggested, setSuggested] = useState(false);
 
   // Prefill the store name from the Brand Kit so the user rarely types it.
   useEffect(() => {
@@ -159,28 +164,12 @@ function StoreBrief({ onBuild, onTopUp, cost, balance, shortfall }: { onBuild: (
     return () => { alive = false; };
   }, []);
 
-  // "Not sure what to sell?" — AI proposes a concept from the brand identity and
-  // fills the brief. Free onboarding helper; the user can edit everything after.
-  const suggest = async () => {
-    setSuggesting(true); setError("");
-    try {
-      const r = await fetch("/api/ecommerce/ai/suggest-concept", { method: "POST" });
-      const j = await r.json().catch(() => null);
-      const d = j?.data;
-      if (r.ok && d) {
-        if (d.sells) setSells(d.sells);
-        if (d.products) setProducts(d.products);
-        if (d.style && STORE_STYLES.includes(d.style)) setStyle(d.style);
-        setName((n) => n || d.storeName || "");
-        setSuggested(true);
-      } else {
-        setError(j?.error || "Couldn't suggest a concept — try again.");
-      }
-    } catch {
-      setError("Couldn't suggest a concept — try again.");
-    } finally {
-      setSuggesting(false);
-    }
+  // A picked AI store idea fills what-you-sell + starter products + style.
+  const applyIdea = (p: BriefProposal) => {
+    const s = (k: string) => (typeof p[k] === "string" ? (p[k] as string).trim() : "");
+    if (s("sells")) setSells(s("sells"));
+    if (s("products")) setProducts(s("products"));
+    if (STORE_STYLES.includes(s("style"))) setStyle(s("style"));
   };
 
   const build = () => {
@@ -200,60 +189,68 @@ function StoreBrief({ onBuild, onTopUp, cost, balance, shortfall }: { onBuild: (
   };
 
   return (
-    <>
-      {/* AI helper — for users who aren't sure what to sell. Fills the brief from
-          their brand identity; everything below stays editable. */}
-      <div className="mt-4 flex flex-wrap items-center gap-2.5 rounded-xl border border-brand-500/30 bg-gradient-to-r from-brand-500/10 to-violet-500/10 p-3">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-500/15 text-brand-500"><Sparkles className="h-4 w-4" /></span>
-        <p className="min-w-0 flex-1 text-[12px] leading-snug text-muted-foreground">
-          {suggested ? <><span className="font-semibold text-foreground">AI filled this from your brand</span> — tweak anything below.</> : <><span className="font-semibold text-foreground">Not sure what to sell?</span> Let AI suggest a store concept from your brand identity.</>}
-        </p>
-        <button onClick={suggest} disabled={suggesting} className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] border border-brand-500/40 bg-brand-500/10 px-3 py-1.5 text-[12px] font-semibold text-brand-500 hover:bg-brand-500/20 disabled:opacity-60">
-          {suggesting ? <FlowLoader size={13} /> : <Sparkles className="h-3.5 w-3.5" />} {suggested ? "Suggest again" : "Suggest with AI"}
-        </button>
-      </div>
+    <div className={compact ? "fixed inset-0 z-[60]" : "absolute inset-0 z-40"}>
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/45" />
+      <div className="absolute inset-x-3 bottom-3 flex max-h-[92%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+        <div className="relative flex items-center gap-2 border-b border-border px-4 pb-2 pt-2.5">
+          <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
+          <span className="rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-brand-500">Brief</span>
+          <span className="text-[11px] text-muted-foreground">store</span>
+          <span className="ml-1 text-[12.5px] font-bold">Launch your store</span>
+          <button onClick={onClose} className="ms-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+        </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-3.5 sm:grid-cols-2">
-        <Field label="Store name *"><input value={name} onChange={(e) => setName(e.target.value)} className={SC_FIELD} placeholder="Acme Goods" /></Field>
-        <Field label="Currency">
-          <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={SC_FIELD}>
-            {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </Field>
-        <div className="sm:col-span-2">
-          <Field label="What you sell *"><textarea value={sells} onChange={(e) => setSells(e.target.value)} rows={2} className={cn(SC_FIELD, "resize-y")} placeholder="e.g. handmade ceramic mugs & homeware for cozy kitchens" /></Field>
-        </div>
-        <div className="sm:col-span-2">
-          <Field label="A few starter products (optional)"><textarea value={products} onChange={(e) => setProducts(e.target.value)} rows={2} className={cn(SC_FIELD, "resize-y")} placeholder="List a few products with prices — e.g. Blue Mug $20, Mug Set of 4 $70, Espresso Cup $14" /></Field>
-        </div>
-        <div className="sm:col-span-2">
-          <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Store style / vibe</p>
-          <div className="flex flex-wrap gap-1.5">
-            {STORE_STYLES.map((s) => (
-              <button key={s} onClick={() => setStyle(s)} className={cn("rounded-full border px-2.5 py-1 text-[12px] font-semibold transition", style === s ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{s}</button>
-            ))}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 pt-3">
+          <p className="mb-3 text-[11.5px] text-muted-foreground">The agent builds the whole branded store with these details — no back-and-forth.</p>
+
+          {/* Shared "Suggest ideas" helper — reads the Brand Kit, proposes store concepts. */}
+          <div className="mb-4"><BriefSuggest kind="store" onApply={applyIdea} /></div>
+
+          <div className="grid grid-cols-1 gap-x-5 gap-y-3.5 sm:grid-cols-2">
+            <Field label="Store name *"><input value={name} onChange={(e) => setName(e.target.value)} className={SC_FIELD} placeholder="Acme Goods" /></Field>
+            <Field label="Currency">
+              <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={SC_FIELD}>
+                {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="What you sell *"><textarea value={sells} onChange={(e) => setSells(e.target.value)} rows={2} className={cn(SC_FIELD, "resize-y")} placeholder="e.g. handmade ceramic mugs & homeware for cozy kitchens" /></Field>
+            </div>
+            <div className="sm:col-span-2">
+              <Field label="A few starter products (optional)"><textarea value={products} onChange={(e) => setProducts(e.target.value)} rows={2} className={cn(SC_FIELD, "resize-y")} placeholder="List a few products with prices — e.g. Blue Mug $20, Mug Set of 4 $70, Espresso Cup $14" /></Field>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Store style / vibe</p>
+              <div className="flex flex-wrap gap-1.5">
+                {STORE_STYLES.map((s) => (
+                  <button key={s} onClick={() => setStyle(s)} className={cn("rounded-full border px-2.5 py-1 text-[12px] font-semibold transition", style === s ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{s}</button>
+                ))}
+              </div>
+            </div>
+            {error && <p className="text-[12px] text-rose-500 sm:col-span-2">{error}</p>}
           </div>
+
+          {/* Keep the transparent charges visible so the user sees the live costs. */}
+          <Charges cost={cost} />
+
+          {/* Not enough credits → can't build; offer a top-up instead of a dead button. */}
+          {shortfall && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 flex-1">Building costs <span className="font-bold">{cost?.toLocaleString()} credits</span> — you have <span className="font-bold">{balance?.toLocaleString()}</span>. Top up to continue.</span>
+              {onTopUp && <button onClick={onTopUp} className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><CreditCard className="h-3.5 w-3.5" /> Buy credits</button>}
+            </div>
+          )}
         </div>
-        {error && <p className="text-[12px] text-rose-500 sm:col-span-2">{error}</p>}
-      </div>
 
-      {/* Keep the transparent charges visible so the user sees the live costs. */}
-      <Charges cost={cost} />
-
-      {/* Not enough credits → can't build; offer a top-up instead of a dead button. */}
-      {shortfall && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-[12px] text-amber-600 dark:text-amber-400">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
-          <span className="min-w-0 flex-1">Building costs <span className="font-bold">{cost?.toLocaleString()} credits</span> — you have <span className="font-bold">{balance?.toLocaleString()}</span>. Top up to continue.</span>
-          {onTopUp && <button onClick={onTopUp} className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><CreditCard className="h-3.5 w-3.5" /> Buy credits</button>}
+        <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3">
+          <button onClick={build} disabled={shortfall} className={cn("inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30", shortfall && "cursor-not-allowed opacity-50 shadow-none")} title={shortfall ? "Not enough credits — top up first" : undefined}>
+            <Sparkles className="h-4 w-4" /> Build my store
+          </button>
+          <span className="ms-auto hidden text-[11px] text-muted-foreground sm:block">Uses your brand kit · the agent confirms before anything bills.</span>
         </div>
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-        <button onClick={build} disabled={shortfall} className={cn("inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30", shortfall && "cursor-not-allowed opacity-50 shadow-none")} title={shortfall ? "Not enough credits — top up first" : undefined}><Sparkles className="h-4 w-4" /> Build my store</button>
-        <span className="ms-auto hidden text-[11px] text-muted-foreground sm:block">Uses your brand kit · the agent confirms before anything bills.</span>
       </div>
-    </>
+    </div>
   );
 }
 
