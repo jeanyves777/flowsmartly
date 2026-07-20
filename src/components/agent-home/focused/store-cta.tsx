@@ -31,7 +31,16 @@ const BENEFITS = [
   "AI product copy, images & ad creatives on tap",
 ];
 
-const STORE_STYLES = ["Modern", "Bold", "Minimal", "Elegant", "Playful"];
+// Store style / vibe — each with a REAL example storefront thumbnail so the
+// pick shows what the vibe actually looks like. [[style-selectors-need-visual-thumbnails]]
+const VIBE_THUMB = "/Studio_Menus_Thumnail/Store_style_vibe";
+const STORE_STYLES = [
+  { name: "Modern", thumb: `${VIBE_THUMB}/modern.webp` },
+  { name: "Bold", thumb: `${VIBE_THUMB}/bold.webp` },
+  { name: "Minimal", thumb: `${VIBE_THUMB}/minimal.webp` },
+  { name: "Elegant", thumb: `${VIBE_THUMB}/elegant.webp` },
+  { name: "Playful", thumb: `${VIBE_THUMB}/playful.webp` },
+];
 const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "NGN", "INR", "ZAR"];
 const SC_FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 
@@ -168,7 +177,7 @@ export function StoreBriefModal({ compact, onTopUp, onClose, onBuild }: {
     const s = (k: string) => (typeof p[k] === "string" ? (p[k] as string).trim() : "");
     if (s("sells")) setSells(s("sells"));
     if (s("products")) setProducts(s("products"));
-    if (STORE_STYLES.includes(s("style"))) setStyle(s("style"));
+    if (STORE_STYLES.some((v) => v.name === s("style"))) setStyle(s("style"));
   };
 
   const build = () => {
@@ -220,10 +229,22 @@ export function StoreBriefModal({ compact, onTopUp, onClose, onBuild }: {
             </div>
             <div className="sm:col-span-2">
               <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Store style / vibe</p>
-              <div className="flex flex-wrap gap-1.5">
-                {STORE_STYLES.map((s) => (
-                  <button key={s} onClick={() => setStyle(s)} className={cn("rounded-full border px-2.5 py-1 text-[12px] font-semibold transition", style === s ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{s}</button>
-                ))}
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                {STORE_STYLES.map((v) => {
+                  const on = style === v.name;
+                  return (
+                    <button key={v.name} type="button" onClick={() => setStyle(v.name)} className={cn("group overflow-hidden rounded-xl border text-left transition", on ? "border-brand-500 ring-2 ring-brand-500/30" : "border-border hover:border-brand-500/50")}>
+                      <span className="block aspect-[16/10] overflow-hidden bg-muted">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={v.thumb} alt={`${v.name} store example`} loading="lazy" className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.04]" />
+                      </span>
+                      <span className={cn("flex items-center justify-between px-2 py-1.5 text-[11.5px] font-semibold", on ? "text-brand-500" : "text-muted-foreground")}>
+                        {v.name}
+                        {on && <Check className="h-3.5 w-3.5" />}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             {error && <p className="text-[12px] text-rose-500 sm:col-span-2">{error}</p>}
