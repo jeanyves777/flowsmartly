@@ -225,6 +225,24 @@ export async function POST(
     const platformFeeCents = connectReady ? Math.round(totalCents * (store.platformFeePercent / 100)) : 0;
     const storeOwnerAmountCents = connectReady ? totalCents - platformFeeCents : 0;
 
+    // MONEY SAFETY: never take a card payment when the store hasn't finished payout
+    // setup — without a Connect destination the charge would settle in FlowSmartly's
+    // platform account instead of the seller's.
+    if (isCardPayment && !connectReady) {
+      return NextResponse.json(
+        { success: false, error: { code: "PAYMENTS_NOT_READY", message: "This store isn't set up to accept card payments yet." } },
+        { status: 400 }
+      );
+    }
+    // Mobile money & bank transfer are not yet integrated (no real collection), so
+    // don't create an unpaid order and ship against it. Card + cash-on-delivery only.
+    if (paymentMethod === "mobile_money" || paymentMethod === "bank_transfer") {
+      return NextResponse.json(
+        { success: false, error: { code: "METHOD_UNAVAILABLE", message: "That payment method isn't available yet — please use card or cash on delivery." } },
+        { status: 400 }
+      );
+    }
+
     // ── Stripe method allowlist (from Settings → Payments) ──
 
     const validStripeIds = new Set(STRIPE_METHOD_CATALOG.map((m) => m.id));

@@ -77,12 +77,14 @@ export async function GET(
       }
     }
 
-    // Non-Stripe providers saved in StorePaymentMethod (mobile money, COD, bank transfer)
+    // Non-Stripe methods we actually honor at checkout. Mobile money & bank
+    // transfer are not yet integrated (no real collection), so they're not
+    // advertised — only cash-on-delivery, which is an honest offline order.
     const nonStripeRows = await prisma.storePaymentMethod.findMany({
       where: {
         storeId: store.id,
         isActive: true,
-        methodType: { in: ["mobile_money", "cod", "bank_transfer"] },
+        methodType: { in: ["cod"] },
         provider: { notIn: ["stripe"] },
       },
       select: { methodType: true, provider: true },
@@ -148,8 +150,10 @@ export async function GET(
       });
     }
 
-    // Safety fallback so checkout is never empty.
-    if (paymentMethods.length === 0) {
+    // Fallback card option ONLY when the store can actually receive card funds
+    // (Connect complete). Otherwise leave the list empty so the storefront shows
+    // "not accepting payments yet" rather than routing money to the platform.
+    if (paymentMethods.length === 0 && store.stripeConnectAccountId && store.stripeOnboardingComplete) {
       paymentMethods.push({
         method: "card",
         label: "Credit / Debit Card",
