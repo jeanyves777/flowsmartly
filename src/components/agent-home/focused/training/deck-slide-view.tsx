@@ -26,6 +26,37 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   // `reveal` = how many steps are shown (undefined = show everything, e.g. a builder
   // thumbnail). Drives the progressive "drawing as you talk" reveal.
 
+  // An on-screen quiz — the question + lettered options; the correct one lights up green
+  // (with an explanation) once the host reveals it (reveal step 2).
+  if (slide.quiz) {
+    const q = slide.quiz;
+    const revealed = reveal === undefined || reveal >= 2;
+    return (
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[#1b2540] via-[#161a2c] to-[#100e18] px-[7%] py-[6%] [container-type:inline-size]", className)}>
+        <div className="mb-[2cqw] inline-flex items-center gap-2 self-start rounded-full bg-brand-500/20 px-[2.2cqw] py-[1cqw] text-[clamp(5px,1.7cqw,15px)] font-black uppercase tracking-wide text-brand-300">💡 Quick check</div>
+        <h1 className="text-[clamp(9px,3.4cqw,34px)] font-extrabold leading-tight text-white">{md(q.question)}</h1>
+        <div className="mt-[3cqw] grid grid-cols-1 gap-[1.6cqw] sm:grid-cols-2">
+          {q.options.map((o, k) => {
+            const correct = revealed && k === q.answerIndex;
+            return (
+              <div key={k} className={cn("flex items-center gap-[1.8cqw] rounded-[1.4cqw] border-2 px-[2.4cqw] py-[1.8cqw] text-[clamp(6px,2cqw,18px)] font-semibold transition",
+                correct ? "border-emerald-400 bg-emerald-400/15 text-white" : "border-white/12 bg-white/[0.04] text-white/85")}>
+                <span className={cn("grid h-[3.4cqw] w-[3.4cqw] shrink-0 place-items-center rounded-full text-[clamp(5px,1.8cqw,16px)] font-black",
+                  correct ? "bg-emerald-400 text-emerald-950" : "bg-white/10 text-white/70")}>{correct ? "✓" : String.fromCharCode(65 + k)}</span>
+                <span className="min-w-0">{md(o)}</span>
+              </div>
+            );
+          })}
+        </div>
+        {revealed && q.explanation ? (
+          <p className="mt-[2.6cqw] rounded-[1.2cqw] border border-emerald-400/25 bg-emerald-400/[0.08] px-[2.4cqw] py-[1.6cqw] text-[clamp(5px,1.8cqw,16px)] font-medium text-emerald-100">{md(q.explanation)}</p>
+        ) : !revealed ? (
+          <p className="mt-[2.6cqw] text-[clamp(5px,1.7cqw,15px)] font-semibold text-brand-300/90">Raise your hand ✋ with your answer — the host reveals it next.</p>
+        ) : null}
+      </div>
+    );
+  }
+
   // A "pause for questions" moment — a calm, centred prompt so the room knows it's time
   // to ask. The presenter pauses here; the host or the AI answers, then continues.
   if (slide.qa) {

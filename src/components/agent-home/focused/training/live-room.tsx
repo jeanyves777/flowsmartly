@@ -304,25 +304,29 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   // host = conductor. Reveals track the AUDIO POSITION (so pause/resume/repeat just
   // work), and the deck advances when the narration ends. Latest state via a ref so the
   // listeners attach once and never read stale values.
-  const aiStateRef = useRef({ session, deckSteps, pages: material?.pages ?? 1, qa: !!deckSlide?.qa });
-  aiStateRef.current = { session, deckSteps, pages: material?.pages ?? 1, qa: !!deckSlide?.qa };
+  const stEnv = { session, deckSteps, pages: material?.pages ?? 1, pause: !!deckSlide?.qa || !!deckSlide?.quiz, quiz: !!deckSlide?.quiz };
+  const aiStateRef = useRef(stEnv);
+  aiStateRef.current = stEnv;
   useEffect(() => {
     const a = aiAudioRef.current;
     if (!host || !a) return;
     const onTime = () => {
-      const { session: s, deckSteps: steps } = aiStateRef.current;
+      const { session: s, deckSteps: steps, quiz } = aiStateRef.current;
       if (!s.aiPlaying || !a.duration || !isFinite(a.duration) || steps < 1) return;
-      const target = Math.min(steps, Math.max(1, Math.floor((a.currentTime / a.duration) * steps) + 1));
+      // A quiz asks the question but must NOT auto-reveal the answer (step 2) — the host
+      // reveals it after the hand-raise check. So cap the auto-reveal at step 1.
+      const cap = quiz ? 1 : steps;
+      const target = Math.min(cap, Math.max(1, Math.floor((a.currentTime / a.duration) * steps) + 1));
       if (target > (s.stageStep || 1)) void patch({ stageStep: target });
     };
     let advancing = false;
     const onEnd = () => {
-      const { session: s, pages, qa } = aiStateRef.current;
+      const { session: s, pages, pause } = aiStateRef.current;
       if (advancing || !s.aiPlaying) return;
       advancing = true; setTimeout(() => { advancing = false; }, 900);
-      // A Q&A slide invites questions, then STOPS — the host presses Skip/Present with AI
-      // to continue once the room is done asking (rather than auto-advancing past it).
-      if (qa) { void patch({ aiPlaying: false }); return; }
+      // Q&A / quiz slides STOP after the co-host speaks — the host takes questions or
+      // reveals the answer, then presses Skip/Present with AI to continue.
+      if (pause) { void patch({ aiPlaying: false }); return; }
       if (s.stagePage < pages) void patch({ stagePage: s.stagePage + 1, stageStep: 1 });
       else void patch({ aiPlaying: false });
     };
