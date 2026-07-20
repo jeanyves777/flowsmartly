@@ -19,7 +19,7 @@ import {
   Minus, MoveUpRight, Triangle, Diamond, ChevronDown, ChevronUp, PanelLeftClose,
   PanelLeftOpen, Eye, EyeOff, MoreHorizontal,
   Send, Check, Square as StopIcon, Save, Volume2, Pause, Play, Focus, Rows3, Columns3, PanelBottom, MessageSquare, LayoutGrid, HelpCircle,
-  SkipForward, RotateCcw,
+  SkipForward, RotateCcw, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-board";
@@ -343,6 +343,48 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     if (!e) { setAskText(""); setAskOpen(false); }
   };
 
+  // ---- ASK BY VOICE — record a short clip, transcribe (Whisper), then ask ----
+  const [recState, setRecState] = useState<"idle" | "rec" | "stt">("idle");
+  const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const recStreamRef = useRef<MediaStream | null>(null);
+  const stopRec = () => { if (recRef.current && recState === "rec") recRef.current.stop(); };
+  const startRec = async () => {
+    if (recState !== "idle" || !onAsk) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recStreamRef.current = stream;
+      const mr = new MediaRecorder(stream, typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported?.("audio/webm") ? { mimeType: "audio/webm" } : undefined);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        recStreamRef.current?.getTracks().forEach((t) => t.stop());
+        recStreamRef.current = null;
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        if (!blob.size) { setRecState("idle"); return; }
+        setRecState("stt");
+        try {
+          const fd = new FormData();
+          fd.append("audio", blob, "question.webm");
+          const j = await fetch(`/api/ai/training/${session.id}/presenter/transcribe`, { method: "POST", body: fd }).then((r) => r.json());
+          if (j?.success && j.data.text) {
+            setAskText(j.data.text);
+            // auto-send the spoken question (the answer overlay shows it back)
+            setAsking(true);
+            const e2 = await onAsk(j.data.text);
+            setAsking(false);
+            if (!e2) { setAskText(""); setAskOpen(false); } else setAskOpen(true);
+          } else {
+            setAskOpen(true); // couldn't transcribe — let them type
+          }
+        } finally { setRecState("idle"); }
+      };
+      recRef.current = mr;
+      mr.start();
+      setRecState("rec");
+    } catch { setRecState("idle"); }
+  };
+
   const backdrop = useMemo(() => {
     if (session.stageSource === "board") return null;
     if (session.stageSource === "screen") {
@@ -597,10 +639,13 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
             {/* Ask the presenter — any participant, while the AI presenter is on */}
             {aiPresenter && onAsk ? (
               askOpen ? (
-                <div className="absolute bottom-3 right-3 z-[8] flex w-[min(88%,340px)] items-center gap-1 rounded-full border border-border bg-background/95 p-1.5 shadow-2xl backdrop-blur">
-                  <input value={askText} onChange={(e) => setAskText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void submitAsk(); if (e.key === "Escape") setAskOpen(false); }} autoFocus placeholder="Ask the presenter a question…" className="min-w-0 flex-1 bg-transparent px-2 text-[12px] outline-none placeholder:text-muted-foreground" />
+                <div className="absolute bottom-3 right-3 z-[8] flex w-[min(90%,360px)] items-center gap-1 rounded-full border border-border bg-background/95 p-1.5 shadow-2xl backdrop-blur">
+                  <button onClick={recState === "rec" ? stopRec : () => void startRec()} disabled={recState === "stt" || asking} title={recState === "rec" ? "Stop & send" : "Ask by voice"} className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-full transition disabled:opacity-50", recState === "rec" ? "bg-rose-500 text-white" : "border border-brand-500/50 text-brand-400 hover:border-brand-500")}>
+                    {recState === "stt" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : recState === "rec" ? <StopIcon className="h-3 w-3" /> : <Mic className="h-3.5 w-3.5" />}
+                  </button>
+                  <input value={askText} onChange={(e) => setAskText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void submitAsk(); if (e.key === "Escape") setAskOpen(false); }} autoFocus disabled={recState !== "idle"} placeholder={recState === "rec" ? "Listening… tap ■ to send" : recState === "stt" ? "Transcribing…" : "Ask by voice or type…"} className="min-w-0 flex-1 bg-transparent px-2 text-[12px] outline-none placeholder:text-muted-foreground disabled:opacity-60" />
                   <button onClick={() => void submitAsk()} disabled={asking || !askText.trim()} className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-cyan-400 to-brand-500 text-[#04222a] disabled:opacity-50"><Send className={cn("h-3.5 w-3.5", asking && "animate-pulse")} /></button>
-                  <button onClick={() => setAskOpen(false)} className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-border text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => { stopRec(); setAskOpen(false); }} className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-border text-muted-foreground"><X className="h-3.5 w-3.5" /></button>
                 </div>
               ) : (
                 <button onClick={() => setAskOpen(true)} className="absolute bottom-3 right-3 z-[6] hidden items-center gap-1.5 rounded-full border border-brand-500/50 bg-background/90 px-3 py-1.5 text-[11px] font-bold text-brand-400 shadow-lg backdrop-blur hover:border-brand-500 md:inline-flex"><MessageSquare className="h-3.5 w-3.5" /> Ask the presenter</button>
