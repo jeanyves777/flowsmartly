@@ -339,6 +339,7 @@ export type RoomEvent =
   | { type: "knock"; participant: TrainingParticipantDTO }
   | { type: "chat"; message: TrainingMessageDTO }
   | { type: "presenter:answer"; answer: PresenterAnswer }
+  | { type: "presenter:dismiss" }
   | { type: "heartbeat" };
 
 /** A live Q&A answer from the AI presenter — what it says back to a question, plus the

@@ -32,10 +32,8 @@ async function greetHandRaise(id: string, participantId: string): Promise<void> 
   if (!presenter) return;
   const name = (asker?.name || "there").split(/\s+/)[0];
 
-  // pause the AI narration so the room stops for the question
-  await prisma.trainingSession.update({ where: { id }, data: { aiPlaying: false } }).catch(() => {});
-  broadcast(id, { type: "room:state", patch: { aiPlaying: false } });
-
+  // Voice the acknowledgement FIRST, then pause + show + play together — so the room
+  // keeps going until the reply is ready, then interrupts cleanly (no dead air).
   const line = `Hi ${name}, it looks like you have a question. Go ahead — I'm listening.`;
   let audioUrl: string | null = null;
   let durationMs = 0;
@@ -46,6 +44,8 @@ async function greetHandRaise(id: string, participantId: string): Promise<void> 
     durationMs = d;
   } catch { /* text-only acknowledgement if TTS is unavailable */ }
 
+  await prisma.trainingSession.update({ where: { id }, data: { aiPlaying: false } }).catch(() => {});
+  broadcast(id, { type: "room:state", patch: { aiPlaying: false } });
   const answer: PresenterAnswer = { id: nanoid(8), question: `${asker?.name || "Someone"} raised their hand ✋`, askedBy: asker?.name || "Someone", answer: line, audioUrl, durationMs, confident: true };
   broadcast(id, { type: "presenter:answer", answer });
 }

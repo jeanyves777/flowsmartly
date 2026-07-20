@@ -110,6 +110,10 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
               // the AI presenter's live answer — every client shows + plays it
               return { ...s, presenterAnswer: msg.answer };
 
+            case "presenter:dismiss":
+              // the host dismissed the Q&A / hand-raise card — clear it for EVERYONE
+              return s.presenterAnswer ? { ...s, presenterAnswer: null } : s;
+
             case "room:join":
             case "room:participant":
             case "knock": {
