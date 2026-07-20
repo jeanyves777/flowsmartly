@@ -1,0 +1,120 @@
+<title>Store brief modal — contained to the content pane (fix)</title>
+<style>
+  :root{
+    --ground:#0b0b0f;--card:#15151c;--card2:#1b1b23;--border:#26262f;--input:#33333f;
+    --text:#ececf1;--muted:#9a9aa6;--faint:#6c6c78;
+    --brand:#6366f1;--violet:#7c3aed;--emerald:#10b981;
+  }
+  :root[data-theme="light"]{--ground:#f6f6fa;--card:#fff;--card2:#f1f1f6;--border:#e6e6ee;--input:#e2e2ea;--text:#191922;--muted:#65656f;--faint:#9a9aa6}
+  @media(prefers-color-scheme:light){:root:not([data-theme="dark"]){--ground:#f6f6fa;--card:#fff;--card2:#f1f1f6;--border:#e6e6ee;--input:#e2e2ea;--text:#191922;--muted:#65656f;--faint:#9a9aa6}}
+  *{box-sizing:border-box}html,body{margin:0;height:100%}
+  body{background:var(--ground);color:var(--text);font:13px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+  .app{height:100vh;display:flex;flex-direction:column}
+  .topbar{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border)}
+  .topbar .mk{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff;font-weight:800;font-size:12px}
+  .topbar b{font-size:12.5px}.topbar .sp{flex:1}
+  .themebtn{cursor:pointer;font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:4px 10px;background:var(--card)}
+  .shell{flex:1;display:flex;min-height:0}
+  /* nav rail */
+  .rail{width:62px;flex:none;border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0}
+  .rail .it{width:52px;padding:7px 0;border-radius:11px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9px;color:var(--muted)}
+  .rail .it.on{background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(124,58,237,.15));color:var(--text)}
+  .rail .ic{font-size:16px}
+  /* focused view = [chat | content] */
+  .focused{flex:1;display:grid;grid-template-columns:340px 1fr;min-width:0}
+  .chat{border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0;background:color-mix(in srgb,var(--card) 35%,transparent)}
+  .chat .ch-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px}
+  .chat .dot{width:7px;height:7px;border-radius:50%;background:var(--emerald)}
+  .chat .ch-b{flex:1;padding:14px;font-size:12px;color:var(--muted)}
+  .chat .ch-c{border-top:1px solid var(--border);padding:12px}
+  .chat .composer{border:1px solid var(--border);border-radius:999px;padding:9px 14px;font-size:12px;color:var(--faint);background:var(--card)}
+  /* CONTENT PANE — positioned; the modal fills THIS, not the chat */
+  .content{position:relative;min-width:0;overflow:hidden}
+  .content .ch-title{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border)}
+  .content .ch-title b{font-size:13px}.content .ch-title span{font-size:11px;color:var(--muted)}
+  .content .scroll{position:absolute;inset:44px 0 0 0;overflow-y:auto;padding:26px 16px;display:grid;place-items:start center}
+  .lcard{width:min(500px,92%);border:1px solid var(--border);border-radius:16px;background:var(--card);padding:22px;text-align:center}
+  .lcard .ic{width:54px;height:54px;margin:0 auto;border-radius:15px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(124,58,237,.2));color:var(--brand);font-size:24px}
+  .lcard h2{font-size:18px;margin:12px 0 4px}.lcard p{color:var(--muted);font-size:12.5px;margin:0}
+  .lcard .cta{margin-top:16px;width:100%;border:none;border-radius:12px;padding:11px;font-size:13px;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--brand),var(--violet));cursor:pointer}
+
+  /* the modal — absolute inset-0 of the CONTENT PANE (fills content, not chat) */
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.45);display:none}
+  .scrim.on{display:block}
+  .sheet{position:absolute;left:16px;right:16px;bottom:16px;max-height:90%;display:none;flex-direction:column;border:1px solid var(--border);border-radius:16px;background:var(--card);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .sheet.on{display:flex}
+  .sh{position:relative;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding:10px 16px 8px}
+  .sh .handle{position:absolute;left:50%;top:6px;transform:translateX(-50%);width:36px;height:4px;border-radius:999px;background:var(--border)}
+  .badge{border-radius:6px;background:rgba(99,102,241,.1);color:var(--brand);font-size:10px;font-weight:800;padding:2px 6px}
+  .sh .node{font-size:11px;color:var(--muted)}.sh .ttl{font-size:12.5px;font-weight:800}
+  .sh .x{margin-left:auto;width:26px;height:26px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+  .sb{flex:1;overflow-y:auto;padding:14px 16px}
+  .bs{border:1px solid rgba(99,102,241,.3);border-radius:12px;background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(124,58,237,.05));padding:12px;margin-bottom:14px;display:flex;align-items:center;gap:10px}
+  .bs .i{width:28px;height:28px;flex:none;border-radius:8px;display:grid;place-items:center;background:rgba(99,102,241,.15);color:var(--brand)}
+  .bs .t{flex:1}.bs .t b{font-size:12.5px;display:block}.bs .t span{font-size:11.5px;color:var(--muted)}
+  .bs button{border:none;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff;font-size:12px;font-weight:700;padding:7px 12px;cursor:pointer}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .full{grid-column:1/-1}
+  .lab{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:4px}
+  input,textarea,select{width:100%;border:1px solid var(--input);background:var(--ground);color:var(--text);border-radius:9px;padding:8px 10px;font-size:12.5px;font-family:inherit}
+  textarea{resize:vertical;min-height:44px}
+  .sf{display:flex;align-items:center;gap:10px;border-top:1px solid var(--border);padding:12px 16px}
+  .sf .build{border:none;border-radius:11px;background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff;font-size:13px;font-weight:700;padding:9px 15px;cursor:pointer}
+  .sf .n{margin-left:auto;font-size:11px;color:var(--muted)}
+  .flag{position:absolute;top:8px;left:50%;transform:translateX(-50%);font-size:10.5px;font-weight:700;color:var(--emerald);background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);border-radius:999px;padding:3px 10px;z-index:5;pointer-events:none}
+</style>
+
+<div class="app">
+  <div class="topbar"><span class="mk">F</span><b>FlowSmartly</b><span class="sp"></span><span class="themebtn" id="themeToggle">◐ Theme</span></div>
+  <div class="shell">
+    <div class="rail">
+      <div class="it"><span class="ic">✦</span>Agent</div>
+      <div class="it"><span class="ic">🎬</span>Film</div>
+      <div class="it"><span class="ic">🔍</span>Leads</div>
+      <div class="it on"><span class="ic">🛍️</span>Sell</div>
+      <div class="it"><span class="ic">🌐</span>Web</div>
+    </div>
+    <div class="focused">
+      <div class="chat">
+        <div class="ch-h"><span class="dot"></span><b>Agent · ready</b></div>
+        <div class="ch-b">Ask the agent to run your store — it can act on your account and confirm before anything costs credits.</div>
+        <div class="ch-c"><div class="composer">Ask FlowSmartly to do something…</div></div>
+      </div>
+      <div class="content">
+        <span class="flag">✓ chat stays usable — modal fills only this pane</span>
+        <div class="ch-title"><span>🛍️</span><b>Sell</b><span>· Store builder, products, orders…</span></div>
+        <div class="scroll">
+          <div class="lcard">
+            <div class="ic">🏪</div><h2>Launch your online store</h2>
+            <p>Tell the agent what you sell and it builds the whole store — in minutes.</p>
+            <button class="cta" id="open">✦ Create my store</button>
+          </div>
+        </div>
+
+        <div class="scrim" id="scrim"></div>
+        <div class="sheet" id="sheet">
+          <div class="sh"><span class="handle"></span><span class="badge">Brief</span><span class="node">store</span><span class="ttl">Launch your store</span><button class="x" id="close">✕</button></div>
+          <div class="sb">
+            <div class="bs"><span class="i">✦</span><div class="t"><b>Not sure where to start?</b><span>Let AI suggest a store concept from your brand — pick one and it fills the form.</span></div><button>✦ Suggest ideas</button></div>
+            <div class="grid">
+              <div><label class="lab">Store name *</label><input value="General Computing Solutions" /></div>
+              <div><label class="lab">Currency</label><select><option>USD</option></select></div>
+              <div class="full"><label class="lab">What you sell *</label><textarea placeholder="e.g. handmade ceramic mugs & homeware"></textarea></div>
+              <div class="full"><label class="lab">Starter products (optional)</label><textarea placeholder="Blue Mug $20, Mug Set $70"></textarea></div>
+            </div>
+          </div>
+          <div class="sf"><button class="build">✦ Build my store</button><span class="n">Uses your brand kit · confirms before anything bills.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const scrim=document.getElementById('scrim'),sheet=document.getElementById('sheet');
+document.getElementById('open').onclick=()=>{scrim.classList.add('on');sheet.classList.add('on')};
+document.getElementById('close').onclick=()=>{scrim.classList.remove('on');sheet.classList.remove('on')};
+scrim.onclick=()=>{scrim.classList.remove('on');sheet.classList.remove('on')};
+document.getElementById('open').click();
+document.getElementById('themeToggle').onclick=()=>{const r=document.documentElement;const cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
+</script>
