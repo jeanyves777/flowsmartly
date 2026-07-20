@@ -277,14 +277,26 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const [tookOver, setTookOver] = useState(false);
   // every client plays the current slide's narration while the AI is delivering. On a
   // NEW slide the audio restarts from 0; resuming the SAME slide keeps its position.
+  // caption reveals in time with the audio (a rolling window of the words JUST spoken,
+  // not the whole script) and can be dismissed. `capFrac` is how far the audio has played.
+  const [capFrac, setCapFrac] = useState(0);
+  const [capDismissed, setCapDismissed] = useState(false);
   useEffect(() => {
     const a = aiAudioRef.current;
     if (!a) return;
     if (aiPlaying && narration?.audioUrl) {
-      if (a.getAttribute("data-src") !== narration.audioUrl) { a.src = narration.audioUrl; a.setAttribute("data-src", narration.audioUrl); a.currentTime = 0; }
+      if (a.getAttribute("data-src") !== narration.audioUrl) { a.src = narration.audioUrl; a.setAttribute("data-src", narration.audioUrl); a.currentTime = 0; setCapFrac(0); }
       a.play().catch(() => {});
     } else { a.pause(); }
   }, [aiPlaying, narration?.audioUrl]);
+  useEffect(() => { setCapDismissed(false); }, [narration?.text]); // a new slide's caption is shown again
+  useEffect(() => {
+    const a = aiAudioRef.current;
+    if (!a) return;
+    const onTime = () => { if (a.duration && isFinite(a.duration)) setCapFrac(Math.min(1, a.currentTime / a.duration)); };
+    a.addEventListener("timeupdate", onTime);
+    return () => a.removeEventListener("timeupdate", onTime);
+  }, []);
   // host = conductor. Reveals track the AUDIO POSITION (so pause/resume/repeat just
   // work), and the deck advances when the narration ends. Latest state via a ref so the
   // listeners attach once and never read stale values.
@@ -323,14 +335,23 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     if (media.enabled && !media.micOn) { await media.toggleMic().catch(() => {}); await act("unmute", me.id); }
   };
 
-  // ----- live Q&A ----- the answer plays for everyone (pausing narration) + overlays
+  // ----- live Q&A ----- the answer plays for everyone (pausing narration) + overlays.
+  // `answering` is true while the spoken answer plays, so the avatar TALKS during it too.
   const answerAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [answering, setAnswering] = useState(false);
   useEffect(() => {
     const a = answerAudioRef.current;
-    if (!a || !presenterAnswer?.audioUrl) return;
+    if (!a || !presenterAnswer?.audioUrl) { setAnswering(false); return; }
     aiAudioRef.current?.pause();
-    a.src = presenterAnswer.audioUrl; a.currentTime = 0; a.play().catch(() => {});
-  }, [presenterAnswer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    a.src = presenterAnswer.audioUrl; a.currentTime = 0;
+    a.play().then(() => setAnswering(true)).catch(() => setAnswering(false));
+    const done = () => setAnswering(false);
+    a.addEventListener("ended", done);
+    a.addEventListener("pause", done);
+    return () => { a.removeEventListener("ended", done); a.removeEventListener("pause", done); };
+  }, [presenterAnswer?.id, presenterAnswer?.audioUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the avatar MOVES while the co-host is narrating OR answering a question
+  const aiSpeaking = aiPlaying || answering;
   const [askOpen, setAskOpen] = useState(false);
   const [askText, setAskText] = useState("");
   const [asking, setAsking] = useState(false);
@@ -421,7 +442,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           {feed ? (
             <VideoFeed stream={feed} muted mirror={presenter.id === me.id} className="object-contain" />
           ) : presenter.isAI && presenter.videoUrl ? (
-            <AvatarVideo url={presenter.videoUrl} poster={presenter.avatarUrl} speaking={!!session.aiPlaying} className="object-contain" />
+            <AvatarVideo url={presenter.videoUrl} poster={presenter.avatarUrl} speaking={aiSpeaking} className="object-contain" />
           ) : (
             <span className="grid h-20 w-20 place-items-center rounded-full bg-brand-600 text-2xl font-black text-white">
               {presenter.name.slice(0, 2).toUpperCase()}
@@ -459,7 +480,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         <p className="text-[12px] text-slate-400">Nothing on the stage yet — add a material.</p>
       </div>
     );
-  }, [session.stageSource, session.stagePage, session.penHolderId, session.participants, session.aiPlaying, material, sharer, me, media.localCam, media.localScreen, media.remotes]);
+  }, [session.stageSource, session.stagePage, session.penHolderId, session.participants, session.aiPlaying, aiSpeaking, material, sharer, me, media.localCam, media.localScreen, media.remotes]);
 
   const layout = session.rosterLayout ?? "side";
   const spotlight = session.spotlightId ? inRoom.find((p) => p.id === session.spotlightId) ?? null : null;
@@ -567,7 +588,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                 className={cn("pointer-events-auto relative aspect-[4/3] overflow-hidden rounded-xl border-2 border-amber-400 bg-[#181820] shadow-2xl", host && "cursor-move touch-none")}
               >
                 {spotFeed ? <VideoFeed stream={spotFeed} muted mirror={spotlight.id === me.id} /> : spotlight.isAI && spotlight.videoUrl ? (
-                  <AvatarVideo url={spotlight.videoUrl} poster={spotlight.avatarUrl} speaking={!!session.aiPlaying} />
+                  <AvatarVideo url={spotlight.videoUrl} poster={spotlight.avatarUrl} speaking={aiSpeaking} />
                 ) : (
                   <div className="grid h-full w-full place-items-center"><span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-brand-600 to-violet-700 text-lg font-black text-white">{spotlight.name.slice(0, 2).toUpperCase()}</span></div>
                 )}
@@ -612,11 +633,20 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
               backdrop={backdrop}
             />
             {/* AI presenter caption — what the co-host is saying right now */}
-            {aiPlaying && narration?.text ? (
-              <div className="pointer-events-none absolute bottom-[46px] left-1/2 z-[6] line-clamp-2 w-[min(78%,640px)] -translate-x-1/2 rounded-lg bg-black/60 px-3.5 py-1.5 text-center text-[12px] font-semibold leading-snug text-white shadow-lg backdrop-blur-sm">
-                <span className="me-1.5 inline-flex items-center gap-1 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 align-middle text-[8px] font-black text-[#04222a]"><Volume2 className="h-2.5 w-2.5" /> AI</span>
-                {narration.text}
-              </div>
+            {aiPlaying && narration?.text && !capDismissed ? (
+              (() => {
+                // a rolling window of the words just spoken — captions that follow the voice
+                const words = narration.text.split(/\s+/).filter(Boolean);
+                const spoken = Math.max(1, Math.ceil(capFrac * words.length));
+                const visible = words.slice(Math.max(0, spoken - 14), spoken).join(" ");
+                return (
+                  <div className="absolute bottom-[46px] left-1/2 z-[6] flex w-[min(80%,640px)] -translate-x-1/2 items-center gap-1.5 rounded-lg bg-black/60 px-3 py-1.5 text-center shadow-lg backdrop-blur-sm">
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 text-[8px] font-black text-[#04222a]"><Volume2 className="h-2.5 w-2.5" /> AI</span>
+                    <span className="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug text-white">{visible}</span>
+                    <button onClick={() => setCapDismissed(true)} title="Hide captions" className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-white/70 hover:bg-white/15 hover:text-white"><X className="h-3 w-3" /></button>
+                  </div>
+                );
+              })()
             ) : tookOver && aiPresenter ? (
               <div className="pointer-events-none absolute bottom-[92px] left-1/2 z-[6] w-[min(80%,560px)] -translate-x-1/2 rounded-xl border border-amber-500/40 bg-amber-500/[0.16] px-4 py-2 text-center text-[12.5px] font-bold text-amber-200 backdrop-blur-sm">
                 <Hand className="me-1.5 inline h-3.5 w-3.5 align-middle" /> You have the floor — the AI is paused at its spot. Press <b>Resume AI</b> to continue.
@@ -651,61 +681,50 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                 <button onClick={() => setAskOpen(true)} className="absolute bottom-3 right-3 z-[6] hidden items-center gap-1.5 rounded-full border border-brand-500/50 bg-background/90 px-3 py-1.5 text-[11px] font-bold text-brand-400 shadow-lg backdrop-blur hover:border-brand-500 md:inline-flex"><MessageSquare className="h-3.5 w-3.5" /> Ask the presenter</button>
               )
             ) : null}
-            {paged && material ? (
-              <>
-                {/* clickable slide navigator — jump straight to any slide */}
-                {navOpen && deckSlides ? (
-                  <div className="absolute bottom-[52px] left-1/2 z-[7] w-[min(92%,640px)] -translate-x-1/2 rounded-2xl border border-border bg-background/95 p-2 shadow-2xl backdrop-blur">
-                    <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
-                      {deckSlides.map((s, i) => (
-                        <button
-                          key={s.id}
-                          onClick={() => jumpTo(i + 1)}
-                          disabled={!host}
-                          title={s.title}
-                          className={cn("relative shrink-0 overflow-hidden rounded-lg border-2 disabled:cursor-default", i + 1 === session.stagePage ? "border-brand-500" : "border-transparent hover:border-border")}
-                        >
-                          <div className="h-[64px] w-[112px]"><DeckSlideView slide={s} /></div>
-                          <span className="absolute left-1 top-1 grid h-4 min-w-4 place-items-center rounded bg-black/60 px-1 text-[9px] font-extrabold text-white">{i + 1}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-                <div className="absolute bottom-3 left-1/2 z-[6] flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-background/85 px-2 py-1.5 backdrop-blur">
-                  {deckSlides ? (
-                    <button onClick={() => setNavOpen((v) => !v)} title="All slides" className={cn("grid h-[22px] w-[22px] place-items-center rounded border transition", navOpen ? "border-brand-500 text-brand-400" : "border-border text-muted-foreground hover:border-brand-500")}>
-                      <LayoutGrid className="h-3 w-3" />
-                    </button>
-                  ) : null}
-                  <button onClick={revealPrev} disabled={!host || atStart} className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30">
-                    <ChevronLeft className="h-3 w-3" />
-                  </button>
-                  <span className="min-w-[62px] text-center text-[10.5px] text-muted-foreground">
-                    {deckSlide ? <>Slide {session.stagePage}/{material.pages}{deckSteps > 1 ? ` · reveal ${curStep}/${deckSteps}` : ""}</> : <>Page {session.stagePage} / {material.pages}</>}
-                  </span>
-                  <button onClick={revealNext} disabled={!host || atEnd} className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30">
-                    <ChevronRight className="h-3 w-3" />
-                  </button>
-                  {host && aiPresenter ? (
-                    <span className="ms-0.5 inline-flex items-center gap-1">
-                      <button onClick={aiPlaying ? pauseAI : resumeAI} title={aiPlaying ? "Pause the AI presenter" : tookOver ? "Resume the AI presenter from where it paused" : "Let the AI presenter deliver this"} className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9.5px] font-extrabold", aiPlaying ? "bg-gradient-to-br from-cyan-400 to-brand-500 text-[#04222a]" : "border border-brand-500/50 text-brand-400 hover:border-brand-500")}>
-                        {aiPlaying ? <><Pause className="h-2.5 w-2.5" /> Pause AI</> : <><Volume2 className="h-2.5 w-2.5" /> {tookOver ? "Resume AI" : "Present with AI"}</>}
+            {/* presentation controls moved OUT of the stage → a bar below it (host only) */}
+          </div>
+          </div>
+
+          {/* ---- presentation control bar — BELOW the stage, host only (keeps the
+                 presentation screen clean; attendees don't drive the deck) ---- */}
+          {paged && material && host ? (
+            <div className="relative flex shrink-0 items-center justify-center gap-2 border-t border-border bg-background/70 px-3 py-2">
+              {navOpen && deckSlides ? (
+                <div className="absolute bottom-full left-1/2 z-[7] mb-2 w-[min(92%,640px)] -translate-x-1/2 rounded-2xl border border-border bg-background/95 p-2 shadow-2xl backdrop-blur">
+                  <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
+                    {deckSlides.map((s, i) => (
+                      <button key={s.id} onClick={() => jumpTo(i + 1)} title={s.title} className={cn("relative shrink-0 overflow-hidden rounded-lg border-2", i + 1 === session.stagePage ? "border-brand-500" : "border-transparent hover:border-border")}>
+                        <div className="h-[64px] w-[112px]"><DeckSlideView slide={s} /></div>
+                        <span className="absolute left-1 top-1 grid h-4 min-w-4 place-items-center rounded bg-black/60 px-1 text-[9px] font-extrabold text-white">{i + 1}</span>
                       </button>
-                      <button onClick={repeatAI} title="Repeat this slide" className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500"><RotateCcw className="h-3 w-3" /></button>
-                      <button onClick={skipAI} title="Skip to the next slide" className="grid h-[22px] w-[22px] place-items-center rounded border border-border text-muted-foreground hover:border-brand-500"><SkipForward className="h-3 w-3" /></button>
-                      <button onClick={takeoverAI} title="Take over — pause the AI and open your mic" className="grid h-[22px] w-[22px] place-items-center rounded border border-amber-500/50 text-amber-400 hover:border-amber-500"><Hand className="h-3 w-3" /></button>
-                    </span>
-                  ) : host && deckSlide && deckSteps > 1 ? (
-                    <button onClick={() => setAutoReveal((v) => !v)} title="Auto-reveal — draw along hands-free" className={cn("ms-0.5 rounded-full px-2 py-0.5 text-[9.5px] font-extrabold", autoReveal ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>
-                      AUTO
-                    </button>
-                  ) : null}
+                    ))}
+                  </div>
                 </div>
-              </>
-            ) : null}
-          </div>
-          </div>
+              ) : null}
+              {deckSlides ? (
+                <button onClick={() => setNavOpen((v) => !v)} title="All slides" className={cn("grid h-[26px] w-[26px] place-items-center rounded-lg border transition", navOpen ? "border-brand-500 text-brand-400" : "border-border text-muted-foreground hover:border-brand-500")}>
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+              <button onClick={revealPrev} disabled={atStart} className="grid h-[26px] w-[26px] place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30"><ChevronLeft className="h-3.5 w-3.5" /></button>
+              <span className="min-w-[66px] text-center text-[11px] font-semibold text-muted-foreground">
+                {deckSlide ? <>Slide {session.stagePage}/{material.pages}{deckSteps > 1 ? ` · ${curStep}/${deckSteps}` : ""}</> : <>Page {session.stagePage} / {material.pages}</>}
+              </span>
+              <button onClick={revealNext} disabled={atEnd} className="grid h-[26px] w-[26px] place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500 disabled:opacity-30"><ChevronRight className="h-3.5 w-3.5" /></button>
+              {aiPresenter ? (
+                <span className="ms-1 inline-flex items-center gap-1.5">
+                  <button onClick={aiPlaying ? pauseAI : resumeAI} title={aiPlaying ? "Pause the AI presenter" : tookOver ? "Resume from where it paused" : "Let the AI presenter deliver this"} className={cn("inline-flex items-center gap-1 rounded-full px-3 py-1 text-[10.5px] font-extrabold", aiPlaying ? "bg-gradient-to-br from-cyan-400 to-brand-500 text-[#04222a]" : "border border-brand-500/50 text-brand-400 hover:border-brand-500")}>
+                    {aiPlaying ? <><Pause className="h-3 w-3" /> Pause AI</> : <><Volume2 className="h-3 w-3" /> {tookOver ? "Resume AI" : "Present with AI"}</>}
+                  </button>
+                  <button onClick={repeatAI} title="Repeat this slide" className="grid h-[26px] w-[26px] place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><RotateCcw className="h-3.5 w-3.5" /></button>
+                  <button onClick={skipAI} title="Skip to the next slide" className="grid h-[26px] w-[26px] place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><SkipForward className="h-3.5 w-3.5" /></button>
+                  <button onClick={takeoverAI} title="Take over — pause the AI and open your mic" className="grid h-[26px] w-[26px] place-items-center rounded-lg border border-amber-500/50 text-amber-400 hover:border-amber-500"><Hand className="h-3.5 w-3.5" /></button>
+                </span>
+              ) : deckSlide && deckSteps > 1 ? (
+                <button onClick={() => setAutoReveal((v) => !v)} title="Auto-reveal — draw along hands-free" className={cn("ms-1 rounded-full px-2.5 py-1 text-[10.5px] font-extrabold", autoReveal ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>AUTO</button>
+              ) : null}
+            </div>
+          ) : null}
 
           {/* mobile tool dock — an overlay, so it never steals board width */}
           {iCanDraw ? (
@@ -745,10 +764,6 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
 
         {/* attendee strip on the BOTTOM (desktop layouts only) */}
         {layout === "bottom" ? <RosterStrip {...rosterProps} className="hidden md:flex" /> : null}
-
-        {/* lesson progress + Next activity — phone only, and only for the host who drives
-            it; participants don't need the agenda taking up their small screen. */}
-        {host ? <LessonCard session={session} host={host} patch={patch} className="md:hidden" /> : null}
 
         {/* ---- control bar ---- large touch targets, spread evenly on a phone ---- */}
         <div className="flex shrink-0 items-center justify-between gap-1 overflow-x-auto border-t border-border bg-background/90 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:justify-start md:gap-1.5 md:px-2.5 md:py-2.5">

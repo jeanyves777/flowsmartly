@@ -15,6 +15,19 @@ import type { BoardItem, DeckSlide, DeckVisual, TrainingDeck } from "./types";
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
+/** The slide renderer shows plain text, not markdown — strip the model's `**bold**`,
+ *  `_italics_`, backticks and leading list markers so they don't appear literally. */
+function stripMd(s: string | undefined | null): string {
+  return (s ?? "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/(^|\s)\*(\S.*?\S|\S)\*(?=\s|$)/g, "$1$2")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^\s*[-*•]\s+/, "")
+    .replace(/#+\s*/g, "")
+    .trim();
+}
+
 interface RawSlide {
   type?: "doc" | "whiteboard" | "livedraw";
   title?: string;
@@ -91,7 +104,7 @@ export interface AssetBox { x: number; y: number; w: number; h: number }
  *  where a 3D cutout should sit with reason: the empty centre of a cycle, else a clear
  *  top-right corner. Every node is sized to its label so text never overflows. */
 export function diagramToBoard(d: RawSlide["diagram"], perElement = false): { items: BoardItem[]; wide: number; assetBox: AssetBox | null } {
-  const labels = (d?.nodes ?? []).slice(0, 6).map((s) => String(s).slice(0, 44));
+  const labels = (d?.nodes ?? []).slice(0, 6).map((s) => stripMd(String(s)).slice(0, 44));
   if (!labels.length) return { items: [], wide: 1, assetBox: null };
   const shape = d?.shape ?? "flow";
   const ink = "#1e293b";
@@ -253,7 +266,7 @@ Rules:
       if (assetBox) assetBoxes[id] = assetBox;
       // sticky-note callouts in the RESERVED BOTTOM LANE — the diagram is fitted into
       // the band above, so notes never overlap a node. Revealed after the diagram.
-      const anns = (s.annotations ?? []).map((t) => String(t).slice(0, 100).trim()).filter(Boolean).slice(0, 2);
+      const anns = (s.annotations ?? []).map((t) => stripMd(String(t)).slice(0, 100).trim()).filter(Boolean).slice(0, 2);
       const dMax = stepCount(board);
       anns.forEach((text, i) => {
         const atx = anns.length === 1 ? 0.3 : 0.1 + i * 0.44;
@@ -262,25 +275,25 @@ Rules:
       const steps = Math.max(1, stepCount(board));
       return {
         id, type,
-        title: (s.title || "Concept").slice(0, 120),
-        subtitle: s.subtitle?.slice(0, 160),
-        notes: s.notes?.slice(0, 400),
+        title: stripMd(s.title || "Concept").slice(0, 120),
+        subtitle: stripMd(s.subtitle).slice(0, 160) || undefined,
+        notes: stripMd(s.notes).slice(0, 400) || undefined,
         board, steps, wide,
         assetPrompt: s.assetPrompt?.slice(0, 200),
       };
     }
     const style = s.visualStyle === "3d" ? "3d" : s.visualStyle === "illustration" ? "illustration" : "photo";
-    const bullets = (s.bullets ?? []).slice(0, 5).map((b) => String(b).slice(0, 200));
+    const bullets = (s.bullets ?? []).slice(0, 5).map((b) => stripMd(String(b)).slice(0, 200)).filter(Boolean);
     const visual: DeckVisual = {
       kind: "emoji", style, emoji: s.emoji || "🎯", prompt: s.imagePrompt?.slice(0, 300),
       tag: style === "3d" ? "3D visual" : style === "photo" ? "Photo" : "Illustration", layout: "right",
     };
     return {
       id: uid("s"), type: "doc",
-      title: (s.title || "Slide").slice(0, 120),
-      subtitle: s.subtitle?.slice(0, 160),
+      title: stripMd(s.title || "Slide").slice(0, 120),
+      subtitle: stripMd(s.subtitle).slice(0, 160) || undefined,
       bullets,
-      notes: s.notes?.slice(0, 400),
+      notes: stripMd(s.notes).slice(0, 400) || undefined,
       visual, steps: bullets.length,
     };
   });
