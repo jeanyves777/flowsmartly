@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { creditService } from "@/lib/credits";
-import { narrateDeck } from "@/lib/training/narration";
+import { narrateDeck, type NarrateResult } from "@/lib/training/narration";
 import { getSessionDTO } from "@/lib/training/session";
 import type { TrainingDeck } from "@/lib/training/types";
 
@@ -52,17 +52,21 @@ export async function POST(request: NextRequest) {
   if (!charge.success) return err(charge.error || "Not enough credits to generate narration", 402);
   const refund = async (n: number) => { if (n > 0) await creditService.addCredits?.({ userId: session.userId, type: "REFUND", amount: n, description: "Refund: unused narration credits", referenceType: "presenter_narration", referenceId: mat.sessionId }).catch(() => {}); };
 
-  let narrations: Record<string, { text: string; audioUrl: string; durationMs: number }> = {};
+  let result: NarrateResult = { narrations: {}, cloneRequested: false, cloneUsed: false };
   try {
-    narrations = await narrateDeck({ slides: deck.slides, sessionId: mat.sessionId, voice, pace: presenter.pace ?? 1, style: presenter.deliveryStyle ?? "conversational" });
-  } catch { await refund(maxCharge); return err("Couldn't generate the narration — try again", 502); }
+    result = await narrateDeck({ slides: deck.slides, sessionId: mat.sessionId, voice, pace: presenter.pace ?? 1, style: presenter.deliveryStyle ?? "conversational" });
+  } catch (e) { console.error("[narrate] failed:", e instanceof Error ? e.message : e); await refund(maxCharge); return err("Couldn't generate the narration — try again", 502); }
 
+  const narrations = result.narrations;
   const count = Object.keys(narrations).length;
   await refund(maxCharge - (BASE + count * PER_SLIDE));
-  if (!count) return err("Narration isn't available in this environment — a cloned/preset voice is needed.", 502);
+  if (!count) return err("Couldn't voice the slides just now — please try again in a moment.", 502);
 
   deck.slides = deck.slides.map((s) => (narrations[s.id] ? { ...s, narration: narrations[s.id] } : s));
   await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck) } });
 
-  return NextResponse.json({ success: true, data: { session: await getSessionDTO(mat.sessionId), narrated: count } });
+  // if a cloned voice was requested but couldn't be reached, the audio used a preset —
+  // tell the client so it can say so instead of implying it's the presenter's own voice.
+  const usedPreset = result.cloneRequested && !result.cloneUsed;
+  return NextResponse.json({ success: true, data: { session: await getSessionDTO(mat.sessionId), narrated: count, usedPreset } });
 }
