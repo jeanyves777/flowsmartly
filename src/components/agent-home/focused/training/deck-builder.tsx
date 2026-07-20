@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, VolumeX, Film, Settings2, Mic, RotateCcw,
+  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, VolumeX, Film, Settings2, Mic, RotateCcw, Radio,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -21,7 +21,7 @@ const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
 interface AutoGen { brief: string; wantDoc: boolean; wantWhiteboard: boolean; wantVisuals: boolean; slideCount: number }
 
-export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, presenter, onOpenPresenter, onSession, onPresent, onExit }: {
+export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, presenter, onOpenPresenter, onSession, onPresent, onStartMeeting, onExit }: {
   session: TrainingSessionDTO;
   sessionId: string;
   autoGen?: AutoGen | null;
@@ -30,6 +30,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   onOpenPresenter?: () => void;
   onSession: (s: TrainingSessionDTO) => void;
   onPresent: (materialId: string) => void;
+  onStartMeeting?: (materialId: string) => void;
   onExit: () => void;
 }) {
   const { toast } = useToast();
@@ -251,7 +252,10 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page <= 0} className="grid h-7 w-7 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
             <span className="min-w-[70px] text-center text-[11px] text-muted-foreground">Slide {page + 1} / {deck.slides.length}</span>
             <button onClick={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} disabled={page >= deck.slides.length - 1} className="grid h-7 w-7 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
-            <button onClick={() => onPresent(mat.id)} className="ms-1 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-3 py-1.5 text-[12px] font-extrabold text-white"><Play className="h-3.5 w-3.5" /> Present</button>
+            <button onClick={() => onPresent(mat.id)} title="Preview the deck on the live stage" className="ms-1 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-bold hover:border-brand-500"><Play className="h-3.5 w-3.5" /> Present</button>
+            {onStartMeeting ? (
+              <button onClick={() => onStartMeeting(mat.id)} title="Go live and start the training now" className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-rose-600 to-rose-400 px-3.5 py-1.5 text-[12px] font-extrabold text-white"><Radio className="h-3.5 w-3.5" /> {session.status === "live" ? "Rejoin room" : "Start meeting"}</button>
+            ) : null}
             <button onClick={onExit} className="rounded-lg border border-border px-2 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
         </div>
