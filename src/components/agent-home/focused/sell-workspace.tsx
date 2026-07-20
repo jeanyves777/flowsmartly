@@ -14,7 +14,6 @@ import { StorePayments } from "./store-payments";
 import { StoreAnalytics } from "./store-analytics";
 import { StoreSettings } from "./store-settings";
 import { StoreDiscounts } from "./store-discounts";
-import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -29,7 +28,7 @@ import { cn } from "@/lib/utils/cn";
  * No legacy links. [[surface-buttons-are-ui-actions]]
  */
 
-interface StoreData { id: string; name: string; slug: string; currency?: string; region?: string; isActive?: boolean; productCount?: number; orderCount?: number; totalRevenueCents?: number; }
+interface StoreData { id: string; name: string; slug: string; currency?: string; region?: string; isActive?: boolean; buildStatus?: string; productCount?: number; orderCount?: number; totalRevenueCents?: number; }
 interface Product { id: string; name: string; priceCents?: number; comparePriceCents?: number | null; currency?: string; status?: string; quantity?: number; trackInventory?: boolean; lowStockThreshold?: number; labels?: string[]; variantCount?: number; description?: string | null; category?: string | null; categoryName?: string | null; images?: { url: string }[]; }
 interface OrderItem { productId?: string; variantId?: string; name?: string; quantity?: number; priceCents?: number; imageUrl?: string; }
 interface ShippingAddress { name?: string; line1?: string; line2?: string; city?: string; state?: string; zip?: string; country?: string; phone?: string; }
@@ -95,10 +94,12 @@ function fmtDate(iso?: string | null): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; }
 }
 
-export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refreshKey?: number; onAsk: (prompt: string) => void; onOpenView: (key: string) => void; working?: boolean }) {
+export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: number; onAsk: (prompt: string) => void; onOpenView: (key: string) => void; working?: boolean }) {
   const [store, setStore] = useState<StoreData | null>(null);
   const [hasStore, setHasStore] = useState<boolean | null>(null);
-  const [armed, setArmed] = useState(false);
+  // A store that exists but is still building → show the full-content progress
+  // loader instead of the (half-built) store view or the landing CTA.
+  const [building, setBuilding] = useState<{ storeId: string } | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<OrderStats>({});
@@ -162,6 +163,9 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
     const sj = await fetch("/api/ecommerce/store").then((r) => r.json()).catch(() => null);
     const has = !!sj?.data?.hasStore && !!sj?.data?.store;
     setHasStore(has);
+    // A store mid-build (or deploying) → drive the progress loader, not the store view.
+    const bs = has ? String(sj.data.store.buildStatus || "") : "";
+    setBuilding(has && (bs === "building" || bs === "deploying") ? { storeId: sj.data.store.id } : null);
     if (has) {
       setStore(sj.data.store);
       const [pr, or] = await Promise.all([
@@ -179,9 +183,6 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
     loadData().finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [loadData, refreshKey]);
-
-  // Clear the "agent is working" card once the store actually lands (hasStore flips true).
-  useEffect(() => { if (armed && hasStore) setArmed(false); }, [hasStore, armed]);
 
   // A click opens the rich editor drawer — never a chat prompt.
   const openAdd = () => { setEditing("new"); setSection("products"); };
@@ -323,31 +324,31 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your store…" /></div>;
   }
 
-  // No store yet → show the benefits + exact charges, then have the agent build
-  // it (a heavy generative build → agent-driven).
+  // Store is being built → a full-content-area progress loader (no landing card,
+  // no chat round-trip). Polls buildStatus; lands on the store when it's built.
+  if (building) {
+    return <StoreBuildingLoader storeId={building.storeId} onBuilt={() => { setBuilding(null); loadData(); }} onOpenStore={() => { setBuilding(null); loadData(); }} />;
+  }
+
+  // No store yet → benefits + exact charges + "Create my store", which opens the
+  // brief and builds the store DIRECTLY from the UI (no agent chat).
   if (!hasStore) {
     // A positioned, non-scrolling content-pane wrapper so the brief modal's
     // `absolute inset-0` fills THIS pane (like the film studio's canvas) — not the
     // whole focused view (which includes the agent chat panel).
+    const startBuilding = (storeId: string) => { setBriefOpen(false); setBuilding({ storeId }); };
     return (
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <div className="h-full overflow-y-auto p-6 sm:p-8">
           <div className="mx-auto mt-[2vh] max-w-lg space-y-4">
-            {armed && (
-              <AgentWorkingCard
-                working={working}
-                title="Setting up your store"
-                sub={working ? "The agent is building your branded store — it'll appear here." : "Answer the agent's questions in the chat and your store will land here."}
-              />
-            )}
-            <StoreCallToAction onBuild={(p) => { setArmed(true); onAsk(p); }} onTopUp={() => onOpenView("credits")} onStart={() => setBriefOpen(true)} />
+            <StoreCallToAction onBuilding={startBuilding} onTopUp={() => onOpenView("credits")} onStart={() => setBriefOpen(true)} />
           </div>
         </div>
         {briefOpen && (
           <StoreBriefModal
             onTopUp={() => onOpenView("credits")}
             onClose={() => setBriefOpen(false)}
-            onBuild={(p) => { setBriefOpen(false); setArmed(true); onAsk(p); }}
+            onBuilding={startBuilding}
           />
         )}
       </div>
@@ -779,6 +780,67 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView, working }: { refres
           onSaved={loadData}
         />
       )}
+    </div>
+  );
+}
+
+// Full-content-area progress loader shown while the store builds. Polls the real
+// buildStatus; the numbered steps advance on an estimate for a sense of progress.
+function StoreBuildingLoader({ storeId, onBuilt, onOpenStore }: { storeId: string; onBuilt: () => void; onOpenStore: () => void }) {
+  const STEPS = ["Designing your branded storefront", "Adding your products & pricing", "Setting up secure checkout", "Publishing your store"];
+  const [active, setActive] = useState(0);
+  const [errored, setErrored] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    const poll = setInterval(async () => {
+      const st = await fetch(`/api/ecommerce/store/${storeId}/generate`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      if (!alive || !st) return;
+      if (st.buildStatus === "built") { clearInterval(poll); onBuilt(); }
+      else if (st.buildStatus === "error") { clearInterval(poll); setErrored(true); }
+    }, 4000);
+    return () => { alive = false; clearInterval(poll); };
+  }, [storeId, onBuilt]);
+
+  useEffect(() => {
+    if (errored) return;
+    const t = setInterval(() => setActive((a) => Math.min(a + 1, STEPS.length - 1)), 22000);
+    return () => clearInterval(t);
+  }, [errored]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (errored) {
+    return (
+      <div className="grid h-full min-h-0 flex-1 place-items-center p-6">
+        <div className="w-full max-w-md text-center">
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-rose-500/10 text-rose-500"><AlertTriangle className="h-7 w-7" /></span>
+          <h2 className="mt-4 text-[18px] font-extrabold">Your store build hit a snag</h2>
+          <p className="mt-1.5 text-[13px] text-muted-foreground">Something went wrong while building. Open your store to review it and rebuild from the design studio.</p>
+          <button onClick={onOpenStore} className="mt-5 inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm">Open my store <ChevronRight className="h-4 w-4" /></button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid h-full min-h-0 flex-1 place-items-center p-6">
+      <div className="w-full max-w-md text-center">
+        <FlowLoader size={42} withMark />
+        <h2 className="mt-4 text-[18px] font-extrabold">Building your store…</h2>
+        <p className="mt-1.5 text-[13px] text-muted-foreground">This takes a couple of minutes — hang tight, it lands right here. No need to do anything.</p>
+        <div className="mx-auto mt-6 max-w-sm space-y-2.5 text-left">
+          {STEPS.map((s, i) => {
+            const done = i < active, cur = i === active;
+            return (
+              <div key={s} className={cn("flex items-center gap-3 rounded-xl border px-3.5 py-2.5 transition-colors", cur ? "border-brand-500/40 bg-brand-500/5" : done ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-card")}>
+                <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full", done ? "bg-emerald-500/15 text-emerald-500" : cur ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>
+                  {done ? <Check className="h-3.5 w-3.5" /> : cur ? <FlowLoader size={13} /> : <span className="text-[11px] font-bold tabular-nums">{i + 1}</span>}
+                </span>
+                <span className={cn("text-[13px]", done || cur ? "font-semibold text-foreground" : "text-muted-foreground")}>{s}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

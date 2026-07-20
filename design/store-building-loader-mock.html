@@ -1,0 +1,96 @@
+<title>Store build — full-content progress loader (direct build, no chat)</title>
+<style>
+  :root{
+    --ground:#0b0b0f;--card:#15151c;--card2:#1b1b23;--border:#26262f;
+    --text:#ececf1;--muted:#9a9aa6;--faint:#6c6c78;
+    --brand:#6366f1;--violet:#7c3aed;--emerald:#10b981;
+  }
+  :root[data-theme="light"]{--ground:#f6f6fa;--card:#fff;--card2:#f1f1f6;--border:#e6e6ee;--text:#191922;--muted:#65656f;--faint:#9a9aa6}
+  @media(prefers-color-scheme:light){:root:not([data-theme="dark"]){--ground:#f6f6fa;--card:#fff;--card2:#f1f1f6;--border:#e6e6ee;--text:#191922;--muted:#65656f;--faint:#9a9aa6}}
+  *{box-sizing:border-box}html,body{margin:0;height:100%}
+  body{background:var(--ground);color:var(--text);font:13px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+  .app{height:100vh;display:flex;flex-direction:column}
+  .topbar{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border)}
+  .topbar .mk{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--violet));color:#fff;font-weight:800;font-size:12px}
+  .topbar b{font-size:12.5px}.topbar .sp{flex:1}
+  .themebtn{cursor:pointer;font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:4px 10px;background:var(--card)}
+  .shell{flex:1;display:flex;min-height:0}
+  .rail{width:60px;flex:none;border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0}
+  .rail .it{width:50px;padding:7px 0;border-radius:11px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9px;color:var(--muted)}
+  .rail .it.on{background:linear-gradient(135deg,rgba(99,102,241,.2),rgba(124,58,237,.15));color:var(--text)}
+  .rail .ic{font-size:15px}
+  .focused{flex:1;display:grid;grid-template-columns:320px 1fr;min-width:0}
+  .chat{border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0;background:color-mix(in srgb,var(--card) 35%,transparent)}
+  .chat .ch-h{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px}
+  .chat .dot{width:7px;height:7px;border-radius:50%;background:var(--emerald)}
+  .chat .ch-b{flex:1;padding:14px;font-size:12px;color:var(--muted)}
+  .chat .ch-c{border-top:1px solid var(--border);padding:12px}
+  .chat .composer{border:1px solid var(--border);border-radius:999px;padding:9px 14px;font-size:12px;color:var(--faint);background:var(--card)}
+  /* content pane */
+  .content{position:relative;min-width:0;overflow:hidden}
+  .content .ch-title{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border)}
+  .content .ch-title b{font-size:13px}.content .ch-title span{font-size:11px;color:var(--muted)}
+  /* the full-content loader */
+  .loader{position:absolute;inset:44px 0 0 0;display:grid;place-items:center;padding:24px}
+  .box{width:100%;max-width:420px;text-align:center}
+  .spinwrap{display:inline-grid;place-items:center;position:relative}
+  .bigspin{width:46px;height:46px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--brand);animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .box h2{font-size:19px;margin:16px 0 6px}
+  .box .sub{color:var(--muted);font-size:13px;margin:0 auto;max-width:340px}
+  .steps{margin:26px auto 0;max-width:360px;display:flex;flex-direction:column;gap:10px;text-align:left}
+  .step{display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;background:var(--card);padding:11px 14px;transition:all .3s}
+  .step.cur{border-color:rgba(99,102,241,.4);background:rgba(99,102,241,.06)}
+  .step.done{border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.06)}
+  .step .b{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;background:var(--card2);color:var(--muted)}
+  .step.cur .b{background:rgba(99,102,241,.15);color:var(--brand)}
+  .step.done .b{background:rgba(16,185,129,.15);color:var(--emerald)}
+  .step .smallspin{width:13px;height:13px;border-radius:50%;border:2px solid rgba(99,102,241,.3);border-top-color:var(--brand);animation:sp .8s linear infinite}
+  .step .lbl{font-size:13px;color:var(--muted)}
+  .step.cur .lbl,.step.done .lbl{color:var(--text);font-weight:600}
+</style>
+
+<div class="app">
+  <div class="topbar"><span class="mk">F</span><b>FlowSmartly</b><span class="sp"></span><span class="themebtn" id="themeToggle">◐ Theme</span></div>
+  <div class="shell">
+    <div class="rail">
+      <div class="it"><span class="ic">✦</span>Agent</div>
+      <div class="it"><span class="ic">🎬</span>Film</div>
+      <div class="it on"><span class="ic">🛍️</span>Sell</div>
+      <div class="it"><span class="ic">🌐</span>Web</div>
+    </div>
+    <div class="focused">
+      <div class="chat">
+        <div class="ch-h"><span class="dot"></span><b>Agent · ready</b></div>
+        <div class="ch-b">Your store is building from the brief — no need to ask here. It'll appear on the right when it's done.</div>
+        <div class="ch-c"><div class="composer">Ask FlowSmartly to do something…</div></div>
+      </div>
+      <div class="content">
+        <div class="ch-title"><span>🛍️</span><b>Sell</b><span>· Store builder, products, orders…</span></div>
+        <div class="loader">
+          <div class="box">
+            <div class="spinwrap"><div class="bigspin"></div></div>
+            <h2>Building your store…</h2>
+            <p class="sub">This takes a couple of minutes — hang tight, it lands right here. No need to do anything.</p>
+            <div class="steps" id="steps"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STEPS=["Designing your branded storefront","Adding your products & pricing","Setting up secure checkout","Publishing your store"];
+let active=0;
+function render(){
+  document.getElementById('steps').innerHTML=STEPS.map((s,i)=>{
+    const done=i<active,cur=i===active;
+    const badge=done?'✓':cur?'<span class="smallspin"></span>':(i+1);
+    return `<div class="step ${cur?'cur':''} ${done?'done':''}"><span class="b">${badge}</span><span class="lbl">${s}</span></div>`;
+  }).join('');
+}
+render();
+setInterval(()=>{active=Math.min(active+1,STEPS.length-1);render();},2600);
+document.getElementById('themeToggle').onclick=()=>{const r=document.documentElement;const cur=r.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.setAttribute('data-theme',cur==='dark'?'light':'dark')};
+</script>

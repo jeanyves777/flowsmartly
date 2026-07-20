@@ -2028,7 +2028,7 @@ function WorkspacePanel({ panelKey, label, hasStore, onClose, onAsk, onOpenView,
         </div>
       ) : sellNoStore ? (
         <div className="min-h-0 flex-1 overflow-auto p-4">
-          <StoreCallToAction compact onBuild={(p) => onAsk(p)} onTopUp={() => onOpenView("credits")} />
+          <StoreCallToAction compact onBuilding={() => onOpenView("sell")} onTopUp={() => onOpenView("credits")} />
         </div>
       ) : (
       <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3">

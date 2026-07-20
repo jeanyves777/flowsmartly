@@ -2,9 +2,26 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Store, Sparkles, Check, BadgePercent, CreditCard, Wallet, Gift, X, AlertTriangle } from "lucide-react";
+import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 import { useMobileChat } from "../mobile-chat-context";
 import { BriefSuggest, type BriefProposal } from "./brief-suggest";
+import { ALL_COUNTRIES, getRegionForCountry } from "@/lib/constants/regions";
+
+// Parse a free-text "Blue Mug $20, Mug Set of 4 $70" list into [{name, price}].
+function parseProducts(text: string): Array<{ name: string; price: number }> {
+  return (text || "")
+    .split(/[,\n]/)
+    .map((line) => {
+      const m = line.match(/^\s*(.*?)\s*[-–—]?\s*\$?\s*([\d]+(?:[.,]\d{1,2})?)\s*$/);
+      if (!m) return null;
+      const name = m[1].replace(/\$?\s*[\d.,]+\s*$/, "").trim() || m[1].trim();
+      const price = Number(m[2].replace(",", "."));
+      return name && Number.isFinite(price) && price > 0 ? { name, price } : null;
+    })
+    .filter((p): p is { name: string; price: number } => !!p)
+    .slice(0, 24);
+}
 
 // Mobile "collect via chat" starter (edit + send; the agent builds the store).
 const STORE_STARTER = "Build me a branded online store called [store name] selling [what you sell], modern style, with a few starter products.";
@@ -50,7 +67,7 @@ function usd(credits: number): string {
   return `$${Number.isInteger(d) ? d : d.toFixed(2)}`;
 }
 
-export function StoreCallToAction({ onBuild, onTopUp, compact, onStart }: { onBuild: (prompt: string) => void; onTopUp?: () => void; compact?: boolean; onStart?: () => void }) {
+export function StoreCallToAction({ onBuilding, onTopUp, compact, onStart }: { onBuilding: (storeId: string, slug: string) => void; onTopUp?: () => void; compact?: boolean; onStart?: () => void }) {
   // `onStart` lets the parent surface own the brief modal (so it fills the content
   // pane, not the whole focused view). Without it (compact side panel), the CTA
   // opens the modal itself as a fixed overlay.
@@ -106,7 +123,7 @@ export function StoreCallToAction({ onBuild, onTopUp, compact, onStart }: { onBu
           compact={compact}
           onTopUp={onTopUp}
           onClose={() => setBriefing(false)}
-          onBuild={(p) => { setBriefing(false); onBuild(p); }}
+          onBuilding={(id, slug) => { setBriefing(false); onBuilding(id, slug); }}
         />
       )}
     </>
@@ -146,18 +163,20 @@ function Charges({ cost, className }: { cost: number | null; className?: string 
       shell the Filmmaking / Campaign / Leads studios use). Gathered in the UI,
       assembled into a detailed prompt, handed to the agent via onBuild().
       Fills the focused surface's <main> (which is relative), like the film brief. */
-export function StoreBriefModal({ compact, onTopUp, onClose, onBuild }: {
+export function StoreBriefModal({ compact, onTopUp, onClose, onBuilding }: {
   compact?: boolean;
   onTopUp?: () => void;
   onClose: () => void;
-  onBuild: (prompt: string) => void;
+  onBuilding: (storeId: string, slug: string) => void;
 }) {
   const [name, setName] = useState("");
   const [sells, setSells] = useState("");
   const [products, setProducts] = useState("");
   const [style, setStyle] = useState("Modern");
   const [currency, setCurrency] = useState("USD");
+  const [country, setCountry] = useState("US"); // drives payouts, shipping, tax, regional design
   const [error, setError] = useState("");
+  const [building, setBuilding] = useState(false);
   // Live pricing + balance (no hardcoded prices).
   const [cost, setCost] = useState<number | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
@@ -167,8 +186,12 @@ export function StoreBriefModal({ compact, onTopUp, onClose, onBuild }: {
     let alive = true;
     fetch("/api/credits/costs?keys=AI_STORE_GENERATE").then((r) => r.json()).then((j) => { if (alive) { const c = j?.data?.costs?.AI_STORE_GENERATE; if (typeof c === "number") setCost(c); } }).catch(() => {});
     fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (alive) { const b = j?.data?.user?.aiCredits; if (typeof b === "number") setBalance(b); } }).catch(() => {});
-    // Prefill the store name from the Brand Kit so the user rarely types it.
-    fetch("/api/brand").then((r) => r.json()).then((j) => { if (alive && j?.data?.brandKit?.name) setName((n) => n || String(j.data.brandKit.name)); }).catch(() => {});
+    // Prefill store name + country from the Brand Kit so the user rarely types them.
+    fetch("/api/brand").then((r) => r.json()).then((j) => {
+      const bk = j?.data?.brandKit;
+      if (alive && bk?.name) setName((n) => n || String(bk.name));
+      if (alive && bk?.country) setCountry(String(bk.country).toUpperCase());
+    }).catch(() => {});
     return () => { alive = false; };
   }, []);
 
@@ -180,20 +203,43 @@ export function StoreBriefModal({ compact, onTopUp, onClose, onBuild }: {
     if (STORE_STYLES.some((v) => v.name === s("style"))) setStyle(s("style"));
   };
 
-  const build = () => {
-    if (shortfall) return; // guarded — the button is disabled anyway
+  // Build the store DIRECTLY from the brief — no agent chat. Creates + charges +
+  // kicks off the real builder server-side; the surface then shows a progress
+  // loader and polls buildStatus.
+  const build = async () => {
+    if (shortfall || building) return;
     if (!name.trim()) { setError("Add your store name."); return; }
-    if (!sells.trim()) { setError("Tell the agent what you sell."); return; }
-    const prompt = [
-      "Build me a complete, branded online STORE now using my brand kit. I've given you everything below — do NOT ask me questions; design and build the whole storefront, set it up, and add the starter products.",
-      `- Store name: ${name.trim()}`,
-      `- What I sell (products / category + who it's for): ${sells.trim()}`,
-      products.trim() ? `- Starter products to add (with prices): ${products.trim()}` : "",
-      `- Store style / vibe: ${style}`,
-      `- Currency: ${currency}`,
-      "Set up secure Stripe checkout (cards + Cash-on-Delivery). Before you bill anything, confirm the EXACT charges (the one-time AI store-build credit cost, the platform fee per sale, and card processing) and get my OK first. Confirm in ONE short sentence when the store is ready.",
-    ].filter(Boolean).join("\n");
-    onBuild(prompt);
+    if (!sells.trim()) { setError("Tell us what you sell."); return; }
+    setBuilding(true); setError("");
+    try {
+      const r = await fetch("/api/ecommerce/store/launch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: [sells.trim(), `Store style: ${style}.`].join(" "),
+          currency,
+          country,
+          region: getRegionForCountry(country) || undefined,
+          products: parseProducts(products),
+        }),
+      });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.data?.storeId) {
+        onBuilding(j.data.storeId, j.data.slug || "");
+      } else if (r.status === 402) {
+        setError(j?.error?.message || "Not enough credits — top up to build.");
+        setBuilding(false);
+      } else if (r.status === 409 && j?.data?.storeId) {
+        onBuilding(j.data.storeId, j.data.slug || ""); // already has a store — go to it
+      } else {
+        setError(j?.error?.message || "Couldn't start the build. Try again.");
+        setBuilding(false);
+      }
+    } catch {
+      setError("Couldn't start the build. Try again.");
+      setBuilding(false);
+    }
   };
 
   return (
@@ -215,7 +261,14 @@ export function StoreBriefModal({ compact, onTopUp, onClose, onBuild }: {
           <div className="mb-4"><BriefSuggest kind="store" onApply={applyIdea} /></div>
 
           <div className="grid grid-cols-1 gap-x-5 gap-y-3.5 sm:grid-cols-2">
-            <Field label="Store name *"><input value={name} onChange={(e) => setName(e.target.value)} className={SC_FIELD} placeholder="Acme Goods" /></Field>
+            <div className="sm:col-span-2">
+              <Field label="Store name *"><input value={name} onChange={(e) => setName(e.target.value)} className={SC_FIELD} placeholder="Acme Goods" /></Field>
+            </div>
+            <Field label="Country">
+              <select value={country} onChange={(e) => setCountry(e.target.value)} className={SC_FIELD}>
+                {ALL_COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+              </select>
+            </Field>
             <Field label="Currency">
               <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={SC_FIELD}>
                 {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -264,10 +317,10 @@ export function StoreBriefModal({ compact, onTopUp, onClose, onBuild }: {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3">
-          <button onClick={build} disabled={shortfall} className={cn("inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30", shortfall && "cursor-not-allowed opacity-50 shadow-none")} title={shortfall ? "Not enough credits — top up first" : undefined}>
-            <Sparkles className="h-4 w-4" /> Build my store
+          <button onClick={build} disabled={shortfall || building} className={cn("inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30", (shortfall || building) && "cursor-not-allowed opacity-60 shadow-none")} title={shortfall ? "Not enough credits — top up first" : undefined}>
+            {building ? <FlowLoader size={15} tone="white" /> : <Sparkles className="h-4 w-4" />} {building ? "Starting your build…" : "Build my store"}
           </button>
-          <span className="ms-auto hidden text-[11px] text-muted-foreground sm:block">Uses your brand kit · the agent confirms before anything bills.</span>
+          <span className="ms-auto hidden text-[11px] text-muted-foreground sm:block">Uses your brand kit · builds right here — no chat needed.</span>
         </div>
       </div>
     </div>
