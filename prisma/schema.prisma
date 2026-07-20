@@ -4589,6 +4589,9 @@ model VoiceProfile {
   openaiVoiceId     String?
   openaiConsentId   String?
   sampleUrl         String?
+  /// a short sample SPOKEN BY THE CLONE (TTS of a test line) so the owner can audition the
+  /// cloned voice and confirm it matches the original. sampleUrl stays the source recording.
+  previewUrl        String?
   isDefault         Boolean   @default(false)
   lastUsedAt        DateTime?
   createdAt         DateTime  @default(now())
