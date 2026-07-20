@@ -82,12 +82,16 @@ export class BackgroundCompositor {
 
     const track = source.getVideoTracks()[0];
     const { width = 640, height = 480 } = track?.getSettings?.() ?? {};
-    this.canvas.width = width;
-    this.canvas.height = height;
 
     this.video.srcObject = source;
     if (!this.video.isConnected) document.body.appendChild(this.video); // ensure decode
     await this.video.play().catch(() => {});
+    // Size the canvas to the ACTUAL decoded frame (getSettings can report the requested
+    // constraint, e.g. 640x480, while the camera delivers 16:9 → a stretched composite).
+    // MUST be set BEFORE captureStream — resizing a captured canvas turns the track black.
+    await waitForVideoSize(this.video);
+    this.canvas.width = this.video.videoWidth || width;
+    this.canvas.height = this.video.videoHeight || height;
     await this.setBackground(spec);
 
     this.out = this.canvas.captureStream(fps);
@@ -123,14 +127,6 @@ export class BackgroundCompositor {
     if (!this.running) return;
     this.raf = requestAnimationFrame(this.loop);
     if (this.video.readyState < 2) return; // no camera frame decoded yet
-    // Size the canvas to the ACTUAL decoded frame, not track.getSettings() (which can
-    // report the requested constraint, e.g. 640x480, while the camera delivers 16:9 →
-    // the composite stretches). Match it here so the person is never squished.
-    const vw = this.video.videoWidth, vh = this.video.videoHeight;
-    if (vw && vh && (this.canvas.width !== vw || this.canvas.height !== vh)) {
-      this.canvas.width = vw;
-      this.canvas.height = vh;
-    }
     const seg = this.segmenter;
     const w = this.canvas.width, h = this.canvas.height;
     // No segmenter (unavailable) → pass the raw camera through, never a black frame.
@@ -205,6 +201,19 @@ export class BackgroundCompositor {
     }
     ctx.restore();
   }
+}
+
+/** Wait until the camera's real frame size is known (or give up after a beat), so the
+ *  canvas can be sized correctly BEFORE it's captured. */
+function waitForVideoSize(v: HTMLVideoElement, timeoutMs = 1500): Promise<void> {
+  if (v.videoWidth > 0 && v.videoHeight > 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; v.removeEventListener("loadedmetadata", finish); v.removeEventListener("resize", finish); resolve(); };
+    v.addEventListener("loadedmetadata", finish);
+    v.addEventListener("resize", finish);
+    setTimeout(finish, timeoutMs);
+  });
 }
 
 function loadImage(url: string): Promise<HTMLImageElement> {
