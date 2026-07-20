@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { checkInviteToken } from "@/lib/training/access";
 import { getTrainingActor } from "@/lib/training/guest";
-import { addConn, removeConn, touchConn, broadcast, connectedIds } from "@/lib/training/room";
+import { addConn, removeConn, touchConn, broadcast, connectedIds, frameEvent } from "@/lib/training/room";
 import { getSessionDTO, meterRoom, getRecentMessages } from "@/lib/training/session";
 import type { RoomEvent } from "@/lib/training/types";
 
@@ -95,7 +95,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const messages = await getRecentMessages(id); // chat history for the first frame
 
   const sessionKey = `${participantId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const encoder = new TextEncoder();
   const pid = participantId;
 
   let heartbeat: ReturnType<typeof setInterval> | null = null;
@@ -106,7 +105,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       addConn(id, sessionKey, { participantId: pid, lastSeen: Date.now(), controller });
 
       const init: RoomEvent = { type: "room:init", sessionKey, me, session: dto, messages };
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(init)}\n\n`));
+      controller.enqueue(frameEvent(init));
 
       // A knock notifies the hosts; a join notifies the room.
       broadcast(
@@ -118,11 +117,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       heartbeat = setInterval(() => {
         try {
           touchConn(id, sessionKey);
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "heartbeat" })}\n\n`));
+          // frequent + padded, so any buffered stage-step events flush promptly even if a
+          // proxy tries to hold small frames back
+          controller.enqueue(frameEvent({ type: "heartbeat" }));
         } catch {
           if (heartbeat) clearInterval(heartbeat);
         }
-      }, 15_000);
+      }, 4_000);
 
       // Bill the room from the HOST's connection only, so N attendees don't
       // each charge the tab N times. Incremental, so a room that never gets
