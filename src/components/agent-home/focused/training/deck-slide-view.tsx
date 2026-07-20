@@ -26,6 +26,23 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   // `reveal` = how many steps are shown (undefined = show everything, e.g. a builder
   // thumbnail). Drives the progressive "drawing as you talk" reveal.
 
+  // A "pause for questions" moment — a calm, centred prompt so the room knows it's time
+  // to ask. The presenter pauses here; the host or the AI answers, then continues.
+  if (slide.qa) {
+    return (
+      <div className={cn("relative grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-[#241f38] via-[#1a1726] to-[#100e18] [container-type:inline-size]", className)}>
+        <div className="flex flex-col items-center px-[8%] text-center">
+          <div className="mb-[3cqw] grid h-[13cqw] w-[13cqw] place-items-center rounded-full bg-gradient-to-br from-cyan-400/25 to-brand-500/25 ring-2 ring-brand-400/40">
+            <span className="text-[7cqw]">💬</span>
+          </div>
+          <h1 className="text-[clamp(10px,5.2cqw,52px)] font-extrabold leading-tight tracking-tight text-white">{md(slide.title)}</h1>
+          {slide.subtitle ? <p className="mt-[1.5cqw] text-[clamp(6px,2.4cqw,22px)] font-semibold text-brand-300">{md(slide.subtitle)}</p> : null}
+          <p className="mt-[3cqw] inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-[2.5cqw] py-[1.2cqw] text-[clamp(5px,1.9cqw,16px)] font-semibold text-white/80">Raise your hand ✋ or use “Ask the presenter”</p>
+        </div>
+      </div>
+    );
+  }
+
   // Whiteboard & Live Draw share one renderer — a wide horizontal canvas that pans
   // to follow the reveal. Live Draw additionally animates the CURRENT element on.
   if (slide.type === "whiteboard" || slide.type === "livedraw") {

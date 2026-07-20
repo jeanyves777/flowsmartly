@@ -304,8 +304,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   // host = conductor. Reveals track the AUDIO POSITION (so pause/resume/repeat just
   // work), and the deck advances when the narration ends. Latest state via a ref so the
   // listeners attach once and never read stale values.
-  const aiStateRef = useRef({ session, deckSteps, pages: material?.pages ?? 1 });
-  aiStateRef.current = { session, deckSteps, pages: material?.pages ?? 1 };
+  const aiStateRef = useRef({ session, deckSteps, pages: material?.pages ?? 1, qa: !!deckSlide?.qa });
+  aiStateRef.current = { session, deckSteps, pages: material?.pages ?? 1, qa: !!deckSlide?.qa };
   useEffect(() => {
     const a = aiAudioRef.current;
     if (!host || !a) return;
@@ -317,9 +317,12 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     };
     let advancing = false;
     const onEnd = () => {
-      const { session: s, pages } = aiStateRef.current;
+      const { session: s, pages, qa } = aiStateRef.current;
       if (advancing || !s.aiPlaying) return;
       advancing = true; setTimeout(() => { advancing = false; }, 900);
+      // A Q&A slide invites questions, then STOPS — the host presses Skip/Present with AI
+      // to continue once the room is done asking (rather than auto-advancing past it).
+      if (qa) { void patch({ aiPlaying: false }); return; }
       if (s.stagePage < pages) void patch({ stagePage: s.stagePage + 1, stageStep: 1 });
       else void patch({ aiPlaying: false });
     };
