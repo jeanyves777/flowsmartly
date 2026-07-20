@@ -430,6 +430,8 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           onGoLive={goLive}
           onManage={() => setMode("office")}
           onInvite={invite}
+          presenter={presenter}
+          onManagePresenter={() => setPresenterOpen(true)}
         />
       ) : mode === "live" && session.status === "ended" ? (
         // An ended room isn't live — never render it as if it were.
@@ -490,6 +492,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           onOpenPresenter={() => setPresenterOpen(true)}
           onSession={(s) => room.setSession(s)}
           onPresent={(matId) => void room.patch({ stageSource: "slides", stageKey: matId, stagePage: 1, stageStep: 1 }).then(() => setMode("live"))}
+          onStartMeeting={(matId) => { void room.patch({ stageSource: "slides", stageKey: matId, stagePage: 1, stageStep: 1 }); void goLive(); }}
           onExit={() => setMode(session.status === "live" ? "live" : "plan")}
         />
       ) : (
