@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2,
+  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, Film, Settings2, Mic,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -43,7 +43,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const [wantDoc, setWantDoc] = useState(true);
   const [wantWb, setWantWb] = useState(true);
   const [wantVis, setWantVis] = useState(true);
-  const [busy, setBusy] = useState<null | "gen" | "regen" | "save" | "narrate">(null);
+  const [busy, setBusy] = useState<null | "gen" | "regen" | "save" | "narrate" | "animate">(null);
 
   // local working copy of the deck (edits autosave)
   const [deck, setDeck] = useState<TrainingDeck | null>(mat?.deck ?? null);
@@ -100,6 +100,22 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     } finally { setBusy(null); }
   };
   const narratedCount = deck?.slides.filter((s) => s.narration).length ?? 0;
+  // the presenter's moving-avatar loop (deck copy wins; falls back to the profile)
+  const loopUrl = deck?.presenterVideoUrl ?? presenter?.loopVideoUrl ?? null;
+
+  // Turn the presenter photo into a looping "moving avatar" for the room.
+  const animate = async () => {
+    if (!presenter) { onOpenPresenter?.(); return; }
+    setBusy("animate");
+    try {
+      const j = await fetch("/api/ai/training/presenter/animate", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ presenterId: presenter.id }),
+      }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't animate the presenter", variant: "destructive" }); return; }
+      setDeck((d) => { if (!d) return d; const next = { ...d, presenterVideoUrl: j.data.loopVideoUrl as string }; persist(next); return next; });
+      toast({ title: "Your presenter is moving", description: "A looping avatar is ready for the room." });
+    } finally { setBusy(null); }
+  };
 
   const generate = async (o?: AutoGen) => {
     const b = (o?.brief ?? brief).trim();
@@ -195,7 +211,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
 
   // ---- builder ----
   return (
-    <div className="absolute inset-0 grid grid-cols-[176px_1fr] bg-background md:grid-cols-[186px_1fr_260px]">
+    <div className="absolute inset-0 flex flex-col bg-background">
+      <div className="grid min-h-0 flex-1 grid-cols-[176px_1fr] md:grid-cols-[186px_1fr_260px]">
       {/* slides rail */}
       <div className="flex flex-col overflow-hidden border-e border-border bg-card">
         <div className="flex items-center gap-1.5 border-b border-border px-3 py-2.5">
@@ -210,35 +227,6 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             </button>
           ))}
           <button onClick={addSlide} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-[11px] font-bold text-muted-foreground hover:border-brand-500 hover:text-brand-400"><Plus className="h-3.5 w-3.5" /> Add slide</button>
-        </div>
-        {/* Presenter — a step of this presentation: manage/edit, activate or deactivate */}
-        <div className="shrink-0 border-t border-border p-2.5">
-          <div className={cn("rounded-xl border-2 p-2.5 transition", deck.presenterActive ? "border-brand-500 bg-brand-500/[0.06]" : "border-border")}>
-            <div className="flex items-center gap-2">
-              {presenter?.portraitUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={presenter.portraitUrl} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
-              ) : (
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Bot className="h-4 w-4" /></span>
-              )}
-              <div className="min-w-0 flex-1">
-                <b className="block text-[11.5px] leading-tight">AI Presenter</b>
-                <span className="block truncate text-[9.5px] text-muted-foreground">{presenter ? presenter.name : "Not set up"} · {deck.presenterActive ? "Active" : "Off"}</span>
-              </div>
-              <span className={cn("h-2 w-2 shrink-0 rounded-full", deck.presenterActive ? "bg-emerald-400" : "bg-muted-foreground/40")} />
-            </div>
-            <div className="mt-2 flex gap-1.5">
-              <button onClick={onOpenPresenter} className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-border py-1.5 text-[10.5px] font-bold hover:border-brand-500">{presenter ? "Manage" : "Set up"}</button>
-              {presenter ? (
-                <button onClick={() => setPresenterActive(!deck.presenterActive)} className={cn("rounded-lg px-2.5 py-1.5 text-[10.5px] font-bold transition", deck.presenterActive ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>{deck.presenterActive ? "On" : "Off"}</button>
-              ) : null}
-            </div>
-            {presenter && deck.presenterActive ? (
-              <button onClick={narrate} disabled={busy === "narrate"} className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-1.5 text-[10.5px] font-bold hover:border-brand-500 disabled:opacity-60">
-                {busy === "narrate" ? <><Loader2 className="h-3 w-3 animate-spin" /> Voicing your slides…</> : <><Volume2 className="h-3 w-3" /> {narratedCount ? `Narration · ${narratedCount}/${deck.slides.length} voiced` : "Generate presenter narration"}</>}
-              </button>
-            ) : null}
-          </div>
         </div>
       </div>
 
@@ -283,6 +271,127 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
           </div>
         ) : null}
       </div>
+      </div>
+
+      {/* AI PRESENTER — a full-width step of this presentation: identity · voice · animation · controls */}
+      <PresenterBar
+        presenter={presenter ?? null}
+        active={!!deck.presenterActive}
+        loopUrl={loopUrl}
+        slideCount={deck.slides.length}
+        narratedCount={narratedCount}
+        busy={busy}
+        onManage={() => onOpenPresenter?.()}
+        onToggle={() => setPresenterActive(!deck.presenterActive)}
+        onNarrate={narrate}
+        onAnimate={animate}
+      />
+    </div>
+  );
+}
+
+/** The presentation's AI Presenter, as a full-width bar under the builder: who's
+ *  delivering, their voice, their moving-avatar animation, and the on/off + generate
+ *  controls — all in one place instead of a cramped rail card. */
+function PresenterBar({ presenter, active, loopUrl, slideCount, narratedCount, busy, onManage, onToggle, onNarrate, onAnimate }: {
+  presenter: PresenterProfileDTO | null;
+  active: boolean;
+  loopUrl: string | null;
+  slideCount: number;
+  narratedCount: number;
+  busy: null | "gen" | "regen" | "save" | "narrate" | "animate";
+  onManage: () => void;
+  onToggle: () => void;
+  onNarrate: () => void;
+  onAnimate: () => void;
+}) {
+  if (!presenter) {
+    return (
+      <div className="flex shrink-0 items-center gap-3 border-t border-border bg-card px-4 py-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Bot className="h-5 w-5" /></span>
+        <div className="min-w-0 flex-1">
+          <b className="block text-[12.5px]">AI Presenter</b>
+          <span className="block truncate text-[11px] text-muted-foreground">Add a co-host that delivers this presentation in your voice &amp; likeness.</span>
+        </div>
+        <button onClick={onManage} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12px] font-extrabold text-white"><Sparkles className="h-4 w-4" /> Set up presenter</button>
+      </div>
+    );
+  }
+  return (
+    <div className={cn("flex shrink-0 items-stretch overflow-x-auto border-t-2 bg-card transition-colors", active ? "border-brand-500" : "border-border")}>
+      {/* identity + live avatar */}
+      <div className="flex min-w-[230px] items-center gap-3 px-4 py-2.5">
+        <div className="relative h-[52px] w-[52px] shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-[#241f38] to-[#14121f] ring-1 ring-white/10">
+          {loopUrl ? (
+            <video src={loopUrl} autoPlay muted loop playsInline poster={presenter.portraitUrl ?? undefined} className="h-full w-full object-cover" />
+          ) : presenter.portraitUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={presenter.portraitUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className="grid h-full w-full place-items-center text-white"><Bot className="h-5 w-5" /></span>
+          )}
+          {loopUrl ? <span className="absolute left-1 top-1 rounded bg-black/55 px-1 py-px text-[7px] font-black text-white backdrop-blur">● LIVE</span> : null}
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5"><b className="text-[12.5px] leading-tight">AI Presenter</b><span className="rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1 py-px text-[7.5px] font-black text-[#04222a]">AI</span></div>
+          <span className="block truncate text-[11px] text-muted-foreground">{presenter.name} · {presenter.role === "host" ? "Host" : presenter.role === "assistant" ? "Assistant" : "Co-host"}</span>
+          <span className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold"><span className={cn("h-1.5 w-1.5 rounded-full", active ? "bg-emerald-400" : "bg-muted-foreground/40")} />{active ? "Active in room" : "Off"}</span>
+        </div>
+      </div>
+
+      {/* voice */}
+      <div className="flex min-w-[240px] flex-1 items-center gap-3 border-s border-border px-4 py-2.5">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-muted text-brand-400"><Mic className="h-4 w-4" /></span>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">Voice</span>
+            <span className="truncate text-[11px] font-semibold">{presenter.voiceName || "Preset voice"}</span>
+          </div>
+          <Bars active={busy === "narrate"} />
+        </div>
+        <button onClick={onNarrate} disabled={!active || busy === "narrate"} title={active ? "" : "Turn the presenter On first"} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40">
+          {busy === "narrate" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Voicing…</> : <><Volume2 className="h-3.5 w-3.5" /> {narratedCount ? `${narratedCount}/${slideCount} voiced` : "Generate narration"}</>}
+        </button>
+      </div>
+
+      {/* animation */}
+      <div className="flex min-w-[230px] items-center gap-3 border-s border-border px-4 py-2.5">
+        <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-[#241f38] to-[#14121f]">
+          {loopUrl ? (
+            <video src={loopUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" />
+          ) : presenter.portraitUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={presenter.portraitUrl} alt="" className="h-full w-full object-cover opacity-70" />
+          ) : (
+            <span className="grid h-full w-full place-items-center text-muted-foreground"><Film className="h-4 w-4" /></span>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="block text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">Animation</span>
+          <span className={cn("block truncate text-[11px] font-semibold", loopUrl ? "text-emerald-400" : "text-muted-foreground")}>{loopUrl ? "Moving avatar ready" : "Still photo"}</span>
+        </div>
+        <button onClick={onAnimate} disabled={busy === "animate"} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40">
+          {busy === "animate" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Animating…</> : <><Film className="h-3.5 w-3.5" /> {loopUrl ? "Re-animate" : "Animate"}</>}
+        </button>
+      </div>
+
+      {/* controls */}
+      <div className="ms-auto flex shrink-0 items-center gap-2 border-s border-border px-4 py-2.5">
+        <button onClick={onManage} className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-[11.5px] font-bold hover:border-brand-500"><Settings2 className="h-3.5 w-3.5" /> Manage</button>
+        <button onClick={onToggle} className={cn("inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11.5px] font-extrabold transition", active ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>{active ? "On" : "Off"}</button>
+      </div>
+    </div>
+  );
+}
+
+/** a tiny static voice waveform — animates while narration is generating */
+function Bars({ active }: { active: boolean }) {
+  const hs = [40, 70, 100, 60, 85, 45, 95, 55, 75, 35, 65, 90, 50, 80, 60];
+  return (
+    <div className="flex h-4 items-center gap-[2px]">
+      {hs.map((h, i) => (
+        <span key={i} className={cn("w-[2.5px] rounded-full bg-brand-400/70", active && "animate-pulse")} style={{ height: `${h}%` }} />
+      ))}
     </div>
   );
 }
