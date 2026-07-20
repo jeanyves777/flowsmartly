@@ -233,6 +233,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const paged = session.stageSource === "slides" || session.stageSource === "doc";
   const [navOpen, setNavOpen] = useState(false);
   const [rosterCollapsed, setRosterCollapsed] = useState(false); // desktop side panel collapse
+  const [soundBlocked, setSoundBlocked] = useState(false); // browser blocked autoplay (esp. attendees joining)
   // opening chat collapses the participant panel so they don't fight for the right side
   useEffect(() => { if (chatOpen) setRosterCollapsed(true); }, [chatOpen]);
   // A generated deck reveals STEP-BY-STEP within each slide; the pager drives both
@@ -289,7 +290,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     if (!a) return;
     if (aiPlaying && narration?.audioUrl) {
       if (a.getAttribute("data-src") !== narration.audioUrl) { a.src = narration.audioUrl; a.setAttribute("data-src", narration.audioUrl); a.currentTime = 0; setCapFrac(0); }
-      a.play().catch(() => {});
+      a.play().then(() => setSoundBlocked(false)).catch(() => setSoundBlocked(true));
     } else { a.pause(); }
   }, [aiPlaying, narration?.audioUrl]);
   useEffect(() => { setCapDismissed(false); }, [narration?.text]); // a new slide's caption is shown again
@@ -347,7 +348,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     if (!a || !presenterAnswer?.audioUrl) { setAnswering(false); return; }
     aiAudioRef.current?.pause();
     a.src = presenterAnswer.audioUrl; a.currentTime = 0;
-    a.play().then(() => setAnswering(true)).catch(() => setAnswering(false));
+    a.play().then(() => { setAnswering(true); setSoundBlocked(false); }).catch(() => { setAnswering(false); setSoundBlocked(true); });
     const done = () => setAnswering(false);
     a.addEventListener("ended", done);
     a.addEventListener("pause", done);
@@ -635,6 +636,16 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
               onLiveItem={onLiveItem}
               backdrop={backdrop}
             />
+            {/* browser blocked autoplay (common when an attendee just joined) — one tap
+                unlocks sound + immediately plays whatever the presenter is saying now */}
+            {soundBlocked ? (
+              <button
+                onClick={() => { setSoundBlocked(false); aiAudioRef.current?.play().catch(() => {}); answerAudioRef.current?.play().catch(() => {}); }}
+                className="absolute left-1/2 top-3 z-[9] inline-flex -translate-x-1/2 animate-pulse items-center gap-2 rounded-full bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12.5px] font-extrabold text-white shadow-2xl"
+              >
+                <Volume2 className="h-4 w-4" /> Tap to enable sound
+              </button>
+            ) : null}
             {/* AI presenter caption — what the co-host is saying right now */}
             {aiPlaying && narration?.text && !capDismissed ? (
               (() => {
@@ -665,7 +676,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                 <div className="flex items-start gap-2">
                   <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 text-[8.5px] font-black text-[#04222a]"><Volume2 className="h-2.5 w-2.5" /> AI</span>
                   <p className="min-w-0 flex-1 text-[13px] font-semibold leading-snug">{presenterAnswer.answer}</p>
-                  {host ? <button onClick={() => { answerAudioRef.current?.pause(); onClearAnswer?.(); }} className="shrink-0 rounded-md border border-border px-2 py-1 text-[10px] font-semibold text-muted-foreground hover:text-foreground">Dismiss</button> : null}
+                  {host ? <button onClick={() => { answerAudioRef.current?.pause(); onClearAnswer?.(); void fetch(`/api/ai/training/${session.id}/presenter/answer`, { method: "DELETE" }); }} className="shrink-0 rounded-md border border-border px-2 py-1 text-[10px] font-semibold text-muted-foreground hover:text-foreground">Dismiss</button> : null}
                 </div>
               </div>
             ) : null}
@@ -945,7 +956,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
       {/* AI presenter narration audio — played on every client, synced by aiPlaying */}
       <audio ref={aiAudioRef} className="hidden" />
       {/* live Q&A answer audio — plays once, then clears the overlay */}
-      <audio ref={answerAudioRef} className="hidden" onEnded={() => onClearAnswer?.()} />
+      <audio ref={answerAudioRef} className="hidden" />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getTrainingActor } from "@/lib/training/guest";
+import { canControlRoom } from "@/lib/training/access";
 import { broadcast } from "@/lib/training/room";
 import { ai } from "@/lib/ai/client";
 import { synthesize } from "@/lib/training/narration";
@@ -99,4 +100,13 @@ Return JSON: { "answer": string, "confident": boolean }`;
     await refund();
     return err("The presenter couldn't answer that — try rephrasing", 502);
   }
+}
+
+/** DELETE — the host dismisses the current Q&A / hand-raise card for the whole room. */
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const actor = await getTrainingActor(id);
+  if (!actor || actor.state !== "ADMITTED" || !canControlRoom({ role: actor.role })) return err("Only a host can dismiss that", 403);
+  broadcast(id, { type: "presenter:dismiss" });
+  return NextResponse.json({ success: true });
 }
