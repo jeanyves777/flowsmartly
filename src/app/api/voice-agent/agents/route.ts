@@ -9,11 +9,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { syncAgentToXai } from "@/lib/voice-agent/agent-sync";
 import {
   DEFAULT_HOURS,
   PRESET_BY_KEY,
   greetingFor,
+  publicNumber,
   skillsForPreset,
   type AgentSkill,
 } from "@/lib/voice-agent/types";
@@ -33,6 +33,7 @@ function hydrate(row: Record<string, unknown>) {
   };
   return {
     ...row,
+    number: publicNumber(row.number as Record<string, unknown> | null | undefined),
     knowledge: parse(row.knowledge, []),
     keyterms: parse<string[]>(row.keyterms, []),
     pronunciations: parse<Record<string, string>>(row.pronunciations, {}),
@@ -103,11 +104,18 @@ export async function POST(request: NextRequest) {
     });
     const greeting: string = (body.greeting || "").trim() || greetingFor(presetKey, kit?.name);
 
+    // A new agent is a REQUEST, not a live line. Provisioning a real agent needs
+    // a human (the provider's agents API is team-gated), so we build each one to
+    // order: the user submits, an admin builds + assigns a number, then it goes
+    // live and the user is notified. Nothing is charged until it's active.
     const agent = await prisma.voiceAgent.create({
       data: {
         userId: session.userId,
         name: (body.name || (kit?.name ? `${preset.title} — ${kit.name}` : preset.title)).slice(0, 80),
         preset: presetKey,
+        // A new agent lands as a fully-editable DRAFT. It goes LIVE the moment the
+        // user connects their own number (Direct SIP) and flips it on — no admin
+        // approval, no waiting: the number path is self-serve now.
         status: "DRAFT",
         phoneNumberId,
         business,
@@ -122,20 +130,16 @@ export async function POST(request: NextRequest) {
         timezone: body.timezone || "UTC",
         escalateTo: body.escalateTo || null,
         spendCapCredits: Number(body.spendCapCredits) || 5000,
-        // A stable token for the MCP relay URL, so a pooled console agent can be
-        // pointed at this tenant.
+        // The MCP relay token — its URL is what an admin pastes into the console
+        // agent they build, so this tenant's brain + actions run through us.
         mcpToken: `va_${crypto.randomUUID().replace(/-/g, "")}`,
       },
       include: { number: true },
     });
 
-    // Mirror to a real xAI console agent if the team's agents endpoint is on;
-    // otherwise this records "webhook" and the call path uses per-call config.
-    // Fire-and-forget so creation isn't blocked on the provider.
-    void syncAgentToXai(agent.id).catch(() => {});
-
     return NextResponse.json({
       success: true,
+      requested: true,
       agent: hydrate(agent as unknown as Record<string, unknown>),
     });
   } catch (error) {

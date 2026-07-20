@@ -14,9 +14,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   BoardItem,
+  LiveStroke,
   RoomEvent,
   TrainingParticipantDTO,
   TrainingSessionDTO,
+  TrainingMessageDTO,
+  PresenterAnswer,
 } from "@/lib/training/types";
 import type { BoardCursor } from "./training-board";
 
@@ -31,6 +34,13 @@ interface RoomState {
   session: TrainingSessionDTO | null;
   me: TrainingParticipantDTO | null;
   cursors: BoardCursor[];
+  /** other participants' in-progress strokes, keyed by participantId */
+  liveStrokes: Record<string, LiveStroke>;
+  /** marks being dragged/edited by others right now, keyed by participantId */
+  liveItems: Record<string, BoardItem>;
+  messages: TrainingMessageDTO[];
+  /** the AI presenter's current live Q&A answer (null when none is showing) */
+  presenterAnswer: PresenterAnswer | null;
   connected: boolean;
   error: string | null;
 }
@@ -41,6 +51,10 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     session: null,
     me: null,
     cursors: [],
+    liveStrokes: {},
+    liveItems: {},
+    messages: [],
+    presenterAnswer: null,
     connected: false,
     error: null,
   });
@@ -48,6 +62,8 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
   const esRef = useRef<EventSource | null>(null);
   const attempts = useRef(0);
   const cursorTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const liveStrokeTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const liveItemTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // ---------------------------------------------------------------- subscribe
   useEffect(() => {
@@ -79,10 +95,24 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
           switch (msg.type) {
             case "room:init":
               sessionKey.current = msg.sessionKey;
-              return { ...s, session: msg.session, me: msg.me, connected: true, error: null };
+              return { ...s, session: msg.session, me: msg.me, messages: msg.messages ?? [], connected: true, error: null };
 
             case "room:state":
               return s.session ? { ...s, session: { ...s.session, ...msg.patch } } : s;
+
+            case "chat":
+              // de-dupe our own optimistic echo by id
+              return s.messages.some((m) => m.id === msg.message.id)
+                ? s
+                : { ...s, messages: [...s.messages, msg.message].slice(-200) };
+
+            case "presenter:answer":
+              // the AI presenter's live answer — every client shows + plays it
+              return { ...s, presenterAnswer: msg.answer };
+
+            case "presenter:dismiss":
+              // the host dismissed the Q&A / hand-raise card — clear it for EVERYONE
+              return s.presenterAnswer ? { ...s, presenterAnswer: null } : s;
 
             case "room:join":
             case "room:participant":
@@ -111,10 +141,19 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
 
             case "board:add": {
               if (!s.session) return s;
+              // a committed mark supersedes that author's live preview
+              let liveStrokes = s.liveStrokes;
+              if (msg.item.by && liveStrokes[msg.item.by]) {
+                liveStrokes = { ...liveStrokes };
+                delete liveStrokes[msg.item.by];
+              }
               // ignore the echo of our own optimistic mark
-              if (s.session.boardDoc.items.some((i) => i.id === msg.item.id)) return s;
+              if (s.session.boardDoc.items.some((i) => i.id === msg.item.id)) {
+                return liveStrokes === s.liveStrokes ? s : { ...s, liveStrokes };
+              }
               return {
                 ...s,
+                liveStrokes,
                 session: {
                   ...s.session,
                   boardDoc: { ...s.session.boardDoc, items: [...s.session.boardDoc.items, msg.item] },
@@ -123,8 +162,13 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
             }
             case "board:update": {
               if (!s.session) return s;
+              // a committed move supersedes any live-drag preview of the same mark
+              let liveItems = s.liveItems;
+              const dragger = Object.keys(liveItems).find((k) => liveItems[k].id === msg.item.id);
+              if (dragger) { liveItems = { ...liveItems }; delete liveItems[dragger]; }
               return {
                 ...s,
+                liveItems,
                 session: {
                   ...s.session,
                   boardDoc: {
@@ -149,7 +193,7 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
             }
             case "board:clear": {
               if (!s.session) return s;
-              return { ...s, session: { ...s.session, boardDoc: { ...s.session.boardDoc, items: [] } } };
+              return { ...s, liveStrokes: {}, session: { ...s.session, boardDoc: { ...s.session.boardDoc, items: [] } } };
             }
 
             case "cursor":
@@ -168,6 +212,28 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
               return { ...s, cursors: [...rest, cur] };
             }
 
+            case "livestroke": {
+              if (msg.participantId === s.me?.id) return s; // never render my own preview
+              if (!msg.stroke) {
+                if (!s.liveStrokes[msg.participantId]) return s;
+                const next = { ...s.liveStrokes };
+                delete next[msg.participantId];
+                return { ...s, liveStrokes: next };
+              }
+              return { ...s, liveStrokes: { ...s.liveStrokes, [msg.participantId]: msg.stroke } };
+            }
+
+            case "liveitem": {
+              if (msg.participantId === s.me?.id) return s; // never render my own drag
+              if (!msg.item) {
+                if (!s.liveItems[msg.participantId]) return s;
+                const next = { ...s.liveItems };
+                delete next[msg.participantId];
+                return { ...s, liveItems: next };
+              }
+              return { ...s, liveItems: { ...s.liveItems, [msg.participantId]: msg.item } };
+            }
+
             default:
               return s;
           }
@@ -184,6 +250,51 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
               setState((s) => ({ ...s, cursors: s.cursors.filter((c) => c.participantId !== id) }));
             }, 4000),
           );
+        }
+
+        // A live-stroke preview that stops arriving (dropped final clear, or the
+        // drawer went away mid-stroke) is swept so a half-drawn ghost can't stick.
+        if (msg.type === "livestroke") {
+          const id = msg.participantId;
+          const t = liveStrokeTimers.current.get(id);
+          if (t) clearTimeout(t);
+          if (msg.stroke) {
+            liveStrokeTimers.current.set(
+              id,
+              setTimeout(() => {
+                setState((s) => {
+                  if (!s.liveStrokes[id]) return s;
+                  const next = { ...s.liveStrokes };
+                  delete next[id];
+                  return { ...s, liveStrokes: next };
+                });
+              }, 2500),
+            );
+          } else {
+            liveStrokeTimers.current.delete(id);
+          }
+        }
+
+        // Same sweep for a dropped live-DRAG (mover went away mid-drag).
+        if (msg.type === "liveitem") {
+          const id = msg.participantId;
+          const t = liveItemTimers.current.get(id);
+          if (t) clearTimeout(t);
+          if (msg.item) {
+            liveItemTimers.current.set(
+              id,
+              setTimeout(() => {
+                setState((s) => {
+                  if (!s.liveItems[id]) return s;
+                  const next = { ...s.liveItems };
+                  delete next[id];
+                  return { ...s, liveItems: next };
+                });
+              }, 2500),
+            );
+          } else {
+            liveItemTimers.current.delete(id);
+          }
         }
       };
 
@@ -207,6 +318,10 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
       esRef.current = null;
       cursorTimers.current.forEach((t) => clearTimeout(t));
       cursorTimers.current.clear();
+      liveStrokeTimers.current.forEach((t) => clearTimeout(t));
+      liveStrokeTimers.current.clear();
+      liveItemTimers.current.forEach((t) => clearTimeout(t));
+      liveItemTimers.current.clear();
     };
   }, [sessionId, enabled, opts?.invite]);
 
@@ -302,6 +417,37 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     [sessionId],
   );
 
+  /** Stream the stroke under the pen right now, so attendees watch the ink appear
+   *  live instead of only after the stroke finishes. Ephemeral + fire-and-forget;
+   *  `null` clears it (on pointer-up the committed stroke lands via addItem). */
+  const streamStroke = useCallback(
+    (stroke: LiveStroke | null) => {
+      if (!sessionId) return;
+      void fetch(`/api/ai/training/${sessionId}/board`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "livestroke", stroke, sessionKey: sessionKey.current }),
+        keepalive: true,
+      }).catch(() => {});
+    },
+    [sessionId],
+  );
+
+  /** Stream a mark being dragged/edited so others see it move live; `null` clears it
+   *  (the committed move lands via updateItem on pointer-up). Fire-and-forget. */
+  const streamItem = useCallback(
+    (item: BoardItem | null) => {
+      if (!sessionId) return;
+      void fetch(`/api/ai/training/${sessionId}/board`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "liveitem", item, sessionKey: sessionKey.current }),
+        keepalive: true,
+      }).catch(() => {});
+    },
+    [sessionId],
+  );
+
   /** Any host control over a person. Returns the refusal message, or null. */
   const act = useCallback(
     async (action: string, participantId?: string): Promise<string | null> => {
@@ -342,5 +488,41 @@ export function useRoom(sessionId: string | null, opts?: { invite?: string; enab
     [sessionId, setSession],
   );
 
-  return { ...state, addItem, removeItem, updateItem, clearBoard, ping, act, patch, setSession };
+  const sendMessage = useCallback(
+    async (text: string): Promise<string | null> => {
+      if (!sessionId || !text.trim()) return null;
+      try {
+        const r = await fetch(`/api/ai/training/${sessionId}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text }),
+        }).then((x) => x.json());
+        // the broadcast appends it for everyone; append locally too in case our
+        // own socket drops the echo.
+        if (r?.success && r.data?.message) {
+          setState((s) => (s.messages.some((m) => m.id === r.data.message.id) ? s : { ...s, messages: [...s.messages, r.data.message as TrainingMessageDTO].slice(-200) }));
+          return null;
+        }
+        return r?.error?.message || "Couldn't send";
+      } catch {
+        return "Couldn't send";
+      }
+    },
+    [sessionId],
+  );
+
+  // Ask the AI presenter a question — it answers (or hands off) for the whole room.
+  const askPresenter = useCallback(async (question: string): Promise<string | null> => {
+    if (!sessionId || !question.trim()) return null;
+    try {
+      const r = await fetch(`/api/ai/training/${sessionId}/presenter/answer`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }),
+      }).then((x) => x.json());
+      if (r?.success && r.data?.answer) { setState((s) => ({ ...s, presenterAnswer: r.data.answer as PresenterAnswer })); return null; }
+      return r?.error?.message || "The presenter couldn't answer that";
+    } catch { return "The presenter couldn't answer that"; }
+  }, [sessionId]);
+  const clearAnswer = useCallback(() => setState((s) => (s.presenterAnswer ? { ...s, presenterAnswer: null } : s)), []);
+
+  return { ...state, addItem, removeItem, updateItem, clearBoard, ping, streamStroke, streamItem, act, patch, sendMessage, askPresenter, clearAnswer, setSession };
 }

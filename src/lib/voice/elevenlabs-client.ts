@@ -45,6 +45,9 @@ export async function generateWithClonedVoice(params: {
   text: string;
   stability?: number;
   similarityBoost?: number;
+  /** 0.7–1.2; <1 slows delivery for a more natural, measured pace (ignored by models
+   *  that don't support it). */
+  speed?: number;
 }): Promise<Buffer> {
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("ElevenLabs is not configured");
@@ -59,8 +62,11 @@ export async function generateWithClonedVoice(params: {
       text: params.text,
       model_id: "eleven_multilingual_v2",
       voice_settings: {
-        stability: params.stability ?? 0.5,
+        stability: params.stability ?? 0.55,
         similarity_boost: params.similarityBoost ?? 0.75,
+        style: 0.35,
+        use_speaker_boost: true,
+        speed: Math.min(1.2, Math.max(0.7, params.speed ?? 0.92)),
       },
     }),
   });

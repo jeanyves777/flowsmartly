@@ -15,6 +15,7 @@ import {
   type TrainingParticipantDTO,
   type TrainingMaterialDTO,
   type TrainingInviteDTO,
+  type TrainingMessageDTO,
   type SegmentKind,
   type SessionType,
   type SessionStatus,
@@ -23,6 +24,7 @@ import {
   type ParticipantRole,
   type ParticipantState,
   type MaterialKind,
+  type TrainingDeck,
 } from "./types";
 
 /** Parse a JSON column without ever throwing into a route. */
@@ -35,10 +37,38 @@ function json<T>(raw: string | null | undefined, fallback: T): T {
   }
 }
 
+/** Brand Kit `colors` is a JSON object/array of hex values — flatten to a list. */
+export function brandColorList(colors: string | null | undefined): string[] {
+  if (!colors) return [];
+  try {
+    const parsed = JSON.parse(colors) as unknown;
+    const vals = Array.isArray(parsed) ? parsed : Object.values(parsed as Record<string, unknown>);
+    return vals
+      .filter((v): v is string => typeof v === "string" && /^#?[0-9a-fA-F]{3,8}$/.test(v))
+      .map((v) => (v.startsWith("#") ? v : `#${v}`))
+      .slice(0, 6);
+  } catch {
+    return [];
+  }
+}
+
 export function parseBoard(raw: string | null | undefined): BoardDoc {
   const doc = json<Partial<BoardDoc>>(raw, {});
   if (!doc || !Array.isArray(doc.items)) return { ...EMPTY_BOARD, items: [] };
   return { v: 1, bg: doc.bg ?? "grid", items: doc.items };
+}
+
+/** The recent in-meeting chat, oldest→newest, for the stream's first frame. */
+export async function getRecentMessages(sessionId: string, take = 60): Promise<TrainingMessageDTO[]> {
+  const rows = await prisma.trainingMessage.findMany({
+    where: { sessionId },
+    orderBy: { createdAt: "desc" },
+    take,
+    select: { id: true, participantId: true, name: true, text: true, createdAt: true },
+  });
+  return rows
+    .reverse()
+    .map((m) => ({ id: m.id, participantId: m.participantId, name: m.name, text: m.text, at: m.createdAt.toISOString() }));
 }
 
 // ------------------------------------------------------------------ estimate
@@ -148,6 +178,9 @@ function loadSessionRow(id: string) {
       participants: { orderBy: { createdAt: "asc" } },
       materials: { orderBy: { createdAt: "asc" } },
       invites: { orderBy: { createdAt: "asc" } },
+      // the owner's brand logo + colours — the join page defaults to the logo,
+      // and the virtual-background presets use the palette.
+      user: { select: { brandKits: { orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }], take: 1, select: { logo: true, iconLogo: true, colors: true } } } },
     },
   });
 }
@@ -172,16 +205,25 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
     joinHeadline: row.joinHeadline,
     joinMessage: row.joinMessage,
     joinLogoUrl: row.joinLogoUrl,
+    joinBannerUrl: row.joinBannerUrl,
+    brandLogoUrl: row.user?.brandKits?.[0]?.logo || row.user?.brandKits?.[0]?.iconLogo || null,
+    brandColors: brandColorList(row.user?.brandKits?.[0]?.colors),
     joinCollectEmail: row.joinCollectEmail,
     openDraw: row.openDraw,
     openShare: row.openShare,
     openMic: row.openMic,
     locked: row.locked,
+    hideBoard: row.hideBoard,
+    rosterLayout: (row.rosterLayout as "side" | "top" | "bottom") ?? "side",
+    spotlightId: row.spotlightId,
 
     penHolderId: row.penHolderId,
+    activeSegmentId: row.activeSegmentId ?? null,
     stageSource: row.stageSource as StageSource,
     stageKey: row.stageKey,
     stagePage: row.stagePage,
+    stageStep: row.stageStep ?? 0,
+    aiPlaying: row.aiPlaying ?? false,
     boardDoc: parseBoard(row.boardDoc),
     recordingUrl: row.recordingUrl,
     creditsSpent: row.creditsSpent,
@@ -202,9 +244,17 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
       }),
     ),
     participants: row.participants
-      .filter((p) => p.state !== "REMOVED" && p.state !== "DENIED")
+      // LEFT people are gone until they reconnect (the stream restores their
+      // state on re-entry), so a later room:state broadcast can't re-add them.
+      .filter((p) => p.state !== "REMOVED" && p.state !== "DENIED" && p.state !== "LEFT")
       .map(
         (p): TrainingParticipantDTO => ({
+          // the active presenter's looping avatar clip (if any) — makes the AI co-host MOVE.
+          videoUrl: p.isAI
+            ? (row.materials
+                .map((m) => (m.deck ? json<TrainingDeck | null>(m.deck, null) : null))
+                .find((d) => d?.presenterActive && d?.presenterVideoUrl)?.presenterVideoUrl ?? null)
+            : null,
           id: p.id,
           userId: p.userId,
           name: p.name,
@@ -221,6 +271,7 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
           joinedAt: p.joinedAt?.toISOString() ?? null,
           focusPct: p.focusPct,
           secondsIn: p.secondsIn,
+          isAI: p.isAI,
         }),
       ),
     materials: row.materials.map(
@@ -231,6 +282,7 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
         url: m.url,
         pages: m.pages,
         sizeBytes: m.sizeBytes,
+        deck: m.deck ? json<TrainingDeck | null>(m.deck, null) : null,
       }),
     ),
     invites: row.invites.map(

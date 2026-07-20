@@ -37,6 +37,10 @@ interface PatchBody {
   openShare?: boolean;
   openMic?: boolean;
   locked?: boolean;
+  hideBoard?: boolean;
+  rosterLayout?: "side" | "top" | "bottom";
+  spotlightId?: string | null;
+  activeSegmentId?: string | null;
   joinHeadline?: string | null;
   joinMessage?: string | null;
   joinLogoUrl?: string | null;
@@ -44,6 +48,8 @@ interface PatchBody {
   stageSource?: StageSource;
   stageKey?: string | null;
   stagePage?: number;
+  stageStep?: number;
+  aiPlaying?: boolean;
 }
 
 /**
@@ -68,15 +74,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (typeof b.seats === "number") data.seats = Math.min(200, Math.max(1, b.seats));
   if (b.startsAt !== undefined) data.startsAt = b.startsAt ? new Date(b.startsAt) : null;
   if (b.access) data.access = b.access;
-  for (const k of ["waitingRoom", "recording", "transcript", "openDraw", "openShare", "openMic", "locked", "joinCollectEmail"] as const) {
+  for (const k of ["waitingRoom", "recording", "transcript", "openDraw", "openShare", "openMic", "locked", "hideBoard", "joinCollectEmail"] as const) {
     if (typeof b[k] === "boolean") data[k] = b[k];
   }
+  if (b.rosterLayout && ["side", "top", "bottom"].includes(b.rosterLayout)) data.rosterLayout = b.rosterLayout;
+  if (b.spotlightId !== undefined) data.spotlightId = b.spotlightId || null;
+  if (b.activeSegmentId !== undefined) data.activeSegmentId = b.activeSegmentId || null;
   if (b.joinHeadline !== undefined) data.joinHeadline = b.joinHeadline ? String(b.joinHeadline).slice(0, 120) : null;
   if (b.joinMessage !== undefined) data.joinMessage = b.joinMessage ? String(b.joinMessage).slice(0, 400) : null;
   if (b.joinLogoUrl !== undefined) data.joinLogoUrl = b.joinLogoUrl || null;
   if (b.stageSource) data.stageSource = b.stageSource;
   if (b.stageKey !== undefined) data.stageKey = b.stageKey;
   if (typeof b.stagePage === "number") data.stagePage = Math.max(1, b.stagePage);
+  if (typeof b.stageStep === "number") data.stageStep = Math.max(0, b.stageStep);
+  if (typeof b.aiPlaying === "boolean") data.aiPlaying = b.aiPlaying;
 
   if (!Object.keys(data).length) return err("Nothing to change");
 
@@ -91,12 +102,18 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         stageSource: dto.stageSource,
         stageKey: dto.stageKey,
         stagePage: dto.stagePage,
+        stageStep: dto.stageStep,
+        aiPlaying: dto.aiPlaying,
         openDraw: dto.openDraw,
         openShare: dto.openShare,
         openMic: dto.openMic,
         waitingRoom: dto.waitingRoom,
         recording: dto.recording,
         locked: dto.locked,
+        hideBoard: dto.hideBoard,
+        rosterLayout: dto.rosterLayout,
+        spotlightId: dto.spotlightId,
+        activeSegmentId: dto.activeSegmentId,
         title: dto.title,
       },
     });

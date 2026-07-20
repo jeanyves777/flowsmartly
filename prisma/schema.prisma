@@ -170,6 +170,7 @@ model User {
   blocksReceived        UserBlock[]                     @relation("UserBlocks_blocked")
   trainingSessions      TrainingSession[]
   trainingParticipation TrainingParticipant[]
+  presenterProfiles     PresenterProfile[]
 
   // Onboarding
   onboardingComplete Boolean @default(false)
@@ -4588,13 +4589,55 @@ model VoiceProfile {
   openaiVoiceId     String?
   openaiConsentId   String?
   sampleUrl         String?
+  /// a short sample SPOKEN BY THE CLONE (TTS of a test line) so the owner can audition the
+  /// cloned voice and confirm it matches the original. sampleUrl stays the source recording.
+  previewUrl        String?
   isDefault         Boolean   @default(false)
   lastUsedAt        DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   generations VoiceGeneration[]
+  presenters  PresenterProfile[]
+
+  @@index([userId])
+}
+
+/// A reusable AI Presenter — a disclosed co-host that delivers a training in the
+/// owner's cloned voice + likeness. Built in "Build with AI"; consent is captured
+/// on creation and the profile can be deleted at any time. [[training-studio]]
+model PresenterProfile {
+  id              String  @id @default(cuid())
+  userId          String
+  name            String
+  portraitUrl     String?
+  /// HeyGen talking-photo id for the portrait + a reusable ~10s looping presenter clip
+  /// (the "moving avatar"), generated once and looped in the co-host tile
+  talkingPhotoId  String?
+  loopVideoUrl    String?
+  /// the cloned VoiceProfile this presenter speaks with (reuses Voice Studio cloning)
+  voiceProfileId  String?
+  deliveryStyle   String  @default("conversational") // professional | conversational | energetic | teacher
+  pace            Float   @default(1.0)
+  expressiveness  Int     @default(65)
+  pauseMs         Int     @default(1200)
+  role            String  @default("cohost") // cohost | host | assistant
+  followNotes     Boolean @default(true)
+  describeVisuals Boolean @default(true)
+  advanceReveals  Boolean @default(true)
+  useLiveDraw     Boolean @default(true)
+  /// question behaviour, JSON: { stopOnHand, afterEachSection, hostApproves, answerMode }
+  questionBehavior String?
+  // consent — cloning a real person requires explicit owner consent
+  consentAcceptedAt DateTime?
+  consentOwnerName  String?
+  consentUsage      String?   @default("training_presentations")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voice VoiceProfile? @relation(fields: [voiceProfileId], references: [id], onDelete: SetNull)
 
   @@index([userId])
 }
@@ -5993,6 +6036,13 @@ model PhoneNumber {
   // Returned exactly ONCE at registration. Without it an inbound call can never
   // be verified, and the only fix is to delete and re-register the number.
   signingSecret    String?
+  // BYO Direct-SIP credentials the client points their carrier/PBX at. Generated
+  // by us at registration and shown once; persisted so the connection steps can be
+  // re-shown and a call's Authorization header verified (xAI may present either the
+  // dispatch signingSecret or this webhook auth token).
+  sipUsername      String?
+  sipPassword      String?
+  webhookAuthToken String?
 
   // --- Retained from the Twilio-era model (deliberately NOT dropped) --------
   // These columns still back the SMS / number-rental system: a line can be
@@ -6122,6 +6172,13 @@ model VoiceAgent {
   // embedded in the connector URL so the relay knows which tenant is calling.
   mcpToken String? @unique
 
+  // Request -> admin-build -> approve -> activate. A new agent is REQUESTED
+  // (status), an admin builds the console agent + assigns a number, then approves.
+  requestedAt DateTime?
+  approvedAt  DateTime?
+  approvedBy  String?
+  adminNote   String? // internal note from the admin who built/approved it
+
   liveSince DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -6211,7 +6268,8 @@ model TrainingSession {
   // guest (no account) can enter. Guests always give a name; email is optional.
   joinHeadline     String?
   joinMessage      String?
-  joinLogoUrl      String?
+  joinLogoUrl      String? // an uploaded override; the join page otherwise falls back to the Brand Kit logo
+  joinBannerUrl    String? // wide cover image (Facebook-banner style) at the top of the join page
   joinCollectEmail Boolean @default(false)
 
   // room policy — "open*" = anyone may; otherwise hosts + whoever is granted
@@ -6224,12 +6282,18 @@ model TrainingSession {
   openShare   Boolean @default(false)
   openMic     Boolean @default(true)
   locked      Boolean @default(false)
+  hideBoard   Boolean @default(false) // host hid all marks for the WHOLE room (synced to attendees)
+  rosterLayout String @default("side") // where the attendee tiles sit: side | top | bottom
+  spotlightId  String? // a participant the host has spotlighted large for everyone
 
   // live stage state
   penHolderId   String? // TrainingParticipant.id holding the pen (presenter-authoritative)
+  activeSegmentId String? // TrainingSegment.id the room is currently on (the "lesson" pointer)
   stageSource   String  @default("board") // board | slides | doc | video | screen | cam
   stageKey      String? // material id, or the participant id who is screen-sharing
   stagePage     Int     @default(1)
+  stageStep     Int     @default(0) // progressive-reveal step within the current deck slide
+  aiPlaying     Boolean @default(false) // the AI presenter is delivering (synced to everyone)
   boardDoc      String  @default("{}") // JSON whiteboard document (the room's own board)
   recordingUrl  String?
   transcriptUrl String?
@@ -6244,6 +6308,7 @@ model TrainingSession {
   participants TrainingParticipant[]
   invites      TrainingInvite[]
   materials    TrainingMaterial[]
+  messages     TrainingMessage[]
 
   @@index([userId, updatedAt])
   @@index([userId, status])
@@ -6286,6 +6351,9 @@ model TrainingParticipant {
   avatarUrl  String?
   role       String  @default("TRAINEE") // HOST | COHOST | TRAINEE | GUEST
   state      String  @default("WAITING") // WAITING | ADMITTED | DENIED | LEFT | REMOVED
+  /// a synthetic AI Presenter co-host (disclosed) — not a real connection
+  isAI              Boolean @default(false)
+  presenterProfileId String?
   canShare   Boolean @default(false)
   canDraw    Boolean @default(false)
   micOn      Boolean @default(false)
@@ -6343,10 +6411,28 @@ model TrainingMaterial {
   pages       Int     @default(1)
   sizeBytes   Int     @default(0)
   mediaFileId String?
+  // AI-generated presentation deck (JSON TrainingDeck) — null for uploaded files.
+  deck        String?
 
   createdAt DateTime @default(now())
 
   session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
+}
+
+// In-meeting chat: a running text conversation during a live training room.
+// Persisted so late joiners load the recent history and it can attach to the
+// recording later. [[training-studio]]
+model TrainingMessage {
+  id            String   @id @default(cuid())
+  sessionId     String
+  participantId String? // null if the sender's seat was later removed
+  name          String // display name captured at send time (guests have no account)
+  text          String
+  createdAt     DateTime @default(now())
+
+  session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
 }

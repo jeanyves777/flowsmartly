@@ -1,4 +1,28 @@
 import type { NextConfig } from "next";
+import { copyFileSync, existsSync, mkdirSync } from "fs";
+import { join } from "path";
+
+// Self-host the MediaPipe segmentation WASM (Training Room virtual backgrounds).
+// Copied from node_modules into /public at build/dev start so the browser loads
+// it same-origin — no CDN — without committing ~19MB of binaries to git. Failsafe:
+// if the copy can't happen, the background feature degrades but the build is fine.
+(function provisionMediapipeWasm() {
+  try {
+    const src = join(process.cwd(), "node_modules/@mediapipe/tasks-vision/wasm");
+    const dst = join(process.cwd(), "public/mediapipe/wasm");
+    if (!existsSync(src)) return;
+    mkdirSync(dst, { recursive: true });
+    for (const f of [
+      "vision_wasm_internal.js", "vision_wasm_internal.wasm",
+      "vision_wasm_nosimd_internal.js", "vision_wasm_nosimd_internal.wasm",
+    ]) {
+      const from = join(src, f);
+      if (existsSync(from)) copyFileSync(from, join(dst, f));
+    }
+  } catch {
+    /* non-fatal — virtual backgrounds just won't be available */
+  }
+})();
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

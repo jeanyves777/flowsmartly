@@ -14,6 +14,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Device, Transport, Producer, Consumer } from "mediasoup-client/types";
+import { BackgroundCompositor, type BackgroundSpec } from "./background-compositor";
 
 export interface RemoteStream {
   participantId: string;
@@ -48,6 +49,8 @@ interface State {
   /** a track died while we were away (tab backgrounded, device unplugged): the
    *  camera/mic silently stopped and the UI must SAY so, not pretend it's live. */
   needsAttention: boolean;
+  /** the virtual background applied to the OUTGOING camera. */
+  background: BackgroundSpec;
 }
 
 const INITIAL: State = {
@@ -67,6 +70,7 @@ const INITIAL: State = {
   micId: null,
   spkId: null,
   needsAttention: false,
+  background: { type: "none" },
 };
 
 export function useMedia(sessionId: string | null, live: boolean) {
@@ -276,6 +280,43 @@ export function useMedia(sessionId: string | null, live: boolean) {
   const spkId = useRef<string | null>(null);
   const wanted = useRef({ cam: false, mic: false }); // what the user last chose — drives resume
 
+  // Virtual background: the raw camera feeds a compositor; the composited canvas
+  // track is what we PUBLISH. Kept in refs so device swaps + reconnects reuse it.
+  const compositor = useRef<BackgroundCompositor | null>(null);
+  const rawCam = useRef<MediaStream | null>(null);
+  const bgSpec = useRef<BackgroundSpec>({ type: "none" });
+
+  /** Given a fresh RAW camera stream, return the stream to publish/preview —
+   *  raw when the background is off, otherwise the composited canvas stream. */
+  const composeCam = useCallback(async (raw: MediaStream): Promise<MediaStream> => {
+    if (bgSpec.current.type === "none") return raw;
+    if (!compositor.current) compositor.current = new BackgroundCompositor();
+    else compositor.current.stop(); // a new raw stream needs a fresh loop
+    try {
+      return await compositor.current.start(raw, bgSpec.current);
+    } catch {
+      return raw; // segmentation unavailable — send the plain camera
+    }
+  }, []);
+
+  // Remember the last-chosen background across sessions; tear the compositor down
+  // when the hook unmounts.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("tg-bg");
+      if (saved) {
+        const spec = JSON.parse(saved) as BackgroundSpec;
+        bgSpec.current = spec;
+        setState((s) => ({ ...s, background: spec }));
+      }
+    } catch {}
+    return () => {
+      compositor.current?.stop();
+      compositor.current = null;
+      rawCam.current?.getTracks().forEach((t) => t.stop());
+    };
+  }, []);
+
   const refreshDevices = useCallback(async () => {
     try {
       const list = await navigator.mediaDevices.enumerateDevices();
@@ -324,6 +365,36 @@ export function useMedia(sessionId: string | null, live: boolean) {
     };
   }, []);
 
+  // Leaving the training page (tab switch / navigating within the app) often MUTES
+  // the camera track without ending it — the control still reads "on" but the video
+  // is a black rectangle. On return, if the camera is meant to be on but its track is
+  // dead/muted, re-acquire it so it heals itself (no manual off/on).
+  const reacquireCam = useCallback(async () => {
+    const prod = producers.current.get("cam");
+    if (!prod) return; // camera isn't on — nothing to heal
+    const cur = rawCam.current?.getVideoTracks()[0];
+    if (cur && cur.readyState === "live" && !cur.muted) return; // still healthy
+    try {
+      const raw = await navigator.mediaDevices.getUserMedia({
+        video: { ...(camId.current ? { deviceId: { exact: camId.current } } : {}), width: 640, height: 480 },
+      });
+      watchTrack("cam", raw.getVideoTracks()[0]);
+      rawCam.current?.getTracks().forEach((t) => t.stop());
+      rawCam.current = raw;
+      const preview = await composeCam(raw);
+      await prod.replaceTrack({ track: preview.getVideoTracks()[0] });
+      setState((s) => ({ ...s, localCam: preview, camOn: true, needsAttention: false }));
+    } catch {
+      /* a hard failure falls through to the needsAttention recovery banner */
+    }
+  }, [watchTrack, composeCam]);
+
+  useEffect(() => {
+    const onVis = () => { if (document.visibilityState === "visible") void reacquireCam(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [reacquireCam]);
+
   // ------------------------------------------------------------------ produce
   const publish = useCallback(
     async (key: "cam" | "mic" | "screen", track: MediaStreamTrack) => {
@@ -351,6 +422,9 @@ export function useMedia(sessionId: string | null, live: boolean) {
     if (producers.current.has("cam")) {
       await unpublish("cam");
       wanted.current.cam = false;
+      compositor.current?.stop();
+      rawCam.current?.getTracks().forEach((t) => t.stop());
+      rawCam.current = null;
       setState((s) => {
         s.localCam?.getTracks().forEach((t) => t.stop());
         return { ...s, camOn: false, localCam: null };
@@ -360,18 +434,19 @@ export function useMedia(sessionId: string | null, live: boolean) {
     try {
       const video: MediaTrackConstraints = { width: 640, height: 480 };
       if (camId.current) video.deviceId = { exact: camId.current };
-      const stream = await navigator.mediaDevices.getUserMedia({ video });
-      const track = stream.getVideoTracks()[0];
-      watchTrack("cam", track);
-      await publish("cam", track);
+      const raw = await navigator.mediaDevices.getUserMedia({ video });
+      rawCam.current = raw;
+      watchTrack("cam", raw.getVideoTracks()[0]); // watch the RAW track — that's what the OS kills
+      const preview = await composeCam(raw); // raw, or the composited canvas stream
+      await publish("cam", preview.getVideoTracks()[0]);
       wanted.current.cam = true;
-      setState((s) => ({ ...s, camOn: true, localCam: stream, needsAttention: false }));
+      setState((s) => ({ ...s, camOn: true, localCam: preview, needsAttention: false }));
       void refreshDevices(); // labels fill in now that we have permission
       return null;
     } catch {
       return "We couldn't reach your camera — check the browser's permission.";
     }
-  }, [publish, unpublish, watchTrack, refreshDevices]);
+  }, [publish, unpublish, watchTrack, refreshDevices, composeCam]);
 
   const toggleMic = useCallback(async (): Promise<string | null> => {
     if (producers.current.has("mic")) {
@@ -403,18 +478,48 @@ export function useMedia(sessionId: string | null, live: boolean) {
     const prod = producers.current.get("cam");
     if (!prod) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: id }, width: 640, height: 480 } });
-      const track = stream.getVideoTracks()[0];
-      watchTrack("cam", track);
-      await prod.replaceTrack({ track });
+      const raw = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: id }, width: 640, height: 480 } });
+      watchTrack("cam", raw.getVideoTracks()[0]);
+      rawCam.current?.getTracks().forEach((t) => t.stop());
+      rawCam.current = raw;
+      const preview = await composeCam(raw); // re-run through the compositor if a bg is on
+      await prod.replaceTrack({ track: preview.getVideoTracks()[0] });
       setState((s) => {
-        s.localCam?.getTracks().forEach((t) => t.stop());
-        return { ...s, localCam: stream };
+        if (s.localCam !== raw && s.localCam !== preview) s.localCam?.getTracks().forEach((t) => t.stop());
+        return { ...s, localCam: preview };
       });
     } catch {
       /* keep the current camera if the new one won't open */
     }
-  }, [watchTrack]);
+  }, [watchTrack, composeCam]);
+
+  /** Apply a virtual background to the OUTGOING camera. Takes effect live if the
+   *  camera is on, otherwise it's remembered for the next time it turns on. */
+  const setBackground = useCallback(async (spec: BackgroundSpec) => {
+    bgSpec.current = spec;
+    setState((s) => ({ ...s, background: spec }));
+    try { localStorage.setItem("tg-bg", JSON.stringify(spec)); } catch {}
+
+    const prod = producers.current.get("cam");
+    const raw = rawCam.current;
+    if (!prod || !raw) return; // will apply when the camera next turns on
+
+    if (spec.type === "none") {
+      compositor.current?.stop();
+      const track = raw.getVideoTracks()[0];
+      await prod.replaceTrack({ track });
+      setState((s) => ({ ...s, localCam: raw }));
+      return;
+    }
+    // already compositing → just swap the background; else start the pipeline
+    if (compositor.current?.stream) {
+      await compositor.current.setBackground(spec);
+      return;
+    }
+    const preview = await composeCam(raw);
+    await prod.replaceTrack({ track: preview.getVideoTracks()[0] });
+    setState((s) => ({ ...s, localCam: preview }));
+  }, [composeCam]);
 
   const pickMic = useCallback(async (id: string) => {
     micId.current = id;
@@ -446,6 +551,29 @@ export function useMedia(sessionId: string | null, live: boolean) {
 
   const dismissAttention = useCallback(() => setState((s) => ({ ...s, needsAttention: false })), []);
 
+  // Carry the pre-join screen's choices in: once media is live, turn the mic/camera
+  // on if the guest left them on before joining. One-shot — the flags are cleared
+  // immediately so the host studio (which never sets them) is never affected, and a
+  // later reconnect doesn't re-toggle.
+  const carriedPrejoin = useRef(false);
+  useEffect(() => {
+    if (!state.enabled || carriedPrejoin.current) return;
+    carriedPrejoin.current = true;
+    let wantCam: string | null = null, wantMic: string | null = null;
+    try {
+      wantCam = localStorage.getItem("tg-want-cam");
+      wantMic = localStorage.getItem("tg-want-mic");
+      localStorage.removeItem("tg-want-cam");
+      localStorage.removeItem("tg-want-mic");
+    } catch {}
+    if (wantCam !== "1" && wantMic !== "1") return;
+    const t = setTimeout(() => {
+      if (wantMic === "1" && !producers.current.has("mic")) void toggleMic();
+      if (wantCam === "1" && !producers.current.has("cam")) void toggleCam();
+    }, 700);
+    return () => clearTimeout(t);
+  }, [state.enabled, toggleCam, toggleMic]);
+
   const toggleScreen = useCallback(async (): Promise<string | null> => {
     if (producers.current.has("screen")) {
       await unpublish("screen");
@@ -474,5 +602,5 @@ export function useMedia(sessionId: string | null, live: boolean) {
     }
   }, [publish, unpublish]);
 
-  return { ...state, toggleCam, toggleMic, toggleScreen, pickCamera, pickMic, pickSpeaker, resume, dismissAttention };
+  return { ...state, toggleCam, toggleMic, toggleScreen, pickCamera, pickMic, pickSpeaker, setBackground, resume, dismissAttention };
 }

@@ -3,8 +3,8 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { checkInviteToken } from "@/lib/training/access";
 import { getTrainingActor } from "@/lib/training/guest";
-import { addConn, removeConn, touchConn, broadcast, connectedIds } from "@/lib/training/room";
-import { getSessionDTO, meterRoom } from "@/lib/training/session";
+import { addConn, removeConn, touchConn, broadcast, connectedIds, frameEvent } from "@/lib/training/room";
+import { getSessionDTO, meterRoom, getRecentMessages } from "@/lib/training/session";
 import type { RoomEvent } from "@/lib/training/types";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +12,13 @@ export const maxDuration = 600;
 
 const deny = (message: string, status: number) =>
   new Response(JSON.stringify({ error: message }), { status, headers: { "Content-Type": "application/json" } });
+
+// A phone that backgrounds the tab DROPS the SSE, but the person hasn't left. We
+// give them a grace window to come back before marking them LEFT — otherwise every
+// tab switch would evict them and, in a waiting-room room, force the host to admit
+// them all over again. Keyed by `${sessionId}:${participantId}`.
+const LEAVE_GRACE_MS = 60_000;
+const pendingLeave = new Map<string, ReturnType<typeof setTimeout>>();
 
 /**
  * GET — the live room stream.
@@ -64,13 +71,30 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   if (!participantId) return deny("Unauthorized", 401);
 
+  // Reconnecting cancels any pending "leave" from a dropped connection — they're
+  // back, so they keep their seat (no eviction, no re-admit).
+  const leaveKey = `${id}:${participantId}`;
+  const pend = pendingLeave.get(leaveKey);
+  if (pend) { clearTimeout(pend); pendingLeave.delete(leaveKey); }
+
+  // Returning after a real leave: put the seat back before we snapshot. Hosts and
+  // co-hosts always return admitted; a trainee/guest who was ALREADY admitted once
+  // (joinedAt set) comes straight back in — only a never-admitted knocker re-knocks.
+  const existing = await prisma.trainingParticipant.findUnique({ where: { id: participantId }, select: { state: true, role: true, joinedAt: true } });
+  if (existing?.state === "LEFT") {
+    const room = await prisma.trainingSession.findUnique({ where: { id }, select: { waitingRoom: true } });
+    const canControl = existing.role === "HOST" || existing.role === "COHOST";
+    const back = canControl || !room?.waitingRoom || existing.joinedAt ? "ADMITTED" : "WAITING";
+    await prisma.trainingParticipant.update({ where: { id: participantId }, data: { state: back, leftAt: null } }).catch(() => {});
+  }
+
   const dto = await getSessionDTO(id);
   if (!dto) return deny("No such room", 404);
   const me = dto.participants.find((p) => p.id === participantId);
   if (!me) return deny("Access denied", 403);
+  const messages = await getRecentMessages(id); // chat history for the first frame
 
   const sessionKey = `${participantId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const encoder = new TextEncoder();
   const pid = participantId;
 
   let heartbeat: ReturnType<typeof setInterval> | null = null;
@@ -80,8 +104,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     start(controller) {
       addConn(id, sessionKey, { participantId: pid, lastSeen: Date.now(), controller });
 
-      const init: RoomEvent = { type: "room:init", sessionKey, me, session: dto };
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(init)}\n\n`));
+      const init: RoomEvent = { type: "room:init", sessionKey, me, session: dto, messages };
+      controller.enqueue(frameEvent(init));
 
       // A knock notifies the hosts; a join notifies the room.
       broadcast(
@@ -93,11 +117,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       heartbeat = setInterval(() => {
         try {
           touchConn(id, sessionKey);
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "heartbeat" })}\n\n`));
+          // frequent + padded, so any buffered stage-step events flush promptly even if a
+          // proxy tries to hold small frames back
+          controller.enqueue(frameEvent({ type: "heartbeat" }));
         } catch {
           if (heartbeat) clearInterval(heartbeat);
         }
-      }, 15_000);
+      }, 2_000);
 
       // Bill the room from the HOST's connection only, so N attendees don't
       // each charge the tab N times. Incremental, so a room that never gets
@@ -120,12 +146,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (heartbeat) clearInterval(heartbeat);
       if (meterTick) clearInterval(meterTick);
       removeConn(id, sessionKey);
-      // only announce a leave once their LAST tab is gone
+      // Their last tab is gone — but a backgrounded phone drops the SSE without the
+      // person leaving. Wait out a grace window; only mark LEFT if they're still gone
+      // when it fires (a reconnect clears this timer). updateMany guards on state so a
+      // removed/denied row is never touched.
       if (!connectedIds(id).includes(pid)) {
-        void prisma.trainingParticipant
-          .update({ where: { id: pid }, data: { leftAt: new Date() } })
-          .catch(() => {});
-        broadcast(id, { type: "room:leave", participantId: pid });
+        const existing = pendingLeave.get(leaveKey);
+        if (existing) clearTimeout(existing);
+        pendingLeave.set(
+          leaveKey,
+          setTimeout(() => {
+            pendingLeave.delete(leaveKey);
+            if (connectedIds(id).includes(pid)) return; // came back on another tab
+            void prisma.trainingParticipant
+              .updateMany({ where: { id: pid, state: { in: ["ADMITTED", "WAITING"] } }, data: { state: "LEFT", leftAt: new Date() } })
+              .catch(() => {});
+            broadcast(id, { type: "room:leave", participantId: pid });
+          }, LEAVE_GRACE_MS),
+        );
       }
     },
   });

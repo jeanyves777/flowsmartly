@@ -13,7 +13,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { GraduationCap, FolderOpen, Sparkles, Radio, LayoutGrid, SlidersHorizontal, Users } from "lucide-react";
+import { GraduationCap, FolderOpen, Sparkles, Radio, LayoutGrid, SlidersHorizontal, Users, Presentation, Bot } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -21,11 +21,32 @@ import { emitCreditsUpdate } from "@/lib/utils/credits-event";
 import { PlanCanvas } from "./training/plan-canvas";
 import { LiveRoom } from "./training/live-room";
 import { BackOffice } from "./training/back-office";
-import { BriefSheet, type BriefDraft } from "./training/brief-sheet";
+import { DeckBuilder } from "./training/deck-builder";
+import { BriefSheet, type BriefDraft, type DeckDraft } from "./training/brief-sheet";
+import { PresenterSetup } from "./training/presenter-setup";
 import { useRoom } from "./training/use-room";
-import type { SegmentKind, TrainingSessionDTO } from "@/lib/training/types";
+import { slideCountForDuration } from "@/lib/training/deck-cost";
+import type { SegmentKind, TrainingSessionDTO, PresenterProfileDTO } from "@/lib/training/types";
 
-type Mode = "plan" | "live" | "office";
+/** Turn the "Build with AI" draft into the rich brief the deck generator reads. */
+function composeDeckBrief(deck: DeckDraft): string {
+  const w = deck.wants, prefs: string[] = [];
+  if (w.photos) prefs.push("include photorealistic example imagery");
+  if (w.threeD) prefs.push("use 3D explainer visuals for abstract concepts");
+  if (w.livedraw) prefs.push("include at least one Live Draw section that builds stroke by stroke");
+  if (w.whiteboard) prefs.push("use whiteboard diagrams for processes and frameworks");
+  if (deck.brandKit) prefs.push("match the brand style");
+  return [
+    deck.objective.trim(),
+    `Audience: ${deck.audience}. Experience level: ${deck.experience}. Tone: ${deck.tone}. Target length: about ${deck.durationMins} minutes.`,
+    prefs.length ? `Please ${prefs.join(", ")}.` : "",
+    deck.advanced.trim() ? `Additional instructions: ${deck.advanced.trim()}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+interface DeckAutoGen { brief: string; wantDoc: boolean; wantWhiteboard: boolean; wantVisuals: boolean; slideCount: number }
+
+type Mode = "plan" | "live" | "office" | "deck";
 
 interface SessionRow {
   id: string;
@@ -49,6 +70,10 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
   const [estimate, setEstimate] = useState<{ total: number; room: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [deckAutoGen, setDeckAutoGen] = useState<DeckAutoGen | null>(null);
+  const [presenterOpen, setPresenterOpen] = useState(false);
+  const [presenter, setPresenter] = useState<PresenterProfileDTO | null>(null);
+  const [wantsPresenter, setWantsPresenter] = useState(false);
 
   useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
 
@@ -116,6 +141,21 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
     if (session?.status === "live" && mode === "plan") setMode("live");
   }, [session?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-hydrate the chosen presenter from the deck on load, so the builder bar and
+  // narration reflect the saved presenter after a refresh (the room already reads it).
+  useEffect(() => {
+    if (presenter || !session) return;
+    const pid = session.materials.find((m) => m.kind === "slides" && m.deck?.presenterId)?.deck?.presenterId;
+    if (!pid) return;
+    let alive = true;
+    void (async () => {
+      const j = await fetch("/api/ai/training/presenter").then((r) => r.json()).catch(() => null);
+      const found = (j?.data?.presenters as PresenterProfileDTO[] | undefined)?.find((x) => x.id === pid);
+      if (alive && found) { setPresenter(found); setWantsPresenter(true); }
+    })();
+    return () => { alive = false; };
+  }, [session?.materials, presenter]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ---- estimate (drives the Go-live node + the office KPI) ----
   useEffect(() => {
     if (!session) return;
@@ -139,21 +179,49 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
   }, [session?.seats, session?.plannedMins, session?.recording, session?.transcript]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- actions ----
+  // Best-effort: attach the "Build with AI" source files once the room exists.
+  const uploadSources = async (sid: string, files: File[]) => {
+    for (const file of files.slice(0, 8)) {
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        await fetch(`/api/ai/training/${sid}/materials`, { method: "POST", body: form });
+      } catch { /* a failed attachment shouldn't derail the build */ }
+    }
+  };
+
   const build = async (d: BriefDraft) => {
     setBusy(true);
     try {
+      const { deck, ...roomFields } = d;
+      const roomBrief = deck?.objective?.trim() || d.brief;
       const j = await fetch("/api/ai/training", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...d, startsAt: d.startsAt || null }),
+        body: JSON.stringify({ ...roomFields, brief: roomBrief, startsAt: d.startsAt || null }),
       }).then((r) => r.json());
       if (!j?.success) { toast({ title: j?.error?.message || "Couldn't build the room", variant: "destructive" }); return; }
       const built = j.data.session as TrainingSessionDTO;
       setSessionId(built.id);
       setBriefOpen(false);
-      setMode("plan");
       await loadList();
-      toast({ title: `Room built — ${built.segments.length} segments on the canvas` });
+
+      if (deck && deck.objective.trim().length >= 8) {
+        // Built with AI — draft the presentation and land in the editor.
+        if (deck.sources?.length) void uploadSources(built.id, deck.sources);
+        setDeckAutoGen({
+          brief: composeDeckBrief(deck),
+          wantDoc: deck.wants.slides,
+          wantWhiteboard: deck.wants.whiteboard || deck.wants.livedraw,
+          wantVisuals: deck.wants.photos || deck.wants.threeD,
+          slideCount: slideCountForDuration(deck.durationMins),
+        });
+        setMode("deck");
+        toast({ title: "Room built — drafting your presentation…" });
+      } else {
+        setMode("plan");
+        toast({ title: `Room built — ${built.segments.length} segments on the canvas` });
+      }
     } catch {
       toast({ title: "Couldn't build the room", variant: "destructive" });
     } finally {
@@ -266,19 +334,15 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
     }
   };
 
-  const stats = useMemo(() => {
-    if (!session) return "";
-    const inRoom = session.participants.filter((p) => p.state === "ADMITTED").length;
-    return `${session.segments.length} segments · ${session.plannedMins} min · ${session.status === "live" ? `${inRoom} in the room` : `${session.seats} seats`}`;
-  }, [session]);
 
   // ---- header (portaled into the FocusedView's single header row) ----
   const header = headerSlot
     ? createPortal(
-        <div className="flex items-center gap-2">
-          <div className="flex gap-0.5 rounded-xl border border-border bg-card p-0.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <div className="flex shrink-0 gap-0.5 rounded-xl border border-border bg-card p-0.5">
             {([
               ["plan", "Plan", LayoutGrid],
+              ["deck", "Build", Presentation],
               ["live", "Live room", Radio],
               ["office", "Back office", SlidersHorizontal],
             ] as [Mode, string, typeof Radio][]).map(([m, label, Icon]) => (
@@ -286,26 +350,31 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
                 key={m}
                 onClick={() => setMode(m)}
                 disabled={!session}
+                title={label}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11.5px] font-bold transition disabled:opacity-40",
+                  "inline-flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-[11.5px] font-bold transition disabled:opacity-40 max-md:min-w-[38px]",
                   mode === m ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {m === "live" && session?.status === "live" ? (
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
-                ) : (
-                  <Icon className="h-3 w-3" />
-                )}
-                {label}
+                <span className="relative inline-flex">
+                  <Icon className="h-3.5 w-3.5" />
+                  {m === "live" && session?.status === "live" ? (
+                    <span className="absolute -right-1 -top-1 h-1.5 w-1.5 animate-pulse rounded-full bg-rose-500" />
+                  ) : null}
+                </span>
+                <span className="hidden sm:inline">{label}</span>
               </button>
             ))}
           </div>
-          {stats ? <span className="hidden text-[11.5px] text-muted-foreground lg:inline">{stats}</span> : null}
-          <button onClick={() => setListOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500">
-            <FolderOpen className="h-3 w-3" /> Sessions
+          {session ? <SessionMeta session={session} /> : null}
+          <button onClick={() => setPresenterOpen(true)} title="AI Presenter" className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border px-2.5 py-2 text-[12px] font-semibold hover:border-brand-500 max-md:min-w-[38px]">
+            <Bot className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Presenter</span>
           </button>
-          <button onClick={() => setBriefOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2.5 py-1.5 text-[12px] font-semibold text-white">
-            <Sparkles className="h-3 w-3" /> New session
+          <button onClick={() => setListOpen(true)} title="Sessions" className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-border px-2.5 py-2 text-[12px] font-semibold hover:border-brand-500 max-md:min-w-[38px]">
+            <FolderOpen className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Sessions</span>
+          </button>
+          <button onClick={() => setBriefOpen(true)} title="New session" className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2.5 py-2 text-[12px] font-semibold text-white max-md:min-w-[38px]">
+            <Sparkles className="h-3.5 w-3.5" /> <span className="hidden sm:inline">New session</span>
           </button>
         </div>,
         headerSlot,
@@ -361,6 +430,8 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           onGoLive={goLive}
           onManage={() => setMode("office")}
           onInvite={invite}
+          presenter={presenter}
+          onManagePresenter={() => setPresenterOpen(true)}
         />
       ) : mode === "live" && session.status === "ended" ? (
         // An ended room isn't live — never render it as if it were.
@@ -380,15 +451,24 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
             session={session}
             me={room.me}
             cursors={room.cursors}
+            liveStrokes={room.liveStrokes}
+            liveItems={room.liveItems}
             connected={room.connected}
             onAdd={(i) => void room.addItem(i)}
             onRemove={(id) => void room.removeItem(id)}
             onUpdate={(i) => void room.updateItem(i)}
             onPing={room.ping}
+            onLiveStroke={room.streamStroke}
+            onLiveItem={room.streamItem}
             onUndo={undo}
             onClear={() => void room.clearBoard()}
             act={async (a, p) => { const e = await room.act(a, p); fail(e); return e; }}
             patch={async (b) => { const e = await room.patch(b); fail(e); return e; }}
+            messages={room.messages}
+            sendMessage={room.sendMessage}
+            presenterAnswer={room.presenterAnswer}
+            onAsk={room.askPresenter}
+            onClearAnswer={room.clearAnswer}
             onLeave={() => setMode("plan")}
             onManage={() => setMode("office")}
             onEnd={endLive}
@@ -398,6 +478,23 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
             <FlowLoader label="Joining the room…" />
           </div>
         )
+      ) : mode === "deck" ? (
+        <DeckBuilder
+          session={session}
+          sessionId={sessionId!}
+          autoGen={deckAutoGen}
+          onAutoConsumed={() => {
+            setDeckAutoGen(null);
+            // The presenter step continues right after the presentation is built.
+            if (wantsPresenter) setPresenterOpen(true);
+          }}
+          presenter={presenter}
+          onOpenPresenter={() => setPresenterOpen(true)}
+          onSession={(s) => room.setSession(s)}
+          onPresent={(matId) => void room.patch({ stageSource: "slides", stageKey: matId, stagePage: 1, stageStep: 1 }).then(() => setMode("live"))}
+          onStartMeeting={(matId) => { void room.patch({ stageSource: "slides", stageKey: matId, stagePage: 1, stageStep: 1 }); void goLive(); }}
+          onExit={() => setMode(session.status === "live" ? "live" : "plan")}
+        />
       ) : (
         <BackOffice
           session={session}
@@ -405,9 +502,15 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           estimate={estimate}
           act={async (a, p) => { const e = await room.act(a, p); fail(e); return e; }}
           patch={async (b) => { const e = await room.patch(b); fail(e); return e; }}
+          onSession={(s) => room.setSession(s)}
           onAddMaterial={onPickMaterial}
+          onBuildDeck={() => setMode("deck")}
           uploading={uploading}
-          onPushMaterial={(id) => void room.patch({ stageSource: "doc", stageKey: id, stagePage: 1 }).then(() => setMode("live"))}
+          onPushMaterial={(id) => {
+            const m = session.materials.find((x) => x.id === id);
+            const isDeck = m?.kind === "slides";
+            void room.patch({ stageSource: isDeck ? "slides" : "doc", stageKey: id, stagePage: 1, stageStep: isDeck ? 1 : 0 }).then(() => setMode("live"));
+          }}
           onEnd={endLive}
         />
       )}
@@ -421,7 +524,13 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
         onChange={onMaterialChosen}
       />
 
-      <BriefSheet open={briefOpen} busy={busy} onClose={() => setBriefOpen(false)} onBuild={build} />
+      <BriefSheet
+        open={briefOpen} busy={busy} onClose={() => setBriefOpen(false)} onBuild={build}
+        presenter={presenter} onOpenPresenter={() => setPresenterOpen(true)} onClearPresenter={() => setPresenter(null)}
+        wantsPresenter={wantsPresenter} onWantsPresenter={setWantsPresenter}
+      />
+
+      <PresenterSetup open={presenterOpen} onClose={() => setPresenterOpen(false)} onChoose={(p) => { setPresenter(p); setWantsPresenter(true); setPresenterOpen(false); }} />
 
       {listOpen ? (
         <>
@@ -465,5 +574,33 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
         </>
       ) : null}
     </div>
+  );
+}
+
+/** Room meta for the header. When the session is LIVE it shows a ticking elapsed
+ *  clock (from startedAt); otherwise the planned agenda length (`~37 min`). The
+ *  old label read a planned duration as if it were the session's age. */
+function SessionMeta({ session }: { session: TrainingSessionDTO }) {
+  const inRoom = session.participants.filter((p) => p.state === "ADMITTED").length;
+  const live = session.status === "live" && !!session.startedAt;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!live) return;
+    const iv = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, [live]);
+
+  const elapsedMs = live ? Math.max(0, now - new Date(session.startedAt as string).getTime()) : 0;
+  const mm = Math.floor(elapsedMs / 60000);
+  const ss = Math.floor((elapsedMs % 60000) / 1000);
+  const timePart = live
+    ? `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")} live`
+    : `~${session.plannedMins} min`;
+  const peoplePart = session.status === "live" ? `${inRoom} in the room` : `${session.seats} seats`;
+
+  return (
+    <span className="hidden text-[11.5px] tabular-nums text-muted-foreground lg:inline">
+      {session.segments.length} segments · {timePart} · {peoplePart}
+    </span>
   );
 }

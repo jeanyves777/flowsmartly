@@ -66,12 +66,26 @@ export function connectedIds(sessionId: string): string[] {
   return [...ids];
 }
 
+// A big ignored SSE comment appended to important frames. Without it a SMALL event
+// (a stage-step change, a hand-raise answer) sits in nginx's proxy buffer until a LARGER
+// write pushes it out — so attendees only advanced when another event arrived. The pad
+// must exceed nginx's busy-buffers threshold to force an immediate flush; 32 KB clears
+// the common 8–16 KB defaults. High-frequency events (cursors) flush on their own, so we
+// don't pad those (bandwidth). The real backstop is `proxy_buffering off` on the stream
+// location — this makes it work regardless. [[training-studio]]
+const FLUSH_PAD = `:${" ".repeat(32768)}\n\n`;
+const HIGH_FREQ = new Set(["cursor", "laser", "livestroke", "liveitem"]);
+export function frameEvent(event: RoomEvent): Uint8Array {
+  const pad = HIGH_FREQ.has(event.type) ? "" : FLUSH_PAD;
+  return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n${pad}`);
+}
+
 /** Push an event to everyone in the room, optionally skipping the sender. */
 export function broadcast(sessionId: string, event: RoomEvent, excludeSessionKey?: string): void {
   const m = rooms.get(sessionId);
   if (!m) return;
 
-  const encoded = new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
+  const encoded = frameEvent(event);
   for (const [key, c] of m) {
     if (key === excludeSessionKey) continue;
     if (!c.controller) continue;
@@ -87,7 +101,7 @@ export function broadcast(sessionId: string, event: RoomEvent, excludeSessionKey
 export function sendTo(sessionId: string, participantId: string, event: RoomEvent): void {
   const m = rooms.get(sessionId);
   if (!m) return;
-  const encoded = new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
+  const encoded = frameEvent(event);
   for (const [key, c] of m) {
     if (c.participantId !== participantId || !c.controller) continue;
     try {

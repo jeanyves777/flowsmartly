@@ -15,7 +15,7 @@ import {
   Sparkles, X, Phone, Mic, Zap, ClipboardList, Plus, Pencil, Power, PhoneCall,
   Search, Coins, ListChecks, Settings, Hash, PauseCircle, PlayCircle, Trash2,
   ChevronRight, AlertTriangle, FileText, Link2, RefreshCw, Check, Loader2,
-  Volume2, Upload, Square,
+  Volume2, Upload, Square, Copy, PhoneForwarded,
 } from "lucide-react";
 
 import { useTextPrompt } from "@/components/agent-home/shared/text-prompt";
@@ -107,9 +107,10 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
     })();
   }, [loadAgents, loadAgent]);
 
-  // Poll while live so the back office reflects calls as they land.
+  // Poll while live (calls land) OR while requested (so it flips to live the
+  // moment an admin approves it, without a manual refresh).
   useEffect(() => {
-    if (!agent || agent.status !== "LIVE") return;
+    if (!agent || (agent.status !== "LIVE" && agent.status !== "REQUESTED")) return;
     const id = agent.id;
     const t = setInterval(() => { void loadAgent(id); }, 15000);
     return () => clearInterval(t);
@@ -199,10 +200,13 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
           "inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10.5px] font-bold",
           agent.status === "LIVE"
             ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
-            : "border-border text-muted-foreground",
+            : agent.status === "REQUESTED"
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+              : "border-border text-muted-foreground",
         )}>
-          <i className={cn("h-1.5 w-1.5 rounded-full", agent.status === "LIVE" ? "animate-pulse bg-emerald-500" : "bg-muted-foreground")} />
-          {agent.status === "LIVE" ? "LIVE" : agent.status === "PAUSED" ? "PAUSED" : "DRAFT"}
+          <i className={cn("h-1.5 w-1.5 rounded-full",
+            agent.status === "LIVE" ? "animate-pulse bg-emerald-500" : agent.status === "REQUESTED" ? "bg-amber-500" : "bg-muted-foreground")} />
+          {agent.status === "LIVE" ? "LIVE" : agent.status === "REQUESTED" ? "PENDING" : agent.status === "PAUSED" ? "PAUSED" : "DRAFT"}
         </span>
       )}
       {agent && (
@@ -644,6 +648,11 @@ function LineNode({ agent, x, onOpen, onMove }: {
 }) {
   const { ref, start } = useNodeDrag(onMove);
   const n = agent.number;
+  // A provisioned line is one WE give the agent — the business keeps their own
+  // number and forwards it here. (A number they brought themselves is dialled
+  // directly, so it needs no forwarding.)
+  const needsForward = !!n && n.status === "ACTIVE" && !!n.e164 && n.origin === "XAI_PROVISIONED";
+  const fwd = needsForward && n?.e164 ? forwardingSteps(agent.answerMode, n.e164) : null;
   return (
     <div ref={ref} data-node="__out" style={{ left: x, top: 120 }}
       className="absolute w-[236px] overflow-hidden rounded-2xl border border-cyan-500/40 bg-gradient-to-b from-cyan-500/10 to-card shadow-sm">
@@ -652,26 +661,47 @@ function LineNode({ agent, x, onOpen, onMove }: {
       <div className="mx-3 rounded-xl border border-border bg-muted/40 p-3 text-center">
         {n ? (
           <>
-            <b className="block font-mono text-[15px] font-extrabold">{fmtNumber(n.e164)}</b>
-            <span className="text-[9.5px] text-muted-foreground">
-              {n.source === "SMS_LINKED" ? "Shared with texts" : "Dedicated"}
-              {n.region ? ` · ${n.region}` : ""}
-            </span>
-            <div className={cn(
-              "mt-1.5 flex items-center justify-center gap-1.5 text-[9px] font-bold",
-              agent.status === "LIVE" ? "text-emerald-500" : "text-muted-foreground",
-            )}>
-              <i className={cn("h-1 w-1 rounded-full", agent.status === "LIVE" ? "bg-emerald-500" : "bg-muted-foreground")} />
-              {agent.status === "LIVE" ? "Receiving calls" : "Not answering yet"}
-            </div>
+            <b className="block font-mono text-[15px] font-extrabold">{n.e164 ? fmtNumber(n.e164) : "Your number"}</b>
+            {n.status === "ACTIVE" ? (
+              <div className={cn(
+                "mt-1.5 flex items-center justify-center gap-1.5 text-[9px] font-bold",
+                agent.status === "LIVE" ? "text-emerald-500" : "text-muted-foreground",
+              )}>
+                <i className={cn("h-1 w-1 rounded-full", agent.status === "LIVE" ? "bg-emerald-500" : "bg-muted-foreground")} />
+                {agent.status === "LIVE" ? "Receiving calls" : "Connected — switch on to answer"}
+              </div>
+            ) : (
+              <span className="mt-1 block text-[9.5px] font-bold text-amber-500">Being connected…</span>
+            )}
           </>
         ) : (
           <>
             <b className="block text-[12px]">No number yet</b>
-            <span className="text-[9.5px] text-muted-foreground">It needs a line to answer.</span>
+            <span className="text-[9.5px] text-muted-foreground">Add the line it should answer.</span>
           </>
         )}
       </div>
+
+      {/* Forwarding step — the one thing the business does to point their own
+          number at this provisioned line. */}
+      {fwd && (
+        <button
+          onClick={onOpen}
+          className="mx-3 mt-2 block w-[calc(100%-24px)] rounded-xl border border-brand-500/30 bg-brand-500/[0.06] p-2.5 text-left transition-colors hover:border-brand-500/60"
+        >
+          <span className="flex items-center gap-1.5 text-[9.5px] font-extrabold text-brand-500">
+            <PhoneForwarded className="h-3 w-3" /> Forward your number here
+          </span>
+          <span className="mt-1 block text-[8.5px] leading-snug text-muted-foreground">
+            Customers keep calling your own number — from your phone, dial:
+          </span>
+          <span className="mt-1.5 block rounded-lg border border-border bg-background px-2 py-1.5 text-center font-mono text-[12px] font-extrabold">
+            {fwd.on}
+          </span>
+          <span className="mt-1.5 block text-[8.5px] font-bold text-brand-500">Full steps →</span>
+        </button>
+      )}
+
       <div className="flex gap-1 p-3">
         <button onClick={onOpen} className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-cyan-500">
           <Settings className="mx-auto h-3 w-3" />
@@ -687,29 +717,34 @@ function LiveNode({ agent, stats, x, onToggle, onCalls, onMove }: {
 }) {
   const { ref, start } = useNodeDrag(onMove);
   const live = agent.status === "LIVE";
+  const requested = agent.status === "REQUESTED";
   return (
     <div ref={ref} data-node="__live" style={{ left: x, top: 120 }}
-      className="absolute w-[212px] overflow-hidden rounded-2xl border border-emerald-500/40 bg-gradient-to-b from-emerald-500/10 to-card shadow-sm">
-      <NodeHead icon={<Zap className="h-3 w-3" />} tone="bg-emerald-500/15 text-emerald-500"
-        title={live ? "Live" : "Go live"} tag={live ? "LIVE" : "OFF"}
-        tagTone={live ? "bg-emerald-500/15 text-emerald-500" : "bg-muted text-muted-foreground"}
+      className={cn("absolute w-[212px] overflow-hidden rounded-2xl border bg-gradient-to-b to-card shadow-sm",
+        requested ? "border-amber-500/40 from-amber-500/10" : "border-emerald-500/40 from-emerald-500/10")}>
+      <NodeHead icon={<Zap className="h-3 w-3" />} tone={requested ? "bg-amber-500/15 text-amber-500" : "bg-emerald-500/15 text-emerald-500"}
+        title={requested ? "Activation" : live ? "Live" : "Go live"}
+        tag={requested ? "PENDING" : live ? "LIVE" : "OFF"}
+        tagTone={requested ? "bg-amber-500/15 text-amber-500" : live ? "bg-emerald-500/15 text-emerald-500" : "bg-muted text-muted-foreground"}
         onPointerDown={start} />
-      <div className="mx-3 grid place-items-center gap-1.5 rounded-xl bg-gradient-to-br from-emerald-500/16 to-background/20 p-3.5 text-center">
-        <span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-emerald-600 shadow-lg">
-          {live ? <PhoneCall className="h-5 w-5" /> : <Power className="h-5 w-5" />}
+      <div className={cn("mx-3 grid place-items-center gap-1.5 rounded-xl bg-gradient-to-br to-background/20 p-3.5 text-center",
+        requested ? "from-amber-500/16" : "from-emerald-500/16")}>
+        <span className={cn("grid h-11 w-11 place-items-center rounded-full bg-white/90 shadow-lg",
+          requested ? "text-amber-600" : "text-emerald-600")}>
+          {requested ? <Sparkles className="h-5 w-5" /> : live ? <PhoneCall className="h-5 w-5" /> : <Power className="h-5 w-5" />}
         </span>
         <span>
           <b className="block text-[11.5px]">
-            {live && agent.liveSince
-              ? `Answering since ${new Date(agent.liveSince).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+            {requested ? "Being set up"
+              : live && agent.liveSince ? `Answering since ${new Date(agent.liveSince).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
               : live ? "Answering" : "Not answering"}
           </b>
           <span className="text-[9.5px] text-muted-foreground">
-            {ANSWER_MODES.find((m) => m.key === agent.answerMode)?.title}
+            {requested ? "We'll notify you when it's live" : ANSWER_MODES.find((m) => m.key === agent.answerMode)?.title}
           </span>
         </span>
       </div>
-      {stats && (
+      {!requested && stats && (
         <div className="mx-3 mt-2 flex gap-1.5">
           {[
             { v: stats.calls, k: "calls" },
@@ -723,18 +758,26 @@ function LiveNode({ agent, stats, x, onToggle, onCalls, onMove }: {
           ))}
         </div>
       )}
-      <div className="flex gap-1 p-3">
-        <button onClick={onCalls} className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-emerald-500">
-          <ClipboardList className="mx-auto h-3 w-3" />
-        </button>
-        <button onClick={onToggle}
-          className={cn(
-            "flex-1 rounded-lg py-1.5 text-[9.5px] font-bold text-white",
-            live ? "border border-border bg-transparent text-foreground hover:border-amber-500" : "bg-gradient-to-r from-emerald-500 to-emerald-600",
-          )}>
-          {live ? <PauseCircle className="mx-auto h-3 w-3" /> : <Power className="mx-auto h-3 w-3" />}
-        </button>
-      </div>
+      {requested ? (
+        <div className="p-3">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 py-1.5 text-center text-[9.5px] font-semibold text-amber-600">
+            Awaiting approval
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-1 p-3">
+          <button onClick={onCalls} className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-emerald-500">
+            <ClipboardList className="mx-auto h-3 w-3" />
+          </button>
+          <button onClick={onToggle}
+            className={cn(
+              "flex-1 rounded-lg py-1.5 text-[9.5px] font-bold text-white",
+              live ? "border border-border bg-transparent text-foreground hover:border-amber-500" : "bg-gradient-to-r from-emerald-500 to-emerald-600",
+            )}>
+            {live ? <PauseCircle className="mx-auto h-3 w-3" /> : <Power className="mx-auto h-3 w-3" />}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -774,25 +817,8 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
   const [answerMode, setAnswerMode] = useState<AnswerMode>(agent?.answerMode || "always");
   const [busy, setBusy] = useState(false);
 
-  // Numbers.
-  const [numbers, setNumbers] = useState<AgentNumber[]>([]);
-  const [linkable, setLinkable] = useState<{ e164: string; twilioSid: string } | null>(null);
-  const [numMode, setNumMode] = useState<"have" | "new">("new");
-  const [numberId, setNumberId] = useState<string | null>(agent?.phoneNumberId || null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const j = await fetch("/api/voice-agent/numbers?action=mine").then((r) => r.json());
-        if (j?.success) {
-          setNumbers(j.numbers);
-          setLinkable(j.linkable);
-          if (j.numbers.length && !numberId) setNumMode("have");
-          else if (j.linkable) setNumMode("have");
-        }
-      } catch { /* the picker just starts empty */ }
-    })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // The number is assigned by an admin on approval, not chosen here — so the
+  // brief no longer has a number picker.
 
   // The account already knows who the business is — never make them type it
   // again. Prefills only what's still blank, so it can't clobber typed input
@@ -858,7 +884,6 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
             .map((k) => SKILL_BY_KEY[k])
             .filter(Boolean)
             .map((d, i) => agent.skills.find((s) => s.key === d.key) || skillFromDef(d, `sk_${d.key}_${i}`)),
-          ...(numberId !== agent.phoneNumberId ? { phoneNumberId: numberId } : {}),
         });
         await onSaved(agent.id);
         return;
@@ -868,14 +893,14 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           preset, business, greeting, knowledge, skillKeys, answerMode, voiceId, voiceLabel, orderConfig: order,
-          phoneNumberId: numberId,
           name: PRESET_BY_KEY[preset]?.title,
         }),
       }).then((r) => r.json());
       if (!j?.success) {
-        toast({ title: j?.error?.message || "Could not build that agent", variant: "destructive" });
+        toast({ title: j?.error?.message || "Could not create that agent", variant: "destructive" });
         return;
       }
+      toast({ title: editing ? "Saved" : "Agent created", description: editing ? undefined : "Add your number, then switch it on." });
       await onSaved(j.agent.id);
     } finally {
       setBusy(false);
@@ -1012,20 +1037,6 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
           )}
 
           <div className="mt-5">
-            <SectionLabel hint="the agent needs a line to answer">Your number</SectionLabel>
-            <NumberPicker
-              numbers={numbers} linkable={linkable}
-              mode={numMode} onMode={setNumMode}
-              numberId={numberId} onNumberId={setNumberId}
-              onRefresh={async () => {
-                const j = await fetch("/api/voice-agent/numbers?action=mine").then((r) => r.json());
-                if (j?.success) { setNumbers(j.numbers); setLinkable(j.linkable); }
-              }}
-              ask={ask}
-            />
-          </div>
-
-          <div className="mt-5">
             <SectionLabel>When should it answer?</SectionLabel>
             <div className="flex flex-wrap gap-1.5">
               {ANSWER_MODES.map((m) => (
@@ -1046,8 +1057,9 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
 
         <div className="flex items-center gap-2 border-t border-border px-4 py-3">
           <span className="text-[11px] text-muted-foreground">
-            Building is free · calls cost <b className="text-amber-500">9 cr / min</b>
-            {numMode === "new" && <> · new number <b className="text-amber-500">500 cr / month</b></>}
+            {editing
+              ? <>Nothing is charged until it&apos;s live · calls cost <b className="text-amber-500">9 cr / min</b></>
+              : <>Free to build · add your own number next, then switch it on</>}
           </span>
           <div className="flex-1" />
           <button onClick={onClose} className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold">
@@ -1056,7 +1068,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
           <button onClick={submit} disabled={busy}
             className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60">
             {busy ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {editing ? "Save" : "Build my agent"}
+            {editing ? "Save changes" : "Create agent"}
           </button>
         </div>
       </div>
@@ -1065,246 +1077,6 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
 }
 
 // ── number picker ──────────────────────────────────────────────────────────
-
-type Available = {
-  phoneNumber: string; locality: string; region: string;
-  capabilities: { voice: boolean; sms: boolean };
-};
-
-function NumberPicker({ numbers, linkable, mode, onMode, numberId, onNumberId, onRefresh, ask }: {
-  numbers: AgentNumber[];
-  linkable: { e164: string; twilioSid: string } | null;
-  mode: "have" | "new";
-  onMode: (m: "have" | "new") => void;
-  numberId: string | null;
-  onNumberId: (id: string | null) => void;
-  onRefresh: () => Promise<void>;
-  ask: (t: string, d?: string, m?: boolean) => Promise<string | null>;
-}) {
-  const { toast } = useToast();
-  const [areaCode, setAreaCode] = useState("");
-  const [numberType, setNumberType] = useState<"local" | "tollFree">("local");
-  const [results, setResults] = useState<Available[]>([]);
-  const [picked, setPicked] = useState<string | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [buying, setBuying] = useState(false);
-
-  const free = numbers.filter((n) => !n.agent);
-
-  const search = async () => {
-    setSearching(true);
-    try {
-      const q = new URLSearchParams({ numberType });
-      if (areaCode.trim()) q.set("areaCode", areaCode.trim());
-      const j = await fetch(`/api/voice-agent/numbers?${q}`).then((r) => r.json());
-      if (!j?.success) {
-        toast({ title: j?.error?.message || "Could not search for numbers", variant: "destructive" });
-        return;
-      }
-      setResults(j.numbers);
-      setPicked(j.numbers[0]?.phoneNumber || null);
-      if (!j.numbers.length) toast({ title: "No numbers there", description: "Try another area code." });
-    } finally {
-      setSearching(false);
-    }
-  };
-
-  const subscribe = async () => {
-    if (!picked) return;
-    setBuying(true);
-    try {
-      const found = results.find((r) => r.phoneNumber === picked);
-      const j = await fetch("/api/voice-agent/numbers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "subscribe",
-          phoneNumber: picked,
-          numberType,
-          region: found ? [found.locality, found.region].filter(Boolean).join(", ") : undefined,
-          smsCapable: found?.capabilities.sms,
-        }),
-      }).then((r) => r.json());
-      if (!j?.success) {
-        toast({ title: j?.error?.message || "Could not get that number", variant: "destructive" });
-        return;
-      }
-      toast({ title: `${fmtNumber(j.number.e164)} is yours`, description: "It's ready to answer." });
-      await onRefresh();
-      onNumberId(j.number.id);
-      onMode("have");
-      setResults([]);
-    } finally {
-      setBuying(false);
-    }
-  };
-
-  const link = async () => {
-    const j = await fetch("/api/voice-agent/numbers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: "link" }),
-    }).then((r) => r.json());
-    if (!j?.success) {
-      toast({ title: j?.error?.message || "Could not add voice to that number", variant: "destructive" });
-      return;
-    }
-    toast({ title: "Voice added", description: "No extra rent — it's the number you already have." });
-    await onRefresh();
-    onNumberId(j.number.id);
-  };
-
-  return (
-    <>
-      <div className="flex flex-wrap gap-2.5">
-        {(free.length > 0 || linkable) && (
-          <button onClick={() => onMode("have")}
-            className={cn(
-              "min-w-[210px] flex-1 rounded-xl border-2 p-3 text-left",
-              mode === "have" ? "border-brand-500 bg-brand-500/5" : "border-transparent bg-muted/30",
-            )}>
-            <b className="flex items-center gap-1.5 text-[11.5px]">
-              <Hash className="h-3.5 w-3.5" /> Use a number I have
-              <span className="ml-auto text-[10px] font-extrabold text-emerald-500">Free</span>
-            </b>
-            <span className="mt-1 block text-[9.5px] leading-snug text-muted-foreground">
-              {free.length
-                ? `${free.length} of your numbers ${free.length === 1 ? "isn't" : "aren't"} answering yet.`
-                : `You already rent ${linkable ? fmtNumber(linkable.e164) : "a number"} for texts — no extra rent.`}
-            </span>
-          </button>
-        )}
-        <button onClick={() => onMode("new")}
-          className={cn(
-            "min-w-[210px] flex-1 rounded-xl border-2 p-3 text-left",
-            mode === "new" ? "border-brand-500 bg-brand-500/5" : "border-transparent bg-muted/30",
-          )}>
-          <b className="flex items-center gap-1.5 text-[11.5px]">
-            <Phone className="h-3.5 w-3.5" /> Subscribe to a new number
-            <span className="ml-auto text-[10px] font-extrabold text-amber-500">500 cr / month</span>
-          </b>
-          <span className="mt-1 block text-[9.5px] leading-snug text-muted-foreground">
-            Pick an area code, pick a number, live in about a minute.
-          </span>
-        </button>
-      </div>
-
-      {mode === "have" && (
-        <div className="mt-2.5 space-y-2">
-          {free.map((n) => (
-            <button key={n.id} onClick={() => onNumberId(n.id)}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-xl border p-2.5 text-left",
-                numberId === n.id ? "border-brand-500 bg-brand-500/5" : "border-border hover:border-brand-500/50",
-              )}>
-              <Phone className="h-3.5 w-3.5 flex-none text-cyan-500" />
-              <span className="min-w-0 flex-1">
-                <b className="block font-mono text-[12px]">{fmtNumber(n.e164)}</b>
-                <span className="text-[9.5px] text-muted-foreground">
-                  {n.source === "SMS_LINKED" ? "Shared with your texts" : "Dedicated"}
-                  {n.region ? ` · ${n.region}` : ""}
-                </span>
-              </span>
-              {numberId === n.id && <span className="text-[10px] font-bold text-brand-400">Selected</span>}
-            </button>
-          ))}
-          {linkable && (
-            <button onClick={link}
-              className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border p-2.5 text-left hover:border-brand-500">
-              <Plus className="h-3.5 w-3.5 flex-none text-muted-foreground" />
-              <span className="min-w-0 flex-1">
-                <b className="block font-mono text-[12px]">{fmtNumber(linkable.e164)}</b>
-                <span className="text-[9.5px] text-muted-foreground">
-                  You rent this for texts — add voice to it for no extra rent.
-                </span>
-              </span>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-            </button>
-          )}
-          {!free.length && !linkable && (
-            <p className="text-[11px] text-muted-foreground">No spare numbers — subscribe to one instead.</p>
-          )}
-        </div>
-      )}
-
-      {mode === "new" && (
-        <div className="mt-2.5 overflow-hidden rounded-xl border border-border bg-muted/30">
-          <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2.5">
-            <span className="text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Find a number</span>
-            <input value={areaCode} onChange={(e) => setAreaCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
-              placeholder="Area code"
-              className="w-[96px] rounded-lg border border-border bg-card px-2.5 py-1.5 text-[12px] outline-none focus:border-brand-500" />
-            <select value={numberType} onChange={(e) => setNumberType(e.target.value as "local" | "tollFree")}
-              className="rounded-lg border border-border bg-card px-2 py-1.5 text-[12px] outline-none focus:border-brand-500">
-              <option value="local">Local</option>
-              <option value="tollFree">Toll-free</option>
-            </select>
-            <button onClick={search} disabled={searching}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500 disabled:opacity-60">
-              {searching ? <FlowLoader size={12} /> : <Search className="h-3.5 w-3.5" />} Search
-            </button>
-            {results.length > 0 && (
-              <span className="ml-auto text-[9.5px] text-muted-foreground">{results.length} available</span>
-            )}
-          </div>
-
-          {results.length > 0 ? (
-            <>
-              <div className="grid gap-1.5 p-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                {results.map((r) => (
-                  <button key={r.phoneNumber} onClick={() => setPicked(r.phoneNumber)}
-                    className={cn(
-                      "rounded-lg border-2 bg-card p-2.5 text-left transition hover:-translate-y-0.5",
-                      picked === r.phoneNumber ? "border-brand-500 bg-brand-500/5" : "border-transparent hover:border-brand-500/40",
-                    )}>
-                    <b className="block font-mono text-[12.5px] font-extrabold">{fmtNumber(r.phoneNumber)}</b>
-                    <span className="block text-[9.5px] text-muted-foreground">
-                      {[r.locality, r.region].filter(Boolean).join(", ") || "—"}
-                    </span>
-                    <span className="mt-1.5 flex gap-1">
-                      <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[8px] font-extrabold text-emerald-500">Voice</span>
-                      <span className={cn(
-                        "rounded px-1.5 py-0.5 text-[8px] font-extrabold",
-                        r.capabilities.sms ? "bg-emerald-500/15 text-emerald-500" : "bg-muted text-muted-foreground",
-                      )}>
-                        Texts
-                      </span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-2 border-t border-border px-3 py-2.5">
-                <span className="text-[10.5px] text-muted-foreground">
-                  Selected <b className="font-mono text-foreground">{picked ? fmtNumber(picked) : "—"}</b>
-                </span>
-                <div className="flex-1" />
-                <span className="text-[10.5px] text-muted-foreground">
-                  First month <b className="text-amber-500">500 cr</b> · then 500 cr/month
-                </span>
-                <button onClick={subscribe} disabled={!picked || buying}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60">
-                  {buying ? <FlowLoader size={12} tone="white" /> : <Coins className="h-3.5 w-3.5" />} Subscribe
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="p-3 text-[11px] text-muted-foreground">
-              Search an area code to see what&apos;s free. You&apos;re only charged when you pick one.
-            </p>
-          )}
-        </div>
-      )}
-
-      <p className="mt-2 rounded-r-lg border-l-2 border-brand-500/40 bg-brand-500/5 py-2 pl-2.5 pr-3 text-[10px] leading-relaxed text-muted-foreground">
-        The number is yours for as long as you keep it — cancel any time from the back office and you
-        aren&apos;t charged again. Only calls the agent actually answers cost minutes.
-        <br />
-        Already have a business number? Keep it on your cards and forward it to this line at your
-        phone company — callers never see the change.
-      </p>
-    </>
-  );
-}
 
 // ── back office ────────────────────────────────────────────────────────────
 
@@ -1332,22 +1104,31 @@ function BackOffice({ agent, calls, stats, onClose, onPatch, onRefresh, onOpenVi
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[14px] font-bold">{agent.name}</h3>
           <p className="truncate text-[11.5px] text-muted-foreground">
-            {agent.number ? fmtNumber(agent.number.e164) : "No number yet"}
+            {agent.number?.e164 ? fmtNumber(agent.number.e164) : "No number yet"}
             {agent.liveSince && ` · answering since ${new Date(agent.liveSince).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
           </p>
         </div>
-        <ConnectionPill state={agent.xaiSyncState} />
+        {agent.status !== "REQUESTED" && <ConnectionPill state={agent.xaiSyncState} />}
         <span className={cn(
           "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-extrabold",
-          live ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500" : "border-border text-muted-foreground",
+          live ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
+            : agent.status === "REQUESTED" ? "border-amber-500/40 bg-amber-500/10 text-amber-500"
+            : "border-border text-muted-foreground",
         )}>
-          <i className={cn("h-1.5 w-1.5 rounded-full", live && "animate-pulse bg-emerald-500")} />
-          {live ? "LIVE" : agent.status}
+          <i className={cn("h-1.5 w-1.5 rounded-full", live && "animate-pulse bg-emerald-500", agent.status === "REQUESTED" && "bg-amber-500")} />
+          {live ? "LIVE" : agent.status === "REQUESTED" ? "PENDING" : agent.status}
         </span>
-        <button onClick={() => onPatch({ status: live ? "PAUSED" : "LIVE" })}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500">
-          {live ? <><PauseCircle className="h-3.5 w-3.5" /> Pause</> : <><Power className="h-3.5 w-3.5" /> Go live</>}
-        </button>
+        {/* An agent can only be paused/resumed once approved — never self-activated. */}
+        {agent.status === "REQUESTED" ? (
+          <span className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[12px] font-semibold text-amber-600">
+            Awaiting approval
+          </span>
+        ) : (
+          <button onClick={() => onPatch({ status: live ? "PAUSED" : "LIVE" })}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500">
+            {live ? <><PauseCircle className="h-3.5 w-3.5" /> Pause</> : <><Power className="h-3.5 w-3.5" /> Go live</>}
+          </button>
+        )}
         <button onClick={() => void onRefresh()}
           className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500">
           <RefreshCw className="h-3.5 w-3.5" />
@@ -1794,6 +1575,144 @@ function Controls({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Par
   );
 }
 
+// Carrier call-forwarding codes, matched to when the agent should answer. The
+// landline/VoIP codes lead; the GSM codes cover mobiles. Codes vary by carrier,
+// so we say so rather than pretend one string fits all.
+function forwardingSteps(mode: AnswerMode, e164: string): {
+  headline: string; on: string; off: string; onGsm: string; offGsm: string;
+} {
+  const digits = e164.replace(/[^\d]/g, "");
+  if (mode === "missed") {
+    return {
+      headline: "Your phone rings first — the agent answers only what you miss.",
+      on: `*92 ${digits}`,
+      off: "*93",
+      onGsm: `**61*${digits}#`,
+      offGsm: "##61#",
+    };
+  }
+  return {
+    headline: "Every call to your number goes straight to your agent.",
+    on: `*72 ${digits}`,
+    off: "*73",
+    onGsm: `**21*${digits}#`,
+    offGsm: "##21#",
+  };
+}
+
+// Every forwarding condition, each with its turn-on / turn-off code for landline
+// (star codes) and mobile (GSM MMI). Codes are the widely-used North-American
+// defaults — carriers vary, which the UI says.
+interface FwdRule { key: string; label: string; hint: string; on: string; off: string; gsmOn: string; gsmOff: string; }
+function forwardingRules(e164: string): FwdRule[] {
+  const d = e164.replace(/[^\d]/g, "");
+  return [
+    { key: "all", label: "Every call", hint: "The agent answers everything.", on: `*72 ${d}`, off: "*73", gsmOn: `**21*${d}#`, gsmOff: "##21#" },
+    { key: "noanswer", label: "When you don't pick up", hint: "Your phone rings first; the agent catches the rest.", on: `*92 ${d}`, off: "*93", gsmOn: `**61*${d}#`, gsmOff: "##61#" },
+    { key: "busy", label: "When you're on another call", hint: "Only overflow reaches the agent.", on: `*90 ${d}`, off: "*91", gsmOn: `**67*${d}#`, gsmOff: "##67#" },
+  ];
+}
+/** Which condition matches the agent's answer mode. */
+function recommendedRule(mode: AnswerMode): string {
+  return mode === "missed" ? "noanswer" : "all";
+}
+
+function CopyChip({ text, big }: { text: string; big?: boolean }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      onClick={async () => { try { await navigator.clipboard.writeText(text); setDone(true); setTimeout(() => setDone(false), 1400); } catch { /* blocked */ } }}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-lg border border-border bg-background font-mono font-bold hover:border-brand-500",
+        big ? "px-3 py-2 text-[15px]" : "px-2 py-1 text-[11px]",
+      )}
+    >
+      {text}
+      {done ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
+    </button>
+  );
+}
+
+/** The star of the Number tab once a line is live: forward your calls here. */
+function ForwardingHero({ line, mode }: { line: AgentNumber; mode: AnswerMode }) {
+  const e164 = line.e164 || "";
+  const rules = forwardingRules(e164);
+  const recKey = recommendedRule(mode);
+  const [mobile, setMobile] = useState(false);
+  return (
+    <div className="rounded-xl border border-brand-500/30 bg-brand-500/[0.04] p-4">
+      <div className="flex items-center gap-2 text-[12.5px] font-extrabold">
+        <PhoneForwarded className="h-4 w-4 text-brand-500" /> Forward your calls to your agent
+      </div>
+
+      {/* The answering line */}
+      <div className="mt-3">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Your agent answers on</span>
+        <div className="mt-1 flex items-center gap-2">
+          <b className="font-mono text-[19px] font-extrabold">{fmtNumber(e164)}</b>
+          <CopyChip text={e164.replace(/[^\d+]/g, "")} />
+        </div>
+        <p className="mt-1 text-[10.5px] text-muted-foreground">
+          Customers never dial this — they keep calling your own number. From your business phone,
+          set forwarding to this line with one code.
+        </p>
+      </div>
+
+      {/* Landline / mobile toggle */}
+      <div className="mt-3 inline-flex rounded-lg border border-border bg-card p-0.5 text-[10.5px] font-bold">
+        {(["landline", "mobile"] as const).map((k) => (
+          <button
+            key={k}
+            onClick={() => setMobile(k === "mobile")}
+            className={cn("rounded-md px-2.5 py-1", (k === "mobile") === mobile ? "bg-brand-500 text-white" : "text-muted-foreground")}
+          >
+            {k === "landline" ? "Landline / VoIP" : "Mobile"}
+          </button>
+        ))}
+      </div>
+
+      {/* Every condition: turn on + turn off (remove) */}
+      <div className="mt-2 space-y-2">
+        {rules.map((r) => {
+          const on = mobile ? r.gsmOn : r.on;
+          const off = mobile ? r.gsmOff : r.off;
+          const rec = r.key === recKey;
+          return (
+            <div
+              key={r.key}
+              className={cn("rounded-lg border p-2.5", rec ? "border-brand-500/50 bg-brand-500/[0.05]" : "border-border bg-card")}
+            >
+              <div className="flex items-center gap-2">
+                <b className="text-[11.5px]">{r.label}</b>
+                {rec && <span className="rounded-full bg-brand-500/15 px-1.5 py-0.5 text-[8.5px] font-extrabold text-brand-500">RECOMMENDED</span>}
+              </div>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">{r.hint}</p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[10.5px]">
+                <span className="flex items-center gap-1.5">
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">Turn on</span>
+                  <CopyChip text={on} />
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="font-semibold text-muted-foreground">Remove</span>
+                  <CopyChip text={off} />
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="mt-2.5 text-[9.5px] text-muted-foreground">
+        Dial the code from your business phone, then press call. Codes are the common defaults — if one
+        doesn&apos;t take, search &ldquo;your carrier + call forwarding.&rdquo;
+      </p>
+      <p className="mt-2 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+        ✓ Then call your own number — your agent should pick up.
+      </p>
+    </div>
+  );
+}
+
 function NumberTab({ agent, onPatch, onRefresh }: {
   agent: VoiceAgentDraft;
   onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void>;
@@ -1801,84 +1720,171 @@ function NumberTab({ agent, onPatch, onRefresh }: {
 }) {
   const { toast } = useToast();
   const [numbers, setNumbers] = useState<AgentNumber[]>([]);
+  const [phone, setPhone] = useState("");
+  const [saving, setSaving] = useState(false);
+
   const load = useCallback(async () => {
     const j = await fetch("/api/voice-agent/numbers?action=mine").then((r) => r.json());
     if (j?.success) setNumbers(j.numbers);
   }, []);
   useEffect(() => { void load(); }, [load]);
+  // A number the client just provided is "being connected" by an admin — poll so
+  // its status flips to Connected without a manual refresh.
+  const pending = numbers.some((n) => n.status === "REQUESTED");
+  useEffect(() => {
+    if (!pending) return;
+    const iv = setInterval(() => void load(), 15000);
+    return () => clearInterval(iv);
+  }, [pending, load]);
 
-  const cancel = async (n: AgentNumber) => {
-    const j = await fetch(`/api/voice-agent/numbers?id=${n.id}`, { method: "DELETE" }).then((r) => r.json());
-    if (!j?.success) {
-      toast({ title: j?.error?.message || "Could not cancel that number", variant: "destructive" });
+  const provide = async () => {
+    const num = phone.trim();
+    if (!/^\+[1-9]\d{7,14}$/.test(num)) {
+      toast({ title: "Enter it in full international format, like +14155550142", variant: "destructive" });
       return;
     }
-    toast({
-      title: j.released ? "Number released" : "Cancelled",
-      description: j.released
-        ? "It's gone back to the pool."
-        : "You keep it until the end of the month you've paid for.",
-    });
+    setSaving(true);
+    try {
+      const j = await fetch("/api/voice-agent/numbers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber: num, name: agent.name }),
+      }).then((r) => r.json());
+      if (!j?.success) {
+        toast({ title: j?.error?.message || "Could not add that number", variant: "destructive" });
+        return;
+      }
+      setPhone("");
+      await load();
+      // Link it to this agent right away if it doesn't have one yet.
+      if (!agent.phoneNumberId && j.number?.id) await onPatch({ phoneNumberId: j.number.id });
+      await onRefresh();
+      toast({ title: "Number received", description: "We're connecting it — you'll be able to switch the agent on once it's ready." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (n: AgentNumber) => {
+    const j = await fetch(`/api/voice-agent/numbers?id=${n.id}`, { method: "DELETE" }).then((r) => r.json());
+    if (!j?.success) {
+      toast({ title: j?.error?.message || "Could not remove that number", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Removed" });
     await load();
     await onRefresh();
   };
 
+  const label = (s: string) => (s === "ACTIVE" ? "Connected" : s === "REQUESTED" ? "Being connected…" : s);
+
+  // The line assigned to THIS agent — what the client forwards their calls to.
+  const line = agent.number;
+  const ready = !!line && line.status === "ACTIVE" && !!line.e164;
+  const linePending = !!line && line.status === "REQUESTED";
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   return (
     <div className="max-w-[640px] space-y-3">
-      {agent.number && (
-        <div className="grid gap-2 sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-card p-3">
-            <div className="text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Your number</div>
-            <div className="mt-0.5 font-mono text-[15px] font-extrabold">{fmtNumber(agent.number.e164)}</div>
-            <div className="text-[9.5px] text-muted-foreground">{agent.number.region || "—"}</div>
+      {/* 1 · The main path: forward your number to the assigned line */}
+      {ready && line ? (
+        <ForwardingHero line={line} mode={agent.answerMode} />
+      ) : linePending ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.05] p-4">
+          <div className="flex items-center gap-2 text-[12.5px] font-extrabold text-amber-600 dark:text-amber-400">
+            <Loader2 className="h-4 w-4 animate-spin" /> Setting up your line
           </div>
-          <div className="rounded-xl border border-border bg-card p-3">
-            <div className="text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Status</div>
-            <div className={cn("mt-0.5 text-[15px] font-extrabold", agent.status === "LIVE" ? "text-emerald-500" : "")}>
-              {agent.status === "LIVE" ? "Receiving" : "Not answering"}
-            </div>
-            <div className="text-[9.5px] text-muted-foreground">
-              {agent.number.rentPaidUntil
-                ? `${agent.number.cancelAtPeriodEnd ? "Ends" : "Renews"} ${new Date(agent.number.rentPaidUntil).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${agent.number.rentCredits} cr`
-                : "No rent — it's your own line"}
-            </div>
+          <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">
+            We&apos;re assigning the number your agent answers on. Once it&apos;s ready, this is where
+            you&apos;ll get the simple step to forward your business calls to it.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center gap-2 text-[12.5px] font-extrabold">
+            <PhoneForwarded className="h-4 w-4 text-brand-500" /> Your answering line is on the way
           </div>
+          <p className="mt-1 text-[10.5px] leading-relaxed text-muted-foreground">
+            When your agent is approved we assign it a phone number. You&apos;ll then forward your own
+            business number to it — one quick code from your phone, and the agent answers your line.
+            Keep your number; nothing to port.
+          </p>
         </div>
       )}
 
+      {/* 2 · Advanced: connect your own SIP/VoIP number directly (no forwarding) */}
       <div className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="border-b border-border px-3 py-2.5"><b className="text-[12px]">Numbers</b></div>
-        <div className="p-3">
-          {numbers.length === 0 && <p className="text-[11.5px] text-muted-foreground">No numbers yet.</p>}
-          {numbers.map((n) => (
-            <Row key={n.id}>
-              <span className="min-w-0 flex-1">
-                <b className="block font-mono text-[11.5px]">{fmtNumber(n.e164)}</b>
-                <span className="text-[9.5px] text-muted-foreground">
-                  {n.agent ? `${n.agent.name} answers it` : "No agent answering it yet"}
-                  {n.source === "SMS_LINKED" && " · shared with your texts"}
-                  {n.cancelAtPeriodEnd && " · cancels at the end of the month"}
-                </span>
-              </span>
-              {!n.agent && agent.phoneNumberId !== n.id && (
-                <button onClick={() => onPatch({ phoneNumberId: n.id })}
-                  className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500">
-                  Use this
-                </button>
-              )}
-              <button onClick={() => cancel(n)}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-rose-500 hover:text-rose-500">
-                <Trash2 className="h-3 w-3" /> {n.source === "RENTED" ? "Cancel" : "Remove"}
-              </button>
-            </Row>
-          ))}
-        </div>
-      </div>
+        <button
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="flex w-full items-center justify-between px-3.5 py-3 text-left"
+        >
+          <span>
+            <b className="block text-[12px]">Advanced — connect your own SIP number</b>
+            <span className="text-[10px] text-muted-foreground">
+              Only if your number is on a VoIP/SIP provider (Twilio, Telnyx, RingCentral, a PBX).
+            </span>
+          </span>
+          <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", showAdvanced && "rotate-90")} />
+        </button>
 
-      <p className="rounded-r-lg border-l-2 border-brand-500/40 bg-brand-500/5 py-2 pl-2.5 pr-3 text-[10px] leading-relaxed text-muted-foreground">
-        Prefer to keep the number on your cards? Forward your existing line here and the agent answers
-        it — your number stays yours, and there&apos;s no rent.
-      </p>
+        {showAdvanced && (
+          <div className="space-y-3 border-t border-border p-3.5">
+            <p className="text-[10.5px] leading-relaxed text-muted-foreground">
+              Give us the number and we connect it over Direct SIP — the agent answers it directly, no
+              forwarding. This only works if your carrier can route the number to us; a regular phone-company
+              line can&apos;t, so use forwarding above instead.
+            </p>
+            <div className="flex gap-2">
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void provide(); }}
+                placeholder="+1 415 555 0142"
+                className="min-w-0 flex-1 rounded-xl border border-border bg-background px-3 py-2.5 font-mono text-[13px] outline-none focus:border-brand-500"
+              />
+              <button
+                onClick={() => void provide()}
+                disabled={saving}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2.5 text-[12.5px] font-extrabold text-white disabled:opacity-60"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />} Add number
+              </button>
+            </div>
+
+            {/* Your numbers */}
+            <div className="space-y-2">
+              {numbers.length === 0 && (
+                <p className="text-[11px] text-muted-foreground">No SIP numbers connected.</p>
+              )}
+              {numbers.map((n) => {
+                const active = n.status === "ACTIVE";
+                return (
+                  <Row key={n.id}>
+                    <span className="min-w-0 flex-1">
+                      <b className="block font-mono text-[11.5px]">{n.e164 ? fmtNumber(n.e164) : "—"}</b>
+                      <span className="text-[9.5px] text-muted-foreground">
+                        <span className={cn("font-bold", active ? "text-emerald-500" : "text-amber-500")}>{label(n.status)}</span>
+                        {" · "}
+                        {n.agent ? `${n.agent.name} answers it` : "not linked to an agent yet"}
+                      </span>
+                    </span>
+                    {active && !n.agent && agent.phoneNumberId !== n.id && (
+                      <button onClick={() => void onPatch({ phoneNumberId: n.id })}
+                        className="rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500">
+                        Use this
+                      </button>
+                    )}
+                    <button onClick={() => void remove(n)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground hover:border-rose-500 hover:text-rose-500">
+                      <Trash2 className="h-3 w-3" /> Remove
+                    </button>
+                  </Row>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1912,7 +1918,7 @@ function AgentsDrawer({ agents, activeId, onPick, onNew, onClose }: {
               <span className="min-w-0 flex-1">
                 <b className="block truncate text-[12.5px]">{a.name}</b>
                 <span className="text-[10.5px] text-muted-foreground">
-                  {a.number ? fmtNumber(a.number.e164) : "No number"} · {a.status.toLowerCase()}
+                  {a.number?.e164 ? fmtNumber(a.number.e164) : "No number"} · {a.status.toLowerCase()}
                 </span>
               </span>
               {a.status === "LIVE" && <i className="h-1.5 w-1.5 flex-none animate-pulse rounded-full bg-emerald-500" />}

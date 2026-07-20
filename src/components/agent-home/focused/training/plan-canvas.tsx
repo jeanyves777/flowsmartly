@@ -13,11 +13,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Sparkles, DoorOpen, Presentation, PenLine, FileText, Clapperboard, ImageIcon,
-  Users, Radio, Send, Plus, X, Paperclip, Timer, Eye, Play, Link2, Mail, Calendar, MessageSquare,
+  Users, Radio, Send, Plus, X, Paperclip, Timer, Eye, Play, Link2, Mail, Calendar, MessageSquare, Bot, Volume2, Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
-import type { SegmentKind, TrainingSessionDTO, TrainingSegmentDTO } from "@/lib/training/types";
+import { InviteSheet } from "./invite-sheet";
+import type { SegmentKind, TrainingSessionDTO, TrainingSegmentDTO, PresenterProfileDTO } from "@/lib/training/types";
 
 const KIND_META: Record<SegmentKind, { Icon: typeof PenLine; tag: string; color: string; tint: string }> = {
   slides: { Icon: Presentation, tag: "Slides", color: "#a78bfa", tint: "rgba(167,139,250,.18)" },
@@ -46,14 +47,18 @@ interface Props {
   onGoLive: () => void;
   onManage: () => void;
   onInvite: () => void;
+  presenter?: PresenterProfileDTO | null;
+  onManagePresenter?: () => void;
   busy?: boolean;
 }
 
 export function PlanCanvas({
   session, estimate, onEditBrief, onAddMaterial, onAddSegment, onRemoveSegment, onPatchSegments,
-  onGoLive, onManage, onInvite, busy,
+  onGoLive, onManage, onInvite, presenter, onManagePresenter, busy,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [inviteMethod, setInviteMethod] = useState<string | null>(null); // which invite action is open
+  void onInvite; // superseded by the shared InviteSheet (distinct per-method actions)
   const boardRef = useRef<HTMLDivElement>(null);
   const pan = useCanvasPan(scrollRef);
   const [addOpen, setAddOpen] = useState(false);
@@ -71,6 +76,7 @@ export function PlanCanvas({
   const maxX = useMemo(() => segs.reduce((m, s) => Math.max(m, at(s).x), 534), [segs, at]);
   const livePos = { x: maxX + 300, y: 96 };
   const invitePos = { x: maxX + 300, y: 430 };
+  const presenterPos = { x: 24, y: 336 };
   const addPos = { x: maxX + 268, y: 152 };
   const boardWidth = Math.max(2200, livePos.x + 460);
 
@@ -223,6 +229,44 @@ export function PlanCanvas({
           </div>
         </div>
 
+        {/* ---- AI presenter (a disclosed co-host that delivers the deck) ---- */}
+        <div data-node="__presenter" className="absolute w-[216px] overflow-hidden rounded-2xl border border-brand-500/40 bg-gradient-to-b from-brand-500/10 to-card shadow-sm" style={{ left: presenterPos.x, top: presenterPos.y }}>
+          <div className="flex items-center gap-2 px-3 pb-1.5 pt-2.5">
+            <span className="grid h-[19px] w-[19px] place-items-center rounded-md bg-brand-500/20"><Bot className="h-3 w-3 text-brand-400" /></span>
+            <b className="truncate text-[12px] font-bold">AI Presenter</b>
+            <span className="ms-auto rounded-full bg-brand-500/15 px-1.5 py-px text-[9px] font-bold text-brand-400">Co-host</span>
+          </div>
+          {presenter ? (
+            <>
+              <div className="flex items-center gap-2 px-3 pt-1">
+                {presenter.loopVideoUrl ? (
+                  <video src={presenter.loopVideoUrl} autoPlay muted loop playsInline className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+                ) : presenter.portraitUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={presenter.portraitUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
+                ) : (
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-600 text-[11px] font-black text-white">{presenter.name.slice(0, 2).toUpperCase()}</span>
+                )}
+                <div className="min-w-0">
+                  <b className="block truncate text-[11px]">{presenter.name}</b>
+                  <span className="inline-flex items-center gap-1 text-[9px] text-muted-foreground"><Volume2 className="h-2.5 w-2.5 text-brand-400" />{presenter.voiceName || "Preset voice"}{presenter.loopVideoUrl ? " · Animated" : ""}</span>
+                </div>
+              </div>
+              <p className="px-3 pt-2 text-[10px] leading-relaxed text-muted-foreground">Delivers your slides live as a disclosed co-host.</p>
+              <div className="flex gap-1 p-3 pt-2.5">
+                <button onClick={onManagePresenter} className="flex-1 rounded-lg border border-border py-1.5 text-[9.5px] font-semibold hover:border-brand-500"><Settings2 className="me-1 inline h-2.5 w-2.5" />Manage presenter</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="px-3 pt-1.5 text-[10px] leading-relaxed text-muted-foreground">Add a co-host that delivers your slides in your voice &amp; likeness.</p>
+              <div className="flex gap-1 p-3 pt-2.5">
+                <button onClick={onManagePresenter} className="flex-1 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 py-1.5 text-[9.5px] font-bold text-white">Set up presenter</button>
+              </div>
+            </>
+          )}
+        </div>
+
         {/* ---- segments ---- */}
         {segs.map((s) => {
           const M = KIND_META[s.kind] ?? KIND_META.board;
@@ -356,12 +400,12 @@ export function PlanCanvas({
             </span>
           </div>
           {[
-            { Icon: Mail, label: "Email invite" },
-            { Icon: Calendar, label: "Calendar hold" },
-            { Icon: MessageSquare, label: "Team chat" },
-            { Icon: Link2, label: "Public link" },
-          ].map(({ Icon, label }) => (
-            <button key={label} onClick={onInvite} className="mx-3 mt-1.5 flex w-[calc(100%-24px)] items-center gap-1.5 rounded-lg border border-border bg-muted px-2 py-1.5 text-[10px] hover:border-cyan-500">
+            { Icon: Mail, label: "Email invite", method: "email" },
+            { Icon: Calendar, label: "Calendar hold", method: "cal" },
+            { Icon: MessageSquare, label: "Team chat", method: "chat" },
+            { Icon: Link2, label: "Public link", method: "link" },
+          ].map(({ Icon, label, method }) => (
+            <button key={label} onClick={() => setInviteMethod(method)} className="mx-3 mt-1.5 flex w-[calc(100%-24px)] items-center gap-1.5 rounded-lg border border-border bg-muted px-2 py-1.5 text-[10px] hover:border-cyan-500">
               <span className="grid h-4 w-4 place-items-center rounded bg-cyan-500/15">
                 <Icon className="h-2.5 w-2.5 text-cyan-400" />
               </span>
@@ -369,12 +413,14 @@ export function PlanCanvas({
             </button>
           ))}
           <div className="p-3 pt-2.5">
-            <button onClick={onInvite} className="w-full rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 py-1.5 text-[9.5px] font-semibold text-white">
+            <button onClick={() => setInviteMethod("link")} className="w-full rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 py-1.5 text-[9.5px] font-semibold text-white">
               Invite people
             </button>
           </div>
         </div>
       </div>
+
+      {inviteMethod ? <InviteSheet session={session} initialMethod={inviteMethod} onClose={() => setInviteMethod(null)} /> : null}
 
       <div className="pointer-events-none absolute bottom-4 left-6 text-[10.5px] text-muted-foreground/50">
         Drag any node · drag empty space to pan · segments run left → right

@@ -52,6 +52,8 @@ export interface BoardShape {
   size: number;
   from: BoardPoint;
   to: BoardPoint;
+  /** deck whiteboard slides only — the reveal step this mark appears at */
+  step?: number;
 }
 
 export interface BoardText {
@@ -65,6 +67,8 @@ export interface BoardText {
   size: number;
   /** a sticky note when set — the text sits on a coloured card */
   note?: string;
+  /** deck whiteboard slides only — the reveal step this mark appears at */
+  step?: number;
 }
 
 export interface BoardImage {
@@ -120,6 +124,10 @@ export interface TrainingParticipantDTO {
   joinedAt: string | null;
   focusPct: number;
   secondsIn: number;
+  /** a disclosed AI Presenter co-host (synthetic participant, not a real connection) */
+  isAI: boolean;
+  /** for an AI co-host: a looping "moving avatar" clip to play in the tile (muted). */
+  videoUrl?: string | null;
 }
 
 export interface TrainingMaterialDTO {
@@ -129,6 +137,103 @@ export interface TrainingMaterialDTO {
   url: string;
   pages: number;
   sizeBytes: number;
+  /** set only for AI-generated presentation decks (kind "slides") */
+  deck?: TrainingDeck | null;
+}
+
+// ------------------------------------------------------------ AI presentation deck
+/** A generated training deck: an ordered set of slides the host presents on the
+ *  Slides stage. Document slides are title + bullets + a visual; whiteboard slides
+ *  carry a pre-sketched diagram in the SAME BoardItem model as the live board, so
+ *  the host can draw right on top. [[training-studio]] */
+export type DeckSlideType = "doc" | "whiteboard" | "livedraw";
+export interface DeckVisual {
+  kind: "emoji" | "image" | "none";
+  style?: "photo" | "3d" | "illustration"; // photoreal photography, a 3D render, or a flat illustration
+  emoji?: string;
+  url?: string; // a generated image stored in S3
+  prompt?: string; // kept so a visual can be regenerated
+  tag?: string; // caption, e.g. "AI illustration"
+  layout?: "right" | "left" | "top" | "full";
+}
+export interface DeckSlide {
+  id: string;
+  type: DeckSlideType;
+  title: string;
+  subtitle?: string;
+  bullets?: string[];
+  visual?: DeckVisual;
+  board?: BoardItem[]; // whiteboard face — fractional coords, same as BoardDoc.items
+  notes?: string;
+  /** how many progressive-reveal steps this slide has (bullets for doc, diagram
+   *  groups for whiteboard). The host reveals them one at a time as they present. */
+  steps?: number;
+  /** whiteboard/livedraw only — how many 16:9 frames wide the teaching canvas is
+   *  (1 = fits one frame; >1 = an endless horizontal canvas that pans left→right as
+   *  the reveal advances). Board coords are 0..1 of this WIDE canvas. */
+  wide?: number;
+  /** whiteboard/livedraw only — a subject to render as a generated 3D asset and drop
+   *  on the board. Kept so the asset can be regenerated. */
+  assetPrompt?: string;
+  /** AI-presenter narration for this slide — the spoken script + synthesized audio the
+   *  co-host plays while the slide is on the stage. Generated from the presenter's voice. */
+  narration?: SlideNarration;
+  /** a "pause for questions" moment: the co-host invites questions, then STOPS instead of
+   *  auto-advancing so the room can ask (host or AI answers). `final` = the wrap-up Q&A
+   *  before the conclusion. Rendered as a clean "Any questions?" prompt. */
+  qa?: boolean;
+  qaKind?: "checkpoint" | "final";
+}
+
+/** One slide's spoken narration (script + audio) for the AI presenter. */
+export interface SlideNarration {
+  text: string;
+  audioUrl: string;
+  durationMs: number;
+}
+export interface TrainingDeck {
+  v: 1;
+  slides: DeckSlide[];
+  /** the AI presenter built for THIS presentation (a PresenterProfile id) + whether
+   *  it's switched on to deliver the room. Set from the presenter step in the builder. */
+  presenterId?: string | null;
+  presenterActive?: boolean;
+  /** the presenter's looping avatar clip (copied from the profile) so the live room can
+   *  show a MOVING co-host without a profile lookup. */
+  presenterVideoUrl?: string | null;
+}
+
+// ------------------------------------------------------------ AI presenter
+/** Question behaviour for an AI presenter. */
+export interface PresenterQuestionBehavior {
+  stopOnHand: boolean;       // pause automatically when a hand is raised
+  afterEachSection: boolean; // accept questions at section breaks
+  hostApproves: boolean;     // host approves questions before the AI answers
+  answerMode: "independent" | "handoff"; // answer itself, or hand to the host
+}
+
+/** A reusable AI presenter profile — the owner's cloned voice + likeness that can
+ *  deliver a training as a disclosed co-host. Built in "Build with AI". */
+export interface PresenterProfileDTO {
+  id: string;
+  name: string;
+  portraitUrl: string | null;
+  loopVideoUrl: string | null;
+  voiceProfileId: string | null;
+  voiceName: string | null;
+  deliveryStyle: "professional" | "conversational" | "energetic" | "teacher";
+  pace: number;
+  expressiveness: number;
+  pauseMs: number;
+  role: "cohost" | "host" | "assistant";
+  followNotes: boolean;
+  describeVisuals: boolean;
+  advanceReveals: boolean;
+  useLiveDraw: boolean;
+  questionBehavior: PresenterQuestionBehavior | null;
+  consentAcceptedAt: string | null;
+  consentOwnerName: string | null;
+  createdAt: string;
 }
 
 export interface TrainingInviteDTO {
@@ -161,17 +266,34 @@ export interface TrainingSessionDTO {
   joinHeadline: string | null;
   joinMessage: string | null;
   joinLogoUrl: string | null;
+  joinBannerUrl: string | null;
+  /** the owner's Brand Kit logo — the join page uses it when joinLogoUrl is unset */
+  brandLogoUrl: string | null;
+  /** the owner's Brand Kit colours — power the on-brand virtual-background presets */
+  brandColors: string[];
   joinCollectEmail: boolean;
   transcript: boolean;
   openDraw: boolean;
   openShare: boolean;
   openMic: boolean;
   locked: boolean;
+  /** host hid all board marks for the whole room (synced to attendees) */
+  hideBoard: boolean;
+  /** where the attendee tiles sit for everyone: side | top | bottom */
+  rosterLayout: "side" | "top" | "bottom";
+  /** a participant the host spotlighted large for the whole room */
+  spotlightId: string | null;
 
   penHolderId: string | null;
+  /** the segment (lesson) the room is currently on — drives the progress card */
+  activeSegmentId: string | null;
   stageSource: StageSource;
   stageKey: string | null;
   stagePage: number;
+  /** progressive-reveal step within the current deck slide (synced to attendees) */
+  stageStep: number;
+  /** the AI presenter is delivering right now (plays narration + auto-reveals, synced) */
+  aiPlaying: boolean;
   boardDoc: BoardDoc;
   recordingUrl: string | null;
   creditsSpent: number;
@@ -185,8 +307,28 @@ export interface TrainingSessionDTO {
 // ------------------------------------------------------------------- realtime
 /** Events the room SSE stream emits. Read = SSE, write = POST — same shape as
  *  the Design Studio's collab layer, which already survives nginx. */
+export interface TrainingMessageDTO {
+  id: string;
+  participantId: string | null;
+  name: string;
+  text: string;
+  at: string; // ISO timestamp
+}
+
+/** The stroke under the presenter's pen RIGHT NOW — streamed while they draw so
+ *  attendees see the ink appear live, not only once the stroke is finished. It's
+ *  ephemeral presence (never stored); the committed BoardStroke lands via
+ *  `board:add` on pointer-up and replaces this preview. [[training-studio]] */
+export interface LiveStroke {
+  tool: "pen" | "hi";
+  color: string;
+  /** stroke width as a fraction of board width (same units as BoardStroke.size) */
+  size: number;
+  pts: BoardPoint[];
+}
+
 export type RoomEvent =
-  | { type: "room:init"; sessionKey: string; me: TrainingParticipantDTO; session: TrainingSessionDTO }
+  | { type: "room:init"; sessionKey: string; me: TrainingParticipantDTO; session: TrainingSessionDTO; messages: TrainingMessageDTO[] }
   | { type: "room:join"; participant: TrainingParticipantDTO }
   | { type: "room:leave"; participantId: string }
   | { type: "room:state"; patch: Partial<TrainingSessionDTO> }
@@ -197,8 +339,25 @@ export type RoomEvent =
   | { type: "board:clear" }
   | { type: "cursor"; participantId: string; x: number; y: number }
   | { type: "laser"; participantId: string; x: number; y: number }
+  | { type: "livestroke"; participantId: string; stroke: LiveStroke | null }
+  | { type: "liveitem"; participantId: string; item: BoardItem | null }
   | { type: "knock"; participant: TrainingParticipantDTO }
+  | { type: "chat"; message: TrainingMessageDTO }
+  | { type: "presenter:answer"; answer: PresenterAnswer }
+  | { type: "presenter:dismiss" }
   | { type: "heartbeat" };
+
+/** A live Q&A answer from the AI presenter — what it says back to a question, plus the
+ *  spoken audio, and whether it was confident (else it hands off to the host). */
+export interface PresenterAnswer {
+  id: string;
+  question: string;
+  askedBy: string;
+  answer: string;
+  audioUrl: string | null;
+  durationMs: number;
+  confident: boolean;
+}
 
 // ------------------------------------------------------------------- defaults
 export const SEGMENT_KINDS: Record<SegmentKind, { label: string; note: string; mins: number }> = {

@@ -426,28 +426,51 @@ export const FULFILLMENTS: { key: Fulfillment; title: string; hint: string }[] =
 export const fmtPrice = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
 
 // ── Numbers ──
+// A connected line is the client's OWN number, joined over Direct SIP (byo_trunk).
+// The API only ever serves these safe fields — never the SIP password / signing
+// secret (those are shown once at connect time).
 
-export type NumberSource = "RENTED" | "SMS_LINKED";
+export type NumberOrigin = "BYO_TRUNK" | "XAI_PROVISIONED";
 
 export interface AgentNumber {
   id: string;
-  e164: string;
-  twilioSid: string | null;
-  region: string | null;
-  numberType: string;
-  source: NumberSource;
+  e164: string | null;
+  origin: NumberOrigin;
   status: string;
-  voiceCapable: boolean;
-  smsCapable: boolean;
-  rentCredits: number;
-  rentPaidUntil: string | null;
-  cancelAtPeriodEnd: boolean;
+  country: string | null;
+  region: string | null;
+  friendlyName: string | null;
+  sipHost: string | null;
+  sipUsername: string | null;
+  xaiPhoneNumberId: string | null;
   agent?: { id: string; name: string; status: string } | null;
+}
+
+/** The SIP details returned ONCE when a number is connected — the client points
+ *  their carrier/PBX at these. The password is never served again. */
+export interface ByoSipDetails {
+  host: string | null;
+  username: string;
+  password: string;
+}
+
+/** Strip a PhoneNumber row down to the fields safe to send to the browser — never
+ *  the SIP password, dispatch signing secret or webhook token. Use at every
+ *  response boundary that includes a number relation. */
+const NUMBER_PUBLIC_FIELDS = [
+  "id", "e164", "origin", "status", "country", "region", "friendlyName",
+  "sipHost", "sipUsername", "xaiPhoneNumberId", "agent",
+] as const;
+export function publicNumber<T extends Record<string, unknown> | null | undefined>(n: T): Record<string, unknown> | null {
+  if (!n) return null;
+  const out: Record<string, unknown> = {};
+  for (const k of NUMBER_PUBLIC_FIELDS) if (k in n) out[k] = n[k];
+  return out;
 }
 
 // ── The agent ──
 
-export type AgentStatus = "DRAFT" | "LIVE" | "PAUSED";
+export type AgentStatus = "REQUESTED" | "DRAFT" | "LIVE" | "PAUSED";
 
 export interface VoiceAgentDraft {
   id: string;
@@ -494,6 +517,8 @@ export interface VoiceAgentDraft {
   xaiSyncState?: string; // pending | synced | webhook | error
   xaiAgentId?: string | null;
   xaiSyncError?: string | null;
+  requestedAt?: string | null;
+  approvedAt?: string | null;
 }
 
 // ── Calls ──
