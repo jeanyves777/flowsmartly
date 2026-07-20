@@ -183,6 +183,16 @@ export interface DeckSlide {
    *  before the conclusion. Rendered as a clean "Any questions?" prompt. */
   qa?: boolean;
   qaKind?: "checkpoint" | "final";
+  /** an on-screen quiz: the co-host reads the question + options and pauses for a quick
+   *  hand-raise check; the host reveals the answer (reveal step 2) then continues. */
+  quiz?: QuizQuestion;
+}
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  answerIndex: number;
+  explanation?: string;
 }
 
 /** One slide's spoken narration (script + audio) for the AI presenter. */

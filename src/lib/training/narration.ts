@@ -34,6 +34,12 @@ Return JSON: { "scripts": string[] } with EXACTLY ${slides.length} entries, in o
   const scripts = raw?.scripts ?? [];
   // Always return one script per slide (fall back to a plain read of the title).
   return slides.map((s, i) => {
+    // Quiz slides read the question + options, then the runtime pauses for a hand-raise
+    // check before the host reveals the answer on screen.
+    if (s.quiz) {
+      const opts = s.quiz.options.map((o, k) => `${String.fromCharCode(65 + k)}, ${o}`).join(". ");
+      return `Quick check. ${s.quiz.question} Your options are: ${opts}. Take a few seconds — raise your hand if you think you know the answer, and I'll reveal it.`;
+    }
     // Q&A slides speak a fixed invitation, then the runtime pauses for questions.
     if (s.qa) return s.qaKind === "final"
       ? "That covers everything I planned to share. Before we wrap up, let's open the floor — what questions do you have? Raise your hand or use Ask the presenter, and I'll help. Host, feel free to jump in here too."

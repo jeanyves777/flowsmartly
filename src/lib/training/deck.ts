@@ -11,7 +11,7 @@
 import { ai } from "@/lib/ai/client";
 import { generateImageXaiFirst, generateImageWithProvider } from "@/lib/ai/image-router";
 import { uploadToS3 } from "@/lib/utils/s3-client";
-import type { BoardItem, DeckSlide, DeckVisual, TrainingDeck } from "./types";
+import type { BoardItem, DeckSlide, DeckVisual, TrainingDeck, QuizQuestion } from "./types";
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -335,11 +335,32 @@ Rules:
     }
   }
 
-  return { v: 1, slides: withQaBreaks(slides) };
+  // Interactive on-screen quiz questions from the content (best-effort; skipped on error).
+  let quizzes: QuizQuestion[] = [];
+  if (opts.wantVisuals !== false) { try { quizzes = await writeQuiz(slides); } catch { quizzes = []; } }
+
+  return { v: 1, slides: withInteractions(slides, quizzes) };
 }
 
-/** A "pause for questions" slide — the co-host invites questions and STOPS instead of
- *  auto-advancing, so the room can engage before moving on. */
+/** Write a couple of multiple-choice checks from the deck's teaching content. */
+async function writeQuiz(slides: DeckSlide[]): Promise<QuizQuestion[]> {
+  const content = slides
+    .map((s, i) => `${i + 1}. ${s.title}: ${[s.subtitle, ...(s.bullets ?? []), s.notes].filter(Boolean).join("; ")}`)
+    .join("\n").slice(0, 4000);
+  if (content.length < 40) return [];
+  const prompt = `From this training content, write TWO short multiple-choice quiz questions that check understanding of the KEY points. Each: a clear question, exactly 4 concise options, the 0-based index of the correct option, and a one-sentence explanation. Base them ONLY on the content.
+
+CONTENT:
+${content}
+
+Return JSON: { "quiz": [ { "question": string, "options": string[], "answerIndex": number, "explanation": string } ] }`;
+  const raw = await ai.generateJSON<{ quiz?: QuizQuestion[] }>(prompt, { temperature: 0.5, maxTokens: 900 });
+  return (raw?.quiz ?? [])
+    .filter((q) => q?.question && Array.isArray(q.options) && q.options.length >= 2 && typeof q.answerIndex === "number" && q.answerIndex >= 0 && q.answerIndex < q.options.length)
+    .map((q) => ({ question: String(q.question).slice(0, 220), options: q.options.slice(0, 4).map((o) => String(o).slice(0, 120)), answerIndex: q.answerIndex, explanation: q.explanation ? String(q.explanation).slice(0, 240) : undefined }))
+    .slice(0, 2);
+}
+
 function qaSlide(kind: "checkpoint" | "final"): DeckSlide {
   return {
     id: uid("qa"),
@@ -352,18 +373,25 @@ function qaSlide(kind: "checkpoint" | "final"): DeckSlide {
   };
 }
 
-/** Weave pause-for-questions moments into a deck: one checkpoint about two-thirds through
- *  and a wrap-up Q&A right before the final (conclusion) slide, so the training breathes
- *  and the room can ask — the host or the AI answers on the spot. */
-function withQaBreaks(slides: DeckSlide[]): DeckSlide[] {
+function quizSlide(q: QuizQuestion): DeckSlide {
+  return { id: uid("quiz"), type: "doc", quiz: q, title: "Quick check", subtitle: q.question, steps: 2 };
+}
+
+/** Weave interactive moments into a deck — spaced quiz checks + a Q&A checkpoint, and a
+ *  wrap-up Q&A right before the conclusion — so the training engages the room. */
+function withInteractions(slides: DeckSlide[], quizzes: QuizQuestion[]): DeckSlide[] {
   const n = slides.length;
-  if (n < 4) return slides; // too short to need a checkpoint
-  const checkpointAt = Math.max(1, Math.floor(n * 0.6));
+  if (n < 4) return slides;
+  const checkpointAt = Math.max(1, Math.floor(n * 0.62));
+  const quizAt = [Math.max(1, Math.floor(n * 0.4)), Math.max(2, n - 2)];
   const out: DeckSlide[] = [];
+  let qi = 0;
   slides.forEach((s, i) => {
     if (i === n - 1) out.push(qaSlide("final")); // wrap-up Q&A just before the conclusion
     out.push(s);
+    if (quizAt.includes(i) && qi < quizzes.length) out.push(quizSlide(quizzes[qi++]));
     if (i === checkpointAt) out.push(qaSlide("checkpoint"));
   });
   return out;
 }
+
