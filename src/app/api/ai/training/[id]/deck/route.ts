@@ -131,9 +131,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!mat) return err("That deck no longer exists", 404);
 
   const slides = body.deck.slides.slice(0, 40);
+  // Preserve the presenter wiring (which lives on the deck, not the slides) — dropping
+  // it here is what made narration say "add a presenter first" and left the co-host out
+  // of the live room even though the UI showed one active.
+  const deck: TrainingDeck = {
+    v: 1,
+    slides,
+    presenterId: body.deck.presenterId ?? null,
+    presenterActive: body.deck.presenterActive ?? false,
+    presenterVideoUrl: body.deck.presenterVideoUrl ?? null,
+  };
   await prisma.trainingMaterial.update({
     where: { id: mat.id },
-    data: { deck: JSON.stringify({ v: 1, slides }), pages: Math.max(1, slides.length), name: slides[0]?.title?.slice(0, 80) || "Training deck" },
+    data: { deck: JSON.stringify(deck), pages: Math.max(1, slides.length), name: slides[0]?.title?.slice(0, 80) || "Training deck" },
   });
   const dto = await getSessionDTO(id);
   return NextResponse.json({ success: true, data: { session: dto } });

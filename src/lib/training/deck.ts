@@ -309,7 +309,10 @@ Rules:
       const abx = assetBoxes[s.id];
       if (!abx) continue;
       try {
-        const r = await generateImageWithProvider("openai", assetPrompt3D(s.assetPrompt!), 1024, 1024, { transparent: true, quality: "high" });
+        // MUST pin gpt-image-1 here: `background: "transparent"` is only honoured on
+        // gpt-image-1 / 1.5 and is silently dropped on the default gpt-image-2 — which
+        // is why the cutouts were coming back with an opaque background.
+        const r = await generateImageWithProvider("openai", assetPrompt3D(s.assetPrompt!), 1024, 1024, { transparent: true, quality: "high", model: "gpt-image-1" });
         if (r.base64) {
           const url = await uploadToS3(`training/${opts.sessionId}/deck/${s.id}-asset.png`, Buffer.from(r.base64, "base64"), "image/png");
           s.board = [...(s.board ?? []), { id: uid("img"), t: "image", by: "", at: { x: abx.x, y: abx.y }, w: abx.w, h: abx.h, url }];

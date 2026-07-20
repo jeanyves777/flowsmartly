@@ -302,15 +302,9 @@ export function PresenterSetup({ open, onClose, onChoose }: {
               <h2 className="text-[16px] font-extrabold">Your presenters</h2>
               <button onClick={() => { setF(BLANK); setStep(0); setMode("wizard"); }} className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-3.5 py-2 text-[12.5px] font-bold text-white"><Plus className="h-3.5 w-3.5" /> New presenter</button>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-3">
               {(data?.presenters ?? []).map((p) => (
-                <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
-                  <Portrait url={p.portraitUrl} name={p.name} size={46} />
-                  <div className="min-w-0 flex-1"><b className="block truncate text-[13px]">{p.name}</b><span className="text-[11px] text-muted-foreground">{ROLE_LABEL[p.role]} · {p.voiceName ? "voice ready" : "no voice yet"}</span></div>
-                  {onChoose ? <button onClick={() => { onChoose(p); onClose(); }} className="rounded-lg bg-brand-500/15 px-2.5 py-1.5 text-[11.5px] font-bold text-brand-400">Use</button> : null}
-                  <button onClick={() => edit(p)} className="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold text-muted-foreground hover:text-foreground">Edit</button>
-                  <button onClick={() => del(p.id)} title="Delete" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:border-rose-500 hover:text-rose-400"><Trash2 className="h-3.5 w-3.5" /></button>
-                </div>
+                <PresenterCard key={p.id} p={p} onUse={onChoose ? () => { onChoose(p); onClose(); } : undefined} onEdit={() => edit(p)} onDelete={() => del(p.id)} />
               ))}
               {!data?.presenters.length ? <p className="text-[12.5px] text-muted-foreground">No presenters yet — create your first one.</p> : null}
             </div>
@@ -584,6 +578,73 @@ function Waveform({ active, mini, className }: { active?: boolean; mini?: boolea
         const h = 20 + Math.abs(Math.sin(i * 0.7)) * 70 + (i % 5) * 4;
         return <span key={i} className={cn("flex-1 rounded-full", active ? "bg-gradient-to-b from-brand-400 to-violet-500" : "bg-brand-500/40")} style={{ height: `${Math.min(100, h)}%` }} />;
       })}
+    </div>
+  );
+}
+
+function Chip({ Icon, label, tone }: { Icon?: typeof Mic; label: string; tone?: "emerald" | "muted" }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-semibold",
+      tone === "emerald" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-border bg-muted/60 text-muted-foreground")}>
+      {Icon ? <Icon className="h-3 w-3" /> : null} {label}
+    </span>
+  );
+}
+
+/** A rich presenter card for the list — a large (moving) preview + the full delivery
+ *  profile at a glance, matching the depth of the setup wizard. */
+function PresenterCard({ p, onUse, onEdit, onDelete }: {
+  p: PresenterProfileDTO;
+  onUse?: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const style = STYLE_OPTS.find((s) => s.v === p.deliveryStyle);
+  const qb = p.questionBehavior;
+  const qLabel = qb ? (qb.answerMode === "handoff" ? "Hands off to you" : qb.hostApproves ? "You approve answers" : "Answers questions") : "Answers questions";
+  const created = (() => { try { return new Date(p.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return null; } })();
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="flex flex-col gap-4 p-4 sm:flex-row">
+        {/* large preview — moving avatar if animated, else portrait */}
+        <div className="relative aspect-[16/11] w-full shrink-0 overflow-hidden rounded-xl bg-gradient-to-br from-[#241f38] to-[#14121f] ring-1 ring-white/10 sm:h-[128px] sm:w-[184px]">
+          {p.loopVideoUrl ? (
+            <video src={p.loopVideoUrl} autoPlay muted loop playsInline poster={p.portraitUrl ?? undefined} className="absolute inset-0 h-full w-full object-cover" />
+          ) : p.portraitUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={p.portraitUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          ) : (
+            <div className="grid h-full w-full place-items-center"><Portrait url={null} name={p.name} size={54} /></div>
+          )}
+          <span className="absolute left-1.5 top-1.5 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 text-[8px] font-black text-[#04222a]">AI</span>
+          {p.loopVideoUrl ? <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[8px] font-bold text-white backdrop-blur">● Live avatar</span> : null}
+        </div>
+        {/* full details */}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <b className="text-[15px]">{p.name}</b>
+            <span className="rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[10.5px] font-bold text-muted-foreground">{ROLE_LABEL[p.role]}</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Chip Icon={Mic} label={p.voiceName || "Preset voice"} tone={p.voiceName ? undefined : "muted"} />
+            {style ? <Chip Icon={style.Icon} label={style.label} /> : null}
+            <Chip label={`${p.pace.toFixed(2)}× pace`} />
+            <Chip label={`${p.expressiveness}% expressive`} />
+            <Chip Icon={Film} label={p.loopVideoUrl ? "Moving avatar" : "Still photo"} tone={p.loopVideoUrl ? "emerald" : "muted"} />
+            <Chip Icon={HelpCircle} label={qLabel} />
+            {p.useLiveDraw ? <Chip Icon={PenLine} label="Live-Draw" /> : null}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10.5px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1"><ShieldCheck className="h-3 w-3 text-emerald-400" /> Owner-consented{p.consentOwnerName ? ` · ${p.consentOwnerName}` : ""}</span>
+            {created ? <span>Created {created}</span> : null}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {onUse ? <button onClick={onUse} className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12px] font-extrabold text-white"><Check className="h-3.5 w-3.5" /> Use in this presentation</button> : null}
+            <button onClick={onEdit} className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3.5 py-2 text-[12px] font-bold hover:border-brand-500">Manage &amp; edit</button>
+            <button onClick={onDelete} title="Delete presenter" className="ms-auto grid h-9 w-9 place-items-center rounded-xl border border-border text-muted-foreground hover:border-rose-500 hover:text-rose-400"><Trash2 className="h-3.5 w-3.5" /></button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

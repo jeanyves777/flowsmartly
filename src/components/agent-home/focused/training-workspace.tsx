@@ -141,6 +141,21 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
     if (session?.status === "live" && mode === "plan") setMode("live");
   }, [session?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-hydrate the chosen presenter from the deck on load, so the builder bar and
+  // narration reflect the saved presenter after a refresh (the room already reads it).
+  useEffect(() => {
+    if (presenter || !session) return;
+    const pid = session.materials.find((m) => m.kind === "slides" && m.deck?.presenterId)?.deck?.presenterId;
+    if (!pid) return;
+    let alive = true;
+    void (async () => {
+      const j = await fetch("/api/ai/training/presenter").then((r) => r.json()).catch(() => null);
+      const found = (j?.data?.presenters as PresenterProfileDTO[] | undefined)?.find((x) => x.id === pid);
+      if (alive && found) { setPresenter(found); setWantsPresenter(true); }
+    })();
+    return () => { alive = false; };
+  }, [session?.materials, presenter]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ---- estimate (drives the Go-live node + the office KPI) ----
   useEffect(() => {
     if (!session) return;
