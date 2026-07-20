@@ -249,6 +249,12 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
       .filter((p) => p.state !== "REMOVED" && p.state !== "DENIED" && p.state !== "LEFT")
       .map(
         (p): TrainingParticipantDTO => ({
+          // the active presenter's looping avatar clip (if any) — makes the AI co-host MOVE.
+          videoUrl: p.isAI
+            ? (row.materials
+                .map((m) => (m.deck ? json<TrainingDeck | null>(m.deck, null) : null))
+                .find((d) => d?.presenterActive && d?.presenterVideoUrl)?.presenterVideoUrl ?? null)
+            : null,
           id: p.id,
           userId: p.userId,
           name: p.name,

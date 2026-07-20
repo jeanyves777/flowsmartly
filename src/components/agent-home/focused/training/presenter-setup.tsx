@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   X, Check, Mic, Upload, Play, Pause, RotateCcw, Volume2, ShieldCheck, Sparkles, Trash2, Loader2, Plus, Square,
   Briefcase, MessageCircle, Zap, GraduationCap, Users, User, Bot, ImageIcon, HelpCircle, Boxes, PenLine, CheckCircle2,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Film,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,7 @@ interface Form {
   id?: string;
   name: string;
   portraitUrl: string | null;
+  loopVideoUrl: string | null;
   voiceProfileId: string | null;
   voiceName: string | null;
   sampleUrl: string | null;
@@ -42,7 +43,7 @@ interface Form {
   consentOwnerName: string;
 }
 const BLANK: Form = {
-  name: "", portraitUrl: null, voiceProfileId: null, voiceName: null, sampleUrl: null,
+  name: "", portraitUrl: null, loopVideoUrl: null, voiceProfileId: null, voiceName: null, sampleUrl: null,
   deliveryStyle: "conversational", pace: 1, expressiveness: 65, pauseMs: 1200, role: "cohost",
   followNotes: true, describeVisuals: true, advanceReveals: true, useLiveDraw: true,
   q: { stopOnHand: true, afterEachSection: true, hostApproves: false, answerMode: "independent" },
@@ -64,7 +65,7 @@ export function PresenterSetup({ open, onClose, onChoose }: {
   const [step, setStep] = useState(0);
   const [f, setF] = useState<Form>(BLANK);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }));
-  const [busy, setBusy] = useState<null | "load" | "clone" | "portrait" | "style" | "save">(null);
+  const [busy, setBusy] = useState<null | "load" | "clone" | "portrait" | "style" | "animate" | "save">(null);
   // the ORIGINAL uploaded photo — kept so we can restyle it (background / clothing).
   const [portraitFile, setPortraitFile] = useState<File | null>(null);
   const [bg, setBg] = useState("studio");
@@ -156,33 +157,63 @@ export function PresenterSetup({ open, onClose, onChoose }: {
     } finally { setBusy(null); }
   };
 
+  // Persist the current form and return the saved presenter (no navigation side-effects),
+  // so both "Save" and "Animate" (which needs a stored row) can reuse it.
+  const persist = async (): Promise<PresenterProfileDTO | null> => {
+    const j = await fetch("/api/ai/training/presenter", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: f.id, name: f.name.trim(), portraitUrl: f.portraitUrl, voiceProfileId: f.voiceProfileId,
+        deliveryStyle: f.deliveryStyle, pace: f.pace, expressiveness: f.expressiveness, pauseMs: f.pauseMs,
+        role: f.role, followNotes: f.followNotes, describeVisuals: f.describeVisuals,
+        advanceReveals: f.advanceReveals, useLiveDraw: f.useLiveDraw, questionBehavior: f.q,
+        consent: { accepted: f.consentAccepted, ownerName: f.consentOwnerName, usage: "training_presentations" },
+      }),
+    }).then((r) => r.json());
+    if (!j?.success) { toast({ title: j?.error?.message || "Couldn't save the presenter", variant: "destructive" }); return null; }
+    return j.data.presenter as PresenterProfileDTO;
+  };
+
   const save = async () => {
     if (!f.name.trim()) { setStep(1); toast({ title: "Give your presenter a name" }); return; }
     if (!f.id && (!f.consentAccepted || !f.consentOwnerName.trim())) { setStep(0); toast({ title: "Confirm you own this voice and likeness" }); return; }
     setBusy("save");
     try {
-      const j = await fetch("/api/ai/training/presenter", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: f.id, name: f.name.trim(), portraitUrl: f.portraitUrl, voiceProfileId: f.voiceProfileId,
-          deliveryStyle: f.deliveryStyle, pace: f.pace, expressiveness: f.expressiveness, pauseMs: f.pauseMs,
-          role: f.role, followNotes: f.followNotes, describeVisuals: f.describeVisuals,
-          advanceReveals: f.advanceReveals, useLiveDraw: f.useLiveDraw, questionBehavior: f.q,
-          consent: { accepted: f.consentAccepted, ownerName: f.consentOwnerName, usage: "training_presentations" },
-        }),
-      }).then((r) => r.json());
-      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't save the presenter", variant: "destructive" }); return; }
-      toast({ title: `${j.data.presenter.name} is ready` });
-      onChoose?.(j.data.presenter);
+      const p = await persist();
+      if (!p) return;
+      toast({ title: `${p.name} is ready` });
+      onChoose?.(p);
       await load();
       setMode("list");
+    } finally { setBusy(null); }
+  };
+
+  // Turn the (presentation-ready) portrait into a looping "moving avatar" clip via
+  // HeyGen — the co-host visibly moves in the room while the cloned voice narrates.
+  const animate = async () => {
+    if (!f.portraitUrl) { toast({ title: "Add a presenter photo first" }); return; }
+    if (!f.id && (!f.consentAccepted || !f.consentOwnerName.trim())) { setStep(0); toast({ title: "Confirm you own this voice and likeness" }); return; }
+    setBusy("animate");
+    try {
+      let id = f.id;
+      if (!id) {
+        const p = await persist();
+        if (!p) return;
+        id = p.id;
+        setF((prev) => ({ ...prev, id: p.id }));
+      }
+      const j = await fetch("/api/ai/training/presenter/animate", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ presenterId: id }),
+      }).then((r) => r.json());
+      if (j?.success) { set("loopVideoUrl", j.data.loopVideoUrl); toast({ title: "Your presenter is moving", description: "A looping avatar is ready for the room." }); }
+      else toast({ title: j?.error?.message || "Couldn't animate the presenter", variant: "destructive" });
     } finally { setBusy(null); }
   };
 
   const edit = (p: PresenterProfileDTO) => {
     const v = data?.voices.find((x) => x.id === p.voiceProfileId);
     setF({
-      id: p.id, name: p.name, portraitUrl: p.portraitUrl, voiceProfileId: p.voiceProfileId, voiceName: p.voiceName, sampleUrl: v?.sampleUrl ?? null,
+      id: p.id, name: p.name, portraitUrl: p.portraitUrl, loopVideoUrl: p.loopVideoUrl, voiceProfileId: p.voiceProfileId, voiceName: p.voiceName, sampleUrl: v?.sampleUrl ?? null,
       deliveryStyle: p.deliveryStyle, pace: p.pace, expressiveness: p.expressiveness, pauseMs: p.pauseMs, role: p.role,
       followNotes: p.followNotes, describeVisuals: p.describeVisuals, advanceReveals: p.advanceReveals, useLiveDraw: p.useLiveDraw,
       q: p.questionBehavior ?? BLANK.q, consentAccepted: true, consentOwnerName: p.consentOwnerName ?? "",
@@ -201,12 +232,15 @@ export function PresenterSetup({ open, onClose, onChoose }: {
     <div className="rounded-2xl border border-border bg-card p-4">
       <div className="mb-3 text-[13px] font-extrabold">Presenter preview</div>
       <div className="relative aspect-[16/11] overflow-hidden rounded-xl bg-gradient-to-br from-[#241f38] to-[#14121f]">
-        {f.portraitUrl ? (
+        {f.loopVideoUrl ? (
+          <video src={f.loopVideoUrl} autoPlay muted loop playsInline className="absolute inset-0 h-full w-full object-cover" />
+        ) : f.portraitUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={f.portraitUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <div className="absolute inset-0 grid place-items-center text-muted-foreground"><Portrait url={null} name={f.name} size={70} /></div>
         )}
+        {f.loopVideoUrl ? <span className="absolute left-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur">● Live avatar</span> : null}
         <div className="absolute inset-x-3 bottom-9 text-center text-[12px] font-semibold text-white drop-shadow">{playing ? "Speaking in your voice…" : "Preview your presenter"}</div>
         <div className="absolute inset-x-3 bottom-2"><Waveform active={playing} mini /></div>
       </div>
@@ -362,6 +396,16 @@ export function PresenterSetup({ open, onClose, onChoose }: {
                       {CLOTH_OPTS.map((o) => (<button key={o.v} onClick={() => setCloth(o.v)} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition", cloth === o.v ? "border-brand-500 bg-brand-500/10 text-brand-400" : "border-border hover:border-brand-500")}>{o.label}</button>))}
                     </div>
                     <button onClick={makeReady} disabled={busy === "style"} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12px] font-bold text-white disabled:opacity-60">{busy === "style" ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating your clone…</> : <><Sparkles className="h-4 w-4" /> Make presentation-ready</>}<span className="ms-1 rounded-md bg-white/15 px-1.5 py-0.5 text-[9.5px]">~18 credits</span></button>
+                  </div>
+                ) : null}
+                {f.portraitUrl ? (
+                  <div className="mt-4 rounded-2xl border border-border bg-muted/60 p-3.5">
+                    <div className="mb-2 flex items-center gap-1.5 text-[11.5px] font-bold"><Film className="h-3.5 w-3.5 text-brand-400" /> Bring your presenter to life</div>
+                    <p className="mb-3 text-[10.5px] text-muted-foreground">Turn the photo into a subtly <b className="text-foreground">moving</b> avatar. It loops in the room while your cloned voice narrates — so your co-host looks alive, not a still photo.</p>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <button onClick={animate} disabled={busy === "animate"} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12px] font-bold text-white disabled:opacity-60">{busy === "animate" ? <><Loader2 className="h-4 w-4 animate-spin" /> Animating… (~2 min)</> : <><Film className="h-4 w-4" /> {f.loopVideoUrl ? "Re-animate" : "Animate presenter"}</>}<span className="ms-1 rounded-md bg-white/15 px-1.5 py-0.5 text-[9.5px]">~45 credits</span></button>
+                      {f.loopVideoUrl ? <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400"><Film className="h-3.5 w-3.5" /> Moving avatar ready</span> : null}
+                    </div>
                   </div>
                 ) : null}
                 <p className="mt-3 rounded-xl border border-border bg-muted px-3.5 py-2.5 text-[11.5px] text-muted-foreground">In the room the presenter appears as a disclosed co-host with an <b className="text-brand-400">AI</b> badge — participants always know it&apos;s an AI.</p>

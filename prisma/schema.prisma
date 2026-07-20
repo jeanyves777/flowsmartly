@@ -4609,6 +4609,10 @@ model PresenterProfile {
   userId          String
   name            String
   portraitUrl     String?
+  /// HeyGen talking-photo id for the portrait + a reusable ~10s looping presenter clip
+  /// (the "moving avatar"), generated once and looped in the co-host tile
+  talkingPhotoId  String?
+  loopVideoUrl    String?
   /// the cloned VoiceProfile this presenter speaks with (reuses Voice Studio cloning)
   voiceProfileId  String?
   deliveryStyle   String  @default("conversational") // professional | conversational | energetic | teacher

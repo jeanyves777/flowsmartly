@@ -19,6 +19,7 @@ function toDTO(p: PresenterRow): PresenterProfileDTO {
     id: p.id,
     name: p.name,
     portraitUrl: p.portraitUrl,
+    loopVideoUrl: p.loopVideoUrl,
     voiceProfileId: p.voiceProfileId,
     voiceName: p.voice?.name ?? null,
     deliveryStyle: p.deliveryStyle as PresenterProfileDTO["deliveryStyle"],

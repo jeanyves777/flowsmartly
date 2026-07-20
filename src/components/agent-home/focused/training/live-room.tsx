@@ -987,7 +987,9 @@ function RosterStrip({ session, me, host, act, media, waiting, inRoom, onInvite,
             title={host ? (spotlit ? `Remove ${p.name}'s spotlight` : `Spotlight ${p.name}`) : p.name}
             className={cn("group relative h-[52px] w-[72px] shrink-0 overflow-hidden rounded-lg border-2 bg-[#181820] sm:h-[64px] sm:w-[86px]", spotlit ? "border-amber-400" : p.role === "HOST" ? "border-brand-500/50" : "border-border")}
           >
-            {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : p.avatarUrl ? (
+            {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : p.isAI && p.videoUrl ? (
+              <video src={p.videoUrl} autoPlay muted loop playsInline poster={p.avatarUrl ?? undefined} className="h-full w-full object-cover" />
+            ) : p.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />
             ) : (
@@ -1103,7 +1105,9 @@ function FloatingBubbles({ inRoom, me, media, session, host, onSpotlight, onOpen
                 mute / pen indicators are never cut off inside the bubble */}
             <div className="relative" style={{ width: SIZE, height: SIZE }}>
               <div className={cn("grid h-full w-full place-items-center overflow-hidden rounded-full border-2 bg-[#181820] shadow-lg", spotlit ? "border-amber-400" : p.isAI ? "border-cyan-400" : p.role === "HOST" ? "border-brand-400" : "border-white/70")}>
-                {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : p.avatarUrl ? (
+                {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : p.isAI && p.videoUrl ? (
+                  <video src={p.videoUrl} autoPlay muted loop playsInline poster={p.avatarUrl ?? undefined} className="h-full w-full object-cover" />
+                ) : p.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
@@ -1526,6 +1530,8 @@ function Tile({ p, session, me, host, act, onSpotlight, feed }: {
     <div className={cn("group relative aspect-[4/3] overflow-hidden rounded-xl border bg-[#181820]", spotlit ? "border-amber-400" : p.sharing ? "border-cyan-500/60" : p.role === "HOST" ? "border-brand-500/50" : "border-border")}>
       {feed ? (
         <VideoFeed stream={feed} muted mirror={p.id === me.id} />
+      ) : p.isAI && p.videoUrl ? (
+        <video src={p.videoUrl} autoPlay muted loop playsInline poster={p.avatarUrl ?? undefined} className="h-full w-full object-cover" />
       ) : p.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />

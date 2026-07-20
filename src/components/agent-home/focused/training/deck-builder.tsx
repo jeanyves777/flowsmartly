@@ -74,12 +74,15 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   useEffect(() => {
     if (!presenter) return;
     setDeck((d) => {
-      if (!d || d.presenterId === presenter.id) return d;
-      const next = { ...d, presenterId: presenter.id, presenterActive: d.presenterActive ?? true };
+      if (!d) return d;
+      // keep the deck in step with the chosen presenter — id AND its moving-avatar clip
+      // (which can be generated after the presenter is already selected).
+      if (d.presenterId === presenter.id && (d.presenterVideoUrl ?? null) === (presenter.loopVideoUrl ?? null)) return d;
+      const next = { ...d, presenterId: presenter.id, presenterVideoUrl: presenter.loopVideoUrl ?? null, presenterActive: d.presenterActive ?? true };
       persist(next);
       return next;
     });
-  }, [presenter?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [presenter?.id, presenter?.loopVideoUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const setPresenterActive = (v: boolean) => {
     setDeck((d) => { if (!d) return d; const next = { ...d, presenterActive: v, presenterId: presenter?.id ?? d.presenterId }; persist(next); return next; });
   };
