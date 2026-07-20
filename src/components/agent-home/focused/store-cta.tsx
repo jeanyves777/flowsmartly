@@ -2,9 +2,25 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Store, Sparkles, Check, BadgePercent, CreditCard, Wallet, Gift, X, AlertTriangle } from "lucide-react";
+import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 import { useMobileChat } from "../mobile-chat-context";
 import { BriefSuggest, type BriefProposal } from "./brief-suggest";
+
+// Parse a free-text "Blue Mug $20, Mug Set of 4 $70" list into [{name, price}].
+function parseProducts(text: string): Array<{ name: string; price: number }> {
+  return (text || "")
+    .split(/[,\n]/)
+    .map((line) => {
+      const m = line.match(/^\s*(.*?)\s*[-–—]?\s*\$?\s*([\d]+(?:[.,]\d{1,2})?)\s*$/);
+      if (!m) return null;
+      const name = m[1].replace(/\$?\s*[\d.,]+\s*$/, "").trim() || m[1].trim();
+      const price = Number(m[2].replace(",", "."));
+      return name && Number.isFinite(price) && price > 0 ? { name, price } : null;
+    })
+    .filter((p): p is { name: string; price: number } => !!p)
+    .slice(0, 24);
+}
 
 // Mobile "collect via chat" starter (edit + send; the agent builds the store).
 const STORE_STARTER = "Build me a branded online store called [store name] selling [what you sell], modern style, with a few starter products.";
@@ -31,7 +47,16 @@ const BENEFITS = [
   "AI product copy, images & ad creatives on tap",
 ];
 
-const STORE_STYLES = ["Modern", "Bold", "Minimal", "Elegant", "Playful"];
+// Store style / vibe — each with a REAL example storefront thumbnail so the
+// pick shows what the vibe actually looks like. [[style-selectors-need-visual-thumbnails]]
+const VIBE_THUMB = "/Studio_Menus_Thumnail/Store_style_vibe";
+const STORE_STYLES = [
+  { name: "Modern", thumb: `${VIBE_THUMB}/modern.webp` },
+  { name: "Bold", thumb: `${VIBE_THUMB}/bold.webp` },
+  { name: "Minimal", thumb: `${VIBE_THUMB}/minimal.webp` },
+  { name: "Elegant", thumb: `${VIBE_THUMB}/elegant.webp` },
+  { name: "Playful", thumb: `${VIBE_THUMB}/playful.webp` },
+];
 const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "NGN", "INR", "ZAR"];
 const SC_FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 
@@ -41,25 +66,22 @@ function usd(credits: number): string {
   return `$${Number.isInteger(d) ? d : d.toFixed(2)}`;
 }
 
-export function StoreCallToAction({ onBuild, onTopUp, compact }: { onBuild: (prompt: string) => void; onTopUp?: () => void; compact?: boolean }) {
+export function StoreCallToAction({ onBuilding, onTopUp, compact, onStart }: { onBuilding: (storeId: string, slug: string) => void; onTopUp?: () => void; compact?: boolean; onStart?: () => void }) {
+  // `onStart` lets the parent surface own the brief modal (so it fills the content
+  // pane, not the whole focused view). Without it (compact side panel), the CTA
+  // opens the modal itself as a fixed overlay.
   const [briefing, setBriefing] = useState(false);
   const { isMobile, seedComposer } = useMobileChat();
-  // Live pricing + balance (no hardcoded prices). null = still loading.
-  const [cost, setCost] = useState<number | null>(null);
-  const [balance, setBalance] = useState<number | null>(null);
+  const [cost, setCost] = useState<number | null>(null); // for the landing Charges (no hardcoded prices)
 
   useEffect(() => {
     let alive = true;
     fetch("/api/credits/costs?keys=AI_STORE_GENERATE").then((r) => r.json()).then((j) => { if (alive) { const c = j?.data?.costs?.AI_STORE_GENERATE; if (typeof c === "number") setCost(c); } }).catch(() => {});
-    fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (alive) { const b = j?.data?.user?.aiCredits; if (typeof b === "number") setBalance(b); } }).catch(() => {});
     return () => { alive = false; };
   }, []);
 
-  // Can't afford only when we KNOW both numbers and the cost is > 0.
-  const shortfall = cost != null && cost > 0 && balance != null && balance < cost;
-
-  // Desktop opens the brief modal; mobile seeds the composer (agent collects in chat).
-  const start = () => { if (isMobile) { seedComposer(STORE_STARTER); return; } setBriefing(true); };
+  // Desktop opens the brief modal (parent-owned when onStart is given); mobile seeds the composer.
+  const start = () => { if (isMobile) { seedComposer(STORE_STARTER); return; } if (onStart) { onStart(); return; } setBriefing(true); };
 
   return (
     <>
@@ -93,15 +115,14 @@ export function StoreCallToAction({ onBuild, onTopUp, compact }: { onBuild: (pro
         </div>
       </div>
 
+      {/* Compact side panel owns its own (fixed) modal. In a focused surface the
+          parent passes onStart and renders StoreBriefModal itself. */}
       {briefing && (
         <StoreBriefModal
           compact={compact}
-          cost={cost}
-          balance={balance}
-          shortfall={shortfall}
           onTopUp={onTopUp}
           onClose={() => setBriefing(false)}
-          onBuild={(p) => { setBriefing(false); onBuild(p); }}
+          onBuilding={(id, slug) => { setBriefing(false); onBuilding(id, slug); }}
         />
       )}
     </>
@@ -141,14 +162,11 @@ function Charges({ cost, className }: { cost: number | null; className?: string 
       shell the Filmmaking / Campaign / Leads studios use). Gathered in the UI,
       assembled into a detailed prompt, handed to the agent via onBuild().
       Fills the focused surface's <main> (which is relative), like the film brief. */
-function StoreBriefModal({ compact, cost, balance, shortfall, onTopUp, onClose, onBuild }: {
+export function StoreBriefModal({ compact, onTopUp, onClose, onBuilding }: {
   compact?: boolean;
-  cost: number | null;
-  balance: number | null;
-  shortfall: boolean;
   onTopUp?: () => void;
   onClose: () => void;
-  onBuild: (prompt: string) => void;
+  onBuilding: (storeId: string, slug: string) => void;
 }) {
   const [name, setName] = useState("");
   const [sells, setSells] = useState("");
@@ -156,10 +174,17 @@ function StoreBriefModal({ compact, cost, balance, shortfall, onTopUp, onClose, 
   const [style, setStyle] = useState("Modern");
   const [currency, setCurrency] = useState("USD");
   const [error, setError] = useState("");
+  const [building, setBuilding] = useState(false);
+  // Live pricing + balance (no hardcoded prices).
+  const [cost, setCost] = useState<number | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
+  const shortfall = cost != null && cost > 0 && balance != null && balance < cost;
 
-  // Prefill the store name from the Brand Kit so the user rarely types it.
   useEffect(() => {
     let alive = true;
+    fetch("/api/credits/costs?keys=AI_STORE_GENERATE").then((r) => r.json()).then((j) => { if (alive) { const c = j?.data?.costs?.AI_STORE_GENERATE; if (typeof c === "number") setCost(c); } }).catch(() => {});
+    fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (alive) { const b = j?.data?.user?.aiCredits; if (typeof b === "number") setBalance(b); } }).catch(() => {});
+    // Prefill the store name from the Brand Kit so the user rarely types it.
     fetch("/api/brand").then((r) => r.json()).then((j) => { if (alive && j?.data?.brandKit?.name) setName((n) => n || String(j.data.brandKit.name)); }).catch(() => {});
     return () => { alive = false; };
   }, []);
@@ -169,23 +194,44 @@ function StoreBriefModal({ compact, cost, balance, shortfall, onTopUp, onClose, 
     const s = (k: string) => (typeof p[k] === "string" ? (p[k] as string).trim() : "");
     if (s("sells")) setSells(s("sells"));
     if (s("products")) setProducts(s("products"));
-    if (STORE_STYLES.includes(s("style"))) setStyle(s("style"));
+    if (STORE_STYLES.some((v) => v.name === s("style"))) setStyle(s("style"));
   };
 
-  const build = () => {
-    if (shortfall) return; // guarded — the button is disabled anyway
+  // Build the store DIRECTLY from the brief — no agent chat. Creates + charges +
+  // kicks off the real builder server-side; the surface then shows a progress
+  // loader and polls buildStatus.
+  const build = async () => {
+    if (shortfall || building) return;
     if (!name.trim()) { setError("Add your store name."); return; }
-    if (!sells.trim()) { setError("Tell the agent what you sell."); return; }
-    const prompt = [
-      "Build me a complete, branded online STORE now using my brand kit. I've given you everything below — do NOT ask me questions; design and build the whole storefront, set it up, and add the starter products.",
-      `- Store name: ${name.trim()}`,
-      `- What I sell (products / category + who it's for): ${sells.trim()}`,
-      products.trim() ? `- Starter products to add (with prices): ${products.trim()}` : "",
-      `- Store style / vibe: ${style}`,
-      `- Currency: ${currency}`,
-      "Set up secure Stripe checkout (cards + Cash-on-Delivery). Before you bill anything, confirm the EXACT charges (the one-time AI store-build credit cost, the platform fee per sale, and card processing) and get my OK first. Confirm in ONE short sentence when the store is ready.",
-    ].filter(Boolean).join("\n");
-    onBuild(prompt);
+    if (!sells.trim()) { setError("Tell us what you sell."); return; }
+    setBuilding(true); setError("");
+    try {
+      const r = await fetch("/api/ecommerce/store/launch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: [sells.trim(), `Store style: ${style}.`].join(" "),
+          currency,
+          products: parseProducts(products),
+        }),
+      });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.data?.storeId) {
+        onBuilding(j.data.storeId, j.data.slug || "");
+      } else if (r.status === 402) {
+        setError(j?.error?.message || "Not enough credits — top up to build.");
+        setBuilding(false);
+      } else if (r.status === 409 && j?.data?.storeId) {
+        onBuilding(j.data.storeId, j.data.slug || ""); // already has a store — go to it
+      } else {
+        setError(j?.error?.message || "Couldn't start the build. Try again.");
+        setBuilding(false);
+      }
+    } catch {
+      setError("Couldn't start the build. Try again.");
+      setBuilding(false);
+    }
   };
 
   return (
@@ -221,10 +267,22 @@ function StoreBriefModal({ compact, cost, balance, shortfall, onTopUp, onClose, 
             </div>
             <div className="sm:col-span-2">
               <p className="mb-1.5 text-[11.5px] font-medium text-muted-foreground">Store style / vibe</p>
-              <div className="flex flex-wrap gap-1.5">
-                {STORE_STYLES.map((s) => (
-                  <button key={s} onClick={() => setStyle(s)} className={cn("rounded-full border px-2.5 py-1 text-[12px] font-semibold transition", style === s ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/40")}>{s}</button>
-                ))}
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                {STORE_STYLES.map((v) => {
+                  const on = style === v.name;
+                  return (
+                    <button key={v.name} type="button" onClick={() => setStyle(v.name)} className={cn("group overflow-hidden rounded-xl border text-left transition", on ? "border-brand-500 ring-2 ring-brand-500/30" : "border-border hover:border-brand-500/50")}>
+                      <span className="block aspect-[16/10] overflow-hidden bg-muted">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={v.thumb} alt={`${v.name} store example`} loading="lazy" className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.04]" />
+                      </span>
+                      <span className={cn("flex items-center justify-between px-2 py-1.5 text-[11.5px] font-semibold", on ? "text-brand-500" : "text-muted-foreground")}>
+                        {v.name}
+                        {on && <Check className="h-3.5 w-3.5" />}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
             {error && <p className="text-[12px] text-rose-500 sm:col-span-2">{error}</p>}
@@ -244,10 +302,10 @@ function StoreBriefModal({ compact, cost, balance, shortfall, onTopUp, onClose, 
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3">
-          <button onClick={build} disabled={shortfall} className={cn("inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30", shortfall && "cursor-not-allowed opacity-50 shadow-none")} title={shortfall ? "Not enough credits — top up first" : undefined}>
-            <Sparkles className="h-4 w-4" /> Build my store
+          <button onClick={build} disabled={shortfall || building} className={cn("inline-flex items-center gap-1.5 rounded-[11px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30", (shortfall || building) && "cursor-not-allowed opacity-60 shadow-none")} title={shortfall ? "Not enough credits — top up first" : undefined}>
+            {building ? <FlowLoader size={15} tone="white" /> : <Sparkles className="h-4 w-4" />} {building ? "Starting your build…" : "Build my store"}
           </button>
-          <span className="ms-auto hidden text-[11px] text-muted-foreground sm:block">Uses your brand kit · the agent confirms before anything bills.</span>
+          <span className="ms-auto hidden text-[11px] text-muted-foreground sm:block">Uses your brand kit · builds right here — no chat needed.</span>
         </div>
       </div>
     </div>
