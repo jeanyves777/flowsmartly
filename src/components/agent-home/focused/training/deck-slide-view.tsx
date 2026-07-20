@@ -26,6 +26,21 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   // `reveal` = how many steps are shown (undefined = show everything, e.g. a builder
   // thumbnail). Drives the progressive "drawing as you talk" reveal.
 
+  // The opening slide — the AI co-host takes the stage to introduce itself. On the live
+  // stage the moving avatar replaces this; here (builder / no avatar) it's a warm welcome.
+  if (slide.intro) {
+    return (
+      <div className={cn("relative grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-[#241f38] via-[#191627] to-[#0f0d17] [container-type:inline-size]", className)}>
+        <div className="flex flex-col items-center px-[8%] text-center">
+          <div className="mb-[3cqw] grid h-[14cqw] w-[14cqw] place-items-center rounded-full bg-gradient-to-br from-cyan-400/25 to-brand-500/25 ring-2 ring-brand-400/40"><span className="text-[7cqw]">👋</span></div>
+          <h1 className="text-[clamp(11px,5.6cqw,56px)] font-extrabold leading-tight tracking-tight text-white">{md(slide.title)}</h1>
+          {slide.subtitle ? <p className="mt-[1.5cqw] text-[clamp(6px,2.4cqw,22px)] font-semibold text-brand-300">{md(slide.subtitle)}</p> : null}
+          <span className="mt-[3cqw] inline-flex items-center gap-1.5 rounded-full bg-gradient-to-br from-cyan-400 to-brand-500 px-[2.5cqw] py-[1.1cqw] text-[clamp(4px,1.5cqw,12px)] font-black text-[#04222a]">● AI CO-HOST</span>
+        </div>
+      </div>
+    );
+  }
+
   // An on-screen quiz — the question + lettered options; the correct one lights up green
   // (with an explanation) once the host reveals it (reveal step 2).
   if (slide.quiz) {

@@ -469,6 +469,18 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     // builds progressively as the host presents. The host draws right on top.
     if (material?.kind === "slides" && material.deck?.slides.length) {
       const slide = material.deck.slides[Math.min(session.stagePage, material.deck.slides.length) - 1];
+      // The opening slide is the AI co-host's moment: show it LARGE on the Presenter stage
+      // delivering its self-intro, then the runtime advances to the first real slide.
+      const introVideo = material.deck.presenterVideoUrl;
+      const aiP = session.participants.find((p) => p.isAI);
+      if (slide?.intro && introVideo) {
+        return (
+          <div className="relative grid h-full w-full place-items-center bg-gradient-to-br from-[#221a3a] to-[#3a2c5e]">
+            <AvatarVideo url={introVideo} poster={aiP?.avatarUrl} speaking={aiSpeaking} className="object-contain" />
+            <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1 text-[12px] font-bold text-white"><span className="rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1 py-px text-[8.5px] font-black text-[#04222a]">AI</span>{aiP?.name || "Your AI co-host"} · introducing</span>
+          </div>
+        );
+      }
       return slide ? <DeckSlideView slide={slide} reveal={session.stageStep} /> : null;
     }
     if (material?.kind === "image" || material?.kind === "video") {

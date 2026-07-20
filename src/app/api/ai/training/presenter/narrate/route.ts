@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
   const presenter = await prisma.presenterProfile.findFirst({
     where: { id: deck.presenterId, userId: session.userId },
-    select: { deliveryStyle: true, pace: true, voiceProfileId: true },
+    select: { name: true, deliveryStyle: true, pace: true, voiceProfileId: true },
   });
   if (!presenter) return err("That presenter no longer exists", 404);
   const voice = presenter.voiceProfileId
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
   let result: NarrateResult = { narrations: {}, cloneRequested: false, cloneUsed: false };
   try {
-    result = await narrateDeck({ slides: deck.slides, sessionId: mat.sessionId, voice, pace: presenter.pace ?? 1, style: presenter.deliveryStyle ?? "conversational" });
+    result = await narrateDeck({ slides: deck.slides, sessionId: mat.sessionId, voice, pace: presenter.pace ?? 1, style: presenter.deliveryStyle ?? "conversational", presenterName: presenter.name });
   } catch (e) { console.error("[narrate] failed:", e instanceof Error ? e.message : e); await refund(maxCharge); return err("Couldn't generate the narration — try again", 502); }
 
   const narrations = result.narrations;
