@@ -5,6 +5,8 @@ import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/cost
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { generateSlug } from "@/lib/constants/ecommerce";
 import { runStoreAgentV3, type ProductInput } from "@/lib/store-builder/store-agent";
+import { toCents, isValidCurrency } from "@/lib/store/currency";
+import { getRegionForCountry } from "@/lib/constants/regions";
 
 /**
  * POST /api/ecommerce/store/launch — build a store DIRECTLY from the UI brief (no
@@ -38,15 +40,23 @@ export async function POST(request: NextRequest) {
     }
 
     const currency = (clean(body?.currency, 10) || "USD").toUpperCase();
-    const region = clean(body?.region, 50) || undefined;
+    if (!isValidCurrency(currency)) {
+      return NextResponse.json({ success: false, error: { code: "INVALID_CURRENCY", message: "Choose a supported currency." } }, { status: 400 });
+    }
 
-    // Fall back to the Brand Kit for industry/audience if the brief didn't set them.
-    const brandKit = await prisma.brandKit.findFirst({
-      where: { userId: session.userId },
-      orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
-      select: { industry: true, niche: true, targetAudience: true },
-    }).catch(() => null);
+    // Fall back to the Brand Kit / user for country + industry/audience.
+    const [brandKit, user] = await Promise.all([
+      prisma.brandKit.findFirst({
+        where: { userId: session.userId },
+        orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
+        select: { industry: true, niche: true, targetAudience: true, country: true },
+      }).catch(() => null),
+      prisma.user.findUnique({ where: { id: session.userId }, select: { country: true } }).catch(() => null),
+    ]);
 
+    // Country drives payouts, shipping, tax, and regional design — capture it.
+    const country = (clean(body?.country, 2) || brandKit?.country || user?.country || "US").toUpperCase();
+    const region = clean(body?.region, 50) || getRegionForCountry(country) || undefined;
     const industry = clean(body?.industry, 100) || brandKit?.industry || description.slice(0, 100);
     const targetAudience = clean(body?.targetAudience, 300) || brandKit?.targetAudience || undefined;
 
@@ -55,8 +65,8 @@ export async function POST(request: NextRequest) {
       ? body.products
           .map((p: unknown) => {
             const o = (p && typeof p === "object" ? p : {}) as Record<string, unknown>;
-            const priceCents = typeof o.priceCents === "number" ? o.priceCents
-              : Number.isFinite(Number(o.price)) ? Math.round(Number(o.price) * 100) : 0;
+            // Currency-aware: zero-decimal currencies (XOF/JPY/KRW…) must NOT be ×100.
+            const priceCents = typeof o.priceCents === "number" ? o.priceCents : toCents(String(o.price ?? ""), currency);
             return {
               name: clean(o.name, 120),
               description: typeof o.description === "string" ? clean(o.description, 600) : undefined,
@@ -83,6 +93,7 @@ export async function POST(request: NextRequest) {
         industry,
         currency,
         region,
+        country,
         ecomSubscriptionStatus: "active",
         ecomPlan: "free",
         isActive: true,
@@ -92,31 +103,53 @@ export async function POST(request: NextRequest) {
       select: { id: true, slug: true },
     });
 
-    // Charge once, up front (prevents a free build if a later step fails).
+    // Charge once, up front. If the charge itself fails, roll back the store and
+    // do NOT build (no free builds, no orphaned store).
     if (cost > 0) {
-      await creditService.deductCredits({
-        userId: session.userId,
-        type: TRANSACTION_TYPES.USAGE,
-        amount: cost,
-        referenceType: "ai_store_generate",
-        referenceId: store.id,
-        description: `Store build: ${name}`,
-      }).catch(() => {});
+      try {
+        await creditService.deductCredits({
+          userId: session.userId,
+          type: TRANSACTION_TYPES.USAGE,
+          amount: cost,
+          referenceType: "ai_store_generate",
+          referenceId: store.id,
+          description: `Store build: ${name}`,
+        });
+      } catch {
+        await prisma.store.delete({ where: { id: store.id } }).catch(() => {});
+        return NextResponse.json({ success: false, error: { code: "CHARGE_FAILED", message: "Couldn't charge credits — please try again." } }, { status: 402 });
+      }
     }
 
+    // Refund the build credits when a build ends in error (mirrors the video
+    // pipeline's orphan-refund; a user shouldn't pay for a failed build).
+    const refundOnError = async () => {
+      if (cost > 0) {
+        await creditService.addCredits({
+          userId: session.userId,
+          type: TRANSACTION_TYPES.REFUND,
+          amount: cost,
+          referenceType: "ai_store_generate",
+          referenceId: store.id,
+          description: `Refund — store build failed: ${name}`,
+        }).catch(() => {});
+      }
+    };
+
     // Fire-and-forget the real builder; the client polls buildStatus. Errors flip
-    // buildStatus to "error" so the loader can show a retry.
+    // buildStatus to "error", refund, so the loader can offer a retry.
     runStoreAgentV3(store.id, store.slug, session.userId, { name, industry, targetAudience, region, currency }, products, categories)
-      .then((result) => {
+      .then(async (result) => {
         if (!result.success) {
-          return prisma.store.update({ where: { id: store.id }, data: { buildStatus: "error", lastBuildError: result.error?.substring(0, 5000), buildStartedAt: null } });
+          await prisma.store.update({ where: { id: store.id }, data: { buildStatus: "error", lastBuildError: result.error?.substring(0, 5000), buildStartedAt: null } }).catch(() => {});
+          await refundOnError();
         }
       })
-      .catch((err: unknown) => {
+      .catch(async (err: unknown) => {
         const msg = err instanceof Error ? err.message : "Store build failed";
-        return prisma.store.update({ where: { id: store.id }, data: { buildStatus: "error", lastBuildError: `Fatal: ${msg}`.substring(0, 5000), buildStartedAt: null } });
-      })
-      .catch(() => {});
+        await prisma.store.update({ where: { id: store.id }, data: { buildStatus: "error", lastBuildError: `Fatal: ${msg}`.substring(0, 5000), buildStartedAt: null } }).catch(() => {});
+        await refundOnError();
+      });
 
     return NextResponse.json({ success: true, data: { storeId: store.id, slug: store.slug } });
   } catch (err) {

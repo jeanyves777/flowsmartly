@@ -6,6 +6,7 @@ import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
 import { useMobileChat } from "../mobile-chat-context";
 import { BriefSuggest, type BriefProposal } from "./brief-suggest";
+import { ALL_COUNTRIES, getRegionForCountry } from "@/lib/constants/regions";
 
 // Parse a free-text "Blue Mug $20, Mug Set of 4 $70" list into [{name, price}].
 function parseProducts(text: string): Array<{ name: string; price: number }> {
@@ -173,6 +174,7 @@ export function StoreBriefModal({ compact, onTopUp, onClose, onBuilding }: {
   const [products, setProducts] = useState("");
   const [style, setStyle] = useState("Modern");
   const [currency, setCurrency] = useState("USD");
+  const [country, setCountry] = useState("US"); // drives payouts, shipping, tax, regional design
   const [error, setError] = useState("");
   const [building, setBuilding] = useState(false);
   // Live pricing + balance (no hardcoded prices).
@@ -184,8 +186,12 @@ export function StoreBriefModal({ compact, onTopUp, onClose, onBuilding }: {
     let alive = true;
     fetch("/api/credits/costs?keys=AI_STORE_GENERATE").then((r) => r.json()).then((j) => { if (alive) { const c = j?.data?.costs?.AI_STORE_GENERATE; if (typeof c === "number") setCost(c); } }).catch(() => {});
     fetch("/api/auth/me").then((r) => r.json()).then((j) => { if (alive) { const b = j?.data?.user?.aiCredits; if (typeof b === "number") setBalance(b); } }).catch(() => {});
-    // Prefill the store name from the Brand Kit so the user rarely types it.
-    fetch("/api/brand").then((r) => r.json()).then((j) => { if (alive && j?.data?.brandKit?.name) setName((n) => n || String(j.data.brandKit.name)); }).catch(() => {});
+    // Prefill store name + country from the Brand Kit so the user rarely types them.
+    fetch("/api/brand").then((r) => r.json()).then((j) => {
+      const bk = j?.data?.brandKit;
+      if (alive && bk?.name) setName((n) => n || String(bk.name));
+      if (alive && bk?.country) setCountry(String(bk.country).toUpperCase());
+    }).catch(() => {});
     return () => { alive = false; };
   }, []);
 
@@ -213,6 +219,8 @@ export function StoreBriefModal({ compact, onTopUp, onClose, onBuilding }: {
           name: name.trim(),
           description: [sells.trim(), `Store style: ${style}.`].join(" "),
           currency,
+          country,
+          region: getRegionForCountry(country) || undefined,
           products: parseProducts(products),
         }),
       });
@@ -253,7 +261,14 @@ export function StoreBriefModal({ compact, onTopUp, onClose, onBuilding }: {
           <div className="mb-4"><BriefSuggest kind="store" onApply={applyIdea} /></div>
 
           <div className="grid grid-cols-1 gap-x-5 gap-y-3.5 sm:grid-cols-2">
-            <Field label="Store name *"><input value={name} onChange={(e) => setName(e.target.value)} className={SC_FIELD} placeholder="Acme Goods" /></Field>
+            <div className="sm:col-span-2">
+              <Field label="Store name *"><input value={name} onChange={(e) => setName(e.target.value)} className={SC_FIELD} placeholder="Acme Goods" /></Field>
+            </div>
+            <Field label="Country">
+              <select value={country} onChange={(e) => setCountry(e.target.value)} className={SC_FIELD}>
+                {ALL_COUNTRIES.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
+              </select>
+            </Field>
             <Field label="Currency">
               <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={SC_FIELD}>
                 {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
