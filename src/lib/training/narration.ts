@@ -33,7 +33,13 @@ Return JSON: { "scripts": string[] } with EXACTLY ${slides.length} entries, in o
     ?? (await ai.generateJSON<{ scripts?: string[] }>(prompt, { temperature: 0.35, maxTokens: 2200 }));
   const scripts = raw?.scripts ?? [];
   // Always return one script per slide (fall back to a plain read of the title).
-  return slides.map((s, i) => (scripts[i] || `${s.title}. ${(s.bullets ?? []).slice(0, 2).join(". ")}`).trim().slice(0, 700));
+  return slides.map((s, i) => {
+    // Q&A slides speak a fixed invitation, then the runtime pauses for questions.
+    if (s.qa) return s.qaKind === "final"
+      ? "That covers everything I planned to share. Before we wrap up, let's open the floor — what questions do you have? Raise your hand or use Ask the presenter, and I'll help. Host, feel free to jump in here too."
+      : "Let's pause here for a moment. Does anyone have a question about what we've covered so far? Raise your hand or use Ask the presenter — I'm happy to clarify before we move on.";
+    return (scripts[i] || `${s.title}. ${(s.bullets ?? []).slice(0, 2).join(". ")}`).trim().slice(0, 700);
+  });
 }
 
 const STYLE_MAP: Record<string, "professional" | "conversational" | "energetic" | "warm"> = {

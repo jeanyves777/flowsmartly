@@ -335,5 +335,35 @@ Rules:
     }
   }
 
-  return { v: 1, slides };
+  return { v: 1, slides: withQaBreaks(slides) };
+}
+
+/** A "pause for questions" slide — the co-host invites questions and STOPS instead of
+ *  auto-advancing, so the room can engage before moving on. */
+function qaSlide(kind: "checkpoint" | "final"): DeckSlide {
+  return {
+    id: uid("qa"),
+    type: "doc",
+    qa: true,
+    qaKind: kind,
+    title: kind === "final" ? "Questions & Discussion" : "Any questions so far?",
+    subtitle: kind === "final" ? "Let's open the floor before we wrap up" : "Let's pause and take your questions",
+    steps: 1,
+  };
+}
+
+/** Weave pause-for-questions moments into a deck: one checkpoint about two-thirds through
+ *  and a wrap-up Q&A right before the final (conclusion) slide, so the training breathes
+ *  and the room can ask — the host or the AI answers on the spot. */
+function withQaBreaks(slides: DeckSlide[]): DeckSlide[] {
+  const n = slides.length;
+  if (n < 4) return slides; // too short to need a checkpoint
+  const checkpointAt = Math.max(1, Math.floor(n * 0.6));
+  const out: DeckSlide[] = [];
+  slides.forEach((s, i) => {
+    if (i === n - 1) out.push(qaSlide("final")); // wrap-up Q&A just before the conclusion
+    out.push(s);
+    if (i === checkpointAt) out.push(qaSlide("checkpoint"));
+  });
+  return out;
 }

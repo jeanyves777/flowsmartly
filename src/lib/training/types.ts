@@ -178,6 +178,11 @@ export interface DeckSlide {
   /** AI-presenter narration for this slide — the spoken script + synthesized audio the
    *  co-host plays while the slide is on the stage. Generated from the presenter's voice. */
   narration?: SlideNarration;
+  /** a "pause for questions" moment: the co-host invites questions, then STOPS instead of
+   *  auto-advancing so the room can ask (host or AI answers). `final` = the wrap-up Q&A
+   *  before the conclusion. Rendered as a clean "Any questions?" prompt. */
+  qa?: boolean;
+  qaKind?: "checkpoint" | "final";
 }
 
 /** One slide's spoken narration (script + audio) for the AI presenter. */
