@@ -65,7 +65,7 @@ export function PresenterSetup({ open, onClose, onChoose }: {
   const [step, setStep] = useState(0);
   const [f, setF] = useState<Form>(BLANK);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }));
-  const [busy, setBusy] = useState<null | "load" | "clone" | "portrait" | "style" | "animate" | "save">(null);
+  const [busy, setBusy] = useState<null | "load" | "clone" | "portrait" | "style" | "animate" | "reclone" | "save">(null);
   // the ORIGINAL uploaded photo — kept so we can restyle it (background / clothing).
   const [portraitFile, setPortraitFile] = useState<File | null>(null);
   const [bg, setBg] = useState("studio");
@@ -78,6 +78,19 @@ export function PresenterSetup({ open, onClose, onChoose }: {
       if (j?.success) { setData(j.data); setMode(j.data.presenters.length ? "list" : "wizard"); }
     } finally { setBusy(null); }
   }, []);
+
+  // Rebuild the user's cloned voices on the CURRENTLY connected voice account (from the
+  // samples we stored at clone time) — fixes "cloned voice not found / used a preset"
+  // after the platform's voice account changed. Doesn't re-record; free.
+  const reclone = async () => {
+    setBusy("reclone");
+    try {
+      const j = await fetch("/api/ai/voice-studio/reclone", { method: "POST" }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't reconnect your voices", variant: "destructive" }); return; }
+      const n = j.data.recloned as number;
+      toast({ title: n ? `Reconnected ${n} voice${n === 1 ? "" : "s"}` : "Your voices are already connected", description: n ? "Your cloned voice will be used for narration now." : undefined });
+    } finally { setBusy(null); }
+  };
   useEffect(() => { if (open) { load(); setStep(0); setF(BLANK); } }, [open, load]);
 
   // ---- audio preview / test voice ----
@@ -360,6 +373,10 @@ export function PresenterSetup({ open, onClose, onChoose }: {
                 {data?.voices.length ? (
                   <div className="mt-4"><div className="mb-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Or use a cloned voice you already made</div>
                     <div className="flex flex-wrap gap-2">{data.voices.map((v) => (<button key={v.id} onClick={() => setF((p) => ({ ...p, voiceProfileId: v.id, voiceName: v.name, sampleUrl: v.sampleUrl ?? null }))} className={cn("rounded-xl border px-3 py-2 text-[12px] font-semibold", f.voiceProfileId === v.id ? "border-brand-500 bg-brand-500/10 text-brand-400" : "border-border hover:border-brand-500")}>{v.name}</button>))}</div>
+                    <div className="mt-2.5 flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2">
+                      <p className="min-w-0 flex-1 text-[10.5px] text-muted-foreground">Narration using a preset instead of your cloned voice? Reconnect it here.</p>
+                      <button onClick={reclone} disabled={busy === "reclone"} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50">{busy === "reclone" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Reconnecting…</> : <><RotateCcw className="h-3.5 w-3.5" /> Reconnect voice</>}</button>
+                    </div>
                   </div>
                 ) : null}
               </SectionCard>
