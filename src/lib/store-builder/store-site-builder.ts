@@ -401,19 +401,24 @@ export async function buildStoreFromDir(
  * Build a V3 SSR store (next build without static export).
  * Only runs the validators that apply to SSR builds.
  */
-export async function buildStoreV3(storeId: string): Promise<{ success: boolean; output: string; error?: string }> {
+export async function buildStoreV3(storeId: string, skipLock = false): Promise<{ success: boolean; output: string; error?: string }> {
   const storeDir = getStoreDir(storeId);
 
   if (!existsSync(storeDir)) {
     return { success: false, output: "", error: "Store directory not found" };
   }
 
-  // Atomic build lock — prevents concurrent builds for the same store
-  const locked = await acquireBuildLock(storeId);
-  if (!locked) {
-    console.warn(`[StoreBuilder:V3] Build already in progress for ${storeId}, marking pendingRebuild`);
-    await prisma.store.update({ where: { id: storeId }, data: { pendingRebuild: true } });
-    return { success: false, output: "", error: "Build already in progress — queued for rebuild" };
+  // Atomic build lock — prevents concurrent builds for the same store. Callers
+  // that already own the build (runStoreAgentV3 sets buildStatus="building" before
+  // it builds) pass skipLock=true, else that pre-set status would deadlock this
+  // lock ("Build already in progress").
+  if (!skipLock) {
+    const locked = await acquireBuildLock(storeId);
+    if (!locked) {
+      console.warn(`[StoreBuilder:V3] Build already in progress for ${storeId}, marking pendingRebuild`);
+      await prisma.store.update({ where: { id: storeId }, data: { pendingRebuild: true } });
+      return { success: false, output: "", error: "Build already in progress — queued for rebuild" };
+    }
   }
 
   // Rollback support: copy current .next to .next.bak (keep original in place so the
