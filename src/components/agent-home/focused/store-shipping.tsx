@@ -47,8 +47,8 @@ export function StoreShipping({ currency }: { currency: string }) {
       const store = sj?.data?.store;
       if (store) {
         setSettings(store.settings && typeof store.settings === "object" ? store.settings : {});
-        setFreeOver(dollars(store.freeShippingThresholdCents));
-        setFlatRate(dollars(store.flatRateShippingCents));
+        setFreeOver(dollars(store.freeShippingThresholdCents, currency));
+        setFlatRate(dollars(store.flatRateShippingCents, currency));
       }
       setLoading(false);
     })();
@@ -58,21 +58,21 @@ export function StoreShipping({ currency }: { currency: string }) {
   const saveRates = async () => {
     setSavingRates(true); setRatesSaved(false);
     try {
-      const shipping = { ...(settings.shipping as Record<string, unknown> || {}), flatRateCents: toCents(flatRate) ?? 0, freeShippingThresholdCents: toCents(freeOver) ?? 0 };
+      const shipping = { ...(settings.shipping as Record<string, unknown> || {}), flatRateCents: toCents(flatRate, currency) ?? 0, freeShippingThresholdCents: toCents(freeOver, currency) ?? 0 };
       const r = await fetch("/api/ecommerce/store/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ settings: { ...settings, shipping } }) });
       if (r.ok) { setSettings((s) => ({ ...s, shipping })); setRatesSaved(true); setTimeout(() => setRatesSaved(false), 2500); }
     } finally { setSavingRates(false); }
   };
 
   const openAdd = () => { setDraft(EMPTY); setError(""); setEditing("new"); };
-  const openEdit = (m: Method) => { setDraft({ name: m.name, description: m.description || "", price: dollars(m.priceCents), estimatedDays: m.estimatedDays || "" }); setError(""); setEditing(m.id); setConfirmDelete(null); };
+  const openEdit = (m: Method) => { setDraft({ name: m.name, description: m.description || "", price: dollars(m.priceCents, currency), estimatedDays: m.estimatedDays || "" }); setError(""); setEditing(m.id); setConfirmDelete(null); };
 
   const saveMethod = async () => {
     if (!draft.name.trim()) { setError("Name the method."); return; }
     setSaving(true); setError("");
     try {
       const isEdit = editing && editing !== "new";
-      const body = { name: draft.name.trim(), description: draft.description.trim() || undefined, priceCents: toCents(draft.price) ?? 0, estimatedDays: draft.estimatedDays.trim() || undefined };
+      const body = { name: draft.name.trim(), description: draft.description.trim() || undefined, priceCents: toCents(draft.price, currency) ?? 0, estimatedDays: draft.estimatedDays.trim() || undefined };
       const r = await fetch(isEdit ? `/api/ecommerce/shipping-methods/${editing}` : "/api/ecommerce/shipping-methods", { method: isEdit ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = await r.json().catch(() => null);
       if (r.ok && j?.success !== false) { setEditing(null); await loadMethods(); }

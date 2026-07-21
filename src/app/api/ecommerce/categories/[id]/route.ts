@@ -80,17 +80,28 @@ export async function PATCH(
       );
     }
 
-    // Validate parent exists if provided
+    // Validate parent exists + reject any cycle (A→B→A) by walking the ancestor chain.
     if (data.parentId) {
       const parent = await prisma.productCategory.findFirst({
         where: { id: data.parentId, storeId: store.id },
-        select: { id: true },
+        select: { id: true, parentId: true },
       });
       if (!parent) {
         return NextResponse.json(
           { success: false, error: { code: "INVALID_PARENT", message: "Parent category not found" } },
           { status: 400 }
         );
+      }
+      let ancestorId: string | null | undefined = parent.parentId;
+      for (let i = 0; ancestorId && i < 50; i++) {
+        if (ancestorId === category.id) {
+          return NextResponse.json(
+            { success: false, error: { code: "INVALID_PARENT", message: "That would create a category loop." } },
+            { status: 400 }
+          );
+        }
+        const anc: { parentId: string | null } | null = await prisma.productCategory.findUnique({ where: { id: ancestorId }, select: { parentId: true } });
+        ancestorId = anc?.parentId;
       }
     }
 

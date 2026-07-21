@@ -5,6 +5,7 @@ import { X, Check, Trash2, Plus, Sparkles, Wand2, Package, Tag, Coins, Boxes, Se
 import { MediaUploader } from "@/components/shared/media-uploader";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { cn } from "@/lib/utils/cn";
+import { toCents, dollars, money } from "./store-ui";
 
 /**
  * ProductEditor — the deep new-design product editor (a right-side drawer opened
@@ -40,8 +41,6 @@ interface FullProduct {
   status?: string; seoTitle?: string | null; seoDescription?: string | null; variants?: Variant[];
 }
 
-const dollars = (cents?: number | null): string => (cents != null ? String((cents / 100)) : "");
-const toCents = (v: string): number | undefined => { const n = Number(v); return Number.isFinite(n) && v.trim() !== "" ? Math.round(n * 100) : undefined; };
 
 export function ProductEditor({ productId, currency, categoryOptions, onClose, onSaved }: {
   productId: "new" | string;
@@ -99,9 +98,9 @@ export function ProductEditor({ productId, currency, categoryOptions, onClose, o
         setTags(Array.isArray(p.tags) ? p.tags.join(", ") : "");
         setLabels(Array.isArray(p.labels) ? p.labels : []);
         setStatus((p.status?.toUpperCase() as "ACTIVE" | "DRAFT" | "ARCHIVED") || "ACTIVE");
-        setPrice(dollars(p.priceCents));
-        setComparePrice(dollars(p.comparePriceCents));
-        setCost(dollars(p.costCents));
+        setPrice(dollars(p.priceCents, currency));
+        setComparePrice(dollars(p.comparePriceCents, currency));
+        setCost(dollars(p.costCents, currency));
         setImages(Array.isArray(p.images) ? p.images.map((i) => i.url).filter(Boolean) : []);
         setTrackInventory(!!p.trackInventory);
         setQuantity(p.quantity != null ? String(p.quantity) : "");
@@ -118,10 +117,10 @@ export function ProductEditor({ productId, currency, categoryOptions, onClose, o
 
   const toggleLabel = (id: string) => setLabels((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
 
-  const priceCents = toCents(price);
-  const costCents = toCents(cost);
+  const priceCents = toCents(price, currency);
+  const costCents = toCents(cost, currency);
   const margin = priceCents && costCents != null && priceCents > 0
-    ? { pct: Math.round(((priceCents - costCents) / priceCents) * 100), profit: (priceCents - costCents) / 100 }
+    ? { pct: Math.round(((priceCents - costCents) / priceCents) * 100), profitCents: priceCents - costCents }
     : null;
 
   // AI: write copy from the product name + category.
@@ -168,8 +167,10 @@ export function ProductEditor({ productId, currency, categoryOptions, onClose, o
   const removeVariant = (i: number) => setVariants((v) => v.filter((_, idx) => idx !== i));
 
   const save = async () => {
-    if (!name.trim()) { setError("Give the product a name."); return; }
+    if (name.trim().length < 2) { setError("Give the product a name (at least 2 characters)."); return; }
     if (priceCents == null || priceCents <= 0) { setError("Set a price greater than 0."); return; }
+    const cmp = toCents(comparePrice, currency);
+    if (cmp != null && cmp <= priceCents) { setError("The compare-at (“was”) price must be higher than the price."); return; }
     setSaving(true); setError("");
     try {
       const body: Record<string, unknown> = {
@@ -180,8 +181,8 @@ export function ProductEditor({ productId, currency, categoryOptions, onClose, o
         tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
         labels,
         priceCents,
-        comparePriceCents: toCents(comparePrice),
-        costCents: toCents(cost),
+        comparePriceCents: toCents(comparePrice, currency),
+        costCents: toCents(cost, currency),
         images: images.map((url, position) => ({ url, alt: name.trim(), position })),
         trackInventory,
         status,
@@ -300,7 +301,7 @@ export function ProductEditor({ productId, currency, categoryOptions, onClose, o
                   <MoneyField label="Compare-at" currency={currency} value={comparePrice} onChange={setComparePrice} hint="was price" />
                   <MoneyField label="Cost" currency={currency} value={cost} onChange={setCost} hint="for margin" />
                 </div>
-                {margin && <p className="mt-2 text-[12px] font-semibold text-emerald-500">Margin {margin.pct}% · {margin.profit.toLocaleString(undefined, { style: "currency", currency })} profit / unit</p>}
+                {margin && <p className="mt-2 text-[12px] font-semibold text-emerald-500">Margin {margin.pct}% · {money(margin.profitCents, currency)} profit / unit</p>}
               </Section>
 
               {/* Inventory */}
@@ -328,7 +329,7 @@ export function ProductEditor({ productId, currency, categoryOptions, onClose, o
                           <tr key={v.id || i} className="border-t border-border">
                             <td className="px-1.5 py-1.5"><input value={v.name} onChange={(e) => setVariant(i, { name: e.target.value })} placeholder="250g" className={cn(FIELD, "px-2 py-1.5")} /></td>
                             <td className="px-1.5 py-1.5"><input value={v.sku || ""} onChange={(e) => setVariant(i, { sku: e.target.value })} placeholder="SKU" className={cn(FIELD, "px-2 py-1.5")} /></td>
-                            <td className="px-1.5 py-1.5"><input value={dollars(v.priceCents)} onChange={(e) => setVariant(i, { priceCents: toCents(e.target.value) })} inputMode="decimal" placeholder="0" className={cn(FIELD, "w-20 px-2 py-1.5")} /></td>
+                            <td className="px-1.5 py-1.5"><input value={dollars(v.priceCents, currency)} onChange={(e) => setVariant(i, { priceCents: toCents(e.target.value, currency) })} inputMode="decimal" placeholder="0" className={cn(FIELD, "w-20 px-2 py-1.5")} /></td>
                             <td className="px-1.5 py-1.5"><input value={v.quantity != null ? String(v.quantity) : ""} onChange={(e) => setVariant(i, { quantity: Number(e.target.value) || 0 })} inputMode="numeric" placeholder="0" className={cn(FIELD, "w-16 px-2 py-1.5")} /></td>
                             <td className="px-1.5 py-1.5"><button onClick={() => removeVariant(i)} className="grid h-7 w-7 place-items-center rounded-[8px] border border-border text-muted-foreground hover:border-rose-500/60 hover:text-rose-500"><X className="h-3.5 w-3.5" /></button></td>
                           </tr>

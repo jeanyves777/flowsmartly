@@ -1,29 +1,34 @@
 import type { ElementType, ReactNode } from "react";
 import { cn } from "@/lib/utils/cn";
+import { toCents as toCentsCur, fromCents as fromCentsCur, isZeroDecimalCurrency } from "@/lib/store/currency";
 
 /**
  * Shared presentational primitives for the /home/sell management surfaces
  * (Overview, Categories, Shipping, Settings, Payments, Analytics). One copy of
  * the field styles, money formatter, section card, toggle, stat tile and empty
- * state so every store surface reads as one system.
+ * state so every store surface reads as one system. Money helpers are
+ * currency-aware (zero-decimal currencies like XOF/JPY/KRW are NOT ×100).
  */
 
 export const FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
 export const LABEL = "mb-1 block text-[11px] font-medium text-muted-foreground";
 
 export function money(cents?: number | null, currency = "USD"): string {
-  try { return ((cents ?? 0) / 100).toLocaleString(undefined, { style: "currency", currency, maximumFractionDigits: 2 }); }
-  catch { return `${((cents ?? 0) / 100).toFixed(2)}`; }
+  const c = cents ?? 0;
+  const value = isZeroDecimalCurrency(currency) ? c : c / 100;
+  try { return value.toLocaleString(undefined, { style: "currency", currency, maximumFractionDigits: isZeroDecimalCurrency(currency) ? 0 : 2 }); }
+  catch { return `${value.toFixed(isZeroDecimalCurrency(currency) ? 0 : 2)}`; }
 }
 
-/** Parse a dollar string to integer cents (undefined for blank/invalid). */
-export function toCents(v: string): number | undefined {
+/** Parse a typed amount string to integer cents (undefined for blank). */
+export function toCents(v: string, currency = "USD"): number | undefined {
+  if (!v || v.trim() === "") return undefined;
   const n = Number(v);
-  return Number.isFinite(n) && v.trim() !== "" ? Math.round(n * 100) : undefined;
+  return Number.isFinite(n) ? toCentsCur(v, currency) : undefined;
 }
 
-export function dollars(cents?: number | null): string {
-  return cents != null ? String(cents / 100) : "";
+export function dollars(cents?: number | null, currency = "USD"): string {
+  return cents != null ? fromCentsCur(cents, currency) : "";
 }
 
 export function SectionCard({ title, hint, right, icon: Icon, children, className }: { title?: string; hint?: string; right?: ReactNode; icon?: ElementType; children: ReactNode; className?: string }) {
