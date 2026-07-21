@@ -90,6 +90,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   // Generate spoken narration for the whole deck in the presenter's voice.
   const narrate = async () => {
     if (!mat) return;
+    // Guardrail: narration is already generated → confirm before re-voicing (it costs credits).
+    if (narratedCount > 0 && !window.confirm(`Narration is already generated for ${narratedCount} slide${narratedCount === 1 ? "" : "s"}. Regenerate all of it? This uses credits.`)) return;
     setBusy("narrate");
     try {
       const j = await fetch("/api/ai/training/presenter/narrate", {
@@ -380,6 +382,7 @@ function PresenterBar({ presenter, active, loopUrl, slideCount, narratedCount, b
           <div className="mb-1 flex items-center gap-2">
             <span className="text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">Voice</span>
             <span className="truncate text-[11px] font-semibold">{presenter.voiceName || "Preset voice"}</span>
+            <button onClick={onManage} title="Replace the voice — record, upload or re-clone" className="shrink-0 text-[9.5px] font-bold text-brand-400 hover:underline">Change</button>
           </div>
           <Bars active={busy === "narrate"} />
         </div>
