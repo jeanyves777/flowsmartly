@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils/cn";
  * No legacy links. [[surface-buttons-are-ui-actions]]
  */
 
-interface StoreData { id: string; name: string; slug: string; currency?: string; region?: string; country?: string; isActive?: boolean; buildStatus?: string; productCount?: number; orderCount?: number; totalRevenueCents?: number; }
+interface StoreData { id: string; name: string; slug: string; currency?: string; region?: string; country?: string; isActive?: boolean; buildStatus?: string; lastBuildAt?: string | null; lastBuildError?: string | null; productCount?: number; orderCount?: number; totalRevenueCents?: number; }
 interface Product { id: string; name: string; priceCents?: number; comparePriceCents?: number | null; currency?: string; status?: string; quantity?: number; trackInventory?: boolean; lowStockThreshold?: number; labels?: string[]; variantCount?: number; description?: string | null; category?: string | null; categoryName?: string | null; images?: { url: string }[]; }
 interface OrderItem { productId?: string; variantId?: string; name?: string; quantity?: number; priceCents?: number; imageUrl?: string; }
 interface ShippingAddress { name?: string; line1?: string; line2?: string; city?: string; state?: string; zip?: string; country?: string; phone?: string; }
@@ -363,6 +363,27 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
   // no chat round-trip). Polls buildStatus; lands on the store when it's built.
   if (building) {
     return <StoreBuildingLoader storeId={building.storeId} onBuilt={() => { setBuilding(null); loadData(); }} onOpenStore={() => { setBuilding(null); loadData(); }} />;
+  }
+
+  // A store whose FIRST build never finished (errored, never built) has no usable
+  // storefront — don't drop into a management dashboard for a store that isn't
+  // there, and don't loop on a "Build now" that recompiles broken source. Send the
+  // user back to the brief to start over (regenerates the same row). A store that
+  // built before then hit a rebuild error keeps its normal dashboard (has content).
+  if (store && String(store.buildStatus) === "error" && !store.lastBuildAt && !studioOpen) {
+    const startBuilding = (storeId: string) => { setBriefOpen(false); setBuilding({ storeId }); };
+    return (
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="h-full overflow-y-auto p-6 sm:p-8">
+          <div className="mx-auto mt-[4vh] max-w-lg">
+            <StoreBuildFailed store={store} onStartOver={() => setBriefOpen(true)} onOpenEditor={() => setStudioOpen(true)} />
+          </div>
+        </div>
+        {briefOpen && (
+          <StoreBriefModal onTopUp={() => onOpenView("credits")} onClose={() => setBriefOpen(false)} onBuilding={startBuilding} />
+        )}
+      </div>
+    );
   }
 
   // No store yet → benefits + exact charges + "Create my store", which opens the
@@ -847,6 +868,23 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Shown when a store's first build never completed. No usable storefront exists,
+// so the primary path is to start over from the brief (which regenerates the same
+// store), not to loop on a build that recompiles broken source.
+function StoreBuildFailed({ store, onStartOver, onOpenEditor }: { store: StoreData; onStartOver: () => void; onOpenEditor: () => void }) {
+  return (
+    <div className="rounded-3xl border border-border bg-card p-7 text-center shadow-sm">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-amber-500/10"><AlertTriangle className="h-7 w-7 text-amber-500" /></div>
+      <h2 className="mt-4 text-[18px] font-bold">Your store didn&apos;t finish building</h2>
+      <p className="mx-auto mt-1.5 max-w-sm text-[13px] text-muted-foreground">The last build didn&apos;t complete, so <span className="font-semibold text-foreground">{store.name}</span> has no storefront yet. Start over from the brief and we&apos;ll build it fresh — you weren&apos;t charged for the failed attempt.</p>
+      <div className="mt-5 flex flex-col items-center gap-2.5">
+        <button onClick={onStartOver} className="inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><RotateCcw className="h-4 w-4" /> Start over from the brief</button>
+        <button onClick={onOpenEditor} className="text-[12px] font-semibold text-muted-foreground hover:text-foreground">Open the store editor instead</button>
+      </div>
     </div>
   );
 }

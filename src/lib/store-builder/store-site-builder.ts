@@ -9,7 +9,7 @@
  */
 
 import { spawn as spawnProcess } from "child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 
 // Reference store location — use env var to avoid hardcoded user paths
@@ -191,6 +191,12 @@ export function cancelBuild(storeId: string): boolean {
  */
 export function initStoreDirV3(storeId: string, slug: string): string {
   const storeDir = getStoreDir(storeId);
+
+  // Start from a clean slate. Generation is the ONLY caller and runs once up
+  // front, so wiping here guarantees a re-generation (e.g. "start over" after a
+  // failed first build) never inherits stale/broken files from the prior attempt
+  // — orphaned components and missing-import build errors don't carry over.
+  try { rmSync(storeDir, { recursive: true, force: true }); } catch { /* fresh dir */ }
 
   // Create directory structure (expanded for SSR: checkout, account, API routes)
   const dirs = [
