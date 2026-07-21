@@ -21,7 +21,16 @@ interface RoomConn {
 }
 
 // sessionId -> Map<sessionKey, RoomConn>
-const rooms = new Map<string, Map<string, RoomConn>>();
+//
+// MUST live on globalThis, NOT a plain module const: Next.js (app router) bundles each
+// route segment separately, so the SSE `stream` route and the writer routes (PATCH,
+// participants…) each get their OWN instance of this module — and thus their own Map.
+// A connection registered by the stream route would then be invisible to broadcast() in
+// the PATCH route, so live events (stage steps, hand-raises) never reach attendees.
+// Pinning the registry to globalThis makes every route share the one true Map.
+const rooms: Map<string, Map<string, RoomConn>> =
+  ((globalThis as unknown as { __trainingRooms?: Map<string, Map<string, RoomConn>> }).__trainingRooms ??=
+    new Map<string, Map<string, RoomConn>>());
 
 const STALE_TIMEOUT = 30_000;
 
@@ -66,18 +75,8 @@ export function connectedIds(sessionId: string): string[] {
   return [...ids];
 }
 
-// A big ignored SSE comment appended to important frames. Without it a SMALL event
-// (a stage-step change, a hand-raise answer) sits in nginx's proxy buffer until a LARGER
-// write pushes it out — so attendees only advanced when another event arrived. The pad
-// must exceed nginx's busy-buffers threshold to force an immediate flush; 32 KB clears
-// the common 8–16 KB defaults. High-frequency events (cursors) flush on their own, so we
-// don't pad those (bandwidth). The real backstop is `proxy_buffering off` on the stream
-// location — this makes it work regardless. [[training-studio]]
-const FLUSH_PAD = `:${" ".repeat(32768)}\n\n`;
-const HIGH_FREQ = new Set(["cursor", "laser", "livestroke", "liveitem"]);
 export function frameEvent(event: RoomEvent): Uint8Array {
-  const pad = HIGH_FREQ.has(event.type) ? "" : FLUSH_PAD;
-  return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n${pad}`);
+  return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
 }
 
 /** Push an event to everyone in the room, optionally skipping the sender. */
