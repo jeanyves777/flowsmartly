@@ -39,14 +39,16 @@ export function StoreDiscounts({ currency }: { currency: string }) {
 
   const openAdd = () => { setDraft(EMPTY); setError(""); setEditing("new"); };
   const openEdit = (c: Coupon) => {
-    setDraft({ code: c.code, type: (c.type as Draft["type"]) || "percentage", value: c.type === "fixed" ? dollars(c.value) : String(c.value), minOrder: dollars(c.minOrderCents), usageLimit: c.usageLimit != null ? String(c.usageLimit) : "", expiresAt: c.expiresAt ? c.expiresAt.slice(0, 10) : "" });
+    setDraft({ code: c.code, type: (c.type as Draft["type"]) || "percentage", value: c.type === "fixed" ? dollars(c.value, currency) : String(c.value), minOrder: dollars(c.minOrderCents, currency), usageLimit: c.usageLimit != null ? String(c.usageLimit) : "", expiresAt: c.expiresAt ? c.expiresAt.slice(0, 10) : "" });
     setError(""); setEditing(c.id); setConfirmDelete(null);
   };
 
   const save = async () => {
     const code = draft.code.trim().toUpperCase();
     if (code.length < 2) { setError("Enter a code (min 2 characters)."); return; }
-    const value = draft.type === "fixed" ? (toCents(draft.value) ?? 0) : Math.round(Number(draft.value) || 0);
+    if (!/^[A-Z0-9_-]+$/.test(code)) { setError("Codes can only use letters, numbers, - and _ (no spaces)."); return; }
+    if (draft.expiresAt) { const d = new Date(draft.expiresAt + "T23:59:59"); if (!(d.getTime() > Date.now())) { setError("The expiry date must be in the future."); return; } }
+    const value = draft.type === "fixed" ? (toCents(draft.value, currency) ?? 0) : Math.round(Number(draft.value) || 0);
     if (draft.type === "percentage" && (value < 1 || value > 100)) { setError("Percentage must be 1–100."); return; }
     if (draft.type === "fixed" && value < 1) { setError("Set an amount greater than 0."); return; }
     setSaving(true); setError("");
@@ -54,7 +56,7 @@ export function StoreDiscounts({ currency }: { currency: string }) {
       const isEdit = editing && editing !== "new";
       const body = {
         code, type: draft.type, value,
-        minOrderCents: draft.minOrder.trim() ? (toCents(draft.minOrder) ?? null) : null,
+        minOrderCents: draft.minOrder.trim() ? (toCents(draft.minOrder, currency) ?? null) : null,
         usageLimit: draft.usageLimit.trim() ? (Number(draft.usageLimit) || null) : null,
         expiresAt: draft.expiresAt || null,
       };

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Save, Check, Settings as SettingsIcon, CreditCard, Bell, Store as StoreIcon } from "lucide-react";
+import { Save, Check, Settings as SettingsIcon, CreditCard, Bell, Store as StoreIcon, AlertCircle } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { SUPPORTED_CURRENCIES } from "@/lib/store/currency";
 import { FIELD, LABEL, SectionCard, Toggle, MoneyInput, toCents, dollars } from "./store-ui";
 
 /**
@@ -12,13 +13,13 @@ import { FIELD, LABEL, SectionCard, Toggle, MoneyInput, toCents, dollars } from 
  * (live/paused) toggles isActive on the same route.
  */
 
-const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "NGN", "GHS", "KES", "ZAR", "INR"];
 interface Notif { newOrder?: boolean; lowStock?: boolean; weeklySummary?: boolean }
 
 export function StoreSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
   const [settings, setSettings] = useState<Record<string, unknown>>({});
 
   const [name, setName] = useState("");
@@ -37,15 +38,16 @@ export function StoreSettings() {
       if (!alive) return;
       const s = j?.data?.store;
       if (s) {
+        const cur = (s.currency || "USD").toUpperCase();
         setName(s.name || "");
-        setCurrency((s.currency || "USD").toUpperCase());
+        setCurrency(cur);
         setRegion(s.region || "");
         setIndustry(s.industry || "");
         setIsActive(!!s.isActive);
         const cfg = s.settings && typeof s.settings === "object" ? s.settings : {};
         setSettings(cfg);
-        setCodMax(dollars(cfg.codMaxAmount as number));
-        setCodFee(dollars(cfg.codFee as number));
+        setCodMax(dollars(cfg.codMaxAmount as number, cur));
+        setCodFee(dollars(cfg.codFee as number, cur));
         setAutoCancel(!!cfg.autoCancel);
         if (cfg.notifications && typeof cfg.notifications === "object") setNotif(cfg.notifications as Notif);
       }
@@ -55,34 +57,42 @@ export function StoreSettings() {
   }, []);
 
   const save = async () => {
-    setSaving(true); setSaved(false);
+    setSaving(true); setSaved(false); setError("");
+    // COD amounts can't be negative.
+    const codMaxC = Math.max(0, toCents(codMax, currency) ?? 0);
+    const codFeeC = Math.max(0, toCents(codFee, currency) ?? 0);
     try {
-      const mergedSettings = {
-        ...settings,
-        codMaxAmount: toCents(codMax) ?? 0,
-        codFee: toCents(codFee) ?? 0,
-        autoCancel,
-        notifications: notif,
-      };
+      const mergedSettings = { ...settings, codMaxAmount: codMaxC, codFee: codFeeC, autoCancel, notifications: notif };
       const r = await fetch("/api/ecommerce/store/settings", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: name.trim() || undefined, currency, region: region.trim() || null, industry: industry.trim() || null, isActive, settings: mergedSettings }),
       });
-      if (r.ok) { setSettings(mergedSettings); setSaved(true); setTimeout(() => setSaved(false), 2500); }
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.success !== false) { setSettings(mergedSettings); setSaved(true); setTimeout(() => setSaved(false), 2500); }
+      else setError(j?.error?.message || "Couldn't save your settings. Check the fields and try again.");
+    } catch {
+      setError("Couldn't save your settings — please try again.");
     } finally { setSaving(false); }
   };
 
   if (loading) return <SectionCard><div className="grid place-items-center py-10"><FlowLoader size={24} label="Loading settings…" /></div></SectionCard>;
 
   const SaveBtn = <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">{saving ? <FlowLoader size={14} tone="white" /> : saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />} {saved ? "Saved" : "Save settings"}</button>;
+  // Full ISO-4217 list, always including the store's current currency.
+  const currencyOptions = SUPPORTED_CURRENCIES.includes(currency) ? SUPPORTED_CURRENCIES : [currency, ...SUPPORTED_CURRENCIES];
 
   return (
     <div className="space-y-4">
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3.5 py-2.5 text-[12.5px] text-rose-500">
+          <AlertCircle className="h-4 w-4 shrink-0" /> {error}
+        </div>
+      )}
       <SectionCard icon={SettingsIcon} title="General" right={SaveBtn}>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block"><span className={LABEL}>Store name</span><input value={name} onChange={(e) => setName(e.target.value)} className={FIELD} /></label>
           <label className="block"><span className={LABEL}>Industry</span><input value={industry} onChange={(e) => setIndustry(e.target.value)} placeholder="Food & beverage" className={FIELD} /></label>
-          <label className="block"><span className={LABEL}>Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className={FIELD}>{CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
+          <label className="block"><span className={LABEL}>Currency</span><select value={currency} onChange={(e) => setCurrency(e.target.value)} className={FIELD}>{currencyOptions.map((c) => <option key={c} value={c}>{c}</option>)}</select></label>
           <label className="block"><span className={LABEL}>Region</span><input value={region} onChange={(e) => setRegion(e.target.value)} placeholder="United States" className={FIELD} /></label>
         </div>
       </SectionCard>
