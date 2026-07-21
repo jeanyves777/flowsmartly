@@ -214,6 +214,10 @@ export interface TrainingDeck {
   /** the presenter's looping avatar clip (copied from the profile) so the live room can
    *  show a MOVING co-host without a profile lookup. */
   presenterVideoUrl?: string | null;
+  /** full-body, gesture-rich intro/outro films (audio-free) — shown large on the Presenter
+   *  stage at the open/close; distinct from the small talking-photo loop. */
+  introVideoUrl?: string | null;
+  outroVideoUrl?: string | null;
 }
 
 // ------------------------------------------------------------ AI presenter
@@ -232,6 +236,8 @@ export interface PresenterProfileDTO {
   name: string;
   portraitUrl: string | null;
   loopVideoUrl: string | null;
+  introVideoUrl: string | null;
+  outroVideoUrl: string | null;
   voiceProfileId: string | null;
   voiceName: string | null;
   deliveryStyle: "professional" | "conversational" | "energetic" | "teacher";
