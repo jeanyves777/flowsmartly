@@ -48,9 +48,11 @@ export function SectionCard({ title, hint, right, icon: Icon, children, classNam
 }
 
 export function Toggle({ on, onClick, disabled }: { on: boolean; onClick: () => void; disabled?: boolean }) {
+  // Matches the app's canonical Switch (components/ui/switch.tsx): h-6 w-11
+  // track, h-5 w-5 thumb, flex-centered so the knob never overhangs the pill.
   return (
-    <button type="button" role="switch" aria-checked={on} onClick={onClick} disabled={disabled} className={cn("relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors disabled:opacity-50", on ? "bg-brand-500" : "bg-muted-foreground/30 dark:bg-white/15")}>
-      <span className={cn("absolute top-0.5 h-[18px] w-[18px] rounded-full bg-white shadow-sm ring-1 ring-black/5 transition-transform", on ? "translate-x-[18px]" : "translate-x-0.5")} />
+    <button type="button" role="switch" aria-checked={on} onClick={onClick} disabled={disabled} className={cn("inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors disabled:cursor-not-allowed disabled:opacity-50", on ? "bg-brand-500" : "bg-input")}>
+      <span className={cn("pointer-events-none block h-5 w-5 rounded-full bg-white shadow-lg transition-transform", on ? "translate-x-5" : "translate-x-0")} />
     </button>
   );
 }
