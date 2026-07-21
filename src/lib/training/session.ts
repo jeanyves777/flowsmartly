@@ -275,6 +275,7 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
           focusPct: p.focusPct,
           secondsIn: p.secondsIn,
           isAI: p.isAI,
+          isRecorder: p.isRecorder,
         }),
       ),
     materials: row.materials.map(

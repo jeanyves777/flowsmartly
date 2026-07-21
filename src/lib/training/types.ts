@@ -127,6 +127,8 @@ export interface TrainingParticipantDTO {
   secondsIn: number;
   /** a disclosed AI Presenter co-host (synthetic participant, not a real connection) */
   isAI: boolean;
+  /** the headless recording bot — filtered from the roster/tiles/count and never billed. */
+  isRecorder?: boolean;
   /** for an AI co-host: a looping "moving avatar" clip to play in the tile (muted). */
   videoUrl?: string | null;
 }
