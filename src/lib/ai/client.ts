@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { prisma } from "@/lib/db/client";
+import { computeClaudeCostCents } from "@/lib/ai/model-pricing";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -489,8 +491,17 @@ class ClaudeAI {
     // is necessary because the SDK's discriminated `ToolUnion` covers the
     // built-in server tools but our `clientToolDefs` are plain JSON-Schema
     // tools that satisfy the basic `Tool` member of that union.
+    // PROMPT CACHING: mark the last client tool as a cache breakpoint so the
+    // tool schemas (identical every iteration) read at ~0.1× after the first
+    // pass. Paired with the cached system block below (render order is
+    // tools → system). Server tools sit after the breakpoint, re-sent uncached.
+    const cachedClientToolDefs = clientToolDefs.map((t, i) =>
+      i === clientToolDefs.length - 1
+        ? { ...t, cache_control: { type: "ephemeral" as const } }
+        : t,
+    );
     const toolDefs = [
-      ...clientToolDefs,
+      ...cachedClientToolDefs,
       ...serverTools,
     ] as unknown as Anthropic.ToolUnion[];
 
@@ -501,6 +512,8 @@ class ClaudeAI {
 
     let totalIn = 0;
     let totalOut = 0;
+    let totalCacheRead = 0;
+    let totalCacheCreation = 0;
     const toolsUsed: string[] = [];
     // Accumulate text across iterations so a multi-search answer that
     // emits text → server_tool_use → text → server_tool_use → text returns
@@ -516,7 +529,11 @@ class ClaudeAI {
         const createParams: Record<string, unknown> = {
           model: model as Parameters<typeof this.client.messages.create>[0]["model"],
           max_tokens: maxTokens,
-          system: systemPrompt,
+          // PROMPT CACHING: cached system block (see toolDefs above). Falls back
+          // to omitting `system` when there is no prompt, preserving prior behavior.
+          system: systemPrompt
+            ? [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }]
+            : undefined,
           tools: toolDefs,
           messages: messages as Anthropic.MessageParam[],
         };
@@ -543,6 +560,8 @@ class ClaudeAI {
 
       totalIn += response.usage?.input_tokens ?? 0;
       totalOut += response.usage?.output_tokens ?? 0;
+      totalCacheRead += response.usage?.cache_read_input_tokens ?? 0;
+      totalCacheCreation += response.usage?.cache_creation_input_tokens ?? 0;
 
       // Bucket the assistant content blocks into THREE categories:
       //   1. text             → contributes to final answer (preserve citations)
@@ -599,6 +618,9 @@ class ClaudeAI {
           totalOut,
           toolsUsed,
           citations,
+          model,
+          totalCacheRead,
+          totalCacheCreation,
         );
       }
 
@@ -619,6 +641,9 @@ class ClaudeAI {
           totalOut,
           toolsUsed,
           citations,
+          model,
+          totalCacheRead,
+          totalCacheCreation,
         );
       }
 
@@ -673,6 +698,9 @@ class ClaudeAI {
       totalOut,
       toolsUsed,
       citations,
+      model,
+      totalCacheRead,
+      totalCacheCreation,
     );
   }
 
@@ -683,7 +711,35 @@ class ClaudeAI {
     outputTokens: number,
     toolsUsed: string[],
     citations: unknown[] = [],
+    model = "",
+    cacheReadTokens = 0,
+    cacheCreationTokens = 0,
   ): AgentRunResult<T> {
+    // Record the REAL dollar cost of this run so shared-agent spend shows up in
+    // the admin AI-spend view. Fire-and-forget telemetry — never blocks or
+    // throws. userId is null (feature-level attribution; callers don't thread one).
+    if (model) {
+      const costCents = computeClaudeCostCents(
+        model,
+        inputTokens,
+        outputTokens,
+        cacheReadTokens,
+        cacheCreationTokens,
+      );
+      void prisma.aIUsage
+        .create({
+          data: {
+            userId: null,
+            feature: "ai_run_with_tools",
+            model,
+            inputTokens,
+            outputTokens,
+            costCents,
+          },
+        })
+        .catch((e) => console.error("[client.runWithTools] AIUsage write failed:", e));
+    }
+
     let json: T | null = null;
     if (text) {
       try {

@@ -109,8 +109,11 @@ export const DEFAULT_CREDIT_COSTS = {
   //   the small fan-out of work most read-only tools do).
   // The remaining AGENT_* keys override the base when a specific tool has
   // outsized cost (scheduling = DB write + cron coordination, etc).
-  AGENT_MESSAGE: 3,                // Per agent turn (cheapest model — Haiku tool loop)
-  AGENT_MESSAGE_SUPER: 15,         // Per agent turn in user-requested "Super" mode (premium model)
+  AGENT_MESSAGE: 3,                // Per agent turn (cheapest model — Haiku tool loop, now prompt-cached)
+  AGENT_MESSAGE_SUPER: 35,         // Per agent turn in "Super" mode (Opus 4.8). Raised 15→35: even
+                                   // with prompt caching, a long (8-iteration) Opus turn ≈ $0.42 real,
+                                   // vs 15 credits = $0.20 revenue at the bulk floor (underwater).
+                                   // 35 credits = $0.46 at bulk / healthy at retail. Tune from AIUsage.
   AGENT_TOOL_CALL_BASE: 1,         // Default per tool call when no override
   AGENT_SCHEDULE_POST: 5,          // Create + schedule a Post via the agent
   AGENT_CANCEL_SCHEDULED_POST: 1,
@@ -161,7 +164,11 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_VIDEO_STUDIO: 60,    // Veo 3.1 Quality per 8s clip (~$0.35 Google cost) — Premium tier
   AI_VIDEO_LITE: 30,      // Veo 3.1 Lite per 8s clip (~$0.30 Google cost) — Standard tier
   AI_VIDEO_LITE_NO_AUDIO: 18, // Veo 3.1 Lite per 8s clip, audio stripped (~$0.24 raw) — narrated full-animation
-  AI_VIDEO_CHEAP: 25,     // xAI Imagine direct per 15s clip (~$0.75–$1.05 raw at 720p) — Cheap tier
+  AI_VIDEO_CHEAP: 100,    // xAI Imagine direct per 15s clip (~$0.75–$1.05 raw at 720p). Raised 25→100:
+                          // 25 credits sold a $0.75–1.05 clip for as little as $0.33 (bulk) — underwater.
+                          // 100 credits = $1.30 revenue at the bulk floor / ~$4 retail. NOTE: xAI Imagine
+                          // is actually pricier than Veo Lite (AI_VIDEO_LITE=30, ~$0.30) — consider
+                          // retiring this "Cheap" tier and routing it to Veo Lite instead.
   AI_VIDEO_SLIDESHOW: 100, // Legacy xAI per 10s — used only for Veo-fallback bookkeeping now
 
   // --- Story Ad Campaign (cinematic short film pipeline) ---
