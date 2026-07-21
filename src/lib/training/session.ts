@@ -262,6 +262,7 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
           name: p.name,
           email: p.email,
           avatarUrl: p.avatarUrl,
+          photoUrl: p.photoUrl,
           role: p.role as ParticipantRole,
           state: p.state as ParticipantState,
           canShare: p.canShare,

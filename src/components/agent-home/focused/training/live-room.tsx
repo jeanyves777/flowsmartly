@@ -1043,7 +1043,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         </AnchoredMenu>
       ) : null}
       {videoSheet ? (
-        <VideoSheet media={media} session={session} onClose={() => setVideoSheet(false)} />
+        <VideoSheet media={media} session={session} me={me} onClose={() => setVideoSheet(false)} />
       ) : null}
       {moreMenu ? (
         <AnchoredMenu anchorRef={moreBtnRef} onClose={() => setMoreMenu(false)}>
@@ -1255,6 +1255,9 @@ function RosterStrip({ session, me, host, act, media, waiting, inRoom, onInvite,
           >
             {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : p.isAI && p.videoUrl ? (
               <AvatarVideo url={p.videoUrl} poster={p.avatarUrl} speaking={!!session.aiPlaying} />
+            ) : p.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.photoUrl} alt="" className="h-full w-full object-cover" />
             ) : p.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />
@@ -1373,7 +1376,10 @@ function FloatingBubbles({ inRoom, me, media, session, host, onSpotlight, onOpen
               <div className={cn("grid h-full w-full place-items-center overflow-hidden rounded-full border-2 bg-[#181820] shadow-lg", spotlit ? "border-amber-400" : p.isAI ? "border-cyan-400" : p.role === "HOST" ? "border-brand-400" : "border-white/70")}>
                 {feed ? <VideoFeed stream={feed} muted mirror={p.id === me.id} /> : p.isAI && p.videoUrl ? (
                   <AvatarVideo url={p.videoUrl} poster={p.avatarUrl} speaking={!!session.aiPlaying} />
-                ) : p.avatarUrl ? (
+                ) : p.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={p.photoUrl} alt="" className="h-full w-full object-cover" />
+            ) : p.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
@@ -1815,6 +1821,9 @@ function Tile({ p, session, me, host, act, onSpotlight, feed }: {
         <VideoFeed stream={feed} muted mirror={p.id === me.id} />
       ) : p.isAI && p.videoUrl ? (
         <AvatarVideo url={p.videoUrl} poster={p.avatarUrl} speaking={!!session.aiPlaying} />
+      ) : p.photoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={p.photoUrl} alt="" className="h-full w-full object-cover" />
       ) : p.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={p.avatarUrl} alt="" className="h-full w-full object-cover" />

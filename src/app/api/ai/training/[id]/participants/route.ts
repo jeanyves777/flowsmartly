@@ -74,7 +74,8 @@ type Action =
   | "start_share"
   | "stop_share"
   | "raise_hand"
-  | "lower_hand";
+  | "lower_hand"
+  | "set_photo"; // use a still photo as your tile (instead of live camera)
 
 /**
  * POST — every host control over a person, in one place.
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const actor = await getTrainingActor(id);
   if (!actor) return err("Access denied", 403);
 
-  const b = (await request.json().catch(() => ({}))) as { action?: Action; participantId?: string };
+  const b = (await request.json().catch(() => ({}))) as { action?: Action; participantId?: string; photoUrl?: string | null };
   const action = b.action;
   if (!action) return err("No action");
 
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // Self-service actions a trainee (or guest) may take for themselves. Your own
   // camera is always yours — a host can't switch someone's camera ON for them.
-  const SELF: Action[] = ["raise_hand", "lower_hand", "start_share", "stop_share", "mute", "unmute", "cam_on", "cam_off"];
+  const SELF: Action[] = ["raise_hand", "lower_hand", "start_share", "stop_share", "mute", "unmute", "cam_on", "cam_off", "set_photo"];
   const isSelf = b.participantId === meId;
   if (!canControlRoom({ role: actor.role }) && !(isSelf && SELF.includes(action))) {
     return err("Only a host can do that", 403);
@@ -258,6 +259,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     case "lower_hand":
       await prisma.trainingParticipant.update({ where: { id: participantId }, data: { handRaised: false } });
       break;
+    case "set_photo": {
+      // Use a still photo as your tile. Setting one turns the live camera OFF (the photo
+      // stands in for it); clearing it (null) just removes the photo.
+      const url = typeof b.photoUrl === "string" && /^https?:\/\//.test(b.photoUrl) ? b.photoUrl : null;
+      await prisma.trainingParticipant.update({ where: { id: participantId }, data: url ? { photoUrl: url, camOn: false } : { photoUrl: null } });
+      break;
+    }
     default:
       return err("Unknown action");
   }
