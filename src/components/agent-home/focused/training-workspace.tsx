@@ -24,6 +24,7 @@ import { BackOffice } from "./training/back-office";
 import { DeckBuilder } from "./training/deck-builder";
 import { BriefSheet, type BriefDraft, type DeckDraft } from "./training/brief-sheet";
 import { PresenterSetup } from "./training/presenter-setup";
+import { useAgentNav } from "@/components/flow-ai/agent-nav-context";
 import { useRoom } from "./training/use-room";
 import { slideCountForDuration } from "@/lib/training/deck-cost";
 import type { SegmentKind, TrainingSessionDTO, PresenterProfileDTO } from "@/lib/training/types";
@@ -74,6 +75,14 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
   const [uploading, setUploading] = useState(false);
   const [deckAutoGen, setDeckAutoGen] = useState<DeckAutoGen | null>(null);
   const [presenterOpen, setPresenterOpen] = useState(false);
+  const nav = useAgentNav();
+  // Returning from the Clone Studio ("Back to AI Presenter Assistant") reopens the presenter
+  // wizard where the user left off, with their fresh clone ready to pick — unbroken flow.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("tg-open-presenter") === "1") { sessionStorage.removeItem("tg-open-presenter"); setPresenterOpen(true); }
+    } catch { /* ignore */ }
+  }, []);
   const [presenter, setPresenter] = useState<PresenterProfileDTO | null>(null);
   const [wantsPresenter, setWantsPresenter] = useState(false);
 
@@ -533,7 +542,12 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
         wantsPresenter={wantsPresenter} onWantsPresenter={setWantsPresenter}
       />
 
-      <PresenterSetup open={presenterOpen} onClose={() => setPresenterOpen(false)} onChoose={(p) => { setPresenter(p); setWantsPresenter(true); setPresenterOpen(false); }} />
+      <PresenterSetup
+        open={presenterOpen}
+        onClose={() => setPresenterOpen(false)}
+        onChoose={(p) => { setPresenter(p); setWantsPresenter(true); setPresenterOpen(false); }}
+        onCloneMyself={nav ? () => { try { sessionStorage.setItem("tg-clone-return", "1"); } catch {} setPresenterOpen(false); nav("/home/clone"); } : undefined}
+      />
 
       {listOpen ? (
         <>
