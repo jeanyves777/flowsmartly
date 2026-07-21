@@ -178,6 +178,9 @@ export interface DeckSlide {
   /** AI-presenter narration for this slide — the spoken script + synthesized audio the
    *  co-host plays while the slide is on the stage. Generated from the presenter's voice. */
   narration?: SlideNarration;
+  /** the spoken ANSWER-reveal for a quiz slide ("The correct answer is …") — played when
+   *  the host resumes after the hand-raise pause, instead of re-reading the question. */
+  quizReveal?: SlideNarration;
   /** a "pause for questions" moment: the co-host invites questions, then STOPS instead of
    *  auto-advancing so the room can ask (host or AI answers). `final` = the wrap-up Q&A
    *  before the conclusion. Rendered as a clean "Any questions?" prompt. */
@@ -283,6 +286,7 @@ export interface TrainingSessionDTO {
   waitingRoom: boolean;
   recording: boolean;
   recordingStartedAt: string | null; // ISO — shared start instant so every client's REC timer matches
+  recordingPausedAt: string | null;  // ISO — set while PAUSED, so the timer freezes for everyone
   joinHeadline: string | null;
   joinMessage: string | null;
   joinLogoUrl: string | null;

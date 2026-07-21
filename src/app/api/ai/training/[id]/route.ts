@@ -50,6 +50,8 @@ interface PatchBody {
   stagePage?: number;
   stageStep?: number;
   aiPlaying?: boolean;
+  recordingStartedAt?: string | null; // host resume shifts this forward past the paused span
+  recordingPausedAt?: string | null;  // host pause/resume — synced so the timer freezes for all
 }
 
 /**
@@ -78,8 +80,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (typeof b[k] === "boolean") data[k] = b[k];
   }
   // Stamp when recording BEGINS so every client's REC timer counts from the same
-  // instant (not from each viewer's own join time). Clear it when recording stops.
-  if (typeof b.recording === "boolean") data.recordingStartedAt = b.recording ? new Date() : null;
+  // instant (not from each viewer's own join time). Clear both timestamps when it stops.
+  if (typeof b.recording === "boolean") { data.recordingStartedAt = b.recording ? new Date() : null; data.recordingPausedAt = null; }
+  // Pause/resume: the host sends recordingPausedAt (pause) or a shifted recordingStartedAt
+  // + null recordingPausedAt (resume) so the timer stays consistent for everyone.
+  if (b.recordingStartedAt !== undefined) data.recordingStartedAt = b.recordingStartedAt ? new Date(b.recordingStartedAt) : null;
+  if (b.recordingPausedAt !== undefined) data.recordingPausedAt = b.recordingPausedAt ? new Date(b.recordingPausedAt) : null;
   if (b.rosterLayout && ["side", "top", "bottom"].includes(b.rosterLayout)) data.rosterLayout = b.rosterLayout;
   if (b.spotlightId !== undefined) data.spotlightId = b.spotlightId || null;
   if (b.activeSegmentId !== undefined) data.activeSegmentId = b.activeSegmentId || null;
@@ -113,6 +119,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         waitingRoom: dto.waitingRoom,
         recording: dto.recording,
         recordingStartedAt: dto.recordingStartedAt,
+        recordingPausedAt: dto.recordingPausedAt,
         locked: dto.locked,
         hideBoard: dto.hideBoard,
         rosterLayout: dto.rosterLayout,

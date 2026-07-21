@@ -202,6 +202,7 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
     waitingRoom: row.waitingRoom,
     recording: row.recording,
     recordingStartedAt: row.recordingStartedAt ? row.recordingStartedAt.toISOString() : null,
+    recordingPausedAt: row.recordingPausedAt ? row.recordingPausedAt.toISOString() : null,
     transcript: row.transcript,
     joinHeadline: row.joinHeadline,
     joinMessage: row.joinMessage,

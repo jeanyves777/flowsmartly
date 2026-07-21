@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   if (!charge.success) return err(charge.error || "Not enough credits to generate narration", 402);
   const refund = async (n: number) => { if (n > 0) await creditService.addCredits?.({ userId: session.userId, type: "REFUND", amount: n, description: "Refund: unused narration credits", referenceType: "presenter_narration", referenceId: mat.sessionId }).catch(() => {}); };
 
-  let result: NarrateResult = { narrations: {}, cloneRequested: false, cloneUsed: false };
+  let result: NarrateResult = { narrations: {}, reveals: {}, cloneRequested: false, cloneUsed: false };
   try {
     result = await narrateDeck({ slides: deck.slides, sessionId: mat.sessionId, voice, pace: presenter.pace ?? 1, style: presenter.deliveryStyle ?? "conversational", presenterName: presenter.name });
   } catch (e) { console.error("[narrate] failed:", e instanceof Error ? e.message : e); await refund(maxCharge); return err("Couldn't generate the narration — try again", 502); }
@@ -62,7 +62,13 @@ export async function POST(request: NextRequest) {
   await refund(maxCharge - (BASE + count * PER_SLIDE));
   if (!count) return err("Couldn't voice the slides just now — please try again in a moment.", 502);
 
-  deck.slides = deck.slides.map((s) => (narrations[s.id] ? { ...s, narration: narrations[s.id] } : s));
+  const reveals = result.reveals;
+  deck.slides = deck.slides.map((s) => {
+    let out = s;
+    if (narrations[s.id]) out = { ...out, narration: narrations[s.id] };
+    if (reveals[s.id]) out = { ...out, quizReveal: reveals[s.id] };
+    return out;
+  });
   await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck) } });
 
   // if a cloned voice was requested but couldn't be reached, the audio used a preset —

@@ -53,6 +53,15 @@ Return JSON: { "scripts": string[] } with EXACTLY ${slides.length} entries, in o
   });
 }
 
+/** The spoken ANSWER reveal for a quiz — deterministic (the data is already on the slide),
+ *  so no AI call is needed. Played when the host resumes after the hand-raise pause. */
+function quizRevealScript(q: { options: string[]; answerIndex: number; explanation?: string }): string {
+  const letter = String.fromCharCode(65 + q.answerIndex);
+  const opt = q.options[q.answerIndex] ?? "";
+  const why = q.explanation ? ` ${q.explanation}` : "";
+  return `The correct answer is ${letter} — ${opt}.${why} Great — let's keep going.`;
+}
+
 const STYLE_MAP: Record<string, "professional" | "conversational" | "energetic" | "warm"> = {
   professional: "professional", conversational: "conversational", energetic: "energetic", teacher: "warm",
 };
@@ -84,6 +93,8 @@ export async function synthesize(text: string, voice: ClonedVoice | null, pace: 
 
 export interface NarrateResult {
   narrations: Record<string, SlideNarration>;
+  /** per-quiz-slide ANSWER-reveal narration, keyed by slide id (played on resume) */
+  reveals: Record<string, SlideNarration>;
   /** the presenter asked for a cloned voice */
   cloneRequested: boolean;
   /** at least one slide actually used the cloned voice (vs the preset fallback) */
@@ -102,6 +113,7 @@ export async function narrateDeck(opts: {
 }): Promise<NarrateResult> {
   const scripts = await writeDeckScripts(opts.slides, opts.style, opts.presenterName);
   const out: Record<string, SlideNarration> = {};
+  const reveals: Record<string, SlideNarration> = {};
   const cloneRequested = !!(opts.voice?.elevenLabsVoiceId || opts.voice?.openaiVoiceId);
   let cloneUsed = false;
   const LIMIT = 3;
@@ -114,8 +126,17 @@ export async function narrateDeck(opts: {
         if (usedClone) cloneUsed = true;
         const audioUrl = await uploadToS3(`training/${opts.sessionId}/narration/${s.id}.mp3`, buffer, "audio/mpeg");
         out[s.id] = { text, audioUrl, durationMs };
+        // A quiz slide gets a SECOND clip: the spoken answer reveal, played on resume so the
+        // co-host says "The correct answer is …" instead of re-reading the question.
+        if (s.quiz) {
+          const revText = quizRevealScript(s.quiz);
+          const rev = await synthesize(revText, opts.voice, opts.pace, opts.style);
+          if (rev.usedClone) cloneUsed = true;
+          const revUrl = await uploadToS3(`training/${opts.sessionId}/narration/${s.id}-reveal.mp3`, rev.buffer, "audio/mpeg");
+          reveals[s.id] = { text: revText, audioUrl: revUrl, durationMs: rev.durationMs };
+        }
       } catch (e) { console.error(`[narration] slide ${s.id} synthesis failed:`, e instanceof Error ? e.message : e); }
     }));
   }
-  return { narrations: out, cloneRequested, cloneUsed };
+  return { narrations: out, reveals, cloneRequested, cloneUsed };
 }

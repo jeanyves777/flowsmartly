@@ -50,7 +50,10 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
       <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[#1b2540] via-[#161a2c] to-[#100e18] px-[7%] py-[6%] [container-type:inline-size]", className)}>
         <div className="mb-[2cqw] inline-flex items-center gap-2 self-start rounded-full bg-brand-500/20 px-[2.2cqw] py-[1cqw] text-[clamp(5px,1.7cqw,15px)] font-black uppercase tracking-wide text-brand-300">💡 Quick check</div>
         <h1 className="text-[clamp(9px,3.4cqw,34px)] font-extrabold leading-tight text-white">{md(q.question)}</h1>
-        <div className="mt-[3cqw] grid grid-cols-1 gap-[1.6cqw] sm:grid-cols-2">
+        {/* ALWAYS 2 columns — this is a 16:9 (landscape) container, so a viewport `sm:`
+            breakpoint was wrong: on a phone it stacked 4 options into ONE tall column that
+            overflowed the 16:9 box (clipped top+bottom). 2 columns always fit. */}
+        <div className="mt-[3cqw] grid grid-cols-2 gap-[1.6cqw]">
           {q.options.map((o, k) => {
             const correct = revealed && k === q.answerIndex;
             return (
