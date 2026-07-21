@@ -172,16 +172,18 @@ export class BackgroundCompositor {
     const h = this.canvas.height;
     const ctx = this.ctx;
 
-    // 1) person alpha → mask canvas
+    // 1) person alpha → mask canvas.
+    // Which category value is the PERSON is model-dependent and the docs (person = index 1)
+    // did NOT match our committed model (real cameras showed the background painted OVER the
+    // person). So DETECT it instead of hard-coding: the frame BORDER is almost always
+    // background, so we take the border's majority value as "background" and treat every
+    // other value as the person. Robust to either polarity AND to an off-centre person.
+    const bgVal = borderBackgroundValue(mask, mw, mh);
     this.maskCanvas.width = mw;
     this.maskCanvas.height = mh;
     const img = this.maskCtx.createImageData(mw, mh);
     for (let i = 0; i < mask.length; i++) {
-      // selfie_segmenter category mask: 0 = BACKGROUND, non-zero (category 1) = PERSON.
-      // So the person's alpha is where the mask is NON-ZERO. (A prior flip to `=== 0`
-      // inverted this — it painted the chosen background OVER the person while the real
-      // room showed through. Robust regardless of the category value since bg is always 0.)
-      const on = mask[i] !== 0 ? 255 : 0;
+      const on = mask[i] !== bgVal ? 255 : 0; // person = anything that isn't the background
       const j = i * 4;
       img.data[j] = 255;
       img.data[j + 1] = 255;
@@ -190,11 +192,14 @@ export class BackgroundCompositor {
     }
     this.maskCtx.putImageData(img, 0, 0);
 
-    // 2) keep only the person's pixels from the live video
+    // 2) keep only the person's pixels from the live video, FEATHERED — a small blur on the
+    // cutout edge (like Zoom/Teams) so the silhouette isn't a hard, jagged line.
     ctx.save();
     ctx.clearRect(0, 0, w, h);
     ctx.imageSmoothingEnabled = true;
+    ctx.filter = "blur(2.5px)";
     ctx.drawImage(this.maskCanvas, 0, 0, w, h);
+    ctx.filter = "none";
     ctx.globalCompositeOperation = "source-in";
     ctx.drawImage(this.video, 0, 0, w, h);
 
@@ -220,6 +225,21 @@ export class BackgroundCompositor {
     }
     ctx.restore();
   }
+}
+
+/** The PERSON category value in a segmentation mask is model-dependent (person=0 or
+ *  person=1 depending on the build), so we can't hard-code it. The frame's OUTER BORDER is
+ *  almost always background, so its majority value IS the background — everything else is
+ *  the person. This makes the cutout correct for either polarity and even when the person
+ *  isn't centred. */
+function borderBackgroundValue(mask: Uint8Array, mw: number, mh: number): number {
+  const counts = new Map<number, number>();
+  const add = (v: number) => counts.set(v, (counts.get(v) ?? 0) + 1);
+  for (let x = 0; x < mw; x += 3) { add(mask[x]); add(mask[(mh - 1) * mw + x]); }        // top + bottom rows
+  for (let y = 0; y < mh; y += 3) { add(mask[y * mw]); add(mask[y * mw + (mw - 1)]); }    // left + right cols
+  let bg = 0, best = -1;
+  for (const [v, c] of counts) if (c > best) { best = c; bg = v; }
+  return bg;
 }
 
 /** Wait until the camera's real frame size is known (or give up after a beat), so the
