@@ -1085,9 +1085,14 @@ export function AgentHome() {
   return (
     <AgentNavContext.Provider value={navigateInApp}>
     {showIntro && user && <AgentIntro onDone={finishIntro} />}
+    {/* svh (SMALLEST viewport) not dvh: a mobile browser's collapsing URL/tool bar
+        must NEVER hide the app's own top/bottom chrome. With dvh the shell stretched
+        into the tall state and flush-bottom bars (e.g. the training live-room
+        controls) ended up behind the toolbar — you had to scroll to reach them.
+        svh keeps the whole shell inside the always-visible area. */}
     <div
       dir={dir}
-      className="flex h-[100dvh] flex-col bg-background text-foreground"
+      className="flex h-[100svh] flex-col bg-background text-foreground"
       style={{ backgroundImage: "radial-gradient(1100px 600px at 82% -10%, rgba(14,165,233,.10), transparent 60%), radial-gradient(900px 600px at -5% 110%, rgba(139,92,246,.09), transparent 55%)" }}
     >
       {/* AGENT MODE BANNER */}
