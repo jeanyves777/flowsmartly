@@ -13,7 +13,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { GraduationCap, FolderOpen, Sparkles, Radio, LayoutGrid, SlidersHorizontal, Users, Presentation, Bot } from "lucide-react";
+import { GraduationCap, FolderOpen, Sparkles, Radio, LayoutGrid, SlidersHorizontal, Users, Presentation, Bot, Play } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -55,6 +55,7 @@ interface SessionRow {
   plannedMins: number;
   seats: number;
   startedAt: string | null;
+  recordingUrl?: string | null;
 }
 
 export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
@@ -65,6 +66,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
   const [briefOpen, setBriefOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [rows, setRows] = useState<SessionRow[]>([]);
+  const [watchRec, setWatchRec] = useState<SessionRow | null>(null); // recording playback
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [estimate, setEstimate] = useState<{ total: number; room: number } | null>(null);
@@ -546,33 +548,54 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
                 <p className="p-4 text-center text-[12px] text-muted-foreground">No sessions yet.</p>
               ) : (
                 rows.map((r) => (
-                  <button
+                  <div
                     key={r.id}
-                    onClick={() => { setSessionId(r.id); setListOpen(false); setMode("plan"); }}
                     className={cn(
-                      "mb-1.5 flex w-full items-center gap-2.5 rounded-xl border p-2.5 text-left transition",
+                      "mb-1.5 flex w-full items-center gap-2.5 rounded-xl border p-2.5 transition",
                       r.id === sessionId ? "border-brand-500 bg-brand-500/[0.06]" : "border-border hover:border-brand-500/50",
                     )}
                   >
-                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-muted">
-                      <GraduationCap className="h-4 w-4 text-brand-400" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <b className="block truncate text-[12px]">{r.title}</b>
-                      <span className="text-[10px] text-muted-foreground">{r.plannedMins} min · {r.seats} seats</span>
-                    </span>
+                    <button onClick={() => { setSessionId(r.id); setListOpen(false); setMode("plan"); }} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-muted">
+                        <GraduationCap className="h-4 w-4 text-brand-400" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <b className="block truncate text-[12px]">{r.title}</b>
+                        <span className="text-[10px] text-muted-foreground">{r.plannedMins} min · {r.seats} seats{r.recordingUrl ? " · Recorded" : ""}</span>
+                      </span>
+                    </button>
+                    {r.recordingUrl ? (
+                      <button onClick={() => setWatchRec(r)} title="Watch recording" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-brand-400 transition hover:border-brand-500 hover:bg-brand-500/10">
+                        <Play className="h-3.5 w-3.5 fill-current" />
+                      </button>
+                    ) : null}
                     <span className={cn(
                       "shrink-0 rounded-full px-1.5 py-px text-[9px] font-extrabold",
                       r.status === "live" ? "bg-rose-500 text-white" : r.status === "ended" ? "bg-muted text-muted-foreground" : "bg-brand-500/15 text-brand-400",
                     )}>
                       {r.status}
                     </span>
-                  </button>
+                  </div>
                 ))
               )}
             </div>
           </div>
         </>
+      ) : null}
+
+      {/* recording playback — return to a saved session */}
+      {watchRec?.recordingUrl ? (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/70 p-4" onClick={() => setWatchRec(null)}>
+          <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+              <b className="min-w-0 flex-1 truncate text-[14px]">{watchRec.title}</b>
+              <button onClick={() => { navigator.clipboard?.writeText(watchRec.recordingUrl!).catch(() => {}); toast({ title: "Recording link copied" }); }} className="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500">Copy link</button>
+              <button onClick={() => setWatchRec(null)} className="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500">Close</button>
+            </div>
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video src={watchRec.recordingUrl} controls autoPlay className="aspect-video w-full bg-black" />
+          </div>
+        </div>
       ) : null}
     </div>
   );
