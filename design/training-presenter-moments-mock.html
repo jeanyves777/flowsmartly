@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI Presenter On‑Screen Moments — mock</title>
+<style>
+  :root{
+    --bg:#0a0d16; --card:#121524; --card2:#161a2c; --border:#242a3d; --muted:#8a92a8;
+    --fg:#eef1f8; --brand:#7c5cff; --brand2:#a855f7; --cyan:#22d3ee; --emerald:#34d399; --amber:#fbbf24;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 20% -10%,#171a2e,transparent),var(--bg);color:var(--fg);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:22px;font-weight:800;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 22px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:18px}
+  .panel h2{font-size:13px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 14px;display:flex;align-items:center;gap:8px}
+  .dot{width:9px;height:9px;border-radius:99px;background:linear-gradient(135deg,var(--brand),var(--brand2))}
+  .lead{font-size:13px;color:#c9d0e2;margin:0 0 16px}
+  .lead b{color:#fff}
+  /* tier picker */
+  .tier{display:block;width:100%;text-align:left;background:var(--card2);border:1.5px solid var(--border);border-radius:14px;padding:14px 15px;margin-bottom:10px;cursor:pointer;transition:.15s;position:relative}
+  .tier:hover{border-color:#3a4160}
+  .tier.on{border-color:var(--brand);background:linear-gradient(180deg,rgba(124,92,255,.12),transparent)}
+  .tier .t{font-weight:800;font-size:14px;display:flex;align-items:center;gap:8px}
+  .tier .d{color:var(--muted);font-size:12px;margin-top:3px}
+  .tier .cost{position:absolute;right:14px;top:14px;font-weight:800;font-size:13px;color:var(--brand2)}
+  .radio{width:16px;height:16px;border-radius:99px;border:2px solid var(--border);display:inline-grid;place-items:center;flex:0 0 auto}
+  .tier.on .radio{border-color:var(--brand)}
+  .tier.on .radio::after{content:"";width:8px;height:8px;border-radius:99px;background:var(--brand)}
+  .costbar{display:flex;align-items:center;justify-content:space-between;margin:6px 2px 14px;font-size:12px;color:var(--muted)}
+  .costbar b{color:#fff;font-size:15px}
+  .btn{width:100%;border:0;border-radius:13px;padding:13px;font-weight:800;font-size:14px;color:#fff;cursor:pointer;
+    background:linear-gradient(135deg,var(--brand),var(--brand2));display:flex;align-items:center;justify-content:center;gap:8px}
+  .note{font-size:11px;color:var(--muted);margin:12px 2px 0;line-height:1.5}
+  .chip{display:inline-flex;align-items:center;gap:5px;background:rgba(124,92,255,.14);color:#c6b8ff;border:1px solid rgba(124,92,255,.3);
+    border-radius:99px;padding:3px 9px;font-size:11px;font-weight:700}
+  /* timeline */
+  .tl{display:flex;align-items:center;gap:0;margin:4px 0 6px;height:52px}
+  .seg{flex:1;height:38px;border-radius:8px;display:grid;place-items:center;font-size:10px;font-weight:800;color:#0b0d16;position:relative}
+  .seg.slide{background:#242a3d;color:var(--muted)}
+  .seg.iv{background:linear-gradient(135deg,var(--cyan),var(--brand));color:#04121a}
+  .seg small{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--muted);white-space:nowrap}
+  .legend{display:flex;gap:14px;margin-top:24px;font-size:11px;color:var(--muted)}
+  .sw{width:12px;height:12px;border-radius:4px;display:inline-block;vertical-align:-2px;margin-right:5px}
+  /* live-room preview */
+  .stage{aspect-ratio:16/9;background:#0e0e13;border:1px solid var(--border);border-radius:14px;position:relative;overflow:hidden}
+  .slideview{position:absolute;inset:0;background:linear-gradient(135deg,#1b2540,#100e18);padding:22px;display:flex;flex-direction:column;justify-content:center;transition:opacity .5s,transform .5s}
+  .slideview h3{margin:0 0 8px;font-size:19px}
+  .slideview li{color:#c4c9dc;font-size:12px;margin:3px 0}
+  .presenter{position:absolute;inset:0;background:#000;display:grid;place-items:center;transition:opacity .5s,transform .5s;opacity:0;pointer-events:none}
+  .presenter img{width:100%;height:100%;object-fit:cover}
+  .badge{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,.6);border-radius:8px;padding:5px 9px;font-size:11px;font-weight:700;display:flex;gap:6px;align-items:center;z-index:3}
+  .ai{background:linear-gradient(135deg,var(--cyan),var(--brand));color:#04222a;font-weight:900;border-radius:5px;padding:1px 5px;font-size:9px}
+  .stage.showP .presenter{opacity:1}
+  .stage.showP .slideview{opacity:0;transform:scale(1.04)}
+  .cc{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);background:rgba(0,0,0,.72);border-radius:9px;padding:6px 12px;font-size:12px;font-weight:600;max-width:82%;text-align:center;z-index:4}
+  .controls{display:flex;gap:8px;margin-top:12px}
+  .controls button{flex:1;background:var(--card2);border:1px solid var(--border);color:var(--fg);border-radius:10px;padding:9px;font-weight:700;font-size:12px;cursor:pointer}
+  .controls button:hover{border-color:var(--brand)}
+  .flow{font-size:11px;color:var(--muted);margin-top:10px;text-align:center}
+  .flow b{color:var(--cyan)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>AI Presenter — on‑screen moments</h1>
+  <p class="sub">Realistic talking video of you (Avatar&nbsp;IV) at the intro, outro, and a couple of moments between slides — in your cloned voice — then seamlessly back to slides.</p>
+
+  <div class="grid">
+    <!-- LEFT: Build Studio picker -->
+    <div class="panel">
+      <h2><span class="dot"></span> Build studio · presenter on screen</h2>
+      <p class="lead">Have your presenter <b>appear on screen and actually speak</b> — photoreal, in your voice — at key moments. Everywhere else, slides play while your voice narrates and your looping avatar sits in the corner (as now).</p>
+
+      <label class="tier" data-mins="0.4" onclick="pick(this)">
+        <div class="t"><span class="radio"></span> Off</div>
+        <div class="d">Slides + voice narration only. No on‑screen talking video.</div>
+        <div class="cost">Free</div>
+      </label>
+
+      <label class="tier on" data-mins="0.4" onclick="pick(this)">
+        <div class="t"><span class="radio"></span> Intro + outro</div>
+        <div class="d">You open and close on screen, speaking. ~24s of talking video.</div>
+        <div class="cost" data-per="24">≈ 12 cr</div>
+      </label>
+
+      <label class="tier" data-mins="0.75" onclick="pick(this)">
+        <div class="t"><span class="radio"></span> Intro + outro + between‑slide moments</div>
+        <div class="d">Plus 2 short "let me connect this" moments mid‑session. ~45s total.</div>
+        <div class="cost" data-per="45">≈ 22 cr</div>
+      </label>
+
+      <div class="costbar"><span>Estimated cost <span class="chip">0.3 cr/sec + service</span></span><b id="total">≈ 12 credits</b></div>
+      <button class="btn">✨ Generate presenter videos</button>
+      <p class="note">Renders in the background (a couple of minutes). You can keep building; each moment shows a “Ready” tick when done. Longer than one clip? It’s split and stitched automatically.</p>
+
+      <h2 style="margin-top:22px"><span class="dot"></span> Where they play</h2>
+      <div class="tl" id="tl"></div>
+      <div class="legend">
+        <span><span class="sw" style="background:linear-gradient(135deg,var(--cyan),var(--brand))"></span>Presenter on screen (Avatar IV)</span>
+        <span><span class="sw" style="background:#242a3d"></span>Slide + voice + looping avatar</span>
+      </div>
+    </div>
+
+    <!-- RIGHT: live-room preview -->
+    <div class="panel">
+      <h2><span class="dot"></span> In the live room</h2>
+      <div class="stage" id="stage">
+        <div class="slideview">
+          <h3>Agentic AI in Cybersecurity</h3>
+          <div style="color:#a99be0;font-size:12px;margin-bottom:10px">Intelligent automation defending your business 24/7</div>
+          <ul style="margin:0;padding-left:16px">
+            <li>Vulnerability assessment &amp; endpoint protection</li>
+            <li>MFA enforcement and incident response</li>
+            <li>Agents that detect threats faster than humans</li>
+          </ul>
+          <div class="cc" id="slidecc">…so those are the five pillars we’ll build on.</div>
+        </div>
+        <div class="presenter">
+          <img src="https://flowsmartly-media.s3.us-east-2.amazonaws.com/presenters/placeholder.jpg" onerror="this.style.display='none';this.parentElement.style.background='linear-gradient(135deg,#221a3a,#3a2c5e)'" alt="" />
+          <div class="cc" id="prescc">Great — before we go on, remember: prioritise by exploitability, not just severity. Alright, let’s keep going.</div>
+        </div>
+        <div class="badge"><span class="ai">AI</span> Jean‑Yves · co‑host</div>
+      </div>
+      <div class="controls">
+        <button onclick="mode('slide')">▦ Slide + narration</button>
+        <button onclick="mode('pres')">🗣 Talking moment</button>
+        <button onclick="playSeq()">▶ Play the transition</button>
+      </div>
+      <p class="flow">Slide → <b>presenter comes full‑screen &amp; speaks</b> → seamlessly back to the next slide. Same look you already approved for the intro.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const MARKUP = 1.6; // service markup on the 0.3 cr/sec HeyGen cost, shown as credits
+  function creditsFor(sec){ return Math.round(sec*0.3*MARKUP); }
+  function pick(el){
+    document.querySelectorAll('.tier').forEach(t=>t.classList.remove('on'));
+    el.classList.add('on');
+    const per = +(el.querySelector('.cost').dataset.per||0);
+    document.getElementById('total').textContent = per? '≈ '+creditsFor(per)+' credits' : 'Free';
+    document.querySelectorAll('.tier .cost[data-per]').forEach(c=>{c.textContent='≈ '+creditsFor(+c.dataset.per)+' cr';});
+    buildTL(el);
+  }
+  function buildTL(el){
+    const tl=document.getElementById('tl'); tl.innerHTML='';
+    const t=el.querySelector('.t').textContent.trim();
+    let segs;
+    if(t==='Off') segs=[['Intro','slide'],['Slides','slide'],['Slides','slide'],['Slides','slide'],['Outro','slide']];
+    else if(t.startsWith('Intro + outro +')) segs=[['Intro','iv'],['Slides','slide'],['Moment','iv'],['Slides','slide'],['Moment','iv'],['Slides','slide'],['Outro','iv']];
+    else segs=[['Intro','iv'],['Slides','slide'],['Slides','slide'],['Slides','slide'],['Outro','iv']];
+    segs.forEach(([label,k])=>{const d=document.createElement('div');d.className='seg '+k;d.innerHTML=(k==='iv'?'🗣':'▦')+'<small>'+label+'</small>';tl.appendChild(d);});
+  }
+  function mode(m){ document.getElementById('stage').classList.toggle('showP', m==='pres'); }
+  function playSeq(){
+    mode('slide');
+    setTimeout(()=>mode('pres'),500);
+    setTimeout(()=>mode('slide'),4200);
+  }
+  buildTL(document.querySelector('.tier.on'));
+</script>
+</body>
+</html>
