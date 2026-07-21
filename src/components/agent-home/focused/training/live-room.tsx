@@ -296,8 +296,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const narration = quizRevealPhase
     ? (deckSlide?.quizReveal ?? deckSlide?.narration ?? null)
     : (deckSlide?.narration ?? null);
-  // An on-screen MOMENT (intro / between-slide) that has a rendered Avatar IV talking video:
-  // the VIDEO carries the spoken audio, so we must NOT also play the narration track.
+  // An on-screen MOMENT (intro / between-slide) that has a rendered talking video: the VIDEO
+  // carries the cloned-voice audio, so we must NOT also play the narration track.
   const momentVideoUrl = deckSlide?.intro ? (material?.deck?.introVideoUrl ?? null) : deckSlide?.presenterMoment ? (deckSlide.momentVideoUrl ?? null) : null;
   const isMomentVideo = !!momentVideoUrl;
   const aiAudioRef = useRef<HTMLAudioElement | null>(null);
