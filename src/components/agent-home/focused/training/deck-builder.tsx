@@ -80,11 +80,12 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       // (which can be generated after the presenter is already selected).
       // The deck is the source of truth for its intro/outro videos (generated per-deck via
       // iv-moment); the profile's are only a fallback, so a freshly generated URL isn't wiped.
-      const introUrl = d.introVideoUrl ?? presenter.introVideoUrl ?? null;
-      const outroUrl = d.outroVideoUrl ?? presenter.outroVideoUrl ?? null;
+      // NOTE: intro/outro/moment videos are DECK-managed (generated per-deck via iv-moment)
+      // and preserved via `...d` — this effect must NOT touch them, or it wipes a freshly
+      // generated URL on the next presenter change (that's the bug that lost introVideoUrl).
       const loop = presenter.loopVideoUrl ?? d.presenterVideoUrl ?? null;
-      if (d.presenterId === presenter.id && (d.presenterVideoUrl ?? null) === loop && (d.introVideoUrl ?? null) === introUrl && (d.outroVideoUrl ?? null) === outroUrl) return d;
-      const next = { ...d, presenterId: presenter.id, presenterVideoUrl: loop, introVideoUrl: introUrl, outroVideoUrl: outroUrl, presenterActive: d.presenterActive ?? true };
+      if (d.presenterId === presenter.id && (d.presenterVideoUrl ?? null) === loop) return d;
+      const next = { ...d, presenterId: presenter.id, presenterVideoUrl: loop, presenterActive: d.presenterActive ?? true };
       persist(next);
       return next;
     });
@@ -147,7 +148,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id, target: kind }),
       }).then((r) => r.json());
       if (!j?.success) { toast({ title: j?.error?.message || `Couldn't generate the ${kind} video`, variant: "destructive" }); return; }
-      setDeck((d) => d ? { ...d, ...(kind === "intro" ? { introVideoUrl: j.data.videoUrl as string } : { outroVideoUrl: j.data.videoUrl as string }) } : d);
+      if (j.data.deck) { setDeck(j.data.deck as TrainingDeck); persist(j.data.deck as TrainingDeck); }
       toast({ title: `${kind === "intro" ? "Intro" : "Outro"} video ready`, description: "A realistic talking presenter video is set." });
     } finally { setBusy(null); }
   };
@@ -165,7 +166,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id, target: s.id }),
         }).then((r) => r.json());
         if (!j?.success) { toast({ title: j?.error?.message || "Couldn't render a moment", variant: "destructive" }); break; }
-        setDeck((d) => d ? { ...d, slides: d.slides.map((x) => x.id === s.id ? { ...x, momentVideoUrl: j.data.videoUrl as string } : x) } : d);
+        if (j.data.deck) { setDeck(j.data.deck as TrainingDeck); persist(j.data.deck as TrainingDeck); }
       }
       toast({ title: "Talking moments ready", description: "Your co-host now appears on screen between slides." });
     } finally { setBusy(null); }
