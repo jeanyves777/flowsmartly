@@ -277,6 +277,24 @@ export function initStoreDirV3(storeId: string, slug: string): string {
     writeFileSync(join(storeDir, "src", "components", "AccountModalProvider.tsx"), readFileSync(refAMPPath));
   }
 
+  // AccountModal — the drawer AccountModalProvider imports (`./AccountModal`).
+  // It's pre-built with the provider, so it MUST be copied too or every build
+  // fails with "Can't resolve './AccountModal'". Depends only on @/lib/data +
+  // @/lib/api-client (both builder/agent-provided).
+  const refAccountModalPath = join(REFERENCE_BASE, "components", "AccountModal.tsx");
+  if (existsSync(refAccountModalPath)) {
+    writeFileSync(join(storeDir, "src", "components", "AccountModal.tsx"), readFileSync(refAccountModalPath));
+  }
+
+  // CategoryClient — the client component the category page imports
+  // (`./CategoryClient`). The agent writes category/[slug]/page.tsx and has
+  // shipped pages importing this without creating it; provide it so the import
+  // always resolves. Depends only on ProductGrid + @/lib/data (agent-written).
+  const refCategoryClient = join(REFERENCE_BASE, "app", "category", "[slug]", "CategoryClient.tsx");
+  if (existsSync(refCategoryClient)) {
+    writeFileSync(join(storeDir, "src", "app", "category", "[slug]", "CategoryClient.tsx"), readFileSync(refCategoryClient));
+  }
+
   // Account dashboard — redirects to AccountModal (side drawer handles everything).
   const refAccountPath = join(REFERENCE_BASE, "app", "account", "page.tsx");
   if (existsSync(refAccountPath)) {
