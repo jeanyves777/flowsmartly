@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { checkRoomAccess, canControlRoom } from "@/lib/training/access";
 import { getSessionDTO } from "@/lib/training/session";
 import { broadcast } from "@/lib/training/room";
+import { startRoomRecording, stopRoomRecording } from "@/lib/training/recorder";
 import type { AccessMode, SessionType, StageSource } from "@/lib/training/types";
 
 const err = (message: string, status = 400) =>
@@ -101,6 +102,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!Object.keys(data).length) return err("Nothing to change");
 
   await prisma.trainingSession.update({ where: { id }, data });
+
+  // Recording toggled → tell the recorder bot to start/stop capturing the room (best-effort,
+  // no-op if no recorder is configured). Pause/resume don't re-toggle `recording`, so this
+  // only fires on a real start/stop.
+  if (typeof b.recording === "boolean") { void (b.recording ? startRoomRecording(id) : stopRoomRecording(id)); }
 
   // The stage moves everyone — push it rather than making clients poll for it.
   const dto = await getSessionDTO(id);
