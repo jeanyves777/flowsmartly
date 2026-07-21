@@ -6360,6 +6360,7 @@ model TrainingParticipant {
   state      String  @default("WAITING") // WAITING | ADMITTED | DENIED | LEFT | REMOVED
   /// a synthetic AI Presenter co-host (disclosed) — not a real connection
   isAI              Boolean @default(false)
+  isRecorder        Boolean @default(false) // the headless recording bot — hidden from the roster + never billed
   presenterProfileId String?
   photoUrl   String? // a still photo the attendee uses as their tile instead of the live camera
   canShare   Boolean @default(false)

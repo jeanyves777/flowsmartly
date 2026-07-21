@@ -136,7 +136,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         meterTick = setInterval(() => {
           void (async () => {
             try {
-              const live = connectedIds(id).length;
+              const ids = connectedIds(id);
+              // The recording bot connects like an attendee but must NEVER be billed.
+              const bots = ids.length
+                ? await prisma.trainingParticipant.count({ where: { sessionId: id, isRecorder: true, id: { in: ids } } })
+                : 0;
+              const live = Math.max(0, ids.length - bots);
               if (live > 0) await meterRoom(id, live * 60);
             } catch {
               /* never let metering kill the stream */

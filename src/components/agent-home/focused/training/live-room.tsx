@@ -237,7 +237,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const host = isHost(me.role);
   const iCanDraw = canDrawFn(me, session);
   const iHavePen = session.penHolderId === me.id;
-  const inRoom = useMemo(() => session.participants.filter((p) => p.state === "ADMITTED"), [session.participants]);
+  const inRoom = useMemo(() => session.participants.filter((p) => p.state === "ADMITTED" && !p.isRecorder), [session.participants]);
   const waiting = useMemo(() => session.participants.filter((p) => p.state === "WAITING"), [session.participants]);
   const sharer = useMemo(() => session.participants.find((p) => p.sharing) ?? null, [session.participants]);
   const material = useMemo(() => session.materials.find((m) => m.id === session.stageKey) ?? null, [session.materials, session.stageKey]);
