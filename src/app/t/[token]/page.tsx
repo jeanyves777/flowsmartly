@@ -67,6 +67,27 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
   const [micId, setMicId] = useState<string | null>(null);
   const [bg, setBg] = useState<BackgroundSpec>({ type: "none" });
   const [mediaErr, setMediaErr] = useState<string | null>(null);
+  const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null); // optional profile photo
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  // Resize the chosen photo to a small square-ish JPEG so it rides along in the join request
+  // (no separate upload endpoint needed pre-join).
+  const pickPhoto = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new window.Image();
+      img.onload = () => {
+        const max = 512;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const c = document.createElement("canvas"); c.width = w; c.height = h;
+        const ctx = c.getContext("2d"); if (!ctx) return;
+        ctx.drawImage(img, 0, 0, w, h);
+        setPhotoDataUrl(c.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const brand = info && info.brandColors.length >= 2
     ? [info.brandColors[0], info.brandColors[1]]
@@ -216,7 +237,7 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
 
       const res = await fetch(`/api/ai/training/join/${token}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), email: email.trim() }),
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), photoDataUrl: photoDataUrl || undefined }),
       });
       const j = await res.json();
       if (!j.success) { setErr(j.error?.message || "Couldn't join"); setJoining(false); return; }
@@ -251,10 +272,8 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
     <div className="min-h-screen bg-gradient-to-b from-[#0a0e1a] via-[#0b1120] to-[#0a0e1a] text-white">
       {/* top bar */}
       <div className="flex items-center justify-between px-5 py-4 sm:px-8">
-        <div className="flex items-center gap-2 font-extrabold">
-          <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-brand-500 to-violet-600"><GraduationCap className="h-4 w-4" /></span>
-          FlowSmartly
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="FlowSmartly" className="h-7 w-auto" />
         <div className="flex items-center gap-4 text-[12.5px] text-slate-400">
           <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4" /> Secure training room</span>
           <span className="inline-flex items-center gap-1.5"><HelpCircle className="h-4 w-4" /> Help</span>
@@ -296,6 +315,17 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
               {["Live demonstration", "Interactive whiteboard", "Q&A"].map((c) => (
                 <span key={c} className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[12.5px] font-semibold text-slate-200">{c}</span>
               ))}
+            </div>
+
+            {/* how to prepare — a quick checklist so attendees arrive set up */}
+            <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-400">Before you join</p>
+              <ul className="space-y-2.5 text-[13px] text-slate-300">
+                <li className="flex items-start gap-2.5"><ImageIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" /> Add a profile photo, or turn your camera on and pick a background</li>
+                <li className="flex items-start gap-2.5"><Users className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" /> Enter your name and email so the host knows who you are</li>
+                <li className="flex items-start gap-2.5"><MicOff className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" /> Keep your mic muted until the host brings you in</li>
+                <li className="flex items-start gap-2.5"><Video className="mt-0.5 h-4 w-4 shrink-0 text-brand-400" /> Find a quiet, well-lit spot with a steady connection</li>
+              </ul>
             </div>
           </div>
         </div>
@@ -384,6 +414,22 @@ export default function JoinPage({ params }: { params: Promise<{ token: string }
               ))}
             </div>
           ) : null}
+
+          {/* optional profile photo — shows in your tile when your camera is off */}
+          <div className="mt-4 flex items-center gap-3">
+            <button onClick={() => photoInputRef.current?.click()} className="relative grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full border border-white/15 bg-white/5 text-slate-400 hover:border-brand-500">
+              {photoDataUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoDataUrl} alt="" className="h-full w-full object-cover" />
+              ) : <ImageIcon className="h-5 w-5" />}
+            </button>
+            <div className="min-w-0">
+              <p className="text-[12.5px] font-semibold text-slate-200">Profile photo <span className="font-normal text-slate-500">(optional)</span></p>
+              <p className="text-[11px] text-slate-400">Shows in your tile when your camera is off.</p>
+            </div>
+            {photoDataUrl ? <button onClick={() => setPhotoDataUrl(null)} className="ms-auto text-[11.5px] font-semibold text-slate-400 hover:text-rose-400">Remove</button> : null}
+            <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) pickPhoto(f); }} />
+          </div>
 
           {/* name + email */}
           <div className="mt-4 grid gap-3 sm:grid-cols-2">

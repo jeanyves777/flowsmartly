@@ -4,10 +4,23 @@ import { prisma } from "@/lib/db/client";
 import { checkInviteToken } from "@/lib/training/access";
 import { mintGuestToken, guestCookieName, getTrainingActor } from "@/lib/training/guest";
 import { brandColorList } from "@/lib/training/session";
+import { uploadToS3 } from "@/lib/utils/s3-client";
+import { nanoid } from "nanoid";
 import type { ParticipantRole } from "@/lib/training/types";
 
 const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
+
+/** Decode a small client-resized data-URL photo and store it, returning a public URL (or
+ *  null if it's missing/invalid/too big). Used for the optional pre-join profile photo. */
+async function uploadPhotoDataUrl(dataUrl: string | undefined, sessionId: string): Promise<string | null> {
+  const m = /^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/.exec(dataUrl || "");
+  if (!m) return null;
+  const buf = Buffer.from(m[2], "base64");
+  if (!buf.length || buf.length > 2_000_000) return null; // client resizes to ~512px; 2MB cap
+  const ext = m[1] === "png" ? "png" : m[1] === "webp" ? "webp" : "jpg";
+  return uploadToS3(`training/${sessionId}/join-photos/${nanoid(10)}.${ext}`, buf, `image/${m[1] === "jpg" ? "jpeg" : m[1]}`).catch(() => null);
+}
 
 /**
  * GET /api/ai/training/join/[token] — public.
@@ -86,6 +99,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const session = await getSession();
 
+  // Read the body ONCE (a request stream can't be re-read) — both the logged-in and guest
+  // paths use it. The optional profile photo arrives as a small client-resized data URL.
+  const body = (await request.json().catch(() => ({}))) as { name?: string; email?: string; photoDataUrl?: string };
+  const photoUrl = await uploadPhotoDataUrl(body.photoDataUrl, room.id);
+
   // ---- logged-in ----
   if (session) {
     if (room.userId === session.userId) {
@@ -109,6 +127,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         name: session.user.name || session.user.email || "Guest",
         email: session.user.email ?? null,
         avatarUrl: session.user.avatarUrl ?? null,
+        photoUrl,
         role,
         state,
         canShare: role === "COHOST",
@@ -131,7 +150,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: true, data: { sessionId: room.id, state: existing.state, guest: true } });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { name?: string; email?: string };
   const name = (body.name || "").trim().slice(0, 80);
   const email = (body.email || "").trim().toLowerCase().slice(0, 160);
   if (!name) return err("Please enter your name");
@@ -146,6 +164,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       userId: null,
       name,
       email: email || null,
+      photoUrl,
       role: "GUEST",
       state,
       canShare: false,
