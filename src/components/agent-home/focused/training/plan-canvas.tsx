@@ -45,6 +45,7 @@ interface Props {
   onRemoveSegment: (id: string) => void;
   onPatchSegments: (segs: { id: string; x?: number; y?: number; durationMins?: number }[]) => void;
   onGoLive: () => void;
+  onNewSession: () => void;
   onManage: () => void;
   onInvite: () => void;
   presenter?: PresenterProfileDTO | null;
@@ -54,8 +55,19 @@ interface Props {
 
 export function PlanCanvas({
   session, estimate, onEditBrief, onAddMaterial, onAddSegment, onRemoveSegment, onPatchSegments,
-  onGoLive, onManage, onInvite, presenter, onManagePresenter, busy,
+  onGoLive, onNewSession, onManage, onInvite, presenter, onManagePresenter, busy,
 }: Props) {
+  // Real session status drives the "Go live" node + the status card (no more "Start the
+  // session" on a room that already ended).
+  const isLive = session.status === "live";
+  const isEnded = session.status === "ended";
+  const isScheduled = session.status === "scheduled";
+  const startLabel = isEnded ? "Start new session" : isLive ? "Rejoin the room" : isScheduled ? "Start now" : "Start the session";
+  const statusLabel = isLive ? "Live" : isEnded ? "Ended" : isScheduled ? "Scheduled" : "Ready";
+  const whenText = (iso: string | null) => {
+    if (!iso) return "";
+    try { return new Date(iso).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; }
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
   const [inviteMethod, setInviteMethod] = useState<string | null>(null); // which invite action is open
   void onInvite; // superseded by the shared InviteSheet (distinct per-method actions)
@@ -86,13 +98,15 @@ export function PlanCanvas({
     const board = boardRef.current;
     if (!board) return;
     const br = board.getBoundingClientRect();
-    const anchor = (id: string, side: "l" | "r") => {
+    const anchor = (id: string, side: "l" | "r" | "t" | "b") => {
       const el = board.querySelector<HTMLElement>(`[data-node="${id}"]`);
       if (!el) return null;
       const r = el.getBoundingClientRect();
-      return side === "r"
-        ? { x: r.left - br.left + r.width, y: r.top - br.top + r.height / 2 }
-        : { x: r.left - br.left, y: r.top - br.top + r.height / 2 };
+      const x0 = r.left - br.left, y0 = r.top - br.top;
+      if (side === "r") return { x: x0 + r.width, y: y0 + r.height / 2 };
+      if (side === "l") return { x: x0, y: y0 + r.height / 2 };
+      if (side === "t") return { x: x0 + r.width / 2, y: y0 };
+      return { x: x0 + r.width / 2, y: y0 + r.height }; // "b"
     };
     const ordered = [...segs].sort((a, b) => at(a).x - at(b).x).map((s) => s.id);
     const seq = ["__brief", "__room", ...ordered, "__live", "__invite"];
@@ -103,6 +117,14 @@ export function PlanCanvas({
       if (!a || !b) continue;
       const dx = Math.max(40, (b.x - a.x) / 2);
       d += `M${a.x} ${a.y} C${a.x + dx} ${a.y},${b.x - dx} ${b.y},${b.x} ${b.y} `;
+    }
+    // The AI Presenter feeds the room — wire it up from the brief (which it sits under) so
+    // it isn't a floating, disconnected node.
+    const pa = anchor("__brief", "b");
+    const pb = anchor("__presenter", "t");
+    if (pa && pb) {
+      const dy = Math.max(30, (pb.y - pa.y) / 2);
+      d += `M${pa.x} ${pa.y} C${pa.x} ${pa.y + dy},${pb.x} ${pb.y - dy},${pb.x} ${pb.y} `;
     }
     setWire(d);
   }, [segs, at]);
@@ -360,8 +382,9 @@ export function PlanCanvas({
               <Radio className="h-3 w-3 text-violet-400" />
             </span>
             <b className="truncate text-[12px] font-bold">Go live</b>
-            <span className={cn("ms-auto rounded-full px-1.5 py-px text-[9px] font-bold", allReady ? "bg-emerald-500/16 text-emerald-400" : "bg-slate-500/14 text-slate-400")}>
-              {session.status === "live" ? "Live" : allReady ? "Ready" : "Needs setup"}
+            <span className={cn("ms-auto rounded-full px-1.5 py-px text-[9px] font-bold",
+              isLive ? "bg-rose-500/16 text-rose-400" : isEnded ? "bg-slate-500/20 text-slate-300" : isScheduled ? "bg-amber-500/16 text-amber-400" : allReady ? "bg-emerald-500/16 text-emerald-400" : "bg-slate-500/14 text-slate-400")}>
+              {isLive ? "Live" : isEnded ? "Ended" : isScheduled ? "Scheduled" : allReady ? "Ready" : "Needs setup"}
             </span>
           </div>
           {[
@@ -379,12 +402,13 @@ export function PlanCanvas({
             {estimate ? <b className="text-violet-400">≈ {estimate.total} credits</b> : null}
           </p>
           <button
-            onClick={onGoLive}
+            onClick={isEnded ? onNewSession : onGoLive}
             disabled={busy}
-            className="m-3 mt-2.5 block w-[calc(100%-24px)] rounded-xl bg-gradient-to-br from-rose-600 to-rose-400 py-2.5 text-[12px] font-extrabold text-white disabled:opacity-50"
+            className={cn("m-3 mt-2.5 block w-[calc(100%-24px)] rounded-xl py-2.5 text-[12px] font-extrabold text-white disabled:opacity-50",
+              isEnded ? "bg-gradient-to-br from-brand-500 to-violet-600" : isLive ? "bg-gradient-to-br from-emerald-600 to-emerald-400" : "bg-gradient-to-br from-rose-600 to-rose-400")}
           >
-            <Play className="me-1 inline h-3 w-3" />
-            {session.status === "live" ? "Rejoin the room" : "Start the session"}
+            {isEnded ? <Sparkles className="me-1 inline h-3 w-3" /> : <Play className="me-1 inline h-3 w-3" />}
+            {startLabel}
           </button>
         </div>
 
@@ -415,6 +439,40 @@ export function PlanCanvas({
           <div className="p-3 pt-2.5">
             <button onClick={() => setInviteMethod("link")} className="w-full rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 py-1.5 text-[9.5px] font-semibold text-white">
               Invite people
+            </button>
+          </div>
+        </div>
+
+        {/* ---- current meeting status (large card below the flow) ---- */}
+        <div
+          className={cn("absolute w-[min(760px,88vw)] overflow-hidden rounded-2xl border shadow-lg",
+            isLive ? "border-rose-500/40 bg-gradient-to-br from-rose-500/[0.12] to-card" : isEnded ? "border-slate-500/30 bg-gradient-to-br from-slate-500/[0.08] to-card" : isScheduled ? "border-amber-500/40 bg-gradient-to-br from-amber-500/[0.10] to-card" : "border-emerald-500/40 bg-gradient-to-br from-emerald-500/[0.10] to-card")}
+          style={{ left: 534, top: 620 }}
+        >
+          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-black uppercase tracking-wide",
+                  isLive ? "bg-rose-500/20 text-rose-300" : isEnded ? "bg-slate-500/20 text-slate-300" : isScheduled ? "bg-amber-500/20 text-amber-300" : "bg-emerald-500/20 text-emerald-300")}>
+                  {isLive ? <span className="h-2 w-2 animate-pulse rounded-full bg-rose-400" /> : isScheduled ? <Calendar className="h-3 w-3" /> : isEnded ? <X className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                  {statusLabel}
+                </span>
+                <b className="truncate text-[16px] font-extrabold">{session.title}</b>
+              </div>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+                {isLive ? `Your training room is live — ${session.participants.filter((p) => p.state === "ADMITTED").length} in the room right now.`
+                  : isEnded ? `This session ended${session.endedAt ? ` ${whenText(session.endedAt)}` : ""}. Start a new session to run it again.`
+                  : isScheduled ? `Scheduled for ${whenText(session.startsAt) || "later"} · ${segs.length} segments · ~${session.plannedMins} min · ${session.seats} seats. You can start it now or wait for the scheduled time.`
+                  : `Everything's ready — ${segs.length} segments · ~${session.plannedMins} min · ${session.seats} seats. Start when you are.`}
+              </p>
+            </div>
+            <button
+              onClick={isEnded ? onNewSession : onGoLive}
+              disabled={busy}
+              className={cn("inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl px-5 py-3 text-[13.5px] font-extrabold text-white shadow disabled:opacity-50",
+                isEnded ? "bg-gradient-to-br from-brand-500 to-violet-600" : isLive ? "bg-gradient-to-br from-emerald-600 to-emerald-400" : "bg-gradient-to-br from-rose-600 to-rose-400")}
+            >
+              {isEnded ? <><Sparkles className="h-4 w-4" /> Start new session</> : isLive ? <><Radio className="h-4 w-4" /> Rejoin the room</> : <><Play className="h-4 w-4" /> {isScheduled ? "Start now" : "Start the session"}</>}
             </button>
           </div>
         </div>

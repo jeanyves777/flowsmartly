@@ -428,6 +428,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           onRemoveSegment={(id) => void segAct("DELETE", undefined, `?segmentId=${id}`)}
           onPatchSegments={(segs) => void segAct("PATCH", { segments: segs })}
           onGoLive={goLive}
+          onNewSession={() => setBriefOpen(true)}
           onManage={() => setMode("office")}
           onInvite={invite}
           presenter={presenter}
