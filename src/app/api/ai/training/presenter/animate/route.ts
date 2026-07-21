@@ -12,9 +12,10 @@ const err = (message: string, status = 400) =>
 export const maxDuration = 300;
 const AI_COST = 60; // one short looping "moving avatar" render (xAI/Grok — per-render, NO avatar cap)
 
-// A subtle IDLE-motion loop: the presenter looks alive in the corner tile while the cloned
-// voice narrates. Silent — it's muted in the room.
-const LOOP_PROMPT = "A professional presenter standing still and looking at the camera with a warm, natural expression — subtle idle motion: gentle breathing, small head movements, a soft blink, relaxed shoulders. NOT talking, NOT big gestures. Upper body visible, clean modern studio background, soft lighting, photoreal, high quality.";
+// A TALKING loop: the presenter appears to speak to camera (natural mouth movement) so it
+// looks like they're narrating — even though it's MUTED in the room and the cloned-voice
+// narration plays over it. NOT a still idle clip.
+const LOOP_PROMPT = "A professional presenter speaking directly to the camera in a natural, engaging way — continuous natural talking mouth movement as if narrating, warm expression, light head movement and subtle hand gestures, upper body visible. Clean modern studio background, soft lighting, photoreal, high quality. Looks like they are actively talking.";
 
 /**
  * POST /api/ai/training/presenter/animate — turn the presenter's portrait into a reusable

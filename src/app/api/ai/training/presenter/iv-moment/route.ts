@@ -115,7 +115,9 @@ export async function POST(request: NextRequest) {
     else if (slideIdx >= 0) deck.slides[slideIdx] = { ...deck.slides[slideIdx], momentVideoUrl: videoUrl, momentScript: script };
     await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck) } });
 
-    return NextResponse.json({ success: true, data: { target, videoUrl } });
+    // return the FULL deck so the client sets it verbatim (no local merge that could drop
+    // the URL to a sync race).
+    return NextResponse.json({ success: true, data: { target, videoUrl, deck } });
   } catch (e) {
     console.error(`[iv-moment] ${target} failed:`, e instanceof Error ? e.message : e);
     await creditService.addCredits?.({ userId: session.userId, type: "REFUND", amount: MOMENT_COST, description: "Refund: presenter video failed", referenceType: "presenter_iv_moment", referenceId: mat.id }).catch(() => {});
