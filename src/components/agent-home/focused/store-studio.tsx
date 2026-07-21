@@ -609,7 +609,7 @@ function ThemeTab({ data, updateThemeColor }: { data: StoreData; updateThemeColo
             <span className="mt-3 inline-block rounded-lg px-4 py-2 text-[12px] font-bold text-white" style={{ background: accent }}>{data.storeInfo.ctaText || "Shop now"}</span>
           </div>
           <div className="flex gap-3 bg-card p-4">
-            {[1, 2, 3].map((i) => (<div key={i} className="w-20"><div className="aspect-square rounded-lg bg-muted" /><p className="mt-1 text-[11px] font-semibold" style={{ color: primary }}>$20.00</p></div>))}
+            {[1, 2, 3].map((i) => (<div key={i} className="w-20"><div className="aspect-square rounded-lg bg-muted" /><p className="mt-1 text-[11px] font-bold text-foreground">$20.00</p></div>))}
           </div>
         </div>
       </Section>

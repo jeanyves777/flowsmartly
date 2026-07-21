@@ -12,6 +12,7 @@ import { StoreCategories } from "./store-categories";
 import { StoreShipping } from "./store-shipping";
 import { StorePayments } from "./store-payments";
 import { StoreAnalytics } from "./store-analytics";
+import { StoreIntelligence } from "./store-intelligence";
 import { StoreSettings } from "./store-settings";
 import { StoreDiscounts } from "./store-discounts";
 import { cn } from "@/lib/utils/cn";
@@ -55,7 +56,7 @@ const NEXT_STATUS: Record<string, { label: string; to: string }> = {
 // Statuses a seller can cancel from (matches server-side allowedTransitions → CANCELLED).
 const CANCELLABLE = new Set(["PENDING", "CONFIRMED", "PROCESSING"]);
 
-type Section = "overview" | "products" | "orders" | "categories" | "discounts" | "shipping" | "payments" | "analytics" | "settings";
+type Section = "overview" | "products" | "orders" | "categories" | "discounts" | "shipping" | "payments" | "analytics" | "intelligence" | "settings";
 
 const ORDER_STATUS_FILTERS = ["PENDING", "CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED", "REFUNDED"];
 const PAYMENT_STATUS_FILTERS = ["pending", "paid", "failed", "refunded"];
@@ -446,6 +447,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
     { id: "shipping", label: "Shipping", icon: Truck },
     { id: "payments", label: "Payments & payouts", icon: Landmark },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
+    { id: "intelligence", label: "Intelligence", icon: Sparkles },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -536,6 +538,8 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
           <StorePayments currency={cur} country={store?.country} />
         ) : section === "analytics" ? (
           <StoreAnalytics currency={cur} />
+        ) : section === "intelligence" ? (
+          <StoreIntelligence currency={cur} />
         ) : section === "settings" ? (
           <StoreSettings />
         ) : section === "products" ? (

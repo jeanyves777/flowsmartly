@@ -49,8 +49,8 @@ export function SectionCard({ title, hint, right, icon: Icon, children, classNam
 
 export function Toggle({ on, onClick, disabled }: { on: boolean; onClick: () => void; disabled?: boolean }) {
   return (
-    <button onClick={onClick} disabled={disabled} className={cn("relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors disabled:opacity-50", on ? "bg-brand-500" : "bg-muted")}>
-      <span className={cn("absolute top-0.5 h-[18px] w-[18px] rounded-full bg-white transition-transform", on ? "translate-x-[18px]" : "translate-x-0.5")} />
+    <button type="button" role="switch" aria-checked={on} onClick={onClick} disabled={disabled} className={cn("relative h-[22px] w-[38px] shrink-0 rounded-full transition-colors disabled:opacity-50", on ? "bg-brand-500" : "bg-muted-foreground/30 dark:bg-white/15")}>
+      <span className={cn("absolute top-0.5 h-[18px] w-[18px] rounded-full bg-white shadow-sm ring-1 ring-black/5 transition-transform", on ? "translate-x-[18px]" : "translate-x-0.5")} />
     </button>
   );
 }
