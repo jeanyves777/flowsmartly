@@ -396,12 +396,18 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     const onEnd = () => {
       const { session: s, pages, pause } = aiStateRef.current;
       if (advancing || !s.aiPlaying) return;
-      advancing = true; setTimeout(() => { advancing = false; }, 900);
+      advancing = true; setTimeout(() => { advancing = false; }, 1600);
       // Q&A / quiz slides STOP after the co-host speaks — the host takes questions or
       // reveals the answer, then presses Skip/Present with AI to continue.
       if (pause) { void patch({ aiPlaying: false }); return; }
-      if (s.stagePage < pages) void patch({ stagePage: s.stagePage + 1, stageStep: 1 });
-      else void patch({ aiPlaying: false });
+      // A natural, intentional PAUSE between slides — a breath before the next one, instead
+      // of snapping straight on. (Sentence pauses come from the narration itself.)
+      const curPage = s.stagePage;
+      setTimeout(() => {
+        if (!aiStateRef.current.session.aiPlaying) return;
+        if (curPage < pages) void patch({ stagePage: curPage + 1, stageStep: 1 });
+        else void patch({ aiPlaying: false });
+      }, 1100);
     };
     a.addEventListener("timeupdate", onTime);
     a.addEventListener("ended", onEnd);

@@ -78,10 +78,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const brief = (body.brief || "").trim();
   if (brief.length < 8) return err("Tell the agent what the session is about first.");
 
+  // Scale the deck to the session length so a 45-min room isn't a 5-min deck.
+  const room = await prisma.trainingSession.findUnique({ where: { id }, select: { plannedMins: true } });
+  const minutes = room?.plannedMins ?? undefined;
+
   // Charge the MAX up front (every slide could carry an image), then refund the
   // unused part once we know how many illustrations were actually generated. The
   // number the client showed as "Estimated generation" is this same basis.
-  const n = deckSlideCount(body.slideCount);
+  const n = deckSlideCount(body.slideCount, minutes);
   const maxCharge = DECK_BASE_CREDITS + (body.wantVisuals !== false ? n * DECK_IMAGE_CREDITS : 0);
   if (session) {
     const charge = await creditService.deductCredits({
@@ -101,6 +105,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     wantWhiteboard: body.wantWhiteboard,
     wantVisuals: body.wantVisuals,
     slideCount: body.slideCount,
+    minutes,
   });
   if (!deck?.slides.length) { await refund(maxCharge); return err("The agent couldn't build a deck from that — add a little more detail.", 502); }
 

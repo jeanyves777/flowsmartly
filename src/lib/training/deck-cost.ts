@@ -17,9 +17,11 @@ export interface DeckWants {
   notes: boolean;
 }
 
-/** Slides we aim for from a spoken duration (~one teaching moment per 6 minutes). */
+/** Slides we aim for from a spoken duration. ~2 min of NARRATED teaching per slide, so
+ *  the deck actually fills the requested session (the old "1 slide / 6 min" left a 45-min
+ *  request with ~8 slides ≈ 5 min of talking). Each slide also gets richer narration. */
 export function slideCountForDuration(durationMins: number): number {
-  return Math.min(12, Math.max(3, Math.round(durationMins / 6)));
+  return Math.min(30, Math.max(4, Math.round(durationMins / 2)));
 }
 
 export interface DeckPreview {
