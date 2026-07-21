@@ -10,7 +10,7 @@
  * screen — that combination is what makes this a training room rather than a
  * meeting. [[training-studio]]
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   MousePointer2, Pencil, Highlighter, Eraser, Square, Type, StickyNote, Flashlight,
@@ -296,6 +296,10 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const narration = quizRevealPhase
     ? (deckSlide?.quizReveal ?? deckSlide?.narration ?? null)
     : (deckSlide?.narration ?? null);
+  // An on-screen MOMENT (intro / between-slide) that has a rendered Avatar IV talking video:
+  // the VIDEO carries the spoken audio, so we must NOT also play the narration track.
+  const momentVideoUrl = deckSlide?.intro ? (material?.deck?.introVideoUrl ?? null) : deckSlide?.presenterMoment ? (deckSlide.momentVideoUrl ?? null) : null;
+  const isMomentVideo = !!momentVideoUrl;
   const aiAudioRef = useRef<HTMLAudioElement | null>(null);
   const aiPlaying = !!session.aiPlaying;
   const aiPlayingRef = useRef(aiPlaying); aiPlayingRef.current = aiPlaying;
@@ -323,7 +327,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   useEffect(() => {
     const a = aiAudioRef.current;
     if (!a) return;
-    if (aiPlaying && narration?.audioUrl) {
+    if (aiPlaying && narration?.audioUrl && !isMomentVideo) {
       if (a.getAttribute("data-src") !== narration.audioUrl) { a.src = narration.audioUrl; a.setAttribute("data-src", narration.audioUrl); a.currentTime = 0; setCapFrac(0); }
       a.playbackRate = aiRate;
       a.play().then(() => setSoundBlocked(false)).catch(() => setSoundBlocked(true));
@@ -424,6 +428,15 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     void patch({ aiPlaying: true });
   };
   const pauseAI = () => { aiAudioRef.current?.pause(); void patch({ aiPlaying: false }); };
+  // A presenter MOMENT video finished playing → the host seamlessly advances to the next
+  // slide (everyone follows via the broadcast). Only the host drives it, so it fires once.
+  const onMomentEnd = useCallback(() => {
+    if (!host) return;
+    const s = aiStateRef.current.session, pages = aiStateRef.current.pages;
+    if (!s.aiPlaying) return;
+    if (s.stagePage < pages) void patch({ stagePage: s.stagePage + 1, stageStep: 1 });
+    else void patch({ aiPlaying: false });
+  }, [host, patch]);
   const skipAI = () => { const pages = material?.pages ?? 1; if (session.stagePage < pages) void patch({ stagePage: session.stagePage + 1, stageStep: 1, aiPlaying: true }); else void patch({ aiPlaying: false }); };
   const repeatAI = () => { const a = aiAudioRef.current; if (a) { a.currentTime = 0; } void patch({ stageStep: 1, aiPlaying: true }); };
   const takeoverAI = async () => {
@@ -575,17 +588,18 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
       // The opening slide is the AI co-host's moment: show it LARGE on the Presenter stage
       // delivering its self-intro, then the runtime advances to the first real slide.
       // Prefer the full-body INTRO film (gesture, audio-free); fall back to the loop.
-      const introFilm = material.deck.introVideoUrl;
-      const introVideo = introFilm || material.deck.presenterVideoUrl;
+      // On-screen presenter MOMENTS (intro + between-slide moments): a realistic Avatar IV
+      // TALKING video that plays WITH its own audio, then seamlessly advances to the next
+      // slide. Falls back to the muted loop (with narration over it) if no video is ready.
+      const momentUrl = slide?.intro ? material.deck.introVideoUrl : slide?.presenterMoment ? slide.momentVideoUrl : null;
       const aiP = session.participants.find((p) => p.isAI);
-      if (slide?.intro && introVideo) {
+      if ((slide?.intro || slide?.presenterMoment) && (momentUrl || material.deck.presenterVideoUrl)) {
         return (
-          <div className="relative grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-[#221a3a] to-[#3a2c5e]">
-            {introFilm
-              // the intro FILM plays continuously (it's a performance, not lip-sync)
-              ? <video src={introFilm} autoPlay muted loop playsInline poster={aiP?.avatarUrl ?? undefined} className="h-full w-full object-contain" />
-              : <AvatarVideo url={introVideo} poster={aiP?.avatarUrl} speaking={aiSpeaking} className="object-contain" />}
-            <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1 text-[12px] font-bold text-white"><span className="rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1 py-px text-[8.5px] font-black text-[#04222a]">AI</span>{aiP?.name || "Your AI co-host"} · introducing</span>
+          <div className="relative grid h-full w-full place-items-center overflow-hidden bg-black">
+            {momentUrl
+              ? <video key={momentUrl} src={momentUrl} autoPlay playsInline onEnded={onMomentEnd} poster={aiP?.avatarUrl ?? undefined} className="h-full w-full object-contain" />
+              : <AvatarVideo url={material.deck.presenterVideoUrl!} poster={aiP?.avatarUrl} speaking={aiSpeaking} className="object-contain" />}
+            <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1 text-[12px] font-bold text-white"><span className="rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1 py-px text-[8.5px] font-black text-[#04222a]">AI</span>{aiP?.name || "Your AI co-host"} · {slide?.intro ? "introducing" : "speaking"}</span>
           </div>
         );
       }
@@ -612,7 +626,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         <p className="text-[12px] text-slate-400">Nothing on the stage yet — add a material.</p>
       </div>
     );
-  }, [session.stageSource, session.stagePage, session.stageStep, session.penHolderId, session.participants, session.aiPlaying, aiSpeaking, material, sharer, me, media.localCam, media.localScreen, media.remotes]);
+  }, [session.stageSource, session.stagePage, session.stageStep, session.penHolderId, session.participants, session.aiPlaying, aiSpeaking, material, sharer, me, media.localCam, media.localScreen, media.remotes, onMomentEnd]);
 
   const layout = session.rosterLayout ?? "side";
   const spotlight = session.spotlightId ? inRoom.find((p) => p.id === session.spotlightId) ?? null : null;

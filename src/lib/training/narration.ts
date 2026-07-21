@@ -25,7 +25,7 @@ export async function writeDeckScripts(slides: DeckSlide[], style: string, prese
   }).join("\n");
 
   // Content slides (not the fixed intro/quiz/Q&A scripts) share the speaking budget.
-  const contentSlides = Math.max(1, slides.filter((s) => !s.intro && !s.quiz && !s.qa).length);
+  const contentSlides = Math.max(1, slides.filter((s) => !s.intro && !s.quiz && !s.qa && !s.presenterMoment).length);
   const perSlideWords = Math.min(300, Math.max(55, Math.round(((minutes ?? 8) * 140) / contentSlides)));
   const sentenceHint = perSlideWords <= 70 ? "3-4 natural sentences" : perSlideWords <= 160 ? "5-8 natural sentences" : "a full, flowing paragraph of 8-12 sentences";
 
@@ -47,6 +47,11 @@ Return JSON: { "scripts": string[] } with EXACTLY ${slides.length} entries, in o
     // The opening slide is the AI co-host's disclosed self-introduction.
     if (s.intro) {
       return `Hi everyone, and welcome! I'm ${who}, your A I co-host for today's session — yes, I'm an A I, presenting right alongside your host. I'll walk us through the material, and you can raise your hand or use Ask the presenter any time. Let's get started.`;
+    }
+    // A between-slide presenter moment: a short warm bridge (used as the fallback line if no
+    // Avatar IV video is generated for this moment).
+    if (s.presenterMoment) {
+      return `Great — let's take a quick breath and connect what we've covered so far. Alright, let's keep going.`;
     }
     // Quiz slides read the question + options, then the runtime pauses for a hand-raise
     // check before the host reveals the answer on screen.
