@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils/cn";
  * No legacy links. [[surface-buttons-are-ui-actions]]
  */
 
-interface StoreData { id: string; name: string; slug: string; currency?: string; region?: string; isActive?: boolean; buildStatus?: string; productCount?: number; orderCount?: number; totalRevenueCents?: number; }
+interface StoreData { id: string; name: string; slug: string; currency?: string; region?: string; country?: string; isActive?: boolean; buildStatus?: string; productCount?: number; orderCount?: number; totalRevenueCents?: number; }
 interface Product { id: string; name: string; priceCents?: number; comparePriceCents?: number | null; currency?: string; status?: string; quantity?: number; trackInventory?: boolean; lowStockThreshold?: number; labels?: string[]; variantCount?: number; description?: string | null; category?: string | null; categoryName?: string | null; images?: { url: string }[]; }
 interface OrderItem { productId?: string; variantId?: string; name?: string; quantity?: number; priceCents?: number; imageUrl?: string; }
 interface ShippingAddress { name?: string; line1?: string; line2?: string; city?: string; state?: string; zip?: string; country?: string; phone?: string; }
@@ -477,7 +477,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
         ) : section === "shipping" ? (
           <StoreShipping currency={cur} />
         ) : section === "payments" ? (
-          <StorePayments currency={cur} />
+          <StorePayments currency={cur} country={store?.country} />
         ) : section === "analytics" ? (
           <StoreAnalytics currency={cur} />
         ) : section === "settings" ? (
