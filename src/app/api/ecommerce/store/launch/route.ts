@@ -5,6 +5,7 @@ import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/cost
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { generateSlug } from "@/lib/constants/ecommerce";
 import { runStoreAgentV3, type ProductInput } from "@/lib/store-builder/store-agent";
+import { persistStoreCatalog } from "@/lib/store-builder/persist-catalog";
 import { toCents, isValidCurrency } from "@/lib/store/currency";
 import { getRegionForCountry } from "@/lib/constants/regions";
 
@@ -159,6 +160,17 @@ export async function POST(request: NextRequest) {
         }).catch(() => {});
       }
     };
+
+    // Persist the brief's catalog to the DB (real ids) FIRST so products are
+    // DB-backed + user-controlled — never hardcoded fakes. The agent reads these
+    // back so the storefront carries real ids (detail pages + checkout resolve
+    // against the DB). Empty brief → empty catalog; the user adds products in the
+    // manager. A regenerate is idempotent (skips already-present slugs).
+    try {
+      await persistStoreCatalog(store.id, products, categories, currency);
+    } catch (e) {
+      console.error("[launch] persistStoreCatalog failed (continuing):", e);
+    }
 
     // Fire-and-forget the real builder; the client polls buildStatus. Errors flip
     // buildStatus to "error", refund, so the loader can offer a retry.
