@@ -88,6 +88,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     await prisma.trainingParticipant.update({ where: { id: participantId }, data: { state: back, leftAt: null } }).catch(() => {});
   }
 
+  // Backfill a missing recording-start: a session whose recording began before this field
+  // existed has recordingStartedAt=null, so the client's REC timer fell back to "now" and
+  // RESTARTED on every refresh. Stamp it once (only while still null) so it counts from a
+  // stable instant. Conditional updateMany → no-op after the first connection stamps it.
+  await prisma.trainingSession.updateMany({ where: { id, recording: true, recordingStartedAt: null }, data: { recordingStartedAt: new Date() } }).catch(() => {});
+
   const dto = await getSessionDTO(id);
   if (!dto) return deny("No such room", 404);
   const me = dto.participants.find((p) => p.id === participantId);
