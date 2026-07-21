@@ -64,7 +64,9 @@ export async function synthesize(text: string, voice: ClonedVoice | null, pace: 
   const words = text.split(/\s+/).filter(Boolean).length;
   // Deliver a touch slower than the raw pace for a natural, measured cadence (the default
   // delivery was rushing). Reveals track the audio, so this paces the whole timeline too.
-  const speed = Math.min(1.1, Math.max(0.7, (pace || 1) * 0.9));
+  // Synthesize at a natural pace (0.95 of raw reads best for this voice — 1.0 felt rushed,
+  // 0.9 dragged); the live room fine-tunes playback on the fly (audio.playbackRate).
+  const speed = Math.min(1.2, Math.max(0.7, (pace || 1) * 0.95));
   const fallbackMs = Math.max(1500, Math.round((words / 150) * 60 * 1000 / speed));
   // 1. the presenter's cloned voice (ElevenLabs is true cloning; try it first)
   if (voice?.elevenLabsVoiceId) {
