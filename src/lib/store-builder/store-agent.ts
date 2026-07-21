@@ -899,7 +899,8 @@ async function executeToolV3(name: string, input: Record<string, unknown>, ctx: 
 
     case "build_store": {
       ctx.onProgress?.("Building SSR store...");
-      const result = await buildStoreV3(ctx.storeId);
+      // skipLock: runStoreAgentV3 already set buildStatus="building" (it owns this build).
+      const result = await buildStoreV3(ctx.storeId, true);
       if (result.success) {
         return JSON.stringify({ success: true, message: "SSR build succeeded" });
       }
@@ -1061,7 +1062,8 @@ export async function runStoreAgentV3(
       // Run V3 cleanup validator before building
       cleanupV3Patterns(siteDir);
 
-      const buildResult = await buildStoreV3(storeId);
+      // skipLock: this build owns the "building" status set at the top of runStoreAgentV3.
+      const buildResult = await buildStoreV3(storeId, true);
       if (buildResult.success) {
         onProgress?.({ step: "Deploying store...", toolCalls, done: false });
         const deployResult = await deployStoreV3(storeId, storeSlug);
