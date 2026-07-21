@@ -77,6 +77,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   for (const k of ["waitingRoom", "recording", "transcript", "openDraw", "openShare", "openMic", "locked", "hideBoard", "joinCollectEmail"] as const) {
     if (typeof b[k] === "boolean") data[k] = b[k];
   }
+  // Stamp when recording BEGINS so every client's REC timer counts from the same
+  // instant (not from each viewer's own join time). Clear it when recording stops.
+  if (typeof b.recording === "boolean") data.recordingStartedAt = b.recording ? new Date() : null;
   if (b.rosterLayout && ["side", "top", "bottom"].includes(b.rosterLayout)) data.rosterLayout = b.rosterLayout;
   if (b.spotlightId !== undefined) data.spotlightId = b.spotlightId || null;
   if (b.activeSegmentId !== undefined) data.activeSegmentId = b.activeSegmentId || null;
@@ -109,6 +112,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         openMic: dto.openMic,
         waitingRoom: dto.waitingRoom,
         recording: dto.recording,
+        recordingStartedAt: dto.recordingStartedAt,
         locked: dto.locked,
         hideBoard: dto.hideBoard,
         rosterLayout: dto.rosterLayout,

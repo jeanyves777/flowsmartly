@@ -57,6 +57,11 @@ function VideoFeed({ stream, mirror, muted, className }: { stream: MediaStream; 
   );
 }
 
+// A tiny silent WAV. Playing it on an <audio> element DURING a user gesture grants that
+// element playback activation, so later programmatic play() (the AI narration / hand-raise
+// answer, which start with no gesture on attendees) is allowed — esp. on iOS Safari.
+const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+
 /** The AI presenter's looping avatar clip. It MOVES only while `speaking` (the narration
  *  audio is playing) and FREEZES otherwise — so the avatar is driven by the voice instead
  *  of looping forever. Muted (the cloned voice plays through the shared narration audio).
@@ -316,21 +321,40 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
       a.play().then(() => setSoundBlocked(false)).catch(() => setSoundBlocked(true));
     } else { a.pause(); }
   }, [aiPlaying, narration?.audioUrl]);
-  useEffect(() => { setCapDismissed(false); }, [narration?.text]); // a new slide's caption is shown again
+  // NOTE: dismissing the caption hides it for the WHOLE session (it does NOT reappear on
+  // the next slide) — that's the requested behaviour, so there is no per-slide reset here.
   // Attendees never click "Present with AI", so their browser blocks the AI voice on
   // autoplay (that's why only the HOST could hear it). Their FIRST interaction with the
   // page — tap to join, unmute, tap anywhere — grants sticky activation; retry playback
   // then so the narration AND the hand-raise answer are heard, and clear the sound prompt.
   const answerUrlRef = useRef<string | null>(null);
+  const primedRef = useRef(false);
   useEffect(() => {
     const unlock = () => {
       const ai = aiAudioRef.current, ans = answerAudioRef.current;
+      // PRIME both elements ONCE during this gesture — even if nothing is playing yet — so
+      // narration/answer that start LATER (with no gesture) are allowed. The attendee's one
+      // guaranteed gesture (tapping Join / anything) happens BEFORE narration, so priming
+      // only "when already playing" (the old bug) never fired.
+      if (!primedRef.current) {
+        primedRef.current = true;
+        for (const el of [ai, ans]) {
+          if (!el || el.getAttribute("data-src")) continue; // don't disturb a real, loaded src
+          try {
+            el.src = SILENT_WAV;
+            const p = el.play();
+            if (p) p.then(() => { try { el.pause(); el.removeAttribute("src"); el.load(); } catch { /* ignore */ } }).catch(() => {});
+          } catch { /* ignore */ }
+        }
+      }
+      // Then resume whatever should be audible right now.
       if (ans && answerUrlRef.current) { ans.play().then(() => setSoundBlocked(false)).catch(() => {}); return; }
       if (ai && aiPlayingRef.current && ai.getAttribute("data-src")) ai.play().then(() => setSoundBlocked(false)).catch(() => {});
     };
     window.addEventListener("pointerdown", unlock);
+    window.addEventListener("touchend", unlock);
     window.addEventListener("keydown", unlock);
-    return () => { window.removeEventListener("pointerdown", unlock); window.removeEventListener("keydown", unlock); };
+    return () => { window.removeEventListener("pointerdown", unlock); window.removeEventListener("touchend", unlock); window.removeEventListener("keydown", unlock); };
   }, []);
   useEffect(() => {
     const a = aiAudioRef.current;
@@ -402,10 +426,15 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     const t = setTimeout(() => {
       a.play().then(() => { setAnswering(true); setSoundBlocked(false); }).catch(() => { setAnswering(false); setSoundBlocked(true); });
     }, 520);
-    const done = () => setAnswering(false);
-    a.addEventListener("ended", done);
-    a.addEventListener("pause", done);
-    return () => { clearTimeout(t); a.removeEventListener("ended", done); a.removeEventListener("pause", done); };
+    const onEnded = () => {
+      setAnswering(false);
+      answerUrlRef.current = null; // a FINISHED answer must not replay on the next tap
+      if (aiPlayingRef.current) aiAudioRef.current?.play().catch(() => {}); // ease back into the narration
+    };
+    const onPause = () => setAnswering(false);
+    a.addEventListener("ended", onEnded);
+    a.addEventListener("pause", onPause);
+    return () => { clearTimeout(t); a.removeEventListener("ended", onEnded); a.removeEventListener("pause", onPause); };
   }, [presenterAnswer?.id, presenterAnswer?.audioUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   // apply a live speed change to whatever narration/answer is currently playing
   useEffect(() => {
@@ -727,29 +756,16 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                 </span>
               </button>
             ) : null}
-            {/* AI presenter caption — what the co-host is saying right now */}
-            {aiPlaying && narration?.text && !capDismissed ? (
-              (() => {
-                // a rolling window of the words just spoken — captions that follow the voice
-                const words = narration.text.split(/\s+/).filter(Boolean);
-                const spoken = Math.max(1, Math.ceil(capFrac * words.length));
-                const visible = words.slice(Math.max(0, spoken - 14), spoken).join(" ");
-                return (
-                  <div className="absolute bottom-[46px] left-1/2 z-[6] flex w-[min(80%,640px)] -translate-x-1/2 items-center gap-1.5 rounded-lg bg-black/60 px-3 py-1.5 text-center shadow-lg backdrop-blur-sm">
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 text-[8px] font-black text-[#04222a]"><Volume2 className="h-2.5 w-2.5" /> AI</span>
-                    <span className="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug text-white">{visible}</span>
-                    <button onClick={() => setCapDismissed(true)} title="Hide captions" className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-white/70 hover:bg-white/15 hover:text-white"><X className="h-3 w-3" /></button>
-                  </div>
-                );
-              })()
-            ) : tookOver && aiPresenter ? (
+            {/* The AI caption is rendered BELOW the board (in the letterbox area) so it
+                never covers the slide — see the caption bar after the stage div. */}
+            {tookOver && aiPresenter ? (
               <div className="pointer-events-none absolute bottom-[92px] left-1/2 z-[6] w-[min(80%,560px)] -translate-x-1/2 rounded-xl border border-amber-500/40 bg-amber-500/[0.16] px-4 py-2 text-center text-[12.5px] font-bold text-amber-200 backdrop-blur-sm">
                 <Hand className="me-1.5 inline h-3.5 w-3.5 align-middle" /> You have the floor — the AI is paused at its spot. Press <b>Resume AI</b> to continue.
               </div>
             ) : null}
             {/* live Q&A — the presenter's answer to a raised question */}
             {presenterAnswer ? (
-              <div className="absolute bottom-[84px] left-1/2 z-[7] w-[min(86%,660px)] -translate-x-1/2 rounded-2xl border border-border bg-background/95 p-3 shadow-2xl backdrop-blur">
+              <div className="absolute bottom-[84px] left-1/2 z-[20] w-[min(86%,660px)] -translate-x-1/2 rounded-2xl border border-border bg-background/95 p-3 shadow-2xl backdrop-blur">
                 <div className="mb-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
                   <span className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 font-bold text-amber-400"><Hand className="h-2.5 w-2.5" /> {presenterAnswer.askedBy} asked</span>
                   <span className="truncate italic">“{presenterAnswer.question}”</span>
@@ -778,6 +794,23 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
             ) : null}
             {/* presentation controls moved OUT of the stage → a bar below it (host only) */}
           </div>
+          {/* AI presenter caption — sits in the LETTERBOX area BELOW the slide (never over
+              the presentation). On a phone that's the black space under the 16:9 board.
+              Dismiss hides it for the whole session (no per-slide reappearance). */}
+          {aiPlaying && narration?.text && !capDismissed ? (
+            (() => {
+              const words = narration.text.split(/\s+/).filter(Boolean);
+              const spoken = Math.max(1, Math.ceil(capFrac * words.length));
+              const visible = words.slice(Math.max(0, spoken - 14), spoken).join(" ");
+              return (
+                <div className="absolute bottom-1 left-1/2 z-[16] flex w-[min(96%,660px)] -translate-x-1/2 items-center gap-1.5 rounded-lg bg-black/75 px-3 py-1.5 text-center shadow-lg backdrop-blur-sm">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 text-[8px] font-black text-[#04222a]"><Volume2 className="h-2.5 w-2.5" /> AI</span>
+                  <span className="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug text-white">{visible}</span>
+                  <button onClick={() => setCapDismissed(true)} title="Hide captions for the session" className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-white/70 hover:bg-white/15 hover:text-white"><X className="h-3 w-3" /></button>
+                </div>
+              );
+            })()
+          ) : null}
           </div>
 
           {/* ---- presentation control bar — BELOW the stage, host only (keeps the
@@ -848,7 +881,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           ) : null}
 
           {/* recording overlays live over the stage */}
-          <RecordingLayer recording={session.recording} host={host} patch={patch} />
+          <RecordingLayer recording={session.recording} startedAt={session.recordingStartedAt} host={host} patch={patch} />
 
           {/* leave-and-return: devices died while away — say so, offer one tap back */}
           {media.needsAttention ? (
@@ -1526,7 +1559,7 @@ function MoreRows({ session, host, isOwner, unread, patch, onManage, onChat, onE
 }
 
 /* -------------------------------------------------------------- recording UI */
-function RecordingLayer({ recording, host, patch }: { recording: boolean; host: boolean; patch: (b: Record<string, unknown>) => Promise<string | null> }) {
+function RecordingLayer({ recording, startedAt, host, patch }: { recording: boolean; startedAt: string | null; host: boolean; patch: (b: Record<string, unknown>) => Promise<string | null> }) {
   const [phase, setPhase] = useState<"idle" | "countdown" | "live">("idle");
   const [cd, setCd] = useState(3);
   const [secs, setSecs] = useState(0);
@@ -1558,13 +1591,19 @@ function RecordingLayer({ recording, host, patch }: { recording: boolean; host: 
     setPhase("idle"); setPaused(false);
   }, [recording, host]);
 
-  // The timer runs while live and NOT paused.
+  // The timer runs while live and NOT paused. It counts from the SHARED
+  // `recordingStartedAt` (broadcast to every client) so the host and all attendees show
+  // the SAME elapsed time — not each client's own join moment. Falls back to local time
+  // only if the timestamp is somehow missing.
   useEffect(() => {
     if (phase === "live" && !paused) {
-      timer.current = setInterval(() => setSecs((s) => s + 1), 1000);
+      const base = startedAt ? new Date(startedAt).getTime() : Date.now();
+      const tick = () => setSecs(Math.max(0, Math.floor((Date.now() - base) / 1000)));
+      tick();
+      timer.current = setInterval(tick, 1000);
       return () => { if (timer.current) clearInterval(timer.current); };
     }
-  }, [phase, paused]);
+  }, [phase, paused, startedAt]);
 
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
   const stop = () => { setConfirmStop(false); setPaused(false); setName(`${session_name()} — ${today()}`); setSaveOpen(true); void patch({ recording: false }); };
