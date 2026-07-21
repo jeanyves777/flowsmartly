@@ -202,8 +202,12 @@ export function stepCount(items: BoardItem[]): number {
 
 /** The clamped slide count a deck will have — the single source of truth shared by
  *  the generator and the credit estimate (client + server). */
-export function deckSlideCount(slideCount?: number): number {
-  return Math.min(12, Math.max(3, slideCount ?? 6));
+export function deckSlideCount(slideCount?: number, minutes?: number): number {
+  // Honour an explicit request (capped at 30 so we never blow the token budget); otherwise
+  // derive from the session length at ~2 narrated minutes per slide.
+  if (typeof slideCount === "number" && slideCount > 0) return Math.min(30, Math.max(3, Math.round(slideCount)));
+  const fromMinutes = minutes ? Math.round(minutes / 2) : 6;
+  return Math.min(30, Math.max(4, fromMinutes));
 }
 
 /** How many generated illustrations a built deck actually carries (what we charge) —
@@ -223,15 +227,16 @@ export async function generateDeck(opts: {
   wantWhiteboard?: boolean;
   wantVisuals?: boolean;
   slideCount?: number;
+  minutes?: number;
 }): Promise<TrainingDeck | null> {
-  const n = deckSlideCount(opts.slideCount);
+  const n = deckSlideCount(opts.slideCount, opts.minutes);
   const faces = [opts.wantDoc !== false ? "document" : "", opts.wantWhiteboard ? "whiteboard" : ""].filter(Boolean).join(" and ");
 
   const prompt = `You are an expert instructional designer building a COMPLETE VISUAL TEACHING EXPERIENCE (not plain bullet slides) from this brief:
 
 """${opts.brief.slice(0, 2000)}"""
 
-Produce EXACTLY ${n} slides as ${faces || "document"} slides. Teach it like a great presenter: mix photorealistic imagery, 3D explainers, and step-by-step whiteboard sections.
+Produce EXACTLY ${n} slides as ${faces || "document"} slides${opts.minutes ? ` for a ${opts.minutes}-minute session` : ""}. This is a FULL training, not a teaser: cover the topic in real depth, progressing logically from fundamentals to application. Teach it like a great presenter: mix photorealistic imagery, 3D explainers, and step-by-step whiteboard sections.
 Return JSON: { "title": string, "slides": Slide[] } where Slide is:
 {
   "type": "doc" | "whiteboard" | "livedraw",
@@ -249,11 +254,14 @@ Return JSON: { "title": string, "slides": Slide[] } where Slide is:
 Rules:
 - ${opts.wantWhiteboard ? "Use whiteboard/livedraw slides GENEROUSLY for concepts, processes and frameworks — aim for at least a third of the deck. Use \"livedraw\" for the SINGLE most important concept that lands best when sketched stroke-by-stroke while talking; use \"whiteboard\" for the rest. Rich multi-step diagrams (4-6 nodes)." : "Do NOT use whiteboard or livedraw slides."}
 - For EVERY whiteboard/livedraw slide, ALWAYS add 1-2 short \`annotations\` (sticky-note callouts) and an \`assetPrompt\` describing a 3D asset that makes the concept concrete.
-- Choose visualStyle deliberately: real photography for real-world/people scenes, 3D for abstract or systemic concepts, illustration for the rest.
+- VARY the visualStyle deliberately across the deck — alternate real photography (real-world/people scenes), 3D (abstract or systemic concepts) and illustration (the rest) so consecutive slides don't look the same. Aim for a healthy mix, not one style repeated.
+- Go DEEP: give each slide substantive, specific teaching content (concrete bullets, real examples, numbers/steps where relevant) — not generic filler. The notes should be a real talking point the presenter can expand on.
 - Open with a title/agenda slide and close with a summary or call-to-action. Every line tight and presentable.`;
 
-  const raw = (await ai.generateJSON<{ title?: string; slides?: RawSlide[] }>(prompt, { temperature: 0.5, maxTokens: 3500 }))
-    ?? (await ai.generateJSON<{ title?: string; slides?: RawSlide[] }>(prompt, { temperature: 0.25, maxTokens: 3500 }));
+  // Bigger decks need more output room or the JSON truncates (dropping slides).
+  const maxTokens = Math.min(16000, 2000 + n * 450);
+  const raw = (await ai.generateJSON<{ title?: string; slides?: RawSlide[] }>(prompt, { temperature: 0.5, maxTokens }))
+    ?? (await ai.generateJSON<{ title?: string; slides?: RawSlide[] }>(prompt, { temperature: 0.25, maxTokens }));
   if (!raw?.slides?.length) return null;
 
   const assetBoxes: Record<string, AssetBox> = {}; // slide id → where its 3D cutout sits

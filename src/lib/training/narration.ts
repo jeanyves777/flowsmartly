@@ -14,23 +14,32 @@ import type { DeckSlide, SlideNarration } from "./types";
 
 export interface ClonedVoice { openaiVoiceId?: string | null; elevenLabsVoiceId?: string | null }
 
-/** What the presenter should say — one short spoken script per slide, in one AI call. */
-export async function writeDeckScripts(slides: DeckSlide[], style: string, presenterName?: string): Promise<string[]> {
+/** What the presenter should say — one spoken script per slide, in one AI call. The
+ *  narration LENGTH scales to the session duration so a 45-min room gets ~45 min of talking
+ *  (not the old ~30-60 words/slide that left long sessions ending in 5 minutes). */
+export async function writeDeckScripts(slides: DeckSlide[], style: string, presenterName?: string, minutes?: number): Promise<string[]> {
   const outline = slides.map((s, i) => {
     const labels = (s.board ?? []).filter((b) => b.t === "text" && !("note" in b && b.note)).map((b) => (b as { text: string }).text);
     const facts = [s.subtitle, ...(s.bullets ?? []), s.notes, labels.length ? `Diagram: ${labels.join(" → ")}` : ""].filter(Boolean).join(" | ");
     return `${i + 1}. "${s.title}"${facts ? ` — ${facts}` : ""}`;
   }).join("\n");
 
-  const prompt = `You are a ${style} training presenter delivering a live session. For EACH slide below, write a SHORT spoken narration — 2 to 4 natural sentences (about 30-60 words) you would actually say out loud. Speak TO the audience in the first person, warm and clear; connect slides so it flows. No stage directions, no markdown, no slide numbers — just the words to speak.
+  // Content slides (not the fixed intro/quiz/Q&A scripts) share the speaking budget.
+  const contentSlides = Math.max(1, slides.filter((s) => !s.intro && !s.quiz && !s.qa).length);
+  const perSlideWords = Math.min(300, Math.max(55, Math.round(((minutes ?? 8) * 140) / contentSlides)));
+  const sentenceHint = perSlideWords <= 70 ? "3-4 natural sentences" : perSlideWords <= 160 ? "5-8 natural sentences" : "a full, flowing paragraph of 8-12 sentences";
+
+  const prompt = `You are a ${style} training presenter delivering a live ${minutes ? `${minutes}-minute ` : ""}session. For EACH slide below, write the spoken narration — about ${perSlideWords} words (${sentenceHint}) you'd actually say out loud. TEACH it with real depth: explain the idea, give a concrete example or the "why it matters", and connect to the slide's points — not a one-line summary. Speak TO the audience in the first person, warm and clear; connect slides so the session flows as one talk. No stage directions, no markdown, no slide numbers — just the words to speak.
 
 Slides:
 ${outline}
 
 Return JSON: { "scripts": string[] } with EXACTLY ${slides.length} entries, in order.`;
 
-  const raw = (await ai.generateJSON<{ scripts?: string[] }>(prompt, { temperature: 0.6, maxTokens: 2200 }))
-    ?? (await ai.generateJSON<{ scripts?: string[] }>(prompt, { temperature: 0.35, maxTokens: 2200 }));
+  // Long narration for many slides needs a lot of output room or the JSON truncates.
+  const maxTokens = Math.min(16000, 1500 + Math.round(contentSlides * perSlideWords * 1.7));
+  const raw = (await ai.generateJSON<{ scripts?: string[] }>(prompt, { temperature: 0.6, maxTokens }))
+    ?? (await ai.generateJSON<{ scripts?: string[] }>(prompt, { temperature: 0.35, maxTokens }));
   const scripts = raw?.scripts ?? [];
   // Always return one script per slide (fall back to a plain read of the title).
   const who = (presenterName || "").trim().split(/\s+/)[0] || "your A I co-host";
@@ -49,7 +58,7 @@ Return JSON: { "scripts": string[] } with EXACTLY ${slides.length} entries, in o
     if (s.qa) return s.qaKind === "final"
       ? "That covers everything I planned to share. Before we wrap up, let's open the floor — what questions do you have? Raise your hand or use Ask the presenter, and I'll help. Host, feel free to jump in here too."
       : "Let's pause here for a moment. Does anyone have a question about what we've covered so far? Raise your hand or use Ask the presenter — I'm happy to clarify before we move on.";
-    return (scripts[i] || `${s.title}. ${(s.bullets ?? []).slice(0, 2).join(". ")}`).trim().slice(0, 700);
+    return (scripts[i] || [s.title, s.subtitle, ...(s.bullets ?? []), s.notes].filter(Boolean).join(". ")).trim().slice(0, 2600);
   });
 }
 
@@ -110,8 +119,9 @@ export async function narrateDeck(opts: {
   pace: number;
   style: string;
   presenterName?: string;
+  minutes?: number;
 }): Promise<NarrateResult> {
-  const scripts = await writeDeckScripts(opts.slides, opts.style, opts.presenterName);
+  const scripts = await writeDeckScripts(opts.slides, opts.style, opts.presenterName, opts.minutes);
   const out: Record<string, SlideNarration> = {};
   const reveals: Record<string, SlideNarration> = {};
   const cloneRequested = !!(opts.voice?.elevenLabsVoiceId || opts.voice?.openaiVoiceId);
