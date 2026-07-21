@@ -66,7 +66,17 @@ export function parseDeck(raw: string | null | undefined): TrainingDeck {
   if (!raw) return { v: 1, slides: [] };
   try {
     const d = JSON.parse(raw) as Partial<TrainingDeck>;
-    return { v: 1, slides: Array.isArray(d.slides) ? d.slides : [] };
+    // Preserve the presenter wiring — dropping it here made routes think there's no presenter
+    // (e.g. iv-moment said "add an AI presenter first" for a deck that HAD one).
+    return {
+      v: 1,
+      slides: Array.isArray(d.slides) ? d.slides : [],
+      presenterId: d.presenterId ?? null,
+      presenterActive: d.presenterActive,
+      presenterVideoUrl: d.presenterVideoUrl ?? null,
+      introVideoUrl: d.introVideoUrl ?? null,
+      outroVideoUrl: d.outroVideoUrl ?? null,
+    };
   } catch {
     return { v: 1, slides: [] };
   }
