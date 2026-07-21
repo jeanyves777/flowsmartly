@@ -512,6 +512,13 @@ Every relative/local import you write (e.g. \`import X from "./X"\` or \`import 
 - For subtle tints: bg-primary-50, bg-primary-100 for card backgrounds; bg-primary-600 for primary buttons
 - ALWAYS add cursor-pointer to button elements: <button className="... cursor-pointer ...">
 
+### CRITICAL — READABLE TEXT / CONTRAST (the brand color may be very dark OR very light):
+- NEVER use the brand color as TEXT sitting on the page/card background — text-primary-*, text-secondary-*, text-accent-* are FORBIDDEN for prices, body copy, headings, and labels. A dark brand color is invisible on a dark surface (and a light one on a light surface).
+- Prices and headings: text-gray-900 dark:text-white (with font-bold). Secondary/body text: text-gray-600 dark:text-gray-300. Muted: text-gray-500 dark:text-gray-400.
+- Reserve the brand color for FILLED elements only — buttons (bg-primary-600 with text-white ON it), badges (bg-primary-600/bg-primary-100 with contrasting text), and active/selected states. When the brand color is a background, the text on top is white or near-white, never the brand color again.
+- Links may use the brand color ONLY if legible on the surface; if unsure, use the foreground color with an underline instead.
+- The storefront supports light AND dark mode — verify every text color has BOTH a light and a dark class so it stays readable in both.
+
 ### Animations in globals.css (CRITICAL):
 - NEVER use @apply inside @keyframes blocks — Tailwind v4 forbids this
 - Use raw CSS in @keyframes: { opacity: 0; } not { @apply opacity-0; }
