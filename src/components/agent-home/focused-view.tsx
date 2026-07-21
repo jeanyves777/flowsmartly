@@ -18,6 +18,8 @@ export function FocusedView({
   chat,
   canvas,
   onClose,
+  onBack,
+  backLabel,
   headerActions,
   agentBusy,
   revealChat,
@@ -28,6 +30,9 @@ export function FocusedView({
   chat: ReactNode;
   canvas: ReactNode;
   onClose: () => void;
+  /** Optional "back" target (e.g. return to the parent surface) shown left of the title. */
+  onBack?: () => void;
+  backLabel?: string;
   /** Optional controls rendered in the surface header, next to Exit. */
   headerActions?: ReactNode;
   /** True while the agent is actively working — drives the live status indicator. */
@@ -113,6 +118,11 @@ export function FocusedView({
           {collapsed && (
             <button onClick={() => setCollapsed(false)} title="Show chat" className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-border text-muted-foreground hover:text-foreground" aria-label="Show chat">
               <MessageSquare className="h-[18px] w-[18px]" />
+            </button>
+          )}
+          {onBack && (
+            <button onClick={onBack} className="inline-flex shrink-0 items-center gap-1.5 rounded-[10px] border border-border px-2.5 py-1.5 text-[12px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground" title={backLabel || "Back"}>
+              <ChevronLeft className="h-4 w-4" /> <span className="hidden sm:inline">{backLabel || "Back"}</span>
             </button>
           )}
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Icon className="h-[18px] w-[18px]" /></span>

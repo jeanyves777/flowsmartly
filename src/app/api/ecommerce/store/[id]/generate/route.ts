@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { getDynamicCreditCost, checkCreditsForFeature } from "@/lib/credits/costs";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { runStoreAgentV3, type ProductInput } from "@/lib/store-builder/store-agent";
+import { persistStoreCatalog } from "@/lib/store-builder/persist-catalog";
 
 // POST /api/ecommerce/store/[id]/generate — Claude Agent builds the store (V3 SSR only)
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -52,6 +53,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       type: TRANSACTION_TYPES.USAGE,
       description: `AI store generation (V3): ${store.name}`,
     });
+
+    // Persist the catalog to the DB (real ids) so products are DB-backed +
+    // user-controlled — never hardcoded fakes. Idempotent across regenerations.
+    try {
+      await persistStoreCatalog(id, products || [], categories || [], store.currency);
+    } catch (e) {
+      console.error("[generate] persistStoreCatalog failed (continuing):", e);
+    }
 
     // Fire-and-forget: agent runs in background, client polls buildStatus
     // Error handler attached immediately to prevent unhandled rejection

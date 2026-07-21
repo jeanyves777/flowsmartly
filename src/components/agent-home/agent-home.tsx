@@ -327,6 +327,10 @@ const AGENT_VIEW: Record<string, { surface: string; label: string }> = {
 // link cleanly to Home instead of a "coming soon" placeholder.
 const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "voices", "clone", "voiceagent", "training", "video", "director", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
+// Views reached FROM the store (Sell) — they get a "Back to store" so the user
+// returns to the store dashboard instead of exiting all the way to the menu.
+const STORE_CHILD_VIEWS = new Set(["customers", "delivery"]);
+
 
 /**
  * Update the address bar WITHOUT going through Next's router. The App Router
@@ -1266,6 +1270,8 @@ export function AgentHome() {
               icon={FIcon}
               agentBusy={sending}
               onClose={() => guardNav(() => { setFocused(null); setActiveWs("home"); })}
+              onBack={focused && STORE_CHILD_VIEWS.has(focused) ? () => guardNav(() => openView("sell")) : undefined}
+              backLabel="Store"
               headerActions={isDesignSurface ? (
                 // Screen ⇄ Print mode switch — the deep Print↔Design merge. Both modes
                 // are the same "Design Studio" surface; each keeps its own document.

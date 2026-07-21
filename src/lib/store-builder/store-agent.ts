@@ -75,6 +75,16 @@ async function syncProductsToDB(storeId: string, siteDir: string): Promise<void>
   const { join } = await import("path");
   const productsPath = join(siteDir, "src", "lib", "products.ts");
 
+  // The catalog is now persisted to the DB up front (DB-first, user-controlled).
+  // If products already exist, do NOT re-import the agent's file — that would
+  // duplicate them under the agent's fabricated ids. This reverse sync only
+  // covers legacy stores whose DB is still empty.
+  const existingCount = await prisma.product.count({ where: { storeId } });
+  if (existingCount > 0) {
+    console.log(`[StoreAgent] ${existingCount} products already in DB — skipping file→DB sync`);
+    return;
+  }
+
   if (!existsSync(productsPath)) {
     console.warn("[StoreAgent] products.ts not found, skipping DB sync");
     return;
@@ -168,12 +178,12 @@ function buildStorePrompt(
   const productSummary = products.length > 0
     ? `\n\nProducts to include (${products.length}):\n${products
         .map((p, i) => `${i + 1}. ${p.name} — ${p.description || "no description"} — $${(p.priceCents / 100).toFixed(2)}${p.category ? ` [${p.category}]` : ""}${p.images?.length ? ` (has ${p.images.length} image(s))` : " (needs product images)"}`)
-        .join("\n")}`
-    : "\n\nNo products provided — generate 6-10 starter products appropriate for this store type.";
+        .join("\n")}\nThese are the ONLY products. Do NOT invent, add, or remove any. Products are owned by the store's database — never fabricate extras.`
+    : "\n\nNo products were provided. Do NOT invent any — the owner adds products themselves in the manager. Write src/lib/products.ts with an EMPTY products array (export const products: Product[] = []) and keep every helper (getProductBySlug, etc.) working on an empty array. The storefront reads products live from the API and must render gracefully with zero products (a friendly 'no products yet' empty state on the home, products, and category pages).";
 
   const categorySummary = categories.length > 0
     ? `\nCategories (USE THESE EXACT NAMES — do NOT rename or invent new ones): ${categories.join(", ")}`
-    : "\nNo categories provided — derive categories from the products' category field. Do NOT invent category names.";
+    : "\nNo categories provided. Do NOT invent category names — write src/lib/data.ts with an EMPTY categories array (export const categories = []).";
 
   return [
     `Build a complete, production-quality e-commerce store for:`,
