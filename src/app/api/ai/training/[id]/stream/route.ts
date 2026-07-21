@@ -117,13 +117,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       heartbeat = setInterval(() => {
         try {
           touchConn(id, sessionKey);
-          // frequent + padded, so any buffered stage-step events flush promptly even if a
-          // proxy tries to hold small frames back
           controller.enqueue(frameEvent({ type: "heartbeat" }));
         } catch {
           if (heartbeat) clearInterval(heartbeat);
         }
-      }, 2_000);
+      }, 15_000);
 
       // Bill the room from the HOST's connection only, so N attendees don't
       // each charge the tab N times. Incremental, so a room that never gets
