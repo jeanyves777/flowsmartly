@@ -54,10 +54,12 @@ const STEPS = ["Voice", "Presenter", "Delivery", "Questions", "Review"] as const
 const READING_SCRIPT =
   "Hi, thanks for joining today's session. Over the next little while we'll walk through the key ideas together, look at a few real examples, and leave plenty of room for your questions. I'll keep things clear and practical, and we'll take it one step at a time. When something clicks, that's the moment to build on — so stay curious, and let's get started.";
 
-export function PresenterSetup({ open, onClose, onChoose }: {
+export function PresenterSetup({ open, onClose, onChoose, onCloneMyself }: {
   open: boolean;
   onClose: () => void;
   onChoose?: (p: PresenterProfileDTO) => void;
+  /** Hand off to the full Clone Studio to build a photoreal, moving clone — then come back. */
+  onCloneMyself?: () => void;
 }) {
   const { toast } = useToast();
   const [data, setData] = useState<Loaded | null>(null);
@@ -405,24 +407,17 @@ export function PresenterSetup({ open, onClose, onChoose }: {
                     <input value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="Presenter name (e.g. Jean AI)" className="w-full rounded-xl border border-border bg-muted px-3 py-2.5 text-[13px] outline-none focus:border-brand-500" />
                     <div className="flex flex-wrap gap-2">
                       <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2 text-[12px] font-semibold hover:border-brand-500">{busy === "portrait" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />} {f.portraitUrl ? "Change photo" : "Upload my photo"}<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { onPortrait(e.target.files?.[0]); e.target.value = ""; }} /></label>
-                      <span className="inline-flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2 text-[12px] font-semibold text-muted-foreground"><Sparkles className="h-4 w-4" /> Create avatar</span>
-                      <span className="inline-flex items-center gap-2 rounded-xl border border-border bg-muted px-3 py-2 text-[12px] font-semibold text-muted-foreground"><ImageIcon className="h-4 w-4" /> Use camera clone</span>
+                      {onCloneMyself ? (
+                        <button onClick={onCloneMyself} className="inline-flex items-center gap-2 rounded-xl border border-brand-500/60 bg-brand-500/10 px-3 py-2 text-[12px] font-bold text-brand-400 hover:border-brand-500"><Sparkles className="h-4 w-4" /> Clone Myself</button>
+                      ) : null}
                     </div>
                   </div>
                 </div>
-                {portraitFile ? (
-                  <div className="mt-4 rounded-2xl border border-border bg-muted/60 p-3.5">
-                    <div className="mb-2 flex items-center gap-1.5 text-[11.5px] font-bold"><Sparkles className="h-3.5 w-3.5 text-brand-400" /> Make it presentation-ready</div>
-                    <p className="mb-2.5 text-[10.5px] text-muted-foreground">We keep your exact face and turn the photo into a polished presenter shot — pick a background and outfit.</p>
-                    <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Background</div>
-                    <div className="mb-2.5 flex flex-wrap gap-1.5">
-                      {BG_OPTS.map((o) => (<button key={o.v} onClick={() => setBg(o.v)} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition", bg === o.v ? "border-brand-500 bg-brand-500/10 text-brand-400" : "border-border hover:border-brand-500")}>{o.label}</button>))}
-                    </div>
-                    <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Clothing</div>
-                    <div className="mb-3 flex flex-wrap gap-1.5">
-                      {CLOTH_OPTS.map((o) => (<button key={o.v} onClick={() => setCloth(o.v)} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition", cloth === o.v ? "border-brand-500 bg-brand-500/10 text-brand-400" : "border-border hover:border-brand-500")}>{o.label}</button>))}
-                    </div>
-                    <button onClick={makeReady} disabled={busy === "style"} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12px] font-bold text-white disabled:opacity-60">{busy === "style" ? <><Loader2 className="h-4 w-4 animate-spin" /> Creating your clone…</> : <><Sparkles className="h-4 w-4" /> Make presentation-ready</>}<span className="ms-1 rounded-md bg-white/15 px-1.5 py-0.5 text-[9.5px]">~18 credits</span></button>
+                {onCloneMyself ? (
+                  <div className="mt-4 rounded-2xl border border-brand-500/40 bg-gradient-to-br from-brand-500/[0.10] to-transparent p-3.5">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-[11.5px] font-bold"><Sparkles className="h-3.5 w-3.5 text-brand-400" /> Want a photoreal, moving co-host?</div>
+                    <p className="mb-3 text-[10.5px] leading-relaxed text-muted-foreground">Clone yourself in the full Clone Studio — a polished, lifelike likeness that can talk and move. When you&apos;re done, a <b className="text-foreground">Back to AI Presenter Assistant</b> button brings you right back here to finish, with your new clone ready to pick.</p>
+                    <button onClick={onCloneMyself} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12px] font-bold text-white"><Sparkles className="h-4 w-4" /> Clone Myself in the Clone Studio</button>
                   </div>
                 ) : null}
                 {f.portraitUrl ? (

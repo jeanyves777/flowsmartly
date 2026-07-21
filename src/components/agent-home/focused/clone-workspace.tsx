@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Sparkles, FolderOpen, Users, RefreshCw, Upload, X, Image as ImageIcon,
-  Shirt, PersonStanding, Clapperboard, Download, Wand2, Film, Camera, Plus,
+  Shirt, PersonStanding, Clapperboard, Download, Wand2, Film, Camera, Plus, ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
@@ -105,6 +105,15 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
   const [briefAdd, setBriefAdd] = useState(false);
   const [briefSeed, setBriefSeed] = useState<CloneIdentity | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  // Arrived here from the Training Room's AI Presenter Assistant ("Clone Myself")? Offer a
+  // one-tap way back so the flow stays unbroken.
+  const [fromPresenter, setFromPresenter] = useState(false);
+  useEffect(() => { try { if (sessionStorage.getItem("tg-clone-return") === "1") setFromPresenter(true); } catch { /* ignore */ } }, []);
+  const backToPresenter = () => {
+    try { sessionStorage.removeItem("tg-clone-return"); sessionStorage.setItem("tg-open-presenter", "1"); } catch { /* ignore */ }
+    setFromPresenter(false);
+    onOpenView?.("training");
+  };
   const [idPos, setIdPos] = useState({ x: 26, y: 84 });
   const boardRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -252,6 +261,9 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
     <div className="relative h-full w-full overflow-hidden">
       {headerSlot && createPortal(
         <div className="flex items-center gap-2">
+          {fromPresenter && (
+            <button onClick={backToPresenter} className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/60 bg-brand-500/10 px-3 py-1.5 text-[12px] font-bold text-brand-400 hover:border-brand-500"><ArrowLeft className="h-3.5 w-3.5" /> Back to AI Presenter Assistant</button>
+          )}
           {project && (
             <span className="hidden items-center gap-1 text-[11.5px] text-muted-foreground sm:inline-flex">
               <span className="text-brand-500">{stats.ready} ready</span> · <span>{stats.rendering} rendering</span> · <span>{stats.total} shots</span>
