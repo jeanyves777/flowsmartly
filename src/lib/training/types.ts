@@ -282,6 +282,7 @@ export interface TrainingSessionDTO {
 
   waitingRoom: boolean;
   recording: boolean;
+  recordingStartedAt: string | null; // ISO — shared start instant so every client's REC timer matches
   joinHeadline: string | null;
   joinMessage: string | null;
   joinLogoUrl: string | null;

@@ -6282,6 +6282,7 @@ model TrainingSession {
   // Off by default: nobody is recorded until the host explicitly starts it
   // (which plays a 3-2-1 consent countdown for the room).
   recording   Boolean @default(false)
+  recordingStartedAt DateTime? // when recording last began — so EVERY client's REC timer counts from the same instant (not each client's own join time)
   transcript  Boolean @default(true)
   openDraw    Boolean @default(false)
   openShare   Boolean @default(false)

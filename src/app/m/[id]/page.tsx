@@ -137,6 +137,13 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
         patch={async (b) => room.patch(b)}
         messages={room.messages}
         sendMessage={room.sendMessage}
+        // Attendees ALSO receive the presenter:answer SSE (use-room sets room.presenterAnswer),
+        // but without these props LiveRoom's card guard `{presenterAnswer ? …}` stayed null —
+        // which is why the hand-raise greeting + AI answer only showed for the host. Wire them
+        // so attendees see the popup AND get the "Ask the presenter" button.
+        presenterAnswer={room.presenterAnswer}
+        onAsk={room.askPresenter}
+        onClearAnswer={room.clearAnswer}
         onLeave={() => { window.location.href = "/"; }}
         onManage={() => { /* attendees have no back office */ }}
         onEnd={() => { /* attendees can't end the room */ }}

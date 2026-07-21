@@ -31,12 +31,18 @@ async function getSegmenter(): Promise<ImageSegmenter> {
     segmenterPromise = (async () => {
       const { ImageSegmenter, FilesetResolver } = await import("@mediapipe/tasks-vision");
       const fileset = await FilesetResolver.forVisionTasks(WASM_PATH);
-      return ImageSegmenter.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: MODEL_PATH, delegate: "GPU" },
-        runningMode: "VIDEO",
+      const opts = {
+        runningMode: "VIDEO" as const,
         outputCategoryMask: true,
         outputConfidenceMasks: false,
-      });
+      };
+      // GPU is faster but WebGL init throws on some browsers/GPUs (esp. Firefox). Fall
+      // back to CPU so the background still applies instead of silently keeping the raw cam.
+      try {
+        return await ImageSegmenter.createFromOptions(fileset, { ...opts, baseOptions: { modelAssetPath: MODEL_PATH, delegate: "GPU" } });
+      } catch {
+        return await ImageSegmenter.createFromOptions(fileset, { ...opts, baseOptions: { modelAssetPath: MODEL_PATH, delegate: "CPU" } });
+      }
     })().catch((e) => {
       segmenterPromise = null; // allow a retry next time
       throw e;
@@ -93,6 +99,10 @@ export class BackgroundCompositor {
     this.canvas.width = this.video.videoWidth || width;
     this.canvas.height = this.video.videoHeight || height;
     await this.setBackground(spec);
+
+    // Prime one real frame BEFORE capturing, so the first published frame isn't a
+    // transparent/black flash (captureStream grabs whatever is on the canvas immediately).
+    if (this.video.readyState >= 2) { try { this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height); } catch { /* ignore */ } }
 
     this.out = this.canvas.captureStream(fps);
     this.running = true;
@@ -154,15 +164,16 @@ export class BackgroundCompositor {
     const h = this.canvas.height;
     const ctx = this.ctx;
 
-    // 1) person alpha → mask canvas (selfie model: category 0 = background)
+    // 1) person alpha → mask canvas
     this.maskCanvas.width = mw;
     this.maskCanvas.height = mh;
     const img = this.maskCtx.createImageData(mw, mh);
     for (let i = 0; i < mask.length; i++) {
-      // selfie segmenter: category 0 IS the person, non-zero is background — so the
-      // person's alpha is where the mask is 0 (an inverted mask painted them as a
-      // solid silhouette of the background instead of showing their video).
-      const on = mask[i] === 0 ? 255 : 0;
+      // selfie_segmenter category mask: 0 = BACKGROUND, non-zero (category 1) = PERSON.
+      // So the person's alpha is where the mask is NON-ZERO. (A prior flip to `=== 0`
+      // inverted this — it painted the chosen background OVER the person while the real
+      // room showed through. Robust regardless of the category value since bg is always 0.)
+      const on = mask[i] !== 0 ? 255 : 0;
       const j = i * 4;
       img.data[j] = 255;
       img.data[j + 1] = 255;
