@@ -6361,6 +6361,7 @@ model TrainingParticipant {
   /// a synthetic AI Presenter co-host (disclosed) — not a real connection
   isAI              Boolean @default(false)
   presenterProfileId String?
+  photoUrl   String? // a still photo the attendee uses as their tile instead of the live camera
   canShare   Boolean @default(false)
   canDraw    Boolean @default(false)
   micOn      Boolean @default(false)

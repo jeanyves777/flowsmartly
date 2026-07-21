@@ -9,12 +9,12 @@
  * the OUTGOING camera through use-media → the compositor. [[training-studio]]
  */
 import { useEffect, useRef, useState } from "react";
-import { Video, Upload, Sparkles, Check, Layers, VideoOff, Trash2 } from "lucide-react";
+import { Video, Upload, Sparkles, Check, Layers, VideoOff, Trash2, Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { Sheet } from "./invite-sheet";
 import type { useMedia } from "./use-media";
 import type { BackgroundSpec } from "./background-compositor";
-import type { TrainingSessionDTO } from "@/lib/training/types";
+import type { TrainingSessionDTO, TrainingParticipantDTO } from "@/lib/training/types";
 
 type Media = ReturnType<typeof useMedia>;
 
@@ -30,14 +30,38 @@ const SCENES: { label: string; url: string }[] = [
   { label: "Loft", url: "/training-bg/loft.jpg" },
 ];
 
-export function VideoSheet({ media, session, onClose }: { media: Media; session: TrainingSessionDTO; onClose: () => void }) {
+export function VideoSheet({ media, session, me, onClose }: { media: Media; session: TrainingSessionDTO; me: TrainingParticipantDTO; onClose: () => void }) {
   const bg = media.background;
+  const [tab, setTab] = useState<"video" | "photo">(me.photoUrl ? "photo" : "video");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(me.photoUrl ?? null);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [lib, setLib] = useState<SavedBg[]>([]);
   const [aiOpen, setAiOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState<null | "upload" | "ai">(null);
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const photoFileRef = useRef<HTMLInputElement>(null);
+
+  // Use a still photo as your tile (instead of the live camera). Setting one turns the
+  // camera OFF so the photo actually stands in for the feed; clearing it removes the photo.
+  const applyPhoto = async (url: string | null) => {
+    setPhotoUrl(url);
+    await fetch(`/api/ai/training/${session.id}/participants`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_photo", participantId: me.id, photoUrl: url }),
+    }).catch(() => {});
+    if (url && media.camOn) await media.toggleCam().catch(() => {});
+  };
+  const uploadPhoto = async (file: File) => {
+    setPhotoBusy(true); setErr(null);
+    try {
+      const form = new FormData(); form.append("file", file);
+      const j = await fetch(`/api/ai/training/${session.id}/background`, { method: "POST", body: form }).then((r) => r.json());
+      if (!j?.success) { setErr(j?.error?.message || "Upload failed"); return; }
+      await applyPhoto(j.data.url as string);
+    } finally { setPhotoBusy(false); }
+  };
 
   useEffect(() => {
     try { setLib(JSON.parse(localStorage.getItem(LIB_KEY) || "[]")); } catch {}
@@ -80,6 +104,45 @@ export function VideoSheet({ media, session, onClose }: { media: Media; session:
 
   return (
     <Sheet title="Video & background" sub="Preview yourself, pick a camera, and set a virtual background." onClose={onClose}>
+      {/* Video ⟷ Photo — a live camera (with a background) OR a still photo as your tile. */}
+      <div className="mx-1 mb-2 grid grid-cols-2 gap-1 rounded-xl border border-border bg-muted/40 p-1">
+        <button onClick={() => setTab("video")} className={cn("inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12.5px] font-bold transition", tab === "video" ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white shadow" : "text-muted-foreground hover:text-foreground")}><Video className="h-3.5 w-3.5" /> Video</button>
+        <button onClick={() => setTab("photo")} className={cn("inline-flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12.5px] font-bold transition", tab === "photo" ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white shadow" : "text-muted-foreground hover:text-foreground")}><ImageIcon className="h-3.5 w-3.5" /> Photo</button>
+      </div>
+
+      {tab === "photo" ? (
+        <div className="px-1.5 pb-1">
+          <div className="mb-2 overflow-hidden rounded-2xl border border-border bg-[#0f172a]">
+            <div className="relative aspect-[4/3]">
+              {photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoUrl} alt="Your photo" className="h-full w-full object-cover" />
+              ) : (
+                <div className="grid h-full w-full place-items-center text-center">
+                  <div>
+                    <ImageIcon className="mx-auto h-7 w-7 text-slate-500" />
+                    <p className="mt-1.5 text-[11.5px] text-slate-400">Use a still photo instead of your camera</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          {err ? <p className="mb-1 text-[11.5px] text-rose-400">{err}</p> : null}
+          <input ref={photoFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadPhoto(f); }} />
+          <div className="flex gap-2">
+            <button onClick={() => photoFileRef.current?.click()} disabled={photoBusy} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-3.5 py-2.5 text-[13px] font-extrabold text-white disabled:opacity-60">
+              {photoBusy ? "Uploading…" : <><Upload className="h-3.5 w-3.5" /> {photoUrl ? "Change photo" : "Upload a photo"}</>}
+            </button>
+            {photoUrl ? (
+              <button onClick={() => void applyPhoto(null)} disabled={photoBusy} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-border px-3.5 py-2.5 text-[13px] font-bold text-muted-foreground hover:text-foreground disabled:opacity-60">
+                <Trash2 className="h-3.5 w-3.5" /> Remove
+              </button>
+            ) : null}
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Your photo shows in your tile for everyone in the room, in place of your live camera. Switch back to <b>Video</b> any time.</p>
+        </div>
+      ) : (
+      <>
       {/* live self-preview (the composited stream) */}
       <div className="mx-1 mb-1 overflow-hidden rounded-2xl border border-border bg-[#0f172a]">
         <div className="relative aspect-[4/3]">
@@ -163,6 +226,8 @@ export function VideoSheet({ media, session, onClose }: { media: Media; session:
           </button>
         );
       })}
+      </>
+      )}
     </Sheet>
   );
 }

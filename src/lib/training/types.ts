@@ -113,6 +113,7 @@ export interface TrainingParticipantDTO {
   name: string;
   email: string | null;
   avatarUrl: string | null;
+  photoUrl?: string | null; // a still photo the attendee uses instead of their live camera
   role: ParticipantRole;
   state: ParticipantState;
   canShare: boolean;
