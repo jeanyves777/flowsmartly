@@ -118,6 +118,10 @@ interface GenerateOptions {
    *  energy (e.g. "leans in, warm hand gestures"). Only applies to the Avatar IV /
    *  talking-photo engine; best-effort (stripped + retried if HeyGen rejects it). */
   motionPrompt?: string;
+  /** AUDIO-DRIVEN Avatar IV: a public URL to spoken audio (e.g. the presenter's CLONED
+   *  voice) the avatar lip-syncs to — instead of text + a HeyGen voice. When set, the render
+   *  uses the person's real voice with realistic Avatar IV motion. */
+  audioUrl?: string;
   /** Persist the upstream video_id the moment the job is created, so a restart
    *  mid-poll can resume instead of losing a render the provider is billing. */
   onJobId?: (videoId: string) => void | Promise<void>;
@@ -191,8 +195,10 @@ class HeyGenClient {
   private buildVoice(
     voiceId: string,
     script: string,
-    opts?: { speed?: number; emotion?: string; locale?: string },
+    opts?: { speed?: number; emotion?: string; locale?: string; audioUrl?: string },
   ): Record<string, unknown> {
+    // Audio-driven: the avatar lip-syncs to real spoken audio (the cloned voice), no HeyGen voice.
+    if (opts?.audioUrl) return { type: "audio", audio_url: opts.audioUrl };
     const voice: Record<string, unknown> = { type: "text", input_text: script, voice_id: voiceId };
     if (typeof opts?.speed === "number" && opts.speed >= 0.5 && opts.speed <= 1.5) voice.speed = opts.speed;
     if (opts?.emotion) voice.emotion = opts.emotion;
@@ -250,19 +256,20 @@ class HeyGenClient {
   async generateAvatarVideo(options: GenerateOptions): Promise<HeyGenVideoResult> {
     if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
 
-    const { avatarId, voiceId, script, aspect = "9:16", quality = "standard", captions, background, voiceSpeed, voiceEmotion, voiceLocale, motionPrompt, onJobId, onStatus, onProgress, estimatedSeconds, timeoutMs } = options;
+    const { avatarId, voiceId, script, aspect = "9:16", quality = "standard", captions, background, voiceSpeed, voiceEmotion, voiceLocale, motionPrompt, audioUrl, onJobId, onStatus, onProgress, estimatedSeconds, timeoutMs } = options;
     const dimension = DIMENSIONS[aspect] ?? DIMENSIONS["9:16"];
 
+    // Audio-driven Avatar IV always uses the talking-photo character + the realistic IV model.
+    const ivPhoto = quality === "avatar_iv" || !!audioUrl;
     const character: Record<string, unknown> =
-      quality === "avatar_iv"
+      ivPhoto
         ? { type: "talking_photo", talking_photo_id: avatarId }
         : { type: "avatar", avatar_id: avatarId, avatar_style: "normal" };
-    // Avatar IV motion engine: a natural-language prompt drives gestures/expression so
-    // the delivery isn't static. Best-effort — postGenerate() strips these + retries if
-    // HeyGen rejects them, so a render never dies over the motion driver.
+    // Avatar IV motion engine: the realistic model + optional natural-language gesture prompt.
+    // Best-effort — postGenerate() strips these + retries if HeyGen rejects them.
     const motion = (motionPrompt || "").trim();
-    if (quality === "avatar_iv" && motion) {
-      character.use_avatar_iv_model = true;
+    if (ivPhoto && (audioUrl || motion)) character.use_avatar_iv_model = true;
+    if (ivPhoto && motion) {
       character.custom_motion_prompt = motion.slice(0, 500);
       character.enhance_custom_motion_prompt = true;
     }
@@ -270,7 +277,7 @@ class HeyGenClient {
     // A hex background colour is applied per video-input; "original"/empty keeps the default.
     const videoInput: Record<string, unknown> = {
       character,
-      voice: this.buildVoice(voiceId, script.slice(0, 25000), { speed: voiceSpeed, emotion: voiceEmotion, locale: voiceLocale }),
+      voice: this.buildVoice(voiceId, script.slice(0, 25000), { speed: voiceSpeed, emotion: voiceEmotion, locale: voiceLocale, audioUrl }),
     };
     if (background && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(background)) {
       videoInput.background = { type: "color", value: background };

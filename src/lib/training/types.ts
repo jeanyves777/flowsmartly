@@ -195,6 +195,17 @@ export interface DeckSlide {
   /** the opening slide: the AI co-host appears on the Presenter stage and introduces
    *  itself (a disclosed self-intro), then the room moves on to the first slide. */
   intro?: boolean;
+  /** a "talking AI moment" BETWEEN slides: the co-host appears full-screen and SPEAKS a
+   *  short bridge line, then the deck moves on — rendered as a realistic Avatar-IV talking
+   *  video (see momentVideoUrl). */
+  presenterMoment?: boolean;
+  /** for intro / presenterMoment slides: the realistic Avatar-IV TALKING video (the presenter
+   *  actually speaking this moment's line in the cloned voice — plays WITH its own audio, not
+   *  the muted loop). Generated in the Build Studio. */
+  momentVideoUrl?: string;
+  /** the spoken line for this on-screen moment. Synth'd to the audio the Avatar-IV video
+   *  lip-syncs to, and shown as the caption. */
+  momentScript?: string;
 }
 
 export interface QuizQuestion {
