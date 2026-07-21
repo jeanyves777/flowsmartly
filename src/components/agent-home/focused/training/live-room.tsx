@@ -495,7 +495,9 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           </div>
         );
       }
-      return slide ? <DeckSlideView slide={slide} reveal={session.stageStep} /> : null;
+      // Keep slides at a 16:9 box (letterboxed) like the intro film — never stretch them
+      // to fill a portrait phone stage.
+      return slide ? <div className="aspect-video max-h-full w-full max-w-full overflow-hidden rounded-lg"><DeckSlideView slide={slide} reveal={session.stageStep} /></div> : null;
     }
     if (material?.kind === "image" || material?.kind === "video") {
       // eslint-disable-next-line @next/next/no-img-element
@@ -517,7 +519,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         <p className="text-[12px] text-slate-400">Nothing on the stage yet — add a material.</p>
       </div>
     );
-  }, [session.stageSource, session.stagePage, session.penHolderId, session.participants, session.aiPlaying, aiSpeaking, material, sharer, me, media.localCam, media.localScreen, media.remotes]);
+  }, [session.stageSource, session.stagePage, session.stageStep, session.penHolderId, session.participants, session.aiPlaying, aiSpeaking, material, sharer, me, media.localCam, media.localScreen, media.remotes]);
 
   const layout = session.rosterLayout ?? "side";
   const spotlight = session.spotlightId ? inRoom.find((p) => p.id === session.spotlightId) ?? null : null;
