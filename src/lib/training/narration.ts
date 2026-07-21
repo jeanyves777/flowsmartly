@@ -5,12 +5,21 @@
  * clone is available) and stored in S3. This is the audio spine of the timeline runtime.
  * [[training-studio]]
  */
+import { spawn } from "child_process";
+import { writeFile, readFile, unlink, mkdtemp } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 import { ai } from "@/lib/ai/client";
 import { generateVoice } from "@/lib/voice/voice-engine";
 import { generateWithClonedVoice } from "@/lib/voice/openai-voice-client";
 import { generateWithClonedVoice as generateWithElevenLabs } from "@/lib/voice/elevenlabs-client";
+import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import type { DeckSlide, SlideNarration } from "./types";
+
+/** ~ms of real silence prepended to every slide's clip so each new slide opens with a natural
+ *  settling beat (done at the audio level so it lands even when the TTS engine ignores text cues). */
+const LEAD_SILENCE_MS = 550;
 
 export interface ClonedVoice { openaiVoiceId?: string | null; elevenLabsVoiceId?: string | null }
 
@@ -29,7 +38,14 @@ export async function writeDeckScripts(slides: DeckSlide[], style: string, prese
   const perSlideWords = Math.min(300, Math.max(55, Math.round(((minutes ?? 8) * 140) / contentSlides)));
   const sentenceHint = perSlideWords <= 70 ? "3-4 natural sentences" : perSlideWords <= 160 ? "5-8 natural sentences" : "a full, flowing paragraph of 8-12 sentences";
 
-  const prompt = `You are a ${style} training presenter delivering a live ${minutes ? `${minutes}-minute ` : ""}session. For EACH slide below, write the spoken narration — about ${perSlideWords} words (${sentenceHint}) you'd actually say out loud. TEACH it with real depth: explain the idea, give a concrete example or the "why it matters", and connect to the slide's points — not a one-line summary. Speak TO the audience in the first person, warm and clear; connect slides so the session flows as one talk. No stage directions, no markdown, no slide numbers — just the words to speak.
+  const prompt = `You are a ${style} training presenter delivering a live ${minutes ? `${minutes}-minute ` : ""}session. For EACH slide below, write the spoken narration — about ${perSlideWords} words (${sentenceHint}) you'd actually say out loud. TEACH it with real depth: explain the idea, give a concrete example or the "why it matters", and connect to the slide's points — not a one-line summary. Speak TO the audience in the first person, warm and clear; connect slides so the session flows as one talk.
+
+DELIVERY — write for the EAR, calm and composed, like an unhurried presenter who lets ideas land:
+- Complete, moderate-length sentences (roughly 10–18 words), ONE idea per sentence. End every sentence with a period, "?" or "!". Do NOT run clauses together into long breathless sentences.
+- Vary the rhythm: drop in a short, reflective sentence between longer ones so there's a beat between thoughts.
+- Open the slide gently — a brief settling phrase or transition ("Now,", "So,", "Here's the thing,", "Let's look at this together.") before the meat, so it doesn't start abruptly.
+- Punctuate for speech: commas for natural micro-pauses, periods for full stops. Let it breathe.
+- No stage directions, no markdown, no slide numbers, no bracketed cues like [pause] — just the plain words to speak.
 
 Slides:
 ${outline}
@@ -80,29 +96,69 @@ const STYLE_MAP: Record<string, "professional" | "conversational" | "energetic" 
   professional: "professional", conversational: "conversational", energetic: "energetic", teacher: "warm",
 };
 
+/** Lay the script out one sentence per line so EVERY TTS engine takes a real breath between
+ *  sentences (line breaks are never spoken, but they cue a pause). On the ElevenLabs cloned path
+ *  we also drop an explicit short break tag, which it renders as a precise silence. This enforces
+ *  the natural inter-sentence pacing without touching the speaking speed. */
+function withNaturalPauses(text: string, breaks: boolean): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  // Split on sentence-ending punctuation that's followed by a new sentence (a capital/quote),
+  // so decimals like "0.3" and "A.I." aren't torn apart.
+  const sentences = clean.split(/(?<=[.!?])\s+(?=["'A-Z])/).map((s) => s.trim()).filter(Boolean);
+  if (sentences.length <= 1) return clean;
+  return sentences.join(breaks ? ' <break time="0.4s" />\n' : "\n");
+}
+
+/** Prepend real silence to a clip via ffmpeg so each slide opens with a natural settling beat.
+ *  Engine-agnostic; if ffmpeg isn't available it returns the clip unchanged (never blocks audio). */
+async function prependSilence(buffer: Buffer, ms: number): Promise<Buffer> {
+  const ffmpeg = findFFmpegPath();
+  if (!ffmpeg || ms <= 0) return buffer;
+  const dir = await mkdtemp(join(tmpdir(), "narr-"));
+  const ain = join(dir, "a.mp3"), out = join(dir, "out.mp3");
+  try {
+    await writeFile(ain, buffer);
+    await new Promise<void>((resolve, reject) => {
+      const p = spawn(ffmpeg, ["-y", "-i", ain, "-af", `adelay=${ms}:all=1`, "-c:a", "libmp3lame", "-q:a", "4", out]);
+      let e = ""; p.stderr.on("data", (d) => (e += d));
+      p.on("close", (c) => (c === 0 ? resolve() : reject(new Error(`ffmpeg ${c}: ${e.slice(-160)}`))));
+    });
+    return await readFile(out);
+  } catch (e) {
+    console.error("[narration] lead-silence failed, using raw clip:", e instanceof Error ? e.message : e);
+    return buffer;
+  } finally {
+    for (const f of [ain, out]) await unlink(f).catch(() => {});
+  }
+}
+
 /** Synthesize one script in the presenter's voice. Tries the cloned voice first, but a
  *  clone failure must NEVER block narration — it falls back to a preset voice so slides
  *  still get audio (`usedClone` records which path actually produced the sound). */
 export async function synthesize(text: string, voice: ClonedVoice | null, pace: number, style: string): Promise<{ buffer: Buffer; durationMs: number; usedClone: boolean }> {
   const words = text.split(/\s+/).filter(Boolean).length;
-  // Deliver a touch slower than the raw pace for a natural, measured cadence (the default
-  // delivery was rushing). Reveals track the audio, so this paces the whole timeline too.
-  // Synthesize at a natural pace (0.95 of raw reads best for this voice — 1.0 felt rushed,
-  // 0.9 dragged); the live room fine-tunes playback on the fly (audio.playbackRate).
+  // Speed is untouched here on purpose — the natural feel comes from PAUSES, not from slowing
+  // the voice. We keep the measured 0.95-of-raw baseline; the live room fine-tunes playback.
   const speed = Math.min(1.2, Math.max(0.7, (pace || 1) * 0.95));
   const fallbackMs = Math.max(1500, Math.round((words / 150) * 60 * 1000 / speed));
-  // 1. the presenter's cloned voice (ElevenLabs is true cloning; try it first)
+  // The presenter's cloned voice (ElevenLabs is true cloning; try it first). ElevenLabs renders
+  // <break> tags, so it gets the break-tagged layout; other engines get the one-per-line layout.
+  const elevenText = withNaturalPauses(text, true);
+  const plainText = withNaturalPauses(text, false);
+  // Prepend the settling silence and fold it into the reported duration (once, here).
+  const finish = async (raw: Buffer, baseMs: number, usedClone: boolean) =>
+    ({ buffer: await prependSilence(raw, LEAD_SILENCE_MS), durationMs: baseMs + LEAD_SILENCE_MS, usedClone });
   if (voice?.elevenLabsVoiceId) {
-    try { return { buffer: await generateWithElevenLabs({ text, voiceId: voice.elevenLabsVoiceId, speed }), durationMs: fallbackMs, usedClone: true }; }
+    try { return await finish(await generateWithElevenLabs({ text: elevenText, voiceId: voice.elevenLabsVoiceId, speed }), fallbackMs, true); }
     catch (e) { console.error("[narration] ElevenLabs voice failed, falling back to preset:", e instanceof Error ? e.message : e); }
   }
   if (voice?.openaiVoiceId) {
-    try { return { buffer: await generateWithClonedVoice({ text, voiceId: voice.openaiVoiceId, speed }), durationMs: fallbackMs, usedClone: true }; }
+    try { return await finish(await generateWithClonedVoice({ text: plainText, voiceId: voice.openaiVoiceId, speed }), fallbackMs, true); }
     catch (e) { console.error("[narration] OpenAI voice failed, falling back to preset:", e instanceof Error ? e.message : e); }
   }
-  // 2. preset voice — always available (never lets narration fail outright)
-  const r = await generateVoice({ text, gender: "male", accent: "american", style: STYLE_MAP[style] ?? "conversational", speed });
-  return { buffer: r.audioBuffer, durationMs: r.estimatedDurationMs || fallbackMs, usedClone: false };
+  // preset voice — always available (never lets narration fail outright)
+  const r = await generateVoice({ text: plainText, gender: "male", accent: "american", style: STYLE_MAP[style] ?? "conversational", speed });
+  return await finish(r.audioBuffer, r.estimatedDurationMs || fallbackMs, false);
 }
 
 export interface NarrateResult {
