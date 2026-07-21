@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, VolumeX, Film, Settings2, Mic, RotateCcw, Radio,
+  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, VolumeX, Film, Settings2, Mic, RotateCcw, Radio, Check,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -111,6 +111,28 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     } finally { setBusy(null); }
   };
   const narratedCount = deck?.slides.filter((s) => s.narration).length ?? 0;
+  // Presenter readiness — when the AI co-host is ON, its voice + on-screen videos must all be
+  // generated before you can start the meeting (so the room isn't half-built).
+  const momentTotal = deck?.slides.filter((s) => s.presenterMoment).length ?? 0;
+  const momentReady = deck?.slides.filter((s) => s.presenterMoment && s.momentVideoUrl).length ?? 0;
+  const presenterOn = !!deck?.presenterActive && !!presenter;
+  const ready = {
+    narration: narratedCount > 0,
+    loop: !!(deck?.presenterVideoUrl ?? presenter?.loopVideoUrl),
+    intro: !!deck?.introVideoUrl,
+    outro: !!deck?.outroVideoUrl,
+    moments: momentTotal === 0 || momentReady === momentTotal,
+  };
+  const presenterReady = !presenterOn || (ready.narration && ready.loop && ready.intro && ready.outro && ready.moments);
+  const [prepOpen, setPrepOpen] = useState(false);
+  // Generate every missing presenter asset in sequence (voice → loop → intro → outro → moments).
+  const runAll = async () => {
+    if (!ready.narration) await narrate();
+    if (!ready.loop) await animate();
+    if (!ready.intro) await genFilm("intro");
+    if (!ready.outro) await genFilm("outro");
+    if (!ready.moments) await genMoments();
+  };
   // the presenter's moving-avatar loop (deck copy wins; falls back to the profile)
   const loopUrl = deck?.presenterVideoUrl ?? presenter?.loopVideoUrl ?? null;
 
@@ -298,7 +320,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             <button onClick={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} disabled={page >= deck.slides.length - 1} className="grid h-7 w-7 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
             <button onClick={() => onPresent(mat.id)} title="Preview the deck on the live stage" className="ms-1 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-bold hover:border-brand-500"><Play className="h-3.5 w-3.5" /> Present</button>
             {onStartMeeting ? (
-              <button onClick={() => onStartMeeting(mat.id)} title="Go live and start the training now" className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-rose-600 to-rose-400 px-3.5 py-1.5 text-[12px] font-extrabold text-white"><Radio className="h-3.5 w-3.5" /> {session.status === "live" ? "Rejoin room" : "Start meeting"}</button>
+              <button onClick={() => (presenterReady || session.status === "live") ? onStartMeeting(mat.id) : setPrepOpen(true)} title={presenterReady || session.status === "live" ? "Go live and start the training now" : "Finish preparing your AI presenter first — voice + on-screen videos"} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[12px] font-extrabold text-white", (presenterReady || session.status === "live") ? "bg-gradient-to-br from-rose-600 to-rose-400" : "bg-gradient-to-br from-amber-600 to-amber-400")}><Radio className="h-3.5 w-3.5" /> {session.status === "live" ? "Rejoin room" : presenterReady ? "Start meeting" : "Prepare presenter"}</button>
             ) : null}
             <button onClick={onExit} className="rounded-lg border border-border px-2 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
@@ -370,6 +392,41 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
         onGenFilm={genFilm}
         onGenMoments={genMoments}
       />
+
+      {/* PREPARE PRESENTER — a large modal that generates every on-screen asset (voice, loop,
+          intro, outro, talking moments) with progress + preview. "Start meeting" is locked
+          until they're all ready. */}
+      {prepOpen ? (
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 p-4" onClick={() => setPrepOpen(false)}>
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Bot className="h-5 w-5" /></span>
+              <div className="min-w-0 flex-1"><b className="block text-[15px]">Prepare your AI presenter</b><span className="text-[11.5px] text-muted-foreground">These are generated before the training goes live.</span></div>
+              <button onClick={() => setPrepOpen(false)} className="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500">Close</button>
+            </div>
+            <div className="max-h-[58vh] space-y-2.5 overflow-auto p-4">
+              {([
+                { k: "narration", label: "Voice narration", done: ready.narration, meta: `${narratedCount}/${deck.slides.length} slides`, busyKey: "narrate" as const, run: narrate, preview: null as string | null },
+                { k: "loop", label: "Moving avatar (loops in the corner tile)", done: ready.loop, meta: ready.loop ? "Ready" : "Not generated", busyKey: "animate" as const, run: animate, preview: (deck.presenterVideoUrl ?? presenter?.loopVideoUrl) ?? null },
+                { k: "intro", label: "Intro — presenter on screen", done: ready.intro, meta: ready.intro ? "Ready" : "Not generated", busyKey: "introfilm" as const, run: () => genFilm("intro"), preview: deck.introVideoUrl ?? null },
+                { k: "outro", label: "Outro — presenter on screen", done: ready.outro, meta: ready.outro ? "Ready" : "Not generated", busyKey: "outrofilm" as const, run: () => genFilm("outro"), preview: deck.outroVideoUrl ?? null },
+                { k: "moments", label: "Talking moments between slides", done: ready.moments, meta: `${momentReady}/${momentTotal} ready`, busyKey: "moments" as const, run: genMoments, preview: null as string | null, hide: momentTotal === 0 },
+              ]).filter((a) => !a.hide).map((a) => (
+                <div key={a.k} className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 p-3">
+                  <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", a.done ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground")}>{a.done ? <Check className="h-4 w-4" /> : busy === a.busyKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Film className="h-4 w-4" />}</span>
+                  {a.preview ? <video src={a.preview} muted loop autoPlay playsInline className="h-11 w-[74px] shrink-0 rounded-lg object-cover" /> : null}
+                  <div className="min-w-0 flex-1"><b className="block text-[12.5px]">{a.label}</b><span className="text-[11px] text-muted-foreground">{a.meta}</span></div>
+                  <button onClick={a.run} disabled={busy !== null} className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40">{a.done ? "Regenerate" : "Generate"}</button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 border-t border-border px-5 py-4">
+              <button onClick={() => void runAll()} disabled={busy !== null || presenterReady} className="flex-1 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 py-2.5 text-[13px] font-extrabold text-white disabled:opacity-40">{busy !== null ? "Generating…" : presenterReady ? "All set" : "Generate everything"}</button>
+              <button onClick={() => { setPrepOpen(false); if (presenterReady) onStartMeeting?.(mat.id); }} disabled={!presenterReady} className="flex-1 rounded-xl bg-gradient-to-br from-rose-600 to-rose-400 py-2.5 text-[13px] font-extrabold text-white disabled:opacity-40"><Radio className="me-1 inline h-3.5 w-3.5" /> Start meeting</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
