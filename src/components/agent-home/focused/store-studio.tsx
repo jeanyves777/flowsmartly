@@ -5,7 +5,7 @@ import {
   Store, Globe, ExternalLink, RefreshCw, Save, Plus, Trash2, Link2, X, Check,
   AlertCircle, ArrowLeft, Image as ImageIcon, LayoutDashboard,
   Grid3X3, HelpCircle, FileText, Wand2, Server, Palette, Rocket, ChevronUp, ChevronDown,
-  Share2, ScrollText, Droplet,
+  Share2, ScrollText, Droplet, Sparkles,
 } from "lucide-react";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -318,14 +318,65 @@ export function StoreStudio({ storeId, onBack, onOpenView, onAsk }: {
   );
 }
 
+/* ── AI content assist ────────────────────────────────────────────────── */
+
+type ContentType = "tagline" | "about" | "hero" | "return_policy" | "shipping_policy" | "terms_of_service" | "privacy_policy" | "faq";
+interface StoreContentResult {
+  tagline?: string; about?: string;
+  hero?: { headline?: string; subheadline?: string };
+  returnPolicy?: string; shippingPolicy?: string; termsOfService?: string; privacyPolicy?: string;
+  faq?: Array<{ question: string; answer: string }>;
+}
+
+/** Calls the shared store-content generator. Returns generated text (not saved) or a friendly error. */
+async function generateContent(contentTypes: ContentType[]): Promise<{ ok: true; data: StoreContentResult } | { ok: false; error: string }> {
+  try {
+    const r = await fetch("/api/ecommerce/ai/store-content", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contentTypes }) });
+    const j = await r.json().catch(() => null);
+    if (r.ok && j?.success) return { ok: true, data: j.data as StoreContentResult };
+    if (r.status === 402) return { ok: false, error: j?.error?.message || "You're out of credits for AI writing." };
+    return { ok: false, error: j?.error?.message || "Couldn't generate that — please try again." };
+  } catch {
+    return { ok: false, error: "Couldn't reach the AI writer — please try again." };
+  }
+}
+
+/** Small inline "write with AI" button used across the content tabs. */
+function AiButton({ onRun, busy, label = "Write with AI", disabled }: { onRun: () => void; busy: boolean; label?: string; disabled?: boolean }) {
+  return (
+    <button onClick={onRun} disabled={busy || disabled} title="Generate with AI — fills the fields for you to review, then Save to apply" className="inline-flex items-center gap-1.5 rounded-[10px] border border-brand-500/40 bg-brand-500/5 px-3 py-1.5 text-[12px] font-semibold text-brand-500 hover:bg-brand-500/10 disabled:opacity-60">
+      {busy ? <FlowLoader size={13} /> : <Sparkles className="h-3.5 w-3.5" />} {busy ? "Writing…" : label}
+    </button>
+  );
+}
+
+/** Encapsulates the busy/error state for an AI-assist action in a tab. */
+function useAiFill() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const run = useCallback(async (types: ContentType[], apply: (d: StoreContentResult) => void) => {
+    setBusy(true); setError("");
+    const res = await generateContent(types);
+    if (res.ok) apply(res.data); else setError(res.error);
+    setBusy(false);
+  }, []);
+  return { busy, error, run };
+}
+
+function AiError({ error }: { error: string }) {
+  if (!error) return null;
+  return <p className="flex items-center gap-1.5 text-[11.5px] text-rose-500"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {error}</p>;
+}
+
 /* ── Tabs ─────────────────────────────────────────────────────────────── */
 
 function StoreInfoTab({ data, updateInfo, openPicker }: { data: StoreData; updateInfo: (k: keyof StoreInfo, v: string) => void; openPicker: (cb: (url: string) => void) => void }) {
   const si = data.storeInfo;
+  const ai = useAiFill();
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
-        <Section title="Store information">
+        <Section title="Store information" action={<AiButton busy={ai.busy} label="Write tagline & about" onRun={() => ai.run(["tagline", "about"], (d) => { if (d.tagline) updateInfo("tagline", d.tagline); if (d.about) updateInfo("about", d.about); })} />}>
           <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
             <Field label="Store name" value={si.name} onChange={(v) => updateInfo("name", v)} />
             <Field label="Tagline" value={si.tagline} onChange={(v) => updateInfo("tagline", v)} />
@@ -336,6 +387,7 @@ function StoreInfoTab({ data, updateInfo, openPicker }: { data: StoreData; updat
             <Field label="About" value={si.about} onChange={(v) => updateInfo("about", v)} multiline span={2} />
             <Field label="Mission" value={si.mission} onChange={(v) => updateInfo("mission", v)} multiline span={2} />
           </div>
+          <div className="mt-2"><AiError error={ai.error} /></div>
         </Section>
         <Section title="Call-to-action">
           <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
@@ -359,6 +411,7 @@ function StoreInfoTab({ data, updateInfo, openPicker }: { data: StoreData; updat
 function HeroTab({ data, updateHero, updateInfo, openPicker }: { data: StoreData; updateHero: <K extends keyof HeroConfig>(k: K, v: HeroConfig[K]) => void; updateInfo: (k: keyof StoreInfo, v: string) => void; openPicker: (cb: (url: string) => void) => void }) {
   const hero = data.heroConfig;
   const slides = hero.slides || [];
+  const heroAi = useAiFill();
   const move = (idx: number, dir: -1 | 1) => {
     const cur = [...slides]; const t = idx + dir;
     if (t < 0 || t >= cur.length) return;
@@ -367,12 +420,13 @@ function HeroTab({ data, updateHero, updateInfo, openPicker }: { data: StoreData
   };
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <Section title="Hero text">
+      <Section title="Hero text" action={<AiButton busy={heroAi.busy} onRun={() => heroAi.run(["hero"], (d) => { if (d.hero?.headline) updateHero("headline", d.hero.headline); if (d.hero?.subheadline) updateHero("subheadline", d.hero.subheadline); })} />}>
         <div className="space-y-3">
           <Field label="Headline" value={hero.headline} onChange={(v) => updateHero("headline", v)} />
           <Field label="Sub-headline" value={hero.subheadline} onChange={(v) => updateHero("subheadline", v)} multiline />
           <Field label="CTA button text" value={hero.ctaText} onChange={(v) => updateHero("ctaText", v)} />
           <Field label="CTA URL" value={hero.ctaUrl} onChange={(v) => updateHero("ctaUrl", v)} />
+          <AiError error={heroAi.error} />
         </div>
       </Section>
       <div className="space-y-4">
@@ -482,12 +536,21 @@ function LinkRows({ links, onChange, addLabel }: { links: Array<{ href: string; 
 
 function FaqTab({ data, update }: { data: StoreData; update: <K extends keyof StoreData>(k: K, v: StoreData[K]) => void }) {
   const faq = data.faq || [];
+  const ai = useAiFill();
+  const generate = () => ai.run(["faq"], (d) => {
+    const items = (d.faq || []).filter((x) => x.question && x.answer);
+    if (items.length) update("faq", [...faq, ...items]);
+  });
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h3 className="text-[14px] font-bold">FAQ ({faq.length})</h3>
-        <button onClick={() => update("faq", [...faq, { question: "", answer: "" }])} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Plus className="h-3.5 w-3.5" /> Add</button>
+        <div className="flex items-center gap-2">
+          <AiButton busy={ai.busy} label="Generate FAQ" onRun={generate} />
+          <button onClick={() => update("faq", [...faq, { question: "", answer: "" }])} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Plus className="h-3.5 w-3.5" /> Add</button>
+        </div>
       </div>
+      <AiError error={ai.error} />
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {faq.map((item, i) => (
           <div key={i} className="rounded-2xl border border-border bg-card p-4">
@@ -590,18 +653,27 @@ function FooterSocialTab({ data, updateSocial, updateContact }: { data: StoreDat
   );
 }
 
+const POLICY_CONTENT_TYPE: Record<keyof Policies, ContentType> = { shipping: "shipping_policy", returns: "return_policy", privacy: "privacy_policy", terms: "terms_of_service" };
+const POLICY_RESULT_KEY: Record<keyof Policies, keyof StoreContentResult> = { shipping: "shippingPolicy", returns: "returnPolicy", privacy: "privacyPolicy", terms: "termsOfService" };
+
 function PoliciesTab({ data, updatePolicy }: { data: StoreData; updatePolicy: (k: keyof Policies, v: string) => void }) {
   const [tab, setTab] = useState<keyof Policies>("shipping");
   const pol = data.policies || {};
+  const ai = useAiFill();
   const KEYS: { id: keyof Policies; label: string }[] = [{ id: "shipping", label: "Shipping" }, { id: "returns", label: "Returns" }, { id: "privacy", label: "Privacy" }, { id: "terms", label: "Terms" }];
+  const genCurrent = () => ai.run([POLICY_CONTENT_TYPE[tab]], (d) => {
+    const v = d[POLICY_RESULT_KEY[tab]];
+    if (typeof v === "string" && v) updatePolicy(tab, v);
+  });
   return (
-    <Section title="Store policies" hint="The four legal pages buyers can read. Basic HTML supported (h2, p, ul, li). Applied on Save.">
+    <Section title="Store policies" hint="The four legal pages buyers can read. Basic HTML supported (h2, p, ul, li). Applied on Save." action={<AiButton busy={ai.busy} label={`Write ${tab} policy`} onRun={genCurrent} />}>
       <div className="mb-3 flex flex-wrap gap-2">
         {KEYS.map((k) => (
           <button key={k.id} onClick={() => setTab(k.id)} className={cn("rounded-full border px-3 py-1.5 text-[12px] font-semibold", tab === k.id ? "border-transparent bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground hover:border-brand-500/60")}>{k.label}</button>
         ))}
       </div>
       <textarea value={pol[tab] || ""} onChange={(e) => updatePolicy(tab, e.target.value)} rows={14} placeholder="<h2>Shipping Policy</h2><p>…</p>" className={cn(F, "resize-y font-mono !text-[12px] leading-relaxed")} />
+      <div className="mt-2"><AiError error={ai.error} /></div>
     </Section>
   );
 }
@@ -718,10 +790,13 @@ function StatusTab({ store, onRebuild, busy, rebuilding }: { store: StoreRecord;
 
 /* ── shared UI ────────────────────────────────────────────────────────── */
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+function Section({ title, hint, children, action }: { title: string; hint?: string; children: ReactNode; action?: ReactNode }) {
   return (
     <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-      <div className="mb-3"><h3 className="text-[13.5px] font-bold">{title}</h3>{hint && <p className="mt-0.5 text-[11.5px] text-muted-foreground">{hint}</p>}</div>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0"><h3 className="text-[13.5px] font-bold">{title}</h3>{hint && <p className="mt-0.5 text-[11.5px] text-muted-foreground">{hint}</p>}</div>
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
       {children}
     </section>
   );
