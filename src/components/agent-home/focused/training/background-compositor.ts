@@ -69,9 +69,14 @@ export class BackgroundCompositor {
     this.video.muted = true;
     this.video.playsInline = true;
     this.video.autoplay = true;
-    // Some browsers won't decode frames (readyState stays 0 → a BLACK canvas) for a
-    // fully-detached <video>. Park it off-screen in the DOM so it decodes reliably.
-    this.video.style.cssText = "position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none";
+    // iOS Safari REFUSES to decode an inline <video> that is off-screen / ~0px / opacity:0
+    // (readyState stays 0 → BLACK canvas → black preview). So keep it IN the viewport,
+    // 1px and barely-visible but real, behind everything. Set the iOS attributes explicitly
+    // (the property assignments above are not always enough on Safari).
+    this.video.setAttribute("playsinline", "");
+    this.video.setAttribute("webkit-playsinline", "");
+    this.video.setAttribute("muted", "");
+    this.video.style.cssText = "position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0.01;pointer-events:none;z-index:-1";
   }
 
   /** Feed a camera stream and start compositing. Returns the composited stream
@@ -96,6 +101,9 @@ export class BackgroundCompositor {
     // constraint, e.g. 640x480, while the camera delivers 16:9 → a stretched composite).
     // MUST be set BEFORE captureStream — resizing a captured canvas turns the track black.
     await waitForVideoSize(this.video);
+    // If the video NEVER decoded (iOS blocked it, permission race, etc.) DON'T capture a
+    // black canvas — hand back the raw camera so the preview at least shows live video.
+    if (!this.video.videoWidth || this.video.readyState < 2) return source;
     this.canvas.width = this.video.videoWidth || width;
     this.canvas.height = this.video.videoHeight || height;
     await this.setBackground(spec);

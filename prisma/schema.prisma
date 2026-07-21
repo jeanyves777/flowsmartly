@@ -6283,6 +6283,7 @@ model TrainingSession {
   // (which plays a 3-2-1 consent countdown for the room).
   recording   Boolean @default(false)
   recordingStartedAt DateTime? // when recording last began — so EVERY client's REC timer counts from the same instant (not each client's own join time)
+  recordingPausedAt  DateTime? // set while PAUSED (synced) — the timer freezes for everyone; on resume the host shifts recordingStartedAt forward by the paused span
   transcript  Boolean @default(true)
   openDraw    Boolean @default(false)
   openShare   Boolean @default(false)

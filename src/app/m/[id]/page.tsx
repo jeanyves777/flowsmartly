@@ -113,8 +113,11 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
   }
 
   // Admitted → the attendee live room (host-only controls auto-hidden inside).
+  // svh (SMALLEST viewport), NOT h-screen/100vh: on a phone the collapsing browser toolbar
+  // must never hide the live-room's own top tabs / bottom control bar. This is the attendee
+  // route (separate from the host shell, which already uses svh).
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-background">
+    <div className="relative h-[100svh] w-screen overflow-hidden bg-background">
       <LiveRoom
         session={session}
         me={me}

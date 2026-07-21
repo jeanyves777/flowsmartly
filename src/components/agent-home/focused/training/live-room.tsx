@@ -287,7 +287,15 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   // each slide's narration, reveals the diagram across it, and (host = conductor) moves
   // to the next slide when the audio ends. `aiPlaying` is synced so everyone hears it.
   const aiPresenter = deckSlide && material?.deck?.presenterActive && (material.deck.slides ?? []).some((s) => s.narration);
-  const narration = deckSlide?.narration ?? null;
+  // A quiz slide has TWO spoken segments: the QUESTION (step 1, then it pauses for a
+  // hand-raise) and the ANSWER reveal (step 2, played on resume). Pick which one plays by
+  // the reveal step, so resuming after the pause says "The correct answer is …" instead of
+  // re-reading the question. Falls back to the question audio for decks narrated before this.
+  const isQuiz = !!deckSlide?.quiz;
+  const quizRevealPhase = isQuiz && (session.stageStep || 1) >= 2;
+  const narration = quizRevealPhase
+    ? (deckSlide?.quizReveal ?? deckSlide?.narration ?? null)
+    : (deckSlide?.narration ?? null);
   const aiAudioRef = useRef<HTMLAudioElement | null>(null);
   const aiPlaying = !!session.aiPlaying;
   const aiPlayingRef = useRef(aiPlaying); aiPlayingRef.current = aiPlaying;
@@ -366,18 +374,21 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   // host = conductor. Reveals track the AUDIO POSITION (so pause/resume/repeat just
   // work), and the deck advances when the narration ends. Latest state via a ref so the
   // listeners attach once and never read stale values.
-  const stEnv = { session, deckSteps, pages: material?.pages ?? 1, pause: !!deckSlide?.qa || !!deckSlide?.quiz, quiz: !!deckSlide?.quiz };
+  // Pause on a Q&A slide, or on a quiz's QUESTION phase (step 1). On the quiz's REVEAL
+  // phase (step 2), DON'T pause — let the answer play out and roll to the next slide.
+  const quizQuestionPhase = isQuiz && !quizRevealPhase;
+  const stEnv = { session, deckSteps, pages: material?.pages ?? 1, pause: !!deckSlide?.qa || quizQuestionPhase, quizQuestionPhase };
   const aiStateRef = useRef(stEnv);
   aiStateRef.current = stEnv;
   useEffect(() => {
     const a = aiAudioRef.current;
     if (!host || !a) return;
     const onTime = () => {
-      const { session: s, deckSteps: steps, quiz } = aiStateRef.current;
+      const { session: s, deckSteps: steps, quizQuestionPhase: qqp } = aiStateRef.current;
       if (!s.aiPlaying || !a.duration || !isFinite(a.duration) || steps < 1) return;
-      // A quiz asks the question but must NOT auto-reveal the answer (step 2) — the host
-      // reveals it after the hand-raise check. So cap the auto-reveal at step 1.
-      const cap = quiz ? 1 : steps;
+      // A quiz's QUESTION phase must NOT auto-reveal the answer (step 2) — the host reveals
+      // it after the hand-raise check. So cap the auto-reveal at step 1 during the question.
+      const cap = qqp ? 1 : steps;
       const target = Math.min(cap, Math.max(1, Math.floor((a.currentTime / a.duration) * steps) + 1));
       if (target > (s.stageStep || 1)) void patch({ stageStep: target });
     };
@@ -399,7 +410,13 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   // Controls — audio position IS the saved position, so resume never restarts a slide.
   const RATES = [0.85, 1, 1.15, 1.3, 1.5];
   const cycleRate = () => setAiRate((r) => RATES[(RATES.indexOf(r) + 1) % RATES.length] ?? 1);
-  const resumeAI = () => { setTookOver(false); void patch({ aiPlaying: true }); };
+  // Resuming on a quiz that's still showing the QUESTION advances to the reveal (step 2) in
+  // ONE patch, so it plays the answer narration instead of re-reading the question.
+  const resumeAI = () => {
+    setTookOver(false);
+    if (isQuiz && (session.stageStep || 1) < 2) return void patch({ stageStep: 2, aiPlaying: true });
+    void patch({ aiPlaying: true });
+  };
   const pauseAI = () => { aiAudioRef.current?.pause(); void patch({ aiPlaying: false }); };
   const skipAI = () => { const pages = material?.pages ?? 1; if (session.stagePage < pages) void patch({ stagePage: session.stagePage + 1, stageStep: 1, aiPlaying: true }); else void patch({ aiPlaying: false }); };
   const repeatAI = () => { const a = aiAudioRef.current; if (a) { a.currentTime = 0; } void patch({ stageStep: 1, aiPlaying: true }); };
@@ -688,7 +705,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         {/* stage — the inner ref measures the space, the board fills it. min-h-0 lets
             it SHRINK so the source bar + lesson card + control bar always stay on
             screen (no page scroll to reach the top tabs or the bottom menu). */}
-        <div ref={spotWrapRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0e0e13] p-2.5 sm:p-3.5">
+        <div ref={spotWrapRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0e0e13] p-1 sm:p-2">
           {/* spotlight — a big tile everyone sees; the host can DRAG it anywhere */}
           {spotlight ? (
             <div className="pointer-events-none absolute z-[14] w-[38%] max-w-[240px]" style={spotPos ? { left: spotPos.x, top: spotPos.y } : { right: 12, top: 12 }}>
@@ -881,7 +898,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           ) : null}
 
           {/* recording overlays live over the stage */}
-          <RecordingLayer recording={session.recording} startedAt={session.recordingStartedAt} host={host} patch={patch} />
+          <RecordingLayer recording={session.recording} startedAt={session.recordingStartedAt} pausedAt={session.recordingPausedAt} host={host} patch={patch} />
 
           {/* leave-and-return: devices died while away — say so, offer one tap back */}
           {media.needsAttention ? (
@@ -1559,13 +1576,15 @@ function MoreRows({ session, host, isOwner, unread, patch, onManage, onChat, onE
 }
 
 /* -------------------------------------------------------------- recording UI */
-function RecordingLayer({ recording, startedAt, host, patch }: { recording: boolean; startedAt: string | null; host: boolean; patch: (b: Record<string, unknown>) => Promise<string | null> }) {
+function RecordingLayer({ recording, startedAt, pausedAt, host, patch }: { recording: boolean; startedAt: string | null; pausedAt: string | null; host: boolean; patch: (b: Record<string, unknown>) => Promise<string | null> }) {
   const [phase, setPhase] = useState<"idle" | "countdown" | "live">("idle");
   const [cd, setCd] = useState(3);
   const [secs, setSecs] = useState(0);
   const [confirmStop, setConfirmStop] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
-  const [paused, setPaused] = useState(false);
+  // Pause is SYNCED, not local: `paused` comes from the broadcast recordingPausedAt so the
+  // timer freezes for EVERY client (host pause used to freeze only the host).
+  const paused = !!pausedAt;
   const [name, setName] = useState("");
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevRec = useRef(recording); // seed with the value at mount
@@ -1588,25 +1607,34 @@ function RecordingLayer({ recording, startedAt, host, patch }: { recording: bool
       return () => clearInterval(iv);
     }
     if (recording) { setPhase((p) => (p === "idle" ? "live" : p)); return; }
-    setPhase("idle"); setPaused(false);
+    setPhase("idle");
   }, [recording, host]);
 
-  // The timer runs while live and NOT paused. It counts from the SHARED
-  // `recordingStartedAt` (broadcast to every client) so the host and all attendees show
-  // the SAME elapsed time — not each client's own join moment. Falls back to local time
-  // only if the timestamp is somehow missing.
+  // Timer counts from the SHARED `recordingStartedAt` so host + all attendees match. While
+  // PAUSED it freezes at (pausedAt - startedAt) for everyone; running, it's (now - startedAt).
   useEffect(() => {
-    if (phase === "live" && !paused) {
-      const base = startedAt ? new Date(startedAt).getTime() : Date.now();
-      const tick = () => setSecs(Math.max(0, Math.floor((Date.now() - base) / 1000)));
-      tick();
-      timer.current = setInterval(tick, 1000);
-      return () => { if (timer.current) clearInterval(timer.current); };
+    if (phase !== "live") return;
+    const base = startedAt ? new Date(startedAt).getTime() : Date.now();
+    if (paused) { setSecs(Math.max(0, Math.floor(((pausedAt ? new Date(pausedAt).getTime() : Date.now()) - base) / 1000))); return; }
+    const tick = () => setSecs(Math.max(0, Math.floor((Date.now() - base) / 1000)));
+    tick();
+    timer.current = setInterval(tick, 1000);
+    return () => { if (timer.current) clearInterval(timer.current); };
+  }, [phase, paused, startedAt, pausedAt]);
+
+  // Pause/resume is broadcast: pausing stamps recordingPausedAt; resuming shifts
+  // recordingStartedAt forward by the paused span (so elapsed continues) and clears it.
+  const togglePause = () => {
+    if (paused) {
+      const shifted = new Date((startedAt ? new Date(startedAt).getTime() : Date.now()) + (Date.now() - (pausedAt ? new Date(pausedAt).getTime() : Date.now()))).toISOString();
+      void patch({ recordingStartedAt: shifted, recordingPausedAt: null });
+    } else {
+      void patch({ recordingPausedAt: new Date().toISOString() });
     }
-  }, [phase, paused, startedAt]);
+  };
 
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-  const stop = () => { setConfirmStop(false); setPaused(false); setName(`${session_name()} — ${today()}`); setSaveOpen(true); void patch({ recording: false }); };
+  const stop = () => { setConfirmStop(false); setName(`${session_name()} — ${today()}`); setSaveOpen(true); void patch({ recording: false }); };
 
   return (
     <>
@@ -1628,7 +1656,7 @@ function RecordingLayer({ recording, startedAt, host, patch }: { recording: bool
           {paused ? "PAUSED" : "REC"} <span className="min-w-[42px] text-center tabular-nums">{fmt(secs)}</span>
           {host ? (
             <>
-              <button onClick={() => setPaused((p) => !p)} title={paused ? "Resume recording" : "Pause recording"} className="grid h-[22px] w-[22px] place-items-center rounded-md bg-white/15 text-white transition hover:bg-white/30">
+              <button onClick={togglePause} title={paused ? "Resume recording" : "Pause recording"} className="grid h-[22px] w-[22px] place-items-center rounded-md bg-white/15 text-white transition hover:bg-white/30">
                 {paused ? <Play className="h-3 w-3 fill-current" /> : <Pause className="h-3 w-3 fill-current" />}
               </button>
               <button onClick={() => setConfirmStop(true)} title="Stop recording" className="grid h-[22px] w-[22px] place-items-center rounded-md bg-white/15 text-white transition hover:bg-white/30">
