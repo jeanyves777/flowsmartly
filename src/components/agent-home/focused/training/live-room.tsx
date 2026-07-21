@@ -549,7 +549,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const spotUp = () => { spotDrag.current = null; };
 
   return (
-    <div className="absolute inset-0 flex bg-background">
+    <div className="absolute inset-0 flex overflow-hidden bg-background">
       {/* ---- desktop tool rail ---- */}
       {showTools ? (
         <div className="relative hidden w-[52px] shrink-0 flex-col items-center gap-1 border-e border-border bg-card py-2.5 md:flex">
@@ -560,10 +560,12 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         </div>
       ) : null}
 
-      {/* ---- stage column ---- */}
-      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        {/* top: sources */}
-        <div className="flex items-center gap-1 overflow-x-auto border-b border-border bg-background/70 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* ---- stage column ---- overflow-hidden so the source bar (top) and the
+          control bar (bottom) are ALWAYS pinned in view — the stage shrinks, the
+          page never scrolls to reach the top tabs or the bottom menu. */}
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {/* top: sources — shrink-0 so it never collapses out of reach */}
+        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-background/70 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <button
             onClick={() => setShowTools((v) => !v)}
             title={showTools ? "Hide the drawing tools" : "Show the drawing tools"}
@@ -817,8 +819,10 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         {/* attendee strip on the BOTTOM (desktop layouts only) */}
         {layout === "bottom" ? <RosterStrip {...rosterProps} className="hidden md:flex" /> : null}
 
-        {/* ---- control bar ---- large touch targets, spread evenly on a phone ---- */}
-        <div className="flex shrink-0 items-center justify-between gap-1 overflow-x-auto border-t border-border bg-background/90 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:justify-start md:gap-1.5 md:px-2.5 md:py-2.5">
+        {/* ---- control bar ---- large touch targets, spread evenly on a phone.
+            pb clears the iOS home indicator / bottom browser toolbar so the buttons
+            are never tucked under it (safe-area inset, min 0.5rem). ---- */}
+        <div className="flex shrink-0 items-center justify-between gap-1 overflow-x-auto border-t border-border bg-background/90 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:justify-start md:gap-1.5 md:px-2.5 md:pt-2.5 md:pb-2.5">
           {/* mic + device caret */}
           <div ref={audioBtnRef} className="relative shrink-0">
             <Ctl
