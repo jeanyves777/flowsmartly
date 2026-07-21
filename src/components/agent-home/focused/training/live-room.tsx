@@ -211,7 +211,13 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     const fit = () => {
       const { width, height } = el.getBoundingClientRect();
       if (!width || !height) return;
-      setBoardBox({ w: Math.round(width), h: Math.round(height) });
+      // The stage is ALWAYS a 16:9 box (like a slide / the intro film), letterboxed
+      // and centred in whatever space is available. Using the raw area made the board
+      // fill a tall portrait phone — a giant empty whiteboard under a tiny slide.
+      const AR = 16 / 9;
+      let w = width, h = width / AR;
+      if (h > height) { h = height; w = height * AR; }
+      setBoardBox({ w: Math.round(w), h: Math.round(h) });
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -279,7 +285,22 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const narration = deckSlide?.narration ?? null;
   const aiAudioRef = useRef<HTMLAudioElement | null>(null);
   const aiPlaying = !!session.aiPlaying;
+  const aiPlayingRef = useRef(aiPlaying); aiPlayingRef.current = aiPlaying;
   const [tookOver, setTookOver] = useState(false);
+  // A smooth volume ramp so the narration DUCKS out (and the answer eases in) instead of
+  // hard-cutting — a natural presenter beat when a hand goes up. Cleared if re-triggered.
+  const fadeTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fadeTo = (a: HTMLAudioElement | null, target: number, ms: number, thenPause = false) => {
+    if (!a) return;
+    if (fadeTimer.current) { clearInterval(fadeTimer.current); fadeTimer.current = null; }
+    const from = a.volume, steps = 10;
+    let i = 0;
+    fadeTimer.current = setInterval(() => {
+      i += 1;
+      a.volume = Math.max(0, Math.min(1, from + (target - from) * (i / steps)));
+      if (i >= steps) { if (fadeTimer.current) clearInterval(fadeTimer.current); fadeTimer.current = null; if (thenPause) { a.pause(); a.volume = 1; } }
+    }, Math.max(16, ms / steps));
+  };
   // every client plays the current slide's narration while the AI is delivering. On a
   // NEW slide the audio restarts from 0; resuming the SAME slide keeps its position.
   // caption reveals in time with the audio (a rolling window of the words JUST spoken,
@@ -296,6 +317,21 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     } else { a.pause(); }
   }, [aiPlaying, narration?.audioUrl]);
   useEffect(() => { setCapDismissed(false); }, [narration?.text]); // a new slide's caption is shown again
+  // Attendees never click "Present with AI", so their browser blocks the AI voice on
+  // autoplay (that's why only the HOST could hear it). Their FIRST interaction with the
+  // page — tap to join, unmute, tap anywhere — grants sticky activation; retry playback
+  // then so the narration AND the hand-raise answer are heard, and clear the sound prompt.
+  const answerUrlRef = useRef<string | null>(null);
+  useEffect(() => {
+    const unlock = () => {
+      const ai = aiAudioRef.current, ans = answerAudioRef.current;
+      if (ans && answerUrlRef.current) { ans.play().then(() => setSoundBlocked(false)).catch(() => {}); return; }
+      if (ai && aiPlayingRef.current && ai.getAttribute("data-src")) ai.play().then(() => setSoundBlocked(false)).catch(() => {});
+    };
+    window.addEventListener("pointerdown", unlock);
+    window.addEventListener("keydown", unlock);
+    return () => { window.removeEventListener("pointerdown", unlock); window.removeEventListener("keydown", unlock); };
+  }, []);
   useEffect(() => {
     const a = aiAudioRef.current;
     if (!a) return;
@@ -356,14 +392,20 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const [answering, setAnswering] = useState(false);
   useEffect(() => {
     const a = answerAudioRef.current;
+    answerUrlRef.current = presenterAnswer?.audioUrl ?? null;
     if (!a || !presenterAnswer?.audioUrl) { setAnswering(false); return; }
-    aiAudioRef.current?.pause();
-    a.src = presenterAnswer.audioUrl; a.currentTime = 0; a.playbackRate = aiRate;
-    a.play().then(() => { setAnswering(true); setSoundBlocked(false); }).catch(() => { setAnswering(false); setSoundBlocked(true); });
+    // NATURAL transition: gently DUCK the narration out over ~450ms and hold a short beat,
+    // THEN the co-host answers — like a real presenter pausing to acknowledge a raised
+    // hand, not a hard cut mid-word.
+    fadeTo(aiAudioRef.current, 0, 450, true);
+    a.volume = 1; a.src = presenterAnswer.audioUrl; a.currentTime = 0; a.playbackRate = aiRate;
+    const t = setTimeout(() => {
+      a.play().then(() => { setAnswering(true); setSoundBlocked(false); }).catch(() => { setAnswering(false); setSoundBlocked(true); });
+    }, 520);
     const done = () => setAnswering(false);
     a.addEventListener("ended", done);
     a.addEventListener("pause", done);
-    return () => { a.removeEventListener("ended", done); a.removeEventListener("pause", done); };
+    return () => { clearTimeout(t); a.removeEventListener("ended", done); a.removeEventListener("pause", done); };
   }, [presenterAnswer?.id, presenterAnswer?.audioUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   // apply a live speed change to whatever narration/answer is currently playing
   useEffect(() => {
@@ -495,9 +537,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           </div>
         );
       }
-      // Keep slides at a 16:9 box (letterboxed) like the intro film — never stretch them
-      // to fill a portrait phone stage.
-      return slide ? <div className="aspect-video max-h-full w-full max-w-full overflow-hidden rounded-lg"><DeckSlideView slide={slide} reveal={session.stageStep} /></div> : null;
+      // The board box is already a 16:9 letterbox, so the slide just fills it.
+      return slide ? <div className="h-full w-full overflow-hidden"><DeckSlideView slide={slide} reveal={session.stageStep} /></div> : null;
     }
     if (material?.kind === "image" || material?.kind === "video") {
       // eslint-disable-next-line @next/next/no-img-element
@@ -673,14 +714,17 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
               onLiveItem={onLiveItem}
               backdrop={backdrop}
             />
-            {/* browser blocked autoplay (common when an attendee just joined) — one tap
-                unlocks sound + immediately plays whatever the presenter is saying now */}
+            {/* browser blocked autoplay (common when an attendee just joined) — a big,
+                unmissable overlay; ONE tap unlocks sound and immediately plays whatever
+                the presenter is saying now. (Any tap on the page also unlocks it.) */}
             {soundBlocked ? (
               <button
-                onClick={() => { setSoundBlocked(false); aiAudioRef.current?.play().catch(() => {}); answerAudioRef.current?.play().catch(() => {}); }}
-                className="absolute left-1/2 top-3 z-[9] inline-flex -translate-x-1/2 animate-pulse items-center gap-2 rounded-full bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12.5px] font-extrabold text-white shadow-2xl"
+                onClick={() => { setSoundBlocked(false); const ans = answerAudioRef.current; if (ans && answerUrlRef.current) ans.play().catch(() => {}); else aiAudioRef.current?.play().catch(() => {}); }}
+                className="absolute inset-0 z-[15] grid place-items-center bg-black/45 backdrop-blur-[2px]"
               >
-                <Volume2 className="h-4 w-4" /> Tap to enable sound
+                <span className="inline-flex animate-pulse items-center gap-2.5 rounded-full bg-gradient-to-br from-brand-500 to-violet-600 px-5 py-3 text-[14px] font-extrabold text-white shadow-2xl">
+                  <Volume2 className="h-5 w-5" /> Tap to hear the presenter
+                </span>
               </button>
             ) : null}
             {/* AI presenter caption — what the co-host is saying right now */}
