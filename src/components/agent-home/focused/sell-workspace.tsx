@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ElementType } from "react";
 import Image from "next/image";
-import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users, Palette, LayoutGrid, FolderTree, BarChart3, Settings, Landmark, Ticket } from "lucide-react";
+import { Store, ExternalLink, Package, ShoppingBag, Coins, Clock, CheckCircle2, Image as ImageIcon, Plus, X, Check, Pencil, Search, Truck, Ban, RotateCcw, ChevronRight, MapPin, User, CreditCard, AlertTriangle, Users, Palette, LayoutGrid, FolderTree, BarChart3, Settings, Landmark, Ticket, Sparkles, AlertCircle } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { StoreCallToAction, StoreBriefModal } from "./store-cta";
 import { StoreStudio } from "./store-studio";
@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils/cn";
  * No legacy links. [[surface-buttons-are-ui-actions]]
  */
 
-interface StoreData { id: string; name: string; slug: string; currency?: string; region?: string; isActive?: boolean; buildStatus?: string; productCount?: number; orderCount?: number; totalRevenueCents?: number; }
+interface StoreData { id: string; name: string; slug: string; currency?: string; region?: string; country?: string; isActive?: boolean; buildStatus?: string; lastBuildAt?: string | null; lastBuildError?: string | null; productCount?: number; orderCount?: number; totalRevenueCents?: number; }
 interface Product { id: string; name: string; priceCents?: number; comparePriceCents?: number | null; currency?: string; status?: string; quantity?: number; trackInventory?: boolean; lowStockThreshold?: number; labels?: string[]; variantCount?: number; description?: string | null; category?: string | null; categoryName?: string | null; images?: { url: string }[]; }
 interface OrderItem { productId?: string; variantId?: string; name?: string; quantity?: number; priceCents?: number; imageUrl?: string; }
 interface ShippingAddress { name?: string; line1?: string; line2?: string; city?: string; state?: string; zip?: string; country?: string; phone?: string; }
@@ -113,6 +113,14 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
   const [busyOrder, setBusyOrder] = useState<string | null>(null);
   const [bulkActivating, setBulkActivating] = useState(false);
 
+  // AI product generator (bulk).
+  const [aiGenOpen, setAiGenOpen] = useState(false);
+  const [aiGenBusy, setAiGenBusy] = useState(false);
+  const [aiGenDesc, setAiGenDesc] = useState("");
+  const [aiGenCount, setAiGenCount] = useState(5);
+  const [aiGenError, setAiGenError] = useState("");
+  const [aiGenDone, setAiGenDone] = useState("");
+
   // Product search / filters.
   const [pSearch, setPSearch] = useState("");
   const [pStatus, setPStatus] = useState("");
@@ -196,6 +204,33 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
       if (r.ok) await loadData();
     } finally {
       setBulkActivating(false);
+    }
+  };
+
+  // Generate a batch of products with AI (drafts) from a short description.
+  const runAiGenerate = async () => {
+    if (aiGenDesc.trim().length < 10) { setAiGenError("Describe your products in a little more detail (at least 10 characters)."); return; }
+    setAiGenBusy(true); setAiGenError(""); setAiGenDone("");
+    try {
+      const r = await fetch("/api/ecommerce/ai/generate-products", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: aiGenDesc.trim(), count: aiGenCount }),
+      });
+      const j = await r.json().catch(() => null);
+      if (r.ok && j?.success !== false) {
+        const made = Array.isArray(j?.data?.products) ? j.data.products.length : aiGenCount;
+        await loadData();
+        setAiGenDone(`Added ${made} draft product${made === 1 ? "" : "s"} — review and activate them.`);
+        setAiGenDesc("");
+      } else if (r.status === 402) {
+        setAiGenError(j?.error?.message || "You're out of credits for AI product generation.");
+      } else {
+        setAiGenError(j?.error?.message || "Couldn't generate products — please try again.");
+      }
+    } catch {
+      setAiGenError("Couldn't reach the AI generator — please try again.");
+    } finally {
+      setAiGenBusy(false);
     }
   };
 
@@ -328,6 +363,27 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
   // no chat round-trip). Polls buildStatus; lands on the store when it's built.
   if (building) {
     return <StoreBuildingLoader storeId={building.storeId} onBuilt={() => { setBuilding(null); loadData(); }} onOpenStore={() => { setBuilding(null); loadData(); }} />;
+  }
+
+  // A store whose FIRST build never finished (errored, never built) has no usable
+  // storefront — don't drop into a management dashboard for a store that isn't
+  // there, and don't loop on a "Build now" that recompiles broken source. Send the
+  // user back to the brief to start over (regenerates the same row). A store that
+  // built before then hit a rebuild error keeps its normal dashboard (has content).
+  if (store && String(store.buildStatus) === "error" && !store.lastBuildAt && !studioOpen) {
+    const startBuilding = (storeId: string) => { setBriefOpen(false); setBuilding({ storeId }); };
+    return (
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="h-full overflow-y-auto p-6 sm:p-8">
+          <div className="mx-auto mt-[4vh] max-w-lg">
+            <StoreBuildFailed store={store} onStartOver={() => setBriefOpen(true)} onOpenEditor={() => setStudioOpen(true)} />
+          </div>
+        </div>
+        {briefOpen && (
+          <StoreBriefModal onTopUp={() => onOpenView("credits")} onClose={() => setBriefOpen(false)} onBuilding={startBuilding} />
+        )}
+      </div>
+    );
   }
 
   // No store yet → benefits + exact charges + "Create my store", which opens the
@@ -477,7 +533,7 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
         ) : section === "shipping" ? (
           <StoreShipping currency={cur} />
         ) : section === "payments" ? (
-          <StorePayments currency={cur} />
+          <StorePayments currency={cur} country={store?.country} />
         ) : section === "analytics" ? (
           <StoreAnalytics currency={cur} />
         ) : section === "settings" ? (
@@ -493,6 +549,9 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
                   {bulkActivating ? <FlowLoader size={13} /> : <CheckCircle2 className="h-3.5 w-3.5" />} Activate {draftCount} draft{draftCount === 1 ? "" : "s"}
                 </button>
               )}
+              <button onClick={() => { setAiGenOpen(true); setAiGenError(""); setAiGenDone(""); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-brand-500/40 bg-brand-500/5 px-3 py-1.5 text-[12px] font-semibold text-brand-500 hover:bg-brand-500/10">
+                <Sparkles className="h-3.5 w-3.5" /> Generate with AI
+              </button>
               <button onClick={openAdd} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
                 <Plus className="h-3.5 w-3.5" /> Add product
               </button>
@@ -780,6 +839,52 @@ export function FocusedSell({ refreshKey, onAsk, onOpenView }: { refreshKey?: nu
           onSaved={loadData}
         />
       )}
+
+      {aiGenOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4" onClick={() => { if (!aiGenBusy) setAiGenOpen(false); }}>
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-start gap-3">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500/15 to-violet-500/15"><Sparkles className="h-[18px] w-[18px] text-brand-500" /></div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[14px] font-bold">Generate products with AI</h3>
+                <p className="text-[11.5px] text-muted-foreground">Describe what you sell — we&apos;ll draft products with names, descriptions &amp; prices for you to review.</p>
+              </div>
+              <button onClick={() => !aiGenBusy && setAiGenOpen(false)} className="grid h-7 w-7 place-items-center rounded-[8px] text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            </div>
+            <label className="block"><span className="mb-1 block text-[11.5px] font-semibold text-muted-foreground">What are the products?</span>
+              <textarea value={aiGenDesc} onChange={(e) => setAiGenDesc(e.target.value)} rows={3} placeholder="e.g. Handmade shea-butter soaps in citrus, lavender and charcoal scents" className={cn(FIELD, "resize-y")} />
+            </label>
+            <label className="mt-3 block"><span className="mb-1 block text-[11.5px] font-semibold text-muted-foreground">How many?</span>
+              <select value={aiGenCount} onChange={(e) => setAiGenCount(Number(e.target.value))} className={cn(FIELD, "w-auto")}>
+                {[3, 5, 8, 10, 15, 20].map((n) => <option key={n} value={n}>{n} products</option>)}
+              </select>
+            </label>
+            {aiGenError && <p className="mt-3 flex items-center gap-1.5 text-[12px] text-rose-500"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> {aiGenError}</p>}
+            {aiGenDone && <p className="mt-3 flex items-center gap-1.5 text-[12px] text-emerald-500"><Check className="h-3.5 w-3.5 shrink-0" /> {aiGenDone}</p>}
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button onClick={() => !aiGenBusy && setAiGenOpen(false)} className="rounded-[10px] border border-border px-3.5 py-2 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground">{aiGenDone ? "Done" : "Cancel"}</button>
+              <button onClick={runAiGenerate} disabled={aiGenBusy} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-60">{aiGenBusy ? <FlowLoader size={14} tone="white" /> : <Sparkles className="h-4 w-4" />} {aiGenBusy ? "Generating…" : "Generate"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Shown when a store's first build never completed. No usable storefront exists,
+// so the primary path is to start over from the brief (which regenerates the same
+// store), not to loop on a build that recompiles broken source.
+function StoreBuildFailed({ store, onStartOver, onOpenEditor }: { store: StoreData; onStartOver: () => void; onOpenEditor: () => void }) {
+  return (
+    <div className="rounded-3xl border border-border bg-card p-7 text-center shadow-sm">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-amber-500/10"><AlertTriangle className="h-7 w-7 text-amber-500" /></div>
+      <h2 className="mt-4 text-[18px] font-bold">Your store didn&apos;t finish building</h2>
+      <p className="mx-auto mt-1.5 max-w-sm text-[13px] text-muted-foreground">The last build didn&apos;t complete, so <span className="font-semibold text-foreground">{store.name}</span> has no storefront yet. Start over from the brief and we&apos;ll build it fresh — you weren&apos;t charged for the failed attempt.</p>
+      <div className="mt-5 flex flex-col items-center gap-2.5">
+        <button onClick={onStartOver} className="inline-flex items-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><RotateCcw className="h-4 w-4" /> Start over from the brief</button>
+        <button onClick={onOpenEditor} className="text-[12px] font-semibold text-muted-foreground hover:text-foreground">Open the store editor instead</button>
+      </div>
     </div>
   );
 }

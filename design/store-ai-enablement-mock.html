@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Store · AI-enablement</title>
+<style>
+  :root{--bg:#0b0b0f;--panel:#131319;--panel2:#17171f;--border:#26262f;--muted:#8a8a99;--fg:#ececf1;--brand:#7c5cff;--violet:#a855f7;--emerald:#10b981;--rose:#f43f5e;--input:#1c1c25}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:22px 18px 60px}
+  h1{font-size:19px;margin:0 0 3px}.sub{color:var(--muted);font-size:12.5px;margin:0 0 18px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px}
+  .hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+  .hd h3{font-size:13.5px;font-weight:800;margin:0}.hd p{font-size:11.5px;color:var(--muted);margin:2px 0 0}
+  .aiBtn{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(124,92,255,.4);background:rgba(124,92,255,.06);color:var(--brand);border-radius:10px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .aiBtn:hover{background:rgba(124,92,255,.12)}
+  .field{width:100%;background:var(--input);border:1px solid var(--border);border-radius:10px;color:var(--fg);padding:9px 11px;font-size:13px;margin-bottom:10px}
+  textarea.field{resize:vertical;min-height:64px}
+  .lbl{display:block;font-size:11.5px;font-weight:600;color:var(--muted);margin-bottom:5px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .pill{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--muted);margin-right:6px;cursor:pointer}
+  .pill.on{border-color:transparent;background:rgba(124,92,255,.12);color:var(--brand)}
+  .spin{width:13px;height:13px;border:2px solid rgba(124,92,255,.3);border-top-color:var(--brand);border-radius:50%;display:inline-block;animation:s .7s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+  .primary{display:inline-flex;align-items:center;gap:7px;background:linear-gradient(90deg,var(--brand),var(--violet));color:#fff;border:none;border-radius:10px;padding:9px 15px;font-size:12.5px;font-weight:700;cursor:pointer}
+  .ghost{background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:10px;padding:9px 14px;font-size:12.5px;font-weight:700;cursor:pointer}
+  .ok{color:var(--emerald);font-size:12px;display:flex;align-items:center;gap:6px;margin-top:8px}
+  .tabbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .tabbar button{background:var(--panel2);border:1px solid var(--border);color:var(--muted);border-radius:9px;padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer}
+  .tabbar button.on{background:linear-gradient(90deg,var(--brand),var(--violet));color:#fff;border-color:transparent}
+  .modalbg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;place-items:center;padding:16px;z-index:10}
+  .modalbg.show{display:grid}
+  .modal{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
+  .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(124,92,255,.15),rgba(168,85,247,.15));color:var(--brand);flex:0 0 auto}
+  .note{font-size:11px;color:var(--muted);margin-top:14px;border-top:1px solid var(--border);padding-top:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Store Studio · AI-enablement</h1>
+  <p class="sub">One-click AI on every content tab + bulk product generation. AI fills the fields — you review, then Save.</p>
+
+  <div class="tabbar" id="tabs">
+    <button data-t="info" class="on">Store info</button>
+    <button data-t="hero">Hero</button>
+    <button data-t="policies">Policies</button>
+    <button data-t="faq">FAQ</button>
+    <button data-t="products">Products</button>
+  </div>
+
+  <!-- Store info -->
+  <div class="card pane" data-p="info">
+    <div class="hd"><div><h3>Store information</h3><p>Your storefront's name, tagline &amp; story.</p></div>
+      <button class="aiBtn" onclick="gen(this,'info')">✦ Write tagline &amp; about</button></div>
+    <label class="lbl">Tagline</label><input class="field" id="info-tagline" value="Small-batch skincare, made by hand"/>
+    <label class="lbl">About</label><textarea class="field" id="info-about">We craft skincare in small batches using locally sourced botanicals…</textarea>
+    <div class="ok" id="info-ok" style="display:none">✓ Filled — review, then hit Save to apply.</div>
+  </div>
+
+  <!-- Hero -->
+  <div class="card pane" data-p="hero" style="display:none">
+    <div class="hd"><div><h3>Hero text</h3><p>The headline buyers see first.</p></div>
+      <button class="aiBtn" onclick="gen(this,'hero')">✦ Write with AI</button></div>
+    <label class="lbl">Headline</label><input class="field" id="hero-h" value="Glow that's grown, not manufactured"/>
+    <label class="lbl">Sub-headline</label><textarea class="field" id="hero-s">Botanical skincare in small batches — kind to your skin and the planet.</textarea>
+    <div class="ok" id="hero-ok" style="display:none">✓ Filled — review, then hit Save to apply.</div>
+  </div>
+
+  <!-- Policies -->
+  <div class="card pane" data-p="policies" style="display:none">
+    <div class="hd"><div><h3>Store policies</h3><p>The four legal pages buyers can read.</p></div>
+      <button class="aiBtn" onclick="gen(this,'pol')" id="pol-btn">✦ Write shipping policy</button></div>
+    <div style="margin-bottom:10px">
+      <span class="pill on" data-pol="shipping" onclick="polTab(this,'shipping')">Shipping</span>
+      <span class="pill" data-pol="returns" onclick="polTab(this,'returns')">Returns</span>
+      <span class="pill" data-pol="privacy" onclick="polTab(this,'privacy')">Privacy</span>
+      <span class="pill" data-pol="terms" onclick="polTab(this,'terms')">Terms</span>
+    </div>
+    <textarea class="field" id="pol-body" style="min-height:120px;font-family:ui-monospace,monospace;font-size:12px">&lt;h2&gt;Shipping Policy&lt;/h2&gt;&lt;p&gt;We ship within 2–3 business days…&lt;/p&gt;</textarea>
+    <div class="ok" id="pol-ok" style="display:none">✓ Filled — review, then hit Save to apply.</div>
+  </div>
+
+  <!-- FAQ -->
+  <div class="card pane" data-p="faq" style="display:none">
+    <div class="hd"><div><h3>FAQ (2)</h3><p>Generated items are appended to your list.</p></div>
+      <div style="display:flex;gap:8px"><button class="aiBtn" onclick="gen(this,'faq')">✦ Generate FAQ</button><button class="ghost">+ Add</button></div></div>
+    <div id="faq-list">
+      <div class="card" style="background:var(--panel2);margin:0 0 10px"><label class="lbl">Question</label><input class="field" value="Are your products cruelty-free?" style="margin-bottom:6px"/><label class="lbl">Answer</label><input class="field" value="Yes — never tested on animals." style="margin-bottom:0"/></div>
+    </div>
+    <div class="ok" id="faq-ok" style="display:none">✓ Added 3 FAQ items.</div>
+  </div>
+
+  <!-- Products -->
+  <div class="card pane" data-p="products" style="display:none">
+    <div class="hd"><div><h3>Products</h3><p>Draft a whole catalog from a one-line description.</p></div>
+      <button class="aiBtn" onclick="openModal()">✦ Generate with AI</button></div>
+    <div id="prod-list" style="color:var(--muted);font-size:12.5px">3 products · click "Generate with AI" to add more drafts.</div>
+  </div>
+
+  <p class="note">All buttons call the store's existing AI endpoints (<code>ai/store-content</code>, <code>ai/generate-products</code>) — credit-gated. Generated text lands in the fields for review; nothing is published until you Save / activate.</p>
+</div>
+
+<!-- generate products modal -->
+<div class="modalbg" id="modal">
+  <div class="modal">
+    <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px">
+      <div class="ic">✦</div>
+      <div style="flex:1"><h3 style="margin:0;font-size:14px;font-weight:800">Generate products with AI</h3><p style="margin:2px 0 0;font-size:11.5px;color:var(--muted)">Describe what you sell — we'll draft products with names, descriptions &amp; prices.</p></div>
+      <button class="ghost" style="padding:4px 9px" onclick="closeModal()">✕</button>
+    </div>
+    <label class="lbl">What are the products?</label>
+    <textarea class="field" id="mdesc" placeholder="e.g. Handmade shea-butter soaps in citrus, lavender and charcoal scents"></textarea>
+    <label class="lbl">How many?</label>
+    <select class="field" id="mcount" style="width:auto"><option>3 products</option><option selected>5 products</option><option>8 products</option><option>10 products</option></select>
+    <div class="ok" id="mok" style="display:none">✓ Added 5 draft products — review and activate them.</div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+      <button class="ghost" onclick="closeModal()">Cancel</button>
+      <button class="primary" id="mgen" onclick="genProducts(this)">✦ Generate</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const POL = { shipping:"&lt;h2&gt;Shipping Policy&lt;/h2&gt;&lt;p&gt;We ship within 2–3 business days via tracked courier…&lt;/p&gt;",
+    returns:"&lt;h2&gt;Returns&lt;/h2&gt;&lt;p&gt;Unopened items can be returned within 30 days for a full refund…&lt;/p&gt;",
+    privacy:"&lt;h2&gt;Privacy Policy&lt;/h2&gt;&lt;p&gt;We only collect what we need to fulfil your order…&lt;/p&gt;",
+    terms:"&lt;h2&gt;Terms of Service&lt;/h2&gt;&lt;p&gt;By purchasing you agree to the following…&lt;/p&gt;" };
+  let curPol = "shipping";
+  document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('#tabs button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    document.querySelectorAll('.pane').forEach(p=>p.style.display = p.dataset.p===b.dataset.t?'block':'none');
+  });
+  function busy(btn,on,label){ btn.innerHTML = on ? '<span class="spin"></span> Writing…' : label; btn.style.pointerEvents=on?'none':'auto'; }
+  function gen(btn,kind){
+    const label = btn.innerHTML; busy(btn,true);
+    setTimeout(()=>{
+      busy(btn,false,label);
+      if(kind==='info'){ document.getElementById('info-tagline').value="Botanical skincare, crafted in small batches"; document.getElementById('info-about').value="Founded on the belief that skincare should be simple and honest, we blend cold-pressed botanical oils in tiny batches so every jar is fresh."; document.getElementById('info-ok').style.display='flex'; }
+      if(kind==='hero'){ document.getElementById('hero-h').value="Skincare that's grown, not manufactured"; document.getElementById('hero-s').value="Small-batch botanical formulas — kind to your skin, gentle on the planet."; document.getElementById('hero-ok').style.display='flex'; }
+      if(kind==='pol'){ document.getElementById('pol-body').value=POL[curPol]; document.getElementById('pol-ok').style.display='flex'; }
+      if(kind==='faq'){ const l=document.getElementById('faq-list'); ['How long does shipping take?','Do you offer refunds?','Are ingredients organic?'].forEach(q=>{ l.insertAdjacentHTML('beforeend','<div class="card" style="background:var(--panel2);margin:0 0 10px"><label class="lbl">Question</label><input class="field" value="'+q+'" style="margin-bottom:6px"/><label class="lbl">Answer</label><input class="field" value="Yes — here are the details…" style="margin-bottom:0"/></div>'); }); document.getElementById('faq-ok').style.display='flex'; }
+    }, 850);
+  }
+  function polTab(el,k){ document.querySelectorAll('[data-pol]').forEach(p=>p.classList.remove('on')); el.classList.add('on'); curPol=k; document.getElementById('pol-body').value=POL[k]; document.getElementById('pol-btn').innerHTML='✦ Write '+k+' policy'; document.getElementById('pol-ok').style.display='none'; }
+  function openModal(){ document.getElementById('modal').classList.add('show'); document.getElementById('mok').style.display='none'; }
+  function closeModal(){ document.getElementById('modal').classList.remove('show'); }
+  function genProducts(btn){ btn.innerHTML='<span class="spin"></span> Generating…'; btn.style.pointerEvents='none'; setTimeout(()=>{ btn.innerHTML='✦ Generate'; btn.style.pointerEvents='auto'; document.getElementById('mok').style.display='flex'; document.getElementById('prod-list').textContent='8 products · 5 new drafts added — review and activate.'; }, 1100); }
+</script>
+</body>
+</html>

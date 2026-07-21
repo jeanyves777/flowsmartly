@@ -471,7 +471,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - package.json, tsconfig.json, postcss.config.mjs, next.config.ts
 - src/lib/api-client.ts, src/lib/cart.ts
 - src/app/api/[...path]/route.ts
-- src/components/ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx, AccountModalProvider.tsx
+- src/components/ThemeProvider.tsx, ThemeToggle.tsx, Analytics.tsx, CookieConsent.tsx, AccountModalProvider.tsx, AccountModal.tsx (the account drawer — pre-built, DO NOT OVERWRITE)
 - src/app/checkout/page.tsx (3-step checkout with Stripe — pre-built, DO NOT OVERWRITE)
 - src/app/checkout/confirm/page.tsx (Stripe PaymentElement — pre-built, DO NOT OVERWRITE)
 - src/app/account/page.tsx (redirects to AccountModal — pre-built, DO NOT OVERWRITE)
@@ -480,6 +480,9 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - src/app/account/orders/page.tsx (real order list with pending CTA — pre-built, DO NOT OVERWRITE)
 - src/app/account/orders/[orderId]/page.tsx (order detail: cancel/address/return gating — pre-built, DO NOT OVERWRITE)
 - .env.local
+
+### CRITICAL — NO DANGLING IMPORTS (this breaks the ENTIRE build):
+Every relative/local import you write (e.g. \`import X from "./X"\` or \`import X from "@/components/X"\`) MUST correspond to a file you actually CREATE in this run — unless it's a Protected File above (already provided) or an npm package. NEVER import a component, client, or module you don't write. A page importing \`./CategoryClient\` requires you to also write CategoryClient.tsx. Before you \`finish\`, re-verify that every component a page references exists — one missing file ("Module not found: Can't resolve './X'") fails the whole build.
 
 ### Tailwind CSS v4 Colors (CRITICAL):
 - In globals.css @theme {}, define the base color AND all shade variants using color-mix():

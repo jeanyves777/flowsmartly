@@ -9,7 +9,7 @@
  */
 
 import { spawn as spawnProcess } from "child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 
 // Reference store location — use env var to avoid hardcoded user paths
@@ -192,6 +192,12 @@ export function cancelBuild(storeId: string): boolean {
 export function initStoreDirV3(storeId: string, slug: string): string {
   const storeDir = getStoreDir(storeId);
 
+  // Start from a clean slate. Generation is the ONLY caller and runs once up
+  // front, so wiping here guarantees a re-generation (e.g. "start over" after a
+  // failed first build) never inherits stale/broken files from the prior attempt
+  // — orphaned components and missing-import build errors don't carry over.
+  try { rmSync(storeDir, { recursive: true, force: true }); } catch { /* fresh dir */ }
+
   // Create directory structure (expanded for SSR: checkout, account, API routes)
   const dirs = [
     storeDir,
@@ -269,6 +275,24 @@ export function initStoreDirV3(storeId: string, slug: string): string {
   const refAMPPath = join(REFERENCE_BASE, "components", "AccountModalProvider.tsx");
   if (existsSync(refAMPPath)) {
     writeFileSync(join(storeDir, "src", "components", "AccountModalProvider.tsx"), readFileSync(refAMPPath));
+  }
+
+  // AccountModal — the drawer AccountModalProvider imports (`./AccountModal`).
+  // It's pre-built with the provider, so it MUST be copied too or every build
+  // fails with "Can't resolve './AccountModal'". Depends only on @/lib/data +
+  // @/lib/api-client (both builder/agent-provided).
+  const refAccountModalPath = join(REFERENCE_BASE, "components", "AccountModal.tsx");
+  if (existsSync(refAccountModalPath)) {
+    writeFileSync(join(storeDir, "src", "components", "AccountModal.tsx"), readFileSync(refAccountModalPath));
+  }
+
+  // CategoryClient — the client component the category page imports
+  // (`./CategoryClient`). The agent writes category/[slug]/page.tsx and has
+  // shipped pages importing this without creating it; provide it so the import
+  // always resolves. Depends only on ProductGrid + @/lib/data (agent-written).
+  const refCategoryClient = join(REFERENCE_BASE, "app", "category", "[slug]", "CategoryClient.tsx");
+  if (existsSync(refCategoryClient)) {
+    writeFileSync(join(storeDir, "src", "app", "category", "[slug]", "CategoryClient.tsx"), readFileSync(refCategoryClient));
   }
 
   // Account dashboard — redirects to AccountModal (side drawer handles everything).

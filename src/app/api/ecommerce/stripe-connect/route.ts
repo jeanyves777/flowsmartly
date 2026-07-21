@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { stripe } from "@/lib/stripe";
+import { getPayoutConfig } from "@/lib/store/payout-countries";
 
 /**
  * POST - Create Stripe Connect Custom account with pre-filled user data
@@ -53,7 +54,17 @@ export async function POST() {
     const firstName = nameParts[0] || "";
     const lastName = nameParts.slice(1).join(" ") || firstName;
 
-    const country = brandKit?.country || store.country || "US";
+    const country = (brandKit?.country || store.country || "US").toUpperCase();
+
+    // Stripe Connect isn't available everywhere — don't create an account we
+    // can never enable. Those merchants use Cash on delivery instead.
+    const payoutCfg = getPayoutConfig(country);
+    if (!payoutCfg) {
+      return NextResponse.json(
+        { error: "Stripe payouts aren't available in your country yet. You can still accept Cash on delivery.", unsupportedCountry: true },
+        { status: 400 }
+      );
+    }
 
     // Create Custom account with all data we already have
     const account = await stripe.accounts.create({
@@ -76,11 +87,8 @@ export async function POST() {
         first_name: firstName,
         last_name: lastName,
         email: store.user.email,
-        ...(brandKit?.phone && {
-          phone: brandKit.phone.startsWith("+")
-            ? brandKit.phone
-            : `+1${brandKit.phone.replace(/\D/g, "")}`,
-        }),
+        // Only pass a phone we can trust the country code of (E.164, leading +).
+        ...(brandKit?.phone?.startsWith("+") && { phone: brandKit.phone }),
         ...(brandKit?.address && {
           address: {
             line1: brandKit.address,
@@ -105,6 +113,8 @@ export async function POST() {
 
     return NextResponse.json({
       accountId: account.id,
+      country,
+      family: payoutCfg.family,
       requirements: account.requirements?.currently_due || [],
       chargesEnabled: account.charges_enabled,
       payoutsEnabled: account.payouts_enabled,

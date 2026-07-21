@@ -21,9 +21,14 @@ export async function POST(request: NextRequest) {
     const session = await getSession();
     if (!session) return NextResponse.json({ success: false, error: { code: "UNAUTHORIZED", message: "Please log in" } }, { status: 401 });
 
-    // One store per account.
-    const existing = await prisma.store.findUnique({ where: { userId: session.userId }, select: { id: true, name: true } });
-    if (existing) {
+    // One store per account. A store whose FIRST build never succeeded (errored,
+    // no lastBuildAt) has no usable output — allow starting over from the brief,
+    // which regenerates that same row rather than 409-ing forever. A store that
+    // built successfully at least once is never regenerated here (would wipe real
+    // content) — the user edits + rebuilds it in the Studio instead.
+    const existing = await prisma.store.findUnique({ where: { userId: session.userId }, select: { id: true, name: true, slug: true, buildStatus: true, lastBuildAt: true } });
+    const canRegenerate = !!existing && existing.buildStatus === "error" && !existing.lastBuildAt;
+    if (existing && !canRegenerate) {
       return NextResponse.json({ success: false, error: { code: "STORE_EXISTS", message: `You already have a store ("${existing.name}"). Manage it in Sell.` }, data: { storeId: existing.id } }, { status: 409 });
     }
 
@@ -79,29 +84,43 @@ export async function POST(request: NextRequest) {
       : [];
     const categories = [...new Set(products.map((p) => p.category).filter((c): c is string => !!c))].slice(0, 12);
 
-    // Create the store (activated) with a unique slug.
-    let slug = generateSlug(name);
-    if (await prisma.store.findUnique({ where: { slug }, select: { id: true } })) {
-      slug = `${slug}-${Math.random().toString(36).substring(2, 6)}`;
+    // Regenerate the existing (never-built) row in place, or create a fresh one.
+    let store: { id: string; slug: string };
+    if (canRegenerate && existing) {
+      store = await prisma.store.update({
+        where: { id: existing.id },
+        data: {
+          name, description, industry, currency, region, country,
+          isActive: true, buildStatus: "building", buildStartedAt: new Date(),
+          lastBuildError: null, pendingRebuild: false,
+        },
+        select: { id: true, slug: true },
+      });
+    } else {
+      // Fresh store with a unique slug.
+      let slug = generateSlug(name);
+      if (await prisma.store.findUnique({ where: { slug }, select: { id: true } })) {
+        slug = `${slug}-${Math.random().toString(36).substring(2, 6)}`;
+      }
+      store = await prisma.store.create({
+        data: {
+          userId: session.userId,
+          name,
+          slug,
+          description,
+          industry,
+          currency,
+          region,
+          country,
+          ecomSubscriptionStatus: "active",
+          ecomPlan: "free",
+          isActive: true,
+          buildStatus: "building",
+          buildStartedAt: new Date(),
+        },
+        select: { id: true, slug: true },
+      });
     }
-    const store = await prisma.store.create({
-      data: {
-        userId: session.userId,
-        name,
-        slug,
-        description,
-        industry,
-        currency,
-        region,
-        country,
-        ecomSubscriptionStatus: "active",
-        ecomPlan: "free",
-        isActive: true,
-        buildStatus: "building",
-        buildStartedAt: new Date(),
-      },
-      select: { id: true, slug: true },
-    });
 
     // Charge once, up front. If the charge itself fails, roll back the store and
     // do NOT build (no free builds, no orphaned store).
@@ -116,7 +135,12 @@ export async function POST(request: NextRequest) {
           description: `Store build: ${name}`,
         });
       } catch {
-        await prisma.store.delete({ where: { id: store.id } }).catch(() => {});
+        // Roll back: a fresh store gets deleted; a regenerated row reverts to error.
+        if (canRegenerate) {
+          await prisma.store.update({ where: { id: store.id }, data: { buildStatus: "error", buildStartedAt: null } }).catch(() => {});
+        } else {
+          await prisma.store.delete({ where: { id: store.id } }).catch(() => {});
+        }
         return NextResponse.json({ success: false, error: { code: "CHARGE_FAILED", message: "Couldn't charge credits — please try again." } }, { status: 402 });
       }
     }
