@@ -233,6 +233,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const paged = session.stageSource === "slides" || session.stageSource === "doc";
   const [navOpen, setNavOpen] = useState(false);
   const [rosterCollapsed, setRosterCollapsed] = useState(false); // desktop side panel collapse
+  const [aiRate, setAiRate] = useState(1); // narration playback speed — host tunes it live, no re-synth
   const [soundBlocked, setSoundBlocked] = useState(false); // browser blocked autoplay (esp. attendees joining)
   // opening chat collapses the participant panel so they don't fight for the right side
   useEffect(() => { if (chatOpen) setRosterCollapsed(true); }, [chatOpen]);
@@ -290,6 +291,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     if (!a) return;
     if (aiPlaying && narration?.audioUrl) {
       if (a.getAttribute("data-src") !== narration.audioUrl) { a.src = narration.audioUrl; a.setAttribute("data-src", narration.audioUrl); a.currentTime = 0; setCapFrac(0); }
+      a.playbackRate = aiRate;
       a.play().then(() => setSoundBlocked(false)).catch(() => setSoundBlocked(true));
     } else { a.pause(); }
   }, [aiPlaying, narration?.audioUrl]);
@@ -335,6 +337,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     return () => { a.removeEventListener("timeupdate", onTime); a.removeEventListener("ended", onEnd); };
   }, [host]); // eslint-disable-line react-hooks/exhaustive-deps
   // Controls — audio position IS the saved position, so resume never restarts a slide.
+  const RATES = [0.85, 1, 1.15, 1.3, 1.5];
+  const cycleRate = () => setAiRate((r) => RATES[(RATES.indexOf(r) + 1) % RATES.length] ?? 1);
   const resumeAI = () => { setTookOver(false); void patch({ aiPlaying: true }); };
   const pauseAI = () => { aiAudioRef.current?.pause(); void patch({ aiPlaying: false }); };
   const skipAI = () => { const pages = material?.pages ?? 1; if (session.stagePage < pages) void patch({ stagePage: session.stagePage + 1, stageStep: 1, aiPlaying: true }); else void patch({ aiPlaying: false }); };
@@ -354,13 +358,18 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     const a = answerAudioRef.current;
     if (!a || !presenterAnswer?.audioUrl) { setAnswering(false); return; }
     aiAudioRef.current?.pause();
-    a.src = presenterAnswer.audioUrl; a.currentTime = 0;
+    a.src = presenterAnswer.audioUrl; a.currentTime = 0; a.playbackRate = aiRate;
     a.play().then(() => { setAnswering(true); setSoundBlocked(false); }).catch(() => { setAnswering(false); setSoundBlocked(true); });
     const done = () => setAnswering(false);
     a.addEventListener("ended", done);
     a.addEventListener("pause", done);
     return () => { a.removeEventListener("ended", done); a.removeEventListener("pause", done); };
   }, [presenterAnswer?.id, presenterAnswer?.audioUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  // apply a live speed change to whatever narration/answer is currently playing
+  useEffect(() => {
+    if (aiAudioRef.current) aiAudioRef.current.playbackRate = aiRate;
+    if (answerAudioRef.current) answerAudioRef.current.playbackRate = aiRate;
+  }, [aiRate]);
   // the avatar MOVES while the co-host is narrating OR answering a question
   const aiSpeaking = aiPlaying || answering;
   const [askOpen, setAskOpen] = useState(false);
@@ -750,6 +759,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                   <button onClick={aiPlaying ? pauseAI : resumeAI} title={aiPlaying ? "Pause the AI presenter" : tookOver ? "Resume from where it paused" : "Let the AI presenter deliver this"} className={cn("inline-flex items-center gap-1 rounded-full px-3 py-1 text-[10.5px] font-extrabold", aiPlaying ? "bg-gradient-to-br from-cyan-400 to-brand-500 text-[#04222a]" : "border border-brand-500/50 text-brand-400 hover:border-brand-500")}>
                     {aiPlaying ? <><Pause className="h-3 w-3" /> Pause AI</> : <><Volume2 className="h-3 w-3" /> {tookOver ? "Resume AI" : "Present with AI"}</>}
                   </button>
+                  <button onClick={cycleRate} title="Narration speed — tap to change" className="grid h-[26px] min-w-[36px] place-items-center rounded-lg border border-border px-1 text-[10px] font-extrabold text-muted-foreground hover:border-brand-500">{aiRate}×</button>
                   <button onClick={repeatAI} title="Repeat this slide" className="grid h-[26px] w-[26px] place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><RotateCcw className="h-3.5 w-3.5" /></button>
                   <button onClick={skipAI} title="Skip to the next slide" className="grid h-[26px] w-[26px] place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><SkipForward className="h-3.5 w-3.5" /></button>
                   <button onClick={takeoverAI} title="Take over — pause the AI and open your mic" className="grid h-[26px] w-[26px] place-items-center rounded-lg border border-amber-500/50 text-amber-400 hover:border-amber-500"><Hand className="h-3.5 w-3.5" /></button>
