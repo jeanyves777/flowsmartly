@@ -503,6 +503,33 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               <span className="mb-1 block text-[10.5px] font-bold text-muted-foreground">Speaker notes</span>
               <textarea value={slide.notes ?? ""} onChange={(e) => editSlide({ notes: e.target.value })} className="min-h-[70px] w-full resize-y rounded-lg border border-border bg-muted px-2.5 py-2 text-[12px] outline-none focus:border-brand-500" />
             </label>
+
+            {/* ANIMATION — the AI presenter's hand marks a keyword as it's spoken. */}
+            {slide.type === "doc" ? (
+              <div className="rounded-xl border border-border bg-muted/40 p-3">
+                <div className="mb-2 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><Sparkles className="h-3.5 w-3.5" /> Hand animation</div>
+                <label className="block">
+                  <span className="mb-1 block text-[10.5px] font-bold text-muted-foreground">Keyword the hand marks</span>
+                  <input value={slide.highlight ?? ""} onChange={(e) => editSlide({ highlight: e.target.value })} placeholder="a 2–4 word phrase from the slide" className="w-full rounded-lg border border-border bg-muted px-2.5 py-2 text-[12px] outline-none focus:border-brand-500" />
+                </label>
+                <div className="mt-2 grid grid-cols-3 gap-1.5">
+                  {([["circle", "✍️ Circle"], ["underline", "＿ Underline"], ["highlight", "🖍️ Marker"], ["point", "👉 Point"], ["none", "None"]] as const).map(([v, lbl]) => {
+                    const cur = slide.highlight ? (slide.annotate ?? "circle") : "none";
+                    const on = cur === v;
+                    return (
+                      <button key={v} onClick={() => {
+                        if (v === "none") { editSlide({ annotate: undefined, highlight: undefined }); return; }
+                        const src = (slide.bullets?.[0] || slide.subtitle || "").replace(/\*\*/g, "").trim();
+                        const hl = slide.highlight || src.split(/\s+/).slice(0, 3).join(" ").replace(/[:.,;]+$/, "");
+                        editSlide({ annotate: v as DeckSlide["annotate"], highlight: hl.length >= 3 ? hl : slide.highlight });
+                      }} className={cn("rounded-lg border px-1.5 py-1.5 text-[10.5px] font-bold", on ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}>{lbl}</button>
+                    );
+                  })}
+                </div>
+                <button onClick={() => { setPreviewClip(null); setPreviewing(true); }} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-brand-500/50 py-2 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10"><Play className="h-3.5 w-3.5" /> Preview animation</button>
+              </div>
+            ) : null}
+
             <button onClick={delSlide} disabled={deck.slides.length <= 1} className="mt-1 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-[11.5px] font-semibold text-muted-foreground hover:border-rose-500 hover:text-rose-500 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /> Delete slide</button>
           </div>
         ) : null}
