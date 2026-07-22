@@ -24,6 +24,7 @@ import { BackOffice } from "./training/back-office";
 import { DeckBuilder } from "./training/deck-builder";
 import { BriefSheet, type BriefDraft, type DeckDraft } from "./training/brief-sheet";
 import { PresenterSetup } from "./training/presenter-setup";
+import { TrainingLibrary } from "./training/training-library";
 import { useAgentNav } from "@/components/flow-ai/agent-nav-context";
 import { useRoom } from "./training/use-room";
 import { slideCountForDuration } from "@/lib/training/deck-cost";
@@ -53,10 +54,16 @@ interface SessionRow {
   id: string;
   title: string;
   status: string;
+  sessionType?: string;
   plannedMins: number;
   seats: number;
+  startsAt?: string | null;
   startedAt: string | null;
+  endedAt?: string | null;
   recordingUrl?: string | null;
+  creditsSpent?: number;
+  participantCount?: number;
+  segmentCount?: number;
 }
 
 export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
@@ -569,51 +576,14 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
       />
 
       {listOpen ? (
-        <>
-          <div className="absolute inset-0 z-[49] bg-black/55" onClick={() => setListOpen(false)} />
-          <div className="absolute inset-y-0 end-0 z-50 flex w-[360px] flex-col border-s border-border bg-card shadow-2xl">
-            <div className="flex items-center gap-2 border-b border-border px-4 py-3 text-[13px] font-bold">
-              <Users className="h-3.5 w-3.5" /> Your sessions
-              <button onClick={() => setListOpen(false)} className="ms-auto text-[12px] font-normal text-muted-foreground hover:text-foreground">Close</button>
-            </div>
-            <div className="flex-1 overflow-auto p-2">
-              {rows.length === 0 ? (
-                <p className="p-4 text-center text-[12px] text-muted-foreground">No sessions yet.</p>
-              ) : (
-                rows.map((r) => (
-                  <div
-                    key={r.id}
-                    className={cn(
-                      "mb-1.5 flex w-full items-center gap-2.5 rounded-xl border p-2.5 transition",
-                      r.id === sessionId ? "border-brand-500 bg-brand-500/[0.06]" : "border-border hover:border-brand-500/50",
-                    )}
-                  >
-                    <button onClick={() => { setSessionId(r.id); setListOpen(false); setMode("plan"); }} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-muted">
-                        <GraduationCap className="h-4 w-4 text-brand-400" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <b className="block truncate text-[12px]">{r.title}</b>
-                        <span className="text-[10px] text-muted-foreground">{r.plannedMins} min · {r.seats} seats{r.recordingUrl ? " · Recorded" : ""}</span>
-                      </span>
-                    </button>
-                    {r.recordingUrl ? (
-                      <button onClick={() => setWatchRec(r)} title="Watch recording" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-brand-400 transition hover:border-brand-500 hover:bg-brand-500/10">
-                        <Play className="h-3.5 w-3.5 fill-current" />
-                      </button>
-                    ) : null}
-                    <span className={cn(
-                      "shrink-0 rounded-full px-1.5 py-px text-[9px] font-extrabold",
-                      r.status === "live" ? "bg-rose-500 text-white" : r.status === "ended" ? "bg-muted text-muted-foreground" : "bg-brand-500/15 text-brand-400",
-                    )}>
-                      {r.status}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </>
+        <TrainingLibrary
+          rows={rows}
+          currentId={sessionId}
+          onOpen={(id) => { setSessionId(id); setListOpen(false); setMode("plan"); }}
+          onWatch={(r) => setWatchRec(r as SessionRow)}
+          onClose={() => setListOpen(false)}
+          reload={async () => { await loadList(); }}
+        />
       ) : null}
 
       {/* recording playback — return to a saved session */}
@@ -622,6 +592,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 border-b border-border px-4 py-3">
               <b className="min-w-0 flex-1 truncate text-[14px]">{watchRec.title}</b>
+              <a href={watchRec.recordingUrl} download target="_blank" rel="noreferrer" className="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500">Download</a>
               <button onClick={() => { navigator.clipboard?.writeText(watchRec.recordingUrl!).catch(() => {}); toast({ title: "Recording link copied" }); }} className="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500">Copy link</button>
               <button onClick={() => setWatchRec(null)} className="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500">Close</button>
             </div>
