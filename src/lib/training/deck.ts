@@ -17,7 +17,7 @@ import type { BoardItem, DeckSlide, DeckVisual, TrainingDeck, QuizQuestion, Slid
 const REVEAL_MODES = ["all_at_once", "progressive", "stroke_by_stroke", "word_by_word", "build_diagram"];
 const asLayout = (v?: string): SlideLayout | undefined => (v && (SLIDE_LAYOUTS as readonly string[]).includes(v)) ? (v as SlideLayout) : undefined;
 const asReveal = (v?: string): RevealMode | undefined => (v && REVEAL_MODES.includes(v)) ? (v as RevealMode) : undefined;
-const ANNOTATES = ["circle", "underline", "highlight", "point", "box", "strike", "check"] as const;
+const ANNOTATES = ["circle", "underline", "highlight", "point", "box", "strike", "check", "arrow", "bracket"] as const;
 const asAnnotate = (v?: string): DeckSlide["annotate"] | undefined => (v && (ANNOTATES as readonly string[]).includes(v)) ? (v as DeckSlide["annotate"]) : undefined;
 /** Keep the highlight ONLY if it appears verbatim in the slide's text (so the hand circles real words). */
 const hlPhrase = (hl: string | undefined, texts: (string | undefined)[]): string | undefined => {
@@ -294,7 +294,7 @@ Return JSON: { "title": string, "slides": Slide[] } where Slide is:
   "videoDemo": true,  // set on ONLY 1-2 doc slides in the whole deck — the concept(s) that teach best as a short MOVING demonstration
   "videoPrompt": a vivid ~15-second demonstration/illustration to animate (a moving 3D or photoreal scene of the concept in action, no text, no watermark), // only when videoDemo is true
   "highlight": the single most important 2-4 WORD phrase on this slide — the presenter marks it by hand as they speak. It MUST appear VERBATIM inside one of the bullets or the subtitle, // "doc" slides
-  "annotate": how the hand marks that phrase, chosen by INTENT — one of: "circle" (emphasise a key term, the default), "box" (a definition or important label), "underline" (a fact/detail worth noting), "strike" (a myth / wrong / "not this" — great on myth_reality & the con side of pros_cons/comparison), "check" (an approval / the right choice / "do this"), "point" (draw the eye to it), "highlight" (a marker sweep). Vary it across the deck to fit each moment, // "doc" slides
+  "annotate": how the hand marks that phrase, chosen by INTENT — one of: "circle" (emphasise a key term, the default), "box" (a definition or important label), "underline" (a fact/detail worth noting), "strike" (a myth / wrong / "not this" — great on myth_reality & the con side of pros_cons/comparison), "check" (an approval / the right choice / "do this"), "arrow" (point an arrow at it), "bracket" (frame the phrase in brackets), "point" (draw the eye to it), "highlight" (a marker sweep). Vary it across the deck to fit each moment, // "doc" slides
   "diagram": { "shape": "cycle"|"flow"|"tree", "nodes": [3-5 VERY short node labels — 2-4 WORDS each, ~18 chars max, NO sentences, quotes or colons], "edges": [[fromIndex,toIndex]] }, // whiteboard/livedraw — put the detail in annotations/notes, NOT the node labels
   "annotations": [1-2 very short sticky-note callouts — a key insight, tip or watch-out], // "whiteboard"/"livedraw" slides
   "assetPrompt": a vivid subject for a 3D asset that illustrates this concept (an object/system/scene, no text, no watermark), // "whiteboard"/"livedraw" slides

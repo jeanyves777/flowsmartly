@@ -15,7 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { DeckSlideView } from "./deck-slide-view";
-import { VISUAL_STYLES, VISUAL_STYLE_LABELS } from "@/lib/training/types";
+import { VISUAL_STYLES, VISUAL_STYLE_LABELS, ANNOTATE_VARIANTS } from "@/lib/training/types";
 import { AnimationStudio } from "./animation-studio";
 import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle } from "@/lib/training/types";
 
@@ -446,38 +446,39 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
 
       {/* stage */}
       <div className="flex min-w-0 flex-col">
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <span className="text-[12px] font-bold">{slide?.type === "livedraw" ? "Live Draw" : slide?.type === "whiteboard" ? "Whiteboard slide" : "Document slide"}{slide?.steps && slide.steps > 1 ? <span className="ms-1.5 font-normal text-muted-foreground">· {slide.steps} reveals</span> : null}</span>
-          <button onClick={() => { setRegenInstr(""); setRegenLayout("auto"); setRegenAnn((slide?.annotate as NonNullable<DeckSlide["annotate"]>) ?? "circle"); setRegenDraw("keep"); setRegenOpen(true); }} disabled={busy !== null} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500 disabled:opacity-50">
-            {busy === "regen" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Regenerate slide
+        <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <span className="shrink-0 whitespace-nowrap text-[11.5px] font-bold">{slide?.type === "livedraw" ? "Live Draw" : slide?.type === "whiteboard" ? "Whiteboard" : "Document"}{slide?.steps && slide.steps > 1 ? <span className="ms-1 font-normal text-muted-foreground">· {slide.steps} reveals</span> : null}</span>
+          <span className="mx-0.5 h-4 w-px shrink-0 bg-border" />
+          <button onClick={() => { setRegenInstr(""); setRegenLayout("auto"); setRegenAnn((slide?.annotate as NonNullable<DeckSlide["annotate"]>) ?? "circle"); setRegenDraw("keep"); setRegenOpen(true); }} disabled={busy !== null} title="Regenerate this slide" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500 disabled:opacity-50">
+            {busy === "regen" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Regenerate
           </button>
-          <button onClick={() => setRebuildOpen(true)} disabled={busy !== null} title="Rebuild the whole deck with the new content-aware layouts" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
-            {busy === "rebuild" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Rebuild all
+          <button onClick={() => setRebuildOpen(true)} disabled={busy !== null} title="Rebuild the whole deck with the new content-aware layouts" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
+            {busy === "rebuild" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Rebuild
           </button>
-          <label className="inline-flex items-center gap-1.5 rounded-lg border border-border pl-2 pr-1 text-[11px] font-semibold" title="Visual style — re-skins the whole deck (ground, accent colour and typeface)">
-            <Palette className="h-3.5 w-3.5 text-brand-400" />
-            <select value={deck.visualStyle ?? "modern_professional"} onChange={(e) => { const v = e.target.value as VisualStyle; const next: TrainingDeck = { ...deck, visualStyle: v }; setDeck(next); persist(next); }} className="cursor-pointer bg-transparent py-1.5 pr-1 text-[11px] font-semibold outline-none">
+          <button onClick={() => setAnimOpen(true)} title="Animation Studio — direct how the presenter's hand marks each slide" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10">
+            <PenLine className="h-3.5 w-3.5" /> Animate
+          </button>
+          <label className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-border pl-2 pr-0.5 text-[11px] font-semibold" title="Visual style — re-skins the whole deck">
+            <Palette className="h-3.5 w-3.5 shrink-0 text-brand-400" />
+            <select value={deck.visualStyle ?? "modern_professional"} onChange={(e) => { const v = e.target.value as VisualStyle; const next: TrainingDeck = { ...deck, visualStyle: v }; setDeck(next); persist(next); }} className="max-w-[92px] cursor-pointer truncate bg-transparent py-1.5 text-[11px] font-semibold outline-none">
               {VISUAL_STYLES.map((s) => <option key={s} value={s} className="bg-card text-foreground">{VISUAL_STYLE_LABELS[s]}</option>)}
             </select>
           </label>
-          <button onClick={() => setAnimOpen(true)} title="Animation Studio — direct how the presenter's hand marks each slide" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10">
-            <PenLine className="h-3.5 w-3.5" /> Animation Studio
-          </button>
           {slide?.videoPrompt && !slide?.videoUrl ? (
-            <button onClick={() => void genVideo()} disabled={busy !== null} title="Generate the ~15s demonstration video for this slide" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
-              {busy === "video" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Rendering…</> : <><Film className="h-3.5 w-3.5" /> Generate video</>}
+            <button onClick={() => void genVideo()} disabled={busy !== null} title="Generate the ~15s demonstration video for this slide" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
+              {busy === "video" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Rendering…</> : <><Film className="h-3.5 w-3.5" /> Video</>}
             </button>
           ) : null}
-          <div className="ms-auto flex items-center gap-1.5">
-            <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page <= 0} className="grid h-7 w-7 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
-            <span className="min-w-[70px] text-center text-[11px] text-muted-foreground">Slide {page + 1} / {deck.slides.length}</span>
-            <button onClick={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} disabled={page >= deck.slides.length - 1} className="grid h-7 w-7 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
-            <button onClick={() => (previewActive ? closePreview() : (setPreviewClip(null), setPreviewing(true)))} title="Play this slide right here — its narration, moving avatar and any talking video" className={cn("ms-1 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-bold hover:border-brand-500", previewActive ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border")}>{previewActive ? <><Pause className="h-3.5 w-3.5" /> Exit preview</> : <><Play className="h-3.5 w-3.5" /> Preview</>}</button>
-            <button onClick={() => onPresent(mat.id)} title="Open the full live stage" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-bold hover:border-brand-500"><Presentation className="h-3.5 w-3.5" /> Present</button>
+          <div className="ms-auto flex shrink-0 items-center gap-1.5 ps-1.5">
+            <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page <= 0} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
+            <span className="shrink-0 whitespace-nowrap text-center text-[11px] tabular-nums text-muted-foreground">{page + 1} / {deck.slides.length}</span>
+            <button onClick={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} disabled={page >= deck.slides.length - 1} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
+            <button onClick={() => (previewActive ? closePreview() : (setPreviewClip(null), setPreviewing(true)))} title="Play this slide right here — its narration, moving avatar and any talking video" className={cn("inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11.5px] font-bold hover:border-brand-500", previewActive ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border")}>{previewActive ? <><Pause className="h-3.5 w-3.5" /> Exit</> : <><Play className="h-3.5 w-3.5" /> Preview</>}</button>
+            <button onClick={() => onPresent(mat.id)} title="Open the full live stage" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-bold hover:border-brand-500"><Presentation className="h-3.5 w-3.5" /> Present</button>
             {onStartMeeting ? (
-              <button onClick={() => (presenterReady || session.status === "live") ? onStartMeeting(mat.id) : setPrepOpen(true)} title={presenterReady || session.status === "live" ? "Go live and start the training now" : "Finish preparing your AI presenter first — voice + on-screen videos"} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[12px] font-extrabold text-white", (presenterReady || session.status === "live") ? "bg-gradient-to-br from-rose-600 to-rose-400" : "bg-gradient-to-br from-amber-600 to-amber-400")}><Radio className="h-3.5 w-3.5" /> {session.status === "live" ? "Rejoin room" : presenterReady ? "Start meeting" : "Prepare presenter"}</button>
+              <button onClick={() => (presenterReady || session.status === "live") ? onStartMeeting(mat.id) : setPrepOpen(true)} title={presenterReady || session.status === "live" ? "Go live and start the training now" : "Finish preparing your AI presenter first — voice + on-screen videos"} className={cn("inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-[11.5px] font-extrabold text-white", (presenterReady || session.status === "live") ? "bg-gradient-to-br from-rose-600 to-rose-400" : "bg-gradient-to-br from-amber-600 to-amber-400")}><Radio className="h-3.5 w-3.5" /> {session.status === "live" ? "Rejoin" : presenterReady ? "Start" : "Prepare"}</button>
             ) : null}
-            <button onClick={onExit} className="rounded-lg border border-border px-2 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+            <button onClick={onExit} title="Exit" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
         </div>
         <div className="grid flex-1 place-items-center overflow-auto bg-[#0e0e13] p-4">
@@ -536,7 +537,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   <input value={slide.highlight ?? ""} onChange={(e) => editSlide({ highlight: e.target.value })} placeholder="a 2–4 word phrase from the slide" className="w-full rounded-lg border border-border bg-muted px-2.5 py-2 text-[12px] outline-none focus:border-brand-500" />
                 </label>
                 <div className="mt-2 grid grid-cols-3 gap-1.5">
-                  {([["circle", "✍️ Circle"], ["underline", "＿ Underline"], ["box", "▢ Box"], ["strike", "⊘ Strike"], ["check", "✔ Check"], ["highlight", "🖍️ Marker"], ["point", "👉 Point"], ["none", "None"]] as const).map(([v, lbl]) => {
+                  {[...ANNOTATE_VARIANTS, { v: "none" as const, icon: "∅", label: "None", hint: "" }].map(({ v, icon, label }) => {
                     const cur = slide.highlight ? (slide.annotate ?? "circle") : "none";
                     const on = cur === v;
                     return (
@@ -545,7 +546,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                         const src = (slide.bullets?.[0] || slide.subtitle || "").replace(/\*\*/g, "").trim();
                         const hl = slide.highlight || src.split(/\s+/).slice(0, 3).join(" ").replace(/[:.,;]+$/, "");
                         editSlide({ annotate: v as DeckSlide["annotate"], highlight: hl.length >= 3 ? hl : slide.highlight });
-                      }} className={cn("rounded-lg border px-1.5 py-1.5 text-[10.5px] font-bold", on ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}>{lbl}</button>
+                      }} className={cn("inline-flex items-center justify-center gap-1 rounded-lg border px-1.5 py-1.5 text-[10.5px] font-bold", on ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}><span>{icon}</span> {label}</button>
                     );
                   })}
                 </div>
@@ -628,8 +629,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   </div>
                   <div><span className="mb-1.5 block text-[10.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Hand animation (on the key phrase)</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {[["circle", "✍️ Circle"], ["underline", "＿ Underline"], ["box", "▢ Box"], ["strike", "⊘ Strike"], ["check", "✔ Check"], ["highlight", "🖍️ Highlight"], ["point", "👉 Pointing hand"], ["none", "None"]].map(([v, lbl]) => (
-                        <button key={v} onClick={() => setRegenAnn(v as NonNullable<DeckSlide["annotate"]> | "none")} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-bold", regenAnn === v ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}>{lbl}</button>
+                      {[...ANNOTATE_VARIANTS, { v: "none" as const, icon: "∅", label: "None", hint: "" }].map(({ v, icon, label }) => (
+                        <button key={v} onClick={() => setRegenAnn(v as NonNullable<DeckSlide["annotate"]> | "none")} className={cn("inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold", regenAnn === v ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}><span>{icon}</span> {label}</button>
                       ))}
                     </div>
                   </div>

@@ -29,12 +29,29 @@ function annPath(m: { x: number; y: number; w: number; h: number }, style: AnnSt
     const g = m.h * 0.45, s = m.h * 1.15, sx = m.x + m.w + g;
     return `M ${sx} ${cy + m.h * 0.05} L ${sx + s * 0.36} ${m.y + m.h * 0.98} L ${sx + s} ${m.y - m.h * 0.32}`;
   }
+  // an arrow drawn pointing UP at the phrase from just below its centre
+  if (style === "arrow") {
+    const tipY = m.y + m.h + m.h * 0.22, tailY = m.y + m.h + m.h * 1.5, hw = m.h * 0.5, hh = m.h * 0.5;
+    return `M ${cx} ${tailY} L ${cx} ${tipY} M ${cx} ${tipY} L ${cx - hw} ${tipY + hh} M ${cx} ${tipY} L ${cx + hw} ${tipY + hh}`;
+  }
+  // square brackets framing the phrase left and right  [ … ]
+  if (style === "bracket") {
+    const p = m.h * 0.35, l = m.x - p, r = m.x + m.w + p, t = m.y - p * 0.7, b = m.y + m.h + p * 0.7, q = m.h * 0.32;
+    return `M ${l + q} ${t} L ${l} ${t} L ${l} ${b} L ${l + q} ${b} M ${r - q} ${t} L ${r} ${t} L ${r} ${b} L ${r - q} ${b}`;
+  }
   return `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx - rx} ${cy}`;
 }
 
 /** Overlay that measures the slide's highlighted phrase ([data-hl]) and has the photoreal hand
  *  CIRCLE / UNDERLINE / POINT AT it (or leaves the CSS marker for "highlight"), when `active`. */
-function HandAnnotate({ hostRef, active, style, ink, showHand }: { hostRef: RefObject<HTMLDivElement | null>; active: boolean; style: AnnStyle; ink?: string; showHand?: boolean }) {
+type PenTool = "pen" | "pencil" | "marker" | "highlighter";
+const TOOL_CFG: Record<PenTool, { mul: number; op: number; cap: "round" | "butt" }> = {
+  pen: { mul: 0.8, op: 1, cap: "round" },
+  pencil: { mul: 0.6, op: 0.85, cap: "round" },
+  marker: { mul: 1, op: 1, cap: "round" },
+  highlighter: { mul: 3.1, op: 0.34, cap: "butt" },
+};
+function HandAnnotate({ hostRef, active, style, ink, showHand, tool, widthMul }: { hostRef: RefObject<HTMLDivElement | null>; active: boolean; style: AnnStyle; ink?: string; showHand?: boolean; tool?: PenTool; widthMul?: number }) {
   const [m, setM] = useState<{ W: number; H: number; x: number; y: number; w: number; h: number } | null>(null);
   const imgRef = useRef<SVGImageElement | null>(null);
   useLayoutEffect(() => {
@@ -82,7 +99,7 @@ function HandAnnotate({ hostRef, active, style, ink, showHand }: { hostRef: RefO
         <image href="/training/point-hand.png" width={hw} height={hh} x={m.x + m.w / 2 - hw * 0.205} y={m.y - hh * 0.067} style={{ animation: "an-point .5s ease forwards", filter: "drop-shadow(0 8px 12px rgba(0,0,0,.28))" } as CSSProperties} />
       ) : (
         <>
-          <path d={annPath(m, style)} pathLength={1} fill="none" stroke={ink || "#0e7db8"} strokeWidth={Math.max(2, m.h * 0.16)} strokeLinecap="round" strokeLinejoin="round" style={{ strokeDasharray: 1, strokeDashoffset: 1, animation: "an-draw .85s ease forwards" } as CSSProperties} />
+          <path d={annPath(m, style)} pathLength={1} fill="none" stroke={ink || "#0e7db8"} strokeWidth={Math.max(2, m.h * 0.16 * (widthMul ?? 1) * TOOL_CFG[tool ?? "marker"].mul)} strokeLinecap={TOOL_CFG[tool ?? "marker"].cap} strokeLinejoin="round" style={{ strokeDasharray: 1, strokeDashoffset: 1, animation: "an-draw .85s ease forwards", opacity: TOOL_CFG[tool ?? "marker"].op } as CSSProperties} />
           {showHand !== false ? <image ref={imgRef} href="/training/draw-hand.png" x={-4000} y={-4000} style={{ filter: "drop-shadow(0 8px 12px rgba(0,0,0,.28))" } as CSSProperties} /> : null}
         </>
       )}
@@ -284,7 +301,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand }: { sl
     return <>{t.slice(0, i)}<span data-hl className={on ? "rounded-[.15em] bg-cyan-300/40 box-decoration-clone px-[.12em] text-[rgb(var(--sfg))]" : undefined}>{t.slice(i, i + hlPhrase.length)}</span>{t.slice(i + hlPhrase.length)}</>;
   };
   const inkColor = hand?.color === "brand" ? "var(--sa)" : hand?.color;
-  const ann = hlPhrase ? <HandAnnotate hostRef={hostRef} active={annActive} style={annStyle} ink={inkColor} showHand={hand?.showHand} /> : null;
+  const ann = hlPhrase ? <HandAnnotate hostRef={hostRef} active={annActive} style={annStyle} ink={inkColor} showHand={hand?.showHand} tool={hand?.tool} widthMul={hand?.strokeWidth} /> : null;
 
   // A DEMONSTRATION VIDEO slide — a short generated moving illustration beside the teaching text.
   if (slide.videoUrl || (slide.visualType === "video" && slide.videoPrompt)) {
