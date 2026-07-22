@@ -304,9 +304,9 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   // ---- content-aware LAYOUTS (only for decks that carry slide.layout; others fall through
   // to the classic title + points + side-visual). One idea per slide, composed by purpose. ----
 
-  // A big centred statement: hero / section divider / quote / one big idea.
-  if (lay === "hero_statement" || lay === "section_divider" || lay === "quote" || lay === "big_idea") {
-    const isQuote = lay === "quote", isDivider = lay === "section_divider";
+  // A big centred statement: hero / section divider / quote / one big idea / closing.
+  if (lay === "hero_statement" || lay === "section_divider" || lay === "quote" || lay === "big_idea" || lay === "closing") {
+    const isQuote = lay === "quote", isDivider = lay === "section_divider", isClosing = lay === "closing";
     return (
       <div className={cn("relative grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] text-white [container-type:inline-size]", className)}>
         {hasImg ? <img src={v!.url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-30" /> : null}
@@ -314,9 +314,15 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div className="relative z-[3] max-w-[88%] px-[7%] text-center">
           {isDivider ? <div className="mb-[2cqw] text-[clamp(6px,2cqw,18px)] font-black uppercase tracking-[.22em] text-[color:var(--sat)]">Section</div> : null}
+          {isClosing ? <div className="mb-[2cqw] inline-flex items-center gap-1.5 rounded-full border border-[rgb(255_255_255/0.18)] px-[2.4cqw] py-[1cqw] text-[clamp(5px,1.7cqw,15px)] font-black uppercase tracking-[.18em] text-[color:var(--sat)]">✦ Wrap-up</div> : null}
           {isQuote ? <div className="mb-[-3cqw] select-none text-[16cqw] font-black leading-none text-brand-500/45">&ldquo;</div> : null}
           <h1 style={{ textWrap: "balance" }} className={cn("font-extrabold leading-[1.05] tracking-tight", isQuote ? "text-[clamp(12px,4.8cqw,48px)] italic" : "text-[clamp(14px,6.4cqw,66px)]")}>{md(slide.title)}</h1>
           {slide.subtitle ? <p style={{ textWrap: "balance" }} className="mx-auto mt-[2cqw] max-w-[46ch] text-[clamp(7px,2.6cqw,24px)] font-semibold text-brand-200/90">{md(slide.subtitle)}</p> : null}
+          {isClosing && bullets.length ? (
+            <div className="mt-[3cqw] flex flex-wrap items-center justify-center gap-[1.4cqw]">
+              {shownB.slice(0, 3).map((b, i) => <span key={i} className="inline-flex items-center gap-1.5 rounded-full bg-[rgb(255_255_255/0.08)] px-[2.4cqw] py-[1.1cqw] text-[clamp(5px,1.7cqw,15px)] font-semibold text-white/90">{md(b)}</span>)}
+            </div>
+          ) : null}
         </div>
       </div>
     );
@@ -325,7 +331,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   // Data spotlight — one big number pulled from the content, with a short interpretation.
   const statMatch = (slide.subtitle && slide.subtitle.match(/\$?\d[\d.,]*\s?(%|x|k|m|bn?|billion|million)?/i))
     || bullets.map((b) => b.match(/\$?\d[\d.,]*\s?(%|x|k|m|bn?|billion|million)?/i)).find(Boolean);
-  if (lay === "data_spotlight" && statMatch) {
+  if ((lay === "data_spotlight" || lay === "dashboard_insight") && statMatch) {
     const stat = statMatch[0].trim();
     const caption = (slide.subtitle && !slide.subtitle.startsWith(stat) ? slide.subtitle : bullets[0]) || slide.title;
     return (
@@ -340,8 +346,8 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
     );
   }
 
-  // Key takeaways / action plan — the points AS cards, not a bullet list.
-  if ((lay === "key_takeaways" || lay === "action_plan") && bullets.length) {
+  // Key takeaways / action plan / recap / concept map / dashboard — the points AS cards, not a bullet list.
+  if ((lay === "key_takeaways" || lay === "action_plan" || lay === "recap_map" || lay === "concept_map" || lay === "dashboard_insight") && bullets.length) {
     const two = bullets.length > 3;
     return (
       <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
@@ -376,7 +382,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   }
 
   // Two-column contrast — pros/cons, myth vs reality, comparison.
-  if ((lay === "pros_cons" || lay === "myth_reality" || lay === "comparison_table") && bullets.length >= 2) {
+  if ((lay === "pros_cons" || lay === "myth_reality" || lay === "comparison_table" || lay === "before_after") && bullets.length >= 2) {
     const heads = lay === "pros_cons" ? ["Pros", "Cons"] : lay === "myth_reality" ? ["The myth", "The reality"] : ["Before", "After"];
     const half = Math.ceil(bullets.length / 2);
     const cols = [bullets.slice(0, half), bullets.slice(half)];
@@ -422,7 +428,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   }
 
   // Numbered steps — a process, customer journey or timeline.
-  if ((lay === "step_process" || lay === "customer_journey" || lay === "timeline" || lay === "vertical_journey") && bullets.length >= 2) {
+  if ((lay === "step_process" || lay === "customer_journey" || lay === "timeline" || lay === "vertical_journey" || lay === "workflow_diagram") && bullets.length >= 2) {
     const steps = shownB.slice(0, 5);
     return (
       <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
@@ -443,7 +449,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   }
 
   // A leading question; the answer reveals progressively.
-  if (lay === "question_answer" && (slide.subtitle || bullets.length)) {
+  if ((lay === "question_answer" || lay === "interactive_question") && (slide.subtitle || bullets.length)) {
     return (
       <div className={cn("relative grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-[#1b2540] via-[#161a2c] to-[#100e18] px-[7%] text-white [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
@@ -461,12 +467,12 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   }
 
   // Case study / real-world scenario — a visual beside a structured outcome.
-  if ((lay === "case_study" || lay === "real_world_scenario") && (hasImg || bullets.length >= 1)) {
+  if ((lay === "case_study" || lay === "real_world_scenario" || lay === "role_play") && (hasImg || bullets.length >= 1)) {
     return (
       <div className={cn("relative grid h-full w-full grid-cols-[1fr_1fr] items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-white [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div className="flex min-w-0 flex-col justify-center">
-          <span className="mb-[1.5cqw] inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-500/15 px-[2.2cqw] py-[.9cqw] text-[clamp(5px,1.6cqw,14px)] font-black uppercase tracking-wide text-[color:var(--sat)]">{lay === "case_study" ? "Case study" : "In the field"}</span>
+          <span className="mb-[1.5cqw] inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-500/15 px-[2.2cqw] py-[.9cqw] text-[clamp(5px,1.6cqw,14px)] font-black uppercase tracking-wide text-[color:var(--sat)]">{lay === "case_study" ? "Case study" : lay === "role_play" ? "Scenario" : "In the field"}</span>
           <h1 className="text-[clamp(11px,3.6cqw,34px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
           {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,1.9cqw,17px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
           {shownB.length ? (
@@ -481,6 +487,77 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
             <img src={v!.url} alt="" className="absolute inset-0 h-full w-full object-cover" />
           ) : <span className="grid h-full w-full place-items-center text-[8cqw]">{v?.emoji ?? "🏢"}</span>}
         </div>
+      </div>
+    );
+  }
+
+  // Image + explanation — a big visual on one side, the teaching points on the other
+  // (also annotated_photo / zoom_in). The image dominates; the hand can still mark a phrase.
+  if ((lay === "image_explanation" || lay === "annotated_photo" || lay === "zoom_in") && hasImg) {
+    const zoom = lay === "zoom_in";
+    return (
+      <div ref={hostRef} className={cn("relative grid h-full w-full grid-cols-[1.25fr_.85fr] items-stretch gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[5%] py-[5%] text-white [container-type:inline-size]", left && "grid-cols-[.85fr_1.25fr]")}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
+        <div className={cn("relative overflow-hidden rounded-[1.6cqw] bg-black ring-1 ring-[rgb(255_255_255/0.1)] shadow-2xl", left && "order-2")}>
+          <img src={v!.url} alt="" className={cn("h-full w-full", containImg ? "object-contain p-[3%]" : zoom ? "scale-[1.35] object-cover" : "object-cover")} />
+          {v?.tag ? <span className="absolute bottom-[1.2cqw] left-[1.2cqw] rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black backdrop-blur">{zoom ? "🔍 Detail" : v.tag}</span> : null}
+        </div>
+        <div className="flex min-w-0 flex-col justify-center">
+          <h1 className="text-[clamp(11px,3.6cqw,34px)] font-extrabold leading-tight tracking-tight">{T(slide.title)}</h1>
+          {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,1.9cqw,17px)] font-semibold text-[color:var(--sat)]">{T(slide.subtitle)}</p> : null}
+          {shownB.length ? (
+            <ul className="mt-[2.4cqw] flex flex-col gap-[1.4cqw]">
+              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-white/85"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{T(b)}</li>)}
+            </ul>
+          ) : null}
+        </div>
+        {ann}
+      </div>
+    );
+  }
+
+  // Layered explanation / system architecture — the points as STACKED horizontal bands,
+  // reading top→bottom like layers of a system or an argument built up level by level.
+  if ((lay === "layered_explanation" || lay === "system_architecture") && bullets.length >= 2) {
+    const isArch = lay === "system_architecture";
+    return (
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
+        <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
+        {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
+        <div className="mt-[2.6cqw] flex flex-col gap-[1.2cqw]">
+          {shownB.slice(0, 5).map((b, i) => {
+            const op = 0.16 - i * 0.02;
+            return (
+              <div key={i} className="flex items-center gap-[2cqw] rounded-[1.2cqw] border border-[rgb(255_255_255/0.1)] px-[3%] py-[1.9cqw] duration-300 animate-in fade-in slide-in-from-left-2" style={{ background: `linear-gradient(90deg, rgb(255 255 255 / ${op}) 0%, transparent 85%)` } as CSSProperties}>
+                <span className="grid h-[3.4cqw] w-[3.4cqw] shrink-0 place-items-center rounded-[.7cqw] bg-gradient-to-br from-[var(--sa)] to-[var(--sa2)] text-[clamp(6px,1.9cqw,17px)] font-black text-white">{isArch ? `L${shownB.length - i}` : i + 1}</span>
+                <span className="min-w-0 text-[clamp(6px,2cqw,18px)] font-medium leading-snug text-white/90">{md(b)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Workshop — a hands-on activity: a clear prompt + the steps to do, framed as an exercise.
+  if (lay === "workshop" && (slide.subtitle || bullets.length)) {
+    return (
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
+        <span className="mb-[1.6cqw] inline-flex w-fit items-center gap-1.5 rounded-full bg-[rgb(255_255_255/0.08)] px-[2.4cqw] py-[1cqw] text-[clamp(5px,1.7cqw,15px)] font-black uppercase tracking-wide text-[color:var(--sat)]">🛠 Your turn</span>
+        <h1 className="text-[clamp(11px,4cqw,40px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
+        {slide.subtitle ? <p className="mt-[1.2cqw] max-w-[52ch] text-[clamp(6px,2.2cqw,20px)] font-semibold text-white/85">{md(slide.subtitle)}</p> : null}
+        {shownB.length ? (
+          <ol className="mt-[2.6cqw] flex flex-col gap-[1.4cqw]">
+            {shownB.map((b, i) => (
+              <li key={i} className="flex items-start gap-[1.8cqw] text-[clamp(6px,2cqw,18px)] leading-snug text-white/90 duration-300 animate-in fade-in slide-in-from-bottom-2">
+                <span className="grid h-[3.2cqw] w-[3.2cqw] shrink-0 place-items-center rounded-full border-2 border-[var(--sa2)] text-[clamp(5px,1.7cqw,15px)] font-black text-[color:var(--sat)]">{i + 1}</span>
+                <span className="min-w-0 pt-[.4cqw]">{md(b)}</span>
+              </li>
+            ))}
+          </ol>
+        ) : null}
       </div>
     );
   }
