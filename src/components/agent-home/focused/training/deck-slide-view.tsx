@@ -8,9 +8,75 @@
  * process reads like a board the presenter fills in while they talk. Live-draw goes
  * one element at a time and the current mark visibly draws itself on. [[training-studio]]
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { cn } from "@/lib/utils/cn";
 import type { BoardItem, DeckSlide } from "@/lib/training/types";
+
+type AnnStyle = NonNullable<DeckSlide["annotate"]>;
+/** The circle / underline path (in host pixels) around a measured phrase box. */
+function annPath(m: { x: number; y: number; w: number; h: number }, style: AnnStyle): string {
+  const cx = m.x + m.w / 2, cy = m.y + m.h / 2, rx = m.w / 2 + m.h * 0.55, ry = m.h / 2 + m.h * 0.5;
+  if (style === "underline") return `M ${m.x - m.h * 0.25} ${m.y + m.h + m.h * 0.22} Q ${cx} ${m.y + m.h + m.h * 0.55} ${m.x + m.w + m.h * 0.25} ${m.y + m.h + m.h * 0.14}`;
+  return `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx - rx} ${cy}`;
+}
+
+/** Overlay that measures the slide's highlighted phrase ([data-hl]) and has the photoreal hand
+ *  CIRCLE / UNDERLINE / POINT AT it (or leaves the CSS marker for "highlight"), when `active`. */
+function HandAnnotate({ hostRef, active, style }: { hostRef: RefObject<HTMLDivElement | null>; active: boolean; style: AnnStyle }) {
+  const [m, setM] = useState<{ W: number; H: number; x: number; y: number; w: number; h: number } | null>(null);
+  const imgRef = useRef<SVGImageElement | null>(null);
+  useLayoutEffect(() => {
+    if (!active) { setM(null); return; }
+    const host = hostRef.current; if (!host) return;
+    const measure = () => {
+      const el = host.querySelector<HTMLElement>("[data-hl]"); if (!el) { setM(null); return; }
+      const c = host.getBoundingClientRect(), s = el.getBoundingClientRect();
+      if (!c.width || !s.width) return;
+      setM({ W: c.width, H: c.height, x: s.left - c.left, y: s.top - c.top, w: s.width, h: s.height });
+    };
+    measure();
+    const ro = new ResizeObserver(measure); ro.observe(host);
+    const t = setTimeout(measure, 90);
+    return () => { ro.disconnect(); clearTimeout(t); };
+  }, [active, hostRef, style]);
+  // hand draws the circle/underline (nib pinned to the stroke each frame)
+  useEffect(() => {
+    if (!m || style === "highlight" || style === "point") return;
+    const img = imgRef.current, svg = img?.ownerSVGElement; if (!img || !svg) return;
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", annPath(m, style)); p.setAttribute("visibility", "hidden"); svg.appendChild(p);
+    let len = 0; try { len = p.getTotalLength(); } catch { len = 0; }
+    if (!len) { p.remove(); return; }
+    const hw = Math.max(120, m.h * 8.5), hh = hw * 0.667, nx = hw * 0.1335, ny = hh * 0.082;
+    img.setAttribute("width", String(hw)); img.setAttribute("height", String(hh));
+    let raf = 0, t0: number | null = null; const DUR = 850;
+    const frame = (ts: number) => {
+      if (t0 === null) t0 = ts; const k = Math.min(1, (ts - t0) / DUR);
+      const pt = p.getPointAtLength(len * k);
+      img.setAttribute("x", String(pt.x - nx)); img.setAttribute("y", String(pt.y - ny));
+      img.style.opacity = k < 0.85 ? "1" : String(Math.max(0, (1 - k) / 0.15));
+      if (k < 1) raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => { cancelAnimationFrame(raf); p.remove(); };
+  }, [m, style]);
+
+  if (!active || !m || style === "highlight") return null;
+  const hw = Math.max(120, m.h * 8.5), hh = hw * 0.667;
+  return (
+    <svg viewBox={`0 0 ${m.W} ${m.H}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 z-[6] h-full w-full">
+      <style>{`@keyframes an-draw{to{stroke-dashoffset:0}}@keyframes an-point{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}`}</style>
+      {style === "point" ? (
+        <image href="/training/point-hand.png" width={hw} height={hh} x={m.x + m.w / 2 - hw * 0.205} y={m.y - hh * 0.067} style={{ animation: "an-point .5s ease forwards", filter: "drop-shadow(0 8px 12px rgba(0,0,0,.28))" } as CSSProperties} />
+      ) : (
+        <>
+          <path d={annPath(m, style)} pathLength={1} fill="none" stroke="#0e7db8" strokeWidth={Math.max(2, m.h * 0.16)} strokeLinecap="round" strokeLinejoin="round" style={{ strokeDasharray: 1, strokeDashoffset: 1, animation: "an-draw .85s ease forwards" } as CSSProperties} />
+          <image ref={imgRef} href="/training/draw-hand.png" x={-4000} y={-4000} style={{ filter: "drop-shadow(0 8px 12px rgba(0,0,0,.28))" } as CSSProperties} />
+        </>
+      )}
+    </svg>
+  );
+}
 
 // The hand PNG is 392×261 viewBox units; the marker's ink NIB sits at 13.35%/8.2% of it
 // (measured). We pin THAT exact point to the current point on the stroke each frame so the pen
@@ -58,6 +124,7 @@ const md = (s: string | undefined | null): string =>
 export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; reveal?: number; className?: string }) {
   // `reveal` = how many steps are shown (undefined = show everything, e.g. a builder
   // thumbnail). Drives the progressive "drawing as you talk" reveal.
+  const hostRef = useRef<HTMLDivElement | null>(null); // slide container, so the hand can circle a keyword
 
   // The opening slide — the AI co-host takes the stage to introduce itself. On the live
   // stage the moving avatar replaces this; here (builder / no avatar) it's a warm welcome.
@@ -149,6 +216,24 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   const bullets = slide.bullets ?? [];
   const shownB = reveal === undefined ? bullets : bullets.slice(0, reveal);
   const lay = slide.layout;
+
+  // Hand annotation on a keyword: wrap the highlight phrase in a <span data-hl>, and once the
+  // slide's bullets have all revealed, the hand circles/underlines/points at it. `T()` wraps the
+  // FIRST occurrence across the slide; `ann` is the overlay element (place it in a relative root).
+  const hlPhrase = (slide.highlight || "").trim();
+  const annStyle: AnnStyle = slide.annotate ?? "circle";
+  const annActive = reveal !== undefined && !!hlPhrase && reveal >= bullets.length;
+  let hlUsed = false;
+  const T = (text: string | undefined | null) => {
+    const t = md(text);
+    if (!hlPhrase || hlUsed || !t) return t;
+    const i = t.toLowerCase().indexOf(hlPhrase.toLowerCase());
+    if (i < 0) return t;
+    hlUsed = true;
+    const on = annStyle === "highlight";
+    return <>{t.slice(0, i)}<span data-hl className={on ? "rounded-[.15em] bg-cyan-300/40 box-decoration-clone px-[.12em] text-white" : undefined}>{t.slice(i, i + hlPhrase.length)}</span>{t.slice(i + hlPhrase.length)}</>;
+  };
+  const ann = hlPhrase ? <HandAnnotate hostRef={hostRef} active={annActive} style={annStyle} /> : null;
 
   // A DEMONSTRATION VIDEO slide — a short generated moving illustration beside the teaching text.
   if (slide.videoUrl || (slide.visualType === "video" && slide.videoPrompt)) {
@@ -369,7 +454,7 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   // A central 3D/photoreal visual with labeled callouts.
   if (lay === "concept_3d_callouts" && hasImg && bullets.length >= 1) {
     return (
-      <div className={cn("relative grid h-full w-full grid-cols-[1.15fr_.85fr] items-center gap-[3%] overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] px-[6%] py-[6%] text-white [container-type:inline-size]", className)}>
+      <div ref={hostRef} className={cn("relative grid h-full w-full grid-cols-[1.15fr_.85fr] items-center gap-[3%] overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] px-[6%] py-[6%] text-white [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
         <div className="relative h-full">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -381,11 +466,12 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
             {shownB.slice(0, 4).map((b, i) => (
               <li key={i} className="flex items-start gap-[1.6cqw] rounded-[1.2cqw] border border-white/10 bg-white/[0.05] px-[2.4cqw] py-[1.4cqw] text-[clamp(6px,1.8cqw,16px)] text-white/90 duration-300 animate-in fade-in slide-in-from-right-2">
                 <span className="grid h-[2.8cqw] w-[2.8cqw] shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 text-[clamp(5px,1.5cqw,13px)] font-black text-white">{i + 1}</span>
-                {md(b)}
+                {T(b)}
               </li>
             ))}
           </ul>
         </div>
+        {ann}
       </div>
     );
   }
@@ -415,7 +501,7 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   }
 
   return (
-    <div className={cn("relative h-full w-full overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] text-white [container-type:inline-size]", className)}>
+    <div ref={hostRef} className={cn("relative h-full w-full overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] text-white [container-type:inline-size]", className)}>
       <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
       {full && v?.kind === "image" && v.url ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -424,13 +510,13 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
       <div className={cn("relative grid h-full w-full gap-[5%] p-[6%] pl-[8%]", full ? "grid-cols-1" : left ? "grid-cols-[.85fr_1.15fr]" : "grid-cols-[1.15fr_.85fr]")}>
         <div className={cn("flex flex-col justify-center", left && "order-2")}>
           <h1 className="text-[clamp(8px,3.6cqw,36px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
-          {slide.subtitle ? <p className="mt-1.5 text-[clamp(5px,1.7cqw,16px)] font-bold text-violet-300">{md(slide.subtitle)}</p> : null}
+          {slide.subtitle ? <p className="mt-1.5 text-[clamp(5px,1.7cqw,16px)] font-bold text-violet-300">{T(slide.subtitle)}</p> : null}
           {slide.bullets?.length ? (
             <ul className="mt-4 flex flex-col gap-2.5">
               {(reveal === undefined ? slide.bullets : slide.bullets.slice(0, reveal)).map((b, i) => (
                 <li key={i} className="flex gap-2.5 text-[clamp(5px,1.6cqw,15px)] leading-snug text-[#cfcde0] duration-300 animate-in fade-in slide-in-from-bottom-2">
                   <span className="mt-[6px] h-[7px] w-[7px] shrink-0 rounded-full bg-violet-400" />
-                  {md(b)}
+                  {T(b)}
                 </li>
               ))}
             </ul>
@@ -448,6 +534,7 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
           </div>
         ) : null}
       </div>
+      {ann}
     </div>
   );
 }
