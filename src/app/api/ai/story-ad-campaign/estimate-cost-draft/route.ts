@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const cost = estimateCampaignRenderCost(state);
+  const cost = await estimateCampaignRenderCost(state);
   const isAdmin = !!session.adminId;
 
   const user = await prisma.user.findUnique({

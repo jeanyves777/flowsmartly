@@ -54,13 +54,15 @@ const DEFAULT_PRICING: {
   { key: "PRESENTER_NARRATE_PER_SLIDE", name: "Training: Narration (per slide)", description: "Deck narration TTS per slide", credits: 4, category: "ai_text" },
   { key: "TRAINING_DECK_BASE", name: "Training: AI Deck (base)", description: "AI presentation outline", credits: 12, category: "ai_text" },
   { key: "TRAINING_DECK_IMAGE", name: "Training: AI Deck (per slide image)", description: "Per generated slide image", credits: 15, category: "ai_image" },
-  { key: "AI_AVATAR_VIDEO_PREMIUM", name: "AI Avatar Video (Premium)", description: "HeyGen Avatar IV photoreal, per 30s (~$2). Used by the training presenter avatar loop.", credits: 80, category: "ai_video" },
+  { key: "AI_AVATAR_VIDEO", name: "AI Avatar Video (Standard)", description: "HeyGen standard talking-avatar, per 30s (~$0.51)", credits: 40, category: "ai_video" },
+  { key: "AI_AVATAR_VIDEO_PREMIUM", name: "AI Avatar Video (Premium)", description: "HeyGen Avatar IV photoreal, per 30s (~$2). Sized to cover HeyGen's ~$4/min.", credits: 160, category: "ai_video" },
   { key: "AI_VIDEO_LITE", name: "AI Video (Standard/Lite)", description: "Veo Lite per 8s clip (~$0.30)", credits: 30, category: "ai_video" },
   // Lead search — result-scaled so it covers Google Places Place Details cost
   { key: "LOCAL_LEAD_SEARCH_BASE", name: "Lead Search (base)", description: "Per Google Places lead search (covers the Text Search)", credits: 5, category: "ai_text" },
   { key: "LOCAL_LEAD_PER_RESULT", name: "Lead Search (per business)", description: "Per business found + saved (covers ~$0.025 Place Details)", credits: 2, category: "ai_text" },
   // Pitch / proposal
   { key: "PITCH", name: "AI Outreach Pitch", description: "Researched cold-outreach pitch (~$0.10)", credits: 15, category: "ai_text" },
+  { key: "PITCH_SUGGEST", name: "AI Pitch Field Suggestion", description: "Per-field AI suggestion in the Pitch editor", credits: 3, category: "ai_text" },
   { key: "AI_SERVICE_PROPOSAL", name: "AI Service Proposal", description: "Branded service proposal PDF (~$0.35)", credits: 35, category: "ai_text" },
 ];
 

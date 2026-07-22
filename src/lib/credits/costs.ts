@@ -86,9 +86,12 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_CARTOON_CHARACTER_REGEN: 10, // Single image regen
 
   // --- AI Avatar (HeyGen, pay-as-you-go) — costs are PER 30s of output ---
-  // Standard talking-avatar ≈ $1/min → $0.50/30s; ~2x markup at $0.01/credit → 20.
-  AI_AVATAR_VIDEO: 20,          // Standard talking-avatar, per 30s
-  AI_AVATAR_VIDEO_PREMIUM: 80,  // Avatar IV photoreal (~$4/min), per 30s
+  // HeyGen real cost: standard talking-avatar ≈ $1/min ($0.51/30s); Avatar IV
+  // photoreal ≈ $4/min ($2.01/30s). Sized to COVER real cost at the $0.013
+  // bulk-credit floor — was 20/80, which lost ~$0.25 / ~$0.97 per 30s.
+  // Admin-tunable: drop these if HeyGen's Avatar IV rate is lower than $4/min.
+  AI_AVATAR_VIDEO: 40,          // Standard talking-avatar, per 30s (~$0.51 real; 40×$0.013=$0.52)
+  AI_AVATAR_VIDEO_PREMIUM: 160, // Avatar IV photoreal (~$4/min → ~$2/30s); 160×$0.013=$2.08
   AI_AVATAR_CLONE_PHOTO: 40,    // Photo Avatar — instant, one-time
   AI_AVATAR_CLONE_VIDEO: 300,   // Instant Avatar / digital twin from 2-min video, one-time
   AI_AVATAR_TRANSLATE: 40,      // Video translation/dubbing, per 30s of source
@@ -239,9 +242,9 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_PRESENCE_REPORT: 15,       // AI presence/citation report
   AI_AUTO_FIX: 2,               // AI auto-fix listing inconsistency
   AI_LISTING_SCAN: 10,          // AI listing scan across directories
-  AI_PITCH_LOCAL_PRESENCE: 5,   // AI pitch for local presence
   AI_SERVICE_PROPOSAL: 35,      // Dedicated branded service proposal PDF agent
   PITCH: 15,                    // Researched cold-outreach pitch (2 Haiku calls + optional Google Places, ~$0.08-0.14). Was a hardcoded literal in create-pitch.ts + /api/pitch.
+  PITCH_SUGGEST: 3,             // Per-field AI suggestion in the Pitch editor (was UNMETERED; mirrors AI_STORY_CAMPAIGN_SUGGEST)
 
   // --- Lead search (Google Places) — result-scaled so it covers Place Details cost ---
   // find_local_leads + legacy /api/leads/search fan out 1 Place Details call per
@@ -392,9 +395,9 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_PRESENCE_REPORT: "AI presence report",
   AI_AUTO_FIX: "AI listing auto-fix",
   AI_LISTING_SCAN: "AI listing scan",
-  AI_PITCH_LOCAL_PRESENCE: "AI local presence pitch",
   AI_SERVICE_PROPOSAL: "AI service proposal generation",
   PITCH: "AI outreach pitch",
+  PITCH_SUGGEST: "AI pitch field suggestion",
   LOCAL_LEAD_SEARCH_BASE: "Lead search (base)",
   LOCAL_LEAD_PER_RESULT: "Lead search (per business found)",
   AI_WEBSITE_GENERATE: "AI website generation ($5.00)",

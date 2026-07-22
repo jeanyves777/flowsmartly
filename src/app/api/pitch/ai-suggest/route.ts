@@ -3,6 +3,8 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { HAIKU_MODEL, ai } from "@/lib/ai/client";
 import { getUserPreferredLanguage, languageDirective } from "@/lib/ai/user-language";
+import { creditService } from "@/lib/credits";
+import { checkCreditsForFeature, getDynamicCreditCost } from "@/lib/credits/costs";
 
 type SuggestField =
   | "serviceTitle"
@@ -105,6 +107,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Meter the per-field AI suggestion (was unmetered). Gate up front; charge
+    // after a successful generation below.
+    const gate = await checkCreditsForFeature(session.userId, "PITCH_SUGGEST", !!session.adminId);
+    if (gate) {
+      return NextResponse.json({ success: false, error: { code: gate.code, message: gate.message } }, { status: 402 });
+    }
+
     const ctx: SuggestContext = {
       targetName: clean(body.context?.targetName, 180),
       targetWebsite: clean(body.context?.targetWebsite, 240),
@@ -158,6 +167,15 @@ export async function POST(request: NextRequest) {
         { success: false, error: { message: "Empty suggestion" } },
         { status: 502 },
       );
+    }
+
+    if (!session.adminId) {
+      const cost = await getDynamicCreditCost("PITCH_SUGGEST");
+      if (cost > 0) {
+        await creditService
+          .deductCredits({ userId: session.userId, amount: cost, type: "USAGE", description: "Pitch: AI field suggestion", referenceType: "pitch_ai_suggest" })
+          .catch(() => {});
+      }
     }
 
     return NextResponse.json({ success: true, data: { value } });

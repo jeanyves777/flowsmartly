@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
-import { DEFAULT_CREDIT_COSTS } from "@/lib/credits/costs";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 import {
   addAndRenderClip,
   addBlankClip,
@@ -79,11 +79,12 @@ export async function POST(
       case "add": {
         // Adding a clip renders a video → charge the per-clip cost.
         const isAdmin = !!session.adminId;
-        const cost = current.state.provider === "veo3"
-          ? DEFAULT_CREDIT_COSTS.AI_VIDEO_STUDIO
+        const providerCostKey = current.state.provider === "veo3"
+          ? "AI_VIDEO_STUDIO"
           : current.state.provider === "cheap"
-            ? DEFAULT_CREDIT_COSTS.AI_VIDEO_CHEAP
-            : DEFAULT_CREDIT_COSTS.AI_VIDEO_LITE;
+            ? "AI_VIDEO_CHEAP"
+            : "AI_VIDEO_LITE";
+        const cost = await getDynamicCreditCost(providerCostKey);
         if (!isAdmin) {
           const charge = await creditService.deductCredits({
             userId: session.userId,
