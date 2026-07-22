@@ -314,8 +314,27 @@ export interface DeckSlide {
    *  and highlights it as it's spoken. Must appear verbatim in the subtitle or a talking point. */
   highlight?: string;
   /** how the hand marks the highlighted phrase (default: circle). */
-  annotate?: "circle" | "underline" | "highlight" | "point" | "box" | "strike" | "check";
+  annotate?: "circle" | "underline" | "highlight" | "point" | "box" | "strike" | "check" | "arrow" | "bracket";
+  /** when the hand mark fires, in ms from the slide's narration start (set on the Animation
+   *  Studio timeline). Undefined = after all the points have revealed. */
+  annotateAtMs?: number;
 }
+
+/** The hand-mark animation variants — the ONE source of truth for every picker (Animation
+ *  Studio, the slide inspector's Animate panel, and the Regenerate modal), so they always
+ *  show the full set. "none" is offered separately by each UI (it clears the mark). */
+export type AnnotateStyle = NonNullable<DeckSlide["annotate"]>;
+export const ANNOTATE_VARIANTS: { v: AnnotateStyle; icon: string; label: string; hint: string }[] = [
+  { v: "circle", icon: "✍️", label: "Circle", hint: "Circle a key term" },
+  { v: "underline", icon: "＿", label: "Underline", hint: "Underline a fact" },
+  { v: "box", icon: "▢", label: "Box", hint: "Box a definition" },
+  { v: "bracket", icon: "❲❳", label: "Brackets", hint: "Frame the phrase" },
+  { v: "strike", icon: "⊘", label: "Strike", hint: "Strike a myth" },
+  { v: "check", icon: "✔", label: "Check", hint: "Approve / do this" },
+  { v: "arrow", icon: "↗", label: "Arrow", hint: "Point an arrow at it" },
+  { v: "highlight", icon: "🖍️", label: "Marker", hint: "Highlighter sweep" },
+  { v: "point", icon: "👉", label: "Point", hint: "Point at it" },
+];
 
 export interface QuizQuestion {
   question: string;
