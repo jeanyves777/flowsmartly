@@ -292,6 +292,11 @@ export interface DeckSlide {
    *  `videoUrl` is filled once the host generates it in the Build Studio. */
   videoPrompt?: string;
   videoUrl?: string;
+  /** the single most important 2-4 word phrase on a DOC slide — the AI co-host's hand circles
+   *  and highlights it as it's spoken. Must appear verbatim in the subtitle or a talking point. */
+  highlight?: string;
+  /** how the hand marks the highlighted phrase (default: circle). */
+  annotate?: "circle" | "underline" | "highlight" | "point";
 }
 
 export interface QuizQuestion {

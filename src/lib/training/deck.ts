@@ -17,6 +17,13 @@ import type { BoardItem, DeckSlide, DeckVisual, TrainingDeck, QuizQuestion, Slid
 const REVEAL_MODES = ["all_at_once", "progressive", "stroke_by_stroke", "word_by_word", "build_diagram"];
 const asLayout = (v?: string): SlideLayout | undefined => (v && (SLIDE_LAYOUTS as readonly string[]).includes(v)) ? (v as SlideLayout) : undefined;
 const asReveal = (v?: string): RevealMode | undefined => (v && REVEAL_MODES.includes(v)) ? (v as RevealMode) : undefined;
+/** Keep the highlight ONLY if it appears verbatim in the slide's text (so the hand circles real words). */
+const hlPhrase = (hl: string | undefined, texts: (string | undefined)[]): string | undefined => {
+  const p = stripMd(hl || "").trim().slice(0, 48);
+  if (p.length < 3) return undefined;
+  const low = p.toLowerCase();
+  return texts.some((t) => stripMd(t || "").toLowerCase().includes(low)) ? p : undefined;
+};
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -53,6 +60,8 @@ interface RawSlide {
   /** AT MOST 1-2 per deck — a short generated demonstration video best teaches this concept. */
   videoDemo?: boolean;
   videoPrompt?: string;
+  /** the single key 2-4 word phrase to circle/highlight (must appear verbatim in a bullet/subtitle). */
+  highlight?: string;
 }
 
 /** Turn a visual style + subject into a rich image prompt (photoreal / 3D / flat). */
@@ -273,6 +282,7 @@ Return JSON: { "title": string, "slides": Slide[] } where Slide is:
   "imagePrompt": a vivid prompt for the visual (no text in the image, no watermark), // "doc" slides
   "videoDemo": true,  // set on ONLY 1-2 doc slides in the whole deck — the concept(s) that teach best as a short MOVING demonstration
   "videoPrompt": a vivid ~15-second demonstration/illustration to animate (a moving 3D or photoreal scene of the concept in action, no text, no watermark), // only when videoDemo is true
+  "highlight": the single most important 2-4 WORD phrase on this slide — the presenter circles it by hand as they speak. It MUST appear VERBATIM inside one of the bullets or the subtitle, // "doc" slides
   "diagram": { "shape": "cycle"|"flow"|"tree", "nodes": [3-5 VERY short node labels — 2-4 WORDS each, ~18 chars max, NO sentences, quotes or colons], "edges": [[fromIndex,toIndex]] }, // whiteboard/livedraw — put the detail in annotations/notes, NOT the node labels
   "annotations": [1-2 very short sticky-note callouts — a key insight, tip or watch-out], // "whiteboard"/"livedraw" slides
   "assetPrompt": a vivid subject for a 3D asset that illustrates this concept (an object/system/scene, no text, no watermark), // "whiteboard"/"livedraw" slides
@@ -345,6 +355,7 @@ Rules:
       visualType: (videoPrompt ? "video" : style === "3d" ? "3d" : style === "illustration" ? "illustration" : "photo") as VisualType,
       revealMode: asReveal(s.revealMode) ?? "progressive",
       videoPrompt,
+      highlight: hlPhrase(s.highlight, [s.subtitle, ...bullets]),
     };
   });
 
