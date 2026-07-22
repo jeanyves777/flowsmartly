@@ -112,6 +112,131 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   // Illustrations / diagrams carry meaning at their edges (arrows, labels), so they must FIT
   // inside their box (contain) — cropping them (cover) cuts off content. Photos still fill.
   const containImg = v?.style === "illustration" || /illustration|diagram|chart|infographic|graph|figure|flow/i.test(v?.tag ?? "");
+  const hasImg = v?.kind === "image" && !!v.url;
+  const bullets = slide.bullets ?? [];
+  const shownB = reveal === undefined ? bullets : bullets.slice(0, reveal);
+  const lay = slide.layout;
+
+  // ---- content-aware LAYOUTS (only for decks that carry slide.layout; others fall through
+  // to the classic title + points + side-visual). One idea per slide, composed by purpose. ----
+
+  // A big centred statement: hero / section divider / quote / one big idea.
+  if (lay === "hero_statement" || lay === "section_divider" || lay === "quote" || lay === "big_idea") {
+    const isQuote = lay === "quote", isDivider = lay === "section_divider";
+    return (
+      <div className={cn("relative grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] text-white [container-type:inline-size]", className)}>
+        {hasImg ? <img src={v!.url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-30" /> : null}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/55" />
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
+        <div className="relative z-[3] max-w-[88%] px-[7%] text-center">
+          {isDivider ? <div className="mb-[2cqw] text-[clamp(6px,2cqw,18px)] font-black uppercase tracking-[.22em] text-brand-300">Section</div> : null}
+          {isQuote ? <div className="mb-[-3cqw] select-none text-[16cqw] font-black leading-none text-brand-500/45">&ldquo;</div> : null}
+          <h1 style={{ textWrap: "balance" }} className={cn("font-extrabold leading-[1.05] tracking-tight", isQuote ? "text-[clamp(12px,4.8cqw,48px)] italic" : "text-[clamp(14px,6.4cqw,66px)]")}>{md(slide.title)}</h1>
+          {slide.subtitle ? <p style={{ textWrap: "balance" }} className="mx-auto mt-[2cqw] max-w-[46ch] text-[clamp(7px,2.6cqw,24px)] font-semibold text-brand-200/90">{md(slide.subtitle)}</p> : null}
+        </div>
+      </div>
+    );
+  }
+
+  // Data spotlight — one big number pulled from the content, with a short interpretation.
+  const statMatch = (slide.subtitle && slide.subtitle.match(/\$?\d[\d.,]*\s?(%|x|k|m|bn?|billion|million)?/i))
+    || bullets.map((b) => b.match(/\$?\d[\d.,]*\s?(%|x|k|m|bn?|billion|million)?/i)).find(Boolean);
+  if (lay === "data_spotlight" && statMatch) {
+    const stat = statMatch[0].trim();
+    const caption = (slide.subtitle && !slide.subtitle.startsWith(stat) ? slide.subtitle : bullets[0]) || slide.title;
+    return (
+      <div className={cn("relative grid h-full w-full grid-cols-[1.1fr_.9fr] items-center overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] px-[7%] text-white [container-type:inline-size]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
+        <div>
+          <div className="bg-gradient-to-br from-brand-300 to-violet-400 bg-clip-text text-[clamp(28px,16cqw,150px)] font-black leading-[.9] tracking-tight text-transparent">{stat}</div>
+          <h1 className="mt-[1cqw] text-[clamp(10px,3.2cqw,30px)] font-extrabold leading-tight">{md(slide.title)}</h1>
+        </div>
+        <p style={{ textWrap: "balance" }} className="border-l-2 border-brand-500/40 pl-[4%] text-[clamp(7px,2.3cqw,20px)] font-medium text-white/80">{md(caption)}</p>
+      </div>
+    );
+  }
+
+  // Key takeaways / action plan — the points AS cards, not a bullet list.
+  if ((lay === "key_takeaways" || lay === "action_plan") && bullets.length) {
+    const two = bullets.length > 3;
+    return (
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
+        <h1 className="text-[clamp(11px,4cqw,40px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
+        {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-brand-300">{md(slide.subtitle)}</p> : null}
+        <div className={cn("mt-[3cqw] grid gap-[1.6cqw]", two ? "grid-cols-2" : "grid-cols-1")}>
+          {shownB.map((b, i) => (
+            <div key={i} className="flex items-start gap-[1.8cqw] rounded-[1.4cqw] border border-white/10 bg-white/[0.05] px-[2.6cqw] py-[2cqw] duration-300 animate-in fade-in slide-in-from-bottom-2">
+              <span className="grid h-[3.6cqw] w-[3.6cqw] shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 text-[clamp(6px,1.9cqw,17px)] font-black text-white">{lay === "action_plan" ? i + 1 : "✓"}</span>
+              <span className="min-w-0 text-[clamp(6px,2cqw,18px)] font-medium leading-snug text-white/90">{md(b)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Full-bleed cinematic visual with a caption over it.
+  if (lay === "full_visual" && hasImg) {
+    return (
+      <div className={cn("relative h-full w-full overflow-hidden bg-black [container-type:inline-size]", className)}>
+        <img src={v!.url} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/25" />
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
+        <div className="absolute inset-x-0 bottom-0 z-[3] px-[7%] pb-[6%] text-white">
+          <h1 style={{ textWrap: "balance" }} className="max-w-[75%] text-[clamp(12px,4.8cqw,48px)] font-extrabold leading-tight">{md(slide.title)}</h1>
+          {slide.subtitle ? <p className="mt-[1cqw] max-w-[62%] text-[clamp(7px,2.2cqw,20px)] font-semibold text-brand-200/90">{md(slide.subtitle)}</p> : null}
+        </div>
+      </div>
+    );
+  }
+
+  // Two-column contrast — pros/cons, myth vs reality, comparison.
+  if ((lay === "pros_cons" || lay === "myth_reality" || lay === "comparison_table") && bullets.length >= 2) {
+    const heads = lay === "pros_cons" ? ["Pros", "Cons"] : lay === "myth_reality" ? ["The myth", "The reality"] : ["Before", "After"];
+    const half = Math.ceil(bullets.length / 2);
+    const cols = [bullets.slice(0, half), bullets.slice(half)];
+    const tones = ["border-emerald-400/30 from-emerald-500/[0.12]", "border-rose-400/30 from-rose-500/[0.1]"];
+    return (
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
+        <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
+        {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-brand-300">{md(slide.subtitle)}</p> : null}
+        <div className="mt-[3cqw] grid grid-cols-2 gap-[2cqw]">
+          {cols.map((c, ci) => (
+            <div key={ci} className={cn("rounded-[1.6cqw] border bg-gradient-to-b to-transparent p-[3.4%]", tones[ci])}>
+              <div className="mb-[1.6cqw] text-[clamp(6px,2cqw,18px)] font-black uppercase tracking-wide text-white/85">{heads[ci]}</div>
+              <ul className="flex flex-col gap-[1.4cqw]">
+                {c.map((b, i) => <li key={i} className="flex gap-[1.4cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-white/85"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-white/45" />{md(b)}</li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Problem → Solution → Result — three connected sections.
+  if (lay === "problem_solution_result" && bullets.length >= 2) {
+    const heads = ["Problem", "Solution", "Result"];
+    const pick = [bullets[0], bullets[1], bullets[2] ?? slide.subtitle ?? ""];
+    return (
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
+        <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
+        <div className="mt-[3cqw] grid grid-cols-3 gap-[1.6cqw]">
+          {heads.map((h, i) => (
+            <div key={i} className="relative rounded-[1.4cqw] border border-white/10 bg-white/[0.05] p-[3.4%]">
+              <div className="mb-[1cqw] text-[clamp(5px,1.7cqw,15px)] font-black uppercase tracking-wide text-brand-300">{h}</div>
+              <p className="text-[clamp(6px,1.9cqw,17px)] leading-snug text-white/85">{md(pick[i] || "")}</p>
+              {i < 2 ? <span className="absolute -right-[1.1cqw] top-1/2 z-[2] -translate-y-1/2 text-[clamp(8px,2.4cqw,22px)] text-brand-400">→</span> : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("relative h-full w-full overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] text-white [container-type:inline-size]", className)}>
       <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
