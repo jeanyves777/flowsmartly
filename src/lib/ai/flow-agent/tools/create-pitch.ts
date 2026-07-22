@@ -1,13 +1,11 @@
 import { prisma } from "@/lib/db/client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { processPitch } from "@/lib/pitch/processor";
 import type { FlowAgentTool } from "../registry";
 import { spawnBackgroundTask, publishTaskEvent } from "../job-state";
 import { notifyAgentTaskComplete } from "../notify-task-complete";
 
-// Subscriber pitch price (matches /api/pitch). Tool is PRO+ only, so the
-// caller is always a subscriber → 15 credits.
-const PITCH_COST = 15;
 
 /**
  * create_pitch — research a target business (public signals: site, Google
@@ -39,8 +37,16 @@ export const createPitch: FlowAgentTool = {
   plans: ["PRO", "BUSINESS", "ENTERPRISE"],
   costKey: "AGENT_PROPOSE_PLAN",
   mutating: true,
+  autoPlanCost: async () => ({
+    credits: await getDynamicCreditCost("PITCH"),
+    label: "Create the pitch",
+    detail: "Researched cold-outreach pitch",
+  }),
   handler: async (input, ctx) => {
     try {
+      // Admin-tunable pitch price (was a hardcoded 15). Charged in-handler; the
+      // tool's costKey is free (AGENT_PROPOSE_PLAN) so the framework doesn't double-charge.
+      const PITCH_COST = await getDynamicCreditCost("PITCH");
       const businessName = clean(input.businessName, 180);
       if (!businessName) {
         return { ok: false, error_code: "missing_input", message: "businessName is required." };

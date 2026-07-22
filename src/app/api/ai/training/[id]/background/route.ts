@@ -3,13 +3,13 @@ import { getSession } from "@/lib/auth/session";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { generateImageXaiFirst } from "@/lib/ai/image-router";
 import { creditService } from "@/lib/credits";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 
 const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
 
 const OK_IMAGE = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
 const MAX = 8 * 1024 * 1024;
-const AI_COST = 12; // one 16:9 image, standard chain
 
 /**
  * POST — a virtual-background image for the Training Room.
@@ -45,6 +45,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const prompt = (body.prompt || "").trim();
   if (!prompt) return err("Describe the background you want");
 
+  // Admin-tunable; one 16:9 standard image (was a hardcoded 12).
+  const AI_COST = await getDynamicCreditCost("TRAINING_BACKGROUND");
   const charge = await creditService.deductCredits({
     userId: session.userId,
     type: "USAGE",

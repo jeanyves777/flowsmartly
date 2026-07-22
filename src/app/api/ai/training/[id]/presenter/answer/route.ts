@@ -6,6 +6,7 @@ import { broadcast } from "@/lib/training/room";
 import { ai } from "@/lib/ai/client";
 import { synthesize } from "@/lib/training/narration";
 import { creditService } from "@/lib/credits";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { nanoid } from "nanoid";
 import type { PresenterAnswer, TrainingDeck } from "@/lib/training/types";
@@ -14,7 +15,6 @@ const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
 
 export const maxDuration = 120;
-const ANSWER_COST = 6; // one AI answer + a short TTS reply
 
 /**
  * POST /api/ai/training/[id]/presenter/answer — a live Q&A turn. Any admitted
@@ -57,6 +57,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }).join("\n").slice(0, 6000);
 
   // Charge the room owner (the answer costs an AI call + TTS).
+  // Admin-tunable; one AI answer + short TTS reply (was a hardcoded 6).
+  const ANSWER_COST = await getDynamicCreditCost("PRESENTER_ANSWER");
   const charge = await creditService.deductCredits({ userId: room.userId, type: "USAGE", amount: ANSWER_COST, description: "Training Room: presenter answer", referenceType: "presenter_answer", referenceId: id });
   if (!charge.success) return err("The room is out of credits for live answers", 402);
   const refund = () => creditService.addCredits?.({ userId: room.userId, type: "REFUND", amount: ANSWER_COST, description: "Refund: presenter answer failed", referenceType: "presenter_answer", referenceId: id }).catch(() => {});

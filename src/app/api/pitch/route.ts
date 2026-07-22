@@ -3,10 +3,11 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { parseDealBrief } from "@/lib/pitch/deal-brief-agent";
 import { processPitch } from "@/lib/pitch/processor";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 
-// Credit costs
-const PITCH_COST_SUBSCRIBER = 15;   // paying plan users
-const PITCH_COST_FREE_USER   = 500; // STARTER plan, after their 1 free trial run
+// Subscriber price is admin-tunable via the PITCH key (was a hardcoded 15).
+// The free-user number is an upsell gate, not a cost basis.
+const PITCH_COST_FREE_USER = 500; // STARTER plan, after their 1 free trial run
 
 function cleanText(value: unknown, max = 1000): string {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -138,7 +139,8 @@ export async function POST(request: NextRequest) {
 
     const isSubscriber = user?.plan && user.plan !== "STARTER";
     const isFreeRun    = !isSubscriber && pitchCount === 0;
-    const creditCost   = isFreeRun ? 0 : isSubscriber ? PITCH_COST_SUBSCRIBER : PITCH_COST_FREE_USER;
+    const pitchSubscriberCost = await getDynamicCreditCost("PITCH");
+    const creditCost   = isFreeRun ? 0 : isSubscriber ? pitchSubscriberCost : PITCH_COST_FREE_USER;
     const totalCredits = user?.aiCredits || 0;
 
     if (!isFreeRun && totalCredits < creditCost) {

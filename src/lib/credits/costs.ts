@@ -86,9 +86,12 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_CARTOON_CHARACTER_REGEN: 10, // Single image regen
 
   // --- AI Avatar (HeyGen, pay-as-you-go) — costs are PER 30s of output ---
-  // Standard talking-avatar ≈ $1/min → $0.50/30s; ~2x markup at $0.01/credit → 20.
-  AI_AVATAR_VIDEO: 20,          // Standard talking-avatar, per 30s
-  AI_AVATAR_VIDEO_PREMIUM: 80,  // Avatar IV photoreal (~$4/min), per 30s
+  // HeyGen real cost: standard talking-avatar ≈ $1/min ($0.51/30s); Avatar IV
+  // photoreal ≈ $4/min ($2.01/30s). Sized to COVER real cost at the $0.013
+  // bulk-credit floor — was 20/80, which lost ~$0.25 / ~$0.97 per 30s.
+  // Admin-tunable: drop these if HeyGen's Avatar IV rate is lower than $4/min.
+  AI_AVATAR_VIDEO: 40,          // Standard talking-avatar, per 30s (~$0.51 real; 40×$0.013=$0.52)
+  AI_AVATAR_VIDEO_PREMIUM: 160, // Avatar IV photoreal (~$4/min → ~$2/30s); 160×$0.013=$2.08
   AI_AVATAR_CLONE_PHOTO: 40,    // Photo Avatar — instant, one-time
   AI_AVATAR_CLONE_VIDEO: 300,   // Instant Avatar / digital twin from 2-min video, one-time
   AI_AVATAR_TRANSLATE: 40,      // Video translation/dubbing, per 30s of source
@@ -218,6 +221,19 @@ export const DEFAULT_CREDIT_COSTS = {
   TRAINING_RECORDING: 8,        // per session: record + store the room
   TRAINING_TRANSCRIPT: 4,       // per session: live transcript + emailed summary
 
+  // --- Training Room: AI presenter + deck media ---
+  // Previously HARDCODED literals inside the training routes (admin-untunable +
+  // some mis-priced). Now proper dynamic keys so admin can reprice without a deploy.
+  PRESENTER_MOMENT_VIDEO: 50,   // one 8s talking-presenter clip (xAI/Grok video_standard + Veo fallback ~$0.45, cloned-voice mux). Used by iv-moment + legacy intro/outro film. Right-sized down from a hardcoded 90/120.
+  PRESENTER_ANSWER: 3,          // live Q&A: one AI answer + short TTS reply (~$0.015). Down from a hardcoded 6.
+  PRESENTER_STYLE: 18,          // presentation-ready presenter portrait (identity image-to-image, premium chain ~$0.09-0.12)
+  TRAINING_BACKGROUND: 12,      // one 16:9 AI virtual background image (~$0.05-0.06)
+  PRESENTER_NARRATE_BASE: 4,    // deck narration: base (script generation)
+  PRESENTER_NARRATE_PER_SLIDE: 4, // deck narration: per slide (TTS)
+  TRAINING_DECK_BASE: 12,       // AI presentation deck: base (outline)
+  TRAINING_DECK_IMAGE: 15,      // AI presentation deck: per generated slide image
+  // Presenter avatar-loop video (HeyGen Avatar IV) reuses AI_AVATAR_VIDEO_PREMIUM (80/30s).
+
   // --- ListSmartly ---
   AI_LISTING_DESCRIPTION: 3,    // AI listing description generation
   AI_LISTING_BULK_DESCRIBE: 2,  // AI bulk listing descriptions (per listing)
@@ -226,8 +242,16 @@ export const DEFAULT_CREDIT_COSTS = {
   AI_PRESENCE_REPORT: 15,       // AI presence/citation report
   AI_AUTO_FIX: 2,               // AI auto-fix listing inconsistency
   AI_LISTING_SCAN: 10,          // AI listing scan across directories
-  AI_PITCH_LOCAL_PRESENCE: 5,   // AI pitch for local presence
   AI_SERVICE_PROPOSAL: 35,      // Dedicated branded service proposal PDF agent
+  PITCH: 15,                    // Researched cold-outreach pitch (2 Haiku calls + optional Google Places, ~$0.08-0.14). Was a hardcoded literal in create-pitch.ts + /api/pitch.
+  PITCH_SUGGEST: 3,             // Per-field AI suggestion in the Pitch editor (was UNMETERED; mirrors AI_STORY_CAMPAIGN_SUGGEST)
+
+  // --- Lead search (Google Places) — result-scaled so it covers Place Details cost ---
+  // find_local_leads + legacy /api/leads/search fan out 1 Place Details call per
+  // business (~$0.025 each) + a Text Search (~$0.032). A flat 3/5 credits lost money
+  // (~$0.53 for a 20-result search). Now: base + per-saved-result, fan-out capped.
+  LOCAL_LEAD_SEARCH_BASE: 5,    // per search (covers the Text Search)
+  LOCAL_LEAD_PER_RESULT: 2,     // per business saved (covers ~$0.025 Place Details at the bulk floor)
 
   // --- AI Website Builder ---
   AI_WEBSITE_GENERATE: 500,     // Full site generation with AI agent ($5.00 — Claude API + build + hosting)
@@ -356,6 +380,14 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   TRAINING_ATTENDEE_10MIN: "Training room: time in the room",
   TRAINING_RECORDING: "Training room: recording",
   TRAINING_TRANSCRIPT: "Training room: transcript & summary",
+  PRESENTER_MOMENT_VIDEO: "Training: presenter intro/outro/moment video",
+  PRESENTER_ANSWER: "Training: presenter live Q&A answer",
+  PRESENTER_STYLE: "Training: presentation-ready presenter portrait",
+  TRAINING_BACKGROUND: "Training: AI virtual background",
+  PRESENTER_NARRATE_BASE: "Training: deck narration (base)",
+  PRESENTER_NARRATE_PER_SLIDE: "Training: deck narration (per slide)",
+  TRAINING_DECK_BASE: "Training: AI deck (base)",
+  TRAINING_DECK_IMAGE: "Training: AI deck (per slide image)",
   AI_LISTING_DESCRIPTION: "AI listing description generation",
   AI_LISTING_BULK_DESCRIBE: "AI bulk listing description",
   AI_REVIEW_RESPONSE: "AI review response draft",
@@ -363,8 +395,11 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   AI_PRESENCE_REPORT: "AI presence report",
   AI_AUTO_FIX: "AI listing auto-fix",
   AI_LISTING_SCAN: "AI listing scan",
-  AI_PITCH_LOCAL_PRESENCE: "AI local presence pitch",
   AI_SERVICE_PROPOSAL: "AI service proposal generation",
+  PITCH: "AI outreach pitch",
+  PITCH_SUGGEST: "AI pitch field suggestion",
+  LOCAL_LEAD_SEARCH_BASE: "Lead search (base)",
+  LOCAL_LEAD_PER_RESULT: "Lead search (per business found)",
   AI_WEBSITE_GENERATE: "AI website generation ($5.00)",
   AI_STORE_GENERATE: "AI store generation V2 ($5.00)",
   AI_BUSINESS_PLAN: "AI business plan generation",

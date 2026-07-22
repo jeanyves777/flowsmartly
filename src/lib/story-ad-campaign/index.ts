@@ -7,7 +7,7 @@ import { nanoid } from "nanoid";
 import { ai } from "@/lib/ai/client";
 import { prisma } from "@/lib/db/client";
 import { TRANSACTION_TYPES, creditService } from "@/lib/credits";
-import { DEFAULT_CREDIT_COSTS, type CreditCostKey } from "@/lib/credits/costs";
+import { DEFAULT_CREDIT_COSTS, getAllDynamicCreditCosts, type CreditCostKey } from "@/lib/credits/costs";
 import { veoClient } from "@/lib/ai/veo-client";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { generateImageXaiFirst, generateImageForRole, editImagesXaiFirst } from "@/lib/ai/image-router";
@@ -4250,8 +4250,10 @@ export interface CampaignRenderCost {
  * suggest calls + character preview images. Those are charged separately as
  * the user progresses through the stages (so they're not double-counted here).
  */
-export function estimateCampaignRenderCost(state: CampaignState): CampaignRenderCost {
-  const C = DEFAULT_CREDIT_COSTS;
+export async function estimateCampaignRenderCost(state: CampaignState): Promise<CampaignRenderCost> {
+  // Dynamic so admin repricing of the video/story keys actually applies (was
+  // reading the static DEFAULT_CREDIT_COSTS directly).
+  const C = await getAllDynamicCreditCosts();
   // The brand outro renders locally (no provider cost), so it doesn't count toward
   // the paid clip total.
   const paidClips = state.clips.filter((c) => !c.isOutro);

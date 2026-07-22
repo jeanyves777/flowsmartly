@@ -6,6 +6,7 @@ import { synthesize } from "@/lib/training/narration";
 import { parseDeck } from "@/lib/training/deck";
 import { downloadS3ObjectToBuffer, uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
+import { getDynamicCreditCost, DEFAULT_CREDIT_COSTS } from "@/lib/credits/costs";
 import { nanoid } from "nanoid";
 import type { TrainingDeck } from "@/lib/training/types";
 
@@ -13,8 +14,13 @@ const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
 
 export const maxDuration = 300;
-const MOMENT_COST = 90; // one realistic "talking presenter" render (HeyGen Avatar IV, audio-driven)
-export function ivMomentCost(): number { return MOMENT_COST; }
+
+// HeyGen Avatar IV lip-sync is variable-length, so the live charge scales with the
+// spoken duration off the (admin-tunable) per-30s AI_AVATAR_VIDEO_PREMIUM key. This
+// sync helper returns a typical ~15s estimate for the client's cost preview.
+export function ivMomentCost(): number {
+  return Math.max(1, Math.ceil((15 / 30) * DEFAULT_CREDIT_COSTS.AI_AVATAR_VIDEO_PREMIUM));
+}
 
 function scriptFor(which: "intro" | "outro" | "moment", who: string, nextTitle?: string): string {
   const name = who.trim().split(/\s+/)[0] || "your co-host";
@@ -62,6 +68,12 @@ export async function POST(request: NextRequest) {
   const nextTitle = slideIdx >= 0 ? deck.slides.slice(slideIdx + 1).find((s) => !s.presenterMoment && !s.intro && !s.qa && !s.quiz)?.title : undefined;
   const script = scriptFor(which, presenter.name, nextTitle);
 
+  // HeyGen Avatar IV audio-driven lip-sync (~$0.067/sec) — was a hardcoded flat 90.
+  // Charge by the spoken duration off the properly-priced per-30s Avatar IV key,
+  // so a short intro isn't billed like a full 30s clip and a long one isn't underwater.
+  const estSeconds = Math.max(6, Math.min(60, Math.round(script.length / 15)));
+  const per30 = await getDynamicCreditCost("AI_AVATAR_VIDEO_PREMIUM");
+  const MOMENT_COST = Math.max(1, Math.ceil((estSeconds / 30) * per30));
   const charge = await creditService.deductCredits({ userId: session.userId, type: "USAGE", amount: MOMENT_COST, description: `Training Room: presenter ${which} video`, referenceType: "presenter_iv_moment", referenceId: mat.id });
   if (!charge.success) return err(charge.error || "Not enough credits to generate that", 402);
 

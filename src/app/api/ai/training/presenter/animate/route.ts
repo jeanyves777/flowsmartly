@@ -4,13 +4,13 @@ import { prisma } from "@/lib/db/client";
 import { generateVideoForRole } from "@/lib/ai/video-router";
 import { downloadS3ObjectToBuffer, uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { nanoid } from "nanoid";
 
 const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
 
 export const maxDuration = 300;
-const AI_COST = 60; // one short looping "moving avatar" render (xAI/Grok — per-render, NO avatar cap)
 
 // A TALKING loop: the presenter appears to speak to camera (natural mouth movement) so it
 // looks like they're narrating — even though it's MUTED in the room and the cloned-voice
@@ -35,6 +35,9 @@ export async function POST(request: NextRequest) {
   if (!presenter) return err("That presenter no longer exists", 404);
   if (!presenter.portraitUrl) return err("Add a presenter photo first");
 
+  // Admin-tunable. A 6s silent Grok "moving avatar" clip — same video_standard
+  // tier as the presenter intro/outro/moment videos (was a hardcoded literal).
+  const AI_COST = await getDynamicCreditCost("PRESENTER_MOMENT_VIDEO");
   const charge = await creditService.deductCredits({ userId: session.userId, type: "USAGE", amount: AI_COST, description: "Training Room: presenter avatar loop", referenceType: "presenter_animate", referenceId: presenter.id });
   if (!charge.success) return err(charge.error || "Not enough credits to animate the presenter", 402);
 

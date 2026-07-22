@@ -4,13 +4,13 @@ import { prisma } from "@/lib/db/client";
 import { generateVideoForRole } from "@/lib/ai/video-router";
 import { downloadS3ObjectToBuffer, uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { nanoid } from "nanoid";
 
 const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
 
 export const maxDuration = 300; // a single ~8s film renders in a couple of minutes
-const AI_COST = 120; // one generated film (Veo/Grok, PAYG)
 
 const PROMPTS = {
   intro: "A confident, friendly professional presenter warmly welcoming an audience to a training session. Natural, expressive HAND GESTURES, open body language, a genuine smile, looking directly at the camera. Upper and mid body visible, standing, with subtle natural movement — NOT a static talking head. Clean modern studio background, soft cinematic lighting, photoreal, high quality.",
@@ -36,6 +36,8 @@ export async function POST(request: NextRequest) {
   if (!presenter) return err("That presenter no longer exists", 404);
   if (!presenter.portraitUrl) return err("Add a presenter photo first");
 
+  // Admin-tunable; one 8s Grok/Veo video_standard clip (was a hardcoded 120).
+  const AI_COST = await getDynamicCreditCost("PRESENTER_MOMENT_VIDEO");
   const charge = await creditService.deductCredits({ userId: session.userId, type: "USAGE", amount: AI_COST, description: `Training Room: presenter ${which} film`, referenceType: "presenter_intro_video", referenceId: presenter.id });
   if (!charge.success) return err(charge.error || "Not enough credits to generate the film", 402);
 

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 
-const LEAD_SEARCH_COST_SUBSCRIBER = 5;    // paying plan users
-const LEAD_SEARCH_COST_FREE_USER   = 250; // STARTER plan, after their 1 free trial run
+// Legacy Lead Studio search. Result-scaled so the subscriber charge covers the
+// Google Places Place-Details fan-out (one billed lookup per business, ~$0.025).
+// The free-user number is an upsell gate, not a cost basis. See credit-pricing audit.
+const LEAD_SEARCH_RESULT_CAP     = 20;
+const LEAD_SEARCH_COST_FREE_USER = 250; // STARTER plan, after their 1 free trial run
 
 export interface BusinessLead {
   placeId: string;
@@ -150,18 +154,28 @@ export async function POST(request: NextRequest) {
 
     const isSubscriber = user?.plan && user.plan !== "STARTER";
     const isFreeRun    = !isSubscriber && searchCount === 0;
-    const creditCost   = isFreeRun ? 0 : isSubscriber ? LEAD_SEARCH_COST_SUBSCRIBER : LEAD_SEARCH_COST_FREE_USER;
     const totalCredits = user?.aiCredits || 0;
+    const [leadBase, leadPer] = await Promise.all([
+      getDynamicCreditCost("LOCAL_LEAD_SEARCH_BASE"),
+      getDynamicCreditCost("LOCAL_LEAD_PER_RESULT"),
+    ]);
+    // Worst-case charge (full result cap) gates the search up front; the ACTUAL
+    // per-result charge is applied after we know how many businesses came back.
+    const maxCost = isFreeRun
+      ? 0
+      : isSubscriber
+        ? leadBase + leadPer * LEAD_SEARCH_RESULT_CAP
+        : LEAD_SEARCH_COST_FREE_USER;
 
-    if (!isFreeRun && totalCredits < creditCost) {
+    if (!isFreeRun && totalCredits < maxCost) {
       return NextResponse.json(
         {
           success: false,
           error: {
             code: "INSUFFICIENT_CREDITS",
             message: isSubscriber
-              ? `This search costs ${creditCost} credits.`
-              : `Your free trial has been used. Additional searches cost ${creditCost} credits. Please purchase credits or upgrade to a plan.`,
+              ? `This search costs a ${leadBase}-credit base plus ${leadPer} per business found (up to ${maxCost}).`
+              : `Your free trial has been used. Additional searches cost ${maxCost} credits. Please purchase credits or upgrade to a plan.`,
           },
         },
         { status: 403 }
@@ -172,7 +186,13 @@ export async function POST(request: NextRequest) {
     const searchQuery = (query || industry || "").trim();
     const results = await searchGooglePlaces(searchQuery, location?.trim() || "");
 
-    // Deduct credits (skip for free trial run)
+    // Deduct the ACTUAL cost (skip for the free trial run). Subscribers pay
+    // base + per-result; free users pay the flat upsell gate.
+    const creditCost = isFreeRun
+      ? 0
+      : isSubscriber
+        ? leadBase + leadPer * results.length
+        : LEAD_SEARCH_COST_FREE_USER;
     if (creditCost > 0) {
       await prisma.$transaction([
         prisma.user.update({
@@ -185,7 +205,8 @@ export async function POST(request: NextRequest) {
             type: "USAGE",
             amount: -creditCost,
             balanceAfter: totalCredits - creditCost,
-            description: `Lead search: ${searchQuery}${location ? ` in ${location}` : ""}`,
+            description: `Lead search: ${searchQuery}${location ? ` in ${location}` : ""} (${results.length})`,
+            referenceType: "local_lead_search",
           },
         }),
       ]);

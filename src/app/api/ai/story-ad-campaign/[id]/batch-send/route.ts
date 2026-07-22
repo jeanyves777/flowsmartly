@@ -40,7 +40,7 @@ export async function POST(
 
   // Full cost across video + images + voice (narrator + dialogue) + SFX + caption.
   // Markup is baked into each cost key in DEFAULT_CREDIT_COSTS — this is the user-facing total.
-  const cost = estimateCampaignRenderCost(current.state);
+  const cost = await estimateCampaignRenderCost(current.state);
   const totalCost = cost.total;
   const isAdmin = !!session.adminId;
 

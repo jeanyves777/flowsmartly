@@ -26,7 +26,7 @@ export async function GET(
     return NextResponse.json({ success: false, error: { message: "Campaign not found" } }, { status: 404 });
   }
 
-  const cost = estimateCampaignRenderCost(current.state);
+  const cost = await estimateCampaignRenderCost(current.state);
   const isAdmin = !!session.adminId;
 
   const user = await prisma.user.findUnique({

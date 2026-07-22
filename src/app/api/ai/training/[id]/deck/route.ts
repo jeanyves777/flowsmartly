@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { checkRoomAccess, canControlRoom } from "@/lib/training/access";
 import { getSessionDTO } from "@/lib/training/session";
 import { generateDeck, parseDeck, deckSlideCount, deckImageCount } from "@/lib/training/deck";
-import { DECK_BASE_CREDITS, DECK_IMAGE_CREDITS } from "@/lib/training/deck-cost";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { creditService } from "@/lib/credits";
 import type { TrainingDeck } from "@/lib/training/types";
 
@@ -86,7 +86,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // unused part once we know how many illustrations were actually generated. The
   // number the client showed as "Estimated generation" is this same basis.
   const n = deckSlideCount(body.slideCount, minutes);
-  const maxCharge = DECK_BASE_CREDITS + (body.wantVisuals !== false ? n * DECK_IMAGE_CREDITS : 0);
+  // Admin-tunable (was hardcoded deck-cost.ts constants; client estimate still
+  // uses the deck-cost.ts defaults, which match these keys' defaults 12/15).
+  const [DECK_BASE, DECK_IMG] = await Promise.all([
+    getDynamicCreditCost("TRAINING_DECK_BASE"),
+    getDynamicCreditCost("TRAINING_DECK_IMAGE"),
+  ]);
+  const maxCharge = DECK_BASE + (body.wantVisuals !== false ? n * DECK_IMG : 0);
   if (session) {
     const charge = await creditService.deductCredits({
       userId: session.userId, type: "USAGE", amount: maxCharge,
@@ -110,7 +116,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!deck?.slides.length) { await refund(maxCharge); return err("The agent couldn't build a deck from that — add a little more detail.", 502); }
 
   // Refund the difference between the max and what was really generated.
-  const actualCharge = DECK_BASE_CREDITS + deckImageCount(deck) * DECK_IMAGE_CREDITS;
+  const actualCharge = DECK_BASE + deckImageCount(deck) * DECK_IMG;
   await refund(maxCharge - actualCharge);
 
   const title = deck.slides[0]?.title?.slice(0, 80) || "Training deck";
