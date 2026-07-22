@@ -274,6 +274,24 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
     }
   };
 
+  // Reopen an ENDED session as the SAME session so the host can edit / reschedule / run it
+  // again — all its materials and settings are preserved. `startsAt` reschedules it.
+  const reopen = async (startsAt?: string | null) => {
+    if (!sessionId) return;
+    setBusy(true);
+    try {
+      const j = await fetch(`/api/ai/training/${sessionId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reopen: true, ...(startsAt !== undefined ? { startsAt } : {}) }),
+      }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't reopen the session", variant: "destructive" }); return; }
+      if (j.data?.session) room.setSession(j.data.session as TrainingSessionDTO);
+      setMode("plan");
+      await loadList();
+      toast({ title: startsAt ? "Session rescheduled" : "Session reopened", description: startsAt ? "It's back on the schedule." : "Edit it, then start when you're ready." });
+    } finally { setBusy(false); }
+  };
+
   const endLive = async () => {
     if (!sessionId) return;
     const j = await fetch(`/api/ai/training/${sessionId}/live`, {
@@ -440,6 +458,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           onPatchSegments={(segs) => void segAct("PATCH", { segments: segs })}
           onGoLive={goLive}
           onNewSession={() => setBriefOpen(true)}
+          onReopen={reopen}
           onManage={() => setMode("office")}
           onInvite={invite}
           presenter={presenter}

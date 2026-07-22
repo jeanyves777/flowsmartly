@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Sparkles, DoorOpen, Presentation, PenLine, FileText, Clapperboard, ImageIcon,
-  Users, Radio, Send, Plus, X, Paperclip, Timer, Eye, Play, Link2, Mail, Calendar, MessageSquare, Bot, Volume2, Settings2,
+  Users, Radio, Send, Plus, X, Paperclip, Timer, Eye, Play, Link2, Mail, Calendar, MessageSquare, Bot, Volume2, Settings2, RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
@@ -46,6 +46,7 @@ interface Props {
   onPatchSegments: (segs: { id: string; x?: number; y?: number; durationMins?: number }[]) => void;
   onGoLive: () => void;
   onNewSession: () => void;
+  onReopen?: (startsAt?: string | null) => void;
   onManage: () => void;
   onInvite: () => void;
   presenter?: PresenterProfileDTO | null;
@@ -55,7 +56,7 @@ interface Props {
 
 export function PlanCanvas({
   session, estimate, onEditBrief, onAddMaterial, onAddSegment, onRemoveSegment, onPatchSegments,
-  onGoLive, onNewSession, onManage, onInvite, presenter, onManagePresenter, busy,
+  onGoLive, onNewSession, onReopen, onManage, onInvite, presenter, onManagePresenter, busy,
 }: Props) {
   // Real session status drives the "Go live" node + the status card (no more "Start the
   // session" on a room that already ended).
@@ -401,15 +402,21 @@ export function PlanCanvas({
             Billed for the time people are actually in the room.{" "}
             {estimate ? <b className="text-violet-400">≈ {estimate.total} credits</b> : null}
           </p>
-          <button
-            onClick={isEnded ? onNewSession : onGoLive}
-            disabled={busy}
-            className={cn("m-3 mt-2.5 block w-[calc(100%-24px)] rounded-xl py-2.5 text-[12px] font-extrabold text-white disabled:opacity-50",
-              isEnded ? "bg-gradient-to-br from-brand-500 to-violet-600" : isLive ? "bg-gradient-to-br from-emerald-600 to-emerald-400" : "bg-gradient-to-br from-rose-600 to-rose-400")}
-          >
-            {isEnded ? <Sparkles className="me-1 inline h-3 w-3" /> : <Play className="me-1 inline h-3 w-3" />}
-            {startLabel}
-          </button>
+          {isEnded ? (
+            <div className="m-3 mt-2.5 space-y-1.5">
+              <button onClick={() => onReopen?.()} disabled={busy} className="block w-full rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 py-2.5 text-[12px] font-extrabold text-white disabled:opacity-50"><RotateCcw className="me-1 inline h-3 w-3" /> Reopen session</button>
+              <button onClick={onNewSession} disabled={busy} className="block w-full rounded-lg border border-border py-1.5 text-[11px] font-bold text-muted-foreground hover:border-brand-500 disabled:opacity-50">Start a fresh session</button>
+            </div>
+          ) : (
+            <button
+              onClick={onGoLive}
+              disabled={busy}
+              className={cn("m-3 mt-2.5 block w-[calc(100%-24px)] rounded-xl py-2.5 text-[12px] font-extrabold text-white disabled:opacity-50",
+                isLive ? "bg-gradient-to-br from-emerald-600 to-emerald-400" : "bg-gradient-to-br from-rose-600 to-rose-400")}
+            >
+              <Play className="me-1 inline h-3 w-3" /> {startLabel}
+            </button>
+          )}
         </div>
 
         {/* ---- invite ---- */}
@@ -461,19 +468,26 @@ export function PlanCanvas({
               </div>
               <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
                 {isLive ? `Your training room is live — ${session.participants.filter((p) => p.state === "ADMITTED").length} in the room right now.`
-                  : isEnded ? `This session ended${session.endedAt ? ` ${whenText(session.endedAt)}` : ""}. Start a new session to run it again.`
+                  : isEnded ? `This session ended${session.endedAt ? ` ${whenText(session.endedAt)}` : ""}. Reopen it to edit, reschedule, or run it again — everything's still here.`
                   : isScheduled ? `Scheduled for ${whenText(session.startsAt) || "later"} · ${segs.length} segments · ~${session.plannedMins} min · ${session.seats} seats. You can start it now or wait for the scheduled time.`
                   : `Everything's ready — ${segs.length} segments · ~${session.plannedMins} min · ${session.seats} seats. Start when you are.`}
               </p>
             </div>
-            <button
-              onClick={isEnded ? onNewSession : onGoLive}
-              disabled={busy}
-              className={cn("inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl px-5 py-3 text-[13.5px] font-extrabold text-white shadow disabled:opacity-50",
-                isEnded ? "bg-gradient-to-br from-brand-500 to-violet-600" : isLive ? "bg-gradient-to-br from-emerald-600 to-emerald-400" : "bg-gradient-to-br from-rose-600 to-rose-400")}
-            >
-              {isEnded ? <><Sparkles className="h-4 w-4" /> Start new session</> : isLive ? <><Radio className="h-4 w-4" /> Rejoin the room</> : <><Play className="h-4 w-4" /> {isScheduled ? "Start now" : "Start the session"}</>}
-            </button>
+            {isEnded ? (
+              <div className="flex shrink-0 flex-col gap-1.5">
+                <button onClick={() => onReopen?.()} disabled={busy} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 px-5 py-3 text-[13.5px] font-extrabold text-white shadow disabled:opacity-50"><RotateCcw className="h-4 w-4" /> Reopen session</button>
+                <button onClick={onNewSession} disabled={busy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[11.5px] font-bold text-muted-foreground hover:border-brand-500 disabled:opacity-50">Start a fresh session</button>
+              </div>
+            ) : (
+              <button
+                onClick={onGoLive}
+                disabled={busy}
+                className={cn("inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl px-5 py-3 text-[13.5px] font-extrabold text-white shadow disabled:opacity-50",
+                  isLive ? "bg-gradient-to-br from-emerald-600 to-emerald-400" : "bg-gradient-to-br from-rose-600 to-rose-400")}
+              >
+                {isLive ? <><Radio className="h-4 w-4" /> Rejoin the room</> : <><Play className="h-4 w-4" /> {isScheduled ? "Start now" : "Start the session"}</>}
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -30,6 +30,8 @@ interface PatchBody {
   sessionType?: SessionType;
   seats?: number;
   startsAt?: string | null;
+  /** Reopen an ENDED session so it can be edited / rescheduled / run again as the SAME session. */
+  reopen?: boolean;
   access?: AccessMode;
   waitingRoom?: boolean;
   recording?: boolean;
@@ -76,6 +78,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (b.sessionType) data.sessionType = b.sessionType;
   if (typeof b.seats === "number") data.seats = Math.min(200, Math.max(1, b.seats));
   if (b.startsAt !== undefined) data.startsAt = b.startsAt ? new Date(b.startsAt) : null;
+  // Reopen an ended session as the SAME session: back to a schedulable/startable state so the
+  // host can edit, reschedule, or run it again (all its materials + settings are preserved).
+  if (b.reopen) {
+    const startsAt = data.startsAt instanceof Date ? data.startsAt : null;
+    data.status = startsAt && startsAt.getTime() > Date.now() ? "scheduled" : "draft";
+    data.endedAt = null;
+    data.startedAt = null;
+  }
   if (b.access) data.access = b.access;
   for (const k of ["waitingRoom", "recording", "transcript", "openDraw", "openShare", "openMic", "locked", "hideBoard", "joinCollectEmail"] as const) {
     if (typeof b[k] === "boolean") data[k] = b[k];
