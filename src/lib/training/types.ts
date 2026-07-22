@@ -314,7 +314,7 @@ export interface DeckSlide {
    *  and highlights it as it's spoken. Must appear verbatim in the subtitle or a talking point. */
   highlight?: string;
   /** how the hand marks the highlighted phrase (default: circle). */
-  annotate?: "circle" | "underline" | "highlight" | "point";
+  annotate?: "circle" | "underline" | "highlight" | "point" | "box" | "strike" | "check";
 }
 
 export interface QuizQuestion {
