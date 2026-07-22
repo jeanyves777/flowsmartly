@@ -184,6 +184,24 @@ export const VISUAL_STYLES = [
 ] as const;
 export type VisualStyle = (typeof VISUAL_STYLES)[number];
 
+/** Human labels for the deck-level style picker (order = display order). */
+export const VISUAL_STYLE_LABELS: Record<VisualStyle, string> = {
+  modern_professional: "Modern Professional",
+  cinematic: "Cinematic",
+  "3d_technology": "3D Technology",
+  dark_technology: "Dark Tech",
+  data_driven: "Data-Driven",
+  bold_startup: "Bold Startup",
+  storytelling: "Storytelling",
+  editorial: "Editorial",
+  elegant: "Elegant",
+  minimal: "Minimal",
+  whiteboard_teacher: "Whiteboard Teacher",
+  workshop: "Workshop",
+  playful_learning: "Playful Learning",
+  brand_first: "Brand-First",
+};
+
 /** What the slide's main visual IS. */
 export type VisualType = "photo" | "3d" | "illustration" | "diagram" | "annotated" | "video" | "none";
 /** How the slide reveals while it's narrated. */
