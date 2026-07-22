@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!session) return err("Unauthorized", 401);
   const { id } = await params;
 
-  const { materialId, slideId } = (await request.json().catch(() => ({}))) as { materialId?: string; slideId?: string };
+  const { materialId, slideId, style } = (await request.json().catch(() => ({}))) as { materialId?: string; slideId?: string; style?: string };
   if (!materialId || !slideId) return err("Nothing to generate");
 
   const mat = await prisma.trainingMaterial.findFirst({ where: { id: materialId, session: { id, userId: session.userId } }, select: { id: true, deck: true } });
@@ -35,8 +35,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const deck: TrainingDeck = parseDeck(mat.deck);
   const idx = deck.slides.findIndex((s) => s.id === slideId);
   if (idx < 0) return err("That slide isn't in the deck", 404);
-  const prompt = (deck.slides[idx].videoPrompt || "").trim();
-  if (!prompt) return err("This slide isn't a video demo");
+  const s = deck.slides[idx];
+  // "Turn into AI video" works on ANY slide: use its videoPrompt if it has one, else derive from
+  // the slide's visual / title so the user can animate any illustration. `style` flavours the look.
+  const STYLE_FLAVOR: Record<string, string> = {
+    "3d": "A premium 3D animated explainer, Octane/Pixar quality, glossy materials.",
+    cinematic: "A cinematic live-action style shot, filmic lighting and depth of field.",
+    realistic: "Photorealistic documentary footage, natural lighting.",
+    illustration: "A moving editorial illustration, clean modern motion graphics.",
+  };
+  const prompt = ((s.videoPrompt || "").trim() || `${s.title}. ${s.subtitle || ""} ${s.visual?.prompt || ""}`.trim()).slice(0, 320);
+  if (!prompt) return err("Add a title or visual to this slide first");
+  const flavor = STYLE_FLAVOR[style ?? ""] || "";
 
   // ~15s Avatar-free demonstration clip (xAI Imagine direct) — the AI_VIDEO_CHEAP per-15s basis.
   const COST = Math.max(1, await getDynamicCreditCost("AI_VIDEO_CHEAP"));
@@ -45,7 +55,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   try {
     const result = await generateVideoForRole("video_standard", {
-      prompt: `${prompt}. A clean, modern, high-quality educational demonstration. Smooth motion, cinematic lighting, no text, no watermark, no captions.`,
+      prompt: `${prompt}. ${flavor} A clean, modern, high-quality educational demonstration. Smooth motion, cinematic lighting, no text, no watermark, no captions.`,
       durationSeconds: 15,
       aspectRatio: "16:9",
     });

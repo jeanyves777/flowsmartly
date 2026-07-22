@@ -10,14 +10,14 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, VolumeX, Film, Settings2, Mic, RotateCcw, Radio, Check, Palette,
+  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, VolumeX, Film, Settings2, Mic, RotateCcw, Radio, Check, Palette, ImageIcon, Upload,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { DeckSlideView } from "./deck-slide-view";
 import { VISUAL_STYLES, VISUAL_STYLE_LABELS, ANNOTATE_VARIANTS } from "@/lib/training/types";
 import { AnimationStudio } from "./animation-studio";
-import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle } from "@/lib/training/types";
+import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle, VisualType } from "@/lib/training/types";
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -375,6 +375,51 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     } finally { setBusy(null); }
   };
 
+  // ---- slide media: upload your own / regenerate the image / turn it into an AI video ----
+  const [mediaBusy, setMediaBusy] = useState<null | "upload" | "regen" | "aivideo">(null);
+  const [aiVideoOpen, setAiVideoOpen] = useState(false);
+  const [aiVideoStyle, setAiVideoStyle] = useState("3d");
+  const mediaInputRef = useRef<HTMLInputElement | null>(null);
+  const setSlideMedia = (patch: Partial<DeckSlide>) => setDeck((d) => { if (!d || !slide) return d; const next = { ...d, slides: d.slides.map((x) => (x.id === slide.id ? { ...x, ...patch } : x)) }; persist(next); return next; });
+  const styleType = (): VisualType => (slide?.visual?.style === "3d" ? "3d" : slide?.visual?.style === "illustration" ? "illustration" : "photo");
+
+  const uploadMedia = async (file: File) => {
+    if (!mat || !slide) return;
+    setMediaBusy("upload");
+    try {
+      const fd = new FormData();
+      fd.append("file", file); fd.append("materialId", mat.id); fd.append("slideId", slide.id);
+      const j = await fetch(`/api/ai/training/${sessionId}/deck/media`, { method: "POST", body: fd }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't add that media", variant: "destructive" }); return; }
+      onSession(j.data.session as TrainingSessionDTO);
+      const url = j.data.url as string, kind = j.data.kind as string;
+      setSlideMedia(kind === "video" ? { videoUrl: url, visualType: "video" } : { visual: { ...(slide.visual ?? { kind: "image" }), kind: "image", url }, videoUrl: undefined, visualType: styleType() });
+      toast({ title: kind === "video" ? "Video added to the slide" : "Image replaced" });
+    } finally { setMediaBusy(null); }
+  };
+  const regenImage = async () => {
+    if (!mat || !slide) return;
+    setMediaBusy("regen");
+    try {
+      const j = await fetch(`/api/ai/training/${sessionId}/deck/media`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id, slideId: slide.id, action: "regenerate_image" }) }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't regenerate the image", variant: "destructive" }); return; }
+      onSession(j.data.session as TrainingSessionDTO);
+      setSlideMedia({ visual: { ...(slide.visual ?? { kind: "image" }), kind: "image", url: j.data.url as string }, videoUrl: undefined, visualType: styleType() });
+      toast({ title: "New image ready" });
+    } finally { setMediaBusy(null); }
+  };
+  const genAiVideo = async (style: string) => {
+    if (!mat || !slide) return;
+    setAiVideoOpen(false); setMediaBusy("aivideo");
+    try {
+      const j = await fetch(`/api/ai/training/${sessionId}/deck/video`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id, slideId: slide.id, style }) }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't render the video", variant: "destructive" }); return; }
+      onSession(j.data.session as TrainingSessionDTO);
+      setSlideMedia({ videoUrl: j.data.videoUrl as string, visualType: "video" });
+      toast({ title: "Demonstration video ready", description: "It plays right on the slide." });
+    } finally { setMediaBusy(null); }
+  };
+
   const addSlide = () => {
     if (!deck) return;
     const s: DeckSlide = { id: uid("s"), type: "doc", title: "New slide", subtitle: "", bullets: ["Point one"], visual: { kind: "emoji", emoji: "✨" } };
@@ -534,6 +579,36 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               <textarea value={slide.notes ?? ""} onChange={(e) => editSlide({ notes: e.target.value })} className="min-h-[70px] w-full resize-y rounded-lg border border-border bg-muted px-2.5 py-2 text-[12px] outline-none focus:border-brand-500" />
             </label>
 
+            {/* SLIDE MEDIA — replace with your own image/video, regenerate, or turn into an AI video (in place). */}
+            {slide.type === "doc" ? (
+              <div className="rounded-xl border border-border bg-muted/40 p-3">
+                <div className="mb-2 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><ImageIcon className="h-3.5 w-3.5" /> Slide media</div>
+                <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black ring-1 ring-border">
+                  {slide.videoUrl ? (
+                    <video key={slide.videoUrl} src={slide.videoUrl} className="h-full w-full object-cover" muted loop autoPlay playsInline />
+                  ) : slide.visual?.kind === "image" && slide.visual.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={slide.visual.url} src={slide.visual.url} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="grid h-full w-full place-items-center bg-gradient-to-br from-[#241f38] to-[#14121f] text-[30px]">{slide.visual?.emoji ?? "🎯"}</div>
+                  )}
+                  {slide.videoUrl ? <span className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-black text-white backdrop-blur">▶ Video</span> : null}
+                  {mediaBusy ? (
+                    <div className="absolute inset-0 grid place-items-center bg-black/65 backdrop-blur-sm">
+                      <div className="flex flex-col items-center gap-2 text-white"><Loader2 className="h-6 w-6 animate-spin" /><span className="text-[11px] font-semibold">{mediaBusy === "aivideo" ? "Rendering video…" : mediaBusy === "regen" ? "Generating image…" : "Uploading…"}</span></div>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  <button onClick={() => mediaInputRef.current?.click()} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><Upload className="h-3.5 w-3.5" /> Upload</button>
+                  <button onClick={() => void regenImage()} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><RefreshCw className="h-3.5 w-3.5" /> New image</button>
+                  <button onClick={() => setAiVideoOpen(true)} disabled={!!mediaBusy} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-500/50 px-2 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50"><Film className="h-3.5 w-3.5" /> Turn into AI video</button>
+                </div>
+                <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">Upload your own image or video, or animate this visual into a ~15s clip that plays right on the slide.</p>
+                <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadMedia(f); e.target.value = ""; }} />
+              </div>
+            ) : null}
+
             {/* ANIMATION — the AI presenter's hand marks a keyword as it's spoken. */}
             {slide.type === "doc" ? (
               <div className="rounded-xl border border-border bg-muted/40 p-3">
@@ -604,6 +679,27 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       />
 
       {/* REGENERATE ONE SLIDE — pick a layout + the hand animation style. */}
+      {aiVideoOpen && slide ? (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4" onClick={() => setAiVideoOpen(false)}>
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 border-b border-border px-5 py-4"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Film className="h-5 w-5" /></span><div className="min-w-0"><b className="block text-[15px]">Turn this into an AI video</b><span className="text-[11.5px] text-muted-foreground">A ~15s muted demonstration clip renders in place on the slide.</span></div></div>
+            <div className="p-5">
+              <span className="mb-1.5 block text-[10.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Style</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[["3d", "🧊 3D animation"], ["cinematic", "🎬 Cinematic"], ["realistic", "📷 Realistic"], ["illustration", "🎨 Illustration"]].map(([v, lbl]) => (
+                  <button key={v} onClick={() => setAiVideoStyle(v)} className={cn("rounded-lg border px-2.5 py-2 text-[11.5px] font-bold", aiVideoStyle === v ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}>{lbl}</button>
+                ))}
+              </div>
+              <p className="mt-3 text-[11px] leading-snug text-muted-foreground">Uses credits for the render. The clip replaces this slide’s image and plays muted while you present.</p>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3.5">
+              <button onClick={() => setAiVideoOpen(false)} className="rounded-lg border border-border px-3.5 py-2 text-[12px] font-bold hover:border-brand-500">Cancel</button>
+              <button onClick={() => void genAiVideo(aiVideoStyle)} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12px] font-extrabold text-white"><Film className="h-3.5 w-3.5" /> Generate video</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {animOpen ? (
         <AnimationStudio
           deck={deck}
