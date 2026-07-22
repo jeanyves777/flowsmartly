@@ -5,6 +5,7 @@ import { checkRoomAccess, canManageRoles } from "@/lib/training/access";
 import { estimateSession, getSessionDTO, meterRoom } from "@/lib/training/session";
 import { checkCreditsAvailable } from "@/lib/credits/costs";
 import { broadcast } from "@/lib/training/room";
+import { stopRoomRecording } from "@/lib/training/recorder";
 import type { TrainingParticipantDTO } from "@/lib/training/types";
 
 const err = (message: string, status = 400) =>
@@ -103,15 +104,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // Flush whatever time accrued since the last tick before closing the tab.
     await meterRoom(id, 0).catch(() => 0);
 
+    // If the room was still recording, STOP it so the bot finalizes + uploads the file (else it
+    // would keep capturing until its token expires and the recording would never be saved).
+    if (room.recording) { void stopRoomRecording(id); }
+
     await prisma.trainingSession.update({
       where: { id },
-      data: { status: "ended", endedAt: new Date() },
+      data: { status: "ended", endedAt: new Date(), recording: false, recordingStartedAt: null, recordingPausedAt: null },
     });
     await prisma.trainingParticipant.updateMany({
       where: { sessionId: id, leftAt: null },
       data: { leftAt: new Date(), sharing: false },
     });
-    broadcast(id, { type: "room:state", patch: { status: "ended" } });
+    broadcast(id, { type: "room:state", patch: { status: "ended", recording: false } });
     return NextResponse.json({ success: true, data: { session: await getSessionDTO(id) } });
   }
 

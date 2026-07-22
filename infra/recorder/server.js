@@ -7,8 +7,8 @@
  *   2. opens a headless Chrome (in a virtual X display) on /m/<session> and renders the
  *      REAL live room — slides, AI narration, whiteboard, camera tiles,
  *   3. screen-records that display (video) + PulseAudio (the narration + everyone's audio)
- *      with ffmpeg,
- *   4. on stop, uploads the .webm to S3 and registers its URL back with the app.
+ *      with ffmpeg → Full-HD H.264 / AAC in a fragmented MP4 (YouTube-ready),
+ *   4. on stop, uploads the .mp4 to S3 and registers its URL back with the app.
  *
  * Nothing here is trusted from the internet: /start and /stop require the shared
  * TRAINING_RECORDER_SECRET header, and the app-facing calls carry the per-session recorder
@@ -25,10 +25,16 @@ const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const PORT = Number(process.env.RECORDER_PORT || 4600);
 const SECRET = process.env.TRAINING_RECORDER_SECRET || "";
 const APP_URL = (process.env.APP_URL || "https://flowsmartly.com").replace(/\/$/, "");
-const W = Number(process.env.RECORDER_WIDTH || 1280);
-const H = Number(process.env.RECORDER_HEIGHT || 720);
-const FPS = Number(process.env.RECORDER_FPS || 25);
+// Full-HD by default (YouTube-ready). Bump to 2560x1440 on a strong box for "super HD".
+const W = Number(process.env.RECORDER_WIDTH || 1920);
+const H = Number(process.env.RECORDER_HEIGHT || 1080);
+const FPS = Number(process.env.RECORDER_FPS || 30);
 const CHROME_PATH = process.env.CHROME_PATH || undefined; // system chromium if set
+// H.264/MP4 output (plays everywhere + uploads straight to YouTube). x264 realtime settings are
+// env-tunable so a weaker box can trade quality for speed (RECORDER_PRESET=ultrafast).
+const V_PRESET = process.env.RECORDER_PRESET || "veryfast";
+const V_CRF = process.env.RECORDER_CRF || "20"; // 18–23 = visually lossless→good; lower = bigger/better
+const A_BITRATE = process.env.RECORDER_ABITRATE || "192k";
 
 // S3 (the SAME bucket the app writes to — training/ is public)
 const S3_BUCKET = process.env.S3_BUCKET || "";
@@ -54,7 +60,7 @@ async function startJob(sessionId, token) {
   if (jobs.has(sessionId)) return; // already recording
   const display = `:${nextDisplay++}`;
   const hostname = new URL(APP_URL).hostname;
-  const filePath = path.join(os.tmpdir(), `rec-${sessionId}-${process.pid}-${nextDisplay}.webm`);
+  const filePath = path.join(os.tmpdir(), `rec-${sessionId}-${process.pid}-${nextDisplay}.mp4`);
   const job = { display, filePath, token, xvfb: null, browser: null, ffmpeg: null, stopping: false };
   jobs.set(sessionId, job);
 
@@ -76,10 +82,12 @@ async function startJob(sessionId, token) {
       headless: false, // a real window in the virtual display so ffmpeg can grab it
       executablePath: CHROME_PATH,
       args: [
-        `--display=${display}`, `--window-size=${W},${H}`, "--window-position=0,0", "--start-fullscreen",
+        `--display=${display}`, `--window-size=${W},${H}`, "--window-position=0,0",
+        "--kiosk", "--start-fullscreen", // no browser chrome — just the page, edge to edge
         "--autoplay-policy=no-user-gesture-required",
         "--use-fake-ui-for-media-stream", // auto-accept mic/cam prompts (we don't produce)
         "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
+        "--force-device-scale-factor=1", "--high-dpi-support=1",
         "--hide-scrollbars", "--mute-audio=false",
       ],
       env: { ...process.env, DISPLAY: display },
@@ -88,17 +96,25 @@ async function startJob(sessionId, token) {
     const page = (await job.browser.pages())[0] || (await job.browser.newPage());
     await page.setViewport({ width: W, height: H });
     await page.setCookie({ name: `tg_${sessionId}`, value: guestToken, domain: hostname, path: "/", httpOnly: true, secure: true });
-    await page.goto(`${APP_URL}/m/${sessionId}`, { waitUntil: "networkidle2", timeout: 60000 });
-    await sleep(2500); // let the room settle + audio unlock
+    // rec=1 → the room renders a CLEAN, full-bleed stage (no roster / controls / chrome) for a
+    // YouTube-ready video, and auto-unlocks audio so the narration is captured.
+    await page.goto(`${APP_URL}/m/${sessionId}?rec=1`, { waitUntil: "networkidle2", timeout: 60000 });
+    // a synthetic gesture in case anything still gates autoplay, then let it settle
+    try { await page.mouse.click(Math.floor(W / 2), Math.floor(H / 2)); } catch {}
+    await sleep(2500);
 
-    // 4. record the display (video) + Pulse monitor (audio) → webm
+    // 4. record the display (video) + Pulse monitor (audio) → H.264/AAC in a FRAGMENTED mp4.
+    //    Fragmented = a valid, playable, YouTube-uploadable file even if we're killed mid-record
+    //    (raw mp4 would corrupt); yuv420p + faststart keep it universally decodable.
     job.ffmpeg = spawn("ffmpeg", [
-      "-y",
+      "-y", "-thread_queue_size", "1024",
       "-f", "x11grab", "-draw_mouse", "0", "-video_size", `${W}x${H}`, "-framerate", String(FPS), "-i", `${display}.0`,
-      "-f", "pulse", "-i", process.env.PULSE_SOURCE || "default",
-      "-c:v", "libvpx", "-b:v", process.env.RECORDER_VBITRATE || "1800k", "-deadline", "realtime", "-cpu-used", "4",
-      "-c:a", "libopus", "-b:a", "128k",
-      filePath,
+      "-f", "pulse", "-thread_queue_size", "1024", "-i", process.env.PULSE_SOURCE || "default",
+      "-c:v", "libx264", "-preset", V_PRESET, "-crf", V_CRF, "-pix_fmt", "yuv420p",
+      "-g", String(FPS * 2), "-profile:v", "high", "-level", "4.2",
+      "-c:a", "aac", "-b:a", A_BITRATE, "-ar", "48000", "-ac", "2",
+      "-movflags", "+frag_keyframe+empty_moov+default_base_moof+faststart",
+      "-f", "mp4", filePath,
     ], { stdio: ["pipe", "ignore", "ignore"] });
 
     console.log(`[recorder] recording ${sessionId} → ${filePath} (${display})`);
@@ -124,8 +140,8 @@ async function stopJob(sessionId) {
   try {
     const stat = fs.existsSync(job.filePath) ? fs.statSync(job.filePath) : null;
     if (!stat || stat.size < 1024) throw new Error("empty recording file");
-    const key = `training/${sessionId}/recordings/${Date.now()}.webm`;
-    await s3.send(new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, Body: fs.readFileSync(job.filePath), ContentType: "video/webm" }));
+    const key = `training/${sessionId}/recordings/${Date.now()}.mp4`;
+    await s3.send(new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, Body: fs.readFileSync(job.filePath), ContentType: "video/mp4" }));
     const url = `${S3_PUBLIC_URL}/${key}`;
     await fetch(`${APP_URL}/api/ai/training/${sessionId}/recording`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, token: job.token }),

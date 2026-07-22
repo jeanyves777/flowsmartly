@@ -2,7 +2,11 @@
 
 Runs on the **media box** (same host as `infra/sfu` is fine). It renders each room in a
 real Chrome inside a virtual X display and screen-records it (video + audio) with ffmpeg,
-then uploads the `.webm` to S3 and registers the URL with the app.
+then uploads a **Full-HD H.264 `.mp4`** (YouTube-ready) to S3 and registers the URL with the app.
+
+The bot opens the room with `?rec=1` (and joins as a hidden `isRecorder` seat), so the app
+renders a **clean, full-bleed stage** — slides / whiteboard / AI presenter / captions only, no
+rail, roster, controls or REC overlay — which is what gets captured.
 
 Until this box exists and the app has `TRAINING_RECORDER_URL` set, recording is a **no-op**
 — the app degrades gracefully (see `src/lib/training/recorder.ts`).
@@ -42,9 +46,12 @@ APP_URL=https://flowsmartly.com
 RECORDER_PORT=4600
 CHROME_PATH=/usr/bin/chromium-browser        # omit to use puppeteer's bundled Chrome
 PULSE_SOURCE=rec.monitor
-RECORDER_WIDTH=1280
-RECORDER_HEIGHT=720
-RECORDER_FPS=25
+RECORDER_WIDTH=1920          # Full HD. Bump to 2560x1440 on a strong box for "super HD".
+RECORDER_HEIGHT=1080
+RECORDER_FPS=30
+RECORDER_PRESET=veryfast     # x264 realtime preset; ultrafast on a weak box, fast on a strong one
+RECORDER_CRF=20              # 18–23: lower = higher quality + bigger file
+RECORDER_ABITRATE=192k
 
 # S3 — the SAME bucket the app uses (training/ is public)
 S3_BUCKET=<bucket>
@@ -85,9 +92,11 @@ button in its Sessions library.
 ### Notes / gotchas
 - The bot joins as a hidden `isRecorder` participant — filtered from the roster/tiles/count
   and **never billed** (see the meter in `stream/route.ts`).
-- One Chrome + ffmpeg per concurrent recording; size the box accordingly (≈1 vCPU + ~400 MB
-  per stream at 720p/VP8). Cap concurrency if needed.
-- `libvpx` is CPU-heavy; switch `-c:v libvpx` → `-c:v libx264 -preset veryfast` + `.mp4`
-  output if the box has spare CPU and you prefer MP4.
+- One Chrome + ffmpeg per concurrent recording; size the box accordingly (≈**2 vCPU** for
+  1080p30 H.264 `veryfast` + ~500 MB per stream). On a weaker box set `RECORDER_PRESET=ultrafast`
+  (or drop to 720p) and cap concurrency.
+- Output is **fragmented MP4** (`+frag_keyframe+empty_moov`): a valid, YouTube-uploadable file
+  even if the bot is killed mid-record (raw MP4 would corrupt). H.264 High + `yuv420p` + AAC 48k
+  stereo — plays everywhere and needs no re-encode for YouTube.
 - If audio is silent, the null-sink/monitor routing is wrong — verify `pactl list sinks`
   and that Chrome runs under the same PulseAudio user.
