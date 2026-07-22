@@ -159,6 +159,75 @@ export interface DeckVisual {
   tag?: string; // caption, e.g. "AI illustration"
   layout?: "right" | "left" | "top" | "full";
 }
+/* ---------- Content-aware slides: layout, visual style, reveal & animation ----------
+ * These are INDEPENDENT selections (the big win over fixed PowerPoint templates): the agent
+ * picks a LAYOUT per teaching moment, a VISUAL STYLE for the deck's direction, a VISUAL TYPE
+ * per slide, and a REVEAL/animation behaviour timed to the narration. [[training-studio]] */
+
+/** Content-aware slide layouts — chosen by purpose, not by colour. */
+export const SLIDE_LAYOUTS = [
+  "hero_statement", "big_idea", "image_explanation", "full_visual", "concept_3d_callouts",
+  "step_process", "vertical_journey", "timeline", "before_after", "problem_solution_result",
+  "question_answer", "myth_reality", "comparison_table", "pros_cons", "data_spotlight",
+  "dashboard_insight", "case_study", "real_world_scenario", "role_play", "customer_journey",
+  "system_architecture", "workflow_diagram", "concept_map", "layered_explanation", "zoom_in",
+  "live_draw", "annotated_photo", "interactive_question", "workshop", "key_takeaways",
+  "quote", "section_divider", "recap_map", "action_plan", "closing",
+] as const;
+export type SlideLayout = (typeof SLIDE_LAYOUTS)[number];
+
+/** Visual direction, chosen independently of the layout. */
+export const VISUAL_STYLES = [
+  "modern_professional", "cinematic", "3d_technology", "whiteboard_teacher", "editorial",
+  "minimal", "bold_startup", "data_driven", "storytelling", "workshop", "elegant",
+  "playful_learning", "dark_technology", "brand_first",
+] as const;
+export type VisualStyle = (typeof VISUAL_STYLES)[number];
+
+/** What the slide's main visual IS. */
+export type VisualType = "photo" | "3d" | "illustration" | "diagram" | "annotated" | "none";
+/** How the slide reveals while it's narrated. */
+export type RevealMode = "all_at_once" | "progressive" | "stroke_by_stroke" | "word_by_word" | "build_diagram";
+
+/** The hand-and-pen + reveal animation library (agent chooses per moment, synced to narration). */
+export const ANIMATION_TYPES = [
+  "hand_write", "hand_draw_diagram", "hand_circle", "underline", "arrow_annotation",
+  "highlight", "checkmark", "cross_out", "sticky_note", "sketch_to_visual",
+  "stroke_by_stroke", "word_by_word", "bullet_reveal", "build_diagram", "progressive_image",
+  "zoom_detail", "spotlight", "blur_to_focus", "color_emphasis", "draw_over_image",
+] as const;
+export type AnimationType = (typeof ANIMATION_TYPES)[number];
+
+/** One timed animation step on a slide — matches the agent's authoring format. */
+export interface SlideAnimation {
+  animationType: AnimationType;
+  /** the element/keyword/region this acts on (an id or a short text match). */
+  targetId?: string;
+  /** start this many ms after the slide's narration begins (or after the previous step). */
+  startAfterNarrationMs?: number;
+  durationMs?: number;
+  handStyle?: "realistic" | "animated";
+  handedness?: "right" | "left";
+  tool?: "pen" | "pencil" | "marker" | "highlighter";
+  /** ink: a hex colour or "brand". */
+  color?: string;
+  strokeStyle?: "natural" | "precise";
+  pauseAfterMs?: number;
+}
+
+/** Deck-level hand/pen defaults (a slide's animation can override any of these). */
+export interface HandStyleSettings {
+  handStyle?: "realistic" | "animated";
+  handedness?: "right" | "left";
+  tool?: "pen" | "pencil" | "marker" | "highlighter";
+  color?: string;
+  skinTone?: string;
+  strokeStyle?: "natural" | "precise";
+  speed?: number;
+  strokeWidth?: number;
+  showHand?: boolean; // false = pen tip only
+}
+
 export interface DeckSlide {
   id: string;
   type: DeckSlideType;
@@ -206,6 +275,18 @@ export interface DeckSlide {
   /** the spoken line for this on-screen moment. Synth'd to the audio the Avatar-IV video
    *  lip-syncs to, and shown as the caption. */
   momentScript?: string;
+
+  /** ---- content-aware presentation model (independent axes) ---- */
+  /** the content layout for this teaching moment (hero, problem→solution, comparison, …). */
+  layout?: SlideLayout;
+  /** the slide's visual direction (falls back to the deck's style). */
+  visualStyle?: VisualStyle;
+  /** what the main visual is (photo / 3d / diagram / annotated …). */
+  visualType?: VisualType;
+  /** how this slide reveals while narrated. */
+  revealMode?: RevealMode;
+  /** hand-and-pen + reveal animations for this slide, timed to the narration. */
+  animations?: SlideAnimation[];
 }
 
 export interface QuizQuestion {
@@ -239,6 +320,10 @@ export interface TrainingDeck {
    *  generated with. If the presenter's voice later changes, this no longer matches and the
    *  builder prompts a regenerate so the whole session speaks in the new voice. */
   voiceKey?: string | null;
+  /** the deck's overall visual direction (a slide can override with its own visualStyle). */
+  visualStyle?: VisualStyle;
+  /** deck-level hand/pen defaults for drawing animations (a slide animation can override). */
+  handStyle?: HandStyleSettings;
 }
 
 // ------------------------------------------------------------ AI presenter

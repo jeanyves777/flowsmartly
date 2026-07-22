@@ -1,0 +1,501 @@
+<title>Animation Library · Training Studio</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root{
+    --ground:#0b0a10; --panel:#16141f; --panel2:#1d1a29; --line:#2a2740;
+    --ink:#eceaf6; --muted:#9791ab; --faint:#67627d;
+    --brand:#2dd4ee; --brand2:#8b5cf6;
+    --board:#f6f3ea; --board-line:#d9d3c4; --board-ink:#2b2838;
+    --good:#34d399; --warn:#f6b74a;
+    --radius:14px; --shadow:0 18px 50px -20px rgba(0,0,0,.7);
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --ground:#eeecf4; --panel:#ffffff; --panel2:#f5f3fb; --line:#e2def0;
+      --ink:#1b1830; --muted:#5c5872; --faint:#8b86a0; --shadow:0 18px 50px -24px rgba(60,40,110,.28); }
+  }
+  :root[data-theme="dark"]{ --ground:#0b0a10; --panel:#16141f; --panel2:#1d1a29; --line:#2a2740;
+    --ink:#eceaf6; --muted:#9791ab; --faint:#67627d; --shadow:0 18px 50px -20px rgba(0,0,0,.7); }
+  :root[data-theme="light"]{ --ground:#eeecf4; --panel:#ffffff; --panel2:#f5f3fb; --line:#e2def0;
+    --ink:#1b1830; --muted:#5c5872; --faint:#8b86a0; --shadow:0 18px 50px -24px rgba(60,40,110,.28); }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:
+      radial-gradient(1200px 600px at 15% -10%, color-mix(in srgb,var(--brand) 9%, transparent), transparent 60%),
+      radial-gradient(1000px 700px at 100% 0%, color-mix(in srgb,var(--brand2) 12%, transparent), transparent 55%),
+      var(--ground);
+    color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;min-height:100vh}
+  .wrap{max-width:1240px;margin:0 auto;padding:22px clamp(14px,3vw,30px) 60px}
+
+  header.top{display:flex;align-items:center;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.02em;font-size:16px}
+  .logo .mk{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#04141a;
+    background:linear-gradient(135deg,var(--brand),var(--brand2));box-shadow:0 6px 18px -6px color-mix(in srgb,var(--brand) 60%,transparent)}
+  .crumb{color:var(--muted);font-size:12.5px}
+  .crumb b{color:var(--ink)}
+  .top .sp{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);
+    padding:7px 12px;border-radius:999px;font-size:12px;font-weight:700;color:var(--muted)}
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 22%,transparent)}
+  .themeBtn{cursor:pointer}
+
+  h1.hd{font-size:clamp(20px,2.6vw,26px);letter-spacing:-.03em;margin:0 0 3px;text-wrap:balance;font-weight:800}
+  .sub{color:var(--muted);font-size:13.5px;margin:0 0 18px;max-width:70ch}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
+  @media (max-width:920px){ .grid{grid-template-columns:1fr} }
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .card .hdr{display:flex;align-items:center;gap:9px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .card .hdr .t{font-weight:750;font-size:13.5px}
+  .card .hdr .t small{display:block;color:var(--muted);font-weight:500;font-size:11px;letter-spacing:0}
+  .icn{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:#04141a;
+    background:linear-gradient(135deg,var(--brand),var(--brand2))}
+
+  /* ---- stage ---- */
+  .stagewrap{padding:14px}
+  .stage{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:var(--board);
+    background-image:radial-gradient(var(--board-line) 1px, transparent 0);background-size:26px 26px;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.06), inset 0 0 60px rgba(120,110,80,.06)}
+  .stage .brandbar{position:absolute;left:0;top:0;bottom:0;width:8px;background:linear-gradient(var(--brand),var(--brand2))}
+  .stage svg{position:absolute;inset:0;width:100%;height:100%}
+  .stage .title{position:absolute;left:6.5%;top:7%;color:#3b3752;font-weight:800;letter-spacing:.02em;
+    font-size:clamp(12px,2.4vw,20px);opacity:0;transition:opacity .4s}
+  .stage.showtitle .title{opacity:1}
+
+  /* narration caption */
+  .cap{position:absolute;left:6%;right:6%;bottom:5.5%;display:flex;gap:9px;align-items:flex-start;
+    background:rgba(20,17,30,.82);color:#f3f1fb;border-radius:11px;padding:9px 12px;backdrop-filter:blur(6px);
+    font-size:12.5px;line-height:1.35;opacity:0;transform:translateY(6px);transition:.3s;box-shadow:0 8px 24px -12px rgba(0,0,0,.6)}
+  .cap.on{opacity:1;transform:none}
+  .cap .who{flex:none;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:11px;color:#04141a;
+    background:linear-gradient(135deg,var(--brand),var(--brand2));font-weight:900}
+  .cap .live{position:absolute;top:-9px;left:12px;background:#e11d48;color:#fff;font-size:8.5px;font-weight:900;
+    padding:2px 6px;border-radius:5px;letter-spacing:.04em}
+
+  /* the drawing hand */
+  #hand{transition:opacity .25s;pointer-events:none}
+  #hand.hide{opacity:0}
+
+  /* transport */
+  .transport{display:flex;align-items:center;gap:8px;padding:12px 4px 2px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel2);
+    color:var(--ink);padding:8px 12px;border-radius:10px;font-size:12.5px;font-weight:700;cursor:pointer;transition:.15s}
+  .btn:hover{border-color:color-mix(in srgb,var(--brand) 55%,var(--line))}
+  .btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  .btn.primary{color:#04141a;border:0;background:linear-gradient(135deg,var(--brand),var(--brand2));font-weight:800}
+  .btn.ghost{background:transparent}
+  .btn svg{width:15px;height:15px}
+  .toggle{margin-left:auto;display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);font-weight:600}
+  .sw{width:38px;height:22px;border-radius:999px;background:var(--line);position:relative;transition:.2s;cursor:pointer;flex:none}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
+  .sw.on{background:linear-gradient(135deg,var(--brand),var(--brand2))}
+  .sw.on::after{left:18px}
+
+  .scrub{height:5px;border-radius:999px;background:var(--line);position:relative;margin:12px 4px 2px;overflow:hidden}
+  .scrub i{position:absolute;inset:0 100% 0 0;background:linear-gradient(90deg,var(--brand),var(--brand2));transition:right .1s linear}
+
+  /* ---- rail ---- */
+  .rail{display:flex;flex-direction:column;gap:16px}
+  .sec .body{padding:12px 13px}
+  .lbl{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:2px 0 9px}
+
+  .anims{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .chip{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--panel2);border-radius:10px;
+    padding:8px 9px;cursor:pointer;transition:.14s;text-align:left}
+  .chip:hover{border-color:color-mix(in srgb,var(--brand) 50%,var(--line));transform:translateY(-1px)}
+  .chip.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 12%, var(--panel2))}
+  .chip .g{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;flex:none;
+    background:color-mix(in srgb,var(--brand) 15%, transparent);color:var(--brand)}
+  .chip .g svg{width:15px;height:15px}
+  .chip b{font-size:11.5px;font-weight:700;line-height:1.15;display:block}
+  .chip small{font-size:9.5px;color:var(--muted)}
+  .more{margin-top:9px;font-size:11px;color:var(--muted);text-align:center}
+  .more b{color:var(--brand)}
+
+  /* settings */
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0}
+  .row + .row{border-top:1px dashed var(--line)}
+  .row .k{font-size:12px;color:var(--muted);font-weight:600}
+  .segs{display:inline-flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:2px;gap:2px}
+  .segs button{border:0;background:transparent;color:var(--muted);font:inherit;font-size:11px;font-weight:700;
+    padding:4px 9px;border-radius:7px;cursor:pointer}
+  .segs button.on{background:color-mix(in srgb,var(--brand) 22%,transparent);color:var(--ink)}
+  .swatches{display:flex;gap:6px}
+  .swatches button{width:20px;height:20px;border-radius:6px;border:2px solid transparent;cursor:pointer;padding:0}
+  .swatches button.on{border-color:var(--ink);box-shadow:0 0 0 2px var(--panel)}
+  input[type=range]{width:120px;accent-color:var(--brand)}
+  .tone{display:flex;gap:5px}
+  .tone button{width:20px;height:20px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}
+  .tone button.on{border-color:var(--brand)}
+
+  /* timeline */
+  .tl{display:flex;flex-direction:column;gap:6px;margin-top:2px}
+  .ev{display:flex;gap:9px;align-items:center;padding:7px 8px;border:1px solid var(--line);border-radius:9px;
+    background:var(--panel2);font-size:11.5px;transition:.15s}
+  .ev.on{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,var(--panel2))}
+  .ev.done .num{background:var(--good);color:#052}
+  .ev .num{width:20px;height:20px;border-radius:6px;flex:none;display:grid;place-items:center;font-size:10px;font-weight:900;
+    background:var(--line);color:var(--muted)}
+  .ev .txt{flex:1;min-width:0}
+  .ev .txt b{font-weight:700;display:block;line-height:1.1}
+  .ev .txt small{color:var(--faint);font-size:9.5px;font-variant-numeric:tabular-nums}
+  .ev .tag{font-size:9px;font-weight:800;color:var(--brand);text-transform:uppercase;letter-spacing:.04em}
+
+  .code{margin:10px 0 2px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 11px;
+    font:11px/1.55 ui-monospace,"SF Mono",Menlo,monospace;color:var(--muted);overflow-x:auto}
+  .code .k{color:var(--brand)} .code .s{color:#f6b74a} .code .n{color:#c9a2ff}
+
+  footer.note{margin-top:22px;color:var(--faint);font-size:11.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  kbd{font:inherit;font-size:10.5px;background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 5px;color:var(--muted)}
+  @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="logo"><span class="mk">◑</span> FlowSmartly</span>
+    <span class="crumb">Training Studio · <b>Build</b> · Animation</span>
+    <span class="sp"></span>
+    <span class="pill themeBtn" id="theme">◐ Theme</span>
+    <span class="pill"><span class="dot"></span> Synced to narration</span>
+  </header>
+
+  <h1 class="hd">Draw it live — a real hand, synced to the co-host</h1>
+  <p class="sub">Instead of flat PowerPoint reveals, the presenter can <b>hand-write, draw, circle and highlight</b> on the board while it narrates — each stroke timed to the exact words. Pick an animation, set the hand, and it plays in the room.</p>
+
+  <div class="grid">
+    <!-- STAGE -->
+    <section class="card">
+      <div class="hdr">
+        <span class="icn">✍</span>
+        <span class="t">Slide 4 · Live Draw <small>AI Agent Architecture — Whiteboard teacher</small></span>
+      </div>
+      <div class="stagewrap">
+        <div class="stage" id="stage">
+          <div class="brandbar"></div>
+          <div class="title">AI AGENT ARCHITECTURE</div>
+          <svg id="svg" viewBox="0 0 960 540" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            <!-- boxes + arrows are drawn stroke-by-stroke; labels revealed as the hand writes -->
+            <g id="ink" fill="none" stroke="var(--board-ink)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"></g>
+            <g id="labels" fill="var(--board-ink)" font-family="system-ui" font-weight="800" text-anchor="middle"></g>
+            <g id="annot" fill="none" stroke="#1d4ed8" stroke-width="4" stroke-linecap="round"></g>
+            <!-- hand + pen: the pen NIB sits at the group origin (0,0) -->
+            <g id="hand" class="hide">
+              <g id="handrot">
+                <path id="pen" d="M0 0 L10 -6 L64 -78 L74 -70 L20 2 Z" fill="#3a3550" stroke="#23202f" stroke-width="1.5"/>
+                <path d="M64 -78 L74 -70 L82 -80 Q86 -86 80 -90 L74 -86 Z" fill="var(--brand)"/>
+                <path id="palm" d="M8 6 Q28 -6 40 6 Q60 26 42 52 Q22 74 -6 62 Q-26 52 -20 30 Q-16 12 8 6 Z" fill="var(--skin)" stroke="#00000022" stroke-width="1"/>
+                <path d="M12 8 Q30 2 38 12" fill="none" stroke="#00000018" stroke-width="2"/>
+                <circle cx="0" cy="0" r="2.4" fill="#111"/>
+              </g>
+            </g>
+          </svg>
+          <div class="cap" id="cap"><span class="live">● LIVE</span><span class="who">AI</span><span id="capt">…</span></div>
+        </div>
+
+        <div class="transport">
+          <button class="btn primary" id="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Preview animation</button>
+          <button class="btn" id="prev"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 6h2v12H7zm3.5 6L20 6v12z"/></svg> Previous</button>
+          <button class="btn" id="next"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 6h2v12h-2zM4 6l9.5 6L4 18z"/></svg> Play next</button>
+          <button class="btn ghost" id="show">Show completed slide</button>
+          <span class="toggle">Auto-sync <span class="sw on" id="sync"></span></span>
+        </div>
+        <div class="scrub"><i id="bar"></i></div>
+      </div>
+    </section>
+
+    <!-- RAIL -->
+    <div class="rail">
+      <section class="card sec">
+        <div class="hdr"><span class="icn">✷</span><span class="t">Animation library <small>the agent picks per teaching moment</small></span></div>
+        <div class="body">
+          <div class="lbl">Hand &amp; pen</div>
+          <div class="anims" id="lib"></div>
+          <div class="more">+ underline · arrow · checkmark · cross-out · sticky-note · sketch-to-3D — <b>20 in all</b></div>
+        </div>
+      </section>
+
+      <section class="card sec">
+        <div class="hdr"><span class="icn">✋</span><span class="t">Hand appearance</span></div>
+        <div class="body">
+          <div class="row"><span class="k">Skin tone</span>
+            <span class="tone" id="tone">
+              <button data-c="#f1c9a5" class="on"></button><button data-c="#e0a97e"></button>
+              <button data-c="#c88a5a"></button><button data-c="#8d5a34"></button><button data-c="#5c3a22"></button>
+            </span></div>
+          <div class="row"><span class="k">Handedness</span>
+            <span class="segs" id="hand-side"><button data-v="right" class="on">Right</button><button data-v="left">Left</button></span></div>
+          <div class="row"><span class="k">Tool</span>
+            <span class="segs" id="tool"><button data-v="pen" class="on">Pen</button><button data-v="marker">Marker</button><button data-v="highlighter">Highlighter</button></span></div>
+          <div class="row"><span class="k">Ink</span>
+            <span class="swatches" id="ink-color">
+              <button data-c="#1d4ed8" style="background:#1d4ed8" class="on"></button>
+              <button data-c="#111827" style="background:#111827"></button>
+              <button data-c="#e11d48" style="background:#e11d48"></button>
+              <button data-c="#16a34a" style="background:#16a34a"></button>
+              <button data-c="#0891b2" style="background:linear-gradient(135deg,#2dd4ee,#8b5cf6)" title="Brand"></button>
+            </span></div>
+          <div class="row"><span class="k">Style</span>
+            <span class="segs" id="style"><button data-v="natural" class="on">Natural</button><button data-v="precise">Precise</button></span></div>
+          <div class="row"><span class="k">Show</span>
+            <span class="segs" id="showmode"><button data-v="hand" class="on">Hand</button><button data-v="tip">Pen tip</button></span></div>
+          <div class="row"><span class="k">Speed</span><input type="range" id="speed" min="0.5" max="2" step="0.1" value="1"></div>
+          <div class="row"><span class="k">Stroke</span><input type="range" id="weight" min="2" max="6" step="0.5" value="3.2"></div>
+        </div>
+      </section>
+
+      <section class="card sec">
+        <div class="hdr"><span class="icn">⏱</span><span class="t">Timeline <small>each step waits for its cue</small></span></div>
+        <div class="body">
+          <div class="tl" id="timeline"></div>
+          <div class="code">{
+  <span class="k">"animationType"</span>: <span class="s">"hand_circle"</span>,
+  <span class="k">"targetId"</span>: <span class="s">"agent-node"</span>,
+  <span class="k">"startAfterNarrationMs"</span>: <span class="n">4200</span>,
+  <span class="k">"tool"</span>: <span class="s">"blue_marker"</span>,
+  <span class="k">"strokeStyle"</span>: <span class="s">"natural"</span>,
+  <span class="k">"pauseAfterMs"</span>: <span class="n">600</span>
+}</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <footer class="note">
+    <kbd>Space</kbd> preview · <kbd>→</kbd> play next · <kbd>←</kbd> previous — Mockup for review · the agent chooses animations, layout &amp; visual style per slide; you can override any of them.
+  </footer>
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement;
+  document.getElementById('theme').onclick=function(){
+    var d = root.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+    root.setAttribute('data-theme', d==='dark'?'light':'dark');
+  };
+
+  var svg=document.getElementById('svg'), ink=document.getElementById('ink'), labels=document.getElementById('labels'),
+      annot=document.getElementById('annot'), hand=document.getElementById('hand'), handrot=document.getElementById('handrot'),
+      stage=document.getElementById('stage'), cap=document.getElementById('cap'), capt=document.getElementById('capt'),
+      bar=document.getElementById('bar');
+  var SK='#f1c9a5'; root.style.setProperty('--skin',SK); root.style.setProperty('--board-ink','#2b2838');
+
+  // ---------- scene definition (boxes, arrows, labels) ----------
+  function rect(x,y,w,h){var r=14;return 'M'+(x+r)+' '+y+' H'+(x+w-r)+' Q'+(x+w)+' '+y+' '+(x+w)+' '+(y+r)+
+    ' V'+(y+h-r)+' Q'+(x+w)+' '+(y+h)+' '+(x+w-r)+' '+(y+h)+' H'+(x+r)+' Q'+x+' '+(y+h)+' '+x+' '+(y+h-r)+
+    ' V'+(y+r)+' Q'+x+' '+y+' '+(x+r)+' '+y+' Z';}
+  function arrow(x1,y1,x2,y2){var a=Math.atan2(y2-y1,x2-x1),h=13;
+    return 'M'+x1+' '+y1+' L'+x2+' '+y2+
+      ' M'+x2+' '+y2+' L'+(x2-h*Math.cos(a-.4))+' '+(y2-h*Math.sin(a-.4))+
+      ' M'+x2+' '+y2+' L'+(x2-h*Math.cos(a+.4))+' '+(y2-h*Math.sin(a+.4));}
+
+  var TRIG={x:70,y:230,w:190,h:96}, AG={x:390,y:225,w:180,h:106}, ACT={x:705,y:230,w:185,h:96}, MEM={x:390,y:405,w:180,h:86};
+
+  // steps: {kind:'draw'|'write'|'circle', d/path, label, at, dur, cap}
+  var steps=[
+    {kind:'title', cap:"Let's map how an agent actually works.", dur:600},
+    {kind:'draw', d:rect(TRIG.x,TRIG.y,TRIG.w,TRIG.h), dur:1100, cap:"It all starts with a trigger — an event, a message, a schedule."},
+    {kind:'write', label:'TRIGGER', x:TRIG.x+TRIG.w/2, y:TRIG.y+TRIG.h/2+7, size:26, dur:900, cap:"A trigger."},
+    {kind:'draw', d:arrow(TRIG.x+TRIG.w, TRIG.y+TRIG.h/2, AG.x, AG.y+AG.h/2), dur:650, cap:"That fires the agent…"},
+    {kind:'draw', d:rect(AG.x,AG.y,AG.w,AG.h), dur:1100, cap:"…the agent — the brain that reasons and decides."},
+    {kind:'write', label:'AGENT', x:AG.x+AG.w/2, y:AG.y+AG.h/2+7, size:28, dur:850, cap:"The agent."},
+    {kind:'draw', d:arrow(AG.x+AG.w, AG.y+AG.h/2, ACT.x, ACT.y+ACT.h/2), dur:650, cap:"It chooses an action…"},
+    {kind:'draw', d:rect(ACT.x,ACT.y,ACT.w,ACT.h), dur:1100, cap:"…and takes an action in the real world."},
+    {kind:'write', label:'ACTION', x:ACT.x+ACT.w/2, y:ACT.y+ACT.h/2+7, size:26, dur:850, cap:"An action."},
+    {kind:'draw', d:arrow(AG.x+AG.w/2, AG.y+AG.h, MEM.x+MEM.w/2, MEM.y), dur:600, cap:"And it remembers — so it improves over time."},
+    {kind:'draw', d:rect(MEM.x,MEM.y,MEM.w,MEM.h), dur:1000, cap:"Memory."},
+    {kind:'write', label:'MEMORY', x:MEM.x+MEM.w/2, y:MEM.y+MEM.h/2+7, size:24, dur:800, cap:"Memory closes the loop."},
+    {kind:'circle', box:AG, dur:1200, cap:"The agent is the piece that makes this ‘agentic’, not just automation."}
+  ];
+
+  // ---------- rendering helpers ----------
+  var SPEED=1, WEIGHT=3.2, INKCOLOR='#1d4ed8', SHOW='hand', SIDE='right', TOOL='pen', STYLE='natural';
+  hand.style.transform='';
+  function setSide(){ handrot.setAttribute('transform', SIDE==='left'?'scale(-1,1)':''); }
+  setSide();
+
+  function jitter(n){ return STYLE==='natural' ? (Math.sin(n*12.9898)*43758.5453 % 1) : 0; } // deterministic wobble
+  var raf=null, playing=false, idx=0;   // idx = next step to play
+
+  function clearFrom(i){
+    // remove ink/labels/annot produced by steps >= i
+    Array.prototype.slice.call(ink.children).forEach(function(el){ if(+el.dataset.s>=i) el.remove(); });
+    Array.prototype.slice.call(labels.children).forEach(function(el){ if(+el.dataset.s>=i) el.remove(); });
+    Array.prototype.slice.call(annot.children).forEach(function(el){ if(+el.dataset.s>=i) el.remove(); });
+    if(i<=0) stage.classList.remove('showtitle');
+  }
+
+  function placeHand(pt,ang){
+    hand.setAttribute('transform','translate('+pt.x+','+pt.y+') rotate('+(ang||0)+')');
+  }
+  function showCap(t){ capt.textContent=t; cap.classList.add('on'); }
+
+  function animatePath(pathEl, dur, cb){
+    var len=pathEl.getTotalLength();
+    pathEl.style.strokeDasharray=len; pathEl.style.strokeDashoffset=len;
+    hand.classList.remove('hide');
+    var t0=null, D=Math.max(120,dur/SPEED);
+    function frame(ts){
+      if(t0===null)t0=ts; var p=Math.min(1,(ts-t0)/D);
+      pathEl.style.strokeDashoffset = len*(1-p);
+      var pt=pathEl.getPointAtLength(len*p);
+      placeHand(pt, STYLE==='natural' ? Math.sin(p*22)*1.4 : 0 );
+      bar.style.right=(100-p*100)+'%';
+      if(p<1){ raf=requestAnimationFrame(frame); } else { cb&&cb(); }
+    }
+    raf=requestAnimationFrame(frame);
+  }
+
+  function drawStep(i, done){
+    var s=steps[i]; if(!s){done&&done();return;}
+    markTimeline(i);
+    showCap(s.cap||'');
+    if(s.kind==='title'){ stage.classList.add('showtitle'); setTimeout(function(){bar.style.right='0%';done&&done();}, 500/SPEED); return; }
+
+    if(s.kind==='draw'){
+      var p=document.createElementNS('http://www.w3.org/2000/svg','path');
+      p.setAttribute('d',s.d); p.dataset.s=i; p.setAttribute('stroke','var(--board-ink)');
+      p.setAttribute('stroke-width',WEIGHT); ink.appendChild(p);
+      animatePath(p,s.dur,done); return;
+    }
+    if(s.kind==='write'){
+      // reveal the word with a clip that grows L→R while the hand travels the baseline
+      var t=document.createElementNS('http://www.w3.org/2000/svg','text');
+      t.setAttribute('x',s.x); t.setAttribute('y',s.y); t.setAttribute('font-size',s.size);
+      t.setAttribute('data-s',i); t.textContent=s.label;
+      var cid='clip'+i, clip=document.createElementNS('http://www.w3.org/2000/svg','clipPath');
+      clip.id=cid; var cr=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      var x0=s.x-s.label.length*s.size*0.34, w=s.label.length*s.size*0.68;
+      cr.setAttribute('x',x0);cr.setAttribute('y',s.y-s.size);cr.setAttribute('height',s.size*1.5);cr.setAttribute('width',0);
+      clip.appendChild(cr); labels.appendChild(clip); t.setAttribute('clip-path','url(#'+cid+')'); labels.appendChild(t);
+      clip.dataset.s=i;
+      hand.classList.remove('hide');
+      var t0=null,D=Math.max(150,s.dur/SPEED);
+      function fr(ts){ if(t0===null)t0=ts;var p=Math.min(1,(ts-t0)/D);
+        cr.setAttribute('width', w*p);
+        placeHand({x:x0+w*p, y:s.y+3}, STYLE==='natural'?Math.sin(p*30)*3:0);
+        if(p<1)raf=requestAnimationFrame(fr); else done&&done();
+      }
+      raf=requestAnimationFrame(fr); return;
+    }
+    if(s.kind==='circle'){
+      // an imperfect ellipse around a box, slightly over-drawn
+      var b=s.box, cx=b.x+b.w/2, cy=b.y+b.h/2, rx=b.w/2+22, ry=b.h/2+16;
+      var d='M '+(cx+rx)+' '+cy+' ';
+      for(var a=0;a<=6.6;a+=0.35){ var wob=1+ (STYLE==='natural'?Math.sin(a*3)*0.03:0);
+        d+='L '+(cx+Math.cos(a)*rx*wob)+' '+(cy+Math.sin(a)*ry*wob)+' '; }
+      var p2=document.createElementNS('http://www.w3.org/2000/svg','path');
+      p2.setAttribute('d',d);p2.dataset.s=i;p2.setAttribute('stroke',INKCOLOR);
+      p2.setAttribute('stroke-width',TOOL==='highlighter'?16:4.4);
+      if(TOOL==='highlighter'){p2.setAttribute('stroke-opacity','.32');p2.setAttribute('stroke-linecap','round');}
+      annot.appendChild(p2); animatePath(p2,s.dur,done); return;
+    }
+    done&&done();
+  }
+
+  // ---------- transport ----------
+  function stop(){ if(raf)cancelAnimationFrame(raf); playing=false; }
+  function settleHand(){ /* finish current stroke, ease hand out */ setTimeout(function(){ hand.classList.add('hide'); },500); }
+
+  function playFrom(i){
+    stop(); playing=true; idx=i;
+    (function nextStep(){
+      if(idx>=steps.length){ playing=false; markTimeline(-1,true); settleHand(); return; }
+      var cur=idx;
+      drawStep(cur, function(){
+        idx=cur+1;
+        if(!playing) return;
+        var pause = (document.getElementById('sync').classList.contains('on')) ? 520 : 120;
+        setTimeout(nextStep, pause/SPEED);
+      });
+    })();
+  }
+  function playNextOne(){
+    stop();
+    if(idx>=steps.length) return;
+    var cur=idx; drawStep(cur,function(){ idx=cur+1; settleHand(); });
+    markTimeline(cur);
+  }
+  function prevOne(){
+    stop();
+    if(idx<=0) return;
+    idx=Math.max(0,idx-1); clearFrom(idx);
+    // redraw everything before idx instantly, then settle on the last
+    for(var i=0;i<idx;i++) instantStep(i);
+    hand.classList.add('hide'); markTimeline(idx-1);
+  }
+  function showAll(){
+    stop(); clearFrom(0); for(var i=0;i<steps.length;i++) instantStep(i);
+    idx=steps.length; hand.classList.add('hide'); cap.classList.remove('on'); markTimeline(-1,true); bar.style.right='0%';
+  }
+  function instantStep(i){
+    var s=steps[i]; if(!s)return;
+    if(s.kind==='title'){stage.classList.add('showtitle');return;}
+    if(s.kind==='draw'){var p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',s.d);p.dataset.s=i;p.setAttribute('stroke','var(--board-ink)');p.setAttribute('stroke-width',WEIGHT);ink.appendChild(p);}
+    if(s.kind==='write'){var t=document.createElementNS('http://www.w3.org/2000/svg','text');t.setAttribute('x',s.x);t.setAttribute('y',s.y);t.setAttribute('font-size',s.size);t.setAttribute('data-s',i);t.textContent=s.label;labels.appendChild(t);}
+    if(s.kind==='circle'){var b=s.box,cx=b.x+b.w/2,cy=b.y+b.h/2,rx=b.w/2+22,ry=b.h/2+16;var e=document.createElementNS('http://www.w3.org/2000/svg','ellipse');e.setAttribute('cx',cx);e.setAttribute('cy',cy);e.setAttribute('rx',rx);e.setAttribute('ry',ry);e.dataset.s=i;e.setAttribute('fill','none');e.setAttribute('stroke',INKCOLOR);e.setAttribute('stroke-width',TOOL==='highlighter'?16:4.4);if(TOOL==='highlighter')e.setAttribute('stroke-opacity','.32');annot.appendChild(e);}
+  }
+
+  document.getElementById('play').onclick=function(){ if(idx>=steps.length) idx=0, clearFrom(0); playFrom(idx>=steps.length?0:idx); };
+  document.getElementById('next').onclick=playNextOne;
+  document.getElementById('prev').onclick=prevOne;
+  document.getElementById('show').onclick=showAll;
+  document.getElementById('sync').onclick=function(){ this.classList.toggle('on'); };
+
+  document.addEventListener('keydown',function(e){
+    if(e.code==='Space'){e.preventDefault();document.getElementById('play').click();}
+    if(e.code==='ArrowRight'){e.preventDefault();playNextOne();}
+    if(e.code==='ArrowLeft'){e.preventDefault();prevOne();}
+  });
+
+  // ---------- library chips ----------
+  var LIB=[
+    ['Hand writes text','stroke by stroke','M4 20h16M6 16c2-6 4-8 6-8s2 3 0 6'],
+    ['Hand draws diagram','shapes + connectors','M4 6h6v6H4zM14 12h6v6h-6zM10 9h4'],
+    ['Circle keyword','imperfect pen loop','M12 4a8 7 0 1 0 .1 0'],
+    ['Highlight marker','translucent sweep','M4 14l10-10 4 4L8 18z'],
+    ['Draw over image','annotate a photo','M3 17l6-6 4 4 8-8'],
+    ['Sketch → 3D','rough then polished','M4 12h6m4 0h6M12 4v16']
+  ];
+  var lib=document.getElementById('lib');
+  LIB.forEach(function(a,i){var b=document.createElement('button');b.className='chip'+(i===2?' on':'');
+    b.innerHTML='<span class="g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="'+a[2]+'"/></svg></span><span><b>'+a[0]+'</b><small>'+a[1]+'</small></span>';
+    b.onclick=function(){ [].forEach.call(lib.children,function(c){c.classList.remove('on')}); b.classList.add('on'); };
+    lib.appendChild(b);});
+
+  // ---------- timeline ----------
+  var timeline=document.getElementById('timeline');
+  var TL=[['Draw','trigger box','0.0s'],['Write','“TRIGGER”','1.1s'],['Connect','→ agent','2.0s'],['Draw','agent box','2.6s'],['Write','“AGENT”','3.7s'],['Circle','agent · emphasis','4.2s']];
+  TL.forEach(function(t,i){var d=document.createElement('div');d.className='ev';d.dataset.i=i;
+    d.innerHTML='<span class="num">'+(i+1)+'</span><span class="txt"><b>'+t[1]+'</b><small>+ '+t[2]+' after cue</small></span><span class="tag">'+t[0]+'</span>';
+    timeline.appendChild(d);});
+  function markTimeline(active, allDone){
+    // map the 13 scene steps roughly onto the 6 timeline rows
+    var m=[0,0,1,2,3,4,2,3,4,5,3,4,5];
+    [].forEach.call(timeline.children,function(el){el.classList.remove('on');});
+    [].forEach.call(timeline.children,function(el,i){ if(allDone) el.classList.add('done'); });
+    if(active>=0){ var row=m[active]!=null?m[active]:0;
+      [].forEach.call(timeline.children,function(el,i){ if(i<row)el.classList.add('done'); if(i===row)el.classList.add('on'); }); }
+  }
+
+  // ---------- settings ----------
+  function seg(id,cb){var g=document.getElementById(id);g.onclick=function(e){var b=e.target.closest('button');if(!b)return;
+    [].forEach.call(g.children,function(c){c.classList.remove('on')});b.classList.add('on');cb(b.dataset.v);};}
+  seg('hand-side',function(v){SIDE=v;setSide();});
+  seg('tool',function(v){TOOL=v; INKCOLOR = v==='highlighter'?'#f6b74a':INKCOLOR;});
+  seg('style',function(v){STYLE=v;});
+  seg('showmode',function(v){SHOW=v; if(v==='tip'){handrot.querySelector('#palm').style.opacity=.0;}else{handrot.querySelector('#palm').style.opacity=1;}});
+  document.getElementById('tone').onclick=function(e){var b=e.target.closest('button');if(!b)return;
+    [].forEach.call(this.children,function(c){c.classList.remove('on')});b.classList.add('on');
+    SK=b.dataset.c; root.style.setProperty('--skin',SK);};
+  document.getElementById('ink-color').onclick=function(e){var b=e.target.closest('button');if(!b)return;
+    [].forEach.call(this.children,function(c){c.classList.remove('on')});b.classList.add('on');
+    INKCOLOR=b.dataset.c; annot.setAttribute('stroke',INKCOLOR);};
+  document.getElementById('speed').oninput=function(){SPEED=+this.value;};
+  document.getElementById('weight').oninput=function(){WEIGHT=+this.value; ink.setAttribute('stroke-width',WEIGHT);
+    [].forEach.call(ink.children,function(p){p.setAttribute('stroke-width',WEIGHT);});};
+
+  // gentle idle: show completed after a beat so the board isn't empty, then let the user preview
+  setTimeout(function(){ document.getElementById('play').click(); }, 500);
+})();
+</script>

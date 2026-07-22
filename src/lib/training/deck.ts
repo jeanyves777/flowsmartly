@@ -11,7 +11,12 @@
 import { ai } from "@/lib/ai/client";
 import { generateImageXaiFirst, generateImageWithProvider } from "@/lib/ai/image-router";
 import { uploadToS3 } from "@/lib/utils/s3-client";
-import type { BoardItem, DeckSlide, DeckVisual, TrainingDeck, QuizQuestion } from "./types";
+import { SLIDE_LAYOUTS } from "./types";
+import type { BoardItem, DeckSlide, DeckVisual, TrainingDeck, QuizQuestion, SlideLayout, RevealMode, VisualType } from "./types";
+
+const REVEAL_MODES = ["all_at_once", "progressive", "stroke_by_stroke", "word_by_word", "build_diagram"];
+const asLayout = (v?: string): SlideLayout | undefined => (v && (SLIDE_LAYOUTS as readonly string[]).includes(v)) ? (v as SlideLayout) : undefined;
+const asReveal = (v?: string): RevealMode | undefined => (v && REVEAL_MODES.includes(v)) ? (v as RevealMode) : undefined;
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -42,6 +47,9 @@ interface RawSlide {
   annotations?: string[];
   /** whiteboard/livedraw — a subject to render as a 3D asset dropped on the board */
   assetPrompt?: string;
+  /** content-aware model (independent axes) — the agent picks these per teaching moment. */
+  layout?: string;
+  revealMode?: string;
 }
 
 /** Turn a visual style + subject into a rich image prompt (photoreal / 3D / flat). */
@@ -77,6 +85,8 @@ export function parseDeck(raw: string | null | undefined): TrainingDeck {
       introVideoUrl: d.introVideoUrl ?? null,
       outroVideoUrl: d.outroVideoUrl ?? null,
       voiceKey: d.voiceKey ?? null,
+      visualStyle: d.visualStyle,
+      handStyle: d.handStyle,
     };
   } catch {
     return { v: 1, slides: [] };
@@ -260,9 +270,13 @@ Return JSON: { "title": string, "slides": Slide[] } where Slide is:
   "imagePrompt": a vivid prompt for the visual (no text in the image, no watermark), // "doc" slides
   "diagram": { "shape": "cycle"|"flow"|"tree", "nodes": [3-6 short labels], "edges": [[fromIndex,toIndex]] }, // "whiteboard" and "livedraw" slides
   "annotations": [1-2 very short sticky-note callouts — a key insight, tip or watch-out], // "whiteboard"/"livedraw" slides
-  "assetPrompt": a vivid subject for a 3D asset that illustrates this concept (an object/system/scene, no text, no watermark) // "whiteboard"/"livedraw" slides
+  "assetPrompt": a vivid subject for a 3D asset that illustrates this concept (an object/system/scene, no text, no watermark), // "whiteboard"/"livedraw" slides
+  "layout": the content layout that best fits THIS teaching moment — one of: hero_statement, big_idea, image_explanation, full_visual, concept_3d_callouts, step_process, timeline, before_after, problem_solution_result, question_answer, myth_reality, comparison_table, pros_cons, data_spotlight, case_study, real_world_scenario, customer_journey, system_architecture, workflow_diagram, concept_map, layered_explanation, zoom_in, live_draw, annotated_photo, key_takeaways, quote, section_divider, action_plan, closing,
+  "revealMode": how it reveals while narrated — one of: all_at_once, progressive, stroke_by_stroke, word_by_word, build_diagram
 }
 Rules:
+- Choose the "layout" by the PURPOSE of each moment (a comparison → comparison_table/pros_cons; a stat → data_spotlight; a process → step_process/workflow_diagram; a story → real_world_scenario/case_study; a strong claim → hero_statement/quote). Do NOT use the same layout on consecutive slides. One main idea per slide.
+- Set "revealMode": progressive for bulleted teaching, build_diagram for whiteboard, stroke_by_stroke for livedraw, all_at_once only for a hero/quote/section divider.
 - ${opts.wantWhiteboard ? "Use whiteboard/livedraw slides GENEROUSLY for concepts, processes and frameworks — aim for at least a third of the deck. Use \"livedraw\" for the SINGLE most important concept that lands best when sketched stroke-by-stroke while talking; use \"whiteboard\" for the rest. Rich multi-step diagrams (4-6 nodes)." : "Do NOT use whiteboard or livedraw slides."}
 - For EVERY whiteboard/livedraw slide, ALWAYS add 1-2 short \`annotations\` (sticky-note callouts) and an \`assetPrompt\` describing a 3D asset that makes the concept concrete.
 - VARY the visualStyle deliberately across the deck — alternate real photography (real-world/people scenes), 3D (abstract or systemic concepts) and illustration (the rest) so consecutive slides don't look the same. Aim for a healthy mix, not one style repeated.
@@ -299,6 +313,9 @@ Rules:
         notes: stripMd(s.notes).slice(0, 400) || undefined,
         board, steps, wide,
         assetPrompt: s.assetPrompt?.slice(0, 200),
+        layout: asLayout(s.layout) ?? "live_draw",
+        visualType: "diagram" as VisualType,
+        revealMode: asReveal(s.revealMode) ?? (type === "livedraw" ? "stroke_by_stroke" : "build_diagram"),
       };
     }
     const style = s.visualStyle === "3d" ? "3d" : s.visualStyle === "illustration" ? "illustration" : "photo";
@@ -314,6 +331,9 @@ Rules:
       bullets,
       notes: stripMd(s.notes).slice(0, 400) || undefined,
       visual, steps: bullets.length,
+      layout: asLayout(s.layout),
+      visualType: (style === "3d" ? "3d" : style === "illustration" ? "illustration" : "photo") as VisualType,
+      revealMode: asReveal(s.revealMode) ?? "progressive",
     };
   });
 
