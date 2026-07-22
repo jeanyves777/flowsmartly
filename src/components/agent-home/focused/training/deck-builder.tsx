@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { DeckSlideView } from "./deck-slide-view";
 import { VISUAL_STYLES, VISUAL_STYLE_LABELS } from "@/lib/training/types";
+import { AnimationStudio } from "./animation-studio";
 import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle } from "@/lib/training/types";
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
@@ -47,6 +48,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const [wantVis, setWantVis] = useState(true);
   const [busy, setBusy] = useState<null | "gen" | "regen" | "rebuild" | "video" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments">(null);
   const [rebuildOpen, setRebuildOpen] = useState(false);
+  const [animOpen, setAnimOpen] = useState(false);
 
   // local working copy of the deck (edits autosave)
   const [deck, setDeck] = useState<TrainingDeck | null>(mat?.deck ?? null);
@@ -69,6 +71,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const editSlide = (patch: Partial<DeckSlide>) => {
     if (!deck || !slide) return;
     const next: TrainingDeck = { ...deck, slides: deck.slides.map((s) => (s.id === slide.id ? { ...s, ...patch } : s)) };
+    setDeck(next); persist(next);
+  };
+  const editDeck = (patch: Partial<TrainingDeck>) => {
+    if (!deck) return;
+    const next: TrainingDeck = { ...deck, ...patch };
     setDeck(next); persist(next);
   };
 
@@ -453,6 +460,9 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               {VISUAL_STYLES.map((s) => <option key={s} value={s} className="bg-card text-foreground">{VISUAL_STYLE_LABELS[s]}</option>)}
             </select>
           </label>
+          <button onClick={() => setAnimOpen(true)} title="Animation Studio — direct how the presenter's hand marks each slide" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10">
+            <PenLine className="h-3.5 w-3.5" /> Animation Studio
+          </button>
           {slide?.videoPrompt && !slide?.videoUrl ? (
             <button onClick={() => void genVideo()} disabled={busy !== null} title="Generate the ~15s demonstration video for this slide" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
               {busy === "video" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Rendering…</> : <><Film className="h-3.5 w-3.5" /> Generate video</>}
@@ -482,7 +492,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 <video key={previewVideo} src={previewVideo} autoPlay controls playsInline onEnded={() => { if (!previewClip) setPage((p) => Math.min(deck.slides.length - 1, p + 1)); }} className="aspect-video w-full rounded-xl bg-black object-contain shadow-2xl" />
               ) : (
                 <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-2xl">
-                  <DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} />
+                  <DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} />
                   {(slide.steps ?? 1) > 1 ? <button onClick={() => setPreviewStep(1)} title="Replay the drawing" className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-bold text-white backdrop-blur hover:bg-black/70"><RotateCcw className="h-3.5 w-3.5" /> Replay</button> : null}
                   {loopUrl ? <video src={loopUrl} autoPlay muted loop playsInline className="absolute bottom-3 right-3 aspect-video w-[24%] rounded-lg object-cover shadow-lg ring-2 ring-brand-500/50" /> : null}
                   {slide.narration?.audioUrl ? (
@@ -494,7 +504,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               )}
             </div>
           ) : slide ? (
-            <div className="aspect-video w-full max-w-[900px] overflow-hidden rounded-xl shadow-2xl"><DeckSlideView slide={slide} styleKey={deck.visualStyle} /></div>
+            <div className="aspect-video w-full max-w-[900px] overflow-hidden rounded-xl shadow-2xl"><DeckSlideView slide={slide} styleKey={deck.visualStyle} hand={deck.handStyle} /></div>
           ) : null}
         </div>
       </div>
@@ -587,6 +597,18 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       />
 
       {/* REGENERATE ONE SLIDE — pick a layout + the hand animation style. */}
+      {animOpen ? (
+        <AnimationStudio
+          deck={deck}
+          page={page}
+          setPage={setPage}
+          onEditSlide={editSlide}
+          onEditDeck={editDeck}
+          styleKey={deck.visualStyle}
+          onClose={() => setAnimOpen(false)}
+        />
+      ) : null}
+
       {regenOpen && slide ? (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4" onClick={() => setRegenOpen(false)}>
           <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>

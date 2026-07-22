@@ -617,7 +617,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         );
       }
       // The board box is already a 16:9 letterbox, so the slide just fills it.
-      return slide ? <div className="h-full w-full overflow-hidden"><DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} /></div> : null;
+      return slide ? <div className="h-full w-full overflow-hidden"><DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} /></div> : null;
     }
     if (material?.kind === "image" || material?.kind === "video") {
       // eslint-disable-next-line @next/next/no-img-element
