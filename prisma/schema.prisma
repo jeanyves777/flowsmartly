@@ -6036,6 +6036,8 @@ model PhoneNumber {
   // The provider's handles.
   xaiPhoneNumberId String? @unique
   xaiAgentId       String?
+  // ElevenLabs' handle for this number once imported into Conv AI (phnum_…).
+  elevenPhoneNumberId String? @unique
   sipHost          String?
   webhookId        String?
   // Returned exactly ONCE at registration. Without it an inbound call can never

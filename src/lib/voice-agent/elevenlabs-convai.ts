@@ -147,8 +147,80 @@ export function getConvaiConversation(conversationId: string) {
 // (Tools are attached inline in the agent's conversation_config — see
 //  elevenlabs-agent-spec — so no standalone Tools API is needed.)
 
-// ── Phone numbers (Phase 2) ──────────────────────────────────────────────────
+// ── Phone numbers (Phase 2 · telephony) ──────────────────────────────────────
 
 export function listConvaiPhoneNumbers() {
   return call<{ phone_numbers?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>>("/phone-numbers");
+}
+
+/** Import a SIP-trunk number (e.g. Telnyx). `sipTrunkConfig` carries the
+ *  termination URI + credentials the provider gave us; without it the number is
+ *  created but can't route calls yet. */
+export function importSipPhoneNumber(params: {
+  phoneNumber: string;
+  label: string;
+  inboundTrunkConfig?: Record<string, unknown>;
+  outboundTrunkConfig?: Record<string, unknown>;
+}) {
+  return call<{ phone_number_id: string }>("/phone-numbers", {
+    method: "POST",
+    body: JSON.stringify({
+      provider: "sip_trunk",
+      phone_number: params.phoneNumber,
+      label: params.label,
+      ...(params.inboundTrunkConfig ? { inbound_trunk: params.inboundTrunkConfig } : {}),
+      ...(params.outboundTrunkConfig ? { outbound_trunk: params.outboundTrunkConfig } : {}),
+    }),
+  });
+}
+
+/** Import a Twilio number (needs the Twilio SID + auth token). */
+export function importTwilioPhoneNumber(params: {
+  phoneNumber: string;
+  label: string;
+  sid: string;
+  token: string;
+}) {
+  return call<{ phone_number_id: string }>("/phone-numbers", {
+    method: "POST",
+    body: JSON.stringify({
+      provider: "twilio",
+      phone_number: params.phoneNumber,
+      label: params.label,
+      sid: params.sid,
+      token: params.token,
+    }),
+  });
+}
+
+/** Bind (or move) a number to an agent — verified: PATCH {agent_id}. */
+export function assignConvaiNumberToAgent(phoneNumberId: string, agentId: string) {
+  return call<{ phone_number_id: string }>(`/phone-numbers/${encodeURIComponent(phoneNumberId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ agent_id: agentId }),
+  });
+}
+
+export function deleteConvaiPhoneNumber(phoneNumberId: string) {
+  return call<void>(`/phone-numbers/${encodeURIComponent(phoneNumberId)}`, { method: "DELETE" });
+}
+
+// ── Outbound / batch calls (Phase 7) ─────────────────────────────────────────
+
+/** Place a single outbound call from one of our numbers, over SIP or Twilio. */
+export function outboundCall(params: {
+  agentId: string;
+  agentPhoneNumberId: string;
+  toNumber: string;
+  provider?: "sip_trunk" | "twilio";
+}) {
+  const path = params.provider === "twilio" ? "/twilio/outbound-call" : "/sip-trunk/outbound-call";
+  return call<{ conversation_id?: string; success?: boolean; message?: string }>(path, {
+    method: "POST",
+    body: JSON.stringify({
+      agent_id: params.agentId,
+      agent_phone_number_id: params.agentPhoneNumberId,
+      to_number: params.toNumber,
+    }),
+  });
 }

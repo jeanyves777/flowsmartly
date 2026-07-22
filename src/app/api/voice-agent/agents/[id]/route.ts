@@ -13,6 +13,7 @@ import { prisma } from "@/lib/db/client";
 import { syncAgentToXai } from "@/lib/voice-agent/agent-sync";
 import { syncElevenLabsAgent } from "@/lib/voice-agent/elevenlabs-sync";
 import { syncElevenLabsConversations } from "@/lib/voice-agent/elevenlabs-calls";
+import { provisionElevenLabsNumber } from "@/lib/voice-agent/elevenlabs-telephony";
 import { DEFAULT_HOURS, publicNumber, type AgentSkill } from "@/lib/voice-agent/types";
 import { bindNumberToAgent } from "@/lib/voice-agent/xai-phone";
 
@@ -229,6 +230,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.status === "LIVE") {
       void ensureLiveRouting(agent.id).catch((e) =>
         console.error("[VoiceAgent] live routing sync failed:", e),
+      );
+      // Import + bind the agent's number on ElevenLabs (no-op until the carrier
+      // env is configured — see elevenlabs-telephony).
+      void provisionElevenLabsNumber(agent.id).catch((e) =>
+        console.error("[VoiceAgent] EL number provision failed:", e),
       );
     }
 
