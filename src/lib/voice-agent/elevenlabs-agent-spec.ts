@@ -2,14 +2,17 @@
  * Map a saved VoiceAgent row to an ElevenLabs Conversational AI agent payload.
  *
  * Built from the SAME source a call uses — `toSessionAgent` + `buildInstructions`
- * — so the ElevenLabs agent, and any per-call session, can't drift. The agent's
- * tools/actions ride our MCP relay (attached separately in Phase 3); here we set
- * the brain (prompt), the opener, the voice, speech, and language.
+ * + `mcpToolsFor` — so the ElevenLabs agent, and any per-call session, can't
+ * drift. The agent's skills become inline webhook tools that call our executor
+ * (`/api/voice-agent/el-tool/{token}/{action}` → the real save_lead/place_order/…
+ * writes), alongside the system end_call tool.
  */
 
 import { toSessionAgent } from "@/lib/voice-agent/agent-sync";
 import { buildInstructions } from "@/lib/voice-agent/session-config";
+import { mcpToolsFor } from "@/lib/voice-agent/mcp-tools";
 import type { ConvaiAgentPayload } from "@/lib/voice-agent/elevenlabs-convai";
+import type { AgentSkill } from "@/lib/voice-agent/types";
 
 // A neutral, professional default when the row has no ElevenLabs voice of its own
 // (our phone voiceId is often an xAI voice name, which EL wouldn't accept).
@@ -32,6 +35,38 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
 }
 
+const jParse = <T,>(v: unknown, f: T): T => {
+  try {
+    return typeof v === "string" ? (JSON.parse(v) as T) : f;
+  } catch {
+    return f;
+  }
+};
+
+/** The agent's inline tools: system end_call + one webhook per business skill. */
+function buildTools(skills: AgentSkill[], mcpToken: string | null): Array<Record<string, unknown>> {
+  const tools: Array<Record<string, unknown>> = [
+    { type: "system", name: "end_call", params: { system_tool_type: "end_call" } },
+  ];
+  if (!mcpToken) return tools;
+  const base = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
+  // The profile is baked into the prompt already, so it needs no tool call.
+  for (const t of mcpToolsFor(skills).filter((x) => x.name !== "get_business_profile")) {
+    tools.push({
+      type: "webhook",
+      name: t.name,
+      description: t.description,
+      response_timeout_secs: 20,
+      api_schema: {
+        url: `${base}/api/voice-agent/el-tool/${mcpToken}/${t.name}`,
+        method: "POST",
+        request_body_schema: t.inputSchema,
+      },
+    });
+  }
+  return tools;
+}
+
 /**
  * Build the create/update payload. `row` is a raw VoiceAgent record.
  */
@@ -44,6 +79,8 @@ export function buildElevenLabsAgent(row: Record<string, unknown>): ConvaiAgentP
   const language = resolveLanguage(row.languageHint as string);
   const voiceId = resolveVoiceId(row.voiceId as string);
   const speed = clamp(Number(row.speakingSpeed ?? 1), 0.7, 1.2);
+  const skills = jParse<AgentSkill[]>(row.skills, []);
+  const tools = buildTools(skills, (row.mcpToken as string) || null);
 
   return {
     name,
@@ -55,9 +92,7 @@ export function buildElevenLabsAgent(row: Record<string, unknown>): ConvaiAgentP
           prompt: instructions,
           llm: DEFAULT_LLM,
           temperature: 0.3,
-          // end_call is always available so the agent can hang up cleanly. Business
-          // actions (booking/orders/leads) arrive via the MCP relay in Phase 3.
-          tools: [{ type: "system", name: "end_call", params: { system_tool_type: "end_call" } }],
+          tools,
         },
       },
       tts: {

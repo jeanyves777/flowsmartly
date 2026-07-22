@@ -117,6 +117,9 @@ export function getConvaiConversation(conversationId: string) {
   return call<Record<string, unknown>>(`/conversations/${encodeURIComponent(conversationId)}`);
 }
 
+// (Tools are attached inline in the agent's conversation_config — see
+//  elevenlabs-agent-spec — so no standalone Tools API is needed.)
+
 // ── Phone numbers (Phase 2) ──────────────────────────────────────────────────
 
 export function listConvaiPhoneNumbers() {
