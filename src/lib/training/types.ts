@@ -246,6 +246,30 @@ export interface HandStyleSettings {
   showHand?: boolean; // false = pen tip only
 }
 
+/** The whiteboard's look — a named preset plus granular overrides (set in the Animation
+ *  Studio's whiteboard mode). Empty = derive from the deck's visual style. [[training-studio]] */
+export const BOARD_PRESETS = ["clean_grid", "marker_board", "notebook", "blueprint", "workshop", "dark_canvas"] as const;
+export type BoardPreset = (typeof BOARD_PRESETS)[number];
+export interface BoardStyleSettings {
+  preset?: BoardPreset;
+  background?: "dots" | "grid" | "plain";
+  connector?: "straight" | "curved" | "elbow";
+  nodeShape?: "rounded" | "square" | "pill";
+  /** ink colour override (hex) — else the preset's ink. */
+  ink?: string;
+  /** live hand-drawing on (the diagram sketches itself on). */
+  animate?: boolean;
+}
+/** Gallery metadata for the whiteboard style picker (the visual theme lives in the renderer). */
+export const BOARD_STYLE_META: { key: BoardPreset; name: string; category: "Light" | "Hand-drawn" | "Technical" | "Dark"; subtitle: string; swatches: [string, string, string] }[] = [
+  { key: "clean_grid", name: "Clean Grid", category: "Light", subtitle: "Dots · straight lines · sans", swatches: ["#0f2540", "#e5e7eb", "#fde047"] },
+  { key: "marker_board", name: "Marker Board", category: "Hand-drawn", subtitle: "Circles · curved · hand font", swatches: ["#17181c", "#2563eb", "#dc2626"] },
+  { key: "notebook", name: "Notebook", category: "Light", subtitle: "Ruled paper · serif", swatches: ["#2563eb", "#eab308", "#dc2626"] },
+  { key: "blueprint", name: "Blueprint", category: "Technical", subtitle: "Grid · elbow · mono", swatches: ["#7dd3fc", "#0e7490", "#1e3a5f"] },
+  { key: "workshop", name: "Workshop", category: "Hand-drawn", subtitle: "Sticky notes · curved · shadows", swatches: ["#22c55e", "#eab308", "#ec4899"] },
+  { key: "dark_canvas", name: "Dark Canvas", category: "Dark", subtitle: "Dark · glow · pill nodes", swatches: ["#a78bfa", "#8b5cf6", "#64748b"] },
+];
+
 export interface DeckSlide {
   id: string;
   type: DeckSlideType;
@@ -371,6 +395,8 @@ export interface TrainingDeck {
   visualStyle?: VisualStyle;
   /** deck-level hand/pen defaults for drawing animations (a slide animation can override). */
   handStyle?: HandStyleSettings;
+  /** the whiteboard look (preset + granular overrides); empty = derive from the visual style. */
+  boardStyle?: BoardStyleSettings;
 }
 
 // ------------------------------------------------------------ AI presenter

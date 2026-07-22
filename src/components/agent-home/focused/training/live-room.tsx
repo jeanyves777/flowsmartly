@@ -617,7 +617,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         );
       }
       // The board box is already a 16:9 letterbox, so the slide just fills it.
-      return slide ? <div className="h-full w-full overflow-hidden"><DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} /></div> : null;
+      return slide ? <div className="h-full w-full overflow-hidden"><DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} /></div> : null;
     }
     if (material?.kind === "image" || material?.kind === "video") {
       // eslint-disable-next-line @next/next/no-img-element
@@ -872,7 +872,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                   <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
                     {deckSlides.map((s, i) => (
                       <button key={s.id} onClick={() => jumpTo(i + 1)} title={s.title} className={cn("relative shrink-0 overflow-hidden rounded-lg border-2", i + 1 === session.stagePage ? "border-brand-500" : "border-transparent hover:border-border")}>
-                        <div className="h-[64px] w-[112px]"><DeckSlideView slide={s} styleKey={material?.deck?.visualStyle} /></div>
+                        <div className="h-[64px] w-[112px]"><DeckSlideView slide={s} styleKey={material?.deck?.visualStyle} board={material?.deck?.boardStyle} /></div>
                         <span className="absolute left-1 top-1 grid h-4 min-w-4 place-items-center rounded bg-black/60 px-1 text-[9px] font-extrabold text-white">{i + 1}</span>
                       </button>
                     ))}

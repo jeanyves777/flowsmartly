@@ -442,7 +442,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
         <div className="flex-1 space-y-2 overflow-auto p-2.5">
           {deck.slides.map((s, i) => (
             <button key={s.id} onClick={() => setPage(i)} className={cn("relative block w-full overflow-hidden rounded-lg border-2", i === page ? "border-brand-500" : "border-transparent hover:border-border")}>
-              <div className="aspect-video w-full"><DeckSlideView slide={s} styleKey={deck.visualStyle} /></div>
+              <div className="aspect-video w-full"><DeckSlideView slide={s} styleKey={deck.visualStyle} board={deck.boardStyle} /></div>
               <span className="absolute left-1 top-1 grid h-4 min-w-4 place-items-center rounded bg-black/55 px-1 text-[9px] font-extrabold text-white">{i + 1}</span>
             </button>
           ))}
@@ -499,7 +499,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 <video key={previewVideo} src={previewVideo} autoPlay controls playsInline onEnded={() => { if (!previewClip) setPage((p) => Math.min(deck.slides.length - 1, p + 1)); }} className="aspect-video w-full rounded-xl bg-black object-contain shadow-2xl" />
               ) : (
                 <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-2xl">
-                  <DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} />
+                  <DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} />
                   {(slide.steps ?? 1) > 1 ? <button onClick={() => setPreviewStep(1)} title="Replay the drawing" className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-bold text-white backdrop-blur hover:bg-black/70"><RotateCcw className="h-3.5 w-3.5" /> Replay</button> : null}
                   {loopUrl ? <video src={loopUrl} autoPlay muted loop playsInline className="absolute bottom-3 right-3 aspect-video w-[24%] rounded-lg object-cover shadow-lg ring-2 ring-brand-500/50" /> : null}
                   {slide.narration?.audioUrl ? (
@@ -511,7 +511,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               )}
             </div>
           ) : slide ? (
-            <div className="aspect-video w-full max-w-[900px] overflow-hidden rounded-xl shadow-2xl"><DeckSlideView slide={slide} styleKey={deck.visualStyle} hand={deck.handStyle} /></div>
+            <div className="aspect-video w-full max-w-[900px] overflow-hidden rounded-xl shadow-2xl"><DeckSlideView slide={slide} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} /></div>
           ) : null}
         </div>
       </div>
