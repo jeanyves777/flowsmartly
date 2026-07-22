@@ -22,6 +22,7 @@ const STATUS_URL = `${HEYGEN_BASE}/v1/video_status.get`;
 const AVATARS_URL = `${HEYGEN_BASE}/v2/avatars`;
 const VOICES_URL = `${HEYGEN_BASE}/v2/voices`;
 const TEMPLATES_URL = `${HEYGEN_BASE}/v2/templates`;
+const V3_VIDEOS_URL = `${HEYGEN_BASE}/v3/videos`; // image→video (audio-driven Avatar IV), no avatar quota
 const ASSET_UPLOAD_URL = "https://upload.heygen.com/v1/asset";
 const TALKING_PHOTO_URL = "https://upload.heygen.com/v1/talking_photo";
 const TRANSLATE_URL = `${HEYGEN_BASE}/v2/video_translate`;
@@ -304,6 +305,44 @@ class HeyGenClient {
   }
 
   /**
+   * AUDIO-DRIVEN Avatar IV on ANY still image — the person in `imageUrl` is lip-synced to the
+   * spoken `audioUrl` (e.g. the presenter's CLONED voice), so they actually say those exact
+   * words with natural motion. Uses the v3 `POST /videos` (`type: "image"`) path, which does
+   * NOT create a reusable Photo Avatar and so consumes ZERO photo-avatar quota — it scales to
+   * every customer with no 3-avatar cap. Verified 2026-07-21 (real render, count unchanged).
+   * [[training-presenter-talking-video]] [[heygen-api-constraints]]
+   */
+  async generateImageToVideo(options: {
+    imageUrl: string;
+    audioUrl: string;
+    title?: string;
+    onJobId?: (id: string) => void | Promise<void>;
+    onStatus?: (message: string) => void;
+    onProgress?: (pct: number, message: string) => void;
+    estimatedSeconds?: number;
+    timeoutMs?: number;
+  }): Promise<HeyGenVideoResult> {
+    if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
+    const { imageUrl, audioUrl, title, onJobId, onStatus, onProgress, estimatedSeconds, timeoutMs } = options;
+    const body = {
+      type: "image",
+      image: { type: "url", url: imageUrl },
+      audio_url: audioUrl,
+      title: title || "Presenter moment",
+    };
+    const res = await fetch(V3_VIDEOS_URL, { method: "POST", headers: this.headers(), body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(`HeyGen image-to-video error (${res.status}): ${await res.text()}`);
+    const data = await res.json();
+    const videoId = data?.data?.video_id || data?.data?.id;
+    if (!videoId) throw new Error("HeyGen did not return a video_id");
+    try { await onJobId?.(videoId); } catch { /* best-effort */ }
+    onStatus?.("Talking video started. Waiting for HeyGen to finish…");
+    const done = await this.pollUntilDone(videoId, { timeoutMs, estimatedSeconds, onStatus, onProgress, v3: true });
+    const videoBuffer = await this.downloadVideo(done.url);
+    return { videoId, videoBuffer, thumbnailUrl: done.thumbnailUrl, duration: done.duration };
+  }
+
+  /**
    * Render a multi-scene PRESENTATION as one stitched MP4 via `video_inputs`.
    * The avatar + voice are shared; each scene contributes one video-input whose
    * layout decides how the avatar sits relative to the scene visual:
@@ -353,12 +392,14 @@ class HeyGenClient {
     return { videoId, videoBuffer, thumbnailUrl: done.thumbnailUrl, duration: done.duration };
   }
 
-  /** Single non-blocking status check — used by a recovery cron to resume a job. */
+  /** Single non-blocking status check — used by a recovery cron to resume a job. `v3` polls the
+   *  v3 `/videos/{id}` endpoint (image→video / Avatar IV v3) instead of the v1 status endpoint. */
   async pollOnce(
     videoId: string,
+    v3 = false,
   ): Promise<{ state: "pending" | "done" | "failed"; url?: string; thumbnailUrl?: string; duration?: number; error?: string }> {
     if (!this.apiKey) throw new Error("HEYGEN_API_KEY is not configured");
-    const res = await fetch(`${STATUS_URL}?video_id=${encodeURIComponent(videoId)}`, { headers: this.headers() });
+    const res = await fetch(v3 ? `${V3_VIDEOS_URL}/${encodeURIComponent(videoId)}` : `${STATUS_URL}?video_id=${encodeURIComponent(videoId)}`, { headers: this.headers() });
     if (!res.ok) return { state: "failed", error: `status ${res.status}` };
     const data = await res.json();
     const d = data?.data ?? data;
@@ -388,9 +429,10 @@ class HeyGenClient {
       estimatedSeconds?: number;
       onStatus?: (message: string) => void;
       onProgress?: (pct: number, message: string) => void;
+      v3?: boolean;
     } = {},
   ): Promise<{ url: string; thumbnailUrl?: string; duration: number }> {
-    const { timeoutMs = 600000, estimatedSeconds = 30, onStatus, onProgress } = opts; // 10 min default
+    const { timeoutMs = 600000, estimatedSeconds = 30, onStatus, onProgress, v3 = false } = opts; // 10 min default
     const pollInterval = 4000;
     const startTime = Date.now();
     // HeyGen's status API exposes no percentage, so we synthesise a believable one:
@@ -401,7 +443,7 @@ class HeyGenClient {
     while (Date.now() - startTime < timeoutMs) {
       await new Promise((r) => setTimeout(r, pollInterval));
       attempts++;
-      const result = await this.pollOnce(videoId);
+      const result = await this.pollOnce(videoId, v3);
       if (result.state === "done" && result.url) {
         onProgress?.(98, "Finishing up — downloading your video…");
         return { url: result.url, thumbnailUrl: result.thumbnailUrl, duration: result.duration || 0 };
