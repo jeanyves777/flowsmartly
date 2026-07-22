@@ -6150,6 +6150,11 @@ model VoiceAgent {
   escalateOnAsk    Boolean @default(true)
   noAnswerAction   String  @default("message") // message | voicemail | callback
 
+  // After-the-call routing: when a call ends with a given outcome, follow up on a
+  // channel. JSON [{outcome, channel:"sms"|"whatsapp"|"email", message}]. Fires
+  // once per call from the call log (see elevenlabs-followups).
+  followUpRules String @default("[]")
+
   // Spend. A hard cap — the agent stops answering when it's hit.
   spendCapCredits Int      @default(5000)
   spentThisPeriod Int      @default(0)

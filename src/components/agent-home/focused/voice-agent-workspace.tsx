@@ -29,7 +29,7 @@ import {
   LANGUAGE_HINTS, OUTCOME_LABEL, PRESETS, PRESET_BY_KEY, SKILL_BY_KEY, SKILL_CATALOG,
   brandToBusinessBlurb, fmtDuration, fmtNumber, fmtPrice, greetingFor, skillFromDef, skillPos,
   type AgentCall, type AgentNumber, type AgentSkill, type AnswerMode, type BrandLite,
-  type DayKey, type Hours, type KnowledgeItem, type MenuItem, type OrderConfig,
+  type DayKey, type FollowUpRule, type Hours, type KnowledgeItem, type MenuItem, type OrderConfig,
   type VoiceAgentDraft, type VoiceChoice,
 } from "@/lib/voice-agent/types";
 
@@ -1557,6 +1557,10 @@ function Controls({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Par
         </Row>
       </Group>
 
+      <Group title="After the call" sub="Follow the caller up automatically based on how the call went.">
+        <FollowUpRules agent={agent} onPatch={onPatch} />
+      </Group>
+
       <Group title="Spend" sub="A hard cap — the agent stops answering when it's hit.">
         <div className="flex items-center gap-2">
           <input type="range" min={500} max={20000} step={500} value={agent.spendCapCredits}
@@ -2367,6 +2371,66 @@ function CloneVoiceModal({
 // ── speech helper rows ──────────────────────────────────────────────────────
 
 /** Words the agent should recognise reliably — brand, product and place names. */
+const FOLLOWUP_OUTCOMES: { v: string; label: string }[] = [
+  { v: "missed", label: "Missed / not answered" },
+  { v: "answered", label: "Answered" },
+  { v: "lead", label: "New lead" },
+  { v: "booked", label: "Booked" },
+  { v: "order", label: "Order" },
+  { v: "message", label: "Left a message" },
+  { v: "escalated", label: "Escalated" },
+  { v: "any", label: "Any call" },
+];
+const FOLLOWUP_CHANNELS: { v: FollowUpRule["channel"]; label: string }[] = [
+  { v: "sms", label: "SMS" },
+  { v: "whatsapp", label: "WhatsApp" },
+  { v: "email", label: "Email" },
+];
+
+function FollowUpRules({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void> }) {
+  const rules = agent.followUpRules || [];
+  const commit = (next: FollowUpRule[]) => void onPatch({ followUpRules: next });
+  const patchRule = (i: number, p: Partial<FollowUpRule>) => commit(rules.map((r, j) => (j === i ? { ...r, ...p } : r)));
+  const sel = "rounded-md border border-border bg-background px-1.5 py-1 text-[10.5px] outline-none focus:border-brand-500";
+  return (
+    <div className="space-y-2 px-3 pb-1">
+      {rules.length === 0 && (
+        <p className="text-[10px] text-muted-foreground">
+          Nothing yet — e.g. text the caller a booking link when a call is <b>missed</b>, or WhatsApp a thank-you after a <b>lead</b>.
+        </p>
+      )}
+      {rules.map((r, i) => (
+        <div key={i} className="space-y-1.5 rounded-lg border border-border bg-muted/30 p-2">
+          <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+            <span className="text-muted-foreground">When</span>
+            <select value={r.outcome} onChange={(e) => patchRule(i, { outcome: e.target.value })} className={sel}>
+              {FOLLOWUP_OUTCOMES.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+            </select>
+            <span className="text-muted-foreground">→ send</span>
+            <select value={r.channel} onChange={(e) => patchRule(i, { channel: e.target.value as FollowUpRule["channel"] })} className={sel}>
+              {FOLLOWUP_CHANNELS.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
+            </select>
+            <button onClick={() => commit(rules.filter((_, j) => j !== i))}
+              className="ml-auto grid h-5 w-5 place-items-center rounded text-muted-foreground hover:text-rose-500">
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+          <textarea value={r.message} onChange={(e) => patchRule(i, { message: e.target.value })} rows={2}
+            placeholder="What to send the caller…"
+            className="w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-[11px] outline-none focus:border-brand-500" />
+        </div>
+      ))}
+      <button onClick={() => commit([...rules, { outcome: "missed", channel: "sms", message: "" }])}
+        className="text-[10.5px] font-bold text-brand-400 hover:text-brand-300">
+        + Add a follow-up
+      </button>
+      {rules.some((r) => r.channel === "whatsapp") && (
+        <p className="text-[9px] text-muted-foreground">WhatsApp sends once your WhatsApp Business number is connected.</p>
+      )}
+    </div>
+  );
+}
+
 function AlsoSpeaksRow({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void> }) {
   const langs = agent.languages || [];
   const primary = agent.languageHint || "auto";

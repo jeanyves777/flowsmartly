@@ -52,6 +52,7 @@ function hydrate(row: Record<string, unknown>) {
     knowledge: parse(row.knowledge, []),
     keyterms: parse<string[]>(row.keyterms, []),
     languages: parse<string[]>(row.languages, []),
+    followUpRules: parse<unknown[]>(row.followUpRules, []),
     pronunciations: parse<Record<string, string>>(row.pronunciations, {}),
     orderConfig: parse(row.orderConfig, {}),
     skills: parse<AgentSkill[]>(row.skills, []),
@@ -89,6 +90,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       userId: agent.userId,
       elevenAgentId: agent.elevenAgentId,
       phoneNumberId: agent.phoneNumberId,
+      followUpRules: (agent as unknown as { followUpRules?: unknown }).followUpRules,
+      name: agent.name,
     });
 
     const calls = await prisma.voiceCall.findMany({
@@ -177,6 +180,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.pronunciations !== undefined) data.pronunciations = JSON.stringify(body.pronunciations);
     if (body.orderConfig !== undefined) data.orderConfig = JSON.stringify(body.orderConfig);
     if (body.languages !== undefined) data.languages = JSON.stringify(body.languages);
+    if (body.followUpRules !== undefined) data.followUpRules = JSON.stringify(body.followUpRules);
 
     // Reassign the line. Nothing to wire here any more — the provider owns the
     // trunk and routes by number, so this is just which line this agent answers.
