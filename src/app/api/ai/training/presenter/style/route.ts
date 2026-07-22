@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { editImagesXaiFirst } from "@/lib/ai/image-router";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { nanoid } from "nanoid";
 
 const err = (message: string, status = 400) =>
@@ -10,7 +11,6 @@ const err = (message: string, status = 400) =>
 
 const OK = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
 const MAX = 8 * 1024 * 1024;
-const AI_COST = 18; // identity-preserving image-to-image (premium chain)
 export const maxDuration = 120;
 
 /** Background scenes the user picks from (button control). */
@@ -51,6 +51,8 @@ export async function POST(request: NextRequest) {
   const cloth = CLOTH[String(form?.get("clothing") || "keep")] ?? "";
   const buffer = Buffer.from(await file.arrayBuffer());
 
+  // Admin-tunable; identity-preserving portrait, premium image chain (was a hardcoded 18).
+  const AI_COST = await getDynamicCreditCost("PRESENTER_STYLE");
   const charge = await creditService.deductCredits({
     userId: session.userId, type: "USAGE", amount: AI_COST,
     description: "Training Room: presentation-ready presenter", referenceType: "presenter_style", referenceId: session.userId,

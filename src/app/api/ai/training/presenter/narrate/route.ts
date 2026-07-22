@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { creditService } from "@/lib/credits";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { narrateDeck, type NarrateResult } from "@/lib/training/narration";
 import { getSessionDTO } from "@/lib/training/session";
 import type { TrainingDeck } from "@/lib/training/types";
@@ -10,8 +11,6 @@ const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
 
 export const maxDuration = 300; // scripts + TTS for a whole deck can take a bit
-const BASE = 4;      // writing the scripts (one AI call)
-const PER_SLIDE = 4; // synthesizing one slide's narration
 
 /**
  * POST /api/ai/training/[id]/deck/narrate — generate spoken narration for a deck in
@@ -47,6 +46,11 @@ export async function POST(request: NextRequest) {
     ? await prisma.voiceProfile.findFirst({ where: { id: presenter.voiceProfileId, userId: session.userId }, select: { openaiVoiceId: true, elevenLabsVoiceId: true } })
     : null;
 
+  // Admin-tunable (was hardcoded literals BASE=4, PER_SLIDE=4).
+  const [BASE, PER_SLIDE] = await Promise.all([
+    getDynamicCreditCost("PRESENTER_NARRATE_BASE"),
+    getDynamicCreditCost("PRESENTER_NARRATE_PER_SLIDE"),
+  ]);
   const maxCharge = BASE + deck.slides.length * PER_SLIDE;
   const charge = await creditService.deductCredits({ userId: session.userId, type: "USAGE", amount: maxCharge, description: "Training Room: presenter narration", referenceType: "presenter_narration", referenceId: mat.sessionId });
   if (!charge.success) return err(charge.error || "Not enough credits to generate narration", 402);

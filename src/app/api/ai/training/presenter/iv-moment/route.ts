@@ -11,6 +11,7 @@ import { parseDeck } from "@/lib/training/deck";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { downloadS3ObjectToBuffer, uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
+import { getDynamicCreditCost, DEFAULT_CREDIT_COSTS } from "@/lib/credits/costs";
 import { nanoid } from "nanoid";
 import type { TrainingDeck } from "@/lib/training/types";
 
@@ -18,8 +19,9 @@ const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
 
 export const maxDuration = 300;
-const MOMENT_COST = 90; // one short "talking presenter" video render (xAI/Grok — per-render, NO avatar cap)
-export function ivMomentCost(): number { return MOMENT_COST; }
+// Sync estimate helper for the client — returns the table default (the live
+// charge uses the admin-tunable getDynamicCreditCost("PRESENTER_MOMENT_VIDEO")).
+export function ivMomentCost(): number { return DEFAULT_CREDIT_COSTS.PRESENTER_MOMENT_VIDEO; }
 
 // A talking-presenter clip: the person from their photo, speaking to camera. The clip is
 // rendered SILENT then the CLONED voice is muxed in, so it plays as a real talking video.
@@ -91,6 +93,8 @@ export async function POST(request: NextRequest) {
   const nextTitle = slideIdx >= 0 ? deck.slides.slice(slideIdx + 1).find((s) => !s.presenterMoment && !s.intro && !s.qa && !s.quiz)?.title : undefined;
   const script = scriptFor(which, presenter.name, nextTitle);
 
+  // Admin-tunable; one 8s Grok video_standard clip (was a hardcoded 90).
+  const MOMENT_COST = await getDynamicCreditCost("PRESENTER_MOMENT_VIDEO");
   const charge = await creditService.deductCredits({ userId: session.userId, type: "USAGE", amount: MOMENT_COST, description: `Training Room: presenter ${which} video`, referenceType: "presenter_iv_moment", referenceId: mat.id });
   if (!charge.success) return err(charge.error || "Not enough credits to generate that", 402);
 

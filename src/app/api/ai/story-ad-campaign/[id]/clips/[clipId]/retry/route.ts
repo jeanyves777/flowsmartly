@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
-import { creditsPerClip, getCampaign, retrySingleClip } from "@/lib/story-ad-campaign";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { getCampaign, retrySingleClip } from "@/lib/story-ad-campaign";
 
 export async function POST(
   request: NextRequest,
@@ -30,7 +31,13 @@ export async function POST(
   // scene renders locally (ffmpeg) with no provider cost, so it's always free.
   const isAdmin = !!session.adminId;
   const isOutro = clip.isOutro === true;
-  const cost = creditsPerClip(current.state.clipLength);
+  // Per-provider dynamic price (admin-tunable), matching a normal clip render —
+  // replaces a flat clipLength*10 that overcharged (8s=80 vs the table's 30-60).
+  const providerCostKey =
+    current.state.provider === "veo3" ? "AI_VIDEO_STUDIO"
+    : current.state.provider === "cheap" ? "AI_VIDEO_CHEAP"
+    : "AI_VIDEO_LITE";
+  const cost = await getDynamicCreditCost(providerCostKey);
 
   if (!isAdmin && !isOutro) {
     const user = await prisma.user.findUnique({
