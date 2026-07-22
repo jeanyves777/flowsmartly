@@ -8,22 +8,40 @@
  * process reads like a board the presenter fills in while they talk. Live-draw goes
  * one element at a time and the current mark visibly draws itself on. [[training-studio]]
  */
-import type { CSSProperties } from "react";
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils/cn";
 import type { BoardItem, DeckSlide } from "@/lib/training/types";
 
-/** A PHOTOREAL hand + blue marker (a real PNG) that TRAVELS along `d` (the stroke) as it draws,
- *  then fades. The marker's nib sits at ~13%/9% of the image, so `offset-anchor` pins the tip to
- *  the stroke; the hand + forearm trail from the bottom-right — coming up from the board. */
-function followHand(d: string) {
-  return (
-    <image
-      href="/training/draw-hand.png"
-      width={392}
-      height={261}
-      style={{ offsetPath: `path('${d}')`, offsetAnchor: "13% 9%", offsetRotate: "0deg", animation: "ld-follow .7s ease forwards, ld-handfade .3s ease .78s forwards", filter: "drop-shadow(0 10px 14px rgba(0,0,0,.28))" } as CSSProperties}
-    />
-  );
+// The hand PNG is 392×261 viewBox units; the marker's ink NIB sits at 13.35%/8.2% of it
+// (measured). We pin THAT exact point to the current point on the stroke each frame so the pen
+// end rides ON the line, then fade the hand out at the end. Deterministic — no offset-anchor.
+const HAND_W = 392, HAND_H = 261, NIB_X = HAND_W * 0.1335, NIB_Y = HAND_H * 0.082;
+
+/** A PHOTOREAL hand + blue marker that DRAWS along `d`: its pen nib travels the stroke as it's
+ *  drawn (getPointAtLength per frame), the hand + forearm trailing up from the bottom-right. */
+function DrawingHand({ d }: { d: string }) {
+  const ref = useRef<SVGImageElement | null>(null);
+  useEffect(() => {
+    const img = ref.current, svg = img?.ownerSVGElement;
+    if (!img || !svg) return;
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", d); p.setAttribute("visibility", "hidden"); svg.appendChild(p);
+    let len = 0; try { len = p.getTotalLength(); } catch { len = 0; }
+    if (!len) { p.remove(); return; }
+    const DUR = 700; let raf = 0, t0: number | null = null;
+    const frame = (ts: number) => {
+      if (t0 === null) t0 = ts;
+      const k = Math.min(1, (ts - t0) / DUR);
+      const pt = p.getPointAtLength(len * k);
+      img.setAttribute("x", String(pt.x - NIB_X));
+      img.setAttribute("y", String(pt.y - NIB_Y));
+      img.style.opacity = k < 0.9 ? "1" : String(Math.max(0, (1 - k) / 0.1));
+      if (k < 1) raf = requestAnimationFrame(frame);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => { cancelAnimationFrame(raf); p.remove(); };
+  }, [d]);
+  return <image ref={ref} href="/training/draw-hand.png" width={HAND_W} height={HAND_H} x={-2000} y={-2000} style={{ filter: "drop-shadow(0 10px 14px rgba(0,0,0,.28))" }} />;
 }
 
 /** Strip markdown at render so decks built before the generator was fixed don't show
@@ -472,7 +490,7 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
                 return (
                   <g key={`${it.id}-${isNow}`}>
                     <ellipse cx={cx} cy={cy} rx={rx} ry={ry} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} style={draw} />
-                    {isNow ? followHand(ep) : null}
+                    {isNow ? <DrawingHand d={ep} /> : null}
                   </g>
                 );
               }
@@ -481,7 +499,7 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
                 <g key={`${it.id}-${isNow}`}>
                   <line x1={x1} y1={y1} x2={x2} y2={y2} pathLength={1} stroke={it.color} strokeWidth={sw} strokeLinecap="round" style={draw} />
                   <polyline points={`${x2 - ah * Math.cos(ang - Math.PI / 6)},${y2 - ah * Math.sin(ang - Math.PI / 6)} ${x2},${y2} ${x2 - ah * Math.cos(ang + Math.PI / 6)},${y2 - ah * Math.sin(ang + Math.PI / 6)}`} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={draw} />
-                  {isNow ? followHand(`M ${x1} ${y1} L ${x2} ${y2}`) : null}
+                  {isNow ? <DrawingHand d={`M ${x1} ${y1} L ${x2} ${y2}`} /> : null}
                 </g>
               );
             }
