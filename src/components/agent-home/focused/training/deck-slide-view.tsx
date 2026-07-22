@@ -10,7 +10,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { cn } from "@/lib/utils/cn";
-import type { BoardItem, DeckSlide, VisualStyle } from "@/lib/training/types";
+import type { BoardItem, DeckSlide, VisualStyle, HandStyleSettings } from "@/lib/training/types";
 
 type AnnStyle = NonNullable<DeckSlide["annotate"]>;
 /** The circle / underline path (in host pixels) around a measured phrase box. */
@@ -34,7 +34,7 @@ function annPath(m: { x: number; y: number; w: number; h: number }, style: AnnSt
 
 /** Overlay that measures the slide's highlighted phrase ([data-hl]) and has the photoreal hand
  *  CIRCLE / UNDERLINE / POINT AT it (or leaves the CSS marker for "highlight"), when `active`. */
-function HandAnnotate({ hostRef, active, style }: { hostRef: RefObject<HTMLDivElement | null>; active: boolean; style: AnnStyle }) {
+function HandAnnotate({ hostRef, active, style, ink, showHand }: { hostRef: RefObject<HTMLDivElement | null>; active: boolean; style: AnnStyle; ink?: string; showHand?: boolean }) {
   const [m, setM] = useState<{ W: number; H: number; x: number; y: number; w: number; h: number } | null>(null);
   const imgRef = useRef<SVGImageElement | null>(null);
   useLayoutEffect(() => {
@@ -82,8 +82,8 @@ function HandAnnotate({ hostRef, active, style }: { hostRef: RefObject<HTMLDivEl
         <image href="/training/point-hand.png" width={hw} height={hh} x={m.x + m.w / 2 - hw * 0.205} y={m.y - hh * 0.067} style={{ animation: "an-point .5s ease forwards", filter: "drop-shadow(0 8px 12px rgba(0,0,0,.28))" } as CSSProperties} />
       ) : (
         <>
-          <path d={annPath(m, style)} pathLength={1} fill="none" stroke="#0e7db8" strokeWidth={Math.max(2, m.h * 0.16)} strokeLinecap="round" strokeLinejoin="round" style={{ strokeDasharray: 1, strokeDashoffset: 1, animation: "an-draw .85s ease forwards" } as CSSProperties} />
-          <image ref={imgRef} href="/training/draw-hand.png" x={-4000} y={-4000} style={{ filter: "drop-shadow(0 8px 12px rgba(0,0,0,.28))" } as CSSProperties} />
+          <path d={annPath(m, style)} pathLength={1} fill="none" stroke={ink || "#0e7db8"} strokeWidth={Math.max(2, m.h * 0.16)} strokeLinecap="round" strokeLinejoin="round" style={{ strokeDasharray: 1, strokeDashoffset: 1, animation: "an-draw .85s ease forwards" } as CSSProperties} />
+          {showHand !== false ? <image ref={imgRef} href="/training/draw-hand.png" x={-4000} y={-4000} style={{ filter: "drop-shadow(0 8px 12px rgba(0,0,0,.28))" } as CSSProperties} /> : null}
         </>
       )}
     </svg>
@@ -168,7 +168,7 @@ function styleVars(key?: VisualStyle | null): CSSProperties {
   return { "--sbg1": p.bg1, "--sbg2": p.bg2, "--sa": p.sa, "--sa2": p.sa2, "--sat": p.sat, "--sfg": p.fg ?? "255 255 255", fontFamily: p.font } as CSSProperties;
 }
 
-export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: DeckSlide; reveal?: number; className?: string; styleKey?: VisualStyle | null }) {
+export function DeckSlideView({ slide, reveal, className, styleKey, hand }: { slide: DeckSlide; reveal?: number; className?: string; styleKey?: VisualStyle | null; hand?: HandStyleSettings | null }) {
   // `reveal` = how many steps are shown (undefined = show everything, e.g. a builder
   // thumbnail). Drives the progressive "drawing as you talk" reveal.
   const hostRef = useRef<HTMLDivElement | null>(null); // slide container, so the hand can circle a keyword
@@ -283,7 +283,8 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
     const on = annStyle === "highlight";
     return <>{t.slice(0, i)}<span data-hl className={on ? "rounded-[.15em] bg-cyan-300/40 box-decoration-clone px-[.12em] text-[rgb(var(--sfg))]" : undefined}>{t.slice(i, i + hlPhrase.length)}</span>{t.slice(i + hlPhrase.length)}</>;
   };
-  const ann = hlPhrase ? <HandAnnotate hostRef={hostRef} active={annActive} style={annStyle} /> : null;
+  const inkColor = hand?.color === "brand" ? "var(--sa)" : hand?.color;
+  const ann = hlPhrase ? <HandAnnotate hostRef={hostRef} active={annActive} style={annStyle} ink={inkColor} showHand={hand?.showHand} /> : null;
 
   // A DEMONSTRATION VIDEO slide — a short generated moving illustration beside the teaching text.
   if (slide.videoUrl || (slide.visualType === "video" && slide.videoPrompt)) {
