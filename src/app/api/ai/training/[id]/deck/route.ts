@@ -48,6 +48,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     materialId?: string;
     regenerateSlideId?: string;
     instruction?: string;
+    /** insert a NEW AI-generated slide right after this slide id (fits it into the deck). */
+    insertAfterSlideId?: string;
     /** rebuild the WHOLE deck in place (new content-aware layouts), keeping the presenter. */
     rebuild?: boolean;
   };
@@ -126,6 +128,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck), pages: deck.slides.length } });
     const dto = await getSessionDTO(id);
     return NextResponse.json({ success: true, data: { session: dto, materialId: mat.id } });
+  }
+
+  // ---- insert a NEW slide that fits the deck (from a plain-words prompt) ----
+  if (body.materialId && body.insertAfterSlideId) {
+    const mat = await prisma.trainingMaterial.findFirst({ where: { id: body.materialId, sessionId: id } });
+    if (!mat?.deck) return err("That deck no longer exists", 404);
+    const deck = parseDeck(mat.deck);
+    const after = deck.slides.findIndex((s) => s.id === body.insertAfterSlideId);
+    if (after < 0) return err("That slide isn't in the deck", 404);
+    const nearby = deck.slides.slice(Math.max(0, after - 1), after + 2).map((s) => s.title).filter(Boolean).join(" → ");
+    const topic = deck.slides.map((s) => s.title).filter(Boolean).slice(0, 8).join("; ");
+    const instr = (body.instruction || "").trim();
+    const one = await generateDeck({
+      brief: `${instr || "Add one more helpful teaching slide that advances the training."}. This is ONE NEW slide to INSERT into an existing training presentation, right after the slide titled "${deck.slides[after].title || "(untitled)"}". The training covers: ${topic}. Nearby slides: ${nearby}. Make it fit NATURALLY into the flow — match the tone and depth, and do NOT repeat the neighbouring slides.`,
+      sessionId: id,
+      wantDoc: true,
+      wantWhiteboard: false,
+      wantVisuals: body.wantVisuals !== false,
+      slideCount: 3,
+      variation: true,
+    });
+    const fresh = one?.slides.find((s) => s.type === "doc") ?? one?.slides[0];
+    if (!fresh) return err("Couldn't create that slide — try again", 502);
+    const newId = `s_${Math.random().toString(36).slice(2, 10)}`;
+    deck.slides.splice(after + 1, 0, { ...fresh, id: newId });
+    await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck), pages: deck.slides.length } });
+    const dto = await getSessionDTO(id);
+    return NextResponse.json({ success: true, data: { session: dto, materialId: mat.id, newSlideId: newId } });
   }
 
   // ---- generate a fresh deck ----

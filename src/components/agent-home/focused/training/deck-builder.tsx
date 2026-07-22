@@ -420,11 +420,35 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     } finally { setMediaBusy(null); }
   };
 
+  // insert a blank slide right AFTER the selected one (never at the top).
   const addSlide = () => {
     if (!deck) return;
+    const at = Math.min(Math.max(page, 0), deck.slides.length - 1) + 1;
     const s: DeckSlide = { id: uid("s"), type: "doc", title: "New slide", subtitle: "", bullets: ["Point one"], visual: { kind: "emoji", emoji: "✨" } };
-    const next = { ...deck, slides: [...deck.slides.slice(0, page + 1), s, ...deck.slides.slice(page + 1)] };
-    setDeck(next); persist(next); setPage(page + 1);
+    const next = { ...deck, slides: [...deck.slides.slice(0, at), s, ...deck.slides.slice(at)] };
+    setDeck(next); persist(next); setPage(at);
+  };
+
+  // AI new slide — the agent writes a slide that fits the training, inserted after the selected one.
+  const [newSlideOpen, setNewSlideOpen] = useState(false);
+  const [newSlidePrompt, setNewSlidePrompt] = useState("");
+  const [newSlideBusy, setNewSlideBusy] = useState(false);
+  const genNewSlide = async () => {
+    if (!mat || !slide) return;
+    setNewSlideBusy(true);
+    try {
+      const j = await fetch(`/api/ai/training/${sessionId}/deck`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ materialId: mat.id, insertAfterSlideId: slide.id, instruction: newSlidePrompt.trim() || undefined }),
+      }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't add the slide", variant: "destructive" }); return; }
+      const s = j.data.session as TrainingSessionDTO;
+      onSession(s);
+      const fresh = s.materials.find((m) => m.id === mat.id)?.deck as TrainingDeck | undefined;
+      if (fresh) setDeck(fresh);
+      setNewSlideOpen(false); setNewSlidePrompt(""); setPage(page + 1);
+      toast({ title: "Slide added", description: narratedCount > 0 ? "Regenerate narration to voice the new slide." : "It fits right into your training." });
+    } finally { setNewSlideBusy(false); }
   };
   const delSlide = () => {
     if (!deck || !slide || deck.slides.length <= 1) return;
@@ -491,7 +515,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               <span className="absolute left-1 top-1 grid h-4 min-w-4 place-items-center rounded bg-black/55 px-1 text-[9px] font-extrabold text-white">{i + 1}</span>
             </button>
           ))}
-          <button onClick={addSlide} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-[11px] font-bold text-muted-foreground hover:border-brand-500 hover:text-brand-400"><Plus className="h-3.5 w-3.5" /> Add slide</button>
+          <button onClick={() => { setNewSlidePrompt(""); setNewSlideOpen(true); }} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-[11px] font-bold text-muted-foreground hover:border-brand-500 hover:text-brand-400"><Plus className="h-3.5 w-3.5" /> Add slide</button>
         </div>
       </div>
 
@@ -679,6 +703,29 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       />
 
       {/* REGENERATE ONE SLIDE — pick a layout + the hand animation style. */}
+      {newSlideOpen ? (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4" onClick={() => { if (!newSlideBusy) setNewSlideOpen(false); }}>
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 border-b border-border px-5 py-4"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Plus className="h-5 w-5" /></span><div className="min-w-0"><b className="block text-[15px]">Add a slide</b><span className="text-[11.5px] text-muted-foreground">Inserted after slide {page + 1} and fitted to your training.</span></div></div>
+            <div className="space-y-3 p-5">
+              <label className="block"><span className="mb-1 block text-[10.5px] font-extrabold uppercase tracking-wide text-muted-foreground">What should this slide cover?</span>
+                <textarea autoFocus value={newSlidePrompt} onChange={(e) => setNewSlidePrompt(e.target.value)} placeholder="e.g. a real-world example of tool use · a comparison of X vs Y · a quick recap of the key points…" className="min-h-[84px] w-full resize-y rounded-lg border border-border bg-muted px-2.5 py-2 text-[12px] outline-none focus:border-brand-500" />
+              </label>
+              {narratedCount > 0 ? (
+                <div className="flex gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-[11.5px] leading-snug text-amber-200"><span className="mt-[1px]">⚠️</span><span>Narration is already generated for {narratedCount} slide{narratedCount === 1 ? "" : "s"}. After adding this slide you’ll need to <b>regenerate the full narration</b> so it’s voiced and the timing stays in sync.</span></div>
+              ) : null}
+            </div>
+            <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3.5">
+              <button onClick={() => { setNewSlideOpen(false); addSlide(); }} disabled={newSlideBusy} className="rounded-lg border border-border px-3 py-2 text-[12px] font-bold hover:border-brand-500 disabled:opacity-50">Blank slide</button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setNewSlideOpen(false)} disabled={newSlideBusy} className="rounded-lg border border-border px-3.5 py-2 text-[12px] font-bold hover:border-brand-500 disabled:opacity-50">Cancel</button>
+                <button onClick={() => void genNewSlide()} disabled={newSlideBusy} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12px] font-extrabold text-white disabled:opacity-60">{newSlideBusy ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Creating…</> : <><Sparkles className="h-3.5 w-3.5" /> Generate slide</>}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {aiVideoOpen && slide ? (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4" onClick={() => setAiVideoOpen(false)}>
           <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
