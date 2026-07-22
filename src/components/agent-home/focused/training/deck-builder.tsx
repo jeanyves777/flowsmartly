@@ -44,7 +44,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const [wantDoc, setWantDoc] = useState(true);
   const [wantWb, setWantWb] = useState(true);
   const [wantVis, setWantVis] = useState(true);
-  const [busy, setBusy] = useState<null | "gen" | "regen" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments">(null);
+  const [busy, setBusy] = useState<null | "gen" | "regen" | "rebuild" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments">(null);
+  const [rebuildOpen, setRebuildOpen] = useState(false);
 
   // local working copy of the deck (edits autosave)
   const [deck, setDeck] = useState<TrainingDeck | null>(mat?.deck ?? null);
@@ -279,6 +280,25 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     } finally { setBusy(null); }
   };
 
+  // Rebuild the WHOLE deck — re-run the generator across all slides (new content-aware layouts),
+  // keeping the presenter. Narration/moment videos reset (new slides), so re-narrate after.
+  const rebuildAll = async () => {
+    if (!mat) return;
+    setRebuildOpen(false);
+    setBusy("rebuild");
+    try {
+      const j = await fetch(`/api/ai/training/${sessionId}/deck`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id, rebuild: true }),
+      }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't rebuild the presentation", variant: "destructive" }); return; }
+      const s = j.data.session as TrainingSessionDTO;
+      onSession(s);
+      const fresh = s.materials.find((m) => m.id === mat.id)?.deck;
+      if (fresh) { setDeck(fresh); setPage(0); }
+      toast({ title: "Presentation rebuilt", description: "New content-aware layouts across the deck — regenerate narration to voice the new slides." });
+    } finally { setBusy(null); }
+  };
+
   const addSlide = () => {
     if (!deck) return;
     const s: DeckSlide = { id: uid("s"), type: "doc", title: "New slide", subtitle: "", bullets: ["Point one"], visual: { kind: "emoji", emoji: "✨" } };
@@ -358,8 +378,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       <div className="flex min-w-0 flex-col">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
           <span className="text-[12px] font-bold">{slide?.type === "livedraw" ? "Live Draw" : slide?.type === "whiteboard" ? "Whiteboard slide" : "Document slide"}{slide?.steps && slide.steps > 1 ? <span className="ms-1.5 font-normal text-muted-foreground">· {slide.steps} reveals</span> : null}</span>
-          <button onClick={regenerate} disabled={busy === "regen"} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500">
+          <button onClick={regenerate} disabled={busy !== null} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500 disabled:opacity-50">
             {busy === "regen" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Regenerate slide
+          </button>
+          <button onClick={() => setRebuildOpen(true)} disabled={busy !== null} title="Rebuild the whole deck with the new content-aware layouts" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
+            {busy === "rebuild" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Rebuild all
           </button>
           <div className="ms-auto flex items-center gap-1.5">
             <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page <= 0} className="grid h-7 w-7 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
@@ -461,6 +484,20 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
         momentReady={deck.slides.filter((s) => s.presenterMoment && s.momentVideoUrl).length}
       />
 
+      {/* REBUILD — regenerate the whole deck with the new content-aware layouts. */}
+      {rebuildOpen ? (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4" onClick={() => setRebuildOpen(false)}>
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 px-5 pt-5"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Sparkles className="h-5 w-5" /></span><b className="text-[15px]">Rebuild the whole presentation?</b></div>
+            <p className="px-5 py-3 text-[12.5px] leading-relaxed text-muted-foreground">The agent regenerates every slide with the new content-aware layouts — hero, comparison, data-spotlight, live-draw and more — keeping your AI presenter. Your narration and talking videos reset for the new slides, so regenerate them after.</p>
+            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3.5">
+              <button onClick={() => setRebuildOpen(false)} className="rounded-lg border border-border px-3.5 py-2 text-[12px] font-bold hover:border-brand-500">Cancel</button>
+              <button onClick={() => void rebuildAll()} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12px] font-extrabold text-white"><Sparkles className="h-3.5 w-3.5" /> Rebuild</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* PREPARE PRESENTER — a large modal that generates every on-screen asset (voice, loop,
           intro, outro, talking moments) with progress + preview. "Start meeting" is locked
           until they're all ready. */}
@@ -528,7 +565,7 @@ function PresenterBar({ presenter, active, loopUrl, slideCount, narratedCount, b
   loopUrl: string | null;
   slideCount: number;
   narratedCount: number;
-  busy: null | "gen" | "regen" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments";
+  busy: null | "gen" | "regen" | "rebuild" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments";
   hasOutro: boolean;
   momentTotal: number;
   momentReady: number;

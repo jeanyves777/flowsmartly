@@ -8,8 +8,27 @@
  * process reads like a board the presenter fills in while they talk. Live-draw goes
  * one element at a time and the current mark visibly draws itself on. [[training-studio]]
  */
+import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils/cn";
 import type { BoardItem, DeckSlide } from "@/lib/training/types";
+
+/** A stylized hand + pen whose NIB sits at the group origin (0,0) — dropped onto a stroke's
+ *  path so it appears to draw the mark. Skin tone via the `--ld-skin` custom property. */
+function HandPen({ color }: { color: string }) {
+  return (
+    <g>
+      <path d="M0 0 L6 -4 L46 -56 L54 -50 L14 2 Z" fill="#403a54" stroke="#241f33" strokeWidth={1} />
+      <path d="M46 -56 L54 -50 L61 -58 Q64 -62 59 -66 L52 -61 Z" fill={color} />
+      <path d="M8 4 Q22 -5 31 5 Q46 20 33 39 Q18 55 -5 46 Q-20 38 -15 22 Q-11 8 8 4 Z" fill="var(--ld-skin,#e7b48a)" stroke="rgba(0,0,0,.16)" strokeWidth={1.2} />
+      <path d="M12 6 Q24 0 31 8" fill="none" stroke="rgba(0,0,0,.1)" strokeWidth={1.5} />
+      <circle cx="0" cy="0" r="2" fill="#111" />
+    </g>
+  );
+}
+/** The hand element that TRAVELS along `d` (the stroke) as it draws, then fades. */
+function followHand(d: string, color: string) {
+  return <g style={{ offsetPath: `path('${d}')`, offsetRotate: "0deg", animation: "ld-follow .7s ease forwards, ld-handfade .3s ease .78s forwards" } as CSSProperties}><HandPen color={color} /></g>;
+}
 
 /** Strip markdown at render so decks built before the generator was fixed don't show
  *  literal `**bold**` / `_italics_` / list markers on the slide. */
@@ -293,7 +312,7 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
   // ever hidden — the reveal just fades elements in where they belong.
   return (
     <div className="absolute inset-0 overflow-hidden">
-      <style>{`@keyframes ld-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}@keyframes ld-pop{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:scale(1)}}`}</style>
+      <style>{`@keyframes ld-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}@keyframes ld-pop{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:scale(1)}}@keyframes ld-follow{from{offset-distance:0%}to{offset-distance:100%}}@keyframes ld-handfade{from{opacity:1}to{opacity:0}}`}</style>
       <svg viewBox={`0 0 ${CW} ${H}`} preserveAspectRatio="xMidYMid meet" className="absolute inset-0 h-full w-full">
         <g>
           {shown.map((it) => {
@@ -308,13 +327,21 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
                 return <rect key={`${it.id}-${isNow}`} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={w} height={h} rx={Math.min(15, h / 2.4)} fill="#ffffff" stroke={it.color} strokeWidth={sw} style={pop} />;
               }
               if (it.shape === "ellipse") {
-                return <ellipse key={`${it.id}-${isNow}`} cx={(x1 + x2) / 2} cy={(y1 + y2) / 2} rx={Math.abs(x2 - x1) / 2} ry={Math.abs(y2 - y1) / 2} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} style={draw} />;
+                const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;
+                const ep = `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx - rx} ${cy}`;
+                return (
+                  <g key={`${it.id}-${isNow}`}>
+                    <ellipse cx={cx} cy={cy} rx={rx} ry={ry} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} style={draw} />
+                    {isNow ? followHand(ep, it.color) : null}
+                  </g>
+                );
               }
               const ang = Math.atan2(y2 - y1, x2 - x1), ah = Math.max(12, sw * 4);
               return (
                 <g key={`${it.id}-${isNow}`}>
                   <line x1={x1} y1={y1} x2={x2} y2={y2} pathLength={1} stroke={it.color} strokeWidth={sw} strokeLinecap="round" style={draw} />
                   <polyline points={`${x2 - ah * Math.cos(ang - Math.PI / 6)},${y2 - ah * Math.sin(ang - Math.PI / 6)} ${x2},${y2} ${x2 - ah * Math.cos(ang + Math.PI / 6)},${y2 - ah * Math.sin(ang + Math.PI / 6)}`} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={draw} />
+                  {isNow ? followHand(`M ${x1} ${y1} L ${x2} ${y2}`, it.color) : null}
                 </g>
               );
             }
