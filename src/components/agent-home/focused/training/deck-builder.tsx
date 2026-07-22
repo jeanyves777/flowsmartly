@@ -287,6 +287,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const [regenInstr, setRegenInstr] = useState("");
   const [regenLayout, setRegenLayout] = useState<string>("auto");
   const [regenAnn, setRegenAnn] = useState<NonNullable<DeckSlide["annotate"]> | "none">("circle");
+  const [regenDraw, setRegenDraw] = useState<"keep" | "live" | "instant">("keep"); // whiteboard/livedraw: how it's drawn on
   const regenerate = async () => {
     if (!mat || !slide) return;
     setRegenOpen(false);
@@ -308,12 +309,17 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
           const w = src.split(/\s+/).slice(0, 3).join(" ").replace(/[:.,;]+$/, "");
           return w.length >= 3 ? w : undefined;
         };
-        const next: TrainingDeck = { ...fresh, slides: fresh.slides.map((x) => x.id === slide.id ? {
-          ...x,
-          ...(regenLayout !== "auto" ? { layout: regenLayout as DeckSlide["layout"] } : {}),
-          annotate: regenAnn === "none" ? undefined : regenAnn,
-          highlight: regenAnn === "none" ? x.highlight : (x.highlight || deriveHl(x)),
-        } : x) };
+        const isBoard = slide.type === "whiteboard" || slide.type === "livedraw";
+        const next: TrainingDeck = { ...fresh, slides: fresh.slides.map((x) => {
+          if (x.id !== slide.id) return x;
+          if (isBoard) return { ...x, ...(regenDraw === "live" ? { type: "livedraw" as const } : regenDraw === "instant" ? { type: "whiteboard" as const } : {}) };
+          return {
+            ...x,
+            ...(regenLayout !== "auto" ? { layout: regenLayout as DeckSlide["layout"] } : {}),
+            annotate: regenAnn === "none" ? undefined : regenAnn,
+            highlight: regenAnn === "none" ? x.highlight : (x.highlight || deriveHl(x)),
+          };
+        }) };
         setDeck(next); persist(next);
       }
       toast({ title: "Slide regenerated" });
@@ -434,7 +440,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       <div className="flex min-w-0 flex-col">
         <div className="flex items-center gap-2 border-b border-border px-3 py-2">
           <span className="text-[12px] font-bold">{slide?.type === "livedraw" ? "Live Draw" : slide?.type === "whiteboard" ? "Whiteboard slide" : "Document slide"}{slide?.steps && slide.steps > 1 ? <span className="ms-1.5 font-normal text-muted-foreground">· {slide.steps} reveals</span> : null}</span>
-          <button onClick={() => { if (slide?.type === "doc") { setRegenInstr(""); setRegenLayout("auto"); setRegenAnn((slide?.annotate as NonNullable<DeckSlide["annotate"]>) ?? "circle"); setRegenOpen(true); } else void regenerate(); }} disabled={busy !== null} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500 disabled:opacity-50">
+          <button onClick={() => { setRegenInstr(""); setRegenLayout("auto"); setRegenAnn((slide?.annotate as NonNullable<DeckSlide["annotate"]>) ?? "circle"); setRegenDraw("keep"); setRegenOpen(true); }} disabled={busy !== null} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500 disabled:opacity-50">
             {busy === "regen" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Regenerate slide
           </button>
           <button onClick={() => setRebuildOpen(true)} disabled={busy !== null} title="Rebuild the whole deck with the new content-aware layouts" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
@@ -577,25 +583,38 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       {regenOpen && slide ? (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-black/70 p-4" onClick={() => setRegenOpen(false)}>
           <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-3 border-b border-border px-5 py-4"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><RefreshCw className="h-5 w-5" /></span><div className="min-w-0"><b className="block text-[15px]">Regenerate this slide</b><span className="text-[11.5px] text-muted-foreground">Choose a layout and how the presenter marks it.</span></div></div>
+            <div className="flex items-center gap-3 border-b border-border px-5 py-4"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><RefreshCw className="h-5 w-5" /></span><div className="min-w-0"><b className="block text-[15px]">Regenerate this slide</b><span className="text-[11.5px] text-muted-foreground">{slide.type === "doc" ? "Rewrite it, and choose a layout + how the presenter marks it." : slide.type === "whiteboard" || slide.type === "livedraw" ? "Rewrite the board, and choose how it's drawn on." : "Rewrite this slide."}</span></div></div>
             <div className="space-y-3.5 p-5">
               <label className="block"><span className="mb-1 block text-[10.5px] font-extrabold uppercase tracking-wide text-muted-foreground">What to change (optional)</span>
                 <textarea value={regenInstr} onChange={(e) => setRegenInstr(e.target.value)} placeholder="e.g. make it a comparison, add a real example, simpler language…" className="min-h-[56px] w-full resize-y rounded-lg border border-border bg-muted px-2.5 py-2 text-[12px] outline-none focus:border-brand-500" />
               </label>
-              <div><span className="mb-1.5 block text-[10.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Layout</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {[["auto", "Auto"], ["hero_statement", "Hero"], ["image_explanation", "Image + text"], ["data_spotlight", "Big stat"], ["key_takeaways", "Takeaways"], ["comparison_table", "Comparison"], ["problem_solution_result", "Problem→Solution"], ["step_process", "Steps"], ["question_answer", "Q&A"], ["case_study", "Case study"], ["concept_3d_callouts", "3D callouts"], ["quote", "Quote"]].map(([v, lbl]) => (
-                    <button key={v} onClick={() => setRegenLayout(v)} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-bold", regenLayout === v ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}>{lbl}</button>
-                  ))}
+              {slide.type === "doc" ? (
+                <>
+                  <div><span className="mb-1.5 block text-[10.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Layout</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[["auto", "Auto"], ["hero_statement", "Hero"], ["image_explanation", "Image + text"], ["data_spotlight", "Big stat"], ["key_takeaways", "Takeaways"], ["comparison_table", "Comparison"], ["problem_solution_result", "Problem→Solution"], ["step_process", "Steps"], ["question_answer", "Q&A"], ["case_study", "Case study"], ["concept_3d_callouts", "3D callouts"], ["quote", "Quote"]].map(([v, lbl]) => (
+                        <button key={v} onClick={() => setRegenLayout(v)} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-bold", regenLayout === v ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}>{lbl}</button>
+                      ))}
+                    </div>
+                  </div>
+                  <div><span className="mb-1.5 block text-[10.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Hand animation (on the key phrase)</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[["circle", "✍️ Circle"], ["underline", "＿ Underline"], ["highlight", "🖍️ Highlight"], ["point", "👉 Pointing hand"], ["none", "None"]].map(([v, lbl]) => (
+                        <button key={v} onClick={() => setRegenAnn(v as NonNullable<DeckSlide["annotate"]> | "none")} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-bold", regenAnn === v ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}>{lbl}</button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : slide.type === "whiteboard" || slide.type === "livedraw" ? (
+                <div><span className="mb-1.5 block text-[10.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Hand drawing</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[["keep", "Keep current"], ["live", "✍️ Live hand draws it"], ["instant", "Appears instantly"]].map(([v, lbl]) => (
+                      <button key={v} onClick={() => setRegenDraw(v as "keep" | "live" | "instant")} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-bold", regenDraw === v ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}>{lbl}</button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">Live drawing has the presenter’s hand draw the diagram on-screen as they narrate it. Preview it after.</p>
                 </div>
-              </div>
-              <div><span className="mb-1.5 block text-[10.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Hand animation (on the key phrase)</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {[["circle", "✍️ Circle"], ["underline", "＿ Underline"], ["highlight", "🖍️ Highlight"], ["point", "👉 Pointing hand"], ["none", "None"]].map(([v, lbl]) => (
-                    <button key={v} onClick={() => setRegenAnn(v as NonNullable<DeckSlide["annotate"]> | "none")} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-bold", regenAnn === v ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}>{lbl}</button>
-                  ))}
-                </div>
-              </div>
+              ) : null}
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3.5">
               <button onClick={() => setRegenOpen(false)} className="rounded-lg border border-border px-3.5 py-2 text-[12px] font-bold hover:border-brand-500">Cancel</button>
