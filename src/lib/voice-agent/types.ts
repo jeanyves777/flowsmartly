@@ -541,6 +541,7 @@ export interface TranscriptTurn {
 
 export interface AgentCall {
   id: string;
+  channel?: string; // phone | whatsapp | chat | web
   direction: "inbound" | "outbound";
   fromE164: string;
   toE164: string;

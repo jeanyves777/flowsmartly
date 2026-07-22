@@ -12,6 +12,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { syncAgentToXai } from "@/lib/voice-agent/agent-sync";
 import { syncElevenLabsAgent } from "@/lib/voice-agent/elevenlabs-sync";
+import { syncElevenLabsConversations } from "@/lib/voice-agent/elevenlabs-calls";
 import { DEFAULT_HOURS, publicNumber, type AgentSkill } from "@/lib/voice-agent/types";
 import { bindNumberToAgent } from "@/lib/voice-agent/xai-phone";
 
@@ -78,6 +79,15 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     }
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const mcpUrl = `${appUrl.replace(/\/$/, "")}/api/voice-agent/mcp/${agent.mcpToken}`;
+
+    // Pull any new ElevenLabs conversations (phone/WhatsApp/chat) into our call
+    // log before reading it, so the Calls tab is always current. Best-effort.
+    await syncElevenLabsConversations({
+      id: agent.id,
+      userId: agent.userId,
+      elevenAgentId: agent.elevenAgentId,
+      phoneNumberId: agent.phoneNumberId,
+    });
 
     const calls = await prisma.voiceCall.findMany({
       where: { agentId: id },

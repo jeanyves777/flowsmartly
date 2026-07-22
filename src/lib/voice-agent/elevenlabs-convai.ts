@@ -100,6 +100,33 @@ export interface ConvaiConversationSummary {
   message_count?: number;
   status?: string;
   call_successful?: string;
+  transcript_summary?: string;
+  call_summary_title?: string;
+  direction?: string;
+  tool_names?: string[];
+  conversation_initiation_source?: string;
+}
+
+export interface ConvaiTranscriptTurn {
+  role?: string; // "user" | "agent"
+  message?: string | null;
+  time_in_call_secs?: number;
+}
+
+export interface ConvaiConversationDetail {
+  conversation_id: string;
+  status?: string;
+  transcript?: ConvaiTranscriptTurn[];
+  metadata?: {
+    start_time_unix_secs?: number;
+    call_duration_secs?: number;
+    termination_reason?: string;
+    conversation_initiation_source?: string;
+    phone_call?: { external_number?: string; phone_number?: string; agent_number?: string; direction?: string } | null;
+    whatsapp?: Record<string, unknown> | null;
+    sms?: Record<string, unknown> | null;
+  };
+  analysis?: { transcript_summary?: string; call_summary_title?: string; call_successful?: string };
 }
 
 export function listConvaiConversations(params: { agentId?: string; pageSize?: number; cursor?: string }) {
@@ -114,7 +141,7 @@ export function listConvaiConversations(params: { agentId?: string; pageSize?: n
 }
 
 export function getConvaiConversation(conversationId: string) {
-  return call<Record<string, unknown>>(`/conversations/${encodeURIComponent(conversationId)}`);
+  return call<ConvaiConversationDetail>(`/conversations/${encodeURIComponent(conversationId)}`);
 }
 
 // (Tools are attached inline in the agent's conversation_config — see
