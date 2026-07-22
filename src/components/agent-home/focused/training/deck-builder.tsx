@@ -295,7 +295,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const [regenInstr, setRegenInstr] = useState("");
   const [regenLayout, setRegenLayout] = useState<string>("auto");
   const [regenAnn, setRegenAnn] = useState<NonNullable<DeckSlide["annotate"]> | "none">("circle");
-  const [regenDraw, setRegenDraw] = useState<"keep" | "live" | "instant">("keep"); // whiteboard/livedraw: how it's drawn on
+  const [regenDraw, setRegenDraw] = useState<"keep" | "live" | "build" | "instant">("keep"); // whiteboard/livedraw: how it's drawn on
   const regenerate = async () => {
     if (!mat || !slide) return;
     setRegenOpen(false);
@@ -320,7 +320,13 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
         const isBoard = slide.type === "whiteboard" || slide.type === "livedraw";
         const next: TrainingDeck = { ...fresh, slides: fresh.slides.map((x) => {
           if (x.id !== slide.id) return x;
-          if (isBoard) return { ...x, ...(regenDraw === "live" ? { type: "livedraw" as const } : regenDraw === "instant" ? { type: "whiteboard" as const } : {}) };
+          if (isBoard) {
+            const boardPatch =
+              regenDraw === "live" ? { type: "livedraw" as const, revealMode: "stroke_by_stroke" as const } :
+              regenDraw === "build" ? { type: "whiteboard" as const, revealMode: "build_diagram" as const } :
+              regenDraw === "instant" ? { type: "whiteboard" as const, revealMode: "all_at_once" as const } : {};
+            return { ...x, ...boardPatch };
+          }
           return {
             ...x,
             ...(regenLayout !== "auto" ? { layout: regenLayout as DeckSlide["layout"] } : {}),
@@ -636,13 +642,15 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   </div>
                 </>
               ) : slide.type === "whiteboard" || slide.type === "livedraw" ? (
-                <div><span className="mb-1.5 block text-[10.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Hand drawing</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[["keep", "Keep current"], ["live", "✍️ Live hand draws it"], ["instant", "Appears instantly"]].map(([v, lbl]) => (
-                      <button key={v} onClick={() => setRegenDraw(v as "keep" | "live" | "instant")} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-bold", regenDraw === v ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}>{lbl}</button>
+                <div><span className="mb-1.5 block text-[10.5px] font-extrabold uppercase tracking-wide text-muted-foreground">How the diagram is drawn</span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[["keep", "Keep current", "No change"], ["live", "✍️ Live hand draws it", "Hand sketches each stroke"], ["build", "🧩 Build piece by piece", "Nodes appear as narrated"], ["instant", "⚡ Show all at once", "Whole diagram at once"]].map(([v, lbl, hint]) => (
+                      <button key={v} onClick={() => setRegenDraw(v as "keep" | "live" | "build" | "instant")} className={cn("rounded-lg border px-2.5 py-2 text-left", regenDraw === v ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500")}>
+                        <b className="block text-[11px] font-bold">{lbl}</b><span className="block text-[9.5px] leading-tight text-muted-foreground">{hint}</span>
+                      </button>
                     ))}
                   </div>
-                  <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">Live drawing has the presenter’s hand draw the diagram on-screen as they narrate it. Preview it after.</p>
+                  <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">A whiteboard slide animates by how its <b className="text-foreground">diagram</b> is drawn on. The circle / box / arrow hand-marks are for the <b className="text-foreground">text on document slides</b> — set those in the Animation Studio. Preview after.</p>
                 </div>
               ) : null}
             </div>
