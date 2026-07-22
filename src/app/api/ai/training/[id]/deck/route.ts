@@ -48,7 +48,56 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     materialId?: string;
     regenerateSlideId?: string;
     instruction?: string;
+    /** rebuild the WHOLE deck in place (new content-aware layouts), keeping the presenter. */
+    rebuild?: boolean;
   };
+
+  // ---- rebuild the ENTIRE deck in place (re-run the generator for all slides) ----
+  if (body.materialId && body.rebuild) {
+    const mat = await prisma.trainingMaterial.findFirst({ where: { id: body.materialId, sessionId: id }, select: { id: true, deck: true } });
+    if (!mat?.deck) return err("That deck no longer exists", 404);
+    const prev = parseDeck(mat.deck);
+    const room = await prisma.trainingSession.findUnique({ where: { id }, select: { plannedMins: true, brief: true } });
+    const brief = (body.brief || room?.brief || "").trim();
+    if (brief.length < 8) return err("Add a session brief first so the agent knows what to rebuild.");
+    const minutes = room?.plannedMins ?? undefined;
+    // keep the original faces/visual choices unless the client overrides them
+    const hadBoard = prev.slides.some((s) => s.type === "whiteboard" || s.type === "livedraw");
+    const hadImg = prev.slides.some((s) => s.visual?.kind === "image");
+
+    const session = await getSession();
+    const n = deckSlideCount(body.slideCount, minutes);
+    const [DECK_BASE, DECK_IMG] = await Promise.all([getDynamicCreditCost("TRAINING_DECK_BASE"), getDynamicCreditCost("TRAINING_DECK_IMAGE")]);
+    const maxCharge = DECK_BASE + ((body.wantVisuals ?? hadImg) ? n * DECK_IMG : 0);
+    if (session) {
+      const charge = await creditService.deductCredits({ userId: session.userId, type: "USAGE", amount: maxCharge, description: "Training Room: rebuild presentation", referenceType: "training_deck", referenceId: id });
+      if (!charge.success) return err(charge.error || "Not enough credits to rebuild the presentation", 402);
+    }
+    const refund = async (amount: number) => { if (session && amount > 0) await creditService.addCredits?.({ userId: session.userId, type: "REFUND", amount, description: "Refund: unused rebuild credits", referenceType: "training_deck", referenceId: id }).catch(() => {}); };
+
+    const fresh = await generateDeck({ brief, sessionId: id, wantDoc: body.wantDoc ?? true, wantWhiteboard: body.wantWhiteboard ?? hadBoard, wantVisuals: body.wantVisuals ?? hadImg, slideCount: body.slideCount, minutes });
+    if (!fresh?.slides.length) { await refund(maxCharge); return err("Couldn't rebuild the deck — try again.", 502); }
+    await refund(maxCharge - (DECK_BASE + deckImageCount(fresh) * DECK_IMG));
+
+    // New slides (new ids) → the old narration + moment videos no longer match, so clear the
+    // voice stamp (the builder will prompt a re-narrate). Keep the presenter + its deck-level
+    // intro/outro/loop videos (still valid) and the deck's visual style / hand defaults.
+    const merged: TrainingDeck = {
+      ...fresh,
+      presenterId: prev.presenterId ?? null,
+      presenterActive: prev.presenterActive ?? false,
+      presenterVideoUrl: prev.presenterVideoUrl ?? null,
+      introVideoUrl: prev.introVideoUrl ?? null,
+      outroVideoUrl: prev.outroVideoUrl ?? null,
+      visualStyle: prev.visualStyle ?? fresh.visualStyle,
+      handStyle: prev.handStyle,
+      voiceKey: null,
+    };
+    const title = fresh.slides[0]?.title?.slice(0, 80) || "Training deck";
+    await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(merged), pages: fresh.slides.length, name: title } });
+    const dto = await getSessionDTO(id);
+    return NextResponse.json({ success: true, data: { session: dto, materialId: mat.id } });
+  }
 
   // ---- regenerate a single slide ----
   if (body.materialId && body.regenerateSlideId) {

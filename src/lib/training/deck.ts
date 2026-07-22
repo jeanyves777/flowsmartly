@@ -125,7 +125,7 @@ export interface AssetBox { x: number; y: number; w: number; h: number }
  *  where a 3D cutout should sit with reason: the empty centre of a cycle, else a clear
  *  top-right corner. Every node is sized to its label so text never overflows. */
 export function diagramToBoard(d: RawSlide["diagram"], perElement = false): { items: BoardItem[]; wide: number; assetBox: AssetBox | null } {
-  const labels = (d?.nodes ?? []).slice(0, 6).map((s) => stripMd(String(s)).slice(0, 44));
+  const labels = (d?.nodes ?? []).slice(0, 5).map((s) => stripMd(String(s)).slice(0, 30).replace(/[:'"].*$/, "").trim() || stripMd(String(s)).slice(0, 24));
   if (!labels.length) return { items: [], wide: 1, assetBox: null };
   const shape = d?.shape ?? "flow";
   const ink = "#1e293b";
@@ -268,7 +268,7 @@ Return JSON: { "title": string, "slides": Slide[] } where Slide is:
   "emoji": one relevant emoji,                   // "doc" slides
   "visualStyle": "photo" | "3d" | "illustration",// "doc" slides — photo for real-world scenes/people, 3d for abstract concepts/systems, illustration otherwise
   "imagePrompt": a vivid prompt for the visual (no text in the image, no watermark), // "doc" slides
-  "diagram": { "shape": "cycle"|"flow"|"tree", "nodes": [3-6 short labels], "edges": [[fromIndex,toIndex]] }, // "whiteboard" and "livedraw" slides
+  "diagram": { "shape": "cycle"|"flow"|"tree", "nodes": [3-5 VERY short node labels — 2-4 WORDS each, ~18 chars max, NO sentences, quotes or colons], "edges": [[fromIndex,toIndex]] }, // whiteboard/livedraw — put the detail in annotations/notes, NOT the node labels
   "annotations": [1-2 very short sticky-note callouts — a key insight, tip or watch-out], // "whiteboard"/"livedraw" slides
   "assetPrompt": a vivid subject for a 3D asset that illustrates this concept (an object/system/scene, no text, no watermark), // "whiteboard"/"livedraw" slides
   "layout": the content layout that best fits THIS teaching moment — one of: hero_statement, big_idea, image_explanation, full_visual, concept_3d_callouts, step_process, timeline, before_after, problem_solution_result, question_answer, myth_reality, comparison_table, pros_cons, data_spotlight, case_study, real_world_scenario, customer_journey, system_architecture, workflow_diagram, concept_map, layered_explanation, zoom_in, live_draw, annotated_photo, key_takeaways, quote, section_divider, action_plan, closing,
