@@ -530,6 +530,23 @@ Every relative/local import you write (e.g. \`import X from "./X"\` or \`import 
 - Example: SearchClient.tsx ("use client" with useSearchParams) + page.tsx (import + Suspense wrapper)
 - This applies to: search pages, order-confirmation pages, any page reading URL params
 
+### Next.js 15 ASYNC params (CRITICAL — breaks every dynamic page if wrong):
+- In Next 15, \`params\` and \`searchParams\` on a server page are PROMISES. You MUST type them as Promise and await them — reading \`params.slug\` synchronously yields \`undefined\`, which makes product/category detail pages render "not found" for EVERY item.
+- Every \`[slug]\` / \`[id]\` page.tsx MUST be an \`async function\`:
+    interface PageProps { params: Promise<{ slug: string }> }
+    export default async function Page({ params }: PageProps) {
+      const { slug } = await params;           // ✅ await it
+      const product = getProductBySlug(slug);
+      ...
+    }
+  And in generateMetadata: \`const { slug } = await params;\` first.
+- When a server page passes params to a "use client" child, pass the RESOLVED value: \`<ProductDetailClient params={{ slug }} />\` (never the Promise). The client component receives a plain \`{ slug: string }\`.
+- This applies to products/[slug]/page.tsx, category/[slug]/page.tsx, track/[orderId], account/orders/[orderId], and any dynamic route.
+
+### Cart Checkout button (CRITICAL — the button silently does nothing if wrong):
+- The cart drawer's "Checkout" button MUST call \`goToCheckout()\` imported from \`@/lib/cart\` — that is the ONLY checkout navigator the builder provides. NEVER invent or import a different name like \`redirectToCheckout\` (it doesn't exist → the import is undefined → clicking Checkout throws and nothing happens).
+- Correct: \`import { goToCheckout } from "@/lib/cart"\` then \`onClick={() => goToCheckout()}\`.
+
 ### Import Order:
 - Write files in dependency order: data.ts → products.ts → globals.css → layout.tsx → components → pages → checkout → account
 
