@@ -207,6 +207,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       momentScript: s.momentScript ?? p.momentScript,
       narration: s.narration ?? p.narration,
       quizReveal: s.quizReveal ?? p.quizReveal,
+      videoUrl: s.videoUrl ?? p.videoUrl,
     };
   });
   const deck: TrainingDeck = {
