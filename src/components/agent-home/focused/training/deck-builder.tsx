@@ -97,7 +97,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const narrate = async () => {
     if (!mat) return;
     // Guardrail: narration is already generated → confirm before re-voicing (it costs credits).
-    if (narratedCount > 0 && !window.confirm(`Narration is already generated for ${narratedCount} slide${narratedCount === 1 ? "" : "s"}. Regenerate all of it? This uses credits.`)) return;
+    if (narratedCount > 0 && !(await confirmAction({
+      title: "Regenerate narration?",
+      body: `Narration is already generated for ${narratedCount} slide${narratedCount === 1 ? "" : "s"}. Regenerating re-voices the whole deck and uses credits.`,
+      confirmLabel: "Regenerate",
+    }))) return;
     setBusy("narrate");
     try {
       const j = await fetch("/api/ai/training/presenter/narrate", {
@@ -142,6 +146,12 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   // clip pins to the stage; null previews the current slide (narration + moving avatar). During a
   // full "Generate everything" run we keep the modal open and let the final asset land at the end.
   const land = (clip: string | null) => { setPreviewClip(clip); setPreviewing(true); if (!runningAll.current) setPrepOpen(false); };
+
+  // In-app confirm dialog (no native window.confirm) — returns a promise the caller awaits.
+  const [confirmBox, setConfirmBox] = useState<null | { title: string; body: string; confirmLabel: string; resolve: (ok: boolean) => void }>(null);
+  const confirmAction = (opts: { title: string; body: string; confirmLabel?: string }) =>
+    new Promise<boolean>((resolve) => setConfirmBox({ title: opts.title, body: opts.body, confirmLabel: opts.confirmLabel ?? "Continue", resolve }));
+  const resolveConfirm = (ok: boolean) => { setConfirmBox((c) => { c?.resolve(ok); return null; }); };
   // Generate every missing presenter asset in sequence (voice → loop → intro → outro → moments).
   const runAll = async () => {
     runningAll.current = true;
@@ -478,6 +488,20 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             <div className="flex items-center gap-2 border-t border-border px-5 py-4">
               <button onClick={() => void runAll()} disabled={busy !== null || presenterReady} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 py-2.5 text-[13px] font-extrabold text-white disabled:opacity-40">{busy !== null ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : presenterReady ? <><Check className="h-4 w-4" /> All set</> : <><Sparkles className="h-4 w-4" /> Generate everything</>}</button>
               <button onClick={() => { setPrepOpen(false); if (presenterReady) onStartMeeting?.(mat.id); }} disabled={!presenterReady} className="flex-1 rounded-xl bg-gradient-to-br from-rose-600 to-rose-400 py-2.5 text-[13px] font-extrabold text-white disabled:opacity-40"><Radio className="me-1 inline h-3.5 w-3.5" /> Start meeting</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* In-app confirm (replaces window.confirm) — sits above the Prepare modal. */}
+      {confirmBox ? (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/60 p-4" onClick={() => resolveConfirm(false)}>
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="px-5 pb-2 pt-5"><b className="text-[15px]">{confirmBox.title}</b></div>
+            <p className="px-5 pb-4 text-[12.5px] leading-relaxed text-muted-foreground">{confirmBox.body}</p>
+            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3.5">
+              <button onClick={() => resolveConfirm(false)} className="rounded-lg border border-border px-3.5 py-2 text-[12px] font-bold hover:border-brand-500">Cancel</button>
+              <button onClick={() => resolveConfirm(true)} className="rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12px] font-extrabold text-white">{confirmBox.confirmLabel}</button>
             </div>
           </div>
         </div>
