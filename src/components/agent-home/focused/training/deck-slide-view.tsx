@@ -109,15 +109,49 @@ function HandAnnotate({ hostRef, active, style, ink, showHand, tool, widthMul }:
   );
 }
 
+/** The pointing hand that steps DOWN a list: as each point reveals it re-measures the just-
+ *  revealed item ([data-step="{reveal-1}"]) and re-points there — so a 4-step slide gets 4
+ *  gestures, a 10-step slide gets 10. The hand enters from the item's RIGHT so its body rides
+ *  off the slide edge instead of covering the text. */
+function HandPointSteps({ hostRef, reveal }: { hostRef: RefObject<HTMLDivElement | null>; reveal?: number }) {
+  const [m, setM] = useState<{ W: number; H: number; x: number; y: number; w: number; h: number } | null>(null);
+  const [at, setAt] = useState(-1);
+  useLayoutEffect(() => {
+    if (reveal === undefined || reveal < 1) { setM(null); return; }
+    const host = hostRef.current; if (!host) return;
+    const target = reveal - 1;
+    const measure = () => {
+      const el = host.querySelector<HTMLElement>(`[data-step="${target}"]`); if (!el) { setM(null); return; }
+      const c = host.getBoundingClientRect(), s = el.getBoundingClientRect();
+      if (!c.width || !s.width) return;
+      setM({ W: c.width, H: c.height, x: s.left - c.left, y: s.top - c.top, w: s.width, h: s.height }); setAt(target);
+    };
+    measure();
+    const ro = new ResizeObserver(measure); ro.observe(host);
+    const t = setTimeout(measure, 90);
+    return () => { ro.disconnect(); clearTimeout(t); };
+  }, [reveal, hostRef]);
+  if (!m) return null;
+  const hw = Math.min(m.W * 0.16, Math.max(64, m.h * 1.5)), hh = hw * 0.667;
+  return (
+    <svg viewBox={`0 0 ${m.W} ${m.H}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 z-[6] h-full w-full">
+      <style>{`@keyframes an-point{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}`}</style>
+      {/* keyed by the step so it re-animates (moves) to each newly-revealed item */}
+      <image key={at} href="/training/point-hand.png" width={hw} height={hh} x={m.x + m.w - hw * 0.2051} y={m.y + m.h * 0.5 - hh * 0.0674} style={{ animation: "an-point .4s ease forwards", filter: "drop-shadow(0 8px 12px rgba(0,0,0,.3))" } as CSSProperties} />
+    </svg>
+  );
+}
+
 // The hand PNG is 392×261 viewBox units; the marker's ink NIB sits at 13.35%/8.2% of it
 // (measured). We pin THAT exact point to the current point on the stroke each frame so the pen
 // end rides ON the line, then fade the hand out at the end. Deterministic — no offset-anchor.
-const HAND_W = 392, HAND_H = 261, NIB_X = HAND_W * 0.1335, NIB_Y = HAND_H * 0.082;
+const HAND_W = 392, HAND_H = 261;
 
 /** A PHOTOREAL hand + blue marker that DRAWS along `d`: its pen nib travels the stroke as it's
  *  drawn (getPointAtLength per frame), the hand + forearm trailing up from the bottom-right. */
-function DrawingHand({ d }: { d: string }) {
+function DrawingHand({ d, w = HAND_W, dur = 700 }: { d: string; w?: number; dur?: number }) {
   const ref = useRef<SVGImageElement | null>(null);
+  const h = w * (HAND_H / HAND_W), nx = w * 0.1335, ny = h * 0.082;
   useEffect(() => {
     const img = ref.current, svg = img?.ownerSVGElement;
     if (!img || !svg) return;
@@ -125,20 +159,20 @@ function DrawingHand({ d }: { d: string }) {
     p.setAttribute("d", d); p.setAttribute("visibility", "hidden"); svg.appendChild(p);
     let len = 0; try { len = p.getTotalLength(); } catch { len = 0; }
     if (!len) { p.remove(); return; }
-    const DUR = 700; let raf = 0, t0: number | null = null;
+    let raf = 0, t0: number | null = null;
     const frame = (ts: number) => {
       if (t0 === null) t0 = ts;
-      const k = Math.min(1, (ts - t0) / DUR);
+      const k = Math.min(1, (ts - t0) / dur);
       const pt = p.getPointAtLength(len * k);
-      img.setAttribute("x", String(pt.x - NIB_X));
-      img.setAttribute("y", String(pt.y - NIB_Y));
+      img.setAttribute("x", String(pt.x - nx));
+      img.setAttribute("y", String(pt.y - ny));
       img.style.opacity = k < 0.9 ? "1" : String(Math.max(0, (1 - k) / 0.1));
       if (k < 1) raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(raf); p.remove(); };
-  }, [d]);
-  return <image ref={ref} href="/training/draw-hand.png" width={HAND_W} height={HAND_H} x={-2000} y={-2000} style={{ filter: "drop-shadow(0 10px 14px rgba(0,0,0,.28))" }} />;
+  }, [d, w, dur, nx, ny]);
+  return <image ref={ref} href="/training/draw-hand.png" width={w} height={h} x={-2000} y={-2000} style={{ filter: "drop-shadow(0 10px 14px rgba(0,0,0,.28))" }} />;
 }
 
 /** Strip markdown at render so decks built before the generator was fixed don't show
@@ -358,7 +392,10 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board 
     return <>{t.slice(0, i)}<span data-hl className={on ? "rounded-[.15em] bg-cyan-300/40 box-decoration-clone px-[.12em] text-[rgb(var(--sfg))]" : undefined}>{t.slice(i, i + hlPhrase.length)}</span>{t.slice(i + hlPhrase.length)}</>;
   };
   const inkColor = hand?.color === "brand" ? "var(--sa)" : hand?.color;
-  const ann = hlPhrase ? <HandAnnotate hostRef={hostRef} active={annActive} style={annStyle} ink={inkColor} showHand={hand?.showHand} tool={hand?.tool} widthMul={hand?.strokeWidth} /> : null;
+  // "point" steps down the list (one gesture per revealed item); the other marks target a keyword.
+  const ann = annStyle === "point" && bullets.length > 0
+    ? <HandPointSteps hostRef={hostRef} reveal={reveal} />
+    : hlPhrase ? <HandAnnotate hostRef={hostRef} active={annActive} style={annStyle} ink={inkColor} showHand={hand?.showHand} tool={hand?.tool} widthMul={hand?.strokeWidth} /> : null;
 
   // A DEMONSTRATION VIDEO slide — a short generated moving illustration beside the teaching text.
   if (slide.videoUrl || (slide.visualType === "video" && slide.videoPrompt)) {
@@ -441,18 +478,19 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board 
   if ((lay === "key_takeaways" || lay === "action_plan" || lay === "recap_map" || lay === "concept_map" || lay === "dashboard_insight") && bullets.length) {
     const two = bullets.length > 3;
     return (
-      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
+      <div ref={hostRef} className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <h1 className="text-[clamp(11px,4cqw,40px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
         {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
         <div className={cn("mt-[3cqw] grid gap-[1.6cqw]", two ? "grid-cols-2" : "grid-cols-1")}>
           {shownB.map((b, i) => (
-            <div key={i} className="flex items-start gap-[1.8cqw] rounded-[1.4cqw] border border-[rgb(var(--sfg)/.10)] bg-[rgb(var(--sfg)/0.05)] px-[2.6cqw] py-[2cqw] duration-300 animate-in fade-in slide-in-from-bottom-2">
+            <div key={i} data-step={i} className="flex items-start gap-[1.8cqw] rounded-[1.4cqw] border border-[rgb(var(--sfg)/.10)] bg-[rgb(var(--sfg)/0.05)] px-[2.6cqw] py-[2cqw] duration-300 animate-in fade-in slide-in-from-bottom-2">
               <span className="grid h-[3.6cqw] w-[3.6cqw] shrink-0 place-items-center rounded-full bg-gradient-to-br from-[var(--sa)] to-[var(--sa2)] text-[clamp(6px,1.9cqw,17px)] font-black text-white">{lay === "action_plan" ? i + 1 : "✓"}</span>
               <span className="min-w-0 text-[clamp(6px,2cqw,18px)] font-medium leading-snug text-[rgb(var(--sfg)/.90)]">{md(b)}</span>
             </div>
           ))}
         </div>
+        {ann}
       </div>
     );
   }
@@ -522,19 +560,20 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board 
   if ((lay === "step_process" || lay === "customer_journey" || lay === "timeline" || lay === "vertical_journey" || lay === "workflow_diagram") && bullets.length >= 2) {
     const steps = shownB.slice(0, 5);
     return (
-      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
+      <div ref={hostRef} className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
         {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
         <div className="mt-[3.5cqw] grid gap-[1.6cqw]" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0,1fr))` }}>
           {steps.map((b, i) => (
-            <div key={i} className="relative flex flex-col rounded-[1.4cqw] border border-[rgb(var(--sfg)/.10)] bg-[rgb(var(--sfg)/0.05)] p-[3.2%] duration-300 animate-in fade-in slide-in-from-bottom-2">
+            <div key={i} data-step={i} className="relative flex flex-col rounded-[1.4cqw] border border-[rgb(var(--sfg)/.10)] bg-[rgb(var(--sfg)/0.05)] p-[3.2%] duration-300 animate-in fade-in slide-in-from-bottom-2">
               <span className="mb-[1.2cqw] grid h-[3.6cqw] w-[3.6cqw] place-items-center rounded-full bg-gradient-to-br from-[var(--sa)] to-[var(--sa2)] text-[clamp(6px,1.8cqw,16px)] font-black text-white">{i + 1}</span>
               <p className="text-[clamp(5px,1.7cqw,15px)] leading-snug text-[rgb(var(--sfg)/.85)]">{md(b)}</p>
               {i < steps.length - 1 ? <span className="absolute -right-[1cqw] top-[3.4cqw] z-[2] text-[clamp(7px,2cqw,18px)] text-brand-400">→</span> : null}
             </div>
           ))}
         </div>
+        {ann}
       </div>
     );
   }
@@ -598,7 +637,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board 
           {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,1.9cqw,17px)] font-semibold text-[color:var(--sat)]">{T(slide.subtitle)}</p> : null}
           {shownB.length ? (
             <ul className="mt-[2.4cqw] flex flex-col gap-[1.4cqw]">
-              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{T(b)}</li>)}
+              {shownB.map((b, i) => <li key={i} data-step={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{T(b)}</li>)}
             </ul>
           ) : null}
         </div>
@@ -666,7 +705,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board 
           <h1 className="text-[clamp(11px,3.6cqw,34px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
           <ul className="mt-[2.4cqw] flex flex-col gap-[1.4cqw]">
             {shownB.slice(0, 4).map((b, i) => (
-              <li key={i} className="flex items-start gap-[1.6cqw] rounded-[1.2cqw] border border-[rgb(var(--sfg)/.10)] bg-[rgb(var(--sfg)/0.05)] px-[2.4cqw] py-[1.4cqw] text-[clamp(6px,1.8cqw,16px)] text-[rgb(var(--sfg)/.90)] duration-300 animate-in fade-in slide-in-from-right-2">
+              <li key={i} data-step={i} className="flex items-start gap-[1.6cqw] rounded-[1.2cqw] border border-[rgb(var(--sfg)/.10)] bg-[rgb(var(--sfg)/0.05)] px-[2.4cqw] py-[1.4cqw] text-[clamp(6px,1.8cqw,16px)] text-[rgb(var(--sfg)/.90)] duration-300 animate-in fade-in slide-in-from-right-2">
                 <span className="grid h-[2.8cqw] w-[2.8cqw] shrink-0 place-items-center rounded-full bg-gradient-to-br from-[var(--sa)] to-[var(--sa2)] text-[clamp(5px,1.5cqw,13px)] font-black text-white">{i + 1}</span>
                 {T(b)}
               </li>
@@ -716,7 +755,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board 
           {slide.bullets?.length ? (
             <ul className="mt-4 flex flex-col gap-2.5">
               {(reveal === undefined ? slide.bullets : slide.bullets.slice(0, reveal)).map((b, i) => (
-                <li key={i} className="flex gap-2.5 text-[clamp(5px,1.6cqw,15px)] leading-snug text-[#cfcde0] duration-300 animate-in fade-in slide-in-from-bottom-2">
+                <li key={i} data-step={i} className="flex gap-2.5 text-[clamp(5px,1.6cqw,15px)] leading-snug text-[#cfcde0] duration-300 animate-in fade-in slide-in-from-bottom-2">
                   <span className="mt-[6px] h-[7px] w-[7px] shrink-0 rounded-full bg-[var(--sa2)]" />
                   {T(b)}
                 </li>
@@ -763,7 +802,7 @@ function DiagramBoard({ items, reveal, wide, animated, theme }: { items: BoardIt
   // ever hidden — the reveal just fades elements in where they belong.
   return (
     <div className="absolute inset-0 overflow-hidden">
-      <style>{`@keyframes ld-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}@keyframes ld-pop{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:scale(1)}}@keyframes ld-follow{from{offset-distance:0%}to{offset-distance:100%}}@keyframes ld-handfade{from{opacity:1}to{opacity:0}}`}</style>
+      <style>{`@keyframes ld-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}@keyframes ld-pop{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:scale(1)}}@keyframes ld-follow{from{offset-distance:0%}to{offset-distance:100%}}@keyframes ld-handfade{from{opacity:1}to{opacity:0}}@keyframes ld-write{from{opacity:0}to{opacity:1}}`}</style>
       <svg viewBox={`0 0 ${CW} ${H}`} preserveAspectRatio="xMidYMid meet" className="absolute inset-0 h-full w-full">
         <g>
           {shown.map((it) => {
@@ -828,13 +867,18 @@ function DiagramBoard({ items, reveal, wide, animated, theme }: { items: BoardIt
                 const lines = wrapLines(it.text, maxChars).slice(0, 4);
                 const cardH = lines.length * lh + 2 * padY;
                 const px = x(it.at.x), py = y(it.at.y);
+                // a note WRITES itself on when it first reveals — the hand sweeps each line while the
+                // text fades in behind it (independent of the board's animate setting).
+                const fresh = (("step" in it ? it.step : -3) ?? -3) === current && current >= 0;
+                const writeD = lines.map((_, i) => { const ly = py + padY + lh * (i + 0.72); return `M ${px + padX} ${ly} L ${px + cardW - padX} ${ly}`; }).join(" ");
                 return (
-                  <g key={`${it.id}-${isNow}`} style={isNow ? { transformBox: "fill-box", transformOrigin: "center", animation: "ld-pop .4s ease forwards" } : undefined}>
+                  <g key={`${it.id}-${fresh}`} style={fresh ? { transformBox: "fill-box", transformOrigin: "center", animation: "ld-pop .3s ease forwards" } : undefined}>
                     <rect x={px + 2} y={py + 3} width={cardW} height={cardH} rx={9} fill="rgba(0,0,0,.18)" />
                     <rect x={px} y={py} width={cardW} height={cardH} rx={9} fill={bt.sticky} stroke="rgba(0,0,0,.14)" strokeWidth={1.5} />
                     {lines.map((ln, i) => (
-                      <text key={i} x={px + padX} y={py + padY + lh * (i + 0.82)} fontSize={fs} fontWeight={600} fill={bt.stickyText}>{ln}</text>
+                      <text key={i} x={px + padX} y={py + padY + lh * (i + 0.82)} fontSize={fs} fontWeight={600} fill={bt.stickyText} style={fresh ? { opacity: 0, animation: "ld-write .26s ease forwards", animationDelay: `${(i / Math.max(1, lines.length)) * 0.6}s` } as CSSProperties : undefined}>{ln}</text>
                     ))}
+                    {fresh ? <DrawingHand d={writeD} w={Math.min(150, cardW * 0.62)} dur={Math.max(650, lines.length * 320)} /> : null}
                   </g>
                 );
               }
