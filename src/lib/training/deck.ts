@@ -50,6 +50,9 @@ interface RawSlide {
   /** content-aware model (independent axes) — the agent picks these per teaching moment. */
   layout?: string;
   revealMode?: string;
+  /** AT MOST 1-2 per deck — a short generated demonstration video best teaches this concept. */
+  videoDemo?: boolean;
+  videoPrompt?: string;
 }
 
 /** Turn a visual style + subject into a rich image prompt (photoreal / 3D / flat). */
@@ -268,6 +271,8 @@ Return JSON: { "title": string, "slides": Slide[] } where Slide is:
   "emoji": one relevant emoji,                   // "doc" slides
   "visualStyle": "photo" | "3d" | "illustration",// "doc" slides — photo for real-world scenes/people, 3d for abstract concepts/systems, illustration otherwise
   "imagePrompt": a vivid prompt for the visual (no text in the image, no watermark), // "doc" slides
+  "videoDemo": true,  // set on ONLY 1-2 doc slides in the whole deck — the concept(s) that teach best as a short MOVING demonstration
+  "videoPrompt": a vivid ~15-second demonstration/illustration to animate (a moving 3D or photoreal scene of the concept in action, no text, no watermark), // only when videoDemo is true
   "diagram": { "shape": "cycle"|"flow"|"tree", "nodes": [3-5 VERY short node labels — 2-4 WORDS each, ~18 chars max, NO sentences, quotes or colons], "edges": [[fromIndex,toIndex]] }, // whiteboard/livedraw — put the detail in annotations/notes, NOT the node labels
   "annotations": [1-2 very short sticky-note callouts — a key insight, tip or watch-out], // "whiteboard"/"livedraw" slides
   "assetPrompt": a vivid subject for a 3D asset that illustrates this concept (an object/system/scene, no text, no watermark), // "whiteboard"/"livedraw" slides
@@ -290,6 +295,7 @@ Rules:
   if (!raw?.slides?.length) return null;
 
   const assetBoxes: Record<string, AssetBox> = {}; // slide id → where its 3D cutout sits
+  let videoCount = 0; // at most 2 generated demonstration videos per deck
   const slides: DeckSlide[] = raw.slides.slice(0, n).map((s): DeckSlide => {
     const board2 = (s.type === "whiteboard" || s.type === "livedraw") && opts.wantWhiteboard;
     const type: DeckSlide["type"] = board2 ? (s.type as "whiteboard" | "livedraw") : "doc";
@@ -320,6 +326,10 @@ Rules:
     }
     const style = s.visualStyle === "3d" ? "3d" : s.visualStyle === "illustration" ? "illustration" : "photo";
     const bullets = (s.bullets ?? []).slice(0, 5).map((b) => stripMd(String(b)).slice(0, 200)).filter(Boolean);
+    // A demonstration video — at most 2 per deck, on the concepts that teach best in motion.
+    const wantsVideo = !!(s.videoDemo && (s.videoPrompt || s.imagePrompt)) && videoCount < 2;
+    const videoPrompt = wantsVideo ? (s.videoPrompt || s.imagePrompt || "").slice(0, 320) : undefined;
+    if (wantsVideo) videoCount += 1;
     const visual: DeckVisual = {
       kind: "emoji", style, emoji: s.emoji || "🎯", prompt: s.imagePrompt?.slice(0, 300),
       tag: style === "3d" ? "3D visual" : style === "photo" ? "Photo" : "Illustration", layout: "right",
@@ -332,8 +342,9 @@ Rules:
       notes: stripMd(s.notes).slice(0, 400) || undefined,
       visual, steps: bullets.length,
       layout: asLayout(s.layout),
-      visualType: (style === "3d" ? "3d" : style === "illustration" ? "illustration" : "photo") as VisualType,
+      visualType: (videoPrompt ? "video" : style === "3d" ? "3d" : style === "illustration" ? "illustration" : "photo") as VisualType,
       revealMode: asReveal(s.revealMode) ?? "progressive",
+      videoPrompt,
     };
   });
 

@@ -185,7 +185,7 @@ export const VISUAL_STYLES = [
 export type VisualStyle = (typeof VISUAL_STYLES)[number];
 
 /** What the slide's main visual IS. */
-export type VisualType = "photo" | "3d" | "illustration" | "diagram" | "annotated" | "none";
+export type VisualType = "photo" | "3d" | "illustration" | "diagram" | "annotated" | "video" | "none";
 /** How the slide reveals while it's narrated. */
 export type RevealMode = "all_at_once" | "progressive" | "stroke_by_stroke" | "word_by_word" | "build_diagram";
 
@@ -287,6 +287,11 @@ export interface DeckSlide {
   revealMode?: RevealMode;
   /** hand-and-pen + reveal animations for this slide, timed to the narration. */
   animations?: SlideAnimation[];
+  /** a short (~15s) GENERATED demonstration video for this slide — a moving 3D/photoreal
+   *  illustration of the concept. `videoPrompt` is set by the generator on 1-2 key slides;
+   *  `videoUrl` is filled once the host generates it in the Build Studio. */
+  videoPrompt?: string;
+  videoUrl?: string;
 }
 
 export interface QuizQuestion {

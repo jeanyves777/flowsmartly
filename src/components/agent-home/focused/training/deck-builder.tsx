@@ -44,7 +44,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const [wantDoc, setWantDoc] = useState(true);
   const [wantWb, setWantWb] = useState(true);
   const [wantVis, setWantVis] = useState(true);
-  const [busy, setBusy] = useState<null | "gen" | "regen" | "rebuild" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments">(null);
+  const [busy, setBusy] = useState<null | "gen" | "regen" | "rebuild" | "video" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments">(null);
   const [rebuildOpen, setRebuildOpen] = useState(false);
 
   // local working copy of the deck (edits autosave)
@@ -299,6 +299,22 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     } finally { setBusy(null); }
   };
 
+  // Generate the short (~15s) demonstration video for a slide flagged as a video demo.
+  const genVideo = async () => {
+    if (!mat || !slide) return;
+    setBusy("video");
+    try {
+      const j = await fetch(`/api/ai/training/${sessionId}/deck/video`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id, slideId: slide.id }),
+      }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't generate the video", variant: "destructive" }); return; }
+      onSession(j.data.session as TrainingSessionDTO);
+      const url = j.data.videoUrl as string;
+      setDeck((d) => { if (!d) return d; const next = { ...d, slides: d.slides.map((x) => (x.id === slide.id ? { ...x, videoUrl: url, visualType: "video" as const } : x)) }; persist(next); return next; });
+      toast({ title: "Demonstration video ready", description: "It plays right on the slide." });
+    } finally { setBusy(null); }
+  };
+
   const addSlide = () => {
     if (!deck) return;
     const s: DeckSlide = { id: uid("s"), type: "doc", title: "New slide", subtitle: "", bullets: ["Point one"], visual: { kind: "emoji", emoji: "✨" } };
@@ -384,6 +400,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
           <button onClick={() => setRebuildOpen(true)} disabled={busy !== null} title="Rebuild the whole deck with the new content-aware layouts" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
             {busy === "rebuild" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Rebuild all
           </button>
+          {slide?.videoPrompt && !slide?.videoUrl ? (
+            <button onClick={() => void genVideo()} disabled={busy !== null} title="Generate the ~15s demonstration video for this slide" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
+              {busy === "video" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Rendering…</> : <><Film className="h-3.5 w-3.5" /> Generate video</>}
+            </button>
+          ) : null}
           <div className="ms-auto flex items-center gap-1.5">
             <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page <= 0} className="grid h-7 w-7 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
             <span className="min-w-[70px] text-center text-[11px] text-muted-foreground">Slide {page + 1} / {deck.slides.length}</span>
@@ -565,7 +586,7 @@ function PresenterBar({ presenter, active, loopUrl, slideCount, narratedCount, b
   loopUrl: string | null;
   slideCount: number;
   narratedCount: number;
-  busy: null | "gen" | "regen" | "rebuild" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments";
+  busy: null | "gen" | "regen" | "rebuild" | "video" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments";
   hasOutro: boolean;
   momentTotal: number;
   momentReady: number;

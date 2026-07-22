@@ -136,6 +136,38 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   const shownB = reveal === undefined ? bullets : bullets.slice(0, reveal);
   const lay = slide.layout;
 
+  // A DEMONSTRATION VIDEO slide — a short generated moving illustration beside the teaching text.
+  if (slide.videoUrl || (slide.visualType === "video" && slide.videoPrompt)) {
+    return (
+      <div className={cn("relative grid h-full w-full grid-cols-[.92fr_1.08fr] items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] px-[6%] py-[6%] text-white [container-type:inline-size]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
+        <div className="flex min-w-0 flex-col justify-center">
+          <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
+          {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-brand-300">{md(slide.subtitle)}</p> : null}
+          {shownB.length ? (
+            <ul className="mt-[2.5cqw] flex flex-col gap-[1.4cqw]">
+              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-white/85"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-violet-400" />{md(b)}</li>)}
+            </ul>
+          ) : null}
+        </div>
+        <div className="relative aspect-video overflow-hidden rounded-[1.4cqw] bg-black ring-1 ring-white/10 shadow-2xl">
+          {slide.videoUrl ? (
+            <video src={slide.videoUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" />
+          ) : (
+            <div className="grid h-full w-full place-items-center bg-gradient-to-br from-[#241f38] to-[#14121f] text-center">
+              <div className="px-[8%]">
+                <div className="mx-auto mb-[2cqw] grid h-[8cqw] w-[8cqw] place-items-center rounded-full bg-brand-500/15 text-[4cqw] text-brand-300">▶</div>
+                <div className="text-[clamp(6px,1.9cqw,16px)] font-bold text-white/85">Demonstration video</div>
+                <div className="mt-[.6cqw] text-[clamp(5px,1.5cqw,13px)] text-muted-foreground">Generate it in the Build Studio</div>
+              </div>
+            </div>
+          )}
+          <span className="absolute bottom-[1.2cqw] left-[1.2cqw] inline-flex items-center gap-1 rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black text-white backdrop-blur">▶ Demonstration</span>
+        </div>
+      </div>
+    );
+  }
+
   // ---- content-aware LAYOUTS (only for decks that carry slide.layout; others fall through
   // to the classic title + points + side-visual). One idea per slide, composed by purpose. ----
 
