@@ -10,12 +10,13 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, VolumeX, Film, Settings2, Mic, RotateCcw, Radio, Check,
+  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, VolumeX, Film, Settings2, Mic, RotateCcw, Radio, Check, Palette,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { DeckSlideView } from "./deck-slide-view";
-import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO } from "@/lib/training/types";
+import { VISUAL_STYLES, VISUAL_STYLE_LABELS } from "@/lib/training/types";
+import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle } from "@/lib/training/types";
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -428,7 +429,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
         <div className="flex-1 space-y-2 overflow-auto p-2.5">
           {deck.slides.map((s, i) => (
             <button key={s.id} onClick={() => setPage(i)} className={cn("relative block w-full overflow-hidden rounded-lg border-2", i === page ? "border-brand-500" : "border-transparent hover:border-border")}>
-              <div className="aspect-video w-full"><DeckSlideView slide={s} /></div>
+              <div className="aspect-video w-full"><DeckSlideView slide={s} styleKey={deck.visualStyle} /></div>
               <span className="absolute left-1 top-1 grid h-4 min-w-4 place-items-center rounded bg-black/55 px-1 text-[9px] font-extrabold text-white">{i + 1}</span>
             </button>
           ))}
@@ -446,6 +447,12 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
           <button onClick={() => setRebuildOpen(true)} disabled={busy !== null} title="Rebuild the whole deck with the new content-aware layouts" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
             {busy === "rebuild" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Rebuild all
           </button>
+          <label className="inline-flex items-center gap-1.5 rounded-lg border border-border pl-2 pr-1 text-[11px] font-semibold" title="Visual style — re-skins the whole deck (ground, accent colour and typeface)">
+            <Palette className="h-3.5 w-3.5 text-brand-400" />
+            <select value={deck.visualStyle ?? "modern_professional"} onChange={(e) => { const v = e.target.value as VisualStyle; const next: TrainingDeck = { ...deck, visualStyle: v }; setDeck(next); persist(next); }} className="cursor-pointer bg-transparent py-1.5 pr-1 text-[11px] font-semibold outline-none">
+              {VISUAL_STYLES.map((s) => <option key={s} value={s} className="bg-card text-foreground">{VISUAL_STYLE_LABELS[s]}</option>)}
+            </select>
+          </label>
           {slide?.videoPrompt && !slide?.videoUrl ? (
             <button onClick={() => void genVideo()} disabled={busy !== null} title="Generate the ~15s demonstration video for this slide" className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
               {busy === "video" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Rendering…</> : <><Film className="h-3.5 w-3.5" /> Generate video</>}
@@ -475,7 +482,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 <video key={previewVideo} src={previewVideo} autoPlay controls playsInline onEnded={() => { if (!previewClip) setPage((p) => Math.min(deck.slides.length - 1, p + 1)); }} className="aspect-video w-full rounded-xl bg-black object-contain shadow-2xl" />
               ) : (
                 <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-2xl">
-                  <DeckSlideView slide={slide} reveal={previewStep} />
+                  <DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} />
                   {(slide.steps ?? 1) > 1 ? <button onClick={() => setPreviewStep(1)} title="Replay the drawing" className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-bold text-white backdrop-blur hover:bg-black/70"><RotateCcw className="h-3.5 w-3.5" /> Replay</button> : null}
                   {loopUrl ? <video src={loopUrl} autoPlay muted loop playsInline className="absolute bottom-3 right-3 aspect-video w-[24%] rounded-lg object-cover shadow-lg ring-2 ring-brand-500/50" /> : null}
                   {slide.narration?.audioUrl ? (
@@ -487,7 +494,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               )}
             </div>
           ) : slide ? (
-            <div className="aspect-video w-full max-w-[900px] overflow-hidden rounded-xl shadow-2xl"><DeckSlideView slide={slide} /></div>
+            <div className="aspect-video w-full max-w-[900px] overflow-hidden rounded-xl shadow-2xl"><DeckSlideView slide={slide} styleKey={deck.visualStyle} /></div>
           ) : null}
         </div>
       </div>
