@@ -130,7 +130,7 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   const full = v?.layout === "full";
   // Illustrations / diagrams carry meaning at their edges (arrows, labels), so they must FIT
   // inside their box (contain) — cropping them (cover) cuts off content. Photos still fill.
-  const containImg = v?.style === "illustration" || /illustration|diagram|chart|infographic|graph|figure|flow/i.test(v?.tag ?? "");
+  const containImg = v?.style === "illustration" || /illustration|diagram|chart|infographic|graph|figure|flow|dashboard|screenshot|schematic|interface|ui|map/i.test(v?.tag ?? "");
   const hasImg = v?.kind === "image" && !!v.url;
   const bullets = slide.bullets ?? [];
   const shownB = reveal === undefined ? bullets : bullets.slice(0, reveal);
@@ -372,6 +372,30 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
             ))}
           </ul>
         </div>
+      </div>
+    );
+  }
+
+  // An ILLUSTRATION / DIAGRAM / DASHBOARD dominates the slide (big + full-width) instead of
+  // sitting tiny in a side panel — a wide diagram is unreadable when boxed into a portrait.
+  if (hasImg && containImg && !full) {
+    return (
+      <div className={cn("relative flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] px-[5%] py-[4.5%] text-white [container-type:inline-size]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
+        <div className="flex min-w-0 items-baseline gap-[2.5cqw]">
+          <h1 className="text-[clamp(10px,3.2cqw,30px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
+          {slide.subtitle ? <p className="min-w-0 flex-1 truncate text-[clamp(6px,1.8cqw,16px)] font-semibold text-brand-300">{md(slide.subtitle)}</p> : null}
+        </div>
+        <div className="relative mt-[1.8cqw] min-h-0 flex-1 overflow-hidden rounded-[1.4cqw] bg-white/[0.04] ring-1 ring-white/10">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={v!.url} alt="" className="absolute inset-0 h-full w-full object-contain p-[1.6%]" />
+          {v?.tag ? <span className="absolute bottom-[1.2cqw] left-[1.2cqw] rounded-md bg-black/55 px-[1.6cqw] py-[.6cqw] text-[clamp(4px,1.2cqw,11px)] font-black backdrop-blur">{v.tag}</span> : null}
+        </div>
+        {shownB.length ? (
+          <div className="mt-[1.6cqw] grid grid-cols-2 gap-x-[3cqw] gap-y-[.8cqw]">
+            {shownB.slice(0, 4).map((b, i) => <div key={i} className="flex gap-[1.2cqw] text-[clamp(5px,1.5cqw,13px)] leading-snug text-white/80"><span className="mt-[.7cqw] h-[.9cqw] w-[.9cqw] shrink-0 rounded-full bg-violet-400" />{md(b)}</div>)}
+          </div>
+        ) : null}
       </div>
     );
   }
