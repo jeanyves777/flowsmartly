@@ -144,6 +144,9 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   // avatar + narration audio); `previewClip` pins a specific asset (from the Prepare modal).
   const [previewing, setPreviewing] = useState(false);
   const [previewClip, setPreviewClip] = useState<string | null>(null);
+  // While previewing a slide, STEP through its reveals so it animates the way the room plays it:
+  // Live Draw strokes draw (with the hand), diagram elements build, bullets appear one at a time.
+  const [previewStep, setPreviewStep] = useState<number | undefined>(undefined);
   const closePreview = () => { setPreviewing(false); setPreviewClip(null); };
   const openClipPreview = (url: string | null) => { if (!url) return; setPrepOpen(false); setPreviewing(true); setPreviewClip(url); };
   const runningAll = useRef(false);
@@ -179,6 +182,17 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       : slide?.presenterMoment ? (slide?.momentVideoUrl ?? null)
       : (slide?.qa && slide?.qaKind === "final") ? (deck?.outroVideoUrl ?? null)
       : null);
+  // Drive the reveal steps while previewing a (non-video) slide so it visibly draws/builds.
+  useEffect(() => {
+    if (!previewing || previewVideo || !slide) { setPreviewStep(undefined); return; }
+    const steps = Math.max(1, slide.steps ?? 1);
+    setPreviewStep(1);
+    if (steps <= 1) return;
+    let s = 1;
+    const pace = slide.type === "livedraw" ? 950 : 850; // a touch slower for the hand to draw
+    const t = setInterval(() => { s += 1; setPreviewStep(s); if (s >= steps) clearInterval(t); }, pace);
+    return () => clearInterval(t);
+  }, [previewing, previewVideo, slide?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // large avatar player (inspector) controls
   const avatarRef = useRef<HTMLVideoElement | null>(null);
@@ -429,7 +443,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 <video key={previewVideo} src={previewVideo} autoPlay controls playsInline onEnded={() => { if (!previewClip) setPage((p) => Math.min(deck.slides.length - 1, p + 1)); }} className="aspect-video w-full rounded-xl bg-black object-contain shadow-2xl" />
               ) : (
                 <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-2xl">
-                  <DeckSlideView slide={slide} />
+                  <DeckSlideView slide={slide} reveal={previewStep} />
+                  {(slide.steps ?? 1) > 1 ? <button onClick={() => setPreviewStep(1)} title="Replay the drawing" className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-bold text-white backdrop-blur hover:bg-black/70"><RotateCcw className="h-3.5 w-3.5" /> Replay</button> : null}
                   {loopUrl ? <video src={loopUrl} autoPlay muted loop playsInline className="absolute bottom-3 right-3 aspect-video w-[24%] rounded-lg object-cover shadow-lg ring-2 ring-brand-500/50" /> : null}
                   {slide.narration?.audioUrl ? (
                     <audio key={slide.id} src={slide.narration.audioUrl} autoPlay controls onEnded={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} className="absolute inset-x-3 bottom-3 w-[calc(100%-1.5rem)]" />
