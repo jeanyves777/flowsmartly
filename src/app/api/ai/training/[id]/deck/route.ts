@@ -169,6 +169,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     introVideoUrl: body.deck.introVideoUrl ?? prev.introVideoUrl ?? null,
     outroVideoUrl: body.deck.outroVideoUrl ?? prev.outroVideoUrl ?? null,
     voiceKey: body.deck.voiceKey ?? prev.voiceKey ?? null,
+    visualStyle: body.deck.visualStyle ?? prev.visualStyle,
+    handStyle: body.deck.handStyle ?? prev.handStyle,
   };
   await prisma.trainingMaterial.update({
     where: { id: mat.id },
