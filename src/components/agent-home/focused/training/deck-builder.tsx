@@ -526,7 +526,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   <input value={slide.highlight ?? ""} onChange={(e) => editSlide({ highlight: e.target.value })} placeholder="a 2–4 word phrase from the slide" className="w-full rounded-lg border border-border bg-muted px-2.5 py-2 text-[12px] outline-none focus:border-brand-500" />
                 </label>
                 <div className="mt-2 grid grid-cols-3 gap-1.5">
-                  {([["circle", "✍️ Circle"], ["underline", "＿ Underline"], ["highlight", "🖍️ Marker"], ["point", "👉 Point"], ["none", "None"]] as const).map(([v, lbl]) => {
+                  {([["circle", "✍️ Circle"], ["underline", "＿ Underline"], ["box", "▢ Box"], ["strike", "⊘ Strike"], ["check", "✔ Check"], ["highlight", "🖍️ Marker"], ["point", "👉 Point"], ["none", "None"]] as const).map(([v, lbl]) => {
                     const cur = slide.highlight ? (slide.annotate ?? "circle") : "none";
                     const on = cur === v;
                     return (
@@ -606,7 +606,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   </div>
                   <div><span className="mb-1.5 block text-[10.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Hand animation (on the key phrase)</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {[["circle", "✍️ Circle"], ["underline", "＿ Underline"], ["highlight", "🖍️ Highlight"], ["point", "👉 Pointing hand"], ["none", "None"]].map(([v, lbl]) => (
+                      {[["circle", "✍️ Circle"], ["underline", "＿ Underline"], ["box", "▢ Box"], ["strike", "⊘ Strike"], ["check", "✔ Check"], ["highlight", "🖍️ Highlight"], ["point", "👉 Pointing hand"], ["none", "None"]].map(([v, lbl]) => (
                         <button key={v} onClick={() => setRegenAnn(v as NonNullable<DeckSlide["annotate"]> | "none")} className={cn("rounded-lg border px-2.5 py-1.5 text-[11px] font-bold", regenAnn === v ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border hover:border-brand-500")}>{lbl}</button>
                       ))}
                     </div>

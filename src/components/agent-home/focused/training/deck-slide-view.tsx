@@ -17,6 +17,18 @@ type AnnStyle = NonNullable<DeckSlide["annotate"]>;
 function annPath(m: { x: number; y: number; w: number; h: number }, style: AnnStyle): string {
   const cx = m.x + m.w / 2, cy = m.y + m.h / 2, rx = m.w / 2 + m.h * 0.55, ry = m.h / 2 + m.h * 0.5;
   if (style === "underline") return `M ${m.x - m.h * 0.25} ${m.y + m.h + m.h * 0.22} Q ${cx} ${m.y + m.h + m.h * 0.55} ${m.x + m.w + m.h * 0.25} ${m.y + m.h + m.h * 0.14}`;
+  // a line struck through the middle (myth/wrong/"not this") — slightly bowed so it reads hand-drawn
+  if (style === "strike") return `M ${m.x - m.h * 0.3} ${cy + m.h * 0.06} Q ${cx} ${cy - m.h * 0.14} ${m.x + m.w + m.h * 0.3} ${cy + m.h * 0.02}`;
+  // a hand-drawn box around the phrase (one continuous clockwise stroke, small overshoot)
+  if (style === "box") {
+    const p = m.h * 0.4, l = m.x - p, r = m.x + m.w + p, t = m.y - p, b = m.y + m.h + p;
+    return `M ${l} ${t} L ${r} ${t} L ${r} ${b} L ${l} ${b} L ${l} ${t - m.h * 0.06}`;
+  }
+  // a checkmark drawn just to the right of the phrase (approval / "yes, this")
+  if (style === "check") {
+    const g = m.h * 0.45, s = m.h * 1.15, sx = m.x + m.w + g;
+    return `M ${sx} ${cy + m.h * 0.05} L ${sx + s * 0.36} ${m.y + m.h * 0.98} L ${sx + s} ${m.y - m.h * 0.32}`;
+  }
   return `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx - rx} ${cy}`;
 }
 
