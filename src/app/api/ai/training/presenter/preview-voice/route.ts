@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   if (voice.previewUrl) return NextResponse.json({ success: true, data: { previewUrl: voice.previewUrl, cached: true } });
   if (!voice.elevenLabsVoiceId && !voice.openaiVoiceId) return err("That voice has no sample to preview");
 
-  const previewText = voice.type === "studio" ? STUDIO_TEXT : CLONE_TEXT;
+  const previewText = voice.type === "studio" || voice.type === "library" ? STUDIO_TEXT : CLONE_TEXT;
   try {
     const buffer = voice.elevenLabsVoiceId
       ? await generateWithElevenLabs({ text: previewText, voiceId: voice.elevenLabsVoiceId })
