@@ -9,6 +9,8 @@
  */
 
 import { prisma } from "@/lib/db/client";
+import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
+import { getDynamicCreditCost } from "@/lib/credits/costs";
 import {
   isConvaiEnabled,
   listConvaiConversations,
@@ -63,9 +65,14 @@ export async function syncElevenLabsConversations(agent: {
     });
     const known = new Set(existing.map((e) => e.elevenConversationId));
     const fresh = convos.filter((c) => !known.has(c.conversation_id)).slice(0, MAX_NEW_PER_SYNC);
+    if (!fresh.length) return;
+
+    // Charge per started minute — once, as each new call is imported (the call ran
+    // in EL's runtime, so this is the meter). Admin-overridable dynamic cost.
+    const perMinute = await getDynamicCreditCost("VOICE_AGENT_MINUTE").catch(() => 15);
 
     for (const c of fresh) {
-      await createFromConversation(agent, c).catch((e) =>
+      await createFromConversation(agent, c, perMinute).catch((e) =>
         console.error("[elevenlabs] conversation import failed:", c.conversation_id, e),
       );
     }
@@ -77,6 +84,7 @@ export async function syncElevenLabsConversations(agent: {
 async function createFromConversation(
   agent: { id: string; userId: string; phoneNumberId?: string | null; followUpRules?: unknown; name?: string },
   c: ConvaiConversationSummary,
+  perMinute: number,
 ): Promise<void> {
   // Fetch the transcript + caller number once, for this new conversation.
   const detail = await getConvaiConversation(c.conversation_id);
@@ -97,6 +105,27 @@ async function createFromConversation(
     .map((t) => ({ role: t.role === "agent" ? "agent" : "caller", at: t.time_in_call_secs ?? 0, text: t.message }));
 
   const outcome = outcomeOf(c.tool_names, c.message_count);
+
+  // Meter the call: one credit-charge per started minute, at our per-minute rate
+  // (which carries our markup over the ElevenLabs + telephony cost). Only real,
+  // connected calls are billed — a 0-second/never-answered call is free.
+  const minutes = Math.max(0, Math.ceil(durationSec / 60));
+  let creditsCharged = 0;
+  if (minutes > 0 && perMinute > 0) {
+    const amount = minutes * perMinute;
+    const r = await creditService
+      .deductCredits({
+        userId: agent.userId,
+        type: TRANSACTION_TYPES.USAGE,
+        amount,
+        description: `Voice agent call · ${minutes} min${agent.name ? ` · ${agent.name}` : ""}`,
+        referenceType: "voice_call",
+        referenceId: c.conversation_id,
+      })
+      .catch(() => ({ success: false }));
+    if (r.success) creditsCharged = amount;
+  }
+
   await prisma.voiceCall.create({
     data: {
       userId: agent.userId,
@@ -114,9 +143,16 @@ async function createFromConversation(
       startedAt,
       endedAt: new Date(startedAt.getTime() + durationSec * 1000),
       durationSec,
+      creditsCharged,
       transcript: JSON.stringify(transcript),
     },
   });
+
+  if (creditsCharged > 0) {
+    await prisma.voiceAgent
+      .update({ where: { id: agent.id }, data: { spentThisPeriod: { increment: creditsCharged } } })
+      .catch(() => {});
+  }
 
   // After-the-call routing — fire the agent's follow-up rules once, on import.
   await runFollowUps(agent, { fromE164, outcome, channel }).catch((e) =>
