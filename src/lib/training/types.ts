@@ -235,6 +235,10 @@ export interface TrainingDeck {
    *  stage at the open/close; distinct from the small talking-photo loop. */
   introVideoUrl?: string | null;
   outroVideoUrl?: string | null;
+  /** the presenter VOICE (a VoiceProfile id) the current narration + talking videos were
+   *  generated with. If the presenter's voice later changes, this no longer matches and the
+   *  builder prompts a regenerate so the whole session speaks in the new voice. */
+  voiceKey?: string | null;
 }
 
 // ------------------------------------------------------------ AI presenter

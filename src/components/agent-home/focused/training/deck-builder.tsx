@@ -125,12 +125,16 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const momentTotal = deck?.slides.filter((s) => s.presenterMoment).length ?? 0;
   const momentReady = deck?.slides.filter((s) => s.presenterMoment && s.momentVideoUrl).length ?? 0;
   const presenterOn = !!deck?.presenterActive && !!presenter;
+  // If the presenter's VOICE was changed after generating, the existing narration + talking
+  // videos still speak in the OLD voice — treat them as not-ready so the builder prompts a
+  // regenerate. (The silent loop has no voice, so it's unaffected.)
+  const voiceStale = !!(deck?.voiceKey && presenter?.voiceProfileId && deck.voiceKey !== presenter.voiceProfileId);
   const ready = {
-    narration: narratedCount > 0,
+    narration: narratedCount > 0 && !voiceStale,
     loop: !!(deck?.presenterVideoUrl ?? presenter?.loopVideoUrl),
-    intro: !!deck?.introVideoUrl,
-    outro: !!deck?.outroVideoUrl,
-    moments: momentTotal === 0 || momentReady === momentTotal,
+    intro: !!deck?.introVideoUrl && !voiceStale,
+    outro: !!deck?.outroVideoUrl && !voiceStale,
+    moments: momentTotal === 0 || (momentReady === momentTotal && !voiceStale),
   };
   const presenterReady = !presenterOn || (ready.narration && ready.loop && ready.intro && ready.outro && ready.moments);
   const [prepOpen, setPrepOpen] = useState(false);
@@ -468,6 +472,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               <div className="min-w-0 flex-1"><b className="block text-[15px]">Prepare your AI presenter</b><span className="text-[11.5px] text-muted-foreground">These are generated before the training goes live.</span></div>
               <button onClick={() => setPrepOpen(false)} className="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500">Close</button>
             </div>
+            {voiceStale ? (
+              <div className="flex items-center gap-2 border-b border-amber-500/30 bg-amber-500/[0.08] px-5 py-2.5 text-[11.5px] font-semibold text-amber-300">
+                <RotateCcw className="h-3.5 w-3.5 shrink-0" /> You changed the presenter&apos;s voice{presenter?.voiceName ? ` to ${presenter.voiceName}` : ""}. Regenerate the narration and talking videos so the whole session speaks in the new voice.
+              </div>
+            ) : null}
             <div className="max-h-[58vh] space-y-2.5 overflow-auto p-4">
               {([
                 { k: "narration", label: "Voice narration", done: ready.narration, meta: `${narratedCount}/${deck.slides.length} slides`, busyKey: "narrate" as const, run: narrate, preview: null as string | null, show: () => { setPrepOpen(false); setPreviewClip(null); setPreviewing(true); } },
