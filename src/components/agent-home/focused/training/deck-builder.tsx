@@ -104,7 +104,12 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id }),
       }).then((r) => r.json());
       if (!j?.success) { toast({ title: j?.error?.message || "Couldn't generate narration", variant: "destructive" }); return; }
-      onSession(j.data.session as TrainingSessionDTO);
+      const s = j.data.session as TrainingSessionDTO;
+      onSession(s);
+      // pull the freshly-narrated deck into the local copy so the preview + counts update now
+      const fresh = s.materials.find((m) => m.id === mat.id)?.deck;
+      if (fresh) setDeck(fresh);
+      land(null); // hear it in place on the current slide
       toast({ title: `Narration ready`, description: j.data.usedPreset
         ? `${j.data.narrated} slide${j.data.narrated === 1 ? "" : "s"} voiced with a preset voice — your cloned voice couldn't be reached this time.`
         : `${j.data.narrated} slide${j.data.narrated === 1 ? "" : "s"} voiced in your presenter's voice.` });
@@ -125,16 +130,40 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   };
   const presenterReady = !presenterOn || (ready.narration && ready.loop && ready.intro && ready.outro && ready.moments);
   const [prepOpen, setPrepOpen] = useState(false);
+  // In-place PREVIEW on the build stage — play the exact room experience without leaving the
+  // builder. `previewing` plays the current slide (its talking video, or the slide + moving
+  // avatar + narration audio); `previewClip` pins a specific asset (from the Prepare modal).
+  const [previewing, setPreviewing] = useState(false);
+  const [previewClip, setPreviewClip] = useState<string | null>(null);
+  const closePreview = () => { setPreviewing(false); setPreviewClip(null); };
+  const openClipPreview = (url: string | null) => { if (!url) return; setPrepOpen(false); setPreviewing(true); setPreviewClip(url); };
+  const runningAll = useRef(false);
+  // After an asset finishes generating, load it onto the stage so it "lands in place": a video
+  // clip pins to the stage; null previews the current slide (narration + moving avatar). During a
+  // full "Generate everything" run we keep the modal open and let the final asset land at the end.
+  const land = (clip: string | null) => { setPreviewClip(clip); setPreviewing(true); if (!runningAll.current) setPrepOpen(false); };
   // Generate every missing presenter asset in sequence (voice → loop → intro → outro → moments).
   const runAll = async () => {
-    if (!ready.narration) await narrate();
-    if (!ready.loop) await animate();
-    if (!ready.intro) await genFilm("intro");
-    if (!ready.outro) await genFilm("outro");
-    if (!ready.moments) await genMoments();
+    runningAll.current = true;
+    try {
+      if (!ready.narration) await narrate();
+      if (!ready.loop) await animate();
+      if (!ready.intro) await genFilm("intro");
+      if (!ready.outro) await genFilm("outro");
+      if (!ready.moments) await genMoments();
+    } finally { runningAll.current = false; setPrepOpen(false); } // land the finished set on the stage
   };
   // the presenter's moving-avatar loop (deck copy wins; falls back to the profile)
   const loopUrl = deck?.presenterVideoUrl ?? presenter?.loopVideoUrl ?? null;
+  // What the in-place stage preview should play for the current slide: a pinned clip (from the
+  // Prepare modal / a fresh generation) wins; otherwise the slide's own talking video (intro /
+  // moment / closing outro), else null → play the slide with narration + the moving avatar.
+  const previewActive = previewing || !!previewClip;
+  const previewVideo = previewClip
+    ?? (slide?.intro ? (deck?.introVideoUrl ?? null)
+      : slide?.presenterMoment ? (slide?.momentVideoUrl ?? null)
+      : (slide?.qa && slide?.qaKind === "final") ? (deck?.outroVideoUrl ?? null)
+      : null);
 
   // large avatar player (inspector) controls
   const avatarRef = useRef<HTMLVideoElement | null>(null);
@@ -154,6 +183,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       }).then((r) => r.json());
       if (!j?.success) { toast({ title: j?.error?.message || "Couldn't animate the presenter", variant: "destructive" }); return; }
       setDeck((d) => { if (!d) return d; const next = { ...d, presenterVideoUrl: j.data.loopVideoUrl as string }; persist(next); return next; });
+      land(null); // show the moving avatar in place over the current slide
       toast({ title: "Your presenter is moving", description: "A looping avatar is ready for the room." });
     } finally { setBusy(null); }
   };
@@ -171,6 +201,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       }).then((r) => r.json());
       if (!j?.success) { toast({ title: j?.error?.message || `Couldn't generate the ${kind} video`, variant: "destructive" }); return; }
       if (j.data.deck) { setDeck(j.data.deck as TrainingDeck); persist(j.data.deck as TrainingDeck); }
+      land((j.data.videoUrl as string) ?? null); // play the fresh talking video in place
       toast({ title: `${kind === "intro" ? "Intro" : "Outro"} video ready`, description: "A realistic talking presenter video is set." });
     } finally { setBusy(null); }
   };
@@ -189,6 +220,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
         }).then((r) => r.json());
         if (!j?.success) { toast({ title: j?.error?.message || "Couldn't render a moment", variant: "destructive" }); break; }
         if (j.data.deck) { setDeck(j.data.deck as TrainingDeck); persist(j.data.deck as TrainingDeck); }
+        const idx = deck.slides.findIndex((x) => x.id === s.id); if (idx >= 0) setPage(idx);
+        land((j.data.videoUrl as string) ?? null); // each moment lands on its slide as it renders
       }
       toast({ title: "Talking moments ready", description: "Your co-host now appears on screen between slides." });
     } finally { setBusy(null); }
@@ -318,7 +351,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page <= 0} className="grid h-7 w-7 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
             <span className="min-w-[70px] text-center text-[11px] text-muted-foreground">Slide {page + 1} / {deck.slides.length}</span>
             <button onClick={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} disabled={page >= deck.slides.length - 1} className="grid h-7 w-7 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
-            <button onClick={() => onPresent(mat.id)} title="Preview the deck on the live stage" className="ms-1 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-bold hover:border-brand-500"><Play className="h-3.5 w-3.5" /> Present</button>
+            <button onClick={() => (previewActive ? closePreview() : (setPreviewClip(null), setPreviewing(true)))} title="Play this slide right here — its narration, moving avatar and any talking video" className={cn("ms-1 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-bold hover:border-brand-500", previewActive ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border")}>{previewActive ? <><Pause className="h-3.5 w-3.5" /> Exit preview</> : <><Play className="h-3.5 w-3.5" /> Preview</>}</button>
+            <button onClick={() => onPresent(mat.id)} title="Open the full live stage" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-bold hover:border-brand-500"><Presentation className="h-3.5 w-3.5" /> Present</button>
             {onStartMeeting ? (
               <button onClick={() => (presenterReady || session.status === "live") ? onStartMeeting(mat.id) : setPrepOpen(true)} title={presenterReady || session.status === "live" ? "Go live and start the training now" : "Finish preparing your AI presenter first — voice + on-screen videos"} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-[12px] font-extrabold text-white", (presenterReady || session.status === "live") ? "bg-gradient-to-br from-rose-600 to-rose-400" : "bg-gradient-to-br from-amber-600 to-amber-400")}><Radio className="h-3.5 w-3.5" /> {session.status === "live" ? "Rejoin room" : presenterReady ? "Start meeting" : "Prepare presenter"}</button>
             ) : null}
@@ -326,7 +360,30 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
           </div>
         </div>
         <div className="grid flex-1 place-items-center overflow-auto bg-[#0e0e13] p-4">
-          {slide ? <div className="aspect-video w-full max-w-[900px] overflow-hidden rounded-xl shadow-2xl"><DeckSlideView slide={slide} /></div> : null}
+          {previewActive && slide ? (
+            <div className="w-full max-w-[900px]">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-500/15 px-2.5 py-1 text-[11px] font-bold text-brand-300"><Radio className="h-3 w-3" /> Previewing — as the room plays it</span>
+                <span className="truncate text-[11px] text-muted-foreground">{previewVideo ? (previewClip ? "Talking presenter video" : "On-screen presenter") : "Slide · narration · moving avatar"}</span>
+                <button onClick={closePreview} className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-bold hover:border-brand-500"><X className="h-3.5 w-3.5" /> Exit preview</button>
+              </div>
+              {previewVideo ? (
+                <video key={previewVideo} src={previewVideo} autoPlay controls playsInline onEnded={() => { if (!previewClip) setPage((p) => Math.min(deck.slides.length - 1, p + 1)); }} className="aspect-video w-full rounded-xl bg-black object-contain shadow-2xl" />
+              ) : (
+                <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-2xl">
+                  <DeckSlideView slide={slide} />
+                  {loopUrl ? <video src={loopUrl} autoPlay muted loop playsInline className="absolute bottom-3 right-3 aspect-video w-[24%] rounded-lg object-cover shadow-lg ring-2 ring-brand-500/50" /> : null}
+                  {slide.narration?.audioUrl ? (
+                    <audio key={slide.id} src={slide.narration.audioUrl} autoPlay controls onEnded={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} className="absolute inset-x-3 bottom-3 w-[calc(100%-1.5rem)]" />
+                  ) : (
+                    <div className="absolute inset-x-3 bottom-3 rounded-lg bg-black/75 px-3 py-2 text-center text-[11px] font-semibold text-amber-300">No narration for this slide yet — generate it in Prepare presenter.</div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : slide ? (
+            <div className="aspect-video w-full max-w-[900px] overflow-hidden rounded-xl shadow-2xl"><DeckSlideView slide={slide} /></div>
+          ) : null}
         </div>
       </div>
 
@@ -383,14 +440,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
         busy={busy}
         onManage={() => onOpenPresenter?.()}
         onToggle={() => setPresenterActive(!deck.presenterActive)}
-        onNarrate={narrate}
-        onAnimate={animate}
+        onPrepare={() => setPrepOpen(true)}
         hasIntro={!!deck.introVideoUrl}
         hasOutro={!!deck.outroVideoUrl}
         momentTotal={deck.slides.filter((s) => s.presenterMoment).length}
         momentReady={deck.slides.filter((s) => s.presenterMoment && s.momentVideoUrl).length}
-        onGenFilm={genFilm}
-        onGenMoments={genMoments}
       />
 
       {/* PREPARE PRESENTER — a large modal that generates every on-screen asset (voice, loop,
@@ -406,22 +460,23 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             </div>
             <div className="max-h-[58vh] space-y-2.5 overflow-auto p-4">
               {([
-                { k: "narration", label: "Voice narration", done: ready.narration, meta: `${narratedCount}/${deck.slides.length} slides`, busyKey: "narrate" as const, run: narrate, preview: null as string | null },
-                { k: "loop", label: "Moving avatar (loops in the corner tile)", done: ready.loop, meta: ready.loop ? "Ready" : "Not generated", busyKey: "animate" as const, run: animate, preview: (deck.presenterVideoUrl ?? presenter?.loopVideoUrl) ?? null },
-                { k: "intro", label: "Intro — presenter on screen", done: ready.intro, meta: ready.intro ? "Ready" : "Not generated", busyKey: "introfilm" as const, run: () => genFilm("intro"), preview: deck.introVideoUrl ?? null },
-                { k: "outro", label: "Outro — presenter on screen", done: ready.outro, meta: ready.outro ? "Ready" : "Not generated", busyKey: "outrofilm" as const, run: () => genFilm("outro"), preview: deck.outroVideoUrl ?? null },
-                { k: "moments", label: "Talking moments between slides", done: ready.moments, meta: `${momentReady}/${momentTotal} ready`, busyKey: "moments" as const, run: genMoments, preview: null as string | null, hide: momentTotal === 0 },
+                { k: "narration", label: "Voice narration", done: ready.narration, meta: `${narratedCount}/${deck.slides.length} slides`, busyKey: "narrate" as const, run: narrate, preview: null as string | null, show: () => { setPrepOpen(false); setPreviewClip(null); setPreviewing(true); } },
+                { k: "loop", label: "Moving avatar (loops in the corner tile)", done: ready.loop, meta: ready.loop ? "Ready" : "Not generated", busyKey: "animate" as const, run: animate, preview: (deck.presenterVideoUrl ?? presenter?.loopVideoUrl) ?? null, show: () => { setPrepOpen(false); setPreviewClip(null); setPreviewing(true); } },
+                { k: "intro", label: "Intro — presenter on screen", done: ready.intro, meta: ready.intro ? "Ready" : "Not generated", busyKey: "introfilm" as const, run: () => genFilm("intro"), preview: deck.introVideoUrl ?? null, show: () => openClipPreview(deck.introVideoUrl ?? null) },
+                { k: "outro", label: "Outro — presenter on screen", done: ready.outro, meta: ready.outro ? "Ready" : "Not generated", busyKey: "outrofilm" as const, run: () => genFilm("outro"), preview: deck.outroVideoUrl ?? null, show: () => openClipPreview(deck.outroVideoUrl ?? null) },
+                { k: "moments", label: "Talking moments between slides", done: ready.moments, meta: `${momentReady}/${momentTotal} ready`, busyKey: "moments" as const, run: genMoments, preview: null as string | null, hide: momentTotal === 0, show: () => { const m = deck.slides.find((s) => s.presenterMoment && s.momentVideoUrl); const idx = deck.slides.findIndex((s) => s.id === m?.id); if (idx >= 0) setPage(idx); openClipPreview(m?.momentVideoUrl ?? null); } },
               ]).filter((a) => !a.hide).map((a) => (
-                <div key={a.k} className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 p-3">
-                  <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", a.done ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground")}>{a.done ? <Check className="h-4 w-4" /> : busy === a.busyKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Film className="h-4 w-4" />}</span>
+                <div key={a.k} className={cn("flex items-center gap-3 rounded-xl border p-3 transition-colors", busy === a.busyKey ? "border-brand-500 bg-brand-500/5" : "border-border bg-muted/40")}>
+                  <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", a.done ? "bg-emerald-500/15 text-emerald-400" : busy === a.busyKey ? "bg-brand-500/15 text-brand-400" : "bg-muted text-muted-foreground")}>{a.done ? <Check className="h-4 w-4" /> : busy === a.busyKey ? <Loader2 className="h-4 w-4 animate-spin" /> : busy !== null ? <Loader2 className="h-4 w-4 animate-spin opacity-25" /> : <Film className="h-4 w-4" />}</span>
                   {a.preview ? <video src={a.preview} muted loop autoPlay playsInline className="h-11 w-[74px] shrink-0 rounded-lg object-cover" /> : null}
-                  <div className="min-w-0 flex-1"><b className="block text-[12.5px]">{a.label}</b><span className="text-[11px] text-muted-foreground">{a.meta}</span></div>
-                  <button onClick={a.run} disabled={busy !== null} className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40">{a.done ? "Regenerate" : "Generate"}</button>
+                  <div className="min-w-0 flex-1"><b className="block text-[12.5px]">{a.label}</b><span className="text-[11px] text-muted-foreground">{busy === a.busyKey ? "Generating…" : busy !== null && !a.done ? "Queued…" : a.meta}</span></div>
+                  {a.done ? <button onClick={a.show} disabled={busy !== null} title="Load it onto the stage to see & hear it" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-40"><Play className="h-3 w-3" /> Preview</button> : null}
+                  <button onClick={a.run} disabled={busy !== null} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40">{busy === a.busyKey ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</> : a.done ? "Regenerate" : "Generate"}</button>
                 </div>
               ))}
             </div>
             <div className="flex items-center gap-2 border-t border-border px-5 py-4">
-              <button onClick={() => void runAll()} disabled={busy !== null || presenterReady} className="flex-1 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 py-2.5 text-[13px] font-extrabold text-white disabled:opacity-40">{busy !== null ? "Generating…" : presenterReady ? "All set" : "Generate everything"}</button>
+              <button onClick={() => void runAll()} disabled={busy !== null || presenterReady} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 py-2.5 text-[13px] font-extrabold text-white disabled:opacity-40">{busy !== null ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : presenterReady ? <><Check className="h-4 w-4" /> All set</> : <><Sparkles className="h-4 w-4" /> Generate everything</>}</button>
               <button onClick={() => { setPrepOpen(false); if (presenterReady) onStartMeeting?.(mat.id); }} disabled={!presenterReady} className="flex-1 rounded-xl bg-gradient-to-br from-rose-600 to-rose-400 py-2.5 text-[13px] font-extrabold text-white disabled:opacity-40"><Radio className="me-1 inline h-3.5 w-3.5" /> Start meeting</button>
             </div>
           </div>
@@ -434,7 +489,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
 /** The presentation's AI Presenter, as a full-width bar under the builder: who's
  *  delivering, their voice, their moving-avatar animation, and the on/off + generate
  *  controls — all in one place instead of a cramped rail card. */
-function PresenterBar({ presenter, active, loopUrl, slideCount, narratedCount, busy, onManage, onToggle, onNarrate, onAnimate, hasIntro, hasOutro, momentTotal, momentReady, onGenFilm, onGenMoments }: {
+function PresenterBar({ presenter, active, loopUrl, slideCount, narratedCount, busy, onManage, onToggle, onPrepare, hasIntro, hasOutro, momentTotal, momentReady }: {
   presenter: PresenterProfileDTO | null;
   active: boolean;
   loopUrl: string | null;
@@ -444,13 +499,10 @@ function PresenterBar({ presenter, active, loopUrl, slideCount, narratedCount, b
   hasOutro: boolean;
   momentTotal: number;
   momentReady: number;
-  onGenMoments: () => void;
   onManage: () => void;
   onToggle: () => void;
-  onNarrate: () => void;
-  onAnimate: () => void;
+  onPrepare: () => void;
   hasIntro: boolean;
-  onGenFilm: (kind: "intro" | "outro") => void;
 }) {
   if (!presenter) {
     return (
@@ -497,7 +549,7 @@ function PresenterBar({ presenter, active, loopUrl, slideCount, narratedCount, b
           </div>
           <Bars active={busy === "narrate"} />
         </div>
-        <button onClick={onNarrate} disabled={!active || busy === "narrate"} title={active ? "" : "Turn the presenter On first"} className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40">
+        <button onClick={onPrepare} title="Open Prepare presenter" className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-[11px] font-bold hover:border-brand-500">
           {busy === "narrate" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Voicing…</> : <><Volume2 className="h-3.5 w-3.5" /> {narratedCount ? `${narratedCount}/${slideCount} voiced` : "Generate narration"}</>}
         </button>
       </div>
@@ -518,17 +570,17 @@ function PresenterBar({ presenter, active, loopUrl, slideCount, narratedCount, b
           <span className="block text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">Animation</span>
           <span className={cn("block truncate text-[11px] font-semibold", loopUrl ? "text-emerald-400" : "text-muted-foreground")}>{loopUrl ? "Moving avatar ready" : "Still photo"}</span>
         </div>
-        <button onClick={onAnimate} disabled={busy === "animate"} title="A subtle moving avatar for the small co-host tile" className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40">
+        <button onClick={onPrepare} title="Open Prepare presenter" className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-[11px] font-bold hover:border-brand-500">
           {busy === "animate" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Animating…</> : <><Film className="h-3.5 w-3.5" /> {loopUrl ? "Re-animate" : "Animate"}</>}
         </button>
         <div className="flex shrink-0 flex-col gap-1">
           <span className="text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">On‑screen talking</span>
           <div className="flex gap-1">
-            <button onClick={() => onGenFilm("intro")} disabled={busy === "introfilm"} title="A realistic talking video of your presenter for the intro (~6 credits)" className={cn("inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold hover:border-brand-500 disabled:opacity-40", hasIntro ? "border-emerald-500/40 text-emerald-400" : "border-border")}>{busy === "introfilm" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} {hasIntro ? "Intro ✓" : "Intro"}</button>
-            <button onClick={() => onGenFilm("outro")} disabled={busy === "outrofilm"} title="A realistic talking video of your presenter for the outro (~6 credits)" className={cn("inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold hover:border-brand-500 disabled:opacity-40", hasOutro ? "border-emerald-500/40 text-emerald-400" : "border-border")}>{busy === "outrofilm" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} {hasOutro ? "Outro ✓" : "Outro"}</button>
+            <button onClick={onPrepare} title="Realistic talking intro video — open Prepare presenter" className={cn("inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold hover:border-brand-500", hasIntro ? "border-emerald-500/40 text-emerald-400" : "border-border")}>{busy === "introfilm" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} {hasIntro ? "Intro ✓" : "Intro"}</button>
+            <button onClick={onPrepare} title="Realistic talking outro video — open Prepare presenter" className={cn("inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold hover:border-brand-500", hasOutro ? "border-emerald-500/40 text-emerald-400" : "border-border")}>{busy === "outrofilm" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} {hasOutro ? "Outro ✓" : "Outro"}</button>
           </div>
           {momentTotal > 0 ? (
-            <button onClick={onGenMoments} disabled={busy === "moments"} title={`Realistic talking videos where your presenter comes on screen between slides (${momentTotal} moments, ~6 credits each)`} className={cn("inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold hover:border-brand-500 disabled:opacity-40", momentReady === momentTotal ? "border-emerald-500/40 text-emerald-400" : "border-border")}>{busy === "moments" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} {momentReady === momentTotal ? `Moments ✓ (${momentTotal})` : `Moments (${momentReady}/${momentTotal})`}</button>
+            <button onClick={onPrepare} title="Talking moments between slides — open Prepare presenter" className={cn("inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold hover:border-brand-500", momentReady === momentTotal ? "border-emerald-500/40 text-emerald-400" : "border-border")}>{busy === "moments" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} {momentReady === momentTotal ? `Moments ✓ (${momentTotal})` : `Moments (${momentReady}/${momentTotal})`}</button>
           ) : null}
         </div>
       </div>
