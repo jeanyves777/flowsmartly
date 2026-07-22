@@ -142,7 +142,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
                 ? await prisma.trainingParticipant.count({ where: { sessionId: id, isRecorder: true, id: { in: ids } } })
                 : 0;
               const live = Math.max(0, ids.length - bots);
-              if (live > 0) await meterRoom(id, live * 60);
+              // Always meter — attendee-time bills when live>0, and meterRoom also bills the
+              // per-minute RECORDING even when only the bot is connected (live can be 0).
+              await meterRoom(id, live * 60);
             } catch {
               /* never let metering kill the stream */
             }

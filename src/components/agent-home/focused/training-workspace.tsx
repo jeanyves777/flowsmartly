@@ -592,7 +592,7 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
           <div className="w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 border-b border-border px-4 py-3">
               <b className="min-w-0 flex-1 truncate text-[14px]">{watchRec.title}</b>
-              <a href={watchRec.recordingUrl} download target="_blank" rel="noreferrer" className="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500">Download</a>
+              <a href={`/api/ai/training/${watchRec.id}/recording/download`} className="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500">Download</a>
               <button onClick={() => { navigator.clipboard?.writeText(watchRec.recordingUrl!).catch(() => {}); toast({ title: "Recording link copied" }); }} className="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500">Copy link</button>
               <button onClick={() => setWatchRec(null)} className="rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-semibold hover:border-brand-500">Close</button>
             </div>

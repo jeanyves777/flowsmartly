@@ -156,7 +156,7 @@ export function TrainingLibrary({ rows, currentId, onOpen, onWatch, onClose, rel
                       {r.recordingUrl ? (
                         <>
                           <button onClick={() => onWatch(r)} title="Watch" className="grid h-6.5 w-6.5 place-items-center rounded-lg border border-border text-brand-400 hover:border-brand-500"><Play className="h-3 w-3 fill-current" /></button>
-                          <a href={r.recordingUrl} download target="_blank" rel="noreferrer" title="Download" className="grid h-6.5 w-6.5 place-items-center rounded-lg border border-border hover:border-brand-500"><Download className="h-3 w-3" /></a>
+                          <a href={`/api/ai/training/${r.id}/recording/download`} title="Download" className="grid h-6.5 w-6.5 place-items-center rounded-lg border border-border hover:border-brand-500"><Download className="h-3 w-3" /></a>
                           <button onClick={() => copyLink(r.recordingUrl!)} title="Copy link" className="grid h-6.5 w-6.5 place-items-center rounded-lg border border-border hover:border-brand-500"><Link2 className="h-3 w-3" /></button>
                         </>
                       ) : null}

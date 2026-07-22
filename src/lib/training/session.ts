@@ -7,6 +7,7 @@
 import { prisma } from "@/lib/db/client";
 import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
+import { recorderConfigured } from "./recorder";
 import {
   EMPTY_BOARD,
   type BoardDoc,
@@ -90,20 +91,21 @@ export async function estimateSession(opts: {
   recording: boolean;
   transcript: boolean;
 }): Promise<TrainingEstimate> {
-  const [per10, recCost, txCost] = await Promise.all([
+  const [per10, recPer10, txCost] = await Promise.all([
     getDynamicCreditCost("TRAINING_ATTENDEE_10MIN"),
-    getDynamicCreditCost("TRAINING_RECORDING"),
+    getDynamicCreditCost("TRAINING_RECORDING_10MIN"),
     getDynamicCreditCost("TRAINING_TRANSCRIPT"),
   ]);
 
   const attendeeMinutes = Math.max(0, opts.seats) * Math.max(0, opts.plannedMins);
   const room = Math.round((attendeeMinutes / 10) * per10);
-  const recording = opts.recording ? recCost : 0;
+  // recording is metered per 10 RECORDED minutes (see meterRoom) — estimate it from the length.
+  const recording = opts.recording ? Math.ceil(Math.max(0, opts.plannedMins) / 10) * recPer10 : 0;
   const transcript = opts.transcript ? txCost : 0;
 
   const breakdown = [
     { label: `Room · ${opts.seats} seats × ${opts.plannedMins} min`, credits: room },
-    ...(opts.recording ? [{ label: "Recording", credits: recording }] : []),
+    ...(opts.recording ? [{ label: `Recording · ~${opts.plannedMins} min`, credits: recording }] : []),
     ...(opts.transcript ? [{ label: "Live transcript + summary", credits: transcript }] : []),
   ];
 
@@ -121,50 +123,45 @@ export async function estimateSession(opts: {
  * VOICE_AGENT_MINUTE. Returns the credits actually charged.
  */
 export async function meterRoom(sessionId: string, attendeeSeconds: number): Promise<number> {
-  if (attendeeSeconds <= 0) return 0;
-
   const s = await prisma.trainingSession.findUnique({
     where: { id: sessionId },
-    select: { userId: true, status: true, metadata: true, creditsSpent: true },
+    select: { userId: true, status: true, metadata: true, recording: true, recordingStartedAt: true, recordingPausedAt: true },
   });
   if (!s || s.status !== "live") return 0;
 
-  const meta = json<{ meterRemainderSec?: number }>(s.metadata, {});
-  const pending = (meta.meterRemainderSec ?? 0) + attendeeSeconds;
+  const meta = json<{ meterRemainderSec?: number; recBilledSec?: number }>(s.metadata, {});
+  const BLOCK_SEC = 10 * 60; // 10 minutes
+  let charge = 0;
 
-  const BLOCK_SEC = 10 * 60; // 10 attendee-minutes
+  // ---- attendee-time (carry the sub-block remainder forward) ----
+  const pending = (meta.meterRemainderSec ?? 0) + Math.max(0, attendeeSeconds);
   const blocks = Math.floor(pending / BLOCK_SEC);
-  const remainder = pending - blocks * BLOCK_SEC;
-
-  if (blocks <= 0) {
-    await prisma.trainingSession.update({
-      where: { id: sessionId },
-      data: { metadata: JSON.stringify({ ...meta, meterRemainderSec: remainder }) },
-    });
-    return 0;
+  meta.meterRemainderSec = pending - blocks * BLOCK_SEC;
+  if (blocks > 0) {
+    const per10 = await getDynamicCreditCost("TRAINING_ATTENDEE_10MIN");
+    const res = await creditService.deductCredits({ userId: s.userId, type: "USAGE", amount: blocks * per10, description: `Training room: ${blocks * 10} attendee-minutes`, referenceType: "training_session", referenceId: sessionId });
+    if (res.success) charge += blocks * per10;
   }
 
-  const per10 = await getDynamicCreditCost("TRAINING_ATTENDEE_10MIN");
-  const charge = blocks * per10;
-
-  const res = await creditService.deductCredits({
-    userId: s.userId,
-    type: "USAGE",
-    amount: charge,
-    description: `Training room: ${blocks * 10} attendee-minutes`,
-    referenceType: "training_session",
-    referenceId: sessionId,
-  });
+  // ---- recording-time (per 10 RECORDED minutes; only when a recorder is actually wired up) ----
+  // recordingStartedAt is shifted on pause/resume so (now − it) == total ACTIVE recorded time;
+  // `recBilledSec` tracks what we've already charged, so this is crash-safe and never double-bills.
+  if (s.recording && !s.recordingPausedAt && s.recordingStartedAt && recorderConfigured()) {
+    const activeSec = Math.floor((Date.now() - s.recordingStartedAt.getTime()) / 1000);
+    const billed = meta.recBilledSec ?? 0;
+    const recBlocks = Math.floor(Math.max(0, activeSec - billed) / BLOCK_SEC);
+    if (recBlocks > 0) {
+      const recPer10 = await getDynamicCreditCost("TRAINING_RECORDING_10MIN");
+      const res = await creditService.deductCredits({ userId: s.userId, type: "USAGE", amount: recBlocks * recPer10, description: `Training room: ${recBlocks * 10} recorded minutes`, referenceType: "training_recording", referenceId: sessionId });
+      if (res.success) { charge += recBlocks * recPer10; meta.recBilledSec = billed + recBlocks * BLOCK_SEC; }
+    }
+  }
 
   await prisma.trainingSession.update({
     where: { id: sessionId },
-    data: {
-      metadata: JSON.stringify({ ...meta, meterRemainderSec: remainder }),
-      ...(res.success ? { creditsSpent: { increment: charge } } : {}),
-    },
+    data: { metadata: JSON.stringify(meta), ...(charge > 0 ? { creditsSpent: { increment: charge } } : {}) },
   });
-
-  return res.success ? charge : 0;
+  return charge;
 }
 
 // ----------------------------------------------------------------- serialize

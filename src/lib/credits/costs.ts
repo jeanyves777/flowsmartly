@@ -218,7 +218,8 @@ export const DEFAULT_CREDIT_COSTS = {
   // "End session" (or whose worker dies on a deploy) can't leave an unbilled tab.
   // A 12-seat × 45-min session = 540 attendee-min = 54 credits.
   TRAINING_ATTENDEE_10MIN: 1,   // media relay is our own SFU — this is VPS bandwidth, not a vendor bill
-  TRAINING_RECORDING: 8,        // per session: record + store the room
+  TRAINING_RECORDING: 8,        // legacy flat fallback (kept for old estimates)
+  TRAINING_RECORDING_10MIN: 2,  // per 10 RECORDED minutes: the bot's compute + storage of the file
   TRAINING_TRANSCRIPT: 4,       // per session: live transcript + emailed summary
 
   // --- Training Room: AI presenter + deck media ---
@@ -379,6 +380,7 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   VOICE_AGENT_NUMBER_RENTAL: "Voice agent: phone number, monthly",
   TRAINING_ATTENDEE_10MIN: "Training room: time in the room",
   TRAINING_RECORDING: "Training room: recording",
+  TRAINING_RECORDING_10MIN: "Training room: recorded minutes",
   TRAINING_TRANSCRIPT: "Training room: transcript & summary",
   PRESENTER_MOMENT_VIDEO: "Training: presenter intro/outro/moment video",
   PRESENTER_ANSWER: "Training: presenter live Q&A answer",
