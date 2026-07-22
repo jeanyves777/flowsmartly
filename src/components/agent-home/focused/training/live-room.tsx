@@ -242,6 +242,13 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const sharer = useMemo(() => session.participants.find((p) => p.sharing) ?? null, [session.participants]);
   const material = useMemo(() => session.materials.find((m) => m.id === session.stageKey) ?? null, [session.materials, session.stageKey]);
   const paged = session.stageSource === "slides" || session.stageSource === "doc";
+  // The recording bot loads the room as a hidden isRecorder participant (or ?rec=1) — render a
+  // CLEAN, full-bleed STAGE (no rail / roster / controls / REC overlay) so the saved file is a
+  // polished, YouTube-ready training video, not a screen-grab of the operator UI. Audio + stage
+  // stay mounted (chrome is just hidden), so the narration is still captured.
+  const [recForced, setRecForced] = useState(false);
+  useEffect(() => { try { setRecForced(new URLSearchParams(window.location.search).get("rec") === "1"); } catch { /* ignore */ } }, []);
+  const recorder = !!me.isRecorder || recForced;
   const [navOpen, setNavOpen] = useState(false);
   const [rosterCollapsed, setRosterCollapsed] = useState(false); // desktop side panel collapse
   const [aiRate, setAiRate] = useState(1); // narration playback speed — host tunes it live, no re-synth
@@ -671,7 +678,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   return (
     <div className="absolute inset-0 flex overflow-hidden bg-background">
       {/* ---- desktop tool rail ---- */}
-      {showTools ? (
+      {showTools && !recorder ? (
         <div className="relative hidden w-[52px] shrink-0 flex-col items-center gap-1 border-e border-border bg-card py-2.5 md:flex">
           <ToolRail
             tool={tool} setTool={setTool} shapeKind={shapeKind} setShapeKind={setShapeKind}
@@ -685,7 +692,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           page never scrolls to reach the top tabs or the bottom menu. */}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* top: sources — shrink-0 so it never collapses out of reach */}
-        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-background/70 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className={cn("flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-background/70 px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", recorder && "hidden")}>
           <button
             onClick={() => setShowTools((v) => !v)}
             title={showTools ? "Hide the drawing tools" : "Show the drawing tools"}
@@ -732,13 +739,13 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
 
         {/* attendee strip on TOP — desktop uses it when the host picks the "top"
             layout; on a phone it's one of the two viewer styles (see mobileRoster). */}
-        {layout === "top" ? <RosterStrip {...rosterProps} className="hidden md:flex" /> : null}
-        {mobileRoster === "top" ? <RosterStrip {...rosterProps} className="md:hidden" /> : null}
+        {layout === "top" && !recorder ? <RosterStrip {...rosterProps} className="hidden md:flex" /> : null}
+        {mobileRoster === "top" && !recorder ? <RosterStrip {...rosterProps} className="md:hidden" /> : null}
 
         {/* stage — the inner ref measures the space, the board fills it. min-h-0 lets
             it SHRINK so the source bar + lesson card + control bar always stay on
             screen (no page scroll to reach the top tabs or the bottom menu). */}
-        <div ref={spotWrapRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0e0e13] p-1 sm:p-2">
+        <div ref={spotWrapRef} className={cn("relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0e0e13]", recorder ? "p-0" : "p-1 sm:p-2")}>
           {/* spotlight — a big tile everyone sees; the host can DRAG it anywhere */}
           {spotlight ? (
             <div className="pointer-events-none absolute z-[14] w-[38%] max-w-[240px]" style={spotPos ? { left: spotPos.x, top: spotPos.y } : { right: 12, top: 12 }}>
@@ -796,7 +803,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
             {/* browser blocked autoplay (common when an attendee just joined) — a big,
                 unmissable overlay; ONE tap unlocks sound and immediately plays whatever
                 the presenter is saying now. (Any tap on the page also unlocks it.) */}
-            {soundBlocked ? (
+            {soundBlocked && !recorder ? (
               <button
                 onClick={() => { setSoundBlocked(false); if (momentVidRef.current) { momentVidRef.current.muted = false; momentVidRef.current.play().catch(() => {}); } const ans = answerAudioRef.current; if (ans && answerUrlRef.current) ans.play().catch(() => {}); else aiAudioRef.current?.play().catch(() => {}); }}
                 className="absolute inset-0 z-[15] grid place-items-center bg-black/45 backdrop-blur-[2px]"
@@ -865,7 +872,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
 
           {/* ---- presentation control bar — BELOW the stage, host only (keeps the
                  presentation screen clean; attendees don't drive the deck) ---- */}
-          {paged && material && host ? (
+          {paged && material && host && !recorder ? (
             <div className="relative flex shrink-0 items-center justify-center bg-[#0e0e13] px-3 py-2.5">
               {navOpen && deckSlides ? (
                 <div className="absolute bottom-full left-1/2 z-[7] mb-2 w-[min(92%,640px)] -translate-x-1/2 rounded-2xl border border-border bg-background/95 p-2 shadow-2xl backdrop-blur">
@@ -930,8 +937,9 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
             </>
           ) : null}
 
-          {/* recording overlays live over the stage */}
-          <RecordingLayer recording={session.recording} startedAt={session.recordingStartedAt} pausedAt={session.recordingPausedAt} host={host} patch={patch} />
+          {/* recording overlays live over the stage — never shown to the recorder bot (its
+              capture is the clean video; a burned-in REC badge would ruin the upload). */}
+          {!recorder ? <RecordingLayer recording={session.recording} startedAt={session.recordingStartedAt} pausedAt={session.recordingPausedAt} host={host} patch={patch} /> : null}
 
           {/* leave-and-return: devices died while away — say so, offer one tap back */}
           {media.needsAttention ? (
@@ -944,12 +952,12 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         </div>
 
         {/* attendee strip on the BOTTOM (desktop layouts only) */}
-        {layout === "bottom" ? <RosterStrip {...rosterProps} className="hidden md:flex" /> : null}
+        {layout === "bottom" && !recorder ? <RosterStrip {...rosterProps} className="hidden md:flex" /> : null}
 
         {/* ---- control bar ---- large touch targets, spread evenly on a phone.
             pb clears the iOS home indicator / bottom browser toolbar so the buttons
             are never tucked under it (safe-area inset, min 0.5rem). ---- */}
-        <div className="flex shrink-0 items-center justify-between gap-1 overflow-x-auto border-t border-border bg-background/90 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:justify-start md:gap-1.5 md:px-2.5 md:pt-2.5 md:pb-2.5">
+        <div className={cn("flex shrink-0 items-center justify-between gap-1 overflow-x-auto border-t border-border bg-background/90 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:justify-start md:gap-1.5 md:px-2.5 md:pt-2.5 md:pb-2.5", recorder && "hidden")}>
           {/* mic + device caret */}
           <div ref={audioBtnRef} className="relative shrink-0">
             <Ctl
@@ -1044,7 +1052,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
 
       {/* ---- side roster: desktop column only. On a phone the "side" layout
              renders the compact bottom strip above (never a full-height drawer). ---- */}
-      {layout === "side" ? (
+      {layout === "side" && !recorder ? (
         rosterCollapsed ? (
           <aside className="relative hidden w-11 shrink-0 flex-col items-center gap-2 border-s border-border bg-card py-2.5 md:flex">
             <button onClick={() => setRosterCollapsed(false)} title="Show participants" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><PanelLeftClose className="h-4 w-4" /></button>
