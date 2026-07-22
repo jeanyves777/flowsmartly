@@ -6177,6 +6177,15 @@ model VoiceAgent {
   // embedded in the connector URL so the relay knows which tenant is calling.
   mcpToken String? @unique
 
+  // ElevenLabs Conversational AI: unlike xAI's gated agents API, EL lets us
+  // create/update a real agent programmatically. This row is mirrored to an EL
+  // agent (elevenAgentId) that carries the phone/WhatsApp/chat channels, the
+  // voice, languages, and (via our MCP relay) the tools.
+  elevenAgentId   String?
+  elevenSyncState String    @default("pending") // pending | synced | error
+  elevenSyncError String?
+  elevenSyncedAt  DateTime?
+
   // Request -> admin-build -> approve -> activate. A new agent is REQUESTED
   // (status), an admin builds the console agent + assigns a number, then approves.
   requestedAt DateTime?

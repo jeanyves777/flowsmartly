@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
 import { syncAgentToXai } from "@/lib/voice-agent/agent-sync";
+import { syncElevenLabsAgent } from "@/lib/voice-agent/elevenlabs-sync";
 import { DEFAULT_HOURS, publicNumber, type AgentSkill } from "@/lib/voice-agent/types";
 import { bindNumberToAgent } from "@/lib/voice-agent/xai-phone";
 
@@ -205,6 +206,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data,
       include: { number: true },
     });
+
+    // Keep the mirrored ElevenLabs agent current with every edit (non-blocking).
+    void syncElevenLabsAgent(agent.id).catch((e) => console.error("[VoiceAgent] EL sync failed:", e));
 
     // On go-live, make sure the provider knows this agent. If the agents endpoint
     // is on, this creates/updates the console agent and binds the number to it;
