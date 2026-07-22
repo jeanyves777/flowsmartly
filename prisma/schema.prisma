@@ -6213,6 +6213,10 @@ model VoiceCall {
   phoneNumberId String?
 
   twilioCallSid String? @unique // CA…
+  // The ElevenLabs conversation this row was pulled from (phone / WhatsApp / chat),
+  // so a resync updates rather than duplicates. `channel` records which surface.
+  elevenConversationId String? @unique // conv_…
+  channel              String  @default("phone") // phone | whatsapp | chat | web
   direction     String  @default("inbound") // inbound | outbound
   fromE164      String
   toE164        String

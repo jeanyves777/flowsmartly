@@ -1218,7 +1218,8 @@ function BackOffice({ agent, calls, stats, onClose, onPatch, onRefresh, onOpenVi
                       </span>
                       <span className="min-w-0 flex-1">
                         <b className="block truncate text-[11.5px]">{c.callerName || fmtNumber(c.fromE164)}</b>
-                        <span className="text-[9.5px] text-muted-foreground">
+                        <span className="flex items-center gap-1.5 text-[9.5px] text-muted-foreground">
+                          <ChannelBadge channel={c.channel} />
                           {new Date(c.startedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                         </span>
                       </span>
@@ -1268,6 +1269,17 @@ function ConnectionPill({ state }: { state?: string }) {
       {s.label}
     </span>
   );
+}
+
+function ChannelBadge({ channel }: { channel?: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    whatsapp: { label: "WhatsApp", cls: "bg-emerald-500/15 text-emerald-500" },
+    chat: { label: "Chat", cls: "bg-sky-500/15 text-sky-500" },
+    web: { label: "Chat", cls: "bg-sky-500/15 text-sky-500" },
+    phone: { label: "Phone", cls: "bg-muted text-muted-foreground" },
+  };
+  const c = map[(channel || "phone").toLowerCase()] || map.phone;
+  return <span className={cn("flex-none rounded px-1 py-px text-[8px] font-bold", c.cls)}>{c.label}</span>;
 }
 
 function OutcomeChip({ outcome }: { outcome: string }) {
