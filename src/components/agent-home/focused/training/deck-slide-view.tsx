@@ -138,30 +138,34 @@ const md = (s: string | undefined | null): string =>
 // `visualStyle` never changed the look. Each preset now drives the shared CSS vars
 // (--sbg1/2 ground, --sa/sa2 accent gradient, --sat accent text) + a heading font,
 // set on a display:contents themer that wraps the slide so the vars + font inherit
-// into every branch below. All grounds are dark-with-light-text (so no renderer's
-// text breaks); they differ by hue, accent and typeface.
-type StylePreset = { bg1: string; bg2: string; sa: string; sa2: string; sat: string; font: string };
+// into every branch below. Most grounds are dark-with-light-text; three (minimal /
+// editorial / elegant) are LIGHT — `fg` is the foreground as an "R G B" triplet so the
+// doc renderers flip their text/panels (--sfg) while accents stay saturated. Branded
+// interstitials (intro/quiz/qa/question_answer) and the hero/full-visual overlays keep
+// their own dark treatment on every style. They differ by hue, accent and typeface.
+type StylePreset = { bg1: string; bg2: string; sa: string; sa2: string; sat: string; font: string; fg?: string };
 const SANS = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 const SERIF = 'Georgia,"Times New Roman",serif';
+const LIGHT = "24 24 27"; // near-black foreground for light grounds
 const STYLE_PRESETS: Record<string, StylePreset> = {
   modern_professional: { bg1: "#14121f", bg2: "#1c1830", sa: "#7c5cff", sa2: "#a855f7", sat: "#c4b5fd", font: SANS },
   cinematic:           { bg1: "#1c1210", bg2: "#241413", sa: "#ff8a3d", sa2: "#ff5a5f", sat: "#ffcf9e", font: SERIF },
   "3d_technology":     { bg1: "#0c1830", bg2: "#0a1424", sa: "#38bdf8", sa2: "#6366f1", sat: "#7dd3fc", font: SANS },
   whiteboard_teacher:  { bg1: "#12241c", bg2: "#0c1a14", sa: "#fbbf24", sa2: "#fca5a5", sat: "#fde68a", font: '"Segoe Print","Comic Sans MS",cursive' },
-  editorial:           { bg1: "#191919", bg2: "#0f0f10", sa: "#d4a24e", sa2: "#b45309", sat: "#f0d18a", font: SERIF },
-  minimal:             { bg1: "#101013", bg2: "#0b0b0e", sa: "#e5e7eb", sa2: "#9ca3af", sat: "#e5e7eb", font: SANS },
+  editorial:           { bg1: "#f6f1e7", bg2: "#efe6d4", sa: "#b45309", sa2: "#92400e", sat: "#9a3412", font: SERIF, fg: "28 22 14" },
+  minimal:             { bg1: "#f7f7f8", bg2: "#ececed", sa: "#475569", sa2: "#64748b", sat: "#334155", font: SANS, fg: LIGHT },
   bold_startup:        { bg1: "#1e0f2e", bg2: "#2a0f3a", sa: "#f43f5e", sa2: "#fb923c", sat: "#fda4af", font: SANS },
   data_driven:         { bg1: "#0f1a24", bg2: "#0b1520", sa: "#14b8a6", sa2: "#22d3ee", sat: "#5eead4", font: SANS },
   storytelling:        { bg1: "#1f1430", bg2: "#160e22", sa: "#c084fc", sa2: "#f0abfc", sat: "#e9d5ff", font: SERIF },
   workshop:            { bg1: "#1c1a17", bg2: "#12100e", sa: "#fbbf24", sa2: "#84cc16", sat: "#fde68a", font: SANS },
-  elegant:             { bg1: "#0f1524", bg2: "#0a0f1c", sa: "#cbb26a", sa2: "#9a7b3f", sat: "#e6d9ac", font: '"Didot","Playfair Display",Georgia,serif' },
+  elegant:             { bg1: "#f4f1ea", bg2: "#e9e3d5", sa: "#8a6d34", sa2: "#6b5424", sat: "#6b5424", font: '"Didot","Playfair Display",Georgia,serif', fg: "26 22 16" },
   playful_learning:    { bg1: "#26123a", bg2: "#3a0f2e", sa: "#a855f7", sa2: "#ec4899", sat: "#f5d0fe", font: '"Trebuchet MS","Segoe UI",sans-serif' },
   dark_technology:     { bg1: "#0a0e14", bg2: "#06080d", sa: "#22c55e", sa2: "#10b981", sat: "#86efac", font: '"Cascadia Code","SF Mono",ui-monospace,monospace' },
   brand_first:         { bg1: "#14121f", bg2: "#1c1830", sa: "#7c5cff", sa2: "#a855f7", sat: "#c4b5fd", font: SANS },
 };
 function styleVars(key?: VisualStyle | null): CSSProperties {
   const p = (key && STYLE_PRESETS[key]) || STYLE_PRESETS.modern_professional;
-  return { "--sbg1": p.bg1, "--sbg2": p.bg2, "--sa": p.sa, "--sa2": p.sa2, "--sat": p.sat, fontFamily: p.font } as CSSProperties;
+  return { "--sbg1": p.bg1, "--sbg2": p.bg2, "--sa": p.sa, "--sa2": p.sa2, "--sat": p.sat, "--sfg": p.fg ?? "255 255 255", fontFamily: p.font } as CSSProperties;
 }
 
 export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: DeckSlide; reveal?: number; className?: string; styleKey?: VisualStyle | null }) {
@@ -277,25 +281,25 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
     if (i < 0) return t;
     hlUsed = true;
     const on = annStyle === "highlight";
-    return <>{t.slice(0, i)}<span data-hl className={on ? "rounded-[.15em] bg-cyan-300/40 box-decoration-clone px-[.12em] text-white" : undefined}>{t.slice(i, i + hlPhrase.length)}</span>{t.slice(i + hlPhrase.length)}</>;
+    return <>{t.slice(0, i)}<span data-hl className={on ? "rounded-[.15em] bg-cyan-300/40 box-decoration-clone px-[.12em] text-[rgb(var(--sfg))]" : undefined}>{t.slice(i, i + hlPhrase.length)}</span>{t.slice(i + hlPhrase.length)}</>;
   };
   const ann = hlPhrase ? <HandAnnotate hostRef={hostRef} active={annActive} style={annStyle} /> : null;
 
   // A DEMONSTRATION VIDEO slide — a short generated moving illustration beside the teaching text.
   if (slide.videoUrl || (slide.visualType === "video" && slide.videoPrompt)) {
     return (
-      <div className={cn("relative grid h-full w-full grid-cols-[.92fr_1.08fr] items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-white [container-type:inline-size]", className)}>
+      <div className={cn("relative grid h-full w-full grid-cols-[.92fr_1.08fr] items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div className="flex min-w-0 flex-col justify-center">
           <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
           {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
           {shownB.length ? (
             <ul className="mt-[2.5cqw] flex flex-col gap-[1.4cqw]">
-              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-white/85"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{md(b)}</li>)}
+              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{md(b)}</li>)}
             </ul>
           ) : null}
         </div>
-        <div className="relative aspect-video overflow-hidden rounded-[1.4cqw] bg-black ring-1 ring-white/10 shadow-2xl">
+        <div className="relative aspect-video overflow-hidden rounded-[1.4cqw] bg-black ring-1 ring-[rgb(var(--sfg)/.10)] shadow-2xl">
           {slide.videoUrl ? (
             <video src={slide.videoUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" />
           ) : (
@@ -347,13 +351,13 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
     const stat = statMatch[0].trim();
     const caption = (slide.subtitle && !slide.subtitle.startsWith(stat) ? slide.subtitle : bullets[0]) || slide.title;
     return (
-      <div className={cn("relative grid h-full w-full grid-cols-[1.1fr_.9fr] items-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] text-white [container-type:inline-size]", className)}>
+      <div className={cn("relative grid h-full w-full grid-cols-[1.1fr_.9fr] items-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div>
           <div className="bg-gradient-to-br from-[var(--sat)] to-[var(--sa2)] bg-clip-text text-[clamp(28px,16cqw,150px)] font-black leading-[.9] tracking-tight text-transparent">{stat}</div>
           <h1 className="mt-[1cqw] text-[clamp(10px,3.2cqw,30px)] font-extrabold leading-tight">{md(slide.title)}</h1>
         </div>
-        <p style={{ textWrap: "balance" }} className="border-l-2 border-brand-500/40 pl-[4%] text-[clamp(7px,2.3cqw,20px)] font-medium text-white/80">{md(caption)}</p>
+        <p style={{ textWrap: "balance" }} className="border-l-2 border-brand-500/40 pl-[4%] text-[clamp(7px,2.3cqw,20px)] font-medium text-[rgb(var(--sfg)/.80)]">{md(caption)}</p>
       </div>
     );
   }
@@ -362,15 +366,15 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   if ((lay === "key_takeaways" || lay === "action_plan" || lay === "recap_map" || lay === "concept_map" || lay === "dashboard_insight") && bullets.length) {
     const two = bullets.length > 3;
     return (
-      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <h1 className="text-[clamp(11px,4cqw,40px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
         {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
         <div className={cn("mt-[3cqw] grid gap-[1.6cqw]", two ? "grid-cols-2" : "grid-cols-1")}>
           {shownB.map((b, i) => (
-            <div key={i} className="flex items-start gap-[1.8cqw] rounded-[1.4cqw] border border-white/10 bg-white/[0.05] px-[2.6cqw] py-[2cqw] duration-300 animate-in fade-in slide-in-from-bottom-2">
+            <div key={i} className="flex items-start gap-[1.8cqw] rounded-[1.4cqw] border border-[rgb(var(--sfg)/.10)] bg-[rgb(var(--sfg)/0.05)] px-[2.6cqw] py-[2cqw] duration-300 animate-in fade-in slide-in-from-bottom-2">
               <span className="grid h-[3.6cqw] w-[3.6cqw] shrink-0 place-items-center rounded-full bg-gradient-to-br from-[var(--sa)] to-[var(--sa2)] text-[clamp(6px,1.9cqw,17px)] font-black text-white">{lay === "action_plan" ? i + 1 : "✓"}</span>
-              <span className="min-w-0 text-[clamp(6px,2cqw,18px)] font-medium leading-snug text-white/90">{md(b)}</span>
+              <span className="min-w-0 text-[clamp(6px,2cqw,18px)] font-medium leading-snug text-[rgb(var(--sfg)/.90)]">{md(b)}</span>
             </div>
           ))}
         </div>
@@ -400,16 +404,16 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
     const cols = [bullets.slice(0, half), bullets.slice(half)];
     const tones = ["border-emerald-400/30 from-emerald-500/[0.12]", "border-rose-400/30 from-rose-500/[0.1]"];
     return (
-      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
         {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
         <div className="mt-[3cqw] grid grid-cols-2 gap-[2cqw]">
           {cols.map((c, ci) => (
             <div key={ci} className={cn("rounded-[1.6cqw] border bg-gradient-to-b to-transparent p-[3.4%]", tones[ci])}>
-              <div className="mb-[1.6cqw] text-[clamp(6px,2cqw,18px)] font-black uppercase tracking-wide text-white/85">{heads[ci]}</div>
+              <div className="mb-[1.6cqw] text-[clamp(6px,2cqw,18px)] font-black uppercase tracking-wide text-[rgb(var(--sfg)/.85)]">{heads[ci]}</div>
               <ul className="flex flex-col gap-[1.4cqw]">
-                {c.map((b, i) => <li key={i} className="flex gap-[1.4cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-white/85"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-white/45" />{md(b)}</li>)}
+                {c.map((b, i) => <li key={i} className="flex gap-[1.4cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[rgb(var(--sfg)/.45)]" />{md(b)}</li>)}
               </ul>
             </div>
           ))}
@@ -423,14 +427,14 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
     const heads = ["Problem", "Solution", "Result"];
     const pick = [bullets[0], bullets[1], bullets[2] ?? slide.subtitle ?? ""];
     return (
-      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
         <div className="mt-[3cqw] grid grid-cols-3 gap-[1.6cqw]">
           {heads.map((h, i) => (
-            <div key={i} className="relative rounded-[1.4cqw] border border-white/10 bg-white/[0.05] p-[3.4%]">
+            <div key={i} className="relative rounded-[1.4cqw] border border-[rgb(var(--sfg)/.10)] bg-[rgb(var(--sfg)/0.05)] p-[3.4%]">
               <div className="mb-[1cqw] text-[clamp(5px,1.7cqw,15px)] font-black uppercase tracking-wide text-[color:var(--sat)]">{h}</div>
-              <p className="text-[clamp(6px,1.9cqw,17px)] leading-snug text-white/85">{md(pick[i] || "")}</p>
+              <p className="text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]">{md(pick[i] || "")}</p>
               {i < 2 ? <span className="absolute -right-[1.1cqw] top-1/2 z-[2] -translate-y-1/2 text-[clamp(8px,2.4cqw,22px)] text-brand-400">→</span> : null}
             </div>
           ))}
@@ -443,15 +447,15 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   if ((lay === "step_process" || lay === "customer_journey" || lay === "timeline" || lay === "vertical_journey" || lay === "workflow_diagram") && bullets.length >= 2) {
     const steps = shownB.slice(0, 5);
     return (
-      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
         {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
         <div className="mt-[3.5cqw] grid gap-[1.6cqw]" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0,1fr))` }}>
           {steps.map((b, i) => (
-            <div key={i} className="relative flex flex-col rounded-[1.4cqw] border border-white/10 bg-white/[0.05] p-[3.2%] duration-300 animate-in fade-in slide-in-from-bottom-2">
+            <div key={i} className="relative flex flex-col rounded-[1.4cqw] border border-[rgb(var(--sfg)/.10)] bg-[rgb(var(--sfg)/0.05)] p-[3.2%] duration-300 animate-in fade-in slide-in-from-bottom-2">
               <span className="mb-[1.2cqw] grid h-[3.6cqw] w-[3.6cqw] place-items-center rounded-full bg-gradient-to-br from-[var(--sa)] to-[var(--sa2)] text-[clamp(6px,1.8cqw,16px)] font-black text-white">{i + 1}</span>
-              <p className="text-[clamp(5px,1.7cqw,15px)] leading-snug text-white/85">{md(b)}</p>
+              <p className="text-[clamp(5px,1.7cqw,15px)] leading-snug text-[rgb(var(--sfg)/.85)]">{md(b)}</p>
               {i < steps.length - 1 ? <span className="absolute -right-[1cqw] top-[3.4cqw] z-[2] text-[clamp(7px,2cqw,18px)] text-brand-400">→</span> : null}
             </div>
           ))}
@@ -481,7 +485,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   // Case study / real-world scenario — a visual beside a structured outcome.
   if ((lay === "case_study" || lay === "real_world_scenario" || lay === "role_play") && (hasImg || bullets.length >= 1)) {
     return (
-      <div className={cn("relative grid h-full w-full grid-cols-[1fr_1fr] items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-white [container-type:inline-size]", className)}>
+      <div className={cn("relative grid h-full w-full grid-cols-[1fr_1fr] items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div className="flex min-w-0 flex-col justify-center">
           <span className="mb-[1.5cqw] inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-500/15 px-[2.2cqw] py-[.9cqw] text-[clamp(5px,1.6cqw,14px)] font-black uppercase tracking-wide text-[color:var(--sat)]">{lay === "case_study" ? "Case study" : lay === "role_play" ? "Scenario" : "In the field"}</span>
@@ -489,11 +493,11 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
           {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,1.9cqw,17px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
           {shownB.length ? (
             <ul className="mt-[2.4cqw] flex flex-col gap-[1.4cqw]">
-              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-white/85"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{md(b)}</li>)}
+              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{md(b)}</li>)}
             </ul>
           ) : null}
         </div>
-        <div className="relative aspect-[4/3] overflow-hidden rounded-[1.4cqw] bg-gradient-to-br from-[#2a2440] to-[#3a2f52] ring-1 ring-white/10">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-[1.4cqw] bg-gradient-to-br from-[#2a2440] to-[#3a2f52] ring-1 ring-[rgb(var(--sfg)/.10)]">
           {hasImg ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={v!.url} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -508,9 +512,9 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   if ((lay === "image_explanation" || lay === "annotated_photo" || lay === "zoom_in") && hasImg) {
     const zoom = lay === "zoom_in";
     return (
-      <div ref={hostRef} className={cn("relative grid h-full w-full grid-cols-[1.25fr_.85fr] items-stretch gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[5%] py-[5%] text-white [container-type:inline-size]", left && "grid-cols-[.85fr_1.25fr]")}>
+      <div ref={hostRef} className={cn("relative grid h-full w-full grid-cols-[1.25fr_.85fr] items-stretch gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[5%] py-[5%] text-[rgb(var(--sfg))] [container-type:inline-size]", left && "grid-cols-[.85fr_1.25fr]")}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
-        <div className={cn("relative overflow-hidden rounded-[1.6cqw] bg-black ring-1 ring-[rgb(255_255_255/0.1)] shadow-2xl", left && "order-2")}>
+        <div className={cn("relative overflow-hidden rounded-[1.6cqw] bg-black ring-1 ring-[rgb(var(--sfg)/0.1)] shadow-2xl", left && "order-2")}>
           <img src={v!.url} alt="" className={cn("h-full w-full", containImg ? "object-contain p-[3%]" : zoom ? "scale-[1.35] object-cover" : "object-cover")} />
           {v?.tag ? <span className="absolute bottom-[1.2cqw] left-[1.2cqw] rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black backdrop-blur">{zoom ? "🔍 Detail" : v.tag}</span> : null}
         </div>
@@ -519,7 +523,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
           {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,1.9cqw,17px)] font-semibold text-[color:var(--sat)]">{T(slide.subtitle)}</p> : null}
           {shownB.length ? (
             <ul className="mt-[2.4cqw] flex flex-col gap-[1.4cqw]">
-              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-white/85"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{T(b)}</li>)}
+              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{T(b)}</li>)}
             </ul>
           ) : null}
         </div>
@@ -533,7 +537,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   if ((lay === "layered_explanation" || lay === "system_architecture") && bullets.length >= 2) {
     const isArch = lay === "system_architecture";
     return (
-      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
         {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
@@ -541,9 +545,9 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
           {shownB.slice(0, 5).map((b, i) => {
             const op = 0.16 - i * 0.02;
             return (
-              <div key={i} className="flex items-center gap-[2cqw] rounded-[1.2cqw] border border-[rgb(255_255_255/0.1)] px-[3%] py-[1.9cqw] duration-300 animate-in fade-in slide-in-from-left-2" style={{ background: `linear-gradient(90deg, rgb(255 255 255 / ${op}) 0%, transparent 85%)` } as CSSProperties}>
+              <div key={i} className="flex items-center gap-[2cqw] rounded-[1.2cqw] border border-[rgb(var(--sfg)/0.1)] px-[3%] py-[1.9cqw] duration-300 animate-in fade-in slide-in-from-left-2" style={{ background: `linear-gradient(90deg, rgb(255 255 255 / ${op}) 0%, transparent 85%)` } as CSSProperties}>
                 <span className="grid h-[3.4cqw] w-[3.4cqw] shrink-0 place-items-center rounded-[.7cqw] bg-gradient-to-br from-[var(--sa)] to-[var(--sa2)] text-[clamp(6px,1.9cqw,17px)] font-black text-white">{isArch ? `L${shownB.length - i}` : i + 1}</span>
-                <span className="min-w-0 text-[clamp(6px,2cqw,18px)] font-medium leading-snug text-white/90">{md(b)}</span>
+                <span className="min-w-0 text-[clamp(6px,2cqw,18px)] font-medium leading-snug text-[rgb(var(--sfg)/.90)]">{md(b)}</span>
               </div>
             );
           })}
@@ -555,15 +559,15 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   // Workshop — a hands-on activity: a clear prompt + the steps to do, framed as an exercise.
   if (lay === "workshop" && (slide.subtitle || bullets.length)) {
     return (
-      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
-        <span className="mb-[1.6cqw] inline-flex w-fit items-center gap-1.5 rounded-full bg-[rgb(255_255_255/0.08)] px-[2.4cqw] py-[1cqw] text-[clamp(5px,1.7cqw,15px)] font-black uppercase tracking-wide text-[color:var(--sat)]">🛠 Your turn</span>
+        <span className="mb-[1.6cqw] inline-flex w-fit items-center gap-1.5 rounded-full bg-[rgb(var(--sfg)/0.08)] px-[2.4cqw] py-[1cqw] text-[clamp(5px,1.7cqw,15px)] font-black uppercase tracking-wide text-[color:var(--sat)]">🛠 Your turn</span>
         <h1 className="text-[clamp(11px,4cqw,40px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
-        {slide.subtitle ? <p className="mt-[1.2cqw] max-w-[52ch] text-[clamp(6px,2.2cqw,20px)] font-semibold text-white/85">{md(slide.subtitle)}</p> : null}
+        {slide.subtitle ? <p className="mt-[1.2cqw] max-w-[52ch] text-[clamp(6px,2.2cqw,20px)] font-semibold text-[rgb(var(--sfg)/.85)]">{md(slide.subtitle)}</p> : null}
         {shownB.length ? (
           <ol className="mt-[2.6cqw] flex flex-col gap-[1.4cqw]">
             {shownB.map((b, i) => (
-              <li key={i} className="flex items-start gap-[1.8cqw] text-[clamp(6px,2cqw,18px)] leading-snug text-white/90 duration-300 animate-in fade-in slide-in-from-bottom-2">
+              <li key={i} className="flex items-start gap-[1.8cqw] text-[clamp(6px,2cqw,18px)] leading-snug text-[rgb(var(--sfg)/.90)] duration-300 animate-in fade-in slide-in-from-bottom-2">
                 <span className="grid h-[3.2cqw] w-[3.2cqw] shrink-0 place-items-center rounded-full border-2 border-[var(--sa2)] text-[clamp(5px,1.7cqw,15px)] font-black text-[color:var(--sat)]">{i + 1}</span>
                 <span className="min-w-0 pt-[.4cqw]">{md(b)}</span>
               </li>
@@ -577,7 +581,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   // A central 3D/photoreal visual with labeled callouts.
   if (lay === "concept_3d_callouts" && hasImg && bullets.length >= 1) {
     return (
-      <div ref={hostRef} className={cn("relative grid h-full w-full grid-cols-[1.15fr_.85fr] items-center gap-[3%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-white [container-type:inline-size]", className)}>
+      <div ref={hostRef} className={cn("relative grid h-full w-full grid-cols-[1.15fr_.85fr] items-center gap-[3%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div className="relative h-full">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -587,7 +591,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
           <h1 className="text-[clamp(11px,3.6cqw,34px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
           <ul className="mt-[2.4cqw] flex flex-col gap-[1.4cqw]">
             {shownB.slice(0, 4).map((b, i) => (
-              <li key={i} className="flex items-start gap-[1.6cqw] rounded-[1.2cqw] border border-white/10 bg-white/[0.05] px-[2.4cqw] py-[1.4cqw] text-[clamp(6px,1.8cqw,16px)] text-white/90 duration-300 animate-in fade-in slide-in-from-right-2">
+              <li key={i} className="flex items-start gap-[1.6cqw] rounded-[1.2cqw] border border-[rgb(var(--sfg)/.10)] bg-[rgb(var(--sfg)/0.05)] px-[2.4cqw] py-[1.4cqw] text-[clamp(6px,1.8cqw,16px)] text-[rgb(var(--sfg)/.90)] duration-300 animate-in fade-in slide-in-from-right-2">
                 <span className="grid h-[2.8cqw] w-[2.8cqw] shrink-0 place-items-center rounded-full bg-gradient-to-br from-[var(--sa)] to-[var(--sa2)] text-[clamp(5px,1.5cqw,13px)] font-black text-white">{i + 1}</span>
                 {T(b)}
               </li>
@@ -603,20 +607,20 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   // sitting tiny in a side panel — a wide diagram is unreadable when boxed into a portrait.
   if (hasImg && containImg && !full) {
     return (
-      <div className={cn("relative flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[5%] py-[4.5%] text-white [container-type:inline-size]", className)}>
+      <div className={cn("relative flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[5%] py-[4.5%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div className="flex min-w-0 items-baseline gap-[2.5cqw]">
           <h1 className="text-[clamp(10px,3.2cqw,30px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
           {slide.subtitle ? <p className="min-w-0 flex-1 truncate text-[clamp(6px,1.8cqw,16px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
         </div>
-        <div className="relative mt-[1.8cqw] min-h-0 flex-1 overflow-hidden rounded-[1.4cqw] bg-white/[0.04] ring-1 ring-white/10">
+        <div className="relative mt-[1.8cqw] min-h-0 flex-1 overflow-hidden rounded-[1.4cqw] bg-[rgb(var(--sfg)/0.04)] ring-1 ring-[rgb(var(--sfg)/.10)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={v!.url} alt="" className="absolute inset-0 h-full w-full object-contain p-[1.6%]" />
           {v?.tag ? <span className="absolute bottom-[1.2cqw] left-[1.2cqw] rounded-md bg-black/55 px-[1.6cqw] py-[.6cqw] text-[clamp(4px,1.2cqw,11px)] font-black backdrop-blur">{v.tag}</span> : null}
         </div>
         {shownB.length ? (
           <div className="mt-[1.6cqw] grid grid-cols-2 gap-x-[3cqw] gap-y-[.8cqw]">
-            {shownB.slice(0, 4).map((b, i) => <div key={i} className="flex gap-[1.2cqw] text-[clamp(5px,1.5cqw,13px)] leading-snug text-white/80"><span className="mt-[.7cqw] h-[.9cqw] w-[.9cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{md(b)}</div>)}
+            {shownB.slice(0, 4).map((b, i) => <div key={i} className="flex gap-[1.2cqw] text-[clamp(5px,1.5cqw,13px)] leading-snug text-[rgb(var(--sfg)/.80)]"><span className="mt-[.7cqw] h-[.9cqw] w-[.9cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{md(b)}</div>)}
           </div>
         ) : null}
       </div>
@@ -624,7 +628,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey }: { slide: D
   }
 
   return (
-    <div ref={hostRef} className={cn("relative h-full w-full overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] text-white [container-type:inline-size]", className)}>
+    <div ref={hostRef} className={cn("relative h-full w-full overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
       <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
       {full && v?.kind === "image" && v.url ? (
         // eslint-disable-next-line @next/next/no-img-element
