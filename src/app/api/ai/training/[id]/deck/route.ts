@@ -138,19 +138,37 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const body = (await request.json().catch(() => ({}))) as { materialId?: string; deck?: TrainingDeck };
   if (!body.materialId || !body.deck?.slides) return err("Nothing to save");
 
-  const mat = await prisma.trainingMaterial.findFirst({ where: { id: body.materialId, sessionId: id }, select: { id: true } });
+  const mat = await prisma.trainingMaterial.findFirst({ where: { id: body.materialId, sessionId: id }, select: { id: true, deck: true } });
   if (!mat) return err("That deck no longer exists", 404);
 
-  const slides = body.deck.slides.slice(0, 40);
-  // Preserve the presenter wiring (which lives on the deck, not the slides) — dropping
-  // it here is what made narration say "add a presenter first" and left the co-host out
-  // of the live room even though the UI showed one active.
+  // The deck has TWO writers: this client autosave, and the server routes (iv-moment / narrate)
+  // that write generated MEDIA (intro/outro/moment videos, narration audio, loop, voiceKey)
+  // directly. A stale client save must never wipe that media — so MERGE against the stored deck:
+  // the client owns the content (text, order, presenter on/off), but any server-generated field
+  // the client didn't send is preserved. (Dropping intro/outro here is what wiped fresh videos:
+  // the old rebuild only kept presenterId/presenterActive/presenterVideoUrl.)
+  const prev = parseDeck(mat.deck);
+  const prevSlides = new Map(prev.slides.map((s) => [s.id, s]));
+  const slides = body.deck.slides.slice(0, 40).map((s) => {
+    const p = prevSlides.get(s.id);
+    if (!p) return s;
+    return {
+      ...s,
+      momentVideoUrl: s.momentVideoUrl ?? p.momentVideoUrl,
+      momentScript: s.momentScript ?? p.momentScript,
+      narration: s.narration ?? p.narration,
+      quizReveal: s.quizReveal ?? p.quizReveal,
+    };
+  });
   const deck: TrainingDeck = {
     v: 1,
     slides,
-    presenterId: body.deck.presenterId ?? null,
-    presenterActive: body.deck.presenterActive ?? false,
-    presenterVideoUrl: body.deck.presenterVideoUrl ?? null,
+    presenterId: body.deck.presenterId ?? prev.presenterId ?? null,
+    presenterActive: body.deck.presenterActive ?? prev.presenterActive ?? false,
+    presenterVideoUrl: body.deck.presenterVideoUrl ?? prev.presenterVideoUrl ?? null,
+    introVideoUrl: body.deck.introVideoUrl ?? prev.introVideoUrl ?? null,
+    outroVideoUrl: body.deck.outroVideoUrl ?? prev.outroVideoUrl ?? null,
+    voiceKey: body.deck.voiceKey ?? prev.voiceKey ?? null,
   };
   await prisma.trainingMaterial.update({
     where: { id: mat.id },
