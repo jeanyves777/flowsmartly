@@ -36,6 +36,22 @@ const j = <T,>(v: unknown, f: T): T => {
 const langLabel = (code: string) =>
   LANGUAGE_HINTS.find((l) => l.code === code)?.label || (code === "auto" ? "Auto-detect" : code);
 
+/** Turn an admin config payload into a safe VoiceAgent update (same field set a
+ *  user can edit — only what's sent, so a partial save can't blank a field). */
+function buildConfigUpdate(config: Record<string, unknown>): Record<string, unknown> {
+  const data: Record<string, unknown> = {};
+  const strs = ["name", "business", "greeting", "answerMode", "timezone", "escalateTo", "noAnswerAction", "voiceId", "voiceLabel", "languageHint", "reasoningEffort"];
+  for (const k of strs) if (typeof config[k] === "string") data[k] = config[k];
+  const bools = ["escalateOnUpset", "escalateOnUnsure", "escalateOnAsk", "recordCalls", "announceRecording", "allowInterrupt", "discloseAi", "blockSpam"];
+  for (const k of bools) if (typeof config[k] === "boolean") data[k] = config[k];
+  const nums = ["spendCapCredits", "speakingSpeed", "idleTimeoutMs", "retainDays", "vadThreshold", "vadSilenceMs"];
+  for (const k of nums) if (typeof config[k] === "number") data[k] = config[k];
+  for (const k of ["knowledge", "skills", "hours", "keyterms", "pronunciations", "orderConfig", "languages", "followUpRules"]) {
+    if (config[k] !== undefined) data[k] = JSON.stringify(config[k]);
+  }
+  return data;
+}
+
 export async function GET() {
   const admin = await getAdminSession();
   if (!admin) return fail("Unauthorized", 401);
@@ -107,6 +123,27 @@ export async function GET() {
           credits: s?._sum.creditsCharged || 0,
           lastCallAt: lastByAgent.get(a.id) || null,
         },
+        // Raw, editable config — the admin can change any of this for the user.
+        config: {
+          name: a.name,
+          business: a.business,
+          greeting: a.greeting,
+          voiceId: a.voiceId,
+          voiceLabel: a.voiceLabel,
+          languageHint: a.languageHint,
+          languages,
+          speakingSpeed: a.speakingSpeed,
+          skills: j<AgentSkill[]>(a.skills, []),
+          followUpRules: followUps,
+          escalateTo: a.escalateTo || "",
+          escalateOnUpset: a.escalateOnUpset,
+          escalateOnUnsure: a.escalateOnUnsure,
+          escalateOnAsk: a.escalateOnAsk,
+          allowInterrupt: a.allowInterrupt,
+          discloseAi: a.discloseAi,
+          recordCalls: a.recordCalls,
+          spendCapCredits: a.spendCapCredits,
+        },
       };
     });
 
@@ -136,7 +173,7 @@ export async function POST(request: NextRequest) {
   if (!admin) return fail("Unauthorized", 401);
 
   const body = await request.json().catch(() => ({}));
-  const { agentId, action } = body as { agentId?: string; action?: string };
+  const { agentId, action, config } = body as { agentId?: string; action?: string; config?: Record<string, unknown> };
   if (!agentId) return fail("Which agent?");
   if (!action) return fail("No action given.");
 
@@ -152,6 +189,12 @@ export async function POST(request: NextRequest) {
     } else if (action === "resync") {
       const r = await syncElevenLabsAgent(agentId);
       if (r.state === "error") return fail("ElevenLabs sync failed — see the agent's sync error.");
+    } else if (action === "config") {
+      // Admin edits the same config a user can — for any tenant — then we push it
+      // to ElevenLabs so the live agent reflects it.
+      const data = buildConfigUpdate(config || {});
+      if (Object.keys(data).length) await prisma.voiceAgent.update({ where: { id: agentId }, data });
+      void syncElevenLabsAgent(agentId).catch((e) => console.error("[admin/voice-agents] EL sync failed:", e));
     } else if (action === "delete") {
       const elId = agent.elevenAgentId;
       await prisma.voiceAgent.delete({ where: { id: agentId } });

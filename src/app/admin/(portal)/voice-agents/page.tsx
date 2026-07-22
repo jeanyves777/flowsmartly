@@ -18,9 +18,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
   PhoneCall, ArrowLeft, RefreshCw, Inbox, Mic, Wrench, Languages, PhoneForwarded,
-  Clock, Trash2, Pause, Play, RotateCw, Hash, AlertTriangle,
+  Clock, Trash2, Pause, Play, RotateCw, Hash, AlertTriangle, Settings2, Save, X,
 } from "lucide-react";
+import { LANGUAGE_HINTS, SKILL_CATALOG, skillFromDef, type AgentSkill, type FollowUpRule } from "@/lib/voice-agent/types";
+import { STUDIO_VOICES } from "@/lib/training/studio-voices";
 
+interface AgentConfig {
+  name: string; business: string; greeting: string;
+  voiceId: string; voiceLabel: string;
+  languageHint: string; languages: string[]; speakingSpeed: number;
+  skills: AgentSkill[];
+  followUpRules: FollowUpRule[];
+  escalateTo: string; escalateOnUpset: boolean; escalateOnUnsure: boolean; escalateOnAsk: boolean;
+  allowInterrupt: boolean; discloseAi: boolean; recordCalls: boolean;
+  spendCapCredits: number;
+}
 interface Agent {
   id: string;
   name: string;
@@ -42,7 +54,11 @@ interface Agent {
   spendCapCredits: number;
   spentThisPeriod: number;
   stats: { calls: number; minutes: number; credits: number; lastCallAt: string | null };
+  config: AgentConfig;
 }
+
+const FOLLOWUP_OUTCOMES = ["missed", "answered", "lead", "booked", "order", "message", "escalated", "any"];
+const FOLLOWUP_CHANNELS: FollowUpRule["channel"][] = ["sms", "whatsapp", "email"];
 interface Platform {
   totalAgents: number; live: number; paused: number; draft: number; onEleven: number;
   activeNumbers: number; callsThisMonth: number; minutesThisMonth: number; creditsThisMonth: number;
@@ -93,6 +109,151 @@ function Field({ icon: Icon, label, children }: { icon: React.ComponentType<{ cl
   );
 }
 
+const inp = "w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-brand-500";
+const lbl = "mb-1 block text-[11px] font-medium text-muted-foreground";
+
+function ConfigEditor({ agent, onSaved, onClose }: { agent: Agent; onSaved: () => void; onClose: () => void }) {
+  const { toast } = useToast();
+  const [cfg, setCfg] = useState<AgentConfig>(agent.config);
+  const [saving, setSaving] = useState(false);
+  const set = (p: Partial<AgentConfig>) => setCfg((c) => ({ ...c, ...p }));
+
+  const skillOn = (key: string) => cfg.skills.some((s) => s.key === key && s.enabled);
+  const toggleSkill = (key: string) => {
+    const has = cfg.skills.some((s) => s.key === key);
+    if (has) set({ skills: cfg.skills.filter((s) => s.key !== key) });
+    else {
+      const def = SKILL_CATALOG.find((d) => d.key === key);
+      if (def) set({ skills: [...cfg.skills, skillFromDef(def, `sk_${key}_${Date.now()}`)] });
+    }
+  };
+
+  const rules = cfg.followUpRules || [];
+  const setRule = (i: number, p: Partial<FollowUpRule>) => set({ followUpRules: rules.map((r, j) => (j === i ? { ...r, ...p } : r)) });
+
+  const extraLangs = cfg.languages || [];
+  const availLangs = LANGUAGE_HINTS.filter((l) => l.code !== "auto" && l.code !== cfg.languageHint && !extraLangs.includes(l.code));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/admin/voice-agent/agents", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId: agent.id, action: "config", config: cfg }),
+      });
+      const data = await res.json();
+      if (data.success) { toast({ title: "Config saved", description: "Pushed to ElevenLabs." }); onSaved(); onClose(); }
+      else toast({ title: "Failed", description: data.error?.message, variant: "destructive" });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="space-y-4 rounded-lg border border-brand-500/30 bg-brand-500/[0.03] p-4">
+      <div className="flex items-center justify-between">
+        <b className="flex items-center gap-1.5 text-sm"><Settings2 className="h-4 w-4 text-brand-500" /> Configure agent</b>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div><label className={lbl}>Name</label><input className={inp} value={cfg.name} onChange={(e) => set({ name: e.target.value })} /></div>
+        <div><label className={lbl}>Greeting</label><input className={inp} value={cfg.greeting} onChange={(e) => set({ greeting: e.target.value })} placeholder="Leave blank to let the agent open" /></div>
+      </div>
+      <div><label className={lbl}>Business</label><textarea className={`${inp} resize-none`} rows={3} value={cfg.business} onChange={(e) => set({ business: e.target.value })} /></div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div>
+          <label className={lbl}>Voice</label>
+          <select className={inp} value={cfg.voiceId} onChange={(e) => { const v = STUDIO_VOICES.find((x) => x.id === e.target.value); set({ voiceId: e.target.value, voiceLabel: v?.name || cfg.voiceLabel }); }}>
+            {!STUDIO_VOICES.some((v) => v.id === cfg.voiceId) && <option value={cfg.voiceId}>{cfg.voiceLabel || "Current"}</option>}
+            {STUDIO_VOICES.map((v) => <option key={v.id} value={v.id}>{v.name} — {v.tag}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={lbl}>Main language</label>
+          <select className={inp} value={cfg.languageHint} onChange={(e) => set({ languageHint: e.target.value })}>
+            {LANGUAGE_HINTS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={lbl}>Speaking speed</label>
+          <input type="range" min={0.7} max={1.2} step={0.05} value={cfg.speakingSpeed} onChange={(e) => set({ speakingSpeed: Number(e.target.value) })} className="mt-2 w-full accent-brand-500" />
+          <span className="text-[10px] text-muted-foreground">{cfg.speakingSpeed.toFixed(2)}×</span>
+        </div>
+      </div>
+
+      <div>
+        <label className={lbl}>Also speaks</label>
+        <div className="flex flex-wrap items-center gap-1">
+          {extraLangs.map((code) => (
+            <button key={code} onClick={() => set({ languages: extraLangs.filter((c) => c !== code) })}
+              className="rounded-full border border-brand-500/40 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-500">
+              {LANGUAGE_HINTS.find((l) => l.code === code)?.label || code} ×
+            </button>
+          ))}
+          {availLangs.length > 0 && (
+            <select value="" onChange={(e) => { if (e.target.value) set({ languages: [...extraLangs, e.target.value] }); }} className="rounded-md border border-border bg-background px-2 py-1 text-[10.5px]">
+              <option value="">+ add</option>
+              {availLangs.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+            </select>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <label className={lbl}>Skills</label>
+        <div className="flex flex-wrap gap-1.5">
+          {SKILL_CATALOG.map((d) => (
+            <button key={d.key} onClick={() => toggleSkill(d.key)}
+              className={`rounded-lg border px-2 py-1 text-[11px] ${skillOn(d.key) ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border text-muted-foreground"}`}>
+              {d.title}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div><label className={lbl}>Escalate / transfer to</label><input className={`${inp} font-mono`} value={cfg.escalateTo} onChange={(e) => set({ escalateTo: e.target.value })} placeholder="+14155550142" /></div>
+        <div><label className={lbl}>Spend cap (credits / period)</label><input className={inp} type="number" value={cfg.spendCapCredits} onChange={(e) => set({ spendCapCredits: Number(e.target.value) })} /></div>
+      </div>
+      <div className="flex flex-wrap gap-3 text-[11px]">
+        {([["escalateOnUpset", "Hand off if upset"], ["escalateOnAsk", "Hand off if asked"], ["escalateOnUnsure", "Hand off if unsure"], ["allowInterrupt", "Caller can interrupt"], ["discloseAi", "Disclose it's AI"], ["recordCalls", "Record calls"]] as [keyof AgentConfig, string][]).map(([k, label]) => (
+          <label key={k} className="flex items-center gap-1.5">
+            <input type="checkbox" checked={!!cfg[k]} onChange={(e) => set({ [k]: e.target.checked } as Partial<AgentConfig>)} className="accent-brand-500" />
+            {label}
+          </label>
+        ))}
+      </div>
+
+      {/* Routing / after-the-call rules */}
+      <div>
+        <label className={lbl}>After-the-call routing</label>
+        <div className="space-y-1.5">
+          {rules.map((r, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className="text-muted-foreground">When</span>
+              <select className="rounded-md border border-border bg-background px-1.5 py-1" value={r.outcome} onChange={(e) => setRule(i, { outcome: e.target.value })}>
+                {FOLLOWUP_OUTCOMES.map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+              <span className="text-muted-foreground">→</span>
+              <select className="rounded-md border border-border bg-background px-1.5 py-1" value={r.channel} onChange={(e) => setRule(i, { channel: e.target.value as FollowUpRule["channel"] })}>
+                {FOLLOWUP_CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <input className="min-w-[180px] flex-1 rounded-md border border-border bg-background px-2 py-1" value={r.message} onChange={(e) => setRule(i, { message: e.target.value })} placeholder="Message to send…" />
+              <button onClick={() => set({ followUpRules: rules.filter((_, j) => j !== i) })} className="text-muted-foreground hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /></button>
+            </div>
+          ))}
+          <button onClick={() => set({ followUpRules: [...rules, { outcome: "missed", channel: "sms", message: "" }] })} className="text-[11px] font-bold text-brand-400">+ Add a routing rule</button>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 border-t pt-3">
+        <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+        <Button size="sm" onClick={save} disabled={saving} className="gap-1.5"><Save className="h-3.5 w-3.5" /> {saving ? "Saving…" : "Save & sync"}</Button>
+      </div>
+    </div>
+  );
+}
+
 function AgentCard({ agent, onChanged }: { agent: Agent; onChanged: () => void }) {
   const { toast } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
@@ -130,6 +291,7 @@ function AgentCard({ agent, onChanged }: { agent: Agent; onChanged: () => void }
   };
 
   const synced = agent.elevenSyncState === "synced" && agent.elevenAgentId;
+  const [showConfig, setShowConfig] = useState(false);
 
   return (
     <Card className="overflow-hidden">
@@ -221,8 +383,11 @@ function AgentCard({ agent, onChanged }: { agent: Agent; onChanged: () => void }
               <Play className="h-3.5 w-3.5" /> Resume
             </Button>
           )}
+          <Button size="sm" variant={showConfig ? "default" : "outline"} className="gap-1.5" onClick={() => setShowConfig((v) => !v)} disabled={!!busy}>
+            <Settings2 className="h-3.5 w-3.5" /> Configure
+          </Button>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => act("resync")} disabled={!!busy}>
-            <RotateCw className={`h-3.5 w-3.5 ${busy === "resync" ? "animate-spin" : ""}`} /> Resync to ElevenLabs
+            <RotateCw className={`h-3.5 w-3.5 ${busy === "resync" ? "animate-spin" : ""}`} /> Resync
           </Button>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowReplace((v) => !v)} disabled={!!busy}>
             <Hash className="h-3.5 w-3.5" /> Replace number
@@ -232,6 +397,8 @@ function AgentCard({ agent, onChanged }: { agent: Agent; onChanged: () => void }
             <Trash2 className="h-3.5 w-3.5" /> Delete
           </Button>
         </div>
+
+        {showConfig && <ConfigEditor agent={agent} onSaved={onChanged} onClose={() => setShowConfig(false)} />}
       </CardContent>
     </Card>
   );

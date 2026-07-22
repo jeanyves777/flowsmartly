@@ -90,12 +90,19 @@ export function buildElevenLabsAgent(row: Record<string, unknown>): ConvaiAgentP
   const languagePresets: Record<string, unknown> = {};
   for (const code of Array.from(new Set(extra))) languagePresets[code] = { overrides: {} };
 
+  // Live cap: hard-limit a single call's length so a stuck/looping call can't run
+  // away. Scaled to the agent's remaining budget (≈15 cr/min), floored at 2 min,
+  // capped at 20 min. This is the real-time guard our per-period spend cap can't
+  // enforce inside EL's runtime.
+  const maxCallSec = Math.min(1200, Math.max(120, Math.floor(Number(row.spendCapCredits ?? 5000) / 15) * 60));
+
   return {
     name,
     conversation_config: {
       agent: {
         first_message: greeting, // "" → the agent waits for the caller to speak
         language,
+        max_conversation_duration_seconds: maxCallSec,
         prompt: {
           prompt: instructions,
           llm: DEFAULT_LLM,
@@ -103,6 +110,7 @@ export function buildElevenLabsAgent(row: Record<string, unknown>): ConvaiAgentP
           tools,
         },
       },
+      conversation: { max_duration_seconds: maxCallSec },
       ...(Object.keys(languagePresets).length ? { language_presets: languagePresets } : {}),
       tts: {
         voice_id: voiceId,
