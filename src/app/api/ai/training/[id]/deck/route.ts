@@ -106,13 +106,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const deck = parseDeck(mat.deck);
     const idx = deck.slides.findIndex((s) => s.id === body.regenerateSlideId);
     if (idx < 0) return err("That slide isn't in the deck", 404);
+    const cur = deck.slides[idx];
+    const instr = (body.instruction || "").trim();
+    const directive = instr
+      ? instr
+      : "Redesign this training slide with a DISTINCTLY different treatment — a fresh structure, angle and wording. Keep the same teaching point and topic, but do NOT reproduce the current layout or phrasing.";
     const one = await generateDeck({
-      brief: `${body.instruction || "Rewrite this training slide, keeping it on-topic"}. Slide title: "${deck.slides[idx].title}". Context: ${deck.slides[idx].subtitle || ""} ${(deck.slides[idx].bullets || []).join("; ")}`,
+      brief: `${directive}. Slide title: "${cur.title}". The slide currently covers: ${cur.subtitle || ""} ${(cur.bullets || []).join("; ")}. Produce a clearly different, better version of this one teaching moment.`,
       sessionId: id,
-      wantDoc: deck.slides[idx].type === "doc",
-      wantWhiteboard: deck.slides[idx].type === "whiteboard",
-      wantVisuals: deck.slides[idx].type === "doc" && deck.slides[idx].visual?.kind === "image",
+      wantDoc: cur.type === "doc",
+      wantWhiteboard: cur.type === "whiteboard" || cur.type === "livedraw",
+      wantVisuals: cur.type === "doc" && cur.visual?.kind === "image",
       slideCount: 3,
+      variation: true,
     });
     const fresh = one?.slides.find((s) => s.type === deck.slides[idx].type) ?? one?.slides[0];
     if (!fresh) return err("Couldn't regenerate that slide — try again", 502);

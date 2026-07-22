@@ -261,9 +261,16 @@ export async function generateDeck(opts: {
   wantVisuals?: boolean;
   slideCount?: number;
   minutes?: number;
+  /** regeneration: force a distinctly DIFFERENT take (higher temperature + a fresh creative seed). */
+  variation?: boolean;
 }): Promise<TrainingDeck | null> {
   const n = deckSlideCount(opts.slideCount, opts.minutes);
   const faces = [opts.wantDoc !== false ? "document" : "", opts.wantWhiteboard ? "whiteboard" : ""].filter(Boolean).join(" and ");
+  // On regenerate, the model otherwise re-emits a near-identical slide (the brief anchors on the
+  // current text). Push it to genuinely diverge, and vary the sample with a per-call seed.
+  const varyNote = opts.variation
+    ? `\n- REGENERATION: produce a DISTINCTLY DIFFERENT, fresh take — a new structure, angle, layout, examples and wording than any previous version. Keep the topic and teaching point, but do NOT reproduce the current phrasing or arrangement. Creative seed: ${Math.random().toString(36).slice(2, 9)}.`
+    : "";
 
   const prompt = `You are an expert instructional designer building a COMPLETE VISUAL TEACHING EXPERIENCE (not plain bullet slides) from this brief:
 
@@ -296,12 +303,13 @@ Rules:
 - For EVERY whiteboard/livedraw slide, ALWAYS add 1-2 short \`annotations\` (sticky-note callouts) and an \`assetPrompt\` describing a 3D asset that makes the concept concrete.
 - VARY the visualStyle deliberately across the deck — alternate real photography (real-world/people scenes), 3D (abstract or systemic concepts) and illustration (the rest) so consecutive slides don't look the same. Aim for a healthy mix, not one style repeated.
 - Go DEEP: give each slide substantive, specific teaching content (concrete bullets, real examples, numbers/steps where relevant) — not generic filler. The notes should be a real talking point the presenter can expand on.
-- Open with a title/agenda slide and close with a summary or call-to-action. Every line tight and presentable.`;
+- Open with a title/agenda slide and close with a summary or call-to-action. Every line tight and presentable.${varyNote}`;
 
   // Bigger decks need more output room or the JSON truncates (dropping slides).
   const maxTokens = Math.min(16000, 2000 + n * 450);
-  const raw = (await ai.generateJSON<{ title?: string; slides?: RawSlide[] }>(prompt, { temperature: 0.5, maxTokens }))
-    ?? (await ai.generateJSON<{ title?: string; slides?: RawSlide[] }>(prompt, { temperature: 0.25, maxTokens }));
+  const t1 = opts.variation ? 0.9 : 0.5, t2 = opts.variation ? 0.7 : 0.25;
+  const raw = (await ai.generateJSON<{ title?: string; slides?: RawSlide[] }>(prompt, { temperature: t1, maxTokens }))
+    ?? (await ai.generateJSON<{ title?: string; slides?: RawSlide[] }>(prompt, { temperature: t2, maxTokens }));
   if (!raw?.slides?.length) return null;
 
   const assetBoxes: Record<string, AssetBox> = {}; // slide id → where its 3D cutout sits
