@@ -59,9 +59,9 @@ interface RawSlide {
 function imgPrompt(style: RawSlide["visualStyle"], subject: string): string {
   const s = subject.slice(0, 300);
   if (style === "3d")
-    return `${s}. A modern 3D render, isometric, glossy tactile materials, soft studio lighting, subtle depth of field, clean gradient background, high detail, no text, no watermark.`;
+    return `${s}. A premium high-end 3D render, Pixar / Octane quality, glossy and metallic materials with realistic reflections, glowing accent lights, cinematic soft studio lighting, sharp fine detail, physically-based shading, gentle depth of field, on a clean dark studio gradient background. Ultra high resolution, product-quality, no text, no watermark.`;
   if (style === "illustration")
-    return `${s}. A clean modern vector illustration, tasteful brand colours, soft shapes, no text, no watermark.`;
+    return `${s}. A polished modern editorial illustration, crisp clean vector shapes, tasteful brand colours, subtle gradients and depth, professional and detailed, no text, no watermark.`;
   // default: photoreal
   return `${s}. Hyper-realistic professional photography, natural lighting, shallow depth of field, high detail, shot on a full-frame camera, no text, no watermark.`;
 }

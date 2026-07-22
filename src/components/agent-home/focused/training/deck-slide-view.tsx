@@ -12,22 +12,18 @@ import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils/cn";
 import type { BoardItem, DeckSlide } from "@/lib/training/types";
 
-/** A stylized hand + pen whose NIB sits at the group origin (0,0) — dropped onto a stroke's
- *  path so it appears to draw the mark. Skin tone via the `--ld-skin` custom property. */
-function HandPen({ color }: { color: string }) {
+/** A PHOTOREAL hand + blue marker (a real PNG) that TRAVELS along `d` (the stroke) as it draws,
+ *  then fades. The marker's nib sits at ~13%/9% of the image, so `offset-anchor` pins the tip to
+ *  the stroke; the hand + forearm trail from the bottom-right — coming up from the board. */
+function followHand(d: string) {
   return (
-    <g>
-      <path d="M0 0 L6 -4 L46 -56 L54 -50 L14 2 Z" fill="#403a54" stroke="#241f33" strokeWidth={1} />
-      <path d="M46 -56 L54 -50 L61 -58 Q64 -62 59 -66 L52 -61 Z" fill={color} />
-      <path d="M8 4 Q22 -5 31 5 Q46 20 33 39 Q18 55 -5 46 Q-20 38 -15 22 Q-11 8 8 4 Z" fill="var(--ld-skin,#e7b48a)" stroke="rgba(0,0,0,.16)" strokeWidth={1.2} />
-      <path d="M12 6 Q24 0 31 8" fill="none" stroke="rgba(0,0,0,.1)" strokeWidth={1.5} />
-      <circle cx="0" cy="0" r="2" fill="#111" />
-    </g>
+    <image
+      href="/training/draw-hand.png"
+      width={392}
+      height={261}
+      style={{ offsetPath: `path('${d}')`, offsetAnchor: "13% 9%", offsetRotate: "0deg", animation: "ld-follow .7s ease forwards, ld-handfade .3s ease .78s forwards", filter: "drop-shadow(0 10px 14px rgba(0,0,0,.28))" } as CSSProperties}
+    />
   );
-}
-/** The hand element that TRAVELS along `d` (the stroke) as it draws, then fades. */
-function followHand(d: string, color: string) {
-  return <g style={{ offsetPath: `path('${d}')`, offsetRotate: "0deg", animation: "ld-follow .7s ease forwards, ld-handfade .3s ease .78s forwards" } as CSSProperties}><HandPen color={color} /></g>;
 }
 
 /** Strip markdown at render so decks built before the generator was fixed don't show
@@ -476,7 +472,7 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
                 return (
                   <g key={`${it.id}-${isNow}`}>
                     <ellipse cx={cx} cy={cy} rx={rx} ry={ry} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} style={draw} />
-                    {isNow ? followHand(ep, it.color) : null}
+                    {isNow ? followHand(ep) : null}
                   </g>
                 );
               }
@@ -485,7 +481,7 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
                 <g key={`${it.id}-${isNow}`}>
                   <line x1={x1} y1={y1} x2={x2} y2={y2} pathLength={1} stroke={it.color} strokeWidth={sw} strokeLinecap="round" style={draw} />
                   <polyline points={`${x2 - ah * Math.cos(ang - Math.PI / 6)},${y2 - ah * Math.sin(ang - Math.PI / 6)} ${x2},${y2} ${x2 - ah * Math.cos(ang + Math.PI / 6)},${y2 - ah * Math.sin(ang + Math.PI / 6)}`} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={draw} />
-                  {isNow ? followHand(`M ${x1} ${y1} L ${x2} ${y2}`, it.color) : null}
+                  {isNow ? followHand(`M ${x1} ${y1} L ${x2} ${y2}`) : null}
                 </g>
               );
             }
