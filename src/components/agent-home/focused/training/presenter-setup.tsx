@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
+import { STUDIO_VOICES, type StudioVoice } from "@/lib/training/studio-voices";
 import type { PresenterProfileDTO, PresenterQuestionBehavior } from "@/lib/training/types";
 
 interface VoiceOpt { id: string; name: string; provider: string | null; sampleUrl?: string | null }
@@ -67,7 +68,19 @@ export function PresenterSetup({ open, onClose, onChoose, onCloneMyself }: {
   const [step, setStep] = useState(0);
   const [f, setF] = useState<Form>(BLANK);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }));
-  const [busy, setBusy] = useState<null | "load" | "clone" | "portrait" | "style" | "animate" | "reclone" | "save">(null);
+  const [busy, setBusy] = useState<null | "load" | "clone" | "portrait" | "style" | "animate" | "reclone" | "save" | "studio">(null);
+  // Assign a curated ElevenLabs STUDIO voice to the presenter (the optional alternative to
+  // cloning your own). It's stored as a VoiceProfile so it drives narration AND the HeyGen
+  // talking-video interventions with one consistent identity.
+  const pickStudio = async (v: StudioVoice) => {
+    setBusy("studio");
+    try {
+      const j = await fetch("/api/ai/training/presenter/studio-voice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voiceId: v.id }) }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't use that voice", variant: "destructive" }); return; }
+      setF((p) => ({ ...p, voiceProfileId: j.data.voiceProfileId, voiceName: j.data.voiceName, sampleUrl: null }));
+      toast({ title: `${v.name} is your co-host's voice`, description: "Used for narration and the on-screen talking videos." });
+    } finally { setBusy(null); }
+  };
   // the ORIGINAL uploaded photo — kept so we can restyle it (background / clothing).
   const [portraitFile, setPortraitFile] = useState<File | null>(null);
   const [bg, setBg] = useState("studio");
@@ -385,9 +398,26 @@ export function PresenterSetup({ open, onClose, onChoose, onCloneMyself }: {
                 <div className="grid gap-2.5 sm:grid-cols-3">
                   <button onClick={openRecord} disabled={!data?.voiceCloning.available || busy === "clone"} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 text-[12px] font-semibold hover:border-brand-500 disabled:opacity-40"><Mic className="h-4 w-4" /> Record sample</button>
                   <label className={cn("flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 text-[12px] font-semibold hover:border-brand-500", (!data?.voiceCloning.available || busy === "clone") && "pointer-events-none opacity-40")}><Upload className="h-4 w-4" /> Upload audio<input type="file" accept="audio/*" className="hidden" onChange={(e) => { onUploadAudio(e.target.files?.[0]); e.target.value = ""; }} /></label>
-                  <button onClick={() => void testVoice()} disabled={(!f.sampleUrl && !f.voiceProfileId) || previewing} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 text-[12px] font-semibold hover:border-brand-500 disabled:opacity-40">{busy === "clone" || previewing ? <><Loader2 className="h-4 w-4 animate-spin" /> {previewing ? "Preparing clone…" : "Cloning…"}</> : playing ? <><Pause className="h-4 w-4" /> Playing…</> : <><Play className="h-4 w-4" /> {f.voiceProfileId ? "Hear the clone" : "Test voice"}</>}</button>
+                  <button onClick={() => void testVoice()} disabled={(!f.sampleUrl && !f.voiceProfileId) || previewing} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted px-3 py-2.5 text-[12px] font-semibold hover:border-brand-500 disabled:opacity-40">{busy === "clone" || previewing ? <><Loader2 className="h-4 w-4 animate-spin" /> {previewing ? "Preparing voice…" : "Cloning…"}</> : playing ? <><Pause className="h-4 w-4" /> Playing…</> : <><Play className="h-4 w-4" /> {f.voiceProfileId ? (f.sampleUrl ? "Hear the clone" : "Hear the voice") : "Test voice"}</>}</button>
                 </div>
-                {!data?.voiceCloning.available ? <p className="mt-2 text-[11px] text-amber-400/90">Recording a new voice isn&apos;t available in this environment — pick an existing cloned voice below, or clone one in the live app.</p> : null}
+                {!data?.voiceCloning.available ? <p className="mt-2 text-[11px] text-amber-400/90">Recording a new voice isn&apos;t available in this environment — pick a studio voice below, or an existing cloned voice.</p> : null}
+
+                {/* STUDIO VOICES — great ready-made voices; using your OWN voice is optional. */}
+                <div className="mt-4">
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Studio voices <span className="rounded bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold normal-case text-brand-300">No recording needed · your own voice is optional</span></div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {STUDIO_VOICES.map((v) => {
+                      const on = f.voiceName === v.name && !f.sampleUrl;
+                      return (
+                        <button key={v.id} onClick={() => void pickStudio(v)} disabled={busy === "studio"} className={cn("flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition disabled:opacity-50", on ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500")}>
+                          <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-black", v.gender === "female" ? "bg-fuchsia-500/15 text-fuchsia-300" : "bg-sky-500/15 text-sky-300")}>{v.name[0]}</span>
+                          <span className="min-w-0 flex-1"><b className="block text-[12px] leading-tight">{v.name}</b><span className="block truncate text-[10.5px] text-muted-foreground">{v.tag}</span></span>
+                          {on ? <Check className="h-4 w-4 shrink-0 text-brand-400" /> : busy === "studio" ? null : <Volume2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 {data?.voices.length ? (
                   <div className="mt-4"><div className="mb-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Or use a cloned voice you already made</div>
                     <div className="flex flex-wrap gap-2">{data.voices.map((v) => (<button key={v.id} onClick={() => setF((p) => ({ ...p, voiceProfileId: v.id, voiceName: v.name, sampleUrl: v.sampleUrl ?? null }))} className={cn("rounded-xl border px-3 py-2 text-[12px] font-semibold", f.voiceProfileId === v.id ? "border-brand-500 bg-brand-500/10 text-brand-400" : "border-border hover:border-brand-500")}>{v.name}</button>))}</div>

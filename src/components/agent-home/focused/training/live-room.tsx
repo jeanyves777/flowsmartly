@@ -296,11 +296,17 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const narration = quizRevealPhase
     ? (deckSlide?.quizReveal ?? deckSlide?.narration ?? null)
     : (deckSlide?.narration ?? null);
-  // An on-screen MOMENT (intro / between-slide) that has a rendered talking video: the VIDEO
-  // carries the cloned-voice audio, so we must NOT also play the narration track.
-  const momentVideoUrl = deckSlide?.intro ? (material?.deck?.introVideoUrl ?? null) : deckSlide?.presenterMoment ? (deckSlide.momentVideoUrl ?? null) : null;
+  // An on-screen MOMENT (intro / between-slide / closing outro) that has a rendered talking
+  // video: the VIDEO carries the cloned-voice audio, so we must NOT also play the narration
+  // track — the narration is muted for the whole intervention.
+  const momentVideoUrl = deckSlide?.intro ? (material?.deck?.introVideoUrl ?? null)
+    : deckSlide?.presenterMoment ? (deckSlide.momentVideoUrl ?? null)
+    : (deckSlide?.qa && deckSlide?.qaKind === "final") ? (material?.deck?.outroVideoUrl ?? null)
+    : null;
   const isMomentVideo = !!momentVideoUrl;
   const aiAudioRef = useRef<HTMLAudioElement | null>(null);
+  // the on-stage intervention <video> (intro/moment/outro), so a tap can (re)start its audio
+  const momentVidRef = useRef<HTMLVideoElement | null>(null);
   const aiPlaying = !!session.aiPlaying;
   const aiPlayingRef = useRef(aiPlaying); aiPlayingRef.current = aiPlaying;
   const [tookOver, setTookOver] = useState(false);
@@ -331,8 +337,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
       if (a.getAttribute("data-src") !== narration.audioUrl) { a.src = narration.audioUrl; a.setAttribute("data-src", narration.audioUrl); a.currentTime = 0; setCapFrac(0); }
       a.playbackRate = aiRate;
       a.play().then(() => setSoundBlocked(false)).catch(() => setSoundBlocked(true));
-    } else { a.pause(); }
-  }, [aiPlaying, narration?.audioUrl]);
+    } else { a.pause(); } // muted during an on-screen intervention video (it carries its own voice)
+  }, [aiPlaying, narration?.audioUrl, isMomentVideo]);
   // NOTE: dismissing the caption hides it for the WHOLE session (it does NOT reappear on
   // the next slide) — that's the requested behaviour, so there is no per-slide reset here.
   // Attendees never click "Present with AI", so their browser blocks the AI voice on
@@ -360,6 +366,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         }
       }
       // Then resume whatever should be audible right now.
+      // An on-screen intervention video (with its baked cloned voice) takes priority.
+      if (momentVidRef.current) { momentVidRef.current.play().then(() => setSoundBlocked(false)).catch(() => {}); }
       if (ans && answerUrlRef.current) { ans.play().then(() => setSoundBlocked(false)).catch(() => {}); return; }
       if (ai && aiPlayingRef.current && ai.getAttribute("data-src")) ai.play().then(() => setSoundBlocked(false)).catch(() => {});
     };
@@ -591,15 +599,20 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
       // On-screen presenter MOMENTS (intro + between-slide moments): a realistic Avatar IV
       // TALKING video that plays WITH its own audio, then seamlessly advances to the next
       // slide. Falls back to the muted loop (with narration over it) if no video is ready.
-      const momentUrl = slide?.intro ? material.deck.introVideoUrl : slide?.presenterMoment ? slide.momentVideoUrl : null;
+      // A rendered TALKING video (intro / between-slide moment / closing outro) plays full on the
+      // stage with its OWN baked cloned-voice audio; the narration track is muted while it runs.
+      const momentUrl = slide?.intro ? material.deck.introVideoUrl
+        : slide?.presenterMoment ? slide.momentVideoUrl
+        : (slide?.qa && slide.qaKind === "final") ? material.deck.outroVideoUrl
+        : null;
       const aiP = session.participants.find((p) => p.isAI);
-      if ((slide?.intro || slide?.presenterMoment) && (momentUrl || material.deck.presenterVideoUrl)) {
+      if (momentUrl || ((slide?.intro || slide?.presenterMoment) && material.deck.presenterVideoUrl)) {
         return (
           <div className="relative grid h-full w-full place-items-center overflow-hidden bg-black">
             {momentUrl
-              ? <video key={momentUrl} src={momentUrl} autoPlay playsInline onEnded={onMomentEnd} poster={aiP?.avatarUrl ?? undefined} className="h-full w-full object-contain" />
+              ? <video ref={(el) => { momentVidRef.current = el; }} key={momentUrl} src={momentUrl} autoPlay playsInline onEnded={onMomentEnd} onPlay={() => setSoundBlocked(false)} onError={() => setSoundBlocked(true)} poster={aiP?.avatarUrl ?? undefined} className="h-full w-full object-contain" />
               : <AvatarVideo url={material.deck.presenterVideoUrl!} poster={aiP?.avatarUrl} speaking={aiSpeaking} className="object-contain" />}
-            <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1 text-[12px] font-bold text-white"><span className="rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1 py-px text-[8.5px] font-black text-[#04222a]">AI</span>{aiP?.name || "Your AI co-host"} · {slide?.intro ? "introducing" : "speaking"}</span>
+            <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1 text-[12px] font-bold text-white"><span className="rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1 py-px text-[8.5px] font-black text-[#04222a]">AI</span>{aiP?.name || "Your AI co-host"} · {slide?.intro ? "introducing" : slide?.qa ? "wrapping up" : "speaking"}</span>
           </div>
         );
       }
@@ -785,7 +798,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                 the presenter is saying now. (Any tap on the page also unlocks it.) */}
             {soundBlocked ? (
               <button
-                onClick={() => { setSoundBlocked(false); const ans = answerAudioRef.current; if (ans && answerUrlRef.current) ans.play().catch(() => {}); else aiAudioRef.current?.play().catch(() => {}); }}
+                onClick={() => { setSoundBlocked(false); if (momentVidRef.current) { momentVidRef.current.muted = false; momentVidRef.current.play().catch(() => {}); } const ans = answerAudioRef.current; if (ans && answerUrlRef.current) ans.play().catch(() => {}); else aiAudioRef.current?.play().catch(() => {}); }}
                 className="absolute inset-0 z-[15] grid place-items-center bg-black/45 backdrop-blur-[2px]"
               >
                 <span className="inline-flex animate-pulse items-center gap-2.5 rounded-full bg-gradient-to-br from-brand-500 to-violet-600 px-5 py-3 text-[14px] font-extrabold text-white shadow-2xl">
