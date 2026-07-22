@@ -185,6 +185,30 @@ function styleVars(key?: VisualStyle | null): CSSProperties {
   return { "--sbg1": p.bg1, "--sbg2": p.bg2, "--sa": p.sa, "--sa2": p.sa2, "--sat": p.sat, "--sfg": p.fg ?? "255 255 255", fontFamily: p.font } as CSSProperties;
 }
 
+// ── Whiteboard surfaces ──────────────────────────────────────────────────────
+// The board used to be one fixed cream sheet with dark ink baked into every item. Now the
+// board SURFACE (ground, grid, ink, node fill/stroke, sticky, title font) is themed and the
+// DiagramBoard re-inks every mark to match — so a chalkboard reads in chalk, a blueprint in
+// cyan on navy, etc. The archetype is chosen from the deck's visual style.
+export type BoardTheme = { base: string; bgImage?: string; bgSize?: string; ink: string; nodeFill: string; nodeStroke: string; title: string; font: string; sticky: string; stickyText: string };
+const BOARD_ARCHETYPES: Record<string, BoardTheme> = {
+  classic: { base: "#f7f7f2", bgImage: "radial-gradient(circle at 1px 1px,#dad9d0 1px,transparent 0)", bgSize: "22px 22px", ink: "#243244", nodeFill: "#ffffff", nodeStroke: "#334155", title: "#1a1a1a", font: '"Segoe Print","Comic Sans MS",cursive', sticky: "#fde68a", stickyText: "#3f3300" },
+  chalkboard: { base: "#0f251d", bgImage: "linear-gradient(0deg,rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(160deg,#16352a,#0e231b)", bgSize: "46px 46px,46px 46px,cover", ink: "#eef3ec", nodeFill: "rgba(255,255,255,.05)", nodeStroke: "#eef3ec", title: "#fdf3d6", font: '"Segoe Print","Comic Sans MS",cursive', sticky: "#e7c14b", stickyText: "#3a2c00" },
+  blueprint: { base: "#08203c", bgImage: "linear-gradient(0deg,rgba(125,211,252,.14) 1px,transparent 1px),linear-gradient(90deg,rgba(125,211,252,.14) 1px,transparent 1px),linear-gradient(160deg,#0c2a4a,#071c34)", bgSize: "40px 40px,40px 40px,cover", ink: "#d6ecff", nodeFill: "rgba(125,211,252,.07)", nodeStroke: "#7dd3fc", title: "#dff0ff", font: '"Cascadia Code","SF Mono",ui-monospace,monospace', sticky: "#14507e", stickyText: "#e6f4ff" },
+  glass: { base: "#0d0b15", bgImage: "radial-gradient(circle at 1px 1px,rgba(255,255,255,.07) 1px,transparent 0),linear-gradient(160deg,#16131f,#0c0a13)", bgSize: "26px 26px,cover", ink: "#ece9f7", nodeFill: "rgba(255,255,255,.05)", nodeStroke: "#a78bfa", title: "#f2effb", font: 'system-ui,-apple-system,"Segoe UI",sans-serif', sticky: "#2a2440", stickyText: "#e9e5f8" },
+  notebook: { base: "#faf6ec", bgImage: "repeating-linear-gradient(0deg,transparent,transparent 33px,rgba(80,110,170,.16) 33px,rgba(80,110,170,.16) 34px)", bgSize: "auto", ink: "#2b2b33", nodeFill: "#fffdf5", nodeStroke: "#3b3b45", title: "#22303a", font: 'Georgia,"Times New Roman",serif', sticky: "#ffe6a1", stickyText: "#4a3a00" },
+};
+const BOARD_BY_STYLE: Record<string, keyof typeof BOARD_ARCHETYPES> = {
+  modern_professional: "classic", brand_first: "classic", minimal: "classic", playful_learning: "classic",
+  whiteboard_teacher: "chalkboard",
+  "3d_technology": "blueprint", dark_technology: "blueprint", data_driven: "blueprint",
+  cinematic: "glass", bold_startup: "glass", storytelling: "glass",
+  editorial: "notebook", elegant: "notebook", workshop: "notebook",
+};
+export function boardTheme(key?: VisualStyle | null): BoardTheme {
+  return BOARD_ARCHETYPES[BOARD_BY_STYLE[key ?? ""] ?? "classic"];
+}
+
 export function DeckSlideView({ slide, reveal, className, styleKey, hand }: { slide: DeckSlide; reveal?: number; className?: string; styleKey?: VisualStyle | null; hand?: HandStyleSettings | null }) {
   // `reveal` = how many steps are shown (undefined = show everything, e.g. a builder
   // thumbnail). Drives the progressive "drawing as you talk" reveal.
@@ -262,13 +286,14 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand }: { sl
   // Whiteboard & Live Draw share one renderer — a wide horizontal canvas that pans
   // to follow the reveal. Live Draw additionally animates the CURRENT element on.
   if (slide.type === "whiteboard" || slide.type === "livedraw") {
+    const bt = boardTheme(styleKey ?? slide.visualStyle);
     return (
       <div
-        className={cn("relative h-full w-full overflow-hidden bg-[#f7f7f2] [container-type:inline-size]", className)}
-        style={{ backgroundImage: "radial-gradient(circle at 1px 1px,#dad9d0 1px,transparent 0)", backgroundSize: "22px 22px" }}
+        className={cn("relative h-full w-full overflow-hidden [container-type:inline-size]", className)}
+        style={{ backgroundColor: bt.base, backgroundImage: bt.bgImage, backgroundSize: bt.bgSize } as CSSProperties}
       >
-        <div className="absolute left-[6%] top-[5%] z-[3] text-[clamp(8px,3.6cqw,32px)] font-extrabold text-[#1a1a1a]" style={{ fontFamily: '"Segoe Print","Comic Sans MS",cursive' }}>{md(slide.title)}</div>
-        <DiagramBoard items={slide.board ?? []} reveal={reveal} wide={slide.wide} animated={slide.type === "livedraw"} />
+        <div className="absolute left-[6%] top-[5%] z-[3] text-[clamp(8px,3.6cqw,32px)] font-extrabold" style={{ color: bt.title, fontFamily: bt.font }}>{md(slide.title)}</div>
+        <DiagramBoard items={slide.board ?? []} reveal={reveal} wide={slide.wide} animated={slide.type === "livedraw"} theme={bt} />
       </div>
     );
   }
@@ -693,7 +718,8 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand }: { sl
  *  the viewport PANS to keep the freshly-revealed mark in view, so a long process
  *  reads left→right. Coords are 0..1 of the WIDE canvas (x already normalised by
  *  `wide`); y is 0..1 of the frame height. */
-function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; reveal?: number; wide?: number; animated?: boolean }) {
+function DiagramBoard({ items, reveal, wide, animated, theme }: { items: BoardItem[]; reveal?: number; wide?: number; animated?: boolean; theme?: BoardTheme }) {
+  const bt = theme ?? BOARD_ARCHETYPES.classic;
   const FRAME = 1000, H = 562;
   const frames = Math.max(1, wide ?? 1);
   const CW = FRAME * frames;
@@ -717,14 +743,14 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
               const pop = isNow ? { transformBox: "fill-box" as const, transformOrigin: "center", animation: "ld-pop .45s ease forwards" as const } : undefined;
               if (it.shape === "rect") {
                 const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1);
-                return <rect key={`${it.id}-${isNow}`} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={w} height={h} rx={Math.min(15, h / 2.4)} fill="#ffffff" stroke={it.color} strokeWidth={sw} style={pop} />;
+                return <rect key={`${it.id}-${isNow}`} x={Math.min(x1, x2)} y={Math.min(y1, y2)} width={w} height={h} rx={Math.min(15, h / 2.4)} fill={bt.nodeFill} stroke={bt.nodeStroke} strokeWidth={sw} style={pop} />;
               }
               if (it.shape === "ellipse") {
                 const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, rx = Math.abs(x2 - x1) / 2, ry = Math.abs(y2 - y1) / 2;
                 const ep = `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 1 ${cx - rx} ${cy}`;
                 return (
                   <g key={`${it.id}-${isNow}`}>
-                    <ellipse cx={cx} cy={cy} rx={rx} ry={ry} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} style={draw} />
+                    <ellipse cx={cx} cy={cy} rx={rx} ry={ry} pathLength={1} fill="none" stroke={bt.nodeStroke} strokeWidth={sw} style={draw} />
                     {isNow ? <DrawingHand d={ep} /> : null}
                   </g>
                 );
@@ -732,8 +758,8 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
               const ang = Math.atan2(y2 - y1, x2 - x1), ah = Math.max(12, sw * 4);
               return (
                 <g key={`${it.id}-${isNow}`}>
-                  <line x1={x1} y1={y1} x2={x2} y2={y2} pathLength={1} stroke={it.color} strokeWidth={sw} strokeLinecap="round" style={draw} />
-                  <polyline points={`${x2 - ah * Math.cos(ang - Math.PI / 6)},${y2 - ah * Math.sin(ang - Math.PI / 6)} ${x2},${y2} ${x2 - ah * Math.cos(ang + Math.PI / 6)},${y2 - ah * Math.sin(ang + Math.PI / 6)}`} pathLength={1} fill="none" stroke={it.color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={draw} />
+                  <line x1={x1} y1={y1} x2={x2} y2={y2} pathLength={1} stroke={bt.ink} strokeWidth={sw} strokeLinecap="round" style={draw} />
+                  <polyline points={`${x2 - ah * Math.cos(ang - Math.PI / 6)},${y2 - ah * Math.sin(ang - Math.PI / 6)} ${x2},${y2} ${x2 - ah * Math.cos(ang + Math.PI / 6)},${y2 - ah * Math.sin(ang + Math.PI / 6)}`} pathLength={1} fill="none" stroke={bt.ink} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={draw} />
                   {isNow ? <DrawingHand d={`M ${x1} ${y1} L ${x2} ${y2}`} /> : null}
                 </g>
               );
@@ -758,15 +784,15 @@ function DiagramBoard({ items, reveal, wide, animated }: { items: BoardItem[]; r
                 const px = x(it.at.x), py = y(it.at.y);
                 return (
                   <g key={`${it.id}-${isNow}`} style={isNow ? { transformBox: "fill-box", transformOrigin: "center", animation: "ld-pop .4s ease forwards" } : undefined}>
-                    <rect x={px + 2} y={py + 3} width={cardW} height={cardH} rx={9} fill="rgba(0,0,0,.12)" />
-                    <rect x={px} y={py} width={cardW} height={cardH} rx={9} fill={it.note} stroke="rgba(0,0,0,.12)" strokeWidth={1.5} />
+                    <rect x={px + 2} y={py + 3} width={cardW} height={cardH} rx={9} fill="rgba(0,0,0,.18)" />
+                    <rect x={px} y={py} width={cardW} height={cardH} rx={9} fill={bt.sticky} stroke="rgba(0,0,0,.14)" strokeWidth={1.5} />
                     {lines.map((ln, i) => (
-                      <text key={i} x={px + padX} y={py + padY + lh * (i + 0.82)} fontSize={fs} fontWeight={600} fill={it.color}>{ln}</text>
+                      <text key={i} x={px + padX} y={py + padY + lh * (i + 0.82)} fontSize={fs} fontWeight={600} fill={bt.stickyText}>{ln}</text>
                     ))}
                   </g>
                 );
               }
-              return <text key={`${it.id}-${isNow}`} x={x(it.at.x)} y={y(it.at.y)} fontSize={fs} fontWeight={700} fill={it.color} textAnchor="middle" dominantBaseline="central" style={isNow ? { transformBox: "fill-box", transformOrigin: "center", animation: "ld-pop .4s ease forwards" } : undefined}>{it.text}</text>;
+              return <text key={`${it.id}-${isNow}`} x={x(it.at.x)} y={y(it.at.y)} fontSize={fs} fontWeight={700} fill={bt.ink} textAnchor="middle" dominantBaseline="central" style={isNow ? { transformBox: "fill-box", transformOrigin: "center", animation: "ld-pop .4s ease forwards" } : undefined}>{it.text}</text>;
             }
             return null;
           })}
