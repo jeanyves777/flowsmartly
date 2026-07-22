@@ -209,7 +209,7 @@ export const DEFAULT_CREDIT_COSTS = {
   // --- Voice Agent (answers the phone) ---
   // Billed per started minute while a call runs, not once at the end — an
   // orphaned/dropped call must not leave an unbilled tab.
-  VOICE_AGENT_MINUTE: 9,        // realtime voice ~$0.05/min + telephony ~$0.01/min
+  VOICE_AGENT_MINUTE: 13,       // ElevenLabs Conv AI ~$0.08–0.10/min + telephony ~$0.01/min → keep margin over ~$0.11 cost
   VOICE_AGENT_NUMBER_RENTAL: 500, // monthly DID rent — same house rate as an SMS number
 
   // --- Training Studio (live rooms) ---
