@@ -73,27 +73,43 @@ export function PresenterSetup({ open, onClose, onChoose, onCloneMyself }: {
   // Assign a curated ElevenLabs STUDIO voice to the presenter (the optional alternative to
   // cloning your own). It's stored as a VoiceProfile so it drives narration AND the HeyGen
   // talking-video interventions with one consistent identity.
-  const pickStudio = async (v: StudioVoice) => {
+  // Picking any voice opens a CONFIRM first — then we SAVE it onto the presenter immediately
+  // (not just the form), so regenerating narration/videos actually uses the new voice.
+  const [libOpen, setLibOpen] = useState(false);
+  const [confirmVoice, setConfirmVoice] = useState<
+    | { kind: "studio"; id: string; label: string; sub: string }
+    | { kind: "library"; v: LibraryVoice; label: string; sub: string }
+    | { kind: "cloned"; voiceProfileId: string; voiceName: string; sampleUrl: string | null; label: string; sub: string }
+    | null
+  >(null);
+  const pickStudio = (v: StudioVoice) => setConfirmVoice({ kind: "studio", id: v.id, label: v.name, sub: v.tag });
+  const pickLibrary = (v: LibraryVoice) => { setLibOpen(false); setConfirmVoice({ kind: "library", v, label: v.name, sub: [v.accent, v.age, v.useCase].filter(Boolean).join(" · ").replace(/_/g, " ") || "Studio voice" }); };
+  const pickCloned = (v: VoiceOpt) => setConfirmVoice({ kind: "cloned", voiceProfileId: v.id, voiceName: v.name, sampleUrl: v.sampleUrl ?? null, label: v.name, sub: "Your cloned voice" });
+
+  // Confirm handler: resolve the VoiceProfile id, set it on the form AND persist it to the
+  // presenter row now (when editing a saved presenter) so the deck picks up the change.
+  const applyVoice = async () => {
+    const cv = confirmVoice;
+    if (!cv) return;
     setBusy("studio");
     try {
-      const j = await fetch("/api/ai/training/presenter/studio-voice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voiceId: v.id }) }).then((r) => r.json());
-      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't use that voice", variant: "destructive" }); return; }
-      setF((p) => ({ ...p, voiceProfileId: j.data.voiceProfileId, voiceName: j.data.voiceName, sampleUrl: null }));
-      toast({ title: `${v.name} is your co-host's voice`, description: "Used for narration and the on-screen talking videos." });
+      let voiceProfileId: string, voiceName: string, sampleUrl: string | null = null;
+      if (cv.kind === "cloned") {
+        voiceProfileId = cv.voiceProfileId; voiceName = cv.voiceName; sampleUrl = cv.sampleUrl;
+      } else {
+        const url = cv.kind === "studio" ? "/api/ai/training/presenter/studio-voice" : "/api/ai/training/presenter/library-voice";
+        const body = cv.kind === "studio" ? { voiceId: cv.id } : { voiceId: cv.v.voiceId, name: cv.v.name, gender: cv.v.gender, accent: cv.v.accent };
+        const j = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
+        if (!j?.success) { toast({ title: j?.error?.message || "Couldn't use that voice", variant: "destructive" }); return; }
+        voiceProfileId = j.data.voiceProfileId; voiceName = j.data.voiceName;
+      }
+      setF((p) => ({ ...p, voiceProfileId, voiceName, sampleUrl }));
+      // Persist NOW if this is a saved presenter (so regeneration uses the new voice); a brand-new
+      // presenter saves its voice when the wizard is completed.
+      if (f.id) { const p = await persist({ voiceProfileId, voiceName, sampleUrl }); if (p) onChoose?.(p); }
+      setConfirmVoice(null);
+      toast({ title: `${voiceName} is your co-host's voice`, description: f.id ? "Saved — regenerate the narration and talking videos to apply it." : "Used for narration and the on-screen talking videos." });
     } finally { setBusy(null); }
-  };
-  // Browse the FULL ElevenLabs library and assign any voice (used by id directly — no slot cost).
-  const [libOpen, setLibOpen] = useState(false);
-  const [assigning, setAssigning] = useState<string | null>(null);
-  const pickLibrary = async (v: LibraryVoice) => {
-    setAssigning(v.voiceId);
-    try {
-      const j = await fetch("/api/ai/training/presenter/library-voice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voiceId: v.voiceId, name: v.name, gender: v.gender, accent: v.accent }) }).then((r) => r.json());
-      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't use that voice", variant: "destructive" }); return; }
-      setF((p) => ({ ...p, voiceProfileId: j.data.voiceProfileId, voiceName: j.data.voiceName, sampleUrl: null }));
-      setLibOpen(false);
-      toast({ title: `${v.name} is your co-host's voice`, description: "Used for narration and the on-screen talking videos." });
-    } finally { setAssigning(null); }
   };
   // the ORIGINAL uploaded photo — kept so we can restyle it (background / clothing).
   const [portraitFile, setPortraitFile] = useState<File | null>(null);
@@ -217,15 +233,16 @@ export function PresenterSetup({ open, onClose, onChoose, onCloneMyself }: {
 
   // Persist the current form and return the saved presenter (no navigation side-effects),
   // so both "Save" and "Animate" (which needs a stored row) can reuse it.
-  const persist = async (): Promise<PresenterProfileDTO | null> => {
+  const persist = async (override?: Partial<Form>): Promise<PresenterProfileDTO | null> => {
+    const ff = { ...f, ...override };
     const j = await fetch("/api/ai/training/presenter", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        id: f.id, name: f.name.trim(), portraitUrl: f.portraitUrl, voiceProfileId: f.voiceProfileId,
-        deliveryStyle: f.deliveryStyle, pace: f.pace, expressiveness: f.expressiveness, pauseMs: f.pauseMs,
-        role: f.role, followNotes: f.followNotes, describeVisuals: f.describeVisuals,
-        advanceReveals: f.advanceReveals, useLiveDraw: f.useLiveDraw, questionBehavior: f.q,
-        consent: { accepted: f.consentAccepted, ownerName: f.consentOwnerName, usage: "training_presentations" },
+        id: ff.id, name: ff.name.trim(), portraitUrl: ff.portraitUrl, voiceProfileId: ff.voiceProfileId,
+        deliveryStyle: ff.deliveryStyle, pace: ff.pace, expressiveness: ff.expressiveness, pauseMs: ff.pauseMs,
+        role: ff.role, followNotes: ff.followNotes, describeVisuals: ff.describeVisuals,
+        advanceReveals: ff.advanceReveals, useLiveDraw: ff.useLiveDraw, questionBehavior: ff.q,
+        consent: { accepted: ff.consentAccepted, ownerName: ff.consentOwnerName, usage: "training_presentations" },
       }),
     }).then((r) => r.json());
     if (!j?.success) { toast({ title: j?.error?.message || "Couldn't save the presenter", variant: "destructive" }); return null; }
@@ -436,7 +453,7 @@ export function PresenterSetup({ open, onClose, onChoose, onCloneMyself }: {
                 </div>
                 {data?.voices.length ? (
                   <div className="mt-4"><div className="mb-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Or use a cloned voice you already made</div>
-                    <div className="flex flex-wrap gap-2">{data.voices.map((v) => (<button key={v.id} onClick={() => setF((p) => ({ ...p, voiceProfileId: v.id, voiceName: v.name, sampleUrl: v.sampleUrl ?? null }))} className={cn("rounded-xl border px-3 py-2 text-[12px] font-semibold", f.voiceProfileId === v.id ? "border-brand-500 bg-brand-500/10 text-brand-400" : "border-border hover:border-brand-500")}>{v.name}</button>))}</div>
+                    <div className="flex flex-wrap gap-2">{data.voices.map((v) => (<button key={v.id} onClick={() => pickCloned(v)} className={cn("rounded-xl border px-3 py-2 text-[12px] font-semibold", f.voiceProfileId === v.id ? "border-brand-500 bg-brand-500/10 text-brand-400" : "border-border hover:border-brand-500")}>{v.name}</button>))}</div>
                     <div className="mt-2.5 flex items-center gap-2 rounded-xl border border-border bg-muted/50 px-3 py-2">
                       <p className="min-w-0 flex-1 text-[10.5px] text-muted-foreground">Narration using a preset instead of your cloned voice? Reconnect it here.</p>
                       <button onClick={reclone} disabled={busy === "reclone"} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50">{busy === "reclone" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Reconnecting…</> : <><RotateCcw className="h-3.5 w-3.5" /> Reconnect voice</>}</button>
@@ -583,7 +600,24 @@ export function PresenterSetup({ open, onClose, onChoose, onCloneMyself }: {
         </div>
       ) : null}
 
-      <VoiceLibrary open={libOpen} onClose={() => setLibOpen(false)} onPick={(v) => void pickLibrary(v)} assigning={assigning} />
+      <VoiceLibrary open={libOpen} onClose={() => setLibOpen(false)} onPick={(v) => pickLibrary(v)} />
+
+      {/* Confirm the chosen voice, then SAVE it onto the presenter so regeneration uses it. */}
+      {confirmVoice ? (
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-4" onClick={() => setConfirmVoice(null)}>
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 px-5 pt-5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 text-[15px] font-black text-white">{confirmVoice.label[0]}</span>
+              <div className="min-w-0"><b className="block text-[14px]">Use {confirmVoice.label}?</b><span className="block truncate text-[11.5px] text-muted-foreground">{confirmVoice.sub}</span></div>
+            </div>
+            <p className="px-5 py-3 text-[12px] leading-relaxed text-muted-foreground">This becomes your co-host&apos;s voice for narration and the on-screen talking videos.{f.id ? " Any narration or videos you've already generated will need regenerating to use it." : ""}</p>
+            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-3.5">
+              <button onClick={() => setConfirmVoice(null)} disabled={busy === "studio"} className="rounded-lg border border-border px-3.5 py-2 text-[12px] font-bold hover:border-brand-500 disabled:opacity-50">Cancel</button>
+              <button onClick={() => void applyVoice()} disabled={busy === "studio"} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12px] font-extrabold text-white disabled:opacity-50">{busy === "studio" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</> : "Use this voice"}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
