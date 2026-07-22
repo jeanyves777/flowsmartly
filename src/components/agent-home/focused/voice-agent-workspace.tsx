@@ -22,6 +22,7 @@ import { useTextPrompt } from "@/components/agent-home/shared/text-prompt";
 import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useToast } from "@/hooks/use-toast";
+import { DEFAULT_CREDIT_COSTS } from "@/lib/credits/costs";
 import { cn } from "@/lib/utils/cn";
 import {
   ANSWER_MODES, DAYS, DEFAULT_HOURS, DEFAULT_ORDER_CONFIG, DEFAULT_VOICE, FULFILLMENTS,
@@ -71,6 +72,7 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
   const [backOpen, setBackOpen] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [voicePickerOpen, setVoicePickerOpen] = useState(false);
+  const [skillMenuOpen, setSkillMenuOpen] = useState(false);
 
   const boardRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -144,19 +146,13 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
 
   const removeSkill = (id: string) => void save({ skills: skills.filter((s) => s.id !== id) });
 
-  const addSkill = async () => {
-    const unused = SKILL_CATALOG.filter((d) => !skills.some((s) => s.key === d.key));
-    if (!unused.length) {
-      toast({ title: "It already has every skill", description: "Edit one instead." });
-      return;
-    }
-    const pick = await ask(
-      `Which skill? ${unused.map((u, i) => `${i + 1}. ${u.title}`).join("  ")}`,
-      "1",
-    );
-    const idx = Number(pick) - 1;
-    if (!Number.isInteger(idx) || idx < 0 || idx >= unused.length) return;
-    void save({ skills: [...skills, skillFromDef(unused[idx], `sk_${unused[idx].key}_${Date.now()}`)] });
+  const unusedSkills = useMemo(
+    () => SKILL_CATALOG.filter((d) => !skills.some((s) => s.key === d.key)),
+    [skills],
+  );
+  const addSkillDef = (def: (typeof SKILL_CATALOG)[number]) => {
+    setSkillMenuOpen(false);
+    void save({ skills: [...skills, skillFromDef(def, `sk_${def.key}_${Date.now()}`)] });
   };
 
   // ── wires: recomputed from live DOM rects so dragging updates at 60fps ──
@@ -272,11 +268,43 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
                   ask={ask} />
               ))}
 
-              <button onClick={addSkill} title="Add a skill"
-                style={{ left: 596 + Math.ceil(skills.length / 2) * 292, top: 260 }}
-                className="absolute grid h-11 w-11 place-items-center rounded-full border border-dashed border-border text-muted-foreground hover:border-brand-500 hover:text-brand-500">
-                <Plus className="h-5 w-5" />
-              </button>
+              <div className="absolute" style={{ left: 596 + Math.ceil(skills.length / 2) * 292, top: 260 }}>
+                <button onClick={() => setSkillMenuOpen((v) => !v)} title="Add a skill"
+                  className={cn(
+                    "grid h-11 w-11 place-items-center rounded-full border border-dashed text-muted-foreground transition-colors hover:border-brand-500 hover:text-brand-500",
+                    skillMenuOpen ? "border-brand-500 text-brand-500" : "border-border",
+                  )}>
+                  <Plus className={cn("h-5 w-5 transition-transform", skillMenuOpen && "rotate-45")} />
+                </button>
+                {skillMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setSkillMenuOpen(false)} />
+                    <div className="absolute left-0 top-[52px] z-20 w-[268px] overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+                      <div className="border-b border-border px-3 py-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">
+                        Add a skill
+                      </div>
+                      {unusedSkills.length === 0 ? (
+                        <div className="px-3 py-3 text-[11px] text-muted-foreground">It already has every skill.</div>
+                      ) : (
+                        <div className="max-h-[300px] overflow-auto p-1">
+                          {unusedSkills.map((d) => (
+                            <button key={d.key} onClick={() => addSkillDef(d)}
+                              className="flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-muted/60">
+                              <span className="mt-0.5 grid h-6 w-6 flex-none place-items-center rounded-md bg-brand-500/15 text-brand-400">
+                                <Plus className="h-3 w-3" />
+                              </span>
+                              <span className="min-w-0">
+                                <b className="block text-[11.5px]">{d.title}</b>
+                                <span className="block truncate text-[9.5px] text-muted-foreground">{d.blurb}</span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
 
               <LineNode agent={agent}
                 x={596 + Math.ceil(skills.length / 2) * 292 + 82}
@@ -1058,7 +1086,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
         <div className="flex items-center gap-2 border-t border-border px-4 py-3">
           <span className="text-[11px] text-muted-foreground">
             {editing
-              ? <>Nothing is charged until it&apos;s live · calls cost <b className="text-amber-500">9 cr / min</b></>
+              ? <>Nothing is charged until it&apos;s live · calls cost <b className="text-amber-500">{DEFAULT_CREDIT_COSTS.VOICE_AGENT_MINUTE} cr / min</b></>
               : <>Free to build · add your own number next, then switch it on</>}
           </span>
           <div className="flex-1" />
