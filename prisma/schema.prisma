@@ -6069,6 +6069,9 @@ model PhoneNumber {
   emergencyAddressSid String?
 
   releasedAt DateTime?
+  // Monthly rental billing — set each time the rental credits are charged; the
+  // rentals cron charges any active number whose last charge is ≥ a month old.
+  rentalChargedAt DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
