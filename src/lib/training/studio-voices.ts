@@ -27,3 +27,41 @@ export const STUDIO_VOICES: StudioVoice[] = [
 export function findStudioVoice(id: string): StudioVoice | undefined {
   return STUDIO_VOICES.find((v) => v.id === id);
 }
+
+/* ---- Voice LIBRARY filter facets (for browsing the full ElevenLabs shared-voice library) ----
+ * A picked library voice is used by its voice_id directly (verified: TTS works with a shared
+ * voice_id, no "add", no slot consumed), so the whole library scales to every customer. */
+export const VOICE_LANGUAGES: { code: string; label: string }[] = [
+  { code: "en", label: "English" }, { code: "es", label: "Spanish" }, { code: "fr", label: "French" },
+  { code: "de", label: "German" }, { code: "pt", label: "Portuguese" }, { code: "it", label: "Italian" },
+  { code: "hi", label: "Hindi" }, { code: "ar", label: "Arabic" }, { code: "ja", label: "Japanese" },
+  { code: "ko", label: "Korean" }, { code: "zh", label: "Chinese" }, { code: "nl", label: "Dutch" },
+  { code: "pl", label: "Polish" }, { code: "tr", label: "Turkish" }, { code: "ru", label: "Russian" },
+];
+export const VOICE_ACCENTS: string[] = [
+  "american", "british", "australian", "canadian", "irish", "received pronunciation",
+  "us midwest", "us northeast", "us southern", "indian", "nigerian", "south african",
+  "spanish", "french", "german", "italian", "arabic", "japanese", "korean", "singaporean",
+];
+export const VOICE_AGES: { v: string; label: string }[] = [
+  { v: "young", label: "Young" }, { v: "middle_aged", label: "Middle aged" }, { v: "old", label: "Older" },
+];
+export const VOICE_USE_CASES: { v: string; label: string }[] = [
+  { v: "informative_educational", label: "Educational" }, { v: "conversational", label: "Conversational" },
+  { v: "narrative_story", label: "Narration" }, { v: "social_media", label: "Social media" },
+  { v: "advertisement", label: "Advertisement" }, { v: "entertainment_tv", label: "Entertainment" },
+  { v: "characters_animation", label: "Characters" },
+];
+
+/** One voice from the browsable library (a normalized ElevenLabs shared voice). */
+export interface LibraryVoice {
+  voiceId: string;
+  name: string;
+  description?: string;
+  gender?: string;
+  age?: string;
+  accent?: string;
+  language?: string;
+  useCase?: string;
+  previewUrl?: string;
+}
