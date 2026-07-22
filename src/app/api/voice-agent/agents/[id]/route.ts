@@ -50,6 +50,7 @@ function hydrate(row: Record<string, unknown>) {
     number: publicNumber(row.number as Record<string, unknown> | null | undefined),
     knowledge: parse(row.knowledge, []),
     keyterms: parse<string[]>(row.keyterms, []),
+    languages: parse<string[]>(row.languages, []),
     pronunciations: parse<Record<string, string>>(row.pronunciations, {}),
     orderConfig: parse(row.orderConfig, {}),
     skills: parse<AgentSkill[]>(row.skills, []),
@@ -174,6 +175,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (body.keyterms !== undefined) data.keyterms = JSON.stringify(body.keyterms);
     if (body.pronunciations !== undefined) data.pronunciations = JSON.stringify(body.pronunciations);
     if (body.orderConfig !== undefined) data.orderConfig = JSON.stringify(body.orderConfig);
+    if (body.languages !== undefined) data.languages = JSON.stringify(body.languages);
 
     // Reassign the line. Nothing to wire here any more — the provider owns the
     // trunk and routes by number, so this is just which line this agent answers.

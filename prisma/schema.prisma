@@ -6109,7 +6109,8 @@ model VoiceAgent {
   // How it sounds and listens. These map 1:1 onto the realtime session, so the
   // UI is editing the call itself rather than a copy that drifts.
   speakingSpeed   Float   @default(1.0) // 0.7–1.5
-  languageHint    String  @default("auto") // BCP-47, or "auto"
+  languageHint    String  @default("auto") // BCP-47, or "auto" — the PRIMARY language
+  languages       String  @default("[]") // JSON string[] — EXTRA languages the agent also speaks (EL language presets)
   keyterms        String  @default("[]") // JSON string[] — bias ASR to brand/product names
   pronunciations  String  @default("{}") // JSON {"Lumiere":"Loo-mee-air"} — audio only, transcript unchanged
   reasoningEffort String  @default("high") // high | none — "none" is faster, blunter

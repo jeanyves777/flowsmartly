@@ -82,6 +82,14 @@ export function buildElevenLabsAgent(row: Record<string, unknown>): ConvaiAgentP
   const skills = jParse<AgentSkill[]>(row.skills, []);
   const tools = buildTools(skills, (row.mcpToken as string) || null);
 
+  // Extra languages the agent also speaks → EL language presets (it greets and
+  // converses in each). The primary stays `language`.
+  const extra = jParse<string[]>(row.languages, [])
+    .map((c) => resolveLanguage(c))
+    .filter((c) => c && c !== language);
+  const languagePresets: Record<string, unknown> = {};
+  for (const code of Array.from(new Set(extra))) languagePresets[code] = { overrides: {} };
+
   return {
     name,
     conversation_config: {
@@ -95,6 +103,7 @@ export function buildElevenLabsAgent(row: Record<string, unknown>): ConvaiAgentP
           tools,
         },
       },
+      ...(Object.keys(languagePresets).length ? { language_presets: languagePresets } : {}),
       tts: {
         voice_id: voiceId,
         model_id: DEFAULT_TTS_MODEL,

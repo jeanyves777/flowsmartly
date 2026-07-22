@@ -13,13 +13,15 @@
 // ── Voice ──
 
 export interface VoiceChoice {
-  voiceId: string;   // provider voice id ("eve", "carina", …) or a cloned id
+  voiceId: string;   // ElevenLabs voice id (20-char) or a cloned id
   name: string;      // display only
   gender?: string;
+  tag?: string;      // short description ("Warm, captivating storyteller")
   kind?: "builtin" | "cloned";
 }
 
-export const DEFAULT_VOICE: VoiceChoice = { voiceId: "eve", name: "Eve", gender: "female", kind: "builtin" };
+// Sarah — mature, reassuring, confident (an ElevenLabs premade voice).
+export const DEFAULT_VOICE: VoiceChoice = { voiceId: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", gender: "female", kind: "builtin" };
 
 /** Everything about how the agent sounds and listens — maps 1:1 to the call. */
 export interface SpeechSettings {
@@ -487,6 +489,7 @@ export interface VoiceAgentDraft {
   voiceLabel: string;
   speakingSpeed: number;
   languageHint: string;
+  languages?: string[]; // extra languages the agent also speaks
   keyterms: string[];
   pronunciations: Record<string, string>;
   reasoningEffort: "high" | "none";

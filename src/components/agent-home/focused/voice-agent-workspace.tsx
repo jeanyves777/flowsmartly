@@ -1431,13 +1431,14 @@ function Controls({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Par
             className="w-[150px] accent-brand-500" />
         </Row>
         <Row>
-          <span className="flex-1"><b className="block text-[11px]">Language</b>
-            <span className="text-[9.5px] text-muted-foreground">Bias recognition to a language</span></span>
+          <span className="flex-1"><b className="block text-[11px]">Main language</b>
+            <span className="text-[9.5px] text-muted-foreground">What the agent speaks by default</span></span>
           <select value={agent.languageHint || "auto"} onChange={(e) => void onPatch({ languageHint: e.target.value })}
             className="w-[172px] rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-[11.5px] outline-none focus:border-brand-500">
             {LANGUAGE_HINTS.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
           </select>
         </Row>
+        <AlsoSpeaksRow agent={agent} onPatch={onPatch} />
         <Row>
           <span className="flex-1"><b className="block text-[11px]">Caller can interrupt</b>
             <span className="text-[9.5px] text-muted-foreground">Talk over the agent to cut in</span></span>
@@ -2338,6 +2339,34 @@ function CloneVoiceModal({
 // ── speech helper rows ──────────────────────────────────────────────────────
 
 /** Words the agent should recognise reliably — brand, product and place names. */
+function AlsoSpeaksRow({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void> }) {
+  const langs = agent.languages || [];
+  const primary = agent.languageHint || "auto";
+  const labelFor = (code: string) => LANGUAGE_HINTS.find((l) => l.code === code)?.label || code;
+  const available = LANGUAGE_HINTS.filter((l) => l.code !== "auto" && l.code !== primary && !langs.includes(l.code));
+  return (
+    <Row>
+      <span className="flex-1"><b className="block text-[11px]">Also speaks</b>
+        <span className="text-[9.5px] text-muted-foreground">Extra languages — the agent switches to a caller&apos;s language</span></span>
+      <div className="flex max-w-[230px] flex-wrap items-center justify-end gap-1">
+        {langs.map((code) => (
+          <button key={code} onClick={() => void onPatch({ languages: langs.filter((c) => c !== code) })}
+            className="inline-flex items-center gap-1 rounded-full border border-brand-500/40 bg-brand-500/10 px-2 py-0.5 text-[10px] font-semibold text-brand-400 hover:border-rose-500 hover:text-rose-500">
+            {labelFor(code)} <span className="opacity-70">×</span>
+          </button>
+        ))}
+        {available.length > 0 && (
+          <select value="" onChange={(e) => { if (e.target.value) void onPatch({ languages: [...langs, e.target.value] }); }}
+            className="rounded-lg border border-border bg-muted/40 px-2 py-1 text-[10.5px] outline-none focus:border-brand-500">
+            <option value="">+ add</option>
+            {available.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+          </select>
+        )}
+      </div>
+    </Row>
+  );
+}
+
 function KeytermsRow({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void> }) {
   const [draft, setDraft] = useState("");
   const terms = agent.keyterms || [];
