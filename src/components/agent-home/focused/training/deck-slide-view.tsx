@@ -288,6 +288,94 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
     );
   }
 
+  // Numbered steps — a process, customer journey or timeline.
+  if ((lay === "step_process" || lay === "customer_journey" || lay === "timeline" || lay === "vertical_journey") && bullets.length >= 2) {
+    const steps = shownB.slice(0, 5);
+    return (
+      <div className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] px-[7%] py-[6%] text-white [container-type:inline-size]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
+        <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
+        {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-brand-300">{md(slide.subtitle)}</p> : null}
+        <div className="mt-[3.5cqw] grid gap-[1.6cqw]" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0,1fr))` }}>
+          {steps.map((b, i) => (
+            <div key={i} className="relative flex flex-col rounded-[1.4cqw] border border-white/10 bg-white/[0.05] p-[3.2%] duration-300 animate-in fade-in slide-in-from-bottom-2">
+              <span className="mb-[1.2cqw] grid h-[3.6cqw] w-[3.6cqw] place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 text-[clamp(6px,1.8cqw,16px)] font-black text-white">{i + 1}</span>
+              <p className="text-[clamp(5px,1.7cqw,15px)] leading-snug text-white/85">{md(b)}</p>
+              {i < steps.length - 1 ? <span className="absolute -right-[1cqw] top-[3.4cqw] z-[2] text-[clamp(7px,2cqw,18px)] text-brand-400">→</span> : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // A leading question; the answer reveals progressively.
+  if (lay === "question_answer" && (slide.subtitle || bullets.length)) {
+    return (
+      <div className={cn("relative grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-[#1b2540] via-[#161a2c] to-[#100e18] px-[7%] text-white [container-type:inline-size]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
+        <div className="max-w-[88%] text-center">
+          <div className="mb-[1cqw] select-none text-[10cqw] font-black leading-none text-brand-500/40">?</div>
+          <h1 style={{ textWrap: "balance" }} className="text-[clamp(12px,4.8cqw,46px)] font-extrabold leading-tight">{md(slide.title)}</h1>
+          {shownB.length ? (
+            <ul className="mx-auto mt-[3cqw] flex max-w-[80%] flex-col gap-[1.4cqw] text-left">
+              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] rounded-[1.2cqw] border border-white/10 bg-white/[0.05] px-[2.6cqw] py-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] text-white/90 duration-300 animate-in fade-in slide-in-from-bottom-2"><span className="font-black text-brand-300">{String.fromCharCode(65 + i)}</span>{md(b)}</li>)}
+            </ul>
+          ) : slide.subtitle ? <p className="mt-[2cqw] text-[clamp(7px,2.4cqw,22px)] font-semibold text-brand-200/90">{md(slide.subtitle)}</p> : null}
+        </div>
+      </div>
+    );
+  }
+
+  // Case study / real-world scenario — a visual beside a structured outcome.
+  if ((lay === "case_study" || lay === "real_world_scenario") && (hasImg || bullets.length >= 1)) {
+    return (
+      <div className={cn("relative grid h-full w-full grid-cols-[1fr_1fr] items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] px-[6%] py-[6%] text-white [container-type:inline-size]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
+        <div className="flex min-w-0 flex-col justify-center">
+          <span className="mb-[1.5cqw] inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-500/15 px-[2.2cqw] py-[.9cqw] text-[clamp(5px,1.6cqw,14px)] font-black uppercase tracking-wide text-brand-300">{lay === "case_study" ? "Case study" : "In the field"}</span>
+          <h1 className="text-[clamp(11px,3.6cqw,34px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
+          {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,1.9cqw,17px)] font-semibold text-brand-300">{md(slide.subtitle)}</p> : null}
+          {shownB.length ? (
+            <ul className="mt-[2.4cqw] flex flex-col gap-[1.4cqw]">
+              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-white/85"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-violet-400" />{md(b)}</li>)}
+            </ul>
+          ) : null}
+        </div>
+        <div className="relative aspect-[4/3] overflow-hidden rounded-[1.4cqw] bg-gradient-to-br from-[#2a2440] to-[#3a2f52] ring-1 ring-white/10">
+          {hasImg ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={v!.url} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          ) : <span className="grid h-full w-full place-items-center text-[8cqw]">{v?.emoji ?? "🏢"}</span>}
+        </div>
+      </div>
+    );
+  }
+
+  // A central 3D/photoreal visual with labeled callouts.
+  if (lay === "concept_3d_callouts" && hasImg && bullets.length >= 1) {
+    return (
+      <div className={cn("relative grid h-full w-full grid-cols-[1.15fr_.85fr] items-center gap-[3%] overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] px-[6%] py-[6%] text-white [container-type:inline-size]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
+        <div className="relative h-full">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={v!.url} alt="" className={cn("absolute inset-0 h-full w-full", containImg ? "object-contain" : "object-cover rounded-[1.4cqw]")} />
+        </div>
+        <div className="flex min-w-0 flex-col justify-center">
+          <h1 className="text-[clamp(11px,3.6cqw,34px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
+          <ul className="mt-[2.4cqw] flex flex-col gap-[1.4cqw]">
+            {shownB.slice(0, 4).map((b, i) => (
+              <li key={i} className="flex items-start gap-[1.6cqw] rounded-[1.2cqw] border border-white/10 bg-white/[0.05] px-[2.4cqw] py-[1.4cqw] text-[clamp(6px,1.8cqw,16px)] text-white/90 duration-300 animate-in fade-in slide-in-from-right-2">
+                <span className="grid h-[2.8cqw] w-[2.8cqw] shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 text-[clamp(5px,1.5cqw,13px)] font-black text-white">{i + 1}</span>
+                {md(b)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("relative h-full w-full overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] text-white [container-type:inline-size]", className)}>
       <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
