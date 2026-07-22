@@ -2,8 +2,9 @@
  * Mirror a VoiceAgent row to a real ElevenLabs Conversational AI agent.
  *
  * Creates the EL agent on first sync (storing `elevenAgentId`) and patches it on
- * later edits, so the EL agent always reflects our DB. Never throws — a sync
- * failure is recorded on the row and must not block creating/editing an agent.
+ * later edits, so the EL agent — its prompt, voice, language, and inline webhook
+ * tools — always reflects our DB. Never throws; a sync failure is recorded on the
+ * row and must not block creating/editing an agent.
  */
 
 import { prisma } from "@/lib/db/client";
@@ -24,10 +25,10 @@ export async function syncElevenLabsAgent(
   const existingId = (row as unknown as { elevenAgentId?: string | null }).elevenAgentId || null;
 
   if (existingId) {
-    const r = await updateConvaiAgent(existingId, payload);
-    if (r.ok) return mark(agentId, "synced", { elevenAgentId: existingId });
+    const upd = await updateConvaiAgent(existingId, payload);
+    if (upd.ok) return mark(agentId, "synced", { elevenAgentId: existingId });
     // The agent may have been deleted on EL's side — fall through to recreate.
-    if (r.status !== 404) return mark(agentId, "error", { error: r.error });
+    if (upd.status !== 404) return mark(agentId, "error", { error: upd.error });
   }
 
   const created = await createConvaiAgent(payload);
