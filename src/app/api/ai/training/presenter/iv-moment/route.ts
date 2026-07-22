@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
     if (target === "intro") deck.introVideoUrl = videoUrl;
     else if (target === "outro") deck.outroVideoUrl = videoUrl;
     else if (slideIdx >= 0) deck.slides[slideIdx] = { ...deck.slides[slideIdx], momentVideoUrl: videoUrl, momentScript: script };
+    deck.voiceKey = presenter.voiceProfileId ?? null; // this video speaks in the presenter's current voice
     await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck) } });
 
     // return the FULL deck so the client sets it verbatim (no local merge that could drop the URL).

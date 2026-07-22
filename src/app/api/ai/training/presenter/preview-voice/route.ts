@@ -11,7 +11,9 @@ const err = (message: string, status = 400) =>
 
 export const maxDuration = 60;
 // A natural line so the owner can compare the CLONE against their own voice.
-const PREVIEW_TEXT = "Hi, this is my cloned voice. If this sounds just like me, we're ready to present together.";
+const CLONE_TEXT = "Hi, this is my cloned voice. If this sounds just like me, we're ready to present together.";
+// A neutral line for a ready-made STUDIO voice (it isn't the owner's own voice).
+const STUDIO_TEXT = "Hi everyone, and welcome to today's training session. I'm your co-host, and I'll walk us through it together.";
 
 /**
  * POST /api/ai/training/presenter/preview-voice — return a short sample SPOKEN BY THE
@@ -29,16 +31,17 @@ export async function POST(request: NextRequest) {
 
   const voice = await prisma.voiceProfile.findFirst({
     where: { id: voiceProfileId, userId: session.userId },
-    select: { id: true, previewUrl: true, elevenLabsVoiceId: true, openaiVoiceId: true },
+    select: { id: true, previewUrl: true, elevenLabsVoiceId: true, openaiVoiceId: true, type: true },
   });
   if (!voice) return err("That voice isn't available", 404);
   if (voice.previewUrl) return NextResponse.json({ success: true, data: { previewUrl: voice.previewUrl, cached: true } });
-  if (!voice.elevenLabsVoiceId && !voice.openaiVoiceId) return err("That voice has no clone to preview");
+  if (!voice.elevenLabsVoiceId && !voice.openaiVoiceId) return err("That voice has no sample to preview");
 
+  const previewText = voice.type === "studio" ? STUDIO_TEXT : CLONE_TEXT;
   try {
     const buffer = voice.elevenLabsVoiceId
-      ? await generateWithElevenLabs({ text: PREVIEW_TEXT, voiceId: voice.elevenLabsVoiceId })
-      : await generateWithOpenAI({ text: PREVIEW_TEXT, voiceId: voice.openaiVoiceId! });
+      ? await generateWithElevenLabs({ text: previewText, voiceId: voice.elevenLabsVoiceId })
+      : await generateWithOpenAI({ text: previewText, voiceId: voice.openaiVoiceId! });
     const previewUrl = await uploadToS3(`voice-clones/${session.userId}/preview-${nanoid(8)}.mp3`, buffer, "audio/mpeg");
     await prisma.voiceProfile.update({ where: { id: voice.id }, data: { previewUrl } });
     return NextResponse.json({ success: true, data: { previewUrl, cached: false } });

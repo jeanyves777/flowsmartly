@@ -76,6 +76,7 @@ export function parseDeck(raw: string | null | undefined): TrainingDeck {
       presenterVideoUrl: d.presenterVideoUrl ?? null,
       introVideoUrl: d.introVideoUrl ?? null,
       outroVideoUrl: d.outroVideoUrl ?? null,
+      voiceKey: d.voiceKey ?? null,
     };
   } catch {
     return { v: 1, slides: [] };

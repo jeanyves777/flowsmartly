@@ -69,6 +69,9 @@ export async function POST(request: NextRequest) {
     if (reveals[s.id]) out = { ...out, quizReveal: reveals[s.id] };
     return out;
   });
+  // Stamp the voice this narration speaks in, so the builder can prompt a regenerate if the
+  // presenter's voice is later changed (existing narration/videos would be in the old voice).
+  deck.voiceKey = presenter.voiceProfileId ?? null;
   await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck) } });
 
   // if a cloned voice was requested but couldn't be reached, the audio used a preset —
