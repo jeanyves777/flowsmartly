@@ -109,6 +109,9 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
   const v = slide.visual;
   const left = v?.layout === "left";
   const full = v?.layout === "full";
+  // Illustrations / diagrams carry meaning at their edges (arrows, labels), so they must FIT
+  // inside their box (contain) — cropping them (cover) cuts off content. Photos still fill.
+  const containImg = v?.style === "illustration" || /illustration|diagram|chart|infographic|graph|figure|flow/i.test(v?.tag ?? "");
   return (
     <div className={cn("relative h-full w-full overflow-hidden bg-gradient-to-br from-[#14121f] to-[#1c1830] text-white [container-type:inline-size]", className)}>
       <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-brand-500 to-violet-600" />
@@ -135,7 +138,7 @@ export function DeckSlideView({ slide, reveal, className }: { slide: DeckSlide; 
           <div className={cn("relative grid place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-[#2a2440] to-[#3a2f52]", left && "order-1")}>
             {v?.kind === "image" && v.url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={v.url} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={v.url} alt="" className={cn("absolute inset-0 h-full w-full", containImg ? "object-contain p-[4%]" : "object-cover")} />
             ) : (
               <span className="text-[clamp(14px,8cqw,72px)] drop-shadow-lg">{v?.emoji ?? "🎯"}</span>
             )}
