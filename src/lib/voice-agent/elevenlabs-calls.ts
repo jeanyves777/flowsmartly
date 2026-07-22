@@ -15,6 +15,7 @@ import {
   getConvaiConversation,
   type ConvaiConversationSummary,
 } from "@/lib/voice-agent/elevenlabs-convai";
+import { runFollowUps } from "@/lib/voice-agent/elevenlabs-followups";
 
 const MAX_NEW_PER_SYNC = 20; // cap transcript fetches so a page load stays snappy
 
@@ -44,6 +45,8 @@ export async function syncElevenLabsConversations(agent: {
   userId: string;
   elevenAgentId: string | null;
   phoneNumberId?: string | null;
+  followUpRules?: unknown;
+  name?: string;
 }): Promise<void> {
   if (!isConvaiEnabled() || !agent.elevenAgentId) return;
 
@@ -72,7 +75,7 @@ export async function syncElevenLabsConversations(agent: {
 }
 
 async function createFromConversation(
-  agent: { id: string; userId: string; phoneNumberId?: string | null },
+  agent: { id: string; userId: string; phoneNumberId?: string | null; followUpRules?: unknown; name?: string },
   c: ConvaiConversationSummary,
 ): Promise<void> {
   // Fetch the transcript + caller number once, for this new conversation.
@@ -93,6 +96,7 @@ async function createFromConversation(
     .filter((t) => t.message)
     .map((t) => ({ role: t.role === "agent" ? "agent" : "caller", at: t.time_in_call_secs ?? 0, text: t.message }));
 
+  const outcome = outcomeOf(c.tool_names, c.message_count);
   await prisma.voiceCall.create({
     data: {
       userId: agent.userId,
@@ -104,7 +108,7 @@ async function createFromConversation(
       fromE164,
       toE164: phone?.agent_number || "",
       status: "completed",
-      outcome: outcomeOf(c.tool_names, c.message_count),
+      outcome,
       summary: c.transcript_summary || dData?.analysis?.transcript_summary || null,
       outcomeDetail: c.call_summary_title || dData?.analysis?.call_summary_title || null,
       startedAt,
@@ -113,4 +117,9 @@ async function createFromConversation(
       transcript: JSON.stringify(transcript),
     },
   });
+
+  // After-the-call routing — fire the agent's follow-up rules once, on import.
+  await runFollowUps(agent, { fromE164, outcome, channel }).catch((e) =>
+    console.error("[elevenlabs] follow-ups failed:", e),
+  );
 }

@@ -12,6 +12,13 @@
 
 // ── Voice ──
 
+/** After-the-call routing: when a call ends with `outcome`, follow up on `channel`. */
+export interface FollowUpRule {
+  outcome: string; // an outcome bucket ("missed", "lead", …) or "any"
+  channel: "sms" | "whatsapp" | "email";
+  message: string;
+}
+
 export interface VoiceChoice {
   voiceId: string;   // ElevenLabs voice id (20-char) or a cloned id
   name: string;      // display only
@@ -490,6 +497,7 @@ export interface VoiceAgentDraft {
   speakingSpeed: number;
   languageHint: string;
   languages?: string[]; // extra languages the agent also speaks
+  followUpRules?: FollowUpRule[]; // after-the-call routing
   keyterms: string[];
   pronunciations: Record<string, string>;
   reasoningEffort: "high" | "none";
