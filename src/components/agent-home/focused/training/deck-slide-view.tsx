@@ -91,12 +91,14 @@ function HandAnnotate({ hostRef, active, style, ink, showHand, tool, widthMul }:
   }, [m, style]);
 
   if (!active || !m || style === "highlight") return null;
-  const hw = Math.max(120, m.h * 8.5), hh = hw * 0.667;
+  // A modest pointing hand that comes in from the LEFT edge of the phrase (fingertip at 20.51%/6.74%
+  // of the PNG) — sized to the phrase, not the slide, and capped so it never blankets the content.
+  const hw = Math.min(m.W * 0.19, Math.max(72, m.h * 3.6)), hh = hw * 0.667;
   return (
     <svg viewBox={`0 0 ${m.W} ${m.H}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 z-[6] h-full w-full">
-      <style>{`@keyframes an-draw{to{stroke-dashoffset:0}}@keyframes an-point{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}`}</style>
+      <style>{`@keyframes an-draw{to{stroke-dashoffset:0}}@keyframes an-point{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}`}</style>
       {style === "point" ? (
-        <image href="/training/point-hand.png" width={hw} height={hh} x={m.x + m.w / 2 - hw * 0.205} y={m.y - hh * 0.067} style={{ animation: "an-point .5s ease forwards", filter: "drop-shadow(0 8px 12px rgba(0,0,0,.28))" } as CSSProperties} />
+        <image href="/training/point-hand.png" width={hw} height={hh} x={m.x - m.h * 0.35 - hw * 0.2051} y={m.y + m.h * 0.5 - hh * 0.0674} style={{ animation: "an-point .5s ease forwards", filter: "drop-shadow(0 8px 12px rgba(0,0,0,.28))" } as CSSProperties} />
       ) : (
         <>
           <path d={annPath(m, style)} pathLength={1} fill="none" stroke={ink || "#0e7db8"} strokeWidth={Math.max(2, m.h * 0.16 * (widthMul ?? 1) * TOOL_CFG[tool ?? "marker"].mul)} strokeLinecap={TOOL_CFG[tool ?? "marker"].cap} strokeLinejoin="round" style={{ strokeDasharray: 1, strokeDashoffset: 1, animation: "an-draw .85s ease forwards", opacity: TOOL_CFG[tool ?? "marker"].op } as CSSProperties} />
@@ -309,12 +311,18 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand }: { sl
   const shownB = reveal === undefined ? bullets : bullets.slice(0, reveal);
   const lay = slide.layout;
 
-  // Hand annotation on a keyword: wrap the highlight phrase in a <span data-hl>, and once the
-  // slide's bullets have all revealed, the hand circles/underlines/points at it. `T()` wraps the
-  // FIRST occurrence across the slide; `ann` is the overlay element (place it in a relative root).
+  // Hand annotation on a keyword: wrap the highlight phrase in a <span data-hl>, and the hand
+  // marks it AS its line appears (not after everything) — so it engages intelligently, in step
+  // with the narration. `T()` wraps the FIRST occurrence across the slide (title → subtitle →
+  // bullets); `ann` is the overlay element (place it in a relative root).
   const hlPhrase = (slide.highlight || "").trim();
   const annStyle: AnnStyle = slide.annotate ?? "circle";
-  const annActive = reveal !== undefined && !!hlPhrase && reveal >= bullets.length;
+  // the reveal step at which the marked phrase first appears on screen (so we mark it then, not last)
+  const hlLower = hlPhrase.toLowerCase();
+  const hlInHead = !!hlPhrase && [slide.title, slide.subtitle].some((s) => md(s).toLowerCase().includes(hlLower));
+  const hlBulletIdx = hlPhrase ? bullets.findIndex((b) => md(b).toLowerCase().includes(hlLower)) : -1;
+  const hlReveal = hlInHead ? 1 : hlBulletIdx >= 0 ? hlBulletIdx + 1 : bullets.length;
+  const annActive = reveal !== undefined && !!hlPhrase && reveal >= hlReveal;
   let hlUsed = false;
   const T = (text: string | undefined | null) => {
     const t = md(text);
