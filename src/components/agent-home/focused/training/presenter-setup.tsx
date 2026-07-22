@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
-import { STUDIO_VOICES, type StudioVoice } from "@/lib/training/studio-voices";
+import { STUDIO_VOICES, type StudioVoice, type LibraryVoice } from "@/lib/training/studio-voices";
+import { VoiceLibrary } from "./voice-library";
 import type { PresenterProfileDTO, PresenterQuestionBehavior } from "@/lib/training/types";
 
 interface VoiceOpt { id: string; name: string; provider: string | null; sampleUrl?: string | null }
@@ -80,6 +81,19 @@ export function PresenterSetup({ open, onClose, onChoose, onCloneMyself }: {
       setF((p) => ({ ...p, voiceProfileId: j.data.voiceProfileId, voiceName: j.data.voiceName, sampleUrl: null }));
       toast({ title: `${v.name} is your co-host's voice`, description: "Used for narration and the on-screen talking videos." });
     } finally { setBusy(null); }
+  };
+  // Browse the FULL ElevenLabs library and assign any voice (used by id directly — no slot cost).
+  const [libOpen, setLibOpen] = useState(false);
+  const [assigning, setAssigning] = useState<string | null>(null);
+  const pickLibrary = async (v: LibraryVoice) => {
+    setAssigning(v.voiceId);
+    try {
+      const j = await fetch("/api/ai/training/presenter/library-voice", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voiceId: v.voiceId, name: v.name, gender: v.gender, accent: v.accent }) }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't use that voice", variant: "destructive" }); return; }
+      setF((p) => ({ ...p, voiceProfileId: j.data.voiceProfileId, voiceName: j.data.voiceName, sampleUrl: null }));
+      setLibOpen(false);
+      toast({ title: `${v.name} is your co-host's voice`, description: "Used for narration and the on-screen talking videos." });
+    } finally { setAssigning(null); }
   };
   // the ORIGINAL uploaded photo — kept so we can restyle it (background / clothing).
   const [portraitFile, setPortraitFile] = useState<File | null>(null);
@@ -404,7 +418,9 @@ export function PresenterSetup({ open, onClose, onChoose, onCloneMyself }: {
 
                 {/* STUDIO VOICES — great ready-made voices; using your OWN voice is optional. */}
                 <div className="mt-4">
-                  <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Studio voices <span className="rounded bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold normal-case text-brand-300">No recording needed · your own voice is optional</span></div>
+                  <div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Studio voices <span className="rounded bg-brand-500/15 px-1.5 py-0.5 text-[9px] font-bold normal-case text-brand-300">No recording needed · your own voice is optional</span>
+                    <button onClick={() => setLibOpen(true)} className="ms-auto inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[10px] font-bold normal-case text-brand-300 hover:border-brand-500"><Volume2 className="h-3 w-3" /> Browse all voices</button>
+                  </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {STUDIO_VOICES.map((v) => {
                       const on = f.voiceName === v.name && !f.sampleUrl;
@@ -566,6 +582,8 @@ export function PresenterSetup({ open, onClose, onChoose, onCloneMyself }: {
           </div>
         </div>
       ) : null}
+
+      <VoiceLibrary open={libOpen} onClose={() => setLibOpen(false)} onPick={(v) => void pickLibrary(v)} assigning={assigning} />
     </div>
   );
 }
