@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
+import { syncElevenLabsAgent } from "@/lib/voice-agent/elevenlabs-sync";
 import {
   DEFAULT_HOURS,
   PRESET_BY_KEY,
@@ -136,6 +137,9 @@ export async function POST(request: NextRequest) {
       },
       include: { number: true },
     });
+
+    // Mirror it to a real ElevenLabs agent in the background (non-blocking).
+    void syncElevenLabsAgent(agent.id).catch((e) => console.error("[VoiceAgent/agents] EL sync failed:", e));
 
     return NextResponse.json({
       success: true,
