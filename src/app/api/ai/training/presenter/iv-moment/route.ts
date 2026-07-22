@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { spawn } from "child_process";
-import { writeFile, readFile, unlink, mkdtemp } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/client";
-import { generateVideoForRole } from "@/lib/ai/video-router";
+import { heygenClient } from "@/lib/ai/heygen-client";
 import { synthesize } from "@/lib/training/narration";
 import { parseDeck } from "@/lib/training/deck";
-import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { downloadS3ObjectToBuffer, uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
 import { nanoid } from "nanoid";
@@ -18,16 +13,8 @@ const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
 
 export const maxDuration = 300;
-const MOMENT_COST = 90; // one short "talking presenter" video render (xAI/Grok — per-render, NO avatar cap)
+const MOMENT_COST = 90; // one realistic "talking presenter" render (HeyGen Avatar IV, audio-driven)
 export function ivMomentCost(): number { return MOMENT_COST; }
-
-// A talking-presenter clip: the person from their photo, speaking to camera. The clip is
-// rendered SILENT then the CLONED voice is muxed in, so it plays as a real talking video.
-const PROMPTS = {
-  intro: "A confident, friendly professional presenter speaking directly to the camera, warmly welcoming an audience — natural talking mouth movement, expressive but subtle hand gestures, genuine smile, upper body visible, standing. Clean modern studio background, soft cinematic lighting, photoreal, high quality. NOT a static talking head.",
-  outro: "A warm, professional presenter speaking directly to the camera, wrapping up and thanking the audience — natural talking mouth movement, an appreciative hand gesture, confident smile, upper body visible. Clean modern studio background, soft cinematic lighting, photoreal, high quality.",
-  moment: "A professional presenter speaking directly to the camera in a natural, engaging way — talking mouth movement, warm expression, light hand gestures, upper body visible. Clean modern studio background, soft cinematic lighting, photoreal, high quality.",
-};
 
 function scriptFor(which: "intro" | "outro" | "moment", who: string, nextTitle?: string): string {
   const name = who.trim().split(/\s+/)[0] || "your co-host";
@@ -38,39 +25,23 @@ function scriptFor(which: "intro" | "outro" | "moment", who: string, nextTitle?:
     : `Great — let's take a quick breath and connect what we've covered so far. Alright, let's keep going.`;
 }
 
-/** Loop the silent talking clip to the length of the cloned-voice audio and mux them, so the
- *  moment plays as ONE video with the presenter's real voice. Falls back to the raw silent
- *  clip if ffmpeg isn't available. */
-async function muxVoice(videoBuffer: Buffer, audioBuffer: Buffer): Promise<Buffer> {
-  const ffmpeg = findFFmpegPath();
-  if (!ffmpeg) return videoBuffer;
-  const dir = await mkdtemp(join(tmpdir(), "moment-"));
-  const vin = join(dir, "v.mp4"), ain = join(dir, "a.mp3"), out = join(dir, "out.mp4");
-  try {
-    await writeFile(vin, videoBuffer);
-    await writeFile(ain, audioBuffer);
-    await new Promise<void>((resolve, reject) => {
-      const p = spawn(ffmpeg, ["-y", "-stream_loop", "-1", "-i", vin, "-i", ain, "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", out]);
-      let e = ""; p.stderr.on("data", (d) => (e += d));
-      p.on("close", (c) => (c === 0 ? resolve() : reject(new Error(`ffmpeg ${c}: ${e.slice(-200)}`))));
-    });
-    return await readFile(out);
-  } finally {
-    for (const f of [vin, ain, out]) await unlink(f).catch(() => {});
-  }
-}
-
 /**
  * POST /api/ai/training/presenter/iv-moment — render a REAL "talking presenter" video for a
- * MOMENT (intro / outro / between-slide) from the presenter's photo, in their CLONED voice.
- * Uses the xAI/Grok video route (per-render, NO avatar cap — scales to every customer) +
- * muxes the cloned-voice audio in. Stored on the deck; the live room plays it with its own
- * audio. { materialId, target: "intro" | "outro" | <slideId> }.
- * [[training-presenter-talking-video]] [[video-suite-4-playgrounds]]
+ * MOMENT (intro / outro / between-slide) so the co-host actually SPEAKS the line, photoreal
+ * and lip-synced, in their CLONED voice.
+ *
+ * Path: synthesize the line in the cloned voice → HeyGen **Avatar IV, audio-driven** (v3
+ * `POST /videos`, `type: "image"` + `audio_url`). This lip-syncs the presenter's photo to the
+ * cloned-voice audio and consumes ZERO photo-avatar quota (no reusable avatar is created), so
+ * it scales to every customer with no 3-avatar cap. Stored on the deck; the live room plays it
+ * with its own baked audio. { materialId, target: "intro" | "outro" | <slideId> }.
+ * [[training-presenter-talking-video]] [[heygen-api-constraints]]
  */
 export async function POST(request: NextRequest) {
   const session = await getSession();
   if (!session) return err("Unauthorized", 401);
+
+  if (!heygenClient.isAvailable()) return err("The presenter video service isn't configured right now — please try again shortly.", 503);
 
   const { materialId, target } = (await request.json().catch(() => ({}))) as { materialId?: string; target?: string };
   if (!materialId || !target) return err("Nothing to generate");
@@ -95,32 +66,38 @@ export async function POST(request: NextRequest) {
   if (!charge.success) return err(charge.error || "Not enough credits to generate that", 402);
 
   try {
-    // FRESH copy of the photo so the video provider gets a valid (non-expired) URL
+    // The presenter's CLONED voice speaks the line — this audio drives the lip-sync.
+    const spoken = await synthesize(script, voice, presenter.pace ?? 1, presenter.deliveryStyle ?? "conversational");
+    const audioUrl = await uploadToS3(`presenters/${session.userId}/moment-audio-${nanoid(6)}.mp3`, spoken.buffer, "audio/mpeg");
+
+    // A FRESH copy of the photo so HeyGen gets a valid (non-expired) URL to fetch.
     const buf = await downloadS3ObjectToBuffer(presenter.portraitUrl);
     const mime = /\.png($|\?)/i.test(presenter.portraitUrl) ? "image/png" : /\.webp($|\?)/i.test(presenter.portraitUrl) ? "image/webp" : "image/jpeg";
-    const refUrl = await uploadToS3(`presenters/${session.userId}/ref-${nanoid(6)}.${mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg"}`, buf, mime);
+    const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
+    const imageUrl = await uploadToS3(`presenters/${session.userId}/ref-${nanoid(6)}.${ext}`, buf, mime);
 
-    // the talking VISUAL + the cloned VOICE, in parallel
-    const [rendered, spoken] = await Promise.all([
-      generateVideoForRole("video_standard", { prompt: PROMPTS[which], durationSeconds: 8, aspectRatio: "16:9", characterReferenceUrls: [refUrl], disableAudio: true }),
-      synthesize(script, voice, presenter.pace ?? 1, presenter.deliveryStyle ?? "conversational"),
-    ]);
-    if (!rendered.videoBuffer?.length) throw new Error("empty video");
+    // Avatar IV, audio-driven: the presenter's photo, lip-synced to the cloned voice. No avatar
+    // quota consumed (v3 image→video), so this scales to every customer.
+    const result = await heygenClient.generateImageToVideo({
+      imageUrl,
+      audioUrl,
+      title: `Training presenter ${which}`,
+      estimatedSeconds: Math.max(6, Math.round((spoken.durationMs || 12000) / 1000)),
+    });
+    if (!result.videoBuffer?.length) throw new Error("empty video");
 
-    const finalBuffer = await muxVoice(rendered.videoBuffer, spoken.buffer);
-    const videoUrl = await uploadToS3(`presenters/${session.userId}/moment-${nanoid(8)}.mp4`, finalBuffer, "video/mp4");
+    const videoUrl = await uploadToS3(`presenters/${session.userId}/moment-${nanoid(8)}.mp4`, result.videoBuffer, "video/mp4");
 
     if (target === "intro") deck.introVideoUrl = videoUrl;
     else if (target === "outro") deck.outroVideoUrl = videoUrl;
     else if (slideIdx >= 0) deck.slides[slideIdx] = { ...deck.slides[slideIdx], momentVideoUrl: videoUrl, momentScript: script };
     await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck) } });
 
-    // return the FULL deck so the client sets it verbatim (no local merge that could drop
-    // the URL to a sync race).
+    // return the FULL deck so the client sets it verbatim (no local merge that could drop the URL).
     return NextResponse.json({ success: true, data: { target, videoUrl, deck } });
   } catch (e) {
     console.error(`[iv-moment] ${target} failed:`, e instanceof Error ? e.message : e);
     await creditService.addCredits?.({ userId: session.userId, type: "REFUND", amount: MOMENT_COST, description: "Refund: presenter video failed", referenceType: "presenter_iv_moment", referenceId: mat.id }).catch(() => {});
-    return err(e instanceof Error && /face|photo|reference/i.test(e.message) ? "Couldn't build a talking video from that photo — try a clear, front-facing portrait" : "Couldn't render the presenter video — try again", 502);
+    return err(e instanceof Error && /face|photo|image|portrait/i.test(e.message) ? "Couldn't build a talking video from that photo — try a clear, front-facing portrait" : "Couldn't render the presenter video — try again", 502);
   }
 }
