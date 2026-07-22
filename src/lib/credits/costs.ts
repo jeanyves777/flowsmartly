@@ -209,8 +209,8 @@ export const DEFAULT_CREDIT_COSTS = {
   // --- Voice Agent (answers the phone) ---
   // Billed per started minute while a call runs, not once at the end — an
   // orphaned/dropped call must not leave an unbilled tab.
-  VOICE_AGENT_MINUTE: 13,       // ElevenLabs Conv AI ~$0.08–0.10/min + telephony ~$0.01/min → keep margin over ~$0.11 cost
-  VOICE_AGENT_NUMBER_RENTAL: 500, // monthly DID rent — same house rate as an SMS number
+  VOICE_AGENT_MINUTE: 15,       // charge $0.15/min. Cost basis ≈ ElevenLabs Conv AI $0.09–0.11 + Telnyx ~$0.005 → ~40–65% markup
+  VOICE_AGENT_NUMBER_RENTAL: 500, // $5/mo per number. Telnyx US DID ≈ $1/mo → ~5× markup
 
   // --- Training Studio (live rooms) ---
   // Metered in ATTENDEE-minutes, charged in 10-attendee-minute blocks while the
