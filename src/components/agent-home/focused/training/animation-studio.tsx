@@ -8,11 +8,12 @@
  * preview. Applies live (no regeneration) and persists through the deck autosave. [[training-studio]]
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { X, Play, Pause, RotateCcw, Sparkles, Eye, EyeOff, Hand, ChevronLeft, ChevronRight } from "lucide-react";
+import { X, Play, Pause, RotateCcw, Sparkles, Eye, EyeOff, Hand, ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { DeckSlideView } from "./deck-slide-view";
-import { ANNOTATE_VARIANTS } from "@/lib/training/types";
-import type { DeckSlide, TrainingDeck, VisualStyle, HandStyleSettings } from "@/lib/training/types";
+import { ANNOTATE_VARIANTS, BOARD_STYLE_META } from "@/lib/training/types";
+import type { DeckSlide, TrainingDeck, VisualStyle, HandStyleSettings, BoardStyleSettings, BoardPreset } from "@/lib/training/types";
+import { resolveBoard, type BoardTheme } from "./deck-slide-view";
 
 type Ann = NonNullable<DeckSlide["annotate"]> | "none";
 const VARIANTS: { v: Ann; icon: string; label: string; hint: string }[] = [
@@ -30,6 +31,42 @@ const REVEALS: { v: NonNullable<DeckSlide["revealMode"]>; label: string }[] = [
   { v: "progressive", label: "One point at a time" }, { v: "all_at_once", label: "All at once" }, { v: "word_by_word", label: "Word by word" },
 ];
 const fmt = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
+
+// ── Whiteboard style options ──
+const BG_OPTS = [["dots", "Dots"], ["grid", "Grid"], ["plain", "Plain"]] as const;
+const CONN_OPTS = [["straight", "Straight"], ["curved", "Curved"], ["elbow", "Elbow"]] as const;
+const SHAPE_OPTS = [["rounded", "Rounded"], ["square", "Square"], ["pill", "Pill"]] as const;
+const BOARD_INKS = ["#111827", "#2563eb", "#7c3aed", "#16a34a", "#eab308", "#dc2626", "#e5e7eb"];
+const BOARD_FILTERS = ["All", "Light", "Hand-drawn", "Technical", "Dark"] as const;
+
+// A tiny board thumbnail that honours the resolved theme (surface, ink, node shape, connector).
+function BoardMini({ t }: { t: BoardTheme }) {
+  const nodes: [number, string][] = [[16, "Goal"], [82, "Plan"], [148, "Act"]];
+  const ny = 40, nh = 26, nw = 40;
+  const shape = (nx: number, label: string) => {
+    const common = { fill: t.nodeFill, stroke: t.nodeStroke, strokeWidth: 1.6 };
+    const el = t.nodeShape === "ellipse"
+      ? <ellipse cx={nx + nw / 2} cy={ny + nh / 2} rx={nw / 2} ry={nh / 2} {...common} />
+      : <rect x={nx} y={ny} width={nw} height={nh} rx={t.nodeShape === "square" ? 2 : t.nodeShape === "pill" ? nh / 2 : 6} {...common} />;
+    return <g key={nx}>{el}<text x={nx + nw / 2} y={ny + nh / 2} fontSize={8} fontWeight={700} fill={t.ink} textAnchor="middle" dominantBaseline="central" style={{ fontFamily: t.font }}>{label}</text></g>;
+  };
+  const conn = (x1: number, x2: number) => {
+    const y = ny + nh / 2, mx = (x1 + x2) / 2;
+    const d = t.connector === "curved" ? `M ${x1} ${y} Q ${mx} ${y - 12} ${x2} ${y}` : t.connector === "elbow" ? `M ${x1} ${y - 6} L ${mx} ${y - 6} L ${mx} ${y} L ${x2} ${y}` : `M ${x1} ${y} L ${x2} ${y}`;
+    return <g key={`c${x1}`}><path d={d} fill="none" stroke={t.ink} strokeWidth={1.6} /><path d={`M ${x2 - 5} ${y - 3} L ${x2} ${y} L ${x2 - 5} ${y + 3}`} fill="none" stroke={t.ink} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" /></g>;
+  };
+  return (
+    <div className="relative aspect-video w-full overflow-hidden rounded-md" style={{ backgroundColor: t.base, backgroundImage: t.bgImage, backgroundSize: t.bgSize }}>
+      <svg viewBox="0 0 200 112" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMid meet">
+        {conn(nodes[0][0] + nw, nodes[1][0])}
+        {conn(nodes[1][0] + nw, nodes[2][0])}
+        {nodes.map(([nx, l]) => shape(nx, l))}
+        <g><rect x={118} y={78} width={62} height={24} rx={4} fill={t.sticky} /><text x={124} y={90} fontSize={7} fontWeight={600} fill={t.stickyText}>One idea at</text><text x={124} y={98} fontSize={7} fontWeight={600} fill={t.stickyText}>a time.</text></g>
+      </svg>
+    </div>
+  );
+}
+
 // Deterministic pseudo-waveform when the real audio can't be decoded (CORS) — looks voice-like.
 function synthBars(seed: string, n = 84): number[] {
   let h = 2166136261;
@@ -50,10 +87,15 @@ export function AnimationStudio({ deck, page, setPage, onEditSlide, onEditDeck, 
 }) {
   const slide = deck.slides[page];
   const isDoc = slide?.type === "doc";
+  const isBoardSlide = slide?.type === "whiteboard" || slide?.type === "livedraw";
   const bullets = slide?.bullets?.length ?? 0;
   const highlight = (slide?.highlight || "").trim();
   const total = Math.max(1, bullets);
   const hand = deck.handStyle ?? {};
+  const bs = deck.boardStyle ?? {};
+  const activePreset: BoardPreset | undefined = bs.preset;
+  const [boardFilter, setBoardFilter] = useState<(typeof BOARD_FILTERS)[number]>("All");
+  const setBoard = (patch: Partial<BoardStyleSettings>) => onEditDeck({ boardStyle: { ...bs, ...patch } });
   const audioUrl = slide?.narration?.audioUrl;
   const durMs = slide?.narration?.durationMs || 0;
   const markMs = Math.min(durMs || 1, Math.max(300, slide?.annotateAtMs ?? Math.round((durMs || 4000) * 0.8)));
@@ -151,10 +193,33 @@ export function AnimationStudio({ deck, page, setPage, onEditSlide, onEditDeck, 
       <div className="grid min-h-0 flex-1 grid-cols-[1fr_320px]">
         <div className="flex min-w-0 flex-col overflow-auto p-5">
           <div className="mx-auto w-full max-w-[900px] overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/10">
-            <div className="aspect-video w-full"><DeckSlideView slide={slide} reveal={step} styleKey={styleKey} hand={deck.handStyle} /></div>
+            <div className="aspect-video w-full"><DeckSlideView slide={slide} reveal={step} styleKey={styleKey} hand={deck.handStyle} board={deck.boardStyle} /></div>
           </div>
 
-          {/* TIMELINE */}
+          {/* WHITEBOARD STYLE GALLERY */}
+          {isBoardSlide ? (
+            <div className="mx-auto mt-3 w-full max-w-[900px]">
+              <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                <b className="me-1 text-[11px] font-extrabold uppercase tracking-wide text-brand-300">Whiteboard style</b>
+                {BOARD_FILTERS.map((f) => <button key={f} onClick={() => setBoardFilter(f)} className={cn("rounded-full border px-2.5 py-1 text-[10.5px] font-bold", boardFilter === f ? "border-brand-500 bg-brand-500/15 text-brand-200" : "border-border text-muted-foreground hover:border-brand-500")}>{f}</button>)}
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                {BOARD_STYLE_META.filter((m) => boardFilter === "All" || m.category === boardFilter).map((m) => {
+                  const on = activePreset === m.key;
+                  const t = resolveBoard(styleKey, { ...bs, preset: m.key });
+                  return (
+                    <button key={m.key} onClick={() => setBoard({ preset: m.key })} className={cn("overflow-hidden rounded-xl border-2 text-left transition", on ? "border-brand-500" : "border-border hover:border-brand-500/60")}>
+                      <BoardMini t={t} />
+                      <div className="px-2 py-1.5">
+                        <div className="flex items-center gap-1.5"><b className="text-[11.5px]">{m.name}</b>{on ? <Check className="ms-auto h-3.5 w-3.5 text-brand-400" /> : null}</div>
+                        <div className="truncate text-[9.5px] text-muted-foreground">{m.subtitle}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
           <div className="mx-auto mt-3 w-full max-w-[900px]">
             <div className="mb-1.5 flex items-center gap-2">
               <button onClick={play} className="inline-flex items-center gap-1.5 rounded-lg border border-brand-500/50 px-3 py-1.5 text-[12px] font-bold text-brand-300 hover:bg-brand-500/10">{playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />} {playing ? "Pause" : "Play with narration"}</button>
@@ -204,12 +269,39 @@ export function AnimationStudio({ deck, page, setPage, onEditSlide, onEditDeck, 
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* controls */}
         <div className="flex min-h-0 flex-col gap-4 overflow-auto border-l border-border p-4">
-          {!isDoc ? (
-            <div className="rounded-xl border border-border bg-muted/40 p-3 text-[12px] text-muted-foreground">Hand-marking is for document slides. Whiteboard / Live-Draw slides animate as the diagram is drawn — pick <b className="text-foreground">Live hand draws it</b> when you regenerate them.</div>
+          {isBoardSlide ? (
+            <>
+              <div className="text-[10px] font-extrabold uppercase tracking-wide text-brand-300">Style inspector</div>
+              <div className="-mt-2 text-[13px] font-bold text-brand-200">{BOARD_STYLE_META.find((m) => m.key === activePreset)?.name ?? "Auto (from deck style)"}</div>
+
+              <div><div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Background</div>
+                <div className="grid grid-cols-3 gap-1.5">{BG_OPTS.map(([v, l]) => <button key={v} onClick={() => setBoard({ background: v })} className={cn("rounded-lg border px-1.5 py-1.5 text-[10.5px] font-bold", bs.background === v ? "border-brand-500 bg-brand-500/10 text-brand-200" : "border-border hover:border-brand-500")}>{l}</button>)}</div>
+              </div>
+              <div><div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Connector</div>
+                <div className="grid grid-cols-3 gap-1.5">{CONN_OPTS.map(([v, l]) => <button key={v} onClick={() => setBoard({ connector: v })} className={cn("rounded-lg border px-1.5 py-1.5 text-[10.5px] font-bold", bs.connector === v ? "border-brand-500 bg-brand-500/10 text-brand-200" : "border-border hover:border-brand-500")}>{l}</button>)}</div>
+              </div>
+              <div><div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Node shape</div>
+                <div className="grid grid-cols-3 gap-1.5">{SHAPE_OPTS.map(([v, l]) => <button key={v} onClick={() => setBoard({ nodeShape: v })} className={cn("rounded-lg border px-1.5 py-1.5 text-[10.5px] font-bold", bs.nodeShape === v ? "border-brand-500 bg-brand-500/10 text-brand-200" : "border-border hover:border-brand-500")}>{l}</button>)}</div>
+              </div>
+              <div><div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Ink colour</div>
+                <div className="flex flex-wrap gap-1.5">
+                  <button onClick={() => setBoard({ ink: undefined })} title="Preset default" className={cn("grid h-7 w-7 place-items-center rounded-full border text-[9px] font-black", !bs.ink ? "border-brand-400 text-brand-300" : "border-border text-muted-foreground hover:border-brand-500")}>A</button>
+                  {BOARD_INKS.map((c) => <button key={c} onClick={() => setBoard({ ink: c })} className={cn("h-7 w-7 rounded-full ring-2 ring-offset-2 ring-offset-[#0b0b10]", bs.ink === c ? "ring-brand-400" : "ring-transparent hover:ring-white/30")} style={{ background: c }} />)}
+                </div>
+              </div>
+              <button onClick={() => setBoard({ animate: !bs.animate })} className="flex w-full items-center justify-between rounded-lg border border-border px-2.5 py-2 text-[11.5px] font-semibold hover:border-brand-500">
+                <span>Animate drawing</span>
+                <span className={cn("inline-flex h-4 w-7 items-center rounded-full px-0.5 transition", bs.animate ? "bg-brand-500" : "bg-white/15")}><span className={cn("h-3 w-3 rounded-full bg-white transition", bs.animate ? "translate-x-3" : "translate-x-0")} /></span>
+              </button>
+              <p className="text-[10.5px] leading-snug text-muted-foreground">Pick a style above; these tune it. <b className="text-foreground">Animate drawing</b> has the presenter’s hand sketch the diagram on as they narrate.</p>
+            </>
+          ) : !isDoc ? (
+            <div className="rounded-xl border border-border bg-muted/40 p-3 text-[12px] text-muted-foreground">This slide type has no hand animation. Document slides mark a keyword; whiteboard slides carry a board style.</div>
           ) : (
             <>
               <div>
