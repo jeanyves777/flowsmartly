@@ -326,7 +326,9 @@ Rules:
         try {
           const r = await generateImageXaiFirst(imgPrompt(s.visual!.style, s.visual!.prompt!), 1280, 720, { quality: "high" });
           if (r.base64) {
-            const url = await uploadToS3(`training/${opts.sessionId}/deck/${s.id}.png`, Buffer.from(r.base64, "base64"), "image/png");
+            // Unique key per generation — objects are cached immutably for a year, so reusing a
+            // fixed key would keep showing the OLD image after regenerating a slide's visual.
+            const url = await uploadToS3(`training/${opts.sessionId}/deck/${s.id}-${uid("v")}.png`, Buffer.from(r.base64, "base64"), "image/png");
             s.visual = { ...s.visual!, kind: "image", url };
           }
         } catch { /* keep the emoji */ }
@@ -346,7 +348,7 @@ Rules:
         // is why the cutouts were coming back with an opaque background.
         const r = await generateImageWithProvider("openai", assetPrompt3D(s.assetPrompt!), 1024, 1024, { transparent: true, quality: "high", model: "gpt-image-1" });
         if (r.base64) {
-          const url = await uploadToS3(`training/${opts.sessionId}/deck/${s.id}-asset.png`, Buffer.from(r.base64, "base64"), "image/png");
+          const url = await uploadToS3(`training/${opts.sessionId}/deck/${s.id}-asset-${uid("v")}.png`, Buffer.from(r.base64, "base64"), "image/png");
           s.board = [...(s.board ?? []), { id: uid("img"), t: "image", by: "", at: { x: abx.x, y: abx.y }, w: abx.w, h: abx.h, url }];
           s.steps = Math.max(1, stepCount(s.board));
         }

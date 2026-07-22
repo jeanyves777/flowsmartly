@@ -15,6 +15,7 @@ import { generateWithClonedVoice } from "@/lib/voice/openai-voice-client";
 import { generateWithClonedVoice as generateWithElevenLabs } from "@/lib/voice/elevenlabs-client";
 import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 import { uploadToS3 } from "@/lib/utils/s3-client";
+import { nanoid } from "nanoid";
 import type { DeckSlide, SlideNarration } from "./types";
 
 /** ~ms of real silence prepended to every slide's clip so each new slide opens with a natural
@@ -195,7 +196,10 @@ export async function narrateDeck(opts: {
       try {
         const { buffer, durationMs, usedClone } = await synthesize(text, opts.voice, opts.pace, opts.style);
         if (usedClone) cloneUsed = true;
-        const audioUrl = await uploadToS3(`training/${opts.sessionId}/narration/${s.id}.mp3`, buffer, "audio/mpeg");
+        // A UNIQUE key per generation — the object is served with a 1-year immutable cache, so a
+        // fixed key would make the browser replay the OLD audio after re-voicing (e.g. a voice
+        // change). A fresh id guarantees the new voice is actually fetched. [[training-studio]]
+        const audioUrl = await uploadToS3(`training/${opts.sessionId}/narration/${s.id}-${nanoid(6)}.mp3`, buffer, "audio/mpeg");
         out[s.id] = { text, audioUrl, durationMs };
         // A quiz slide gets a SECOND clip: the spoken answer reveal, played on resume so the
         // co-host says "The correct answer is …" instead of re-reading the question.
@@ -203,7 +207,7 @@ export async function narrateDeck(opts: {
           const revText = quizRevealScript(s.quiz);
           const rev = await synthesize(revText, opts.voice, opts.pace, opts.style);
           if (rev.usedClone) cloneUsed = true;
-          const revUrl = await uploadToS3(`training/${opts.sessionId}/narration/${s.id}-reveal.mp3`, rev.buffer, "audio/mpeg");
+          const revUrl = await uploadToS3(`training/${opts.sessionId}/narration/${s.id}-reveal-${nanoid(6)}.mp3`, rev.buffer, "audio/mpeg");
           reveals[s.id] = { text: revText, audioUrl: revUrl, durationMs: rev.durationMs };
         }
       } catch (e) { console.error(`[narration] slide ${s.id} synthesis failed:`, e instanceof Error ? e.message : e); }
