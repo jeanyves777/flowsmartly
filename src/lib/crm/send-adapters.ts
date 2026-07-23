@@ -91,3 +91,21 @@ export async function deliverSequenceSms(opts: { userId: string; to: string; bod
   }
   return { ok: !!res.success, error: res.error };
 }
+
+/** Place one outreach CALL: the user's live voice agent dials the target with the
+ *  step's purpose (outbound greeting + goal-driven prompt). Talk time is metered
+ *  per minute when the transcript imports, so nothing extra is deducted here. */
+export async function deliverSequenceCall(opts: { userId: string; to: string; purpose?: string }): Promise<{ ok: boolean; error?: string }> {
+  const to = opts.to?.trim();
+  if (!to) return { ok: false, error: "no phone" };
+  // Pick the user's most-recent LIVE voice agent that has a number.
+  const agent = await prisma.voiceAgent.findFirst({
+    where: { userId: opts.userId, status: "LIVE", phoneNumberId: { not: null } },
+    select: { id: true },
+    orderBy: { updatedAt: "desc" },
+  }).catch(() => null);
+  if (!agent) return { ok: false, error: "no live voice agent with a number" };
+  const { placeOutboundCall } = await import("@/lib/voice-agent/elevenlabs-telephony");
+  const r = await placeOutboundCall(agent.id, to.startsWith("+") ? to : `+${to.replace(/[^\d]/g, "")}`, { purpose: opts.purpose });
+  return { ok: r.ok, error: r.error };
+}
