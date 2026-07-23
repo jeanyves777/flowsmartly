@@ -1,823 +1,680 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Workflow, Sparkles, Mail, MessageSquare, Send, Clock, Cake, Gift, PartyPopper, RotateCcw, AlertTriangle, ShoppingCart, MoonStar, CalendarHeart, RefreshCw, Zap, Pause, Play, ChevronRight, X, Pencil, Trash2, Users, User, Layers, Save, CheckCircle2, XCircle, MinusCircle, Globe, Plus, LayoutGrid, Rocket, Check, Target, ArrowLeft, ArrowRight, ArrowLeftRight } from "lucide-react";
-import { FlowLoader } from "@/components/shared/flow-loader";
-import { cn } from "@/lib/utils/cn";
-import { useMobileChat } from "../mobile-chat-context";
+import {
+  Workflow, MessageSquare, Mail, MessageCircle, GitBranch, Plus, Pause,
+  Save, X, Users, User, Layers, Repeat, Rocket, RefreshCw, Target, CheckCircle2, Loader2,
+  LayoutGrid, ChevronRight, UserRound, ArrowLeft, PhoneOutgoing,
+} from "lucide-react";
 
-// Mobile "collect via chat" starter — the flow canvas is desktop-first; on a
-// phone hand off to chat (the agent builds the flow live via update_followup_canvas).
-const FOLLOWUP_STARTER = "Build a follow-up automation for [my audience] — a multi-step email/SMS sequence that [goal, e.g. wins back customers who haven't ordered in 60 days].";
+import { FlowLoader } from "@/components/shared/flow-loader";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils/cn";
+import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
 
 /**
- * Follow-ups — an AI FLOW PLAYGROUND (the same canvas language as the Video
- * playground). The canvas BUILDS a campaign: name it, target a single contact /
- * multiple selected contacts / a segment, lay out a multi-step flow (message →
- * wait → message) with PERSONALIZED, merge-field messages, then "Build & launch
- * with AI" hands a structured brief to the agent on the left (onAsk) — it writes
- * & personalizes each message per contact and schedules every step.
+ * Follow-ups — a multi-channel CAMPAIGN builder on the real outreach-sequence
+ * engine (OutreachSequence + SequenceEnrollment, run by /api/sequences/run).
  *
- * The right rail shows live campaigns; the toolbar "Library" opens a full
- * gallery of every campaign with status + statistics. Clicking a campaign opens
- * the in-surface DETAIL drawer (GET /api/automations/[id]) — full config,
- * delivery stats, recent activity, inline edit (PATCH), pause/activate (PATCH),
- * delete (DELETE). Audience data: GET /api/contacts, GET /api/contact-lists.
+ * Everything happens in the UI (no "build with AI" hand-off): start from a BRIEF
+ * (name · goal · audience · one-time or recurring), lay out a draggable flow of
+ * steps — CALL (your voice agent dials with a purpose) · SMS · Email · WhatsApp ·
+ * a wait before each · a condition that gates the next step — then Save and
+ * Activate. The audience is enrolled and the scheduler runs each step on time,
+ * looping when the campaign is recurring. "Back office" shows live progress.
  * [[surface-buttons-are-ui-actions]] [[agent-operates-account-full-crud]]
- * [[new-design-no-legacy]]
  */
 
-interface ContactListRef { id: string; name: string; totalCount: number; }
-interface ContactListOption { id: string; name: string; totalCount: number; }
-interface ContactOption { id: string; name: string; email?: string | null; phone?: string | null; company?: string | null; }
-interface Automation {
-  id: string;
-  name: string;
-  type: string;
-  enabled: boolean;
-  campaignType: string;
-  subject?: string | null;
-  content?: string;
-  sendTime?: string;
-  daysOffset?: number;
-  timezone?: string;
-  contactListId?: string | null;
-  contactList?: ContactListRef | null;
-  totalSent?: number;
-  lastTriggered?: string | null;
+// ── flow types ────────────────────────────────────────────────────────────────
+type Channel = "call" | "sms" | "email" | "whatsapp";
+type NodeType = "audience" | Channel | "condition";
+interface FlowNode {
+  id: string; type: NodeType; x: number; y: number;
+  wait?: number;            // days to wait before this step
+  purpose?: string;         // call: what to accomplish
+  subject?: string;         // email
+  body?: string;            // sms / whatsapp / email body
+  requires?: Channel | "any"; // condition: channel the contact must have to run the next step
 }
-interface Stats { total?: number; active?: number; totalSent?: number; }
+interface FlowLink { from: string; to: string }
 
-interface AutomationStats {
-  totalAttempted: number;
-  sent: number;
-  failed: number;
-  skipped: number;
-  successRate: number;
-  failureRate: number;
-  skipRate: number;
+interface Seq {
+  id: string; name: string; goal?: string; status: string; steps: string;
+  audienceKind?: string; contactListId?: string | null; recurring?: boolean; recurrenceDays?: number;
+  updatedAt?: string;
 }
-interface AutomationLog {
-  id: string;
-  contactId: string | null;
-  status: string;
-  error: string | null;
-  sentAt: string;
-  contactName: string | null;
-  contactEmail: string | null;
-  contactPhone: string | null;
-}
-interface AutomationDetail extends Automation {
-  content: string;
-  stats: AutomationStats;
-  logs: AutomationLog[];
-  totalLogs: number;
-}
+interface StepCfg { id: string; kind: string; title: string; delayDays?: number; purpose?: string; subject?: string; body?: string; requires?: string }
+interface ContactOpt { id: string; name: string; email?: string | null; phone?: string | null }
+interface ListOpt { id: string; name: string; totalCount: number }
+type AudienceMode = "single" | "multi" | "segment";
 
-// Per-type display — icon + a friendly label (DB stores UPPER_SNAKE).
-const TYPE_META: Record<string, { label: string; icon: ElementType }> = {
-  BIRTHDAY: { label: "Birthday", icon: Cake },
-  HOLIDAY: { label: "Holiday", icon: Gift },
-  WELCOME: { label: "Welcome", icon: PartyPopper },
-  RE_ENGAGEMENT: { label: "Re-engagement", icon: RotateCcw },
-  CUSTOM: { label: "Custom", icon: Zap },
-  TRIAL_ENDING: { label: "Trial ending", icon: Clock },
-  PAYMENT_FAILED: { label: "Payment failed", icon: AlertTriangle },
-  ABANDONED_CART: { label: "Abandoned cart", icon: ShoppingCart },
-  INACTIVITY: { label: "Inactivity", icon: MoonStar },
-  ANNIVERSARY: { label: "Anniversary", icon: CalendarHeart },
-  SUBSCRIPTION_CHANGE: { label: "Subscription change", icon: RefreshCw },
+const CH_META: Record<NodeType, { icon: ElementType; title: string; tag: string; tone: string }> = {
+  audience:  { icon: UserRound,     title: "Audience",  tag: "WHO",   tone: "bg-violet-500/15 text-violet-400" },
+  call:      { icon: PhoneOutgoing, title: "Call",      tag: "VOICE", tone: "bg-emerald-500/15 text-emerald-400" },
+  sms:       { icon: MessageSquare, title: "SMS",       tag: "TEXT",  tone: "bg-cyan-500/15 text-cyan-400" },
+  email:     { icon: Mail,          title: "Email",     tag: "MAIL",  tone: "bg-brand-500/15 text-brand-400" },
+  whatsapp:  { icon: MessageCircle, title: "WhatsApp",  tag: "CHAT",  tone: "bg-green-500/15 text-green-500" },
+  condition: { icon: GitBranch,     title: "Condition", tag: "GATE",  tone: "bg-amber-500/15 text-amber-500" },
 };
-const typeMeta = (t: string) => TYPE_META[t] ?? { label: t.replace(/_/g, " ").toLowerCase(), icon: Workflow };
 
-// Common timezones — a compact, sensible set for the editor select.
-const TIMEZONES = [
-  "UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
-  "America/Sao_Paulo", "Europe/London", "Europe/Paris", "Europe/Berlin", "Africa/Abidjan",
-  "Africa/Lagos", "Asia/Dubai", "Asia/Kolkata", "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney",
+const PALETTE: { type: NodeType; blurb: string }[] = [
+  { type: "call", blurb: "Your voice agent dials with a purpose" },
+  { type: "sms", blurb: "A text message" },
+  { type: "email", blurb: "An email (subject + body)" },
+  { type: "whatsapp", blurb: "A WhatsApp message" },
+  { type: "condition", blurb: "Only run the next step if reachable" },
 ];
 
-const MERGE_FIELDS = ["first_name", "last_name", "company", "last_order", "email"];
-const WAIT_OPTIONS = [0, 1, 2, 3, 5, 7, 14];
+const REQUIRES = [
+  { v: "any", label: "any channel" },
+  { v: "email", label: "an email address" },
+  { v: "sms", label: "a phone number" },
+  { v: "whatsapp", label: "WhatsApp" },
+];
 
-function whenLabel(iso?: string | null): string {
-  if (!iso) return "Not run yet";
-  try { return `Last run ${new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`; } catch { return ""; }
-}
-function logWhen(iso: string): string {
-  try { return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); } catch { return ""; }
-}
-function offsetLabel(n?: number): string {
-  if (typeof n !== "number" || n === 0) return "on the day";
-  if (n < 0) return `${Math.abs(n)} day${Math.abs(n) === 1 ? "" : "s"} before`;
-  return `${n} day${n === 1 ? "" : "s"} after`;
-}
-function waitLabel(n: number): string {
-  if (!n || n <= 0) return "No wait";
-  return `Wait ${n} day${n === 1 ? "" : "s"}`;
-}
-const initials = (n: string) => n.split(/\s+/).filter(Boolean).map((x) => x[0]).slice(0, 2).join("").toUpperCase() || "?";
-const AVATAR_COLORS = ["#0ea5e9", "#8b5cf6", "#10b981", "#f59e0b", "#f43f5e", "#06b6d4"];
+// Starting points seeded into the brief.
+interface Preset { key: string; title: string; desc: string; goal: string; steps: () => FlowNode[] }
+let _seq = 0;
+const nid = (t: string) => `${t}_${(_seq++).toString(36)}_${Date.now() % 100000}`;
+const step = (type: NodeType, x: number, extra: Partial<FlowNode> = {}): FlowNode => ({ id: nid(type), type, x, y: 150, wait: 0, ...extra });
 
-/** Render a message with {{merge_field}} tokens highlighted. */
-function Highlighted({ text }: { text: string }) {
-  if (!text) return <span className="text-muted-foreground">No message yet</span>;
-  const parts = text.split(/(\{\{.*?\}\})/g);
+const PRESETS: Preset[] = [
+  { key: "nurture", title: "Nurture new leads", desc: "Welcome → follow-up call → check-in", goal: "Introduce the business, build rapport, and move them toward a first booking.",
+    steps: () => [step("email", 400, { subject: "Great to meet you", body: "Hi {{first_name}}, thanks for connecting — here's what we can do for you." }), step("call", 730, { wait: 2, purpose: "Introduce the business, answer questions, and offer to book a first consultation." }), step("sms", 1060, { wait: 3, body: "Hi {{first_name}}, following up — want me to book you in this week?" })] },
+  { key: "winback", title: "Win back", desc: "Text → wait → call the ones who don't reply", goal: "Re-engage lapsed customers and get them to come back with an offer.",
+    steps: () => [step("sms", 400, { body: "Hi {{first_name}}, we miss you! Here's 15% off your next order." }), step("call", 730, { wait: 3, purpose: "Reconnect, remind them of the offer, and book them back in." })] },
+  { key: "reminder", title: "Appointment reminder", desc: "Confirm by text, then a reminder call", goal: "Confirm the upcoming appointment and reduce no-shows.",
+    steps: () => [step("sms", 400, { body: "Hi {{first_name}}, confirming your appointment. Reply YES to confirm." }), step("call", 730, { wait: 1, purpose: "Confirm the appointment time and answer any questions before it." })] },
+  { key: "sell", title: "Sell / upsell", desc: "Call to pitch, follow up by email", goal: "Pitch the offer on a call and close, following up with details by email.",
+    steps: () => [step("call", 400, { purpose: "Pitch the offer, handle objections, and close — or book a follow-up." }), step("email", 730, { wait: 1, subject: "The details we discussed", body: "Hi {{first_name}}, as promised, here are the details from our call." })] },
+  { key: "collect", title: "Collect details", desc: "Call to gather info, save it back", goal: "Call to collect the missing details (needs, budget, timing) and save them.",
+    steps: () => [step("call", 400, { purpose: "Politely collect their requirements, budget, and timeline, and confirm next steps." })] },
+  { key: "blank", title: "Start blank", desc: "Build it from scratch", goal: "",
+    steps: () => [] },
+];
+
+// ── canvas <-> engine serialization ──────────────────────────────────────────
+const KIND_LABEL: Record<string, string> = { call: "Call", sms: "SMS", email: "Email", whatsapp: "WhatsApp", cond: "Condition" };
+
+/** Walk the main chain from the audience node and flatten it to ordered steps. */
+function nodesToSteps(nodes: FlowNode[], links: FlowLink[]): StepCfg[] {
+  const aud = nodes.find((n) => n.type === "audience");
+  if (!aud) return [];
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const nextOf = (id: string) => links.find((l) => l.from === id)?.to;
+  const out: StepCfg[] = [];
+  const seen = new Set<string>();
+  let cur = nextOf(aud.id);
+  while (cur && !seen.has(cur)) {
+    seen.add(cur);
+    const n = byId.get(cur);
+    if (n) {
+      if (n.type === "condition") {
+        out.push({ id: n.id, kind: "cond", title: `Only if ${REQUIRES.find((r) => r.v === (n.requires || "any"))?.label || "reachable"}`, requires: n.requires === "any" ? undefined : n.requires });
+      } else {
+        out.push({ id: n.id, kind: n.type, title: `${CH_META[n.type].title}`, delayDays: n.wait || 0, purpose: n.purpose, subject: n.subject, body: n.body });
+      }
+    }
+    cur = nextOf(cur);
+  }
+  return out;
+}
+
+/** Rebuild a draggable node chain from saved steps. */
+function stepsToNodes(steps: StepCfg[]): { nodes: FlowNode[]; links: FlowLink[] } {
+  const aud: FlowNode = { id: "aud", type: "audience", x: 80, y: 150 };
+  const nodes: FlowNode[] = [aud];
+  const links: FlowLink[] = [];
+  let prev = aud.id;
+  steps.forEach((s, i) => {
+    const type = (s.kind === "cond" ? "condition" : s.kind) as NodeType;
+    if (!CH_META[type]) return;
+    const n: FlowNode = { id: s.id || nid(type), type, x: 80 + 330 * (i + 1), y: 150, wait: s.delayDays || 0, purpose: s.purpose, subject: s.subject, body: s.body, requires: (s.requires as Channel) || "any" };
+    nodes.push(n);
+    links.push({ from: prev, to: n.id });
+    prev = n.id;
+  });
+  return { nodes, links };
+}
+
+function timeAgo(iso?: string): string { if (!iso) return ""; try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return ""; } }
+
+// ── component ────────────────────────────────────────────────────────────────
+export function FocusedAutomations({ refreshKey }: {
+  refreshKey?: number; onAsk?: (prompt: string) => void; agentBusy?: boolean;
+  canvasRef?: { current: unknown }; onOpenView?: (key: string) => void;
+}) {
+  const { toast } = useToast();
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [campaigns, setCampaigns] = useState<Seq[]>([]);
+  const [contacts, setContacts] = useState<ContactOpt[]>([]);
+  const [lists, setLists] = useState<ListOpt[]>([]);
+
+  // the campaign being edited
+  const [seqId, setSeqId] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [goal, setGoal] = useState("");
+  const [status, setStatus] = useState("draft");
+  const [audMode, setAudMode] = useState<AudienceMode>("single");
+  const [single, setSingle] = useState<ContactOpt | null>(null);
+  const [selected, setSelected] = useState<ContactOpt[]>([]);
+  const [segment, setSegment] = useState<string | null>(null); // contactListId
+  const [recurring, setRecurring] = useState(false);
+  const [everyDays, setEveryDays] = useState(30);
+
+  const [nodes, setNodes] = useState<FlowNode[]>([{ id: "aud", type: "audience", x: 80, y: 150 }]);
+  const [links, setLinks] = useState<FlowLink[]>([]);
+  const [selId, setSelId] = useState<string | null>(null);
+  const [paletteAt, setPaletteAt] = useState<{ afterId: string; x: number; y: number } | null>(null);
+
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [backOpen, setBackOpen] = useState(false);
+  const [libOpen, setLibOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const wireRef = useRef<SVGSVGElement>(null);
+  const pan = useCanvasPan(scrollRef);
+
+  useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [sq, ct, ls] = await Promise.all([
+        fetch("/api/sequences").then((r) => r.json()).catch(() => null),
+        fetch("/api/contacts?limit=50").then((r) => r.json()).catch(() => null),
+        fetch("/api/contact-lists").then((r) => r.json()).catch(() => null),
+      ]);
+      const seqs: Seq[] = (sq?.data?.sequences || []).filter((s: Seq) => (s.audienceKind || "contact") === "contact");
+      setCampaigns(seqs);
+      const cs: ContactOpt[] = (ct?.contacts || ct?.data?.contacts || []).map((c: Record<string, unknown>) => ({ id: String(c.id), name: String(c.name || [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || c.phone || "Contact"), email: (c.email as string) || null, phone: (c.phone as string) || null }));
+      setContacts(cs);
+      const lo: ListOpt[] = (ls?.data?.lists || ls?.lists || []).map((l: Record<string, unknown>) => ({ id: String(l.id), name: String(l.name), totalCount: Number(l.totalCount || l.count || 0) }));
+      setLists(lo);
+      // Nothing built yet → straight into the brief.
+      if (!seqs.length) { resetDraft(); setBriefOpen(true); }
+    } finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void load(); }, [load, refreshKey]);
+
+  // ── wires ──
+  const recompute = useCallback(() => {
+    const board = boardRef.current, svg = wireRef.current; if (!board || !svg) return;
+    const b = board.getBoundingClientRect();
+    const at = (id: string, side: "l" | "r") => { const el = board.querySelector(`[data-node="${id}"]`); if (!el) return null; const r = el.getBoundingClientRect(); return { x: (side === "r" ? r.right : r.left) - b.left, y: r.top - b.top + r.height / 2 }; };
+    let d = "";
+    for (const l of links) { const a = at(l.from, "r"), c = at(l.to, "l"); if (!a || !c) continue; const dx = Math.max(38, (c.x - a.x) / 2); d += `<path fill="none" stroke="var(--sms-wire,#2a3550)" stroke-width="2.5" d="M${a.x} ${a.y} C${a.x + dx} ${a.y}, ${c.x - dx} ${c.y}, ${c.x} ${c.y}"/>`; }
+    svg.innerHTML = d;
+  }, [links]);
+  useEffect(() => { recompute(); }, [recompute, nodes]);
+
+  // ── node ops ──
+  const patchNode = useCallback((id: string, p: Partial<FlowNode>) => setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, ...p } : n))), []);
+  const deleteNode = useCallback((id: string) => {
+    setNodes((ns) => ns.filter((n) => n.id !== id));
+    setLinks((ls) => { const inc = ls.find((l) => l.to === id); const out = ls.find((l) => l.from === id); let next = ls.filter((l) => l.from !== id && l.to !== id); if (inc && out) next = [...next, { from: inc.from, to: out.to }]; return next; });
+    if (selId === id) setSelId(null);
+  }, [selId]);
+  const insertAfter = (afterId: string, type: NodeType) => {
+    const src = nodes.find((n) => n.id === afterId); if (!src) return;
+    const nn = step(type, src.x + 330, { y: src.y + 20 });
+    setNodes((ns) => [...ns, nn]);
+    setLinks((ls) => { const old = ls.find((l) => l.from === afterId); let next = ls.filter((l) => l.from !== afterId); next = [...next, { from: afterId, to: nn.id }]; if (old) next = [...next, { from: nn.id, to: old.to }]; return next; });
+    setPaletteAt(null); setSelId(nn.id);
+  };
+
+  function resetDraft() {
+    setSeqId(null); setName(""); setGoal(""); setStatus("draft"); setAudMode("single"); setSingle(null); setSelected([]); setSegment(null);
+    setRecurring(false); setEveryDays(30); setNodes([{ id: "aud", type: "audience", x: 80, y: 150 }]); setLinks([]); setSelId(null);
+  }
+
+  function openCampaign(s: Seq) {
+    setSeqId(s.id); setName(s.name); setGoal(s.goal || ""); setStatus(s.status);
+    setRecurring(!!s.recurring); setEveryDays(s.recurrenceDays || 30);
+    setSegment(s.contactListId || null); setAudMode(s.contactListId ? "segment" : "single");
+    let steps: StepCfg[] = []; try { steps = JSON.parse(s.steps || "[]"); } catch { steps = []; }
+    const { nodes: nn, links: ll } = stepsToNodes(steps);
+    setNodes(nn); setLinks(ll); setSelId(null); setLibOpen(false); setBriefOpen(false);
+  }
+
+  const audienceCount = audMode === "single" ? (single ? 1 : 0) : audMode === "multi" ? selected.length : (lists.find((l) => l.id === segment)?.totalCount || 0);
+  const audienceLabel = audMode === "single" ? (single?.name || "Pick a contact") : audMode === "multi" ? `${selected.length} selected` : (lists.find((l) => l.id === segment)?.name || "Pick a list");
+
+  // ── save / activate ──
+  async function save(then?: "activate"): Promise<string | null> {
+    const steps = nodesToSteps(nodes, links);
+    setBusy(true); setFlash(null);
+    try {
+      const body: Record<string, unknown> = {
+        id: seqId || undefined, name: name.trim() || "Follow-up campaign", goal: goal.trim(),
+        audienceKind: "contact", steps, recurring, recurrenceDays: recurring ? everyDays : 0,
+        contactListId: audMode === "segment" ? segment : null,
+      };
+      const r = await fetch("/api/sequences", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then((x) => x.json());
+      if (!r?.success) { setFlash({ ok: false, text: r?.error?.message || "Could not save the campaign" }); return null; }
+      const id = r.data.sequence.id as string; setSeqId(id); setStatus(r.data.sequence.status);
+      if (then === "activate") return id;
+      setFlash({ ok: true, text: "Saved." }); void load();
+      return id;
+    } catch { setFlash({ ok: false, text: "Could not save the campaign" }); return null; } finally { setBusy(false); }
+  }
+
+  async function activate() {
+    if (!nodesToSteps(nodes, links).length) { toast({ title: "Add at least one step before launching.", variant: "destructive" }); return; }
+    const id = await save("activate"); if (!id) return;
+    // Resolve the audience selection into an enrollment target set.
+    const contactIds = audMode === "single" ? (single ? [single.id] : []) : audMode === "multi" ? selected.map((c) => c.id) : [];
+    if (audMode !== "segment" && contactIds.length === 0) { toast({ title: "Pick who this targets first.", variant: "destructive" }); return; }
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/sequences/${id}/activate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactIds: audMode === "segment" ? undefined : contactIds }) }).then((x) => x.json());
+      if (r?.success) { setStatus("active"); setFlash({ ok: true, text: `Live — ${r.data.enrolled} enrolled${r.data.skipped ? `, ${r.data.skipped} skipped (no email/phone)` : ""}.` }); void load(); }
+      else setFlash({ ok: false, text: r?.error?.message || "Could not activate" });
+    } catch { setFlash({ ok: false, text: "Could not activate" }); } finally { setBusy(false); }
+  }
+
+  async function pause() {
+    if (!seqId) return; setBusy(true);
+    try { const r = await fetch(`/api/sequences/${seqId}/activate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paused: true }) }).then((x) => x.json()); if (r?.success) { setStatus("paused"); setFlash({ ok: true, text: "Paused." }); void load(); } } finally { setBusy(false); }
+  }
+
+  const header = headerSlot && createPortal(
+    <div className="flex items-center gap-2">
+      <button onClick={() => { resetDraft(); setBriefOpen(true); }} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12.5px] font-bold text-white"><Plus className="h-3.5 w-3.5" /> New campaign</button>
+      <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><LayoutGrid className="h-3.5 w-3.5" /> Campaigns</button>
+    </div>, headerSlot);
+
+  if (loading) return <div className="grid h-full place-items-center"><FlowLoader /></div>;
+
   return (
-    <>
-      {parts.map((p, i) =>
-        /^\{\{.*\}\}$/.test(p)
-          ? <span key={i} className="rounded bg-violet-500/15 px-1 font-semibold text-violet-300">{p}</span>
-          : <span key={i}>{p}</span>
+    <div className="relative flex h-full w-full flex-col overflow-hidden">
+      {header}
+
+      {/* flow header */}
+      <div className="flex items-center gap-3 border-b border-border px-4 py-2.5">
+        <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-violet-500/15 text-violet-400"><Workflow className="h-4 w-4" /></span>
+        <div className="min-w-0 flex-1">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Untitled campaign" className="w-full truncate bg-transparent text-[14px] font-bold outline-none placeholder:text-muted-foreground/60" />
+          <p className="truncate text-[11px] text-muted-foreground">{goal || "No goal yet — open the brief to set one"}{recurring ? ` · repeats every ${everyDays}d` : " · one-time"}</p>
+        </div>
+        <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-extrabold", status === "active" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500" : status === "paused" ? "border-amber-500/40 bg-amber-500/10 text-amber-500" : "border-border text-muted-foreground")}>
+          <i className={cn("h-1.5 w-1.5 rounded-full", status === "active" && "animate-pulse bg-emerald-500", status === "paused" && "bg-amber-500")} /> {status.toUpperCase()}
+        </span>
+        <button onClick={() => setBriefOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500"><Target className="h-3.5 w-3.5" /> Brief</button>
+        {seqId && <button onClick={() => setBackOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500"><LayoutGrid className="h-3.5 w-3.5" /> Back office</button>}
+      </div>
+
+      {/* CANVAS */}
+      <div className="relative min-h-0 flex-1 overflow-hidden" style={{ backgroundImage: "radial-gradient(circle, var(--sms-dot, rgba(120,130,150,.16)) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
+        <div ref={scrollRef} onPointerDown={pan} className="absolute inset-0 cursor-grab overflow-auto">
+          <div ref={boardRef} className="relative" style={{ width: 2600, height: 1200 }}>
+            <svg ref={wireRef} className="pointer-events-none absolute inset-0 h-full w-full" style={{ overflow: "visible" }} />
+            {nodes.map((n) => (
+              <NodeCard key={n.id} node={n} selected={selId === n.id} audienceMode={audMode} audienceLabel={audienceLabel} audienceCount={audienceCount}
+                onSelect={() => setSelId(n.id)} onMove={recompute} onPatch={(p) => patchNode(n.id, p)} onDelete={() => deleteNode(n.id)}
+                onOpenAudience={() => setBriefOpen(true)}
+                onAddAfter={() => { const el = boardRef.current?.querySelector(`[data-node="${n.id}"]`) as HTMLElement | null; const r = el?.getBoundingClientRect(); const br = boardRef.current?.getBoundingClientRect(); setPaletteAt({ afterId: n.id, x: (r && br ? r.left - br.left + r.width + 8 : n.x + 260), y: (r && br ? r.top - br.top : n.y) }); }} />
+            ))}
+          </div>
+        </div>
+
+        {paletteAt && (
+          <>
+            <button aria-label="Close" className="absolute inset-0 z-10 cursor-default" onClick={() => setPaletteAt(null)} />
+            <div className="absolute z-20 w-[248px] rounded-2xl border border-border bg-card p-1.5 shadow-2xl" style={{ left: Math.min(paletteAt.x, 2200), top: Math.min(paletteAt.y, 900) }}>
+              <p className="px-2 pb-1 pt-1.5 text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">Add a step</p>
+              {PALETTE.map((p) => { const M = CH_META[p.type]; return (
+                <button key={p.type} onClick={() => insertAfter(paletteAt.afterId, p.type)} className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left hover:bg-muted/60">
+                  <span className={cn("grid h-7 w-7 flex-none place-items-center rounded-lg", M.tone)}><M.icon className="h-3.5 w-3.5" /></span>
+                  <span className="min-w-0"><b className="block text-[11.5px]">{M.title}</b><span className="block text-[9.5px] text-muted-foreground">{p.blurb}</span></span>
+                </button>
+              ); })}
+            </div>
+          </>
+        )}
+
+        <div className="pointer-events-none absolute bottom-4 left-4 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-[10.5px] text-muted-foreground">Drag empty space to pan · drag a node to move it · click ＋ on a node to add a step after it</div>
+      </div>
+
+      {/* bottom bar */}
+      <div className="flex flex-col gap-2 border-t border-border bg-card px-4 py-2.5">
+        {flash && (
+          <div className={cn("flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[11.5px]", flash.ok ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-500" : "border-rose-500/30 bg-rose-500/5 text-rose-500")}>
+            {flash.ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <X className="h-3.5 w-3.5 shrink-0" />}<span>{flash.text}</span>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="text-[11.5px] text-muted-foreground">
+            <b className="text-foreground">{nodesToSteps(nodes, links).length}</b> step{nodesToSteps(nodes, links).length === 1 ? "" : "s"} · <b className="text-foreground">{audienceCount}</b> {audMode === "segment" ? "in list" : "target" + (audienceCount === 1 ? "" : "s")}{recurring ? " · recurring" : ""}
+          </div>
+          <div className="ms-auto flex items-center gap-2">
+            <button onClick={() => void save()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save</button>
+            {status === "active" ? (
+              <button onClick={() => void pause()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3.5 py-1.5 text-[12.5px] font-bold text-amber-600 disabled:opacity-50"><Pause className="h-3.5 w-3.5" /> Pause</button>
+            ) : (
+              <button onClick={() => void activate()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-50">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />} Activate</button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {briefOpen && (
+        <BriefSheet
+          name={name} setName={setName} goal={goal} setGoal={setGoal}
+          audMode={audMode} setAudMode={setAudMode} single={single} selected={selected} segment={segment} lists={lists}
+          onPick={() => setPickerOpen(true)} recurring={recurring} setRecurring={setRecurring} everyDays={everyDays} setEveryDays={setEveryDays}
+          hasSteps={nodesToSteps(nodes, links).length > 0}
+          onPreset={(p) => {
+            setGoal(p.goal || goal);
+            const aud: FlowNode = { id: "aud", type: "audience", x: 80, y: 150 };
+            const laid = p.steps().map((n, i) => ({ ...n, x: 80 + 330 * (i + 1), y: 150 }));
+            const ll: FlowLink[] = []; let prev = aud.id;
+            for (const n of laid) { ll.push({ from: prev, to: n.id }); prev = n.id; }
+            setNodes([aud, ...laid]); setLinks(ll);
+          }}
+          onClose={() => setBriefOpen(false)}
+          onSave={async () => { await save(); setBriefOpen(false); }}
+        />
       )}
-    </>
+
+      {pickerOpen && (
+        <AudiencePicker mode={audMode} contacts={contacts} lists={lists} single={single} selected={selected} segment={segment}
+          onSingle={(c) => { setSingle(c); setPickerOpen(false); }} onSelected={setSelected} onSegment={(id) => { setSegment(id); setPickerOpen(false); }}
+          onClose={() => setPickerOpen(false)} />
+      )}
+
+      {backOpen && seqId && <BackOffice seqId={seqId} name={name} onClose={() => setBackOpen(false)} />}
+
+      {libOpen && (
+        <Library campaigns={campaigns} onOpen={openCampaign} onClose={() => setLibOpen(false)} onNew={() => { resetDraft(); setLibOpen(false); setBriefOpen(true); }} />
+      )}
+    </div>
   );
 }
 
-type Channel = "EMAIL" | "SMS";
-interface FlowStep { id: string; channel: Channel; subject: string; msg: string; wait: number; personalize: boolean; }
-type AudienceMode = "single" | "multi" | "segment";
-type LibFilter = "all" | "active" | "paused";
-
-let _seq = 0;
-const stepId = () => `st-${Date.now().toString(36)}-${(_seq++).toString(36)}`;
-
-const DEFAULT_STEPS = (): FlowStep[] => [
-  { id: stepId(), channel: "EMAIL", subject: "", msg: "Hi {{first_name}}, ", wait: 0, personalize: true },
-];
-
-export function FocusedAutomations({ refreshKey, onAsk, agentBusy, canvasRef }: { refreshKey?: number; onAsk?: (prompt: string) => void; agentBusy?: boolean; canvasRef?: { current: { getContext: () => string; applyPatch: (patch: Record<string, unknown>) => void } | null } }) {
-  const { isMobile, seedComposer } = useMobileChat();
-  const [automations, setAutomations] = useState<Automation[]>([]);
-  // Portal the header actions into the FocusedView shell header (#fv-header-slot)
-  // so there's ONE top bar instead of a second full-width toolbar under it.
-  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
-  useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
-  const [stats, setStats] = useState<Stats>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [libOpen, setLibOpen] = useState(false);
-  const [libFilter, setLibFilter] = useState<LibFilter>("all");
-  const [working, setWorking] = useState(false);
-
-  // Audience data.
-  const [contacts, setContacts] = useState<ContactOption[]>([]);
-  const [lists, setLists] = useState<ContactListOption[]>([]);
-
-  // Flow-builder state.
-  const [name, setName] = useState("Untitled follow-up campaign");
-  const [brief, setBrief] = useState("");
-  const [mode, setMode] = useState<AudienceMode>("multi");
-  const [single, setSingle] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string[]>([]);
-  const [segment, setSegment] = useState<string | null>(null);
-  const [steps, setSteps] = useState<FlowStep[]>(DEFAULT_STEPS);
-  const [editingStep, setEditingStep] = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const j = await fetch("/api/automations").then((r) => r.json());
-      if (j?.success && j.data) {
-        if (Array.isArray(j.data.automations)) setAutomations(j.data.automations);
-        if (j.data.stats) setStats(j.data.stats);
-        setError("");
-      } else {
-        setError(j?.error?.message || "Could not load your campaigns.");
-      }
-    } catch {
-      setError("Could not load your campaigns.");
-    }
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    load().finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
-  }, [load, refreshKey]);
-
-  // Audience sources — segments (lists) + a first page of contacts for the picker.
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/contact-lists").then((r) => r.json()).then((j) => {
-      if (alive && j?.success && Array.isArray(j.data?.lists)) setLists(j.data.lists as ContactListOption[]);
-    }).catch(() => {});
-    fetch("/api/contacts?limit=50").then((r) => r.json()).then((j) => {
-      if (alive && j?.success && Array.isArray(j.data?.contacts)) setContacts(j.data.contacts as ContactOption[]);
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
-
-  // Toggle active/paused inline — optimistic, then reconcile.
-  const toggle = async (a: Automation) => {
-    const next = !a.enabled;
-    setBusyId(a.id);
-    setAutomations((list) => list.map((x) => (x.id === a.id ? { ...x, enabled: next } : x)));
-    setStats((s) => ({ ...s, active: Math.max(0, (s.active ?? 0) + (next ? 1 : -1)) }));
-    try {
-      const r = await fetch(`/api/automations/${a.id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: next }),
-      });
-      const j = await r.json().catch(() => null);
-      if (!r.ok || j?.success === false) {
-        setAutomations((list) => list.map((x) => (x.id === a.id ? { ...x, enabled: a.enabled } : x)));
-        setStats((s) => ({ ...s, active: Math.max(0, (s.active ?? 0) + (next ? -1 : 1)) }));
-      } else {
-        await load();
-      }
-    } catch {
-      setAutomations((list) => list.map((x) => (x.id === a.id ? { ...x, enabled: a.enabled } : x)));
-      setStats((s) => ({ ...s, active: Math.max(0, (s.active ?? 0) + (next ? -1 : 1)) }));
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const openAutomation = automations.find((a) => a.id === openId) || null;
-
-  const contactById = useCallback((id: string) => contacts.find((c) => c.id === id), [contacts]);
-
-  // Build the structured brief and hand it to the agent (the launch).
-  const buildWithAI = () => {
-    if (isMobile) { seedComposer(FOLLOWUP_STARTER); return; }
-    if (!onAsk) return;
-    let aud = "";
-    if (mode === "single") {
-      const c = single ? contactById(single) : null;
-      aud = c ? `a single contact — ${c.name}${c.email ? ` <${c.email}>` : c.phone ? ` (${c.phone})` : ""}` : "a single contact (I'll pick)";
-    } else if (mode === "segment") {
-      const s = lists.find((l) => l.id === segment);
-      aud = s ? `the segment "${s.name}" (${s.totalCount.toLocaleString()} contacts)` : "a segment of contacts";
-    } else {
-      const names = selected.map((id) => contactById(id)).filter(Boolean).map((c) => `${c!.name}${c!.email ? ` <${c!.email}>` : c!.phone ? ` (${c!.phone})` : ""}`);
-      aud = names.length ? `${names.length} selected contacts: ${names.join("; ")}` : "the contacts I select";
-    }
-    const stepLines = steps.map((s, i) => {
-      const timing = i === 0 ? (s.wait === 0 ? "send immediately" : `after ${s.wait} day${s.wait === 1 ? "" : "s"}`) : `wait ${s.wait} day${s.wait === 1 ? "" : "s"}`;
-      const subj = s.channel === "EMAIL" && s.subject.trim() ? ` — subject: ${JSON.stringify(s.subject.trim())}` : "";
-      const body = s.msg.trim() ? ` — message: ${JSON.stringify(s.msg.trim())}` : " — (write the copy)";
-      return `${i + 1}. [${s.channel}] ${timing}${subj}${body}${s.personalize ? " — personalize per contact" : ""}`;
-    });
-    const prompt = [
-      `Set up and launch a follow-up campaign called "${name.trim() || "Untitled follow-up"}".`,
-      brief.trim() ? `What I want: ${brief.trim()}` : "",
-      `Audience: ${aud}.`,
-      steps.length ? `Flow steps (in order):\n${stepLines.join("\n")}` : `Design the right sequence of steps yourself based on what I described.`,
-      `Personalize each message to the contact (use their real first name, company, and history — replace any {{merge_fields}} with their actual data). Propose the plan + the exact credit cost first; on my confirm, create and schedule the sequence so each step goes out at the right time. Tell me when it's set up.`,
-    ].filter(Boolean).join("\n");
-    onAsk(prompt);
-    setWorking(true);
-    setTimeout(() => setWorking(false), 6000);
-  };
-
-  const addStep = () => {
-    const s: FlowStep = { id: stepId(), channel: steps[steps.length - 1]?.channel ?? "EMAIL", subject: "", msg: "", wait: 2, personalize: true };
-    setSteps((prev) => [...prev, s]);
-    setEditingStep(s.id);
-  };
-  const patchStep = (id: string, patch: Partial<FlowStep>) => setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
-  const removeStep = (id: string) => setSteps((prev) => prev.filter((s) => s.id !== id));
-  const newFlow = () => { setName("Untitled follow-up campaign"); setBrief(""); setSteps(DEFAULT_STEPS()); setSelected([]); setSingle(null); setSegment(null); setMode("multi"); setCur(0); };
-
-  // Progressive wizard: reveal ONE node at a time. `cur` is the frontier/active
-  // index into the virtual node list [audience(0), ...messages(1..N), launch(N+1)].
-  // Only nodes 0..cur render; Continue/Back move the frontier.
-  const trackRef = useRef<HTMLDivElement>(null);
-  const [cur, setCur] = useState(0);
-  useEffect(() => {
-    const el = trackRef.current?.querySelector(`[data-vi="${cur}"]`) as HTMLElement | null;
-    el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-  }, [cur, steps.length]);
-
-  // ── Live agent-fill bridge ─────────────────────────────────────────────
-  // getContext serializes the open flow (tagged [FOLLOWUP]) for the agent;
-  // applyPatch lands the agent's update_followup_canvas fields live (name,
-  // audience mode, the personalized steps) so the user watches it build.
-  const [flashSteps, setFlashSteps] = useState(false);
-  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const buildFollowupContext = (): string => {
-    const segs = lists.slice(0, 20).map((l) => `${l.name} (${l.totalCount} contacts)`).join("; ");
-    const aud = mode === "single" ? (single ? `single contact ${contactById(single)?.name ?? ""}` : "a single contact (none picked)")
-      : mode === "multi" ? `${selected.length} selected contacts`
-        : `segment ${segment ? (lists.find((l) => l.id === segment)?.name ?? "") : "(none picked)"}`;
-    const stepsDesc = steps.map((s, i) => `${i + 1}. [${s.channel}] wait ${s.wait}d — ${s.channel === "EMAIL" && s.subject ? `subject ${JSON.stringify(s.subject)}; ` : ""}${JSON.stringify(s.msg)}${s.personalize ? " (personalized)" : ""}`).join("  |  ");
-    return [
-      "[FOLLOWUP] The Follow-ups flow canvas is OPEN. Build it live with update_followup_canvas — set the audience mode and write the personalized steps; they appear on screen.",
-      `Campaign name: ${JSON.stringify(name)}.`,
-      `Audience mode: ${mode} — ${aud}.`,
-      `Steps now: ${stepsDesc || "(none yet)"}.`,
-      lists.length ? `Available segments/lists (for 'segment' mode): ${segs}.` : "No contact lists yet — use 'multi' selected contacts or 'single'.",
-    ].join("\n");
-  };
-  const applyFollowupPatch = (p: Record<string, unknown>) => {
-    if (typeof p.name === "string") setName(p.name);
-    if (p.audienceMode === "single" || p.audienceMode === "multi" || p.audienceMode === "segment") setMode(p.audienceMode);
-    if (Array.isArray(p.steps)) {
-      const mapped: FlowStep[] = (p.steps as Array<Record<string, unknown>>).map((s) => ({
-        id: stepId(),
-        channel: (s.channel === "SMS" ? "SMS" : "EMAIL") as Channel,
-        subject: typeof s.subject === "string" ? s.subject : "",
-        msg: typeof s.msg === "string" ? s.msg : (typeof s.message === "string" ? s.message : ""),
-        wait: typeof s.wait === "number" ? s.wait : (typeof s.waitDays === "number" ? s.waitDays : 0),
-        personalize: s.personalize !== false,
-      })).filter((s) => s.msg.trim());
-      if (mapped.length) {
-        setSteps(mapped);
-        setCur(mapped.length + 1); // reveal all the messages the agent wrote + launch
-        setFlashSteps(true);
-        if (flashTimer.current) clearTimeout(flashTimer.current);
-        flashTimer.current = setTimeout(() => setFlashSteps(false), 1500);
-      }
-    }
-  };
-  useEffect(() => {
-    if (!canvasRef) return;
-    canvasRef.current = { getContext: buildFollowupContext, applyPatch: applyFollowupPatch };
-    return () => { if (canvasRef) canvasRef.current = null; };
-  });
-
-  if (loading) {
-    return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your campaigns…" /></div>;
-  }
-
-  const total = stats.total ?? automations.length;
-  const active = stats.active ?? automations.filter((a) => a.enabled).length;
-  const totalSent = stats.totalSent ?? automations.reduce((sum, a) => sum + (a.totalSent ?? 0), 0);
-  const editing = steps.find((s) => s.id === editingStep) || null;
-  // Wizard validation: a node must be complete before Continue advances.
-  const N = steps.length;
-  const audienceValid = mode === "single" ? !!single : mode === "multi" ? selected.length > 0 : !!segment;
-  const audienceHint = mode === "single" ? "Pick a contact to continue" : mode === "multi" ? "Select at least one contact" : "Pick a segment to continue";
-  const msgValid = (i: number) => (steps[i]?.msg.trim().length ?? 0) > 0;
-  const launchVi = N + 1;
-
+// ── brief sheet (canonical bottom-sheet) ─────────────────────────────────────
+function BriefSheet(props: {
+  name: string; setName: (v: string) => void; goal: string; setGoal: (v: string) => void;
+  audMode: AudienceMode; setAudMode: (m: AudienceMode) => void; single: ContactOpt | null; selected: ContactOpt[]; segment: string | null; lists: ListOpt[];
+  onPick: () => void; recurring: boolean; setRecurring: (v: boolean) => void; everyDays: number; setEveryDays: (v: number) => void;
+  hasSteps: boolean; onPreset: (p: Preset) => void; onClose: () => void; onSave: () => Promise<void>;
+}) {
+  const { name, setName, goal, setGoal, audMode, setAudMode, single, selected, segment, lists, onPick, recurring, setRecurring, everyDays, setEveryDays, hasSteps, onPreset, onClose, onSave } = props;
+  const [saving, setSaving] = useState(false);
+  const audienceLabel = audMode === "single" ? (single?.name || "Pick a contact") : audMode === "multi" ? (selected.length ? `${selected.length} selected` : "Select contacts") : (lists.find((l) => l.id === segment)?.name || "Pick a list");
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/* Header actions live in the shell header (#fv-header-slot) — one top bar. */}
-      {(() => {
-        const header = (
-          <>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="w-[180px] min-w-0 rounded-[8px] border border-transparent bg-transparent px-2 py-1 text-[13.5px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background" />
-            <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-amber-500">Draft</span>
-            <button onClick={buildWithAI} disabled={!onAsk} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build with AI</button>
-            <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><LayoutGrid className="h-3.5 w-3.5" /> Library{total > 0 ? ` · ${total}` : ""}</button>
-            <button onClick={newFlow} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> New</button>
-          </>
-        );
-        return headerSlot ? createPortal(header, headerSlot) : (
-          <div className="z-10 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 border-b border-border bg-card/40 px-4 py-2 backdrop-blur">{header}</div>
-        );
-      })()}
-      {error && <p className="mx-4 mb-2 mt-2 rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{error}</p>}
-
-      {/* horizontal node canvas */}
-      <div className="relative min-h-0 flex-1 overflow-x-auto overflow-y-hidden" style={{ backgroundImage: "radial-gradient(circle, rgba(130,130,150,0.18) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
-        <div ref={trackRef} className="flex h-full min-w-max items-start gap-0 px-5 pb-6 pt-4">
-
-          {/* AUDIENCE node (vi 0) — always the first step */}
-          <div data-vi={0} className="flex h-full items-start animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className={cn("flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card", cur === 0 ? "border-brand-500/55 shadow-[0_16px_50px_-26px_rgba(14,165,233,0.5)]" : "border-border")}>
-              <div className="flex items-center gap-2.5 px-3.5 py-3">
-                <span className={cn("grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 text-[12px] font-extrabold", cur > 0 ? "border-emerald-500 bg-emerald-500 text-white" : "border-transparent bg-gradient-to-r from-brand-500 to-violet-500 text-white")}>{cur > 0 ? <Check className="h-3.5 w-3.5" /> : 1}</span>
-                <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Audience</div><div className="text-[13px] font-bold">Who this targets</div></div>
-              </div>
-              <div className="flex gap-1.5 px-3.5 pb-2.5">
-                {([["single", "Single", User], ["multi", "Selected", Users], ["segment", "Segment", Layers]] as const).map(([m, label, Icon]) => (
-                  <button key={m} onClick={() => setMode(m)} className={cn("inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1.5 text-[11.5px] font-semibold transition", mode === m ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-muted text-muted-foreground hover:text-foreground")}>
-                    <Icon className="h-3.5 w-3.5" /> {label}
+    <div className="absolute inset-0 z-40">
+      <button aria-label="Close" className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-x-3 bottom-3 top-10 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-border" />
+        <div className="flex items-center gap-2 px-4 py-3">
+          <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[9px] font-extrabold tracking-wider text-violet-400">BRIEF</span>
+          <h3 className="text-[14px] font-bold">{hasSteps ? "Edit campaign" : "New follow-up campaign"}</h3>
+          <button onClick={onClose} className="ml-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><X className="h-3.5 w-3.5" /></button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+          {!hasSteps && (
+            <div>
+              <SectionLabel>Start from</SectionLabel>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {PRESETS.map((p) => (
+                  <button key={p.key} onClick={() => onPreset(p)} className="rounded-xl border border-border bg-muted/30 p-3 text-left hover:border-brand-500">
+                    <b className="block text-[12.5px]">{p.title}</b>
+                    <span className="block text-[10.5px] text-muted-foreground">{p.desc}</span>
                   </button>
                 ))}
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-3">
-                {mode === "single" ? (
-                  <AudienceCard icon={single ? undefined : <User className="h-4 w-4" />} avatar={single ? contactById(single)?.name : undefined} title={single ? (contactById(single)?.name ?? "Contact") : "No contact picked"} sub={single ? (contactById(single)?.email ?? contactById(single)?.phone ?? "") : "Choose who to message"} onPick={() => setPickerOpen(true)} />
-                ) : mode === "segment" ? (
-                  <AudienceCard icon={<Layers className="h-4 w-4" />} violet title={segment ? (lists.find((l) => l.id === segment)?.name ?? "Segment") : "No segment picked"} sub={segment ? `${(lists.find((l) => l.id === segment)?.totalCount ?? 0).toLocaleString()} contacts match` : "Choose a list/segment"} onPick={() => setPickerOpen(true)} />
-                ) : (
-                  <>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {selected.map((id, i) => {
-                        const c = contactById(id);
-                        return (
-                          <span key={id} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted py-0.5 pe-2.5 ps-0.5 text-[11.5px] font-semibold">
-                            <span className="grid h-5 w-5 place-items-center rounded-full text-[9px] font-bold text-white" style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}>{initials(c?.name ?? "?")}</span>
-                            {c?.name ?? "Contact"}
-                          </span>
-                        );
-                      })}
-                      <button onClick={() => setPickerOpen(true)} className="inline-flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-1 text-[11.5px] font-semibold text-muted-foreground hover:border-brand-500/50 hover:text-foreground"><Plus className="h-3 w-3" /> {selected.length ? "Add / change" : "Select contacts"}</button>
-                    </div>
-                    <p className="mt-2 text-[11px] text-muted-foreground">Each contact gets their own personalized copy of every message.</p>
-                  </>
-                )}
-              </div>
-              {cur === 0 && (
-                <div className="flex items-center gap-2 border-t border-border bg-card/40 px-3.5 py-2.5">
-                  <span className={cn("min-w-0 truncate text-[10.5px]", audienceValid ? "text-muted-foreground" : "text-amber-500")}>{audienceValid ? "Step 1 of " + (N + 2) : audienceHint}</span>
-                  <button onClick={() => audienceValid && setCur(1)} disabled={!audienceValid} title={audienceValid ? "" : audienceHint} className={cn("ms-auto inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1 text-[11px] font-semibold text-white", !audienceValid && "cursor-not-allowed opacity-50")}>Continue <ArrowRight className="h-3.5 w-3.5" /></button>
-                </div>
+            </div>
+          )}
+          <div><SectionLabel>Campaign name</SectionLabel>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Win back lapsed customers" className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" /></div>
+          <div><SectionLabel hint="what you want this campaign to achieve — the agent uses it on calls">Goal</SectionLabel>
+            <textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} placeholder="e.g. Reconnect and book them in for a consultation" className="w-full resize-y rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" /></div>
+          <div><SectionLabel>Who this targets</SectionLabel>
+            <div className="mb-2 inline-flex rounded-lg border border-border p-0.5">
+              {([["single", "One contact", User], ["multi", "Selected", Users], ["segment", "A list", Layers]] as const).map(([m, label, Icon]) => (
+                <button key={m} onClick={() => setAudMode(m)} className={cn("inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11.5px] font-semibold", audMode === m ? "bg-brand-500/15 text-brand-400" : "text-muted-foreground")}><Icon className="h-3.5 w-3.5" /> {label}</button>
+              ))}
+            </div>
+            <button onClick={onPick} className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-left text-[12.5px] hover:border-brand-500">
+              <span className="grid h-6 w-6 place-items-center rounded-md bg-violet-500/15 text-violet-400"><UserRound className="h-3.5 w-3.5" /></span>
+              <span className="flex-1 truncate">{audienceLabel}</span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            </button>
+          </div>
+          <div><SectionLabel>Cadence</SectionLabel>
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={() => setRecurring(false)} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-semibold", !recurring ? "border-brand-500 bg-brand-500/10 text-brand-400" : "border-border text-muted-foreground")}>One-time</button>
+              <button onClick={() => setRecurring(true)} className={cn("inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-semibold", recurring ? "border-brand-500 bg-brand-500/10 text-brand-400" : "border-border text-muted-foreground")}><Repeat className="h-3.5 w-3.5" /> Recurring</button>
+              {recurring && (
+                <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">every
+                  <input value={everyDays} onChange={(e) => setEveryDays(Math.max(1, Math.min(365, Number(e.target.value.replace(/[^0-9]/g, "")) || 1)))} className="w-[56px] rounded-lg border border-border bg-muted/40 px-2 py-1 text-center text-[12px] outline-none focus:border-brand-500" /> days
+                </span>
               )}
             </div>
           </div>
-
-          {/* MESSAGE step nodes — revealed one at a time up to cur */}
-          {steps.map((s, i) => {
-            const vi = i + 1;
-            if (vi > cur) return null;
-            const isActive = vi === cur;
-            const isLast = i === N - 1;
-            return (
-              <div key={s.id} data-vi={vi} className="flex h-full items-start animate-in fade-in slide-in-from-right-4 duration-300">
-                <div className="flex h-full flex-col items-center justify-center px-1">
-                  <button onClick={() => setEditingStep(s.id)} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-2.5 py-1 text-[10.5px] font-semibold text-muted-foreground transition hover:border-brand-500/40 hover:text-foreground"><Clock className="h-3 w-3" /> {i === 0 ? (s.wait === 0 ? "Start" : `${s.wait}d in`) : waitLabel(s.wait)}</button>
-                </div>
-                <div className={cn(
-                  "flex max-h-full w-[340px] shrink-0 flex-col self-start overflow-hidden rounded-2xl border bg-card transition",
-                  isActive ? "border-brand-500/55 shadow-[0_16px_50px_-26px_rgba(14,165,233,0.5)]" : "border-border",
-                  flashSteps && "border-brand-500 ring-2 ring-brand-500/70 shadow-[0_0_34px_-6px_rgba(14,165,233,0.6)]",
-                )}>
-                  <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-                    <span className={cn("grid h-[26px] w-[26px] shrink-0 place-items-center rounded-full border-2 text-[11px] font-extrabold", isActive ? "border-transparent bg-gradient-to-r from-brand-500 to-violet-500 text-white" : "border-emerald-500 bg-emerald-500 text-white")}>{isActive ? i + 2 : <Check className="h-3.5 w-3.5" />}</span>
-                    <span className={cn("grid h-[28px] w-[28px] shrink-0 place-items-center rounded-[9px]", s.channel === "EMAIL" ? "bg-brand-500/10 text-brand-500" : "bg-violet-500/10 text-violet-400")}>{s.channel === "EMAIL" ? <Mail className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}</span>
-                    <div className="min-w-0 flex-1"><div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Step {i + 1} · {s.channel === "EMAIL" ? "Email" : "SMS"}</div><div className="truncate text-[12.5px] font-bold">{s.channel === "EMAIL" ? (s.subject || "Email message") : "SMS message"}</div></div>
-                    <button onClick={() => setEditingStep(s.id)} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Edit step"><Pencil className="h-3.5 w-3.5" /></button>
-                    {steps.length > 1 && <button onClick={() => { removeStep(s.id); setCur((c) => Math.max(1, Math.min(c, steps.length - 1 + 1))); }} className="grid h-7 w-7 shrink-0 place-items-center rounded-[9px] text-muted-foreground hover:bg-muted hover:text-rose-500" aria-label="Remove step"><Trash2 className="h-3.5 w-3.5" /></button>}
-                  </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                    <div className="rounded-[11px] border border-border bg-background px-3 py-2.5 text-[12px] leading-relaxed text-foreground/90">
-                      {s.channel === "EMAIL" && s.subject && <div className="mb-1 font-bold text-foreground"><Highlighted text={s.subject} /></div>}
-                      <Highlighted text={s.msg} />
-                    </div>
-                    {s.personalize && <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-gradient-to-r from-brand-500/10 to-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-300"><Sparkles className="h-3 w-3" /> Personalized</span>}
-                  </div>
-                  {isActive && (
-                    <div className="flex items-center gap-2 border-t border-border bg-card/40 px-3 py-2.5">
-                      <button onClick={() => setCur((c) => Math.max(0, c - 1))} className="inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" /> Back</button>
-                      <span className={cn("min-w-0 truncate text-[10.5px]", msgValid(i) ? "text-muted-foreground" : "text-amber-500")}>{msgValid(i) ? `Step ${i + 2}` : "Write the message (or Build with AI)"}</span>
-                      <span className="ms-auto" />
-                      {isLast && (
-                        <button onClick={() => { if (!msgValid(i)) return; addStep(); setCur(N + 1); }} disabled={!msgValid(i)} className={cn("inline-flex items-center gap-1 rounded-[8px] border border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground", !msgValid(i) && "cursor-not-allowed opacity-50")}><Plus className="h-3.5 w-3.5" /> Add step</button>
-                      )}
-                      <button onClick={() => msgValid(i) && setCur((c) => c + 1)} disabled={!msgValid(i)} className={cn("inline-flex items-center gap-1 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1 text-[11px] font-semibold text-white", !msgValid(i) && "cursor-not-allowed opacity-50")}>Continue <ArrowRight className="h-3.5 w-3.5" /></button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* LAUNCH node — revealed once every step is done */}
-          {cur >= launchVi && (
-            <div data-vi={launchVi} className="flex h-full items-start animate-in fade-in slide-in-from-right-4 duration-300">
-              <div className="flex h-full items-center px-1"><div className="h-0.5 w-6 rounded-full bg-gradient-to-r from-violet-500/45 to-brand-500/50" /></div>
-              <div className="flex w-[320px] shrink-0 flex-col self-start rounded-2xl border border-brand-500/40 bg-gradient-to-b from-brand-500/10 to-violet-500/10 p-4 text-center">
-                <div className="mb-1 inline-flex items-center justify-center gap-1.5 text-[13px] font-bold"><Rocket className="h-4 w-4 text-brand-500" /> Launch flow</div>
-                <p className="mb-2.5 text-[12px] text-muted-foreground">The agent finalizes the copy, <b className="text-violet-300">personalizes each message</b>, and schedules the steps. You confirm cost first.</p>
-                <button onClick={buildWithAI} disabled={!onAsk} className="mx-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-4 w-4" /> Build &amp; launch with AI</button>
-                <button onClick={() => setCur((c) => Math.max(0, c - 1))} className="mx-auto mt-2 inline-flex items-center gap-1 rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:border-brand-500/60 hover:text-foreground"><ArrowLeft className="h-3.5 w-3.5" /> Back</button>
-              </div>
-            </div>
-          )}
-
         </div>
-        <span className="pointer-events-none absolute bottom-3 right-3.5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[10.5px] text-muted-foreground"><ArrowLeftRight className="h-3 w-3" /> Next / Back to move through · scroll sideways</span>
+        <div className="flex items-center justify-between border-t border-border px-4 py-3">
+          <span className="text-[11px] text-muted-foreground">Nothing sends until you Activate.</span>
+          <button onClick={async () => { setSaving(true); await onSave(); setSaving(false); }} disabled={saving || !name.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-50">{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save &amp; build the flow</button>
+        </div>
       </div>
-
-      {/* step editor sheet */}
-      {editing && (
-        <StepSheet
-          step={editing}
-          index={steps.indexOf(editing) + 1}
-          isFirst={steps.indexOf(editing) === 0}
-          onPatch={(p) => patchStep(editing.id, p)}
-          onClose={() => setEditingStep(null)}
-        />
-      )}
-
-      {/* audience picker sheet */}
-      {pickerOpen && (
-        <AudiencePicker
-          mode={mode}
-          contacts={contacts}
-          lists={lists}
-          single={single}
-          selected={selected}
-          segment={segment}
-          onPickSingle={(id) => { setSingle(id); setPickerOpen(false); }}
-          onToggleContact={(id) => setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
-          onPickSegment={(id) => setSegment(id)}
-          onSearch={async (q) => {
-            try {
-              const j = await fetch(`/api/contacts?limit=50&search=${encodeURIComponent(q)}`).then((r) => r.json());
-              if (j?.success && Array.isArray(j.data?.contacts)) setContacts((prev) => mergeContacts(prev, j.data.contacts));
-            } catch { /* keep current */ }
-          }}
-          onClose={() => setPickerOpen(false)}
-        />
-      )}
-
-      {/* campaign library */}
-      {libOpen && (
-        <CampaignLibrary
-          automations={automations}
-          filter={libFilter}
-          totals={{ total, active, totalSent }}
-          busyId={busyId}
-          onFilter={setLibFilter}
-          onToggle={toggle}
-          onOpen={(id) => { setLibOpen(false); setOpenId(id); }}
-          onNew={() => { setLibOpen(false); newFlow(); }}
-          onClose={() => setLibOpen(false)}
-        />
-      )}
-
-      {/* Mobile: the flow-builder canvas is desktop-first, so on a phone hand off
-          to chat — the agent builds the personalized flow live onto this canvas. */}
-      {isMobile && !libOpen && !openAutomation && (
-        <div className="absolute inset-0 z-40 grid place-items-center bg-background/95 p-6 text-center">
-          <div className="max-w-xs">
-            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 text-white"><Workflow className="h-6 w-6" /></div>
-            <h3 className="text-[16px] font-bold">Build your follow-up in chat</h3>
-            <p className="mx-auto mt-1 text-[12.5px] text-muted-foreground">Tell the agent who to reach and the goal — it builds the personalized multi-step flow onto this canvas. Open one from the Library to manage it.</p>
-            <button onClick={() => seedComposer(FOLLOWUP_STARTER)} className="mt-4 inline-flex items-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30"><Sparkles className="h-4 w-4" /> Build in chat</button>
-          </div>
-        </div>
-      )}
-
-      {/* agent working banner */}
-      {(working || agentBusy) && (
-        <div className="absolute bottom-4 left-1/2 z-[55] flex -translate-x-1/2 items-center gap-2.5 rounded-xl border border-brand-500/40 bg-card px-4 py-2.5 shadow-2xl animate-in fade-in slide-in-from-bottom-2">
-          <FlowLoader size={15} />
-          <span className="text-[12px]">The agent is building &amp; personalizing your flow — it’ll appear here. Reply in the chat to keep going.</span>
-        </div>
-      )}
-
-      {/* detail drawer */}
-      {openAutomation && (
-        <AutomationDetailDrawer
-          summary={openAutomation}
-          onClose={() => setOpenId(null)}
-          onChanged={load}
-          onDeleted={() => { setOpenId(null); load(); }}
-        />
-      )}
     </div>
   );
 }
 
-function mergeContacts(prev: ContactOption[], next: ContactOption[]): ContactOption[] {
-  const byId = new Map(prev.map((c) => [c.id, c]));
-  for (const c of next) byId.set(c.id, c);
-  return Array.from(byId.values());
-}
-
-function Dot() { return <span className="inline-block h-[3px] w-[3px] rounded-full bg-current opacity-50" />; }
-
-function AudienceCard({ icon, avatar, title, sub, violet, onPick }: { icon?: ReactNode; avatar?: string; title: string; sub: string; violet?: boolean; onPick: () => void }) {
+// ── draggable node card ──────────────────────────────────────────────────────
+function NodeCard({ node, selected, audienceMode, audienceLabel, audienceCount, onSelect, onMove, onPatch, onDelete, onAddAfter, onOpenAudience }: {
+  node: FlowNode; selected: boolean; audienceMode: AudienceMode; audienceLabel: string; audienceCount: number;
+  onSelect: () => void; onMove: () => void; onPatch: (p: Partial<FlowNode>) => void; onDelete: () => void; onAddAfter: () => void; onOpenAudience: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const M = CH_META[node.type];
+  const start = (e: ReactPointerEvent) => {
+    if ((e.target as HTMLElement).closest("button, a, input, textarea, select")) return;
+    onSelect();
+    const card = ref.current; if (!card) return;
+    const sx = e.clientX, sy = e.clientY, ox = node.x, oy = node.y;
+    const mv = (ev: PointerEvent) => { card.style.left = `${ox + ev.clientX - sx}px`; card.style.top = `${oy + ev.clientY - sy}px`; onMove(); };
+    const up = (ev: PointerEvent) => { document.removeEventListener("pointermove", mv); document.removeEventListener("pointerup", up); onPatch({ x: ox + ev.clientX - sx, y: oy + ev.clientY - sy }); };
+    document.addEventListener("pointermove", mv); document.addEventListener("pointerup", up); e.preventDefault();
+  };
   return (
-    <div className="flex items-center gap-2.5 rounded-[11px] border border-border bg-muted px-3 py-2.5">
-      {avatar
-        ? <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-full text-[11px] font-bold text-white" style={{ background: AVATAR_COLORS[0] }}>{initials(avatar)}</span>
-        : <span className={cn("grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[10px]", violet ? "bg-violet-500/10 text-violet-400" : "bg-brand-500/10 text-brand-500")}>{icon}</span>}
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-[12.5px] font-semibold">{title}</div>
-        <div className="truncate text-[11px] text-muted-foreground">{sub}</div>
+    <div ref={ref} data-node={node.id} style={{ left: node.x, top: node.y, width: 250 }}
+      className={cn("absolute rounded-2xl border bg-card shadow-lg", selected ? "border-brand-500 shadow-[0_0_0_3px_rgba(79,140,255,.18)]" : "border-border")}>
+      <div onPointerDown={start} className="flex cursor-grab items-center gap-2 border-b border-border px-3 py-2.5 active:cursor-grabbing">
+        <span className={cn("grid h-6 w-6 flex-none place-items-center rounded-md", M.tone)}><M.icon className="h-3.5 w-3.5" /></span>
+        <b className="flex-1 truncate text-[12.5px]">{M.title}</b>
+        <span className={cn("rounded-full px-2 py-0.5 text-[8.5px] font-extrabold tracking-wider", M.tone)}>{M.tag}</span>
+        {node.type !== "audience" && <button onClick={onDelete} title="Delete" className="grid h-[18px] w-[18px] place-items-center rounded border border-border text-muted-foreground hover:border-rose-500 hover:text-rose-500"><X className="h-2.5 w-2.5" /></button>}
       </div>
-      <button onClick={onPick} className="shrink-0 rounded-[8px] border border-border px-2.5 py-1 text-[11px] font-semibold hover:border-brand-500/60 hover:text-foreground">Change</button>
-    </div>
-  );
-}
+      <div className="space-y-2 p-3">
+        {node.type === "audience" && (
+          <button onClick={onOpenAudience} className="w-full rounded-lg border border-dashed border-border px-2.5 py-2 text-left hover:border-brand-500">
+            <div className="text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">{audienceMode === "segment" ? "List" : audienceMode === "multi" ? "Selected contacts" : "Contact"}</div>
+            <div className="truncate text-[12px] font-semibold">{audienceLabel}</div>
+            <div className="text-[10.5px] text-violet-400">{audienceCount.toLocaleString()} {audienceMode === "segment" ? "in list" : "target" + (audienceCount === 1 ? "" : "s")}</div>
+          </button>
+        )}
 
-// ---------------------------------------------------------------------------
-// Step editor — a bottom sheet (channel, subject, message + merge fields, wait,
-// personalize toggle). Edits the in-memory flow; the agent renders it on launch.
-// ---------------------------------------------------------------------------
-
-const SHEET_FIELD = "w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
-
-function StepSheet({ step, index, isFirst, onPatch, onClose }: { step: FlowStep; index: number; isFirst: boolean; onPatch: (p: Partial<FlowStep>) => void; onClose: () => void }) {
-  const insertMerge = (f: string) => onPatch({ msg: `${step.msg}${step.msg && !step.msg.endsWith(" ") ? " " : ""}{{${f}}}` });
-  return (
-    <div className="absolute inset-0 z-40" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/45" />
-      <div className="absolute inset-x-3 bottom-3 flex max-h-[86%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4" onClick={(e) => e.stopPropagation()}>
-        <div className="relative flex items-center gap-2 px-4 pb-2 pt-4">
-          <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
-          <span className="rounded-md bg-brand-500/10 px-1.5 py-0.5 text-[10.5px] font-bold text-brand-500">Step {index}</span>
-          <button onClick={onClose} className="ms-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="overflow-y-auto px-4 pb-4">
-          <label className="mb-1.5 mt-1 block text-[11.5px] font-semibold text-muted-foreground">Channel</label>
-          <div className="grid grid-cols-2 gap-2">
-            {(["EMAIL", "SMS"] as const).map((ch) => (
-              <button key={ch} onClick={() => onPatch({ channel: ch })} className={cn("inline-flex items-center justify-center gap-1.5 rounded-[10px] border px-3 py-2 text-[12.5px] font-semibold transition", step.channel === ch ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-muted text-muted-foreground hover:text-foreground")}>
-                {ch === "EMAIL" ? <Mail className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />} {ch === "EMAIL" ? "Email" : "SMS"}
-              </button>
-            ))}
-          </div>
-
-          {step.channel === "EMAIL" && (
-            <>
-              <label className="mb-1.5 mt-3.5 block text-[11.5px] font-semibold text-muted-foreground">Subject</label>
-              <input value={step.subject} onChange={(e) => onPatch({ subject: e.target.value })} className={SHEET_FIELD} placeholder="Subject line" />
-            </>
-          )}
-
-          <label className="mb-1.5 mt-3.5 block text-[11.5px] font-semibold text-muted-foreground">Message <span className="font-normal text-muted-foreground/70">— use merge fields to personalize</span></label>
-          <textarea value={step.msg} onChange={(e) => onPatch({ msg: e.target.value })} rows={4} className={cn(SHEET_FIELD, "resize-y leading-relaxed")} placeholder="Write the message…" />
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {MERGE_FIELDS.map((f) => (
-              <button key={f} onClick={() => insertMerge(f)} className="rounded-[7px] border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-[11px] font-semibold text-violet-300 hover:bg-violet-500/15">+ {`{{${f}}}`}</button>
-            ))}
-          </div>
-
-          <label className="mb-1.5 mt-3.5 block text-[11.5px] font-semibold text-muted-foreground">{isFirst ? "Start the flow" : "Wait before this step"}</label>
-          <select value={step.wait} onChange={(e) => onPatch({ wait: parseInt(e.target.value, 10) || 0 })} className={SHEET_FIELD}>
-            {WAIT_OPTIONS.map((n) => <option key={n} value={n}>{n === 0 ? (isFirst ? "Send immediately" : "No wait") : `${n} day${n === 1 ? "" : "s"}${isFirst ? " after start" : ""}`}</option>)}
-          </select>
-
-          <div className="mt-3.5 flex items-center gap-2.5 rounded-[11px] border border-violet-500/30 bg-gradient-to-r from-brand-500/10 to-violet-500/10 px-3 py-2.5">
-            <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[10px] bg-violet-500/10 text-violet-400"><Sparkles className="h-4 w-4" /></span>
-            <div className="min-w-0 flex-1">
-              <div className="text-[12.5px] font-semibold">Personalize per contact</div>
-              <div className="text-[11px] text-muted-foreground">The agent tailors this message to each contact&apos;s name, history &amp; context.</div>
+        {node.type !== "audience" && node.type !== "condition" && (
+          <Labeled k="Wait before this step">
+            <div className="flex items-center gap-1.5">
+              <input value={node.wait ?? 0} onChange={(e) => onPatch({ wait: Math.max(0, Number(e.target.value.replace(/[^0-9]/g, "")) || 0) })} className="w-[60px] rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-[11.5px] outline-none focus:border-brand-500" />
+              <span className="text-[11px] text-muted-foreground">days</span>
             </div>
-            <button onClick={() => onPatch({ personalize: !step.personalize })} className={cn("relative h-5 w-9 shrink-0 rounded-full border transition", step.personalize ? "border-transparent bg-gradient-to-r from-brand-500 to-violet-500" : "border-border bg-muted")}>
-              <span className={cn("absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white transition-all", step.personalize ? "left-[18px]" : "left-0.5")} />
-            </button>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 border-t border-border px-4 py-3">
-          <span className="ms-auto" />
-          <button onClick={onClose} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm"><Check className="h-4 w-4" /> Done</button>
-        </div>
+          </Labeled>
+        )}
+
+        {node.type === "call" && (
+          <Labeled k="What the agent should do">
+            <textarea rows={3} value={node.purpose || ""} onChange={(e) => onPatch({ purpose: e.target.value })} placeholder="e.g. Follow up on their quote and book a consultation" className="w-full resize-y rounded-lg border border-border bg-muted/40 p-2 text-[11.5px] outline-none focus:border-brand-500" />
+          </Labeled>
+        )}
+        {node.type === "email" && (<>
+          <input value={node.subject || ""} onChange={(e) => onPatch({ subject: e.target.value })} placeholder="Subject" className="w-full rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-[11.5px] outline-none focus:border-brand-500" />
+          <textarea rows={3} value={node.body || ""} onChange={(e) => onPatch({ body: e.target.value })} placeholder="Email body — use {{first_name}}" className="w-full resize-y rounded-lg border border-border bg-muted/40 p-2 text-[11.5px] outline-none focus:border-brand-500" />
+        </>)}
+        {(node.type === "sms" || node.type === "whatsapp") && (
+          <textarea rows={3} value={node.body || ""} onChange={(e) => onPatch({ body: e.target.value })} placeholder={node.type === "sms" ? "Text message — {{first_name}} supported" : "WhatsApp message"} className="w-full resize-y rounded-lg border border-border bg-muted/40 p-2 text-[11.5px] outline-none focus:border-brand-500" />
+        )}
+        {node.type === "condition" && (
+          <Labeled k="Only run the next step if the contact has">
+            <Select value={node.requires || "any"} onChange={(v) => onPatch({ requires: v as Channel })} options={REQUIRES} />
+          </Labeled>
+        )}
+      </div>
+
+      <div className="px-3 pb-3">
+        <button onClick={onAddAfter} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-1.5 text-[10px] font-extrabold tracking-wide text-muted-foreground hover:border-brand-500 hover:text-brand-400"><Plus className="h-3 w-3" /> STEP AFTER</button>
       </div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Audience picker — a bottom sheet. Single contact (radio), multi (checkbox), or
-// a segment (contact list). Live search hits /api/contacts.
-// ---------------------------------------------------------------------------
-
-function AudiencePicker({ mode, contacts, lists, single, selected, segment, onPickSingle, onToggleContact, onPickSegment, onSearch, onClose }: {
-  mode: AudienceMode;
-  contacts: ContactOption[];
-  lists: ContactListOption[];
-  single: string | null;
-  selected: string[];
-  segment: string | null;
-  onPickSingle: (id: string) => void;
-  onToggleContact: (id: string) => void;
-  onPickSegment: (id: string) => void;
-  onSearch: (q: string) => void;
-  onClose: () => void;
+// ── audience picker ──────────────────────────────────────────────────────────
+function AudiencePicker({ mode, contacts, lists, single, selected, segment, onSingle, onSelected, onSegment, onClose }: {
+  mode: AudienceMode; contacts: ContactOpt[]; lists: ListOpt[]; single: ContactOpt | null; selected: ContactOpt[]; segment: string | null;
+  onSingle: (c: ContactOpt) => void; onSelected: (cs: ContactOpt[]) => void; onSegment: (id: string) => void; onClose: () => void;
 }) {
   const [q, setQ] = useState("");
-  useEffect(() => { const t = setTimeout(() => onSearch(q), 250); return () => clearTimeout(t); }, [q, onSearch]);
-  const title = mode === "segment" ? "Choose a segment" : mode === "single" ? "Choose a contact" : "Select contacts";
+  const shown = useMemo(() => contacts.filter((c) => !q || c.name.toLowerCase().includes(q.toLowerCase()) || (c.email || "").toLowerCase().includes(q.toLowerCase())), [contacts, q]);
+  const isSel = (id: string) => selected.some((c) => c.id === id);
   return (
-    <div className="absolute inset-0 z-40" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/45" />
-      <div className="absolute inset-x-3 bottom-3 flex max-h-[86%] flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4" onClick={(e) => e.stopPropagation()}>
-        <div className="relative flex items-center gap-2 px-4 pb-2 pt-4">
-          <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
-          <span className="inline-flex items-center gap-1.5 text-[12.5px] font-bold"><Target className="h-4 w-4 text-brand-500" /> {title}</span>
-          <button onClick={onClose} className="ms-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+    <div className="absolute inset-0 z-50">
+      <button aria-label="Close" className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-x-3 bottom-3 top-14 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-8 sm:bottom-6">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <h3 className="text-[13.5px] font-bold">{mode === "segment" ? "Pick a list" : mode === "multi" ? "Select contacts" : "Pick a contact"}</h3>
+          <button onClick={onClose} className="ml-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><X className="h-3.5 w-3.5" /></button>
         </div>
-        <div className="overflow-y-auto px-4 pb-3">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {mode === "segment" ? (
-            lists.length ? lists.map((l) => (
-              <button key={l.id} onClick={() => onPickSegment(l.id)} className={cn("mt-2 flex w-full items-center gap-2.5 rounded-[10px] border px-3 py-2.5 text-left", segment === l.id ? "border-brand-500/60 bg-brand-500/10" : "border-border bg-muted hover:border-brand-500/40")}>
-                <span className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[10px] bg-violet-500/10 text-violet-400"><Layers className="h-4 w-4" /></span>
-                <span className="min-w-0 flex-1"><span className="block text-[12.5px] font-semibold">{l.name}</span><span className="block text-[11px] text-muted-foreground">{l.totalCount.toLocaleString()} contacts</span></span>
-                <span className={cn("grid h-[18px] w-[18px] place-items-center rounded-[5px] border", segment === l.id ? "border-brand-500 bg-brand-500 text-white" : "border-border")}>{segment === l.id && <Check className="h-3 w-3" />}</span>
-              </button>
-            )) : <p className="py-8 text-center text-[12px] text-muted-foreground">No contact lists yet. Create a list under Contacts, or use “Selected contacts”.</p>
-          ) : (
-            <>
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search contacts…" className="mt-1 w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60" />
-              {contacts.length ? contacts.map((c, i) => {
-                const sel = mode === "single" ? single === c.id : selected.includes(c.id);
+            <div className="grid gap-2">
+              {lists.length ? lists.map((l) => (
+                <button key={l.id} onClick={() => onSegment(l.id)} className={cn("flex items-center gap-2 rounded-lg border px-3 py-2 text-left", segment === l.id ? "border-brand-500 bg-brand-500/5" : "border-border hover:border-brand-500")}>
+                  <Layers className="h-4 w-4 text-violet-400" /><b className="flex-1 text-[12.5px]">{l.name}</b><span className="text-[11px] text-muted-foreground">{l.totalCount} contacts</span>
+                </button>
+              )) : <p className="p-4 text-center text-[12px] text-muted-foreground">No lists yet — create one in Contacts.</p>}
+            </div>
+          ) : (<>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search contacts…" className="mb-2 w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12px] outline-none focus:border-brand-500" />
+            <div className="grid gap-1.5">
+              {shown.map((c) => {
+                const active = mode === "single" ? single?.id === c.id : isSel(c.id);
                 return (
-                  <button key={c.id} onClick={() => mode === "single" ? onPickSingle(c.id) : onToggleContact(c.id)} className={cn("mt-2 flex w-full items-center gap-2.5 rounded-[10px] border px-3 py-2 text-left", sel ? "border-brand-500/60 bg-brand-500/10" : "border-border bg-muted hover:border-brand-500/40")}>
-                    <span className={cn("grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border", sel ? "border-brand-500 bg-brand-500 text-white" : "border-border")}>{sel && <Check className="h-3 w-3" />}</span>
-                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[9px] font-bold text-white" style={{ background: AVATAR_COLORS[i % AVATAR_COLORS.length] }}>{initials(c.name)}</span>
-                    <span className="min-w-0 flex-1"><span className="block truncate text-[12.5px] font-semibold">{c.name}</span><span className="block truncate text-[11px] text-muted-foreground">{c.email || c.phone || ""}</span></span>
+                  <button key={c.id} onClick={() => { if (mode === "single") onSingle(c); else onSelected(isSel(c.id) ? selected.filter((x) => x.id !== c.id) : [...selected, c]); }}
+                    className={cn("flex items-center gap-2 rounded-lg border px-3 py-2 text-left", active ? "border-brand-500 bg-brand-500/5" : "border-border hover:border-brand-500")}>
+                    <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-violet-500/15 text-[10px] font-bold text-violet-400">{c.name.slice(0, 2).toUpperCase()}</span>
+                    <span className="min-w-0 flex-1"><b className="block truncate text-[12px]">{c.name}</b><span className="block truncate text-[10.5px] text-muted-foreground">{c.email || c.phone || "No contact info"}</span></span>
+                    {active && <CheckCircle2 className="h-4 w-4 text-brand-500" />}
                   </button>
                 );
-              }) : <p className="py-8 text-center text-[12px] text-muted-foreground">No contacts found.</p>}
-            </>
-          )}
+              })}
+              {!shown.length && <p className="p-4 text-center text-[12px] text-muted-foreground">No contacts found.</p>}
+            </div>
+          </>)}
         </div>
-        <div className="flex items-center gap-2 border-t border-border px-4 py-3">
-          <span className="text-[11px] text-muted-foreground">{mode === "multi" ? `${selected.length} selected` : ""}</span>
-          <button onClick={onClose} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white shadow-sm"><Check className="h-4 w-4" /> Done</button>
-        </div>
+        {mode === "multi" && (
+          <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
+            <span className="text-[11.5px] text-muted-foreground">{selected.length} selected</span>
+            <button onClick={onClose} className="rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-1.5 text-[12px] font-bold text-white">Done</button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Campaign library — a full-surface gallery of every campaign with KPIs, status
-// filter, per-campaign status + statistics, and pause/activate + open.
-// ---------------------------------------------------------------------------
-
-function CampaignLibrary({ automations, filter, totals, busyId, onFilter, onToggle, onOpen, onNew, onClose }: {
-  automations: Automation[];
-  filter: LibFilter;
-  totals: { total: number; active: number; totalSent: number };
-  busyId: string | null;
-  onFilter: (f: LibFilter) => void;
-  onToggle: (a: Automation) => void;
-  onOpen: (id: string) => void;
-  onNew: () => void;
-  onClose: () => void;
-}) {
-  const counts = {
-    all: automations.length,
-    active: automations.filter((a) => a.enabled).length,
-    paused: automations.filter((a) => !a.enabled).length,
-  };
-  const list = automations.filter((a) => filter === "all" ? true : filter === "active" ? a.enabled : !a.enabled);
-  const kpis = [
-    { n: totals.total.toLocaleString(), l: "Campaigns" },
-    { n: totals.active.toLocaleString(), l: "Active" },
-    { n: totals.totalSent.toLocaleString(), l: "Messages sent" },
-    { n: counts.paused.toLocaleString(), l: "Paused" },
+// ── back office ──────────────────────────────────────────────────────────────
+function BackOffice({ seqId, name, onClose }: { seqId: string; name: string; onClose: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [enroll, setEnroll] = useState<Record<string, number>>({});
+  const [seq, setSeq] = useState<Seq | null>(null);
+  const reload = useCallback(async () => { setLoading(true); try { const r = await fetch(`/api/sequences/${seqId}`).then((x) => x.json()); if (r?.success) { setEnroll(r.data.enrollments || {}); setSeq(r.data.sequence); } } finally { setLoading(false); } }, [seqId]);
+  useEffect(() => { void reload(); }, [reload]);
+  let steps: StepCfg[] = []; try { steps = JSON.parse(seq?.steps || "[]"); } catch { steps = []; }
+  const total = Object.values(enroll).reduce((a, b) => a + b, 0);
+  const cards = [
+    { k: "Enrolled", v: total, tone: "" },
+    { k: "In progress", v: enroll.active || 0, tone: "text-brand-500" },
+    { k: "Completed", v: enroll.completed || 0, tone: "text-emerald-500" },
+    { k: "Waiting", v: enroll.waiting || 0, tone: "text-amber-500" },
+    { k: "Stopped", v: enroll.stopped || 0, tone: "text-muted-foreground" },
   ];
   return (
-    <div className="absolute inset-0 z-[60] flex flex-col bg-background/97 backdrop-blur">
-      <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
-        <span className="inline-flex items-center gap-1.5 text-[13px] font-bold"><LayoutGrid className="h-4 w-4 text-brand-500" /> Campaign library</span>
-        <span className="hidden text-[11.5px] text-muted-foreground sm:inline">every follow-up campaign — status &amp; statistics</span>
-        <div className="ms-auto flex items-center gap-2">
-          <button onClick={onNew} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Plus className="h-3.5 w-3.5" /> New campaign</button>
-          <button onClick={onClose} aria-label="Close library" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-        </div>
+    <div className="absolute inset-0 z-40 flex flex-col bg-background/97 backdrop-blur">
+      <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+        <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><ArrowLeft className="h-4 w-4" /></button>
+        <div className="min-w-0 flex-1"><h3 className="truncate text-[14px] font-bold">{name || "Campaign"}</h3><p className="text-[11.5px] text-muted-foreground">Back office · live progress</p></div>
+        <button onClick={() => void reload()} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><RefreshCw className="h-3.5 w-3.5" /></button>
+        <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><X className="h-3.5 w-3.5" /></button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <div className="mb-3.5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          {kpis.map((k) => (
-            <div key={k.l} className="rounded-[13px] border border-border bg-card px-3.5 py-3">
-              <div className="text-[22px] font-extrabold leading-none tabular-nums">{k.n}</div>
-              <div className="mt-1.5 text-[11px] text-muted-foreground">{k.l}</div>
-            </div>
-          ))}
-        </div>
-        <div className="mb-3 flex flex-wrap gap-1.5">
-          {(["all", "active", "paused"] as const).map((f) => (
-            <button key={f} onClick={() => onFilter(f)} className={cn("inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1.5 text-[11.5px] font-semibold capitalize transition", filter === f ? "border-brand-500/60 bg-brand-500/10 text-brand-500" : "border-border bg-muted text-muted-foreground hover:text-foreground")}>
-              {f} · {counts[f]}
-            </button>
-          ))}
-        </div>
-        {list.length ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {list.map((a) => {
-              const m = typeMeta(a.type);
-              const isEmail = (a.campaignType || "EMAIL").toUpperCase() === "EMAIL";
-              const reach = a.contactList?.totalCount;
-              return (
-                <div key={a.id} className="overflow-hidden rounded-[14px] border border-border bg-card transition hover:border-brand-500/50">
-                  <div className="flex items-center gap-2.5 px-3.5 py-3">
-                    <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-[10px]", a.enabled ? "bg-brand-500/10 text-brand-500" : "bg-muted text-muted-foreground")}><m.icon className="h-[18px] w-[18px]" /></span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-bold">{a.name}</div>
-                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">{isEmail ? <Mail className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}{m.label}</span>
-                        {a.contactList?.name ? <><Dot /> <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" />{a.contactList.name}</span></> : null}
-                      </div>
-                    </div>
-                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold", a.enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{a.enabled ? "Active" : "Paused"}</span>
-                  </div>
-                  <div className="grid grid-cols-3 border-t border-border">
-                    <LibStat value={(a.totalSent ?? 0).toLocaleString()} label="Sent" tone="emerald" />
-                    <LibStat value={typeof reach === "number" ? reach.toLocaleString() : "—"} label="Audience" border />
-                    <LibStat value={whenLabel(a.lastTriggered).replace("Last run ", "") || "—"} label={a.lastTriggered ? "Last run" : ""} small />
-                  </div>
-                  <div className="flex items-center gap-2 border-t border-border bg-card/40 px-3.5 py-2.5">
-                    <button onClick={() => onToggle(a)} disabled={busyId === a.id} className={cn("inline-flex items-center gap-1.5 rounded-[9px] border px-2.5 py-1 text-[11.5px] font-semibold transition disabled:opacity-60", a.enabled ? "border-border text-muted-foreground hover:border-brand-500/60 hover:text-foreground" : "border-brand-500/40 bg-brand-500/5 text-brand-500 hover:bg-brand-500/10")}>
-                      {busyId === a.id ? <FlowLoader size={13} /> : a.enabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />} {a.enabled ? "Pause" : "Activate"}
-                    </button>
-                    <button onClick={() => onOpen(a.id)} className="ms-auto inline-flex items-center gap-1 rounded-[9px] border border-border px-2.5 py-1 text-[11.5px] font-semibold hover:border-brand-500/60 hover:text-brand-500">Open <ChevronRight className="h-3.5 w-3.5" /></button>
-                  </div>
+        {loading ? <div className="grid place-items-center py-16"><FlowLoader /></div> : (<>
+          <div className="mb-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {cards.map((c) => (
+              <div key={c.k} className="rounded-xl border border-border bg-card p-3">
+                <div className="text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">{c.k}</div>
+                <div className={cn("mt-0.5 text-[20px] font-extrabold tabular-nums", c.tone)}>{c.v}</div>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-xl border border-border bg-card">
+            <div className="border-b border-border px-3 py-2.5"><b className="text-[12.5px]">The flow</b> <span className="text-[11px] text-muted-foreground">· {steps.length} steps{seq?.recurring ? ` · repeats every ${seq.recurrenceDays}d` : ""}</span></div>
+            {steps.length ? steps.map((s, i) => (
+              <div key={s.id || i} className="flex items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0">
+                <span className="grid h-7 w-7 flex-none place-items-center rounded-lg bg-muted text-[11px] font-bold text-muted-foreground">{i + 1}</span>
+                <div className="min-w-0 flex-1"><b className="text-[12px]">{KIND_LABEL[s.kind] || s.kind}</b> <span className="text-[11px] text-muted-foreground">{s.delayDays ? `· after ${s.delayDays}d` : "· immediately"}</span>
+                  <div className="truncate text-[10.5px] text-muted-foreground">{s.purpose || s.subject || s.body || (s.kind === "cond" ? s.title : "")}</div>
                 </div>
+              </div>
+            )) : <p className="p-4 text-center text-[12px] text-muted-foreground">No steps.</p>}
+          </div>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
+// ── library ──────────────────────────────────────────────────────────────────
+function Library({ campaigns, onOpen, onClose, onNew }: { campaigns: Seq[]; onOpen: (s: Seq) => void; onClose: () => void; onNew: () => void }) {
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col bg-background/97 backdrop-blur">
+      <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+        <h3 className="flex-1 text-[14px] font-bold">Campaigns</h3>
+        <button onClick={onNew} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white"><Plus className="h-3.5 w-3.5" /> New</button>
+        <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><X className="h-3.5 w-3.5" /></button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {campaigns.length ? (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {campaigns.map((s) => {
+              let n = 0; try { n = JSON.parse(s.steps || "[]").length; } catch { n = 0; }
+              return (
+                <button key={s.id} onClick={() => onOpen(s)} className="rounded-xl border border-border bg-card p-3 text-left hover:border-brand-500">
+                  <div className="flex items-center gap-2">
+                    <b className="flex-1 truncate text-[13px]">{s.name}</b>
+                    <span className={cn("rounded-full border px-2 py-0.5 text-[9px] font-extrabold", s.status === "active" ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500" : s.status === "paused" ? "border-amber-500/40 bg-amber-500/10 text-amber-500" : "border-border text-muted-foreground")}>{s.status.toUpperCase()}</span>
+                  </div>
+                  <p className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{s.goal || "No goal set"}</p>
+                  <div className="mt-2 flex items-center gap-2 text-[10.5px] text-muted-foreground"><Workflow className="h-3 w-3" /> {n} steps{s.recurring ? " · recurring" : ""} · {timeAgo(s.updatedAt)}</div>
+                </button>
               );
             })}
           </div>
         ) : (
-          <div className="grid place-items-center py-20 text-center">
-            <div className="max-w-xs">
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Workflow className="h-6 w-6" /></span>
-              <p className="mt-3 text-[13px] font-semibold">No {filter === "all" ? "" : filter} campaigns</p>
-              <p className="mt-1 text-[12px] text-muted-foreground">Build a flow on the canvas and launch it — it shows up here.</p>
-            </div>
+          <div className="grid place-items-center py-16 text-center">
+            <Workflow className="mb-2 h-8 w-8 text-muted-foreground" />
+            <b className="text-[13px]">No campaigns yet</b>
+            <p className="mt-1 max-w-[320px] text-[11.5px] text-muted-foreground">Build a multi-channel follow-up that calls, texts, and emails your contacts on a schedule.</p>
+            <button onClick={onNew} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-bold text-white"><Plus className="h-4 w-4" /> New campaign</button>
           </div>
         )}
       </div>
@@ -825,355 +682,14 @@ function CampaignLibrary({ automations, filter, totals, busyId, onFilter, onTogg
   );
 }
 
-function LibStat({ value, label, tone, border, small }: { value: string; label: string; tone?: "emerald"; border?: boolean; small?: boolean }) {
-  return (
-    <div className={cn("px-2 py-2.5 text-center", border && "border-x border-border")}>
-      <div className={cn("font-extrabold tabular-nums", small ? "text-[12px]" : "text-[16px]", tone === "emerald" && "text-emerald-500")}>{value}</div>
-      <div className="mt-0.5 text-[10px] text-muted-foreground">{label}</div>
-    </div>
-  );
+// ── small helpers ─────────────────────────────────────────────────────────────
+function SectionLabel({ children, hint }: { children: ReactNode; hint?: string }) {
+  return <div className="mb-1.5 flex items-baseline gap-2"><span className="text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">{children}</span>{hint && <span className="text-[9.5px] text-muted-foreground/70">{hint}</span>}</div>;
 }
-
-// ---------------------------------------------------------------------------
-// Detail drawer — full config, stats, recent activity log, plus inline edit
-// (PATCH) and a two-step delete (DELETE). Opened from a campaign click.
-// ---------------------------------------------------------------------------
-
-interface EditState {
-  name: string;
-  subject: string;
-  content: string;
-  sendTime: string;
-  daysOffset: string;
-  timezone: string;
-  contactListId: string;
+function Labeled({ k, children }: { k: string; children: ReactNode }) {
+  return <div><div className="mb-1 text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">{k}</div>{children}</div>;
 }
-
-const LOG_PAGE = 25;
-const LOG_LIMIT_MAX = 200;
-
-function AutomationDetailDrawer({ summary, onClose, onChanged, onDeleted }: {
-  summary: Automation;
-  onClose: () => void;
-  onChanged: () => Promise<void> | void;
-  onDeleted: () => void;
-}) {
-  const [detail, setDetail] = useState<AutomationDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [lists, setLists] = useState<ContactListOption[]>([]);
-  const [form, setForm] = useState<EditState | null>(null);
-  const [logLimit, setLogLimit] = useState(LOG_PAGE);
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  const m = typeMeta(summary.type);
-  const isEmail = (summary.campaignType || "EMAIL").toUpperCase() === "EMAIL";
-
-  const loadDetail = useCallback(async () => {
-    try {
-      const j = await fetch(`/api/automations/${summary.id}?logLimit=${logLimit}`).then((r) => r.json());
-      if (j?.success && j.data?.automation) { setDetail(j.data.automation as AutomationDetail); setError(""); }
-      else setError(j?.error?.message || "Could not load this campaign.");
-    } catch {
-      setError("Could not load this campaign.");
-    }
-  }, [summary.id, logLimit]);
-
-  useEffect(() => {
-    let alive = true;
-    setDetail((d) => { if (!d) setLoading(true); return d; });
-    loadDetail().finally(() => { if (alive) { setLoading(false); setLoadingMore(false); } });
-    return () => { alive = false; };
-  }, [loadDetail]);
-
-  useEffect(() => {
-    if (!editing) return;
-    let alive = true;
-    fetch("/api/contact-lists").then((r) => r.json()).then((j) => {
-      if (alive && j?.success && Array.isArray(j.data?.lists)) setLists(j.data.lists as ContactListOption[]);
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, [editing]);
-
-  const beginEdit = () => {
-    const d = detail;
-    setForm({
-      name: d?.name ?? summary.name ?? "",
-      subject: d?.subject ?? summary.subject ?? "",
-      content: d?.content ?? "",
-      sendTime: d?.sendTime ?? summary.sendTime ?? "09:00",
-      daysOffset: String(d?.daysOffset ?? summary.daysOffset ?? 0),
-      timezone: d?.timezone ?? summary.timezone ?? "UTC",
-      contactListId: d?.contactListId ?? summary.contactListId ?? "",
-    });
-    setSaveError("");
-    setEditing(true);
-  };
-
-  const setField = <K extends keyof EditState>(key: K, value: EditState[K]) => setForm((f) => (f ? { ...f, [key]: value } : f));
-
-  const save = async () => {
-    if (!form) return;
-    if (!form.name.trim()) { setSaveError("Give the campaign a name."); return; }
-    if (!form.content.trim()) { setSaveError("The message content can't be empty."); return; }
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(form.sendTime)) { setSaveError("Send time must be HH:mm (e.g. 09:00)."); return; }
-    const offsetNum = Number.parseInt(form.daysOffset, 10);
-    if (!Number.isFinite(offsetNum)) { setSaveError("Days offset must be a number."); return; }
-
-    setSaving(true);
-    setSaveError("");
-    try {
-      const r = await fetch(`/api/automations/${summary.id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name.trim(),
-          subject: isEmail ? (form.subject || null) : undefined,
-          content: form.content,
-          sendTime: form.sendTime,
-          daysOffset: Math.max(-30, Math.min(30, offsetNum)),
-          timezone: form.timezone || "UTC",
-          contactListId: form.contactListId ? form.contactListId : null,
-        }),
-      });
-      const j = await r.json().catch(() => null);
-      if (!r.ok || j?.success === false) {
-        setSaveError(j?.error?.message || "Could not save your changes.");
-      } else {
-        setEditing(false);
-        await loadDetail();
-        await onChanged();
-      }
-    } catch {
-      setSaveError("Could not save your changes.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const doDelete = async () => {
-    setDeleting(true);
-    try {
-      const r = await fetch(`/api/automations/${summary.id}`, { method: "DELETE" });
-      const j = await r.json().catch(() => null);
-      if (!r.ok || j?.success === false) {
-        setSaveError(j?.error?.message || "Could not delete this campaign.");
-        setConfirmDelete(false);
-        setDeleting(false);
-        return;
-      }
-      onDeleted();
-    } catch {
-      setSaveError("Could not delete this campaign.");
-      setConfirmDelete(false);
-      setDeleting(false);
-    }
-  };
-
-  const audienceLabel = detail?.contactList?.name ?? summary.contactList?.name ?? "All eligible contacts";
-  const audienceReach = detail?.contactList?.totalCount ?? summary.contactList?.totalCount;
-
-  return (
-    <div className="absolute inset-0 z-[70] flex justify-end">
-      <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/40 backdrop-blur-[1px]" />
-      <div className="relative flex h-full w-full max-w-md flex-col border-l border-border bg-card shadow-2xl">
-        <div className="flex items-start gap-3 border-b border-border px-4 py-3.5 sm:px-5">
-          <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg", summary.enabled ? "bg-brand-500/10 text-brand-500" : "bg-muted text-muted-foreground")}><m.icon className="h-[18px] w-[18px]" /></span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <p className="truncate text-[14px] font-bold">{detail?.name ?? summary.name}</p>
-              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-semibold", summary.enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>{summary.enabled ? "Active" : "Paused"}</span>
-            </div>
-            <p className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-              <span className="inline-flex items-center gap-1">{isEmail ? <Mail className="h-3 w-3" /> : <MessageSquare className="h-3 w-3" />}{m.label}</span>
-              <span>· {isEmail ? "Email" : "SMS"}</span>
-            </p>
-          </div>
-          <button type="button" onClick={onClose} className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] text-muted-foreground transition hover:bg-muted hover:text-foreground" aria-label="Close"><X className="h-4 w-4" /></button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
-          {loading ? (
-            <div className="grid place-items-center py-16"><FlowLoader size={30} withMark label="Loading details…" /></div>
-          ) : error ? (
-            <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{error}</p>
-          ) : editing && form ? (
-            <EditForm
-              form={form} isEmail={isEmail} lists={lists}
-              currentListName={audienceLabel}
-              currentListId={(detail?.contactListId ?? summary.contactListId) || ""}
-              saving={saving} saveError={saveError}
-              onField={setField} onCancel={() => { setEditing(false); setSaveError(""); }} onSave={save}
-            />
-          ) : detail ? (
-            <div className="space-y-4">
-              {saveError && <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{saveError}</p>}
-              <div>
-                <h4 className="mb-2 text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Delivery</h4>
-                <div className="grid grid-cols-3 gap-2">
-                  <StatTile icon={CheckCircle2} tone="emerald" label="Sent" value={detail.stats.sent} rate={detail.stats.successRate} />
-                  <StatTile icon={XCircle} tone="rose" label="Failed" value={detail.stats.failed} rate={detail.stats.failureRate} />
-                  <StatTile icon={MinusCircle} tone="amber" label="Skipped" value={detail.stats.skipped} rate={detail.stats.skipRate} />
-                </div>
-              </div>
-              <div className="rounded-xl border border-border bg-muted/30 p-3">
-                <h4 className="mb-2 text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Settings</h4>
-                <dl className="space-y-1.5 text-[12px]">
-                  {isEmail && <Row label="Subject"><span className="text-foreground">{detail.subject || <span className="text-muted-foreground">—</span>}</span></Row>}
-                  <Row label="Timing"><span className="inline-flex items-center gap-1 text-foreground"><Clock className="h-3 w-3 text-muted-foreground" />{detail.sendTime} · {offsetLabel(detail.daysOffset)}</span></Row>
-                  <Row label="Timezone"><span className="inline-flex items-center gap-1 text-foreground"><Globe className="h-3 w-3 text-muted-foreground" />{detail.timezone || "UTC"}</span></Row>
-                  <Row label="Audience"><span className="inline-flex items-center gap-1 text-foreground"><Users className="h-3 w-3 text-muted-foreground" />{audienceLabel}{typeof audienceReach === "number" ? ` (${audienceReach.toLocaleString()})` : ""}</span></Row>
-                  <Row label="Last run"><span className="text-foreground">{whenLabel(detail.lastTriggered).replace(/^Last run /, "") === "Not run yet" ? "Not run yet" : new Date(detail.lastTriggered as string).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></Row>
-                </dl>
-                {detail.content && (
-                  <div className="mt-2.5 border-t border-border pt-2.5">
-                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Message</p>
-                    <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-foreground/90">{detail.content}</p>
-                  </div>
-                )}
-              </div>
-              <div>
-                <h4 className="mb-2 text-[12px] font-bold uppercase tracking-wide text-muted-foreground">Recent activity</h4>
-                {detail.logs.length ? (
-                  <div className="space-y-1.5">
-                    {detail.logs.map((log) => (
-                      <div key={log.id} className="flex items-start gap-2 rounded-[10px] border border-border bg-muted/20 px-2.5 py-2">
-                        <LogBadge status={log.status} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[12px] font-medium">{log.contactName || log.contactEmail || log.contactPhone || "Contact"}</p>
-                          {log.error ? <p className="truncate text-[11px] text-rose-500">{log.error}</p>
-                            : log.contactEmail || log.contactPhone ? <p className="truncate text-[11px] text-muted-foreground">{log.contactEmail || log.contactPhone}</p> : null}
-                        </div>
-                        <span className="shrink-0 text-[10.5px] text-muted-foreground">{logWhen(log.sentAt)}</span>
-                      </div>
-                    ))}
-                    {detail.totalLogs > detail.logs.length && logLimit < LOG_LIMIT_MAX && (
-                      <button type="button" onClick={() => { setLoadingMore(true); setLogLimit((n) => Math.min(LOG_LIMIT_MAX, n + LOG_PAGE)); }} disabled={loadingMore}
-                        className="mt-1 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border bg-muted/30 py-1.5 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60">
-                        {loadingMore && <FlowLoader size={13} />} Load more ({(detail.totalLogs - detail.logs.length).toLocaleString()} left)
-                      </button>
-                    )}
-                  </div>
-                ) : (
-                  <p className="rounded-[10px] border border-dashed border-border px-3 py-4 text-center text-[12px] text-muted-foreground">No deliveries logged yet.</p>
-                )}
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        {!loading && !error && !editing && (
-          <div className="flex items-center gap-2 border-t border-border px-4 py-3 sm:px-5">
-            {confirmDelete ? (
-              <>
-                <button type="button" onClick={doDelete} disabled={deleting} className="inline-flex items-center gap-1.5 rounded-[10px] bg-rose-500 px-3 py-2 text-[12px] font-semibold text-white transition hover:bg-rose-600 disabled:opacity-60">
-                  {deleting ? <FlowLoader size={14} tone="white" /> : <Trash2 className="h-3.5 w-3.5" />} Confirm delete
-                </button>
-                <button type="button" onClick={() => setConfirmDelete(false)} disabled={deleting} className="rounded-[10px] border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60">Cancel</button>
-              </>
-            ) : (
-              <>
-                <button type="button" onClick={beginEdit} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-semibold text-white shadow-sm"><Pencil className="h-3.5 w-3.5" /> Edit settings</button>
-                <button type="button" onClick={() => setConfirmDelete(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-rose-500/30 px-3 py-2 text-[12px] font-semibold text-rose-500 transition hover:bg-rose-500/5"><Trash2 className="h-3.5 w-3.5" /> Delete</button>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+function Select({ value, onChange, options }: { value?: string; onChange: (v: string) => void; options: { v: string; label: string }[] }) {
+  return <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-[11.5px] outline-none focus:border-brand-500">{options.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}</select>;
 }
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <dt className="shrink-0 text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-right">{children}</dd>
-    </div>
-  );
-}
-
-function StatTile({ icon: Icon, tone, label, value, rate }: { icon: ElementType; tone: "emerald" | "rose" | "amber"; label: string; value: number; rate: number }) {
-  const toneCls = tone === "emerald" ? "text-emerald-500" : tone === "rose" ? "text-rose-500" : "text-amber-500";
-  return (
-    <div className="rounded-xl border border-border bg-muted/30 p-2.5 text-center">
-      <Icon className={cn("mx-auto h-4 w-4", toneCls)} />
-      <p className="mt-1 text-[18px] font-extrabold leading-none">{value.toLocaleString()}</p>
-      <p className="mt-1 text-[10.5px] text-muted-foreground">{label} · {rate}%</p>
-    </div>
-  );
-}
-
-function LogBadge({ status }: { status: string }) {
-  const s = status.toUpperCase();
-  if (s === "SENT") return <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-emerald-500/10 text-emerald-500"><CheckCircle2 className="h-3 w-3" /></span>;
-  if (s === "FAILED") return <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-rose-500/10 text-rose-500"><XCircle className="h-3 w-3" /></span>;
-  return <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md bg-amber-500/10 text-amber-500"><MinusCircle className="h-3 w-3" /></span>;
-}
-
-function EditForm({ form, isEmail, lists, currentListName, currentListId, saving, saveError, onField, onCancel, onSave }: {
-  form: EditState;
-  isEmail: boolean;
-  lists: ContactListOption[];
-  currentListName: string;
-  currentListId: string;
-  saving: boolean;
-  saveError: string;
-  onField: <K extends keyof EditState>(key: K, value: EditState[K]) => void;
-  onCancel: () => void;
-  onSave: () => void;
-}) {
-  const listOptions = useMemo(() => {
-    const opts = [...lists];
-    if (currentListId && !opts.some((l) => l.id === currentListId)) opts.unshift({ id: currentListId, name: currentListName, totalCount: 0 });
-    return opts;
-  }, [lists, currentListId, currentListName]);
-
-  const F = "w-full rounded-[10px] border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-brand-500/60";
-  return (
-    <div className="space-y-3.5">
-      {saveError && <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[12px] text-rose-500">{saveError}</p>}
-      <Field label="Name"><input value={form.name} onChange={(e) => onField("name", e.target.value)} className={F} placeholder="Welcome series" /></Field>
-      {isEmail && <Field label="Subject"><input value={form.subject} onChange={(e) => onField("subject", e.target.value)} className={F} placeholder="Welcome to the family 👋" /></Field>}
-      <Field label={isEmail ? "Message body" : "Message"}><textarea value={form.content} onChange={(e) => onField("content", e.target.value)} rows={5} className={cn(F, "resize-y leading-relaxed")} placeholder="Write the message that goes out…" /></Field>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Send time"><input type="time" value={form.sendTime} onChange={(e) => onField("sendTime", e.target.value)} className={F} /></Field>
-        <Field label="Days offset" hint="− before, + after"><input type="number" min={-30} max={30} value={form.daysOffset} onChange={(e) => onField("daysOffset", e.target.value)} className={F} /></Field>
-      </div>
-      <Field label="Timezone">
-        <select value={TIMEZONES.includes(form.timezone) ? form.timezone : "__current"} onChange={(e) => onField("timezone", e.target.value === "__current" ? form.timezone : e.target.value)} className={F}>
-          {!TIMEZONES.includes(form.timezone) && form.timezone && <option value="__current">{form.timezone}</option>}
-          {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-        </select>
-      </Field>
-      <Field label="Audience list">
-        <select value={form.contactListId} onChange={(e) => onField("contactListId", e.target.value)} className={F}>
-          <option value="">All eligible contacts</option>
-          {listOptions.map((l) => <option key={l.id} value={l.id}>{l.name}{l.totalCount ? ` (${l.totalCount.toLocaleString()})` : ""}</option>)}
-        </select>
-      </Field>
-      <div className="flex items-center gap-2 pt-1">
-        <button type="button" onClick={onSave} disabled={saving} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[13px] font-semibold text-white shadow-sm disabled:opacity-60">
-          {saving ? <FlowLoader size={15} tone="white" /> : <Save className="h-4 w-4" />} Save changes
-        </button>
-        <button type="button" onClick={onCancel} disabled={saving} className="rounded-[10px] border border-border px-3 py-2 text-[13px] font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-60">Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1 flex items-center justify-between text-[11.5px] font-semibold text-muted-foreground">
-        <span>{label}</span>
-        {hint && <span className="font-normal">{hint}</span>}
-      </span>
-      {children}
-    </label>
-  );
-}
+function Check({ className }: { className?: string }) { return <CheckCircle2 className={className} />; }
