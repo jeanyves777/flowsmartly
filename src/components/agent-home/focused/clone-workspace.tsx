@@ -90,6 +90,28 @@ const POSES: { n: string; thumb: string }[] = [
 
 const isUrl = (u?: string | null): u is string => !!u && /^https?:\/\//i.test(u);
 
+// Remember the project you were last in, so returning to the studio reopens it
+// instead of an empty canvas (or, worse, whichever project happens to be newest).
+const LAST_PROJECT_KEY = "clone:lastProjectId";
+
+/**
+ * Poll merge — take the SERVER's render progress (status / progress / imageUrl /
+ * error) for each shot, but keep the user's LOCAL canvas: the active clone, the
+ * clone list, and every shot's position / prompt / scene / outfit. The old poll
+ * replaced the whole project every 5s, which reverted a drag, a prompt edit, or a
+ * clone switch the moment a render was in flight.
+ */
+function mergeRenderState(local: CloneProject, server: CloneProject): CloneProject {
+  const srv = new Map(server.shots.map((s) => [s.id, s]));
+  const merged = local.shots.map((s) => {
+    const r = srv.get(s.id);
+    return r ? { ...s, status: r.status, progress: r.progress, imageUrl: r.imageUrl, error: r.error, renderHeartbeatAt: r.renderHeartbeatAt } : s;
+  });
+  const localIds = new Set(local.shots.map((s) => s.id));
+  const extra = server.shots.filter((s) => !localIds.has(s.id));
+  return { ...local, shots: [...merged, ...extra] };
+}
+
 export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => void }) {
   const { toast } = useToast();
   const { ask, promptNode } = useTextPrompt();
@@ -133,13 +155,37 @@ export function FocusedClone({ onOpenView }: { onOpenView?: (key: string) => voi
   }), [shots]);
   const live = stats.rendering > 0;
 
+  // Reopen the last project on return. This component fully unmounts on a surface
+  // switch, so without this the canvas comes back empty — and picking "newest" would
+  // show a different clone whenever a background render bumped another project's time.
+  useEffect(() => {
+    let alive = true;
+    let last: string | null = null;
+    try { last = localStorage.getItem(LAST_PROJECT_KEY); } catch { /* ignore */ }
+    if (!last) return;
+    fetch(`/api/ai/clone-studio/project/${last}`).then((r) => r.json()).then((j) => {
+      if (!alive) return;
+      // Only restore if the user hasn't already opened/created something while we loaded.
+      if (j?.success && j.data?.project) setProject((cur) => cur ?? j.data.project);
+      else { try { localStorage.removeItem(LAST_PROJECT_KEY); } catch { /* ignore */ } }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  // Keep the pointer to the current project fresh for the next visit.
+  useEffect(() => {
+    if (!project?.id) return;
+    try { localStorage.setItem(LAST_PROJECT_KEY, project.id); } catch { /* ignore */ }
+  }, [project?.id]);
+
   useEffect(() => {
     if (!live || !project) return;
     const id = project.id;
     const t = setInterval(async () => {
       try {
         const j = await fetch(`/api/ai/clone-studio/project/${id}`).then((r) => r.json());
-        if (j?.success) setProject(j.data.project);
+        // Merge render progress only — never clobber the user's canvas or clone switch.
+        if (j?.success && j.data?.project) setProject((cur) => (cur && cur.id === id ? mergeRenderState(cur, j.data.project) : j.data.project));
       } catch { /* keep polling */ }
     }, 5000);
     return () => clearInterval(t);

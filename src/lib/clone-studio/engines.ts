@@ -17,6 +17,7 @@ import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsAvailable, type CreditCostKey } from "@/lib/credits/costs";
 import { prisma } from "@/lib/db/client";
 import { sanitizeUserError } from "@/lib/ai/user-error";
+import { saveToMediaLibrary } from "@/lib/ai/flow-agent/save-media";
 import { createUgcProject } from "@/lib/ugc-studio/store";
 import { createFilm, saveFilm } from "@/lib/video-director/store";
 import { normalizeCharacter } from "@/lib/video-director/types";
@@ -26,6 +27,17 @@ const PREMIUM_COST: CreditCostKey = "AGENT_GENERATE_IMAGE_PREMIUM";
 const MAX_CONCURRENT = 3;
 const SHOT_STALE_MS = 90_000;
 const SHOT_MAX_TRIES = 3;
+
+/**
+ * Which shots are rendering RIGHT NOW, in THIS process. Prod runs one pm2 fork,
+ * so a plain in-memory set is a reliable single-flight lock — it stops the same
+ * shot being rendered (and CHARGED) twice when two drains race, or a drain
+ * overlaps the single-shot route. It lives on globalThis because the app-router
+ * bundles routes separately, so a module-level const wouldn't be shared. It
+ * resets on restart — which is exactly when the stuck-shot recovery should re-run.
+ * [[nextjs-inmemory-singleton-globalthis]]
+ */
+const RENDERING: Set<string> = ((globalThis as { __cloneRendering?: Set<string> }).__cloneRendering ??= new Set());
 
 const costKey = (q: CloneQuality): CreditCostKey => (q === "premium" ? PREMIUM_COST : STD_COST);
 const imgQuality = (q: CloneQuality) => (q === "premium" ? ("high" as const) : ("high" as const));
@@ -101,6 +113,14 @@ export async function buildCloneAnchor(id: string, userId: string, cloneId: stri
   if (!p) return null;
   const c = p.clones.find((x) => x.id === cloneId);
   if (!c || c.photoUrls.length === 0) return p;
+  // The anchor is built ONCE per clone. It's fired on every brief submit, so without
+  // this an add-mode brief re-generated the hero portrait each time — a second,
+  // pointless image render behind every shot.
+  if (isUrl(c.anchorUrl)) return p;
+  // Claim so two brief submits for the same fresh clone don't both build it.
+  const claim = `anchor:${cloneId}`;
+  if (RENDERING.has(claim)) return p;
+  RENDERING.add(claim);
   try {
     const refs = await Promise.all(c.photoUrls.slice(0, 4).map(toBuffer));
     const res = await editImagesXaiFirst(
@@ -108,11 +128,21 @@ export async function buildCloneAnchor(id: string, userId: string, cloneId: stri
       refs, 1024, 1280, { intent: "identity", quality: "high" },
     );
     if (res.base64) {
-      const url = await uploadToS3(`clone/${id}/anchor-${cloneId}-${uid()}.${res.format === "jpeg" ? "jpg" : res.format}`, Buffer.from(res.base64, "base64"), res.format === "jpeg" ? "image/jpeg" : `image/${res.format}`);
+      const mime = res.format === "jpeg" ? "image/jpeg" : `image/${res.format}`;
+      const buf = Buffer.from(res.base64, "base64");
+      const url = await uploadToS3(`clone/${id}/anchor-${cloneId}-${uid()}.${res.format === "jpeg" ? "jpg" : res.format}`, buf, mime);
       await patchClone(id, userId, cloneId, { anchorUrl: url });
+      await saveToMediaLibrary({
+        userId, url, type: "image", mimeType: mime, size: buf.length,
+        originalName: `clone-anchor-${(c.name || "me").toLowerCase().replace(/\s+/g, "-")}.${res.format === "jpeg" ? "jpg" : res.format}`,
+        tags: ["clone", "anchor"],
+        metadata: { source: "clone-studio", projectId: id, cloneId, kind: "anchor" },
+      }).catch(() => {});
     }
   } catch (err) {
     console.error("[clone-studio] anchor failed:", err);
+  } finally {
+    RENDERING.delete(claim);
   }
   return getProject(id, userId);
 }
@@ -120,36 +150,50 @@ export async function buildCloneAnchor(id: string, userId: string, cloneId: stri
 // ─────────────────────────────── shots
 
 export async function renderShot(id: string, userId: string, shotId: string): Promise<void> {
-  const p = await getProject(id, userId);
-  if (!p) return;
-  const shot = p.shots.find((s) => s.id === shotId);
-  if (!shot) return;
-
-  const { w, h } = cloneDims(shot.aspect);
-  const key = costKey(shot.quality);
-  await patchShot(id, userId, shotId, { status: "rendering", progress: 8, error: null, renderHeartbeatAt: Date.now() });
-
-  const err = await charge(userId, key, `${id}:${shotId}:${uid()}`, "Clone Studio — image", { cloneId: id, shotId, quality: shot.quality });
-  if (err) { await patchShot(id, userId, shotId, { status: "failed", error: err }); return; }
-
+  // Single-flight: claim the shot BEFORE any await. Two racing calls (a drain that
+  // overlaps the finishing shot's drain, or the direct route firing alongside a
+  // drain) would otherwise both render + CHARGE the same shot. The synchronous
+  // has→add runs to completion before the next call starts, so it's a real lock.
+  if (RENDERING.has(shotId)) return;
+  RENDERING.add(shotId);
   try {
-    const prompt = buildShotPrompt(shot);
-    const refs = shot.kind === "person" ? refUrlsFor(p, shot.cloneId) : [];
-    const res = refs.length
-      ? await editImagesXaiFirst(prompt, await Promise.all(refs.map(toBuffer)), w, h, { intent: "identity", quality: imgQuality(shot.quality), preferredProvider: imgProvider(shot.quality) })
-      : await generateImageXaiFirst(prompt, w, h, { quality: imgQuality(shot.quality), transparent: false, preferredProvider: imgProvider(shot.quality) });
-    if (!res.base64) throw new Error("no image returned");
-    const url = await uploadToS3(
-      `clone/${id}/shot-${shotId}-${uid()}.${res.format === "jpeg" ? "jpg" : res.format}`,
-      Buffer.from(res.base64, "base64"),
-      res.format === "jpeg" ? "image/jpeg" : `image/${res.format}`,
-    );
-    await patchShot(id, userId, shotId, { imageUrl: url, status: "ready", progress: 100, renderHeartbeatAt: Date.now() });
-  } catch (e) {
-    await refund(userId, key, `${id}:${shotId}`, "clone image failed");
-    console.error(`[clone-studio] shot ${shotId} failed:`, e);
-    await patchShot(id, userId, shotId, { status: "failed", error: sanitizeUserError(e, "image") });
+    const p = await getProject(id, userId);
+    if (!p) return;
+    const shot = p.shots.find((s) => s.id === shotId);
+    if (!shot) return;
+
+    const { w, h } = cloneDims(shot.aspect);
+    const key = costKey(shot.quality);
+    await patchShot(id, userId, shotId, { status: "rendering", progress: 8, error: null, renderHeartbeatAt: Date.now() });
+
+    const err = await charge(userId, key, `${id}:${shotId}:${uid()}`, "Clone Studio — image", { cloneId: id, shotId, quality: shot.quality });
+    if (err) { await patchShot(id, userId, shotId, { status: "failed", error: err }); return; }
+
+    try {
+      const prompt = buildShotPrompt(shot);
+      const refs = shot.kind === "person" ? refUrlsFor(p, shot.cloneId) : [];
+      const res = refs.length
+        ? await editImagesXaiFirst(prompt, await Promise.all(refs.map(toBuffer)), w, h, { intent: "identity", quality: imgQuality(shot.quality), preferredProvider: imgProvider(shot.quality) })
+        : await generateImageXaiFirst(prompt, w, h, { quality: imgQuality(shot.quality), transparent: false, preferredProvider: imgProvider(shot.quality) });
+      if (!res.base64) throw new Error("no image returned");
+      const mime = res.format === "jpeg" ? "image/jpeg" : `image/${res.format}`;
+      const buf = Buffer.from(res.base64, "base64");
+      const url = await uploadToS3(`clone/${id}/shot-${shotId}-${uid()}.${res.format === "jpeg" ? "jpg" : res.format}`, buf, mime);
+      await patchShot(id, userId, shotId, { imageUrl: url, status: "ready", progress: 100, renderHeartbeatAt: Date.now() });
+      // Every generation the user pays for lands in their Media Library. Best-effort.
+      await saveToMediaLibrary({
+        userId, url, type: "image", mimeType: mime, size: buf.length,
+        originalName: `clone-${shot.kind === "background" ? "background" : "you"}-${shot.scene}.${res.format === "jpeg" ? "jpg" : res.format}`,
+        tags: ["clone", shot.kind === "background" ? "background" : "you", shot.scene].filter(Boolean),
+        metadata: { source: "clone-studio", projectId: id, shotId, cloneId: shot.cloneId, scene: shot.scene },
+      }).catch(() => {});
+    } catch (e) {
+      await refund(userId, key, `${id}:${shotId}`, "clone image failed");
+      console.error(`[clone-studio] shot ${shotId} failed:`, e);
+      await patchShot(id, userId, shotId, { status: "failed", error: sanitizeUserError(e, "image") });
+    }
   } finally {
+    RENDERING.delete(shotId);
     void drainShots(id, userId).catch(() => {});
   }
 }
@@ -160,7 +204,9 @@ export async function drainShots(id: string, userId: string, max = MAX_CONCURREN
   const live = p.shots.filter((s) => s.status === "rendering").length;
   const free = Math.max(0, max - live);
   if (free === 0) return 0;
-  const next = p.shots.filter((s) => s.status === "queued").slice(0, free);
+  // Skip anything already claimed by an in-flight render, so a racing drain doesn't
+  // flip a shot to "rendering" for a renderShot that will immediately bail.
+  const next = p.shots.filter((s) => s.status === "queued" && !RENDERING.has(s.id)).slice(0, free);
   for (const s of next) {
     await patchShot(id, userId, s.id, { status: "rendering", progress: 4, renderHeartbeatAt: Date.now() }).catch(() => {});
     void renderShot(id, userId, s.id).catch(() => {});
