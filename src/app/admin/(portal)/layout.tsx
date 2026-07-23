@@ -134,9 +134,7 @@ const marketingItems: NavItem[] = [
   { href: "/admin/ads", icon: Megaphone, label: "Ad Review", permission: "MODERATE_CONTENT" },
   { href: "/admin/premier-spotlight", icon: Video, label: "Premier Spotlight", permission: "MODERATE_CONTENT" },
   { href: "/admin/email-marketing", icon: Mail, label: "Email Marketing", permission: "VIEW_CONTENT" },
-  { href: "/admin/sms-marketing", icon: MessageSquare, label: "SMS Marketing", permission: "VIEW_CONTENT" },
-  { href: "/admin/sms-marketing/compliance", icon: ShieldCheck, label: "SMS Compliance", permission: "VIEW_CONTENT" },
-  { href: "/admin/sms-marketing/numbers", icon: Phone, label: "Number Status", permission: "VIEW_CONTENT" },
+  { href: "/admin/sms-marketing", icon: MessageSquare, label: "SMS", permission: "VIEW_CONTENT" },
 ];
 
 // User experience menu - allows admins to test user interface
