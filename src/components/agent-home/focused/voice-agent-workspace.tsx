@@ -378,6 +378,11 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
 // ── shared node chrome ─────────────────────────────────────────────────────
 
 /** Header-as-drag-handle: mutate the DOM live, commit nothing (position is local). */
+// The set of triggers a skill can fire on — a menu, not a free-text box.
+// Sourced from the catalog so every real trigger phrasing is offered; a
+// "Write my own…" escape stays for edge cases.
+const TRIGGER_OPTIONS = Array.from(new Set(SKILL_CATALOG.map((d) => d.trigger)));
+
 function useNodeDrag(onMove: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   const start = (e: React.PointerEvent) => {
@@ -615,13 +620,19 @@ function SkillNode({ skill, index, agent, onPatch, onDelete, onMove, ask }: {
         onPointerDown={startDrag}
       />
 
-      <button onClick={editTrigger}
-        className="mx-3 block w-[calc(100%-24px)] rounded-lg border border-border bg-muted/40 p-2 text-left hover:border-brand-500/50">
-        <span className="mb-0.5 block text-[8px] font-extrabold uppercase tracking-wide text-muted-foreground">
+      <div className="mx-3">
+        <label className="mb-0.5 block text-[8px] font-extrabold uppercase tracking-wide text-muted-foreground">
           When the caller
-        </span>
-        <span className="line-clamp-2 text-[10px] leading-snug">{skill.trigger}</span>
-      </button>
+        </label>
+        <select
+          value={skill.trigger}
+          onChange={(e) => { const v = e.target.value; if (v === "__custom") { void editTrigger(); } else { onPatch({ trigger: v }); } }}
+          className="w-full cursor-pointer rounded-lg border border-border bg-muted/40 p-2 text-[10px] leading-snug outline-none focus:border-brand-500/50">
+          {TRIGGER_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+          {!TRIGGER_OPTIONS.includes(skill.trigger) && <option value={skill.trigger}>{skill.trigger}</option>}
+          <option value="__custom">✎ Write my own…</option>
+        </select>
+      </div>
 
       <button onClick={editRules}
         className="mx-3 mt-2 flex w-[calc(100%-24px)] items-start gap-1.5 rounded-lg border border-brand-500/20 bg-brand-500/5 p-1.5 text-left hover:border-brand-500">
