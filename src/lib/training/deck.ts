@@ -374,8 +374,19 @@ Rules:
   });
 
   // Photoreal / 3D visuals for doc slides (best-effort, small concurrency; emoji fallback).
+  // ONLY for layouts whose renderer actually shows the image — text/card layouts (comparison,
+  // steps, takeaways, big-stat, Q&A, …) never display it, so generating one there is a wasted
+  // image-gen call. Video-demo slides use a clip, not an image. Unknown/default layouts still
+  // generate (the classic doc layout has a side visual).
+  const NO_IMAGE_LAYOUTS = new Set<string>([
+    "comparison_table", "pros_cons", "myth_reality", "before_after", "step_process", "customer_journey",
+    "timeline", "vertical_journey", "workflow_diagram", "key_takeaways", "action_plan", "recap_map",
+    "concept_map", "data_spotlight", "dashboard_insight", "problem_solution_result", "question_answer",
+    "interactive_question", "layered_explanation", "system_architecture", "workshop", "section_divider", "quote",
+  ]);
+  const slideUsesImage = (s: DeckSlide) => !s.videoPrompt && !(s.layout && NO_IMAGE_LAYOUTS.has(s.layout));
   if (opts.wantVisuals) {
-    const docs = slides.filter((s) => s.type === "doc" && s.visual?.prompt);
+    const docs = slides.filter((s) => s.type === "doc" && s.visual?.prompt && slideUsesImage(s));
     const LIMIT = 3;
     for (let i = 0; i < docs.length; i += LIMIT) {
       await Promise.all(docs.slice(i, i + LIMIT).map(async (s) => {
