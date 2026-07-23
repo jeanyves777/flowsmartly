@@ -5,6 +5,7 @@ import { MessageSquare, Sparkles, Phone, Send, CheckCircle2, Clock, Users, Alert
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
 import { cn } from "@/lib/utils/cn";
+import { SmsVerify } from "./sms-verify";
 
 /**
  * SMS Studio — a real in-UI flow builder (same canvas pattern as the Call agent):
@@ -112,7 +113,6 @@ function regLabel(status?: string | null): string { if (!status) return "Not sta
 function isRegFailed(status?: string | null): boolean { return ["FAILED", "REJECTED", "TWILIO_REJECTED", "SUSPENDED"].includes((status || "").toUpperCase()); }
 function isRegApproved(status?: string | null): boolean { return ["APPROVED", "VERIFIED", "SUCCESSFUL", "TWILIO_APPROVED"].includes((status || "").toUpperCase()); }
 
-const SMS_SETUP_PROMPT = "Help me set up SMS sending — walk me through getting a verified sender number and confirming opt-in compliance so I can start sending blasts.";
 
 // ── component ────────────────────────────────────────────────────────────────
 export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
@@ -341,29 +341,10 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
   const audienceReach = 1284;
 
   // setup gate — no verified number
+  // No verified number yet → the structured "Get verified to send" intake
+  // (business + opt-in proof + samples → /api/sms/compliance), then rent a number.
   if (!hasNumber) {
-    return (
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto w-full max-w-lg">
-          <div className="rounded-2xl border border-border bg-card p-5 text-center sm:p-6">
-            <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Phone className="h-7 w-7" /></span>
-            <h2 className="mt-3 text-[18px] font-extrabold">Set up SMS sending</h2>
-            <p className="mx-auto mt-1.5 max-w-sm text-[13px] leading-relaxed text-muted-foreground">To send SMS blasts you need a verified sender number. It takes a few steps:</p>
-            <ol className="mx-auto mt-4 max-w-sm space-y-2 text-left">
-              <SetupStep n={1} title="Get a dedicated number" desc="A sender number your recipients will see." />
-              <SetupStep n={2} title="Confirm opt-in compliance" desc="Show how your contacts consented to texts." />
-              <SetupStep n={3} title="Carrier registration" desc="Required so your messages actually deliver." />
-            </ol>
-            {onAsk && (
-              <button onClick={() => onAsk(SMS_SETUP_PROMPT)} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-5 py-2.5 text-[14px] font-semibold text-white shadow-lg shadow-brand-500/30">
-                <Sparkles className="h-4 w-4" /> Set up SMS
-              </button>
-            )}
-            <p className="mt-2 text-[11px] text-muted-foreground">Nothing sends until your number is verified.</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <SmsVerify onDone={() => { void loadNumber(); void loadRegistration(); }} />;
   }
 
   return (
@@ -734,9 +715,6 @@ function BlastDetail({ detail, senderNumber }: { detail: SmsCampaignDetail; send
 }
 function DetailStat({ icon: Icon, label, value, tone }: { icon: ElementType; label: string; value: string; tone?: string }) {
   return <div className="rounded-lg border border-border bg-muted/30 p-2.5"><div className={cn("flex items-center gap-1 text-muted-foreground", tone)}><Icon className="h-3 w-3" /><span className="text-[10.5px] font-medium uppercase tracking-wide">{label}</span></div><p className={cn("mt-0.5 text-[14px] font-bold tabular-nums", tone)}>{value}</p></div>;
-}
-function SetupStep({ n, title, desc }: { n: number; title: string; desc: string }) {
-  return <li className="flex items-start gap-2.5"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-500/12 text-[11px] font-bold text-brand-500">{n}</span><span><span className="block text-[12.5px] font-semibold">{title}</span><span className="block text-[11.5px] text-muted-foreground">{desc}</span></span></li>;
 }
 function MiniStat({ label, value }: { label: string; value: string }) {
   return <div className="rounded-lg border border-border bg-muted/30 px-1.5 py-2 text-center"><p className="text-[15px] font-extrabold leading-none tabular-nums">{value}</p><p className="mt-1 text-[10px] font-medium text-muted-foreground">{label}</p></div>;
