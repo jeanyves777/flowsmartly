@@ -124,6 +124,8 @@ export function FocusedAdBuilder({ refreshKey, onAsk, onOpenView, agentBusy, can
   // so there's ONE top bar instead of a second full-width toolbar under it.
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
   useEffect(() => { setHeaderSlot(document.getElementById("fv-header-slot")); }, []);
+  // Open the brief once on entry — the campaign starts there.
+  useEffect(() => { if (!briefShown.current) { briefShown.current = true; setBriefOpen(true); } }, []);
   const [stats, setStats] = useState<Stats>({});
   const [hasRoas, setHasRoas] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -169,6 +171,10 @@ export function FocusedAdBuilder({ refreshKey, onAsk, onOpenView, agentBusy, can
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState("");
   const [notice, setNotice] = useState("");
+  // The campaign starts from a BRIEF (name · what you're advertising · budget ·
+  // goal), then the canvas opens. No agent hand-off.
+  const [briefOpen, setBriefOpen] = useState(false);
+  const briefShown = useRef(false);
 
   const load = useCallback(async () => {
     setError("");
@@ -602,9 +608,9 @@ export function FocusedAdBuilder({ refreshKey, onAsk, onOpenView, agentBusy, can
           <>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name" className="w-[180px] min-w-0 rounded-[8px] border border-transparent bg-transparent px-2 py-1 text-[13.5px] font-bold outline-none hover:border-border focus:border-brand-500/60 focus:bg-background" />
             <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-amber-500">Draft</span>
-            <button onClick={buildWithAI} disabled={!onAsk} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Build with AI</button>
+            <button onClick={() => setBriefOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Target className="h-3.5 w-3.5" /> Brief</button>
             <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><LayoutGrid className="h-3.5 w-3.5" /> Library{total > 0 ? ` · ${total}` : ""}</button>
-            <button onClick={newCampaign} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-brand-500/60 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> New</button>
+            <button onClick={() => { newCampaign(); setBriefOpen(true); }} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"><Plus className="h-3.5 w-3.5" /> New</button>
           </>
         );
         return headerSlot ? createPortal(header, headerSlot) : (
@@ -665,6 +671,53 @@ export function FocusedAdBuilder({ refreshKey, onAsk, onOpenView, agentBusy, can
         </div>
         <span className="pointer-events-none absolute bottom-3 right-3.5 inline-flex items-center gap-1.5 rounded-full border border-border bg-card/80 px-2.5 py-1 text-[10.5px] text-muted-foreground"><ArrowLeftRight className="h-3 w-3" /> drag a node&apos;s header to reorder · scroll sideways</span>
       </div>
+
+      {briefOpen && (
+        <div className="absolute inset-0 z-40">
+          <button aria-label="Close" className="absolute inset-0 bg-black/50" onClick={() => setBriefOpen(false)} />
+          <div className="absolute inset-x-3 bottom-3 top-10 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+            <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-border" />
+            <div className="flex items-center gap-2 px-4 py-3">
+              <span className="rounded-full bg-brand-500/15 px-2 py-0.5 text-[9px] font-extrabold tracking-wider text-brand-500">BRIEF</span>
+              <h3 className="text-[14px] font-bold">New ad campaign</h3>
+              <button onClick={() => setBriefOpen(false)} className="ml-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><X className="h-3.5 w-3.5" /></button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+              <div>
+                <div className="mb-1.5 text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">Campaign name</div>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Summer launch" className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
+              </div>
+              <div>
+                <div className="mb-1.5 text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">What are you advertising?</div>
+                <div className="mb-2 inline-flex rounded-lg border border-border p-0.5">
+                  {(["product", "link", "describe"] as SourceMode[]).map((m) => (
+                    <button key={m} onClick={() => setSource(m)} className={cn("rounded-md px-2.5 py-1 text-[11.5px] font-semibold", source === m ? "bg-brand-500/15 text-brand-400" : "text-muted-foreground")}>{m === "product" ? "Store product" : m === "link" ? "A link" : "Describe it"}</button>
+                  ))}
+                </div>
+                {source === "product" && (
+                  <button onClick={() => setPickerOpen(true)} className="flex w-full items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-left text-[12.5px] hover:border-brand-500"><Package className="h-4 w-4 text-brand-500" /><span className="flex-1 truncate">{productId ? productById(productId)?.name : "Pick a product"}</span><ArrowRight className="h-4 w-4 text-muted-foreground" /></button>
+                )}
+                {source === "link" && <input value={destinationUrl} onChange={(e) => setDestinationUrl(e.target.value)} placeholder="https://your-store.com/product" className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />}
+                {source === "describe" && <textarea value={describeText} onChange={(e) => setDescribeText(e.target.value)} rows={2} placeholder="Describe what you're promoting…" className="w-full resize-y rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="mb-1.5 text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">Goal</div>
+                  <select value={goal} onChange={(e) => setGoal(e.target.value)} className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500">{OBJECTIVES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+                </div>
+                <div>
+                  <div className="mb-1.5 text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">Budget / day (credits)</div>
+                  <input value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between border-t border-border px-4 py-3">
+              <span className="text-[11px] text-muted-foreground">Nothing launches until you review on the canvas.</span>
+              <button onClick={() => setBriefOpen(false)} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-1.5 text-[12.5px] font-bold text-white"><Check className="h-3.5 w-3.5" /> Build the campaign</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {pickerOpen && <ProductPicker products={products} selected={productId} onPick={pickProduct} onClose={() => setPickerOpen(false)} />}
 
