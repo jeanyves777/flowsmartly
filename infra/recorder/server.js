@@ -154,6 +154,52 @@ async function stopJob(sessionId) {
   }
 }
 
+/**
+ * Self-test the WHOLE pipeline without a live room: open a test page (animated gradient + a 440 Hz
+ * WebAudio tone), screen+audio record ~7s, upload to S3, return the public URL. Proves Xvfb →
+ * Chrome → ffmpeg(x11grab+pulse) → S3 all work at the configured quality. Used by the admin panel.
+ */
+async function runSelfTest() {
+  const display = `:${nextDisplay++}`;
+  const filePath = path.join(os.tmpdir(), `selftest-${process.pid}-${Date.now()}.mp4`);
+  let xvfb = null, browser = null;
+  try {
+    xvfb = spawn("Xvfb", [display, "-screen", "0", `${W}x${H}x24`, "-nolisten", "tcp"], { stdio: "ignore" });
+    await sleep(1200);
+    browser = await puppeteer.launch({
+      headless: false, executablePath: CHROME_PATH,
+      args: [`--display=${display}`, `--window-size=${W},${H}`, "--kiosk", "--start-fullscreen", "--autoplay-policy=no-user-gesture-required", "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--force-device-scale-factor=1", "--hide-scrollbars", "--mute-audio=false"],
+      env: { ...process.env, DISPLAY: display }, defaultViewport: { width: W, height: H },
+    });
+    const page = (await browser.pages())[0] || (await browser.newPage());
+    await page.setViewport({ width: W, height: H });
+    const html = "data:text/html," + encodeURIComponent(`<!doctype html><html><body style="margin:0;height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,#141024,#3a2f6b);color:#fff;font:800 4.5vw system-ui,sans-serif;text-align:center"><div>FlowSmartly recorder self-test<div id=t style="font:600 2vw system-ui;opacity:.8;margin-top:1vw"></div></div><script>const c=new(window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator(),g=c.createGain();g.gain.value=.04;o.frequency.value=440;o.connect(g).connect(c.destination);o.start();c.resume&&c.resume();let n=0;setInterval(()=>{document.getElementById('t').textContent=(++n)+'s · ${W}×${H} · audio+video';},1000);</script></body></html>`);
+    await page.goto(html, { waitUntil: "load", timeout: 20000 });
+    try { await page.mouse.click(Math.floor(W / 2), Math.floor(H / 2)); } catch {}
+    await sleep(800);
+    const ff = spawn("ffmpeg", [
+      "-y", "-thread_queue_size", "1024",
+      "-f", "x11grab", "-draw_mouse", "0", "-video_size", `${W}x${H}`, "-framerate", String(FPS), "-i", `${display}.0`,
+      "-f", "pulse", "-thread_queue_size", "1024", "-i", process.env.PULSE_SOURCE || "default",
+      "-t", "7",
+      "-c:v", "libx264", "-preset", V_PRESET, "-crf", V_CRF, "-pix_fmt", "yuv420p", "-g", String(FPS * 2), "-profile:v", "high",
+      "-c:a", "aac", "-b:a", A_BITRATE, "-ar", "48000", "-ac", "2",
+      "-movflags", "+frag_keyframe+empty_moov+faststart", "-f", "mp4", filePath,
+    ], { stdio: ["ignore", "ignore", "ignore"] });
+    await Promise.race([once(ff, "close"), sleep(25000)]);
+    try { ff.kill("SIGKILL"); } catch {}
+  } finally {
+    try { await browser?.close(); } catch {}
+    try { xvfb?.kill("SIGKILL"); } catch {}
+  }
+  const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+  if (!stat || stat.size < 2048) throw new Error("self-test produced an empty file (check Xvfb/ffmpeg/Pulse)");
+  const key = `training/_selftest/${Date.now()}.mp4`;
+  await s3.send(new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, Body: fs.readFileSync(filePath), ContentType: "video/mp4" }));
+  try { fs.unlinkSync(filePath); } catch {}
+  return { url: `${S3_PUBLIC_URL}/${key}`, sizeBytes: stat.size, resolution: `${W}x${H}`, fps: FPS };
+}
+
 async function teardown(job) {
   try { await job.browser?.close(); } catch {}
   try { job.ffmpeg?.kill("SIGKILL"); } catch {}
@@ -166,9 +212,14 @@ function readBody(req) {
 
 const server = http.createServer(async (req, res) => {
   const json = (code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
-  if (req.url === "/health") return json(200, { ok: true, jobs: jobs.size });
+  if (req.url === "/health") return json(200, { ok: true, jobs: jobs.size, sessions: [...jobs.keys()], resolution: `${W}x${H}`, fps: FPS });
   if (req.method !== "POST") return json(404, { error: "not found" });
   if (req.headers["x-recorder-secret"] !== SECRET) return json(401, { error: "unauthorized" });
+  // pipeline self-test — no sessionId, exercises Xvfb+Chrome+ffmpeg+S3 end to end
+  if (req.url === "/selftest") {
+    try { const r = await runSelfTest(); return json(200, { ok: true, ...r }); }
+    catch (e) { console.error("[recorder] selftest failed:", e.message); return json(500, { ok: false, error: String(e.message || e) }); }
+  }
   const body = await readBody(req);
   const sessionId = String(body.sessionId || "");
   if (!sessionId) return json(400, { error: "sessionId required" });
