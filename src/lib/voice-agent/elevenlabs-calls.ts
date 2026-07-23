@@ -126,6 +126,8 @@ async function createFromConversation(
     if (r.success) creditsCharged = amount;
   }
 
+  const direction = (c.direction || phone?.direction || "inbound").toLowerCase().includes("out") ? "outbound" : "inbound";
+
   await prisma.voiceCall.create({
     data: {
       userId: agent.userId,
@@ -133,7 +135,7 @@ async function createFromConversation(
       phoneNumberId: agent.phoneNumberId || null,
       elevenConversationId: c.conversation_id,
       channel,
-      direction: (c.direction || phone?.direction || "inbound").toLowerCase().includes("out") ? "outbound" : "inbound",
+      direction,
       fromE164,
       toE164: phone?.agent_number || "",
       status: "completed",
@@ -155,7 +157,7 @@ async function createFromConversation(
   }
 
   // After-the-call routing — fire the agent's follow-up rules once, on import.
-  await runFollowUps(agent, { fromE164, outcome, channel }).catch((e) =>
+  await runFollowUps(agent, { fromE164, outcome, channel, direction }).catch((e) =>
     console.error("[elevenlabs] follow-ups failed:", e),
   );
 }

@@ -17,16 +17,20 @@ import {
   isConvaiEnabled,
 } from "@/lib/voice-agent/elevenlabs-convai";
 
-/** The Telnyx SIP trunk config for EL, from env. Null until the carrier is set up. */
+/** The Telnyx SIP trunk config for EL, from env. Null until the carrier is set up.
+ *  Shapes feed EL's `inbound_trunk_config`/`outbound_trunk_config`: inbound uses
+ *  IP auth (allow any source — Telnyx fronts it via the FQDN connection), outbound
+ *  authenticates with the Telnyx credential-connection creds nested under
+ *  `credentials`. Proven live 2026-07-23 (transport tcp against sip.telnyx.com). */
 function telnyxTrunk(): { inbound: Record<string, unknown>; outbound: Record<string, unknown> } | null {
   const uri = process.env.TELNYX_SIP_TERMINATION_URI; // e.g. sip.telnyx.com
   if (!uri) return null;
   const username = process.env.TELNYX_SIP_USERNAME || "";
   const password = process.env.TELNYX_SIP_PASSWORD || "";
-  const cred = username ? { username, password } : {};
+  const credentials = username ? { credentials: { username, password } } : {};
   return {
-    inbound: { ...cred },
-    outbound: { address: uri, transport: "tls", ...cred },
+    inbound: { allowed_addresses: ["0.0.0.0/0"], media_encryption: "allowed" },
+    outbound: { address: uri, transport: "tcp", media_encryption: "allowed", ...credentials },
   };
 }
 
