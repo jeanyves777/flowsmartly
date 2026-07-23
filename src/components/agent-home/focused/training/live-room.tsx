@@ -775,7 +775,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         {/* stage — the inner ref measures the space, the board fills it. min-h-0 lets
             it SHRINK so the source bar + lesson card + control bar always stay on
             screen (no page scroll to reach the top tabs or the bottom menu). */}
-        <div ref={spotWrapRef} className={cn("relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0e0e13]", recorder ? "p-0" : "p-1 sm:p-2")}>
+        <div ref={spotWrapRef} className={cn("relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background", recorder ? "p-0" : "p-1 sm:p-2")}>
           {/* spotlight — a big tile everyone sees; the host can DRAG it anywhere */}
           {spotlight ? (
             <div className="pointer-events-none absolute z-[14] w-[38%] max-w-[240px]" style={spotPos ? { left: spotPos.x, top: spotPos.y } : { right: 12, top: 12 }}>
@@ -903,7 +903,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           {/* ---- presentation control bar — BELOW the stage, host only (keeps the
                  presentation screen clean; attendees don't drive the deck) ---- */}
           {paged && material && host && !recorder ? (
-            <div className="relative flex shrink-0 items-center justify-center bg-[#0e0e13] px-3 py-2.5">
+            <div className="relative flex shrink-0 items-center justify-center bg-background px-3 py-2.5">
               {navOpen && deckSlides ? (
                 <div className="absolute bottom-full left-1/2 z-[7] mb-2 w-[min(92%,640px)] -translate-x-1/2 rounded-2xl border border-border bg-background/95 p-2 shadow-2xl backdrop-blur">
                   <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:thin]">
@@ -916,7 +916,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                   </div>
                 </div>
               ) : null}
-              <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-[#181820] px-3 py-1.5 text-foreground shadow-lg">
+              <div className="flex flex-wrap items-center justify-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-foreground shadow-lg">
               {deckSlides ? (
                 <button onClick={() => setNavOpen((v) => !v)} title="All slides" className={cn("grid h-[26px] w-[26px] place-items-center rounded-lg border transition", navOpen ? "border-brand-500 text-brand-400" : "border-border text-muted-foreground hover:border-brand-500")}>
                   <LayoutGrid className="h-3.5 w-3.5" />
@@ -1223,7 +1223,7 @@ function ToolRail({ tool, setTool, shapeKind, setShapeKind, ink, setInk, iCanDra
       <span className="my-1.5 h-px w-5 bg-border" />
       <div className={cn("flex flex-col gap-1", compact && "gap-0.5")}>
         {INKS.map((c) => (
-          <button key={c} onClick={() => setInk(c)} className={cn("h-[18px] w-[18px] rounded-full border-2", ink === c ? "border-white" : "border-transparent")} style={{ background: c }} title="Ink colour" />
+          <button key={c} onClick={() => setInk(c)} className={cn("h-[18px] w-[18px] rounded-full border-2", ink === c ? "border-foreground" : "border-transparent")} style={{ background: c }} title="Ink colour" />
         ))}
       </div>
       <span className="my-1.5 h-px w-5 bg-border" />
