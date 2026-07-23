@@ -133,9 +133,31 @@ async function prependSilence(buffer: Buffer, ms: number): Promise<Buffer> {
   }
 }
 
-/** Synthesize one script in the presenter's voice. Tries the cloned voice first, but a
- *  clone failure must NEVER block narration — it falls back to a preset voice so slides
- *  still get audio (`usedClone` records which path actually produced the sound). */
+/** Retry a TTS call through transient failures (ElevenLabs 429 / 5xx / network blips are common
+ *  when a whole deck is narrated in rapid concurrent batches). TTS is idempotent, so retrying is
+ *  safe; a few jittered exponential backoffs turn a momentary rate-limit into a short pause instead
+ *  of a dropped-to-a-different-voice slide. [[voice-agent-elevenlabs-migration]] */
+async function withVoiceRetry(fn: () => Promise<Buffer>, label: string, attempts = 4): Promise<Buffer> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); }
+    catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) {
+        const wait = 700 * 2 ** i + Math.floor(Math.random() * 400);
+        console.warn(`[narration] ${label} attempt ${i + 1}/${attempts} failed (${e instanceof Error ? e.message : e}); retrying in ${wait}ms`);
+        await new Promise((r) => setTimeout(r, wait));
+      }
+    }
+  }
+  throw lastErr;
+}
+
+/** Synthesize one script in the presenter's voice. When a specific voice is SELECTED it is locked
+ *  in: the call is retried through transient errors and, if it still fails, the slide THROWS (so it
+ *  is left un-narrated for a re-run) rather than silently switching to a different preset voice —
+ *  a voice change mid-deck breaks the narrator's identity. The generic preset is used ONLY when no
+ *  voice was selected at all (a consistent default for the whole deck). `usedClone` records the path. */
 export async function synthesize(text: string, voice: ClonedVoice | null, pace: number, style: string): Promise<{ buffer: Buffer; durationMs: number; usedClone: boolean }> {
   const words = text.split(/\s+/).filter(Boolean).length;
   // Speed is untouched here on purpose — the natural feel comes from PAUSES, not from slowing
@@ -149,15 +171,18 @@ export async function synthesize(text: string, voice: ClonedVoice | null, pace: 
   // Prepend the settling silence and fold it into the reported duration (once, here).
   const finish = async (raw: Buffer, baseMs: number, usedClone: boolean) =>
     ({ buffer: await prependSilence(raw, LEAD_SILENCE_MS), durationMs: baseMs + LEAD_SILENCE_MS, usedClone });
+  // A SELECTED voice is locked in — retried through transient errors, and if it still fails the
+  // call THROWS (caller skips the slide) instead of falling back to a DIFFERENT voice. This is
+  // what keeps the narrator's identity consistent across every slide and every re-generation.
   if (voice?.elevenLabsVoiceId) {
-    try { return await finish(await generateWithElevenLabs({ text: elevenText, voiceId: voice.elevenLabsVoiceId, speed }), fallbackMs, true); }
-    catch (e) { console.error("[narration] ElevenLabs voice failed, falling back to preset:", e instanceof Error ? e.message : e); }
+    const voiceId = voice.elevenLabsVoiceId;
+    return await finish(await withVoiceRetry(() => generateWithElevenLabs({ text: elevenText, voiceId, speed }), "ElevenLabs"), fallbackMs, true);
   }
   if (voice?.openaiVoiceId) {
-    try { return await finish(await generateWithClonedVoice({ text: plainText, voiceId: voice.openaiVoiceId, speed }), fallbackMs, true); }
-    catch (e) { console.error("[narration] OpenAI voice failed, falling back to preset:", e instanceof Error ? e.message : e); }
+    const voiceId = voice.openaiVoiceId;
+    return await finish(await withVoiceRetry(() => generateWithClonedVoice({ text: plainText, voiceId, speed }), "OpenAI"), fallbackMs, true);
   }
-  // preset voice — always available (never lets narration fail outright)
+  // No voice selected → the generic preset, used consistently for the WHOLE deck.
   const r = await generateVoice({ text: plainText, gender: "male", accent: "american", style: STYLE_MAP[style] ?? "conversational", speed });
   return await finish(r.audioBuffer, r.estimatedDurationMs || fallbackMs, false);
 }

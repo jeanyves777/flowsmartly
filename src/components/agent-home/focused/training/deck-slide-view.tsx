@@ -143,11 +143,10 @@ function HandPointSteps({ hostRef, reveal }: { hostRef: RefObject<HTMLDivElement
   );
 }
 
-/** A natural "you are here" marker that follows the CURRENT bullet as the narration advances: a
- *  soft accent pill lifts the just-revealed item ([data-step="{reveal-1}"]) forward and a
- *  highlighter underline sweeps across it, re-drawing each time the reveal moves. Reads on light
- *  AND dark slides, and is part of the slide itself (not a chrome overlay). It stays in step with
- *  the voice because `reveal` is driven by the narration audio. [[training-presentation-animation]] */
+/** A simple "you are here" underline that follows the CURRENT bullet as the narration advances: a
+ *  thin line UNDER the just-revealed item ([data-step="{reveal-1}"]) that sweeps in and moves to
+ *  each new point. NO fill and nothing over the text — it never covers the words. Stays in step
+ *  with the voice because `reveal` is driven by the narration audio. [[training-presentation-animation]] */
 function ActiveBulletMark({ hostRef, reveal, ink }: { hostRef: RefObject<HTMLDivElement | null>; reveal?: number; ink?: string }) {
   const [m, setM] = useState<{ W: number; H: number; x: number; y: number; w: number; h: number } | null>(null);
   const [at, setAt] = useState(-1);
@@ -168,18 +167,14 @@ function ActiveBulletMark({ hostRef, reveal, ink }: { hostRef: RefObject<HTMLDiv
   }, [reveal, hostRef]);
   if (!m) return null;
   const color = ink || "var(--sat)";
-  const padX = Math.max(6, m.h * 0.26), padY = Math.max(4, m.h * 0.2);
-  const rx = Math.min(14, m.h * 0.4);
-  const uy = m.y + m.h + Math.min(6, m.h * 0.16); // highlighter underline sits just below the text
+  const inset = Math.min(12, m.w * 0.02);
+  const uy = m.y + m.h - Math.max(2, m.h * 0.05); // a thin line just inside the bottom edge
+  const sw = Math.max(2, Math.min(4, m.h * 0.045));
   return (
     <svg viewBox={`0 0 ${m.W} ${m.H}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 z-[4] h-full w-full">
-      <style>{`@keyframes abm-in{from{opacity:0}to{opacity:1}}@keyframes abm-draw{to{stroke-dashoffset:0}}`}</style>
-      {/* keyed by the step so the pill + underline re-draw as they move to the new current bullet */}
-      <g key={at}>
-        <rect x={m.x - padX} y={m.y - padY} width={m.w + padX * 2} height={m.h + padY * 2} rx={rx} fill={color} opacity={0.1} style={{ animation: "abm-in .28s ease both" } as CSSProperties} />
-        <rect x={m.x - padX} y={m.y - padY} width={m.w + padX * 2} height={m.h + padY * 2} rx={rx} fill="none" stroke={color} strokeWidth={1.5} opacity={0.3} style={{ animation: "abm-in .28s ease both" } as CSSProperties} />
-        <path d={`M ${m.x} ${uy} Q ${m.x + m.w / 2} ${uy + Math.min(3, m.h * 0.08)} ${m.x + m.w} ${uy}`} fill="none" stroke={color} strokeWidth={Math.max(3, m.h * 0.13)} strokeLinecap="round" opacity={0.7} pathLength={1} strokeDasharray={1} strokeDashoffset={1} style={{ animation: "abm-draw .5s ease-out .1s forwards" } as CSSProperties} />
-      </g>
+      <style>{`@keyframes abm-draw{to{stroke-dashoffset:0}}`}</style>
+      {/* keyed by the step so the underline re-draws (sweeps) to the new current bullet */}
+      <line key={at} x1={m.x + inset} y1={uy} x2={m.x + m.w - inset} y2={uy} stroke={color} strokeWidth={sw} strokeLinecap="round" opacity={0.8} pathLength={1} strokeDasharray={1} strokeDashoffset={1} style={{ animation: "abm-draw .4s ease-out forwards" } as CSSProperties} />
     </svg>
   );
 }
@@ -431,7 +426,14 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
     if (i < 0) return t;
     hlUsed = true;
     const on = annStyle === "highlight";
-    return <>{t.slice(0, i)}<span data-hl className={on ? "rounded-[.15em] bg-cyan-300/40 box-decoration-clone px-[.12em] text-[rgb(var(--sfg))]" : undefined}>{t.slice(i, i + hlPhrase.length)}</span>{t.slice(i + hlPhrase.length)}</>;
+    // Wrap the whole thing in ONE inline span. A bare fragment here would spill its 3 pieces
+    // (before / marked / after) as SEPARATE flex items when the bullet row is a flexbox — which
+    // split the text into columns. `min-w-0` lets it wrap like the plain-text bullets.
+    return (
+      <span className="min-w-0">
+        {t.slice(0, i)}<span data-hl className={on ? "rounded-[.15em] bg-cyan-300/40 box-decoration-clone px-[.12em] text-[rgb(var(--sfg))]" : undefined}>{t.slice(i, i + hlPhrase.length)}</span>{t.slice(i + hlPhrase.length)}
+      </span>
+    );
   };
   const inkColor = hand?.color === "brand" ? "var(--sa)" : hand?.color;
   // "point" steps down the list (one gesture per revealed item); the other marks target a keyword.
