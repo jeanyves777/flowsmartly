@@ -7,6 +7,7 @@ import {
   createA2pCampaign,
   submitA2p10DlcRegistration,
   generateMissingComplianceData,
+  assignNumberToCampaign,
 } from "@/lib/telnyx/numbers";
 import {
   notifyA2pRegistrationSubmitted,
@@ -199,6 +200,14 @@ export async function GET() {
     const isApproved =
       brandStatus === "APPROVED" &&
       (campaignStatus === "VERIFIED" || campaignStatus === "SUCCESSFUL");
+
+    // Auto-attach the number to the (default or own) campaign once it's approved.
+    // Telnyx rejects assignment until the campaign is carrier-approved, so we
+    // retry on each status poll — idempotent, fire-and-forget.
+    if ((campaignStatus === "VERIFIED" || campaignStatus === "SUCCESSFUL") && config.smsPhoneNumber && config.smsA2pCampaignSid) {
+      void assignNumberToCampaign(config.smsPhoneNumber, config.smsA2pCampaignSid)
+        .catch((e) => console.warn("[A2P] auto-assign on approval failed:", e));
+    }
 
     return NextResponse.json({
       success: true,
