@@ -120,13 +120,14 @@ export function buildElevenLabsAgent(row: Record<string, unknown>): ConvaiAgentP
         similarity_boost: 0.75,
       },
     },
-    // Allow a per-call first_message override so an OUTBOUND call can open with
-    // its own greeting ("Hi, this is … calling") instead of the inbound
-    // "Thanks for calling …". EL only honours the override when it's enabled here.
+    // Allow per-call overrides so an OUTBOUND call can (a) open with its own
+    // greeting instead of the inbound "Thanks for calling …", and (b) run a
+    // prompt that knows the agent is the CALLER with a goal — not a receptionist
+    // waiting to help. EL only honours overrides that are enabled here.
     platform_settings: {
       overrides: {
         conversation_config_override: {
-          agent: { first_message: true },
+          agent: { first_message: true, prompt: { prompt: true } },
         },
       },
     },

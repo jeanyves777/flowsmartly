@@ -1307,6 +1307,7 @@ function DialOut({ agent, onRefresh }: {
 }) {
   const { toast } = useToast();
   const [to, setTo] = useState("");
+  const [purpose, setPurpose] = useState("");
   const [calling, setCalling] = useState(false);
 
   if (agent.status !== "LIVE" || !agent.number?.e164) return null;
@@ -1323,11 +1324,12 @@ function DialOut({ agent, onRefresh }: {
       const j = await fetch(`/api/voice-agent/agents/${agent.id}/outbound`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ toNumber: e164 }),
+        body: JSON.stringify({ toNumber: e164, purpose: purpose.trim() }),
       }).then((r) => r.json());
       if (j?.success) {
         toast({ title: `Calling ${fmtNumber(e164)}…`, description: "The agent is dialing now — it'll appear in the log once it connects." });
         setTo("");
+        setPurpose("");
         void onRefresh();
       } else {
         toast({ title: j?.error?.message || "Could not place the call", variant: "destructive" });
@@ -1340,27 +1342,37 @@ function DialOut({ agent, onRefresh }: {
   };
 
   return (
-    <div className="mb-3.5 flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5">
-      <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-violet-500/15 text-violet-400">
-        <PhoneOutgoing className="h-4 w-4" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Place a call</div>
-        <input
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") void place(); }}
-          placeholder="+1 415 555 0123"
-          inputMode="tel"
-          className="w-full bg-transparent text-[13.5px] font-semibold outline-none placeholder:text-muted-foreground/50"
-        />
+    <div className="mb-3.5 rounded-xl border border-border bg-card p-2.5">
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-violet-500/15 text-violet-400">
+          <PhoneOutgoing className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Place a call</div>
+          <input
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void place(); }}
+            placeholder="+1 415 555 0123"
+            inputMode="tel"
+            className="w-full bg-transparent text-[13.5px] font-semibold outline-none placeholder:text-muted-foreground/50"
+          />
+        </div>
+        <button
+          onClick={() => void place()}
+          disabled={calling || !to.trim()}
+          className="inline-flex flex-none items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12px] font-bold text-white disabled:opacity-50">
+          {calling ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Dialing…</> : <><PhoneOutgoing className="h-3.5 w-3.5" /> Call</>}
+        </button>
       </div>
-      <button
-        onClick={() => void place()}
-        disabled={calling || !to.trim()}
-        className="inline-flex flex-none items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12px] font-bold text-white disabled:opacity-50">
-        {calling ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Dialing…</> : <><PhoneOutgoing className="h-3.5 w-3.5" /> Call</>}
-      </button>
+      <input
+        value={purpose}
+        onChange={(e) => setPurpose(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") void place(); }}
+        placeholder="Why are you calling? e.g. confirm tomorrow's appointment, follow up on their quote"
+        className="mt-2 w-full rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-[11.5px] outline-none focus:border-brand-500 placeholder:text-muted-foreground/50"
+      />
+      <p className="mt-1 pl-0.5 text-[9px] text-muted-foreground">The agent opens with your outbound greeting, then leads the call toward this goal — it won&apos;t ask &quot;how can I help you&quot;.</p>
     </div>
   );
 }

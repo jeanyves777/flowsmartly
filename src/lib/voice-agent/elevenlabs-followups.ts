@@ -59,7 +59,9 @@ export async function runFollowUps(
         // itself missed can't chain into an endless call loop.
         if (call.direction === "outbound") continue;
         if (!isDialable(to)) continue;
-        const r = await placeOutboundCall(agent.id, to.startsWith("+") ? to : `+${to}`);
+        const r = await placeOutboundCall(agent.id, to.startsWith("+") ? to : `+${to}`, {
+          purpose: rule.message?.trim() || `follow up on their recent call${agent.name ? ` with ${agent.name}` : ""}`,
+        });
         if (!r.ok) console.error("[voice followups] call-back failed:", r.error);
         continue;
       }

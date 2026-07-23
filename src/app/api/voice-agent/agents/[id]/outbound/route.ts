@@ -21,11 +21,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const body = await request.json().catch(() => ({}));
   const to = String((body as { toNumber?: string }).toNumber || "").trim();
+  const purpose = String((body as { purpose?: string }).purpose || "").trim();
   if (!/^\+[1-9]\d{7,14}$/.test(to)) {
     return NextResponse.json({ success: false, error: { message: "Enter the number to call in full international format." } }, { status: 400 });
   }
 
-  const r = await placeOutboundCall(id, to);
+  const r = await placeOutboundCall(id, to, { purpose });
   if (!r.ok) return NextResponse.json({ success: false, error: { message: r.error } }, { status: 400 });
   return NextResponse.json({ success: true, conversationId: r.conversationId });
 }
