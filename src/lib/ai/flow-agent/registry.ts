@@ -122,6 +122,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   const { cloneAvatar } = await import("./tools/clone-avatar");
   const { listContacts, addContact, updateContact, deleteContact } = await import("./tools/contact-tools");
   const { createEmailCampaign } = await import("./tools/create-email-campaign");
+  const { createSmsCampaign } = await import("./tools/create-sms-campaign");
   const { createAutomation } = await import("./tools/create-automation");
   const { listCampaigns, listAutomations } = await import("./tools/list-tools");
   const { sendEmailCampaign } = await import("./tools/send-email-campaign");
@@ -249,6 +250,7 @@ export async function ensureToolsRegistered(): Promise<void> {
   flowAgentTools.register(updateContact);
   flowAgentTools.register(deleteContact);
   flowAgentTools.register(createEmailCampaign);
+  flowAgentTools.register(createSmsCampaign);
   flowAgentTools.register(createAutomation);
   flowAgentTools.register(listCampaigns);
   flowAgentTools.register(listAutomations);

@@ -10,7 +10,7 @@ import {
   getEmailErrorMessage,
 } from "@/lib/email/marketing-sender";
 import { applyEmailTracking } from "@/lib/email/tracking";
-import { sendSMS, formatPhoneNumber } from "@/lib/twilio";
+import { sendSMS, formatPhoneNumber } from "@/lib/telnyx/sms";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
