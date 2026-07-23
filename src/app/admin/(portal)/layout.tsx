@@ -121,6 +121,7 @@ const serviceItems: NavItem[] = [
   { href: "/admin/listsmartly", icon: List, label: "ListSmartly", permission: "VIEW_CONTENT" },
   { href: "/admin/proposal-visuals", icon: Images, label: "Proposal Visuals", permission: "VIEW_CONTENT" },
   { href: "/admin/voice-agents", icon: Phone, label: "Phone Agents", permission: "VIEW_CONTENT" },
+  { href: "/admin/training-recordings", icon: Video, label: "Training Recordings", permission: "VIEW_CONTENT" },
 ];
 
 // Marketing section

@@ -64,6 +64,35 @@ export async function startRoomRecording(sessionId: string): Promise<void> {
   }
 }
 
+/** Recorder service health (for the admin panel). Never throws. */
+export async function recorderHealth(): Promise<{ configured: boolean; ok: boolean; jobs?: number; sessions?: string[]; resolution?: string; fps?: number; error?: string }> {
+  if (!recorderConfigured()) return { configured: false, ok: false, error: "TRAINING_RECORDER_URL not set" };
+  try {
+    const r = await fetch(`${process.env.TRAINING_RECORDER_URL}/health`, { signal: AbortSignal.timeout(5000) });
+    const j = (await r.json()) as { ok?: boolean; jobs?: number; sessions?: string[]; resolution?: string; fps?: number };
+    return { configured: true, ok: !!j.ok, jobs: j.jobs, sessions: j.sessions, resolution: j.resolution, fps: j.fps };
+  } catch (e) {
+    return { configured: true, ok: false, error: e instanceof Error ? e.message : "unreachable" };
+  }
+}
+
+/** Run the recorder's end-to-end self-test (records a test clip → S3). For the admin panel. */
+export async function recorderSelfTest(): Promise<{ ok: boolean; url?: string; sizeBytes?: number; resolution?: string; error?: string }> {
+  if (!recorderConfigured()) return { ok: false, error: "TRAINING_RECORDER_URL not set" };
+  try {
+    const r = await fetch(`${process.env.TRAINING_RECORDER_URL}/selftest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-recorder-secret": process.env.TRAINING_RECORDER_SECRET! },
+      body: "{}",
+      signal: AbortSignal.timeout(90000),
+    });
+    const j = (await r.json()) as { ok?: boolean; url?: string; sizeBytes?: number; resolution?: string; error?: string };
+    return { ok: !!j.ok, url: j.url, sizeBytes: j.sizeBytes, resolution: j.resolution, error: j.error };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "unreachable" };
+  }
+}
+
 /** Ask the recorder service to STOP + finalize (best-effort; no-op if unconfigured). */
 export async function stopRoomRecording(sessionId: string): Promise<void> {
   if (!recorderConfigured()) return;
