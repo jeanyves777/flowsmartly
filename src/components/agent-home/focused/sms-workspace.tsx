@@ -34,7 +34,7 @@ interface TollfreeStatus { hasVerification: boolean; status?: string | null; rej
 type NodeType = "audience" | "message" | "wait" | "condition" | "action" | "send";
 interface FlowNode {
   id: string; type: NodeType; x: number; y: number;
-  segment?: string; skipOptedOut?: boolean; dedupe?: boolean;
+  segment?: string; contactListId?: string; skipOptedOut?: boolean; dedupe?: boolean;
   text?: string; personalize?: boolean; generating?: boolean;
   amount?: string; unit?: string;
   on?: string;
@@ -42,6 +42,7 @@ interface FlowNode {
   schedule?: string; throttle?: string; quietHours?: boolean;
 }
 interface FlowLink { from: string; to: string; branch: "main" | "yes" | "no"; }
+interface ContactList { id: string; name: string; smsEligibleCount?: number; activeCount?: number; }
 
 const NODE_META: Record<NodeType, { icon: ElementType; title: string; tag: string; tone: string; tagTone: string }> = {
   audience:  { icon: UserRound,     title: "Audience",  tag: "WHO",      tone: "bg-violet-500/15 text-violet-400",  tagTone: "bg-violet-500/15 text-violet-400" },
@@ -156,6 +157,9 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
   const wireRef = useRef<SVGSVGElement>(null);
   const pan = useCanvasPan(scrollRef);
   const seq = useRef(0);
+  const [lists, setLists] = useState<ContactList[]>([]);
+  const [launching, setLaunching] = useState(false);
+  const [launchMsg, setLaunchMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // restore/save the flow locally so a build survives a reload
   useEffect(() => {
@@ -186,12 +190,16 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
       if (tj?.success && tj.data) setTollfree(tj.data as TollfreeStatus);
     } finally { setRegLoading(false); }
   }, []);
+  const loadLists = useCallback(async () => {
+    const j = await fetch("/api/contact-lists").then((r) => r.json()).catch(() => null);
+    if (j?.success && j.data?.lists) setLists(j.data.lists as ContactList[]);
+  }, []);
 
   useEffect(() => {
     let alive = true;
-    Promise.all([loadCampaigns(), loadNumber(), loadRegistration()]).finally(() => { if (alive) setLoading(false); });
+    Promise.all([loadCampaigns(), loadNumber(), loadRegistration(), loadLists()]).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [loadCampaigns, loadNumber, loadRegistration, refreshKey]);
+  }, [loadCampaigns, loadNumber, loadRegistration, loadLists, refreshKey]);
   useEffect(() => {
     if (loading) return; let alive = true; setListLoading(true);
     loadCampaigns().finally(() => { if (alive) setListLoading(false); });
@@ -326,6 +334,42 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
     patchNode(id, { text, generating: false });
   }, [patchNode]);
 
+  // ── launch / save / test — turns the flow into a real Campaign (linear path) ──
+  const launchFlow = useCallback(async () => {
+    setLaunchMsg(null);
+    const content = (nodes.find((n) => n.type === "message")?.text || "").trim();
+    const contactListId = nodes.find((n) => n.type === "audience")?.contactListId;
+    if (!content) { setLaunchMsg({ ok: false, text: "Add a message before launching." }); return; }
+    if (!contactListId) { setLaunchMsg({ ok: false, text: "Pick an audience list on the Audience node first." }); return; }
+    setLaunching(true);
+    const create = await fetch("/api/campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: content.slice(0, 40).replace(/\n/g, " ") || "SMS blast", type: "SMS", content, contactListId, sectionsJson: JSON.stringify({ v: 1, nodes, links }) }) }).then((r) => r.json()).catch(() => null);
+    if (!create?.success || !create.data?.campaign?.id) { setLaunchMsg({ ok: false, text: create?.error?.message || "Could not create the blast." }); setLaunching(false); return; }
+    const send = await fetch(`/api/campaigns/${create.data.campaign.id}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send" }) }).then((r) => r.json()).catch(() => null);
+    setLaunchMsg(send?.success ? { ok: true, text: "Blast launched — sending now. Track it in Back office." } : { ok: false, text: send?.error?.message || "Saved as a draft, but sending is blocked until carrier registration clears." });
+    await load(); setLaunching(false);
+  }, [nodes, links, load]);
+  const saveDraft = useCallback(async () => {
+    setLaunchMsg(null);
+    const content = (nodes.find((n) => n.type === "message")?.text || "").trim();
+    if (!content) { setLaunchMsg({ ok: false, text: "Add a message before saving." }); return; }
+    const contactListId = nodes.find((n) => n.type === "audience")?.contactListId;
+    setLaunching(true);
+    const create = await fetch("/api/campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: content.slice(0, 40).replace(/\n/g, " ") || "SMS blast", type: "SMS", content, contactListId, sectionsJson: JSON.stringify({ v: 1, nodes, links }) }) }).then((r) => r.json()).catch(() => null);
+    setLaunchMsg(create?.success ? { ok: true, text: "Saved as a draft in Back office." } : { ok: false, text: create?.error?.message || "Could not save." });
+    await load(); setLaunching(false);
+  }, [nodes, links, load]);
+  const testToMe = useCallback(async () => {
+    setLaunchMsg(null);
+    const content = (nodes.find((n) => n.type === "message")?.text || "").trim();
+    if (!content) { setLaunchMsg({ ok: false, text: "Add a message to test." }); return; }
+    const to = window.prompt("Send a test SMS to which number? (E.164, e.g. +14135551234)", "");
+    if (!to) return;
+    setLaunching(true);
+    const j = await fetch("/api/sms/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ to, body: content.replace(/\{first_name\}/g, "there") }) }).then((r) => r.json()).catch(() => null);
+    setLaunchMsg(j?.success ? { ok: true, text: `Test sent to ${to}.` } : { ok: false, text: j?.error?.message || "Test send failed." });
+    setLaunching(false);
+  }, [nodes]);
+
   if (loading) return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your SMS…" /></div>;
 
   const hasNumber = !!number?.hasNumber;
@@ -338,7 +382,7 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
   const totalSent = campaigns.reduce((s, c) => s + (c.sent ?? 0), 0);
   const deliveryRate = totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0;
   const filtersActive = search !== "" || statusFilter !== "all";
-  const audienceReach = 1284;
+  const audienceReach = lists.find((l) => l.id === nodes.find((n) => n.type === "audience")?.contactListId)?.smsEligibleCount ?? 0;
 
   // setup gate — no verified number
   // No verified number yet → the structured "Get verified to send" intake
@@ -378,7 +422,7 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
                 onSelect={() => setSelId(n.id)} onMove={recomputeWires} onPatch={(p) => patchNode(n.id, p)}
                 onDelete={() => deleteNode(n.id)} onGenerate={() => genMessage(n.id)}
                 onAddAfter={(branch) => { const el = boardRef.current?.querySelector(`[data-node="${n.id}"]`) as HTMLElement | null; const r = el?.getBoundingClientRect(); const br = boardRef.current?.getBoundingClientRect(); setPaletteAt({ afterId: n.id, branch, x: (r && br ? r.left - br.left + r.width + 8 : n.x + 260), y: (r && br ? r.top - br.top : n.y) }); }}
-                audienceReach={audienceReach} />
+                lists={lists} />
             ))}
           </div>
         </div>
@@ -419,12 +463,21 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
       </div>
 
       {/* bottom bar */}
-      <div className="flex flex-wrap items-center gap-3 border-t border-border bg-card px-4 py-2.5">
-        <span className="text-[11.5px] text-muted-foreground"><b className="text-foreground">{nodes.length}</b> steps · reaches <b className="text-foreground">{audienceReach.toLocaleString()}</b> opted-in · est. <b className="text-amber-500">~{Math.round(audienceReach * 1.2).toLocaleString()} cr</b></span>
-        <div className="ms-auto flex items-center gap-2">
-          <button className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground">Save draft</button>
-          <button className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><Play className="h-3.5 w-3.5" /> Test to me</button>
-          <button disabled={!regApproved} className={cn("inline-flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[12px] font-bold text-white", regApproved ? "bg-gradient-to-r from-emerald-500 to-emerald-600" : "bg-muted text-muted-foreground")}><Send className="h-3.5 w-3.5" /> Launch flow</button>
+      <div className="flex flex-col gap-2 border-t border-border bg-card px-4 py-2.5">
+        {launchMsg && (
+          <div className={cn("flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[11.5px]", launchMsg.ok ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-500" : "border-rose-500/30 bg-rose-500/5 text-rose-500")}>
+            {launchMsg.ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <AlertTriangle className="h-3.5 w-3.5 shrink-0" />}
+            <span>{launchMsg.text}</span>
+            {launchMsg.ok && <button onClick={() => setBackOpen(true)} className="ms-auto font-semibold underline">Open Back office</button>}
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-[11.5px] text-muted-foreground"><b className="text-foreground">{nodes.length}</b> steps · reaches <b className="text-foreground">{audienceReach.toLocaleString()}</b> opted-in · est. <b className="text-amber-500">~{Math.max(1, Math.round(audienceReach * 1.2)).toLocaleString()} cr</b></span>
+          <div className="ms-auto flex items-center gap-2">
+            <button onClick={saveDraft} disabled={launching} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60">Save draft</button>
+            <button onClick={testToMe} disabled={launching} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-60"><Play className="h-3.5 w-3.5" /> Test to me</button>
+            <button onClick={launchFlow} disabled={!regApproved || launching} title={regApproved ? "" : "Sending unlocks once carrier registration is approved"} className={cn("inline-flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[12px] font-bold text-white", regApproved && !launching ? "bg-gradient-to-r from-emerald-500 to-emerald-600" : "cursor-not-allowed bg-muted text-muted-foreground")}>{launching ? <FlowLoader size={13} /> : <Send className="h-3.5 w-3.5" />} Launch flow</button>
+          </div>
         </div>
       </div>
 
@@ -448,9 +501,9 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
 }
 
 // ── flow node card (draggable, menu-edited, insert-after) ────────────────────
-function FlowNodeView({ node, selected, onSelect, onMove, onPatch, onDelete, onGenerate, onAddAfter, audienceReach }: {
+function FlowNodeView({ node, selected, onSelect, onMove, onPatch, onDelete, onGenerate, onAddAfter, lists }: {
   node: FlowNode; selected: boolean; onSelect: () => void; onMove: () => void;
-  onPatch: (p: Partial<FlowNode>) => void; onDelete: () => void; onGenerate: () => void; onAddAfter: (branch: "main" | "yes" | "no") => void; audienceReach: number;
+  onPatch: (p: Partial<FlowNode>) => void; onDelete: () => void; onGenerate: () => void; onAddAfter: (branch: "main" | "yes" | "no") => void; lists: ContactList[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const M = NODE_META[node.type];
@@ -474,10 +527,16 @@ function FlowNodeView({ node, selected, onSelect, onMove, onPatch, onDelete, onG
       </div>
       <div className="space-y-2 p-3">
         {node.type === "audience" && (<>
-          <Labeled k="List / segment"><Select value={node.segment} onChange={(v) => onPatch({ segment: v })} options={SEGMENTS.map((s) => ({ v: s, label: s }))} /></Labeled>
+          <Labeled k="Audience list">
+            {lists.length ? (
+              <Select value={node.contactListId || ""} onChange={(v) => onPatch({ contactListId: v || undefined })} options={[{ v: "", label: "Pick a list…" }, ...lists.map((l) => ({ v: l.id, label: `${l.name} · ${(l.smsEligibleCount ?? 0)} opted-in` }))]} />
+            ) : (
+              <p className="rounded-lg border border-dashed border-border px-2 py-1.5 text-[10.5px] text-muted-foreground">No contact lists yet — add contacts first.</p>
+            )}
+          </Labeled>
           <Toggle label="Skip opted-out" on={!!node.skipOptedOut} onClick={() => onPatch({ skipOptedOut: !node.skipOptedOut })} />
           <Toggle label="Dedupe by number" on={!!node.dedupe} onClick={() => onPatch({ dedupe: !node.dedupe })} />
-          <div className="flex items-center justify-between text-[11px]"><span className="text-muted-foreground">Reaches</span><b className="text-violet-400">{audienceReach.toLocaleString()}</b></div>
+          <div className="flex items-center justify-between text-[11px]"><span className="text-muted-foreground">Opted-in reach</span><b className="text-violet-400">{(lists.find((l) => l.id === node.contactListId)?.smsEligibleCount ?? 0).toLocaleString()}</b></div>
         </>)}
         {node.type === "message" && (<>
           <div className="max-w-[92%] rounded-2xl rounded-bl-sm bg-brand-500/10 px-2.5 py-1.5 text-[11px] leading-snug text-foreground">{node.text || <span className="text-muted-foreground">Write the message, or generate it →</span>}</div>
