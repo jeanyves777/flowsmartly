@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
-import { Mail, Sparkles, Send, MailOpen, MousePointerClick, Users, FileText, Clock, CheckCircle2, ChevronRight, X, Percent, Pencil, Trash2, CalendarClock, AlertTriangle, Check, Search, Monitor, Smartphone, Copy, Code2, Plus, ArrowLeft, Save } from "lucide-react";
+import { Mail, Settings, Send, MailOpen, MousePointerClick, Users, FileText, Clock, CheckCircle2, ChevronRight, X, Percent, Pencil, Trash2, CalendarClock, AlertTriangle, Check, Search, Monitor, Smartphone, Copy, Code2, Plus, ArrowLeft, Save } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { EmailSetupCard } from "./email-setup";
-import { AgentWorkingCard } from "./agent-working-card";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -91,15 +90,15 @@ function whenLabel(iso?: string | null): string {
   try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; }
 }
 
-export function FocusedEmail({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
+export function FocusedEmail({ refreshKey }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stats, setStats] = useState<Stats>({});
   const [loading, setLoading] = useState(true);
-  // null = unknown; false = needs setup (gate); true = configured (show campaigns).
+  // null = unknown; false = needs setup; true = configured (show campaigns back office).
   const [configured, setConfigured] = useState<boolean | null>(null);
-  // "Draft with AI" was fired → show the in-view agent-working loader until a campaign lands.
-  const [armed, setArmed] = useState(false);
-  const prevCount = useRef(0);
+  // The sending setup opens as a BRIEF sheet when nothing is connected yet, and
+  // stays reachable from the back office (like the phone agent's setup).
+  const [setupOpen, setSetupOpen] = useState(false);
 
   // Search (name/subject) + status filter — wired to GET /api/campaigns?type=email&search=&status=.
   const [search, setSearch] = useState("");
@@ -192,11 +191,8 @@ export function FocusedEmail({ refreshKey, onAsk, working }: { refreshKey?: numb
     return () => { alive = false; clearTimeout(t); };
   }, [search, statusFilter, load]);
 
-  // Clear the agent-working loader once a new campaign actually lands (count grew).
-  useEffect(() => {
-    if (armed && campaigns.length > prevCount.current) setArmed(false);
-    prevCount.current = campaigns.length;
-  }, [campaigns.length, armed]);
+  // Open the setup brief automatically the first time we detect no sender.
+  useEffect(() => { if (configured === false) setSetupOpen(true); }, [configured]);
 
   // Fetch (or re-fetch) a campaign's detail. Returns the detail so callers can seed forms.
   const fetchDetail = useCallback(async (id: string): Promise<CampaignDetail | null> => {
@@ -335,20 +331,8 @@ export function FocusedEmail({ refreshKey, onAsk, working }: { refreshKey?: numb
   const detailOpenRate = detail && (detail.sent ?? 0) > 0 ? Math.round(((detail.opened ?? 0) / (detail.sent ?? 1)) * 100) : 0;
   const detailClickRate = detail && (detail.opened ?? 0) > 0 ? Math.round(((detail.clicked ?? 0) / (detail.opened ?? 1)) * 100) : 0;
 
-  const aiDraftPrompt = "Help me create a new email campaign — ask me the goal and audience, then draft the subject line and email body and set it up.";
-  const askAiDraft = () => { setArmed(true); onAsk?.(aiDraftPrompt); };
-
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your campaigns…" /></div>;
-  }
-
-  // Config gate: no sending setup → show the setup landing (full width), not the campaigns menu.
-  if (configured === false) {
-    return (
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-        <EmailSetupCard onDone={() => { setConfigured(null); setLoading(true); load().finally(() => setLoading(false)); }} />
-      </div>
-    );
   }
 
   const totalCampaigns = stats.total ?? campaigns.length;
@@ -357,6 +341,7 @@ export function FocusedEmail({ refreshKey, onAsk, working }: { refreshKey?: numb
   const avgOpen = stats.avgOpenRate ?? 0;
 
   return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
       <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
         {/* LEFT: sticky summary + section menu + actions + search */}
@@ -385,14 +370,12 @@ export function FocusedEmail({ refreshKey, onAsk, working }: { refreshKey?: numb
             >
               <Plus className="h-4 w-4" /> New campaign
             </button>
-            {onAsk && (
-              <button
-                onClick={askAiDraft}
-                className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-border bg-card px-3.5 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"
-              >
-                <Sparkles className="h-3.5 w-3.5 text-brand-500" /> Draft with AI
-              </button>
-            )}
+            <button
+              onClick={() => setSetupOpen(true)}
+              className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-border bg-card px-3.5 py-2 text-[12.5px] font-semibold hover:border-brand-500/60 hover:text-foreground"
+            >
+              <Settings className="h-3.5 w-3.5" /> Sending setup{configured ? "" : " · needed"}
+            </button>
           </div>
 
           {/* section menu: status filters as a vertical nav */}
@@ -454,8 +437,6 @@ export function FocusedEmail({ refreshKey, onAsk, working }: { refreshKey?: numb
               {createNotice && (
                 <p className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-[12px] text-emerald-600 dark:text-emerald-400">{createNotice}</p>
               )}
-
-              {armed && <AgentWorkingCard working={working} title="Drafting your campaign" sub={working ? "The agent is writing your subject and body — it'll appear here." : "Answer the agent's questions in the chat and your campaign will land here."} compact />}
 
               {listLoading ? (
                 <div className="grid place-items-center py-10"><FlowLoader size={24} label="Filtering campaigns…" /></div>
@@ -723,16 +704,11 @@ export function FocusedEmail({ refreshKey, onAsk, working }: { refreshKey?: numb
                 <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
                   <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><Mail className="h-7 w-7" /></span>
                   <p className="mt-3 text-[14px] font-semibold">No email campaigns yet</p>
-                  <p className="mx-auto mt-1 max-w-sm text-[12.5px] text-muted-foreground">Create a campaign — write the subject and body and pick your audience — or let AI draft the copy for you.</p>
+                  <p className="mx-auto mt-1 max-w-sm text-[12.5px] text-muted-foreground">Create a campaign — write the subject and body and pick your audience.</p>
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                     <button onClick={startCreate} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
                       <Plus className="h-4 w-4" /> Create a campaign
                     </button>
-                    {onAsk && (
-                      <button onClick={askAiDraft} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-background px-4 py-2 text-[13px] font-semibold hover:border-brand-500/60 hover:text-foreground">
-                        <Sparkles className="h-4 w-4 text-brand-500" /> Draft with AI
-                      </button>
-                    )}
                   </div>
                 </div>
               )}
@@ -740,6 +716,25 @@ export function FocusedEmail({ refreshKey, onAsk, working }: { refreshKey?: numb
           )}
         </div>
       </div>
+    </div>
+
+      {/* Sending setup — a BRIEF sheet (auto-opens when no sender is connected). */}
+      {setupOpen && (
+        <div className="absolute inset-0 z-40">
+          <button aria-label="Close" className="absolute inset-0 bg-black/50" onClick={() => setSetupOpen(false)} />
+          <div className="absolute inset-x-3 bottom-3 top-10 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+            <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-border" />
+            <div className="flex items-center gap-2 px-4 py-3">
+              <span className="rounded-full bg-brand-500/15 px-2 py-0.5 text-[9px] font-extrabold tracking-wider text-brand-500">SETUP</span>
+              <h3 className="text-[14px] font-bold">Email sending</h3>
+              <button onClick={() => setSetupOpen(false)} className="ml-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><X className="h-3.5 w-3.5" /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <EmailSetupCard onDone={() => { setSetupOpen(false); setConfigured(null); setLoading(true); load().finally(() => setLoading(false)); }} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -758,7 +753,7 @@ function CreateCampaign({ lists, onCancel, onCreated }: { lists: ContactListOpti
 
   const create = async () => {
     if (!form.name.trim()) { setError("Give your campaign a name."); return; }
-    if (!form.content.trim()) { setError("Write the email body, or use “Draft with AI”."); return; }
+    if (!form.content.trim()) { setError("Write the email body before saving."); return; }
     setSubmitting(true); setError("");
     try {
       const r = await fetch("/api/campaigns", {
