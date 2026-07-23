@@ -38,7 +38,7 @@ const durationMins = (r: LibrarySession) => {
   if (r.startedAt && r.endedAt) { try { return Math.max(1, Math.round((new Date(r.endedAt).getTime() - new Date(r.startedAt).getTime()) / 60000)); } catch { /* fall through */ } }
   return r.plannedMins;
 };
-const statusStyle = (s: string) => s === "live" ? "bg-rose-500 text-white" : s === "ended" ? "bg-white/10 text-muted-foreground" : s === "scheduled" ? "bg-amber-500/20 text-amber-300" : "bg-brand-500/15 text-brand-300";
+const statusStyle = (s: string) => s === "live" ? "bg-rose-500 text-white" : s === "ended" ? "bg-muted text-muted-foreground" : s === "scheduled" ? "bg-amber-500/20 text-amber-600 dark:text-amber-300" : "bg-brand-500/15 text-brand-600 dark:text-brand-300";
 
 export function TrainingLibrary({ rows, currentId, onOpen, onWatch, onClose, reload }: {
   rows: LibrarySession[];
@@ -91,7 +91,7 @@ export function TrainingLibrary({ rows, currentId, onOpen, onWatch, onClose, rel
   const recordedCount = rows.filter((r) => r.recordingUrl).length;
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-[#0b0b10]">
+    <div className="fixed inset-0 z-[60] flex flex-col bg-background text-foreground">
       <div className="flex items-center gap-3 border-b border-border px-4 py-3">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><GraduationCap className="h-4.5 w-4.5" /></span>
         <div className="min-w-0"><b className="block text-[15px] leading-tight">Training library</b><span className="text-[11px] text-muted-foreground">{rows.length} session{rows.length === 1 ? "" : "s"}{recordedCount ? ` · ${recordedCount} recorded` : ""}</span></div>
@@ -125,7 +125,7 @@ export function TrainingLibrary({ rows, currentId, onOpen, onWatch, onClose, rel
               return (
                 <div key={r.id} className={cn("group flex flex-col overflow-hidden rounded-2xl border bg-card transition", r.id === currentId ? "border-brand-500" : "border-border hover:border-brand-500/50")}>
                   {/* preview */}
-                  <button onClick={() => (r.recordingUrl ? onWatch(r) : onOpen(r.id))} className="relative block aspect-video w-full overflow-hidden bg-gradient-to-br from-[#241f38] to-[#14121f] text-left">
+                  <button onClick={() => (r.recordingUrl ? onWatch(r) : onOpen(r.id))} className="relative block aspect-video w-full overflow-hidden bg-muted text-left">
                     {r.recordingUrl ? (
                       <>
                         {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
