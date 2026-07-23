@@ -89,11 +89,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const staged = decks.find((m) => { try { return !!(m.deck && (JSON.parse(m.deck) as { presenterActive?: boolean }).presenterActive); } catch { return false; } }) ?? decks[0] ?? null;
     const stagePatch = staged ? { stageSource: "slides" as const, stageKey: staged.id, stagePage: 1, stageStep: 1 } : {};
 
+    // Recording NEVER auto-starts — a room always goes live with it OFF, and the host must click
+    // "Start recording" during the session. This also clears any stale flag carried in from a
+    // previous run (which is what made the REC timer count from hours ago).
     await prisma.trainingSession.update({
       where: { id },
-      data: { status: "live", startedAt: room.startedAt ?? new Date(), ...stagePatch },
+      data: { status: "live", startedAt: room.startedAt ?? new Date(), recording: false, recordingStartedAt: null, recordingPausedAt: null, ...stagePatch },
     });
-    broadcast(id, { type: "room:state", patch: { status: "live", ...stagePatch } });
+    broadcast(id, { type: "room:state", patch: { status: "live", recording: false, recordingStartedAt: null, recordingPausedAt: null, ...stagePatch } });
     await ensureAICohost(id).catch(() => {}); // the AI co-host joins if a presenter is active
     return NextResponse.json({ success: true, data: { session: await getSessionDTO(id), estimate: est } });
   }

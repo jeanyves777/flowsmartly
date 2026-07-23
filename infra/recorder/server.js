@@ -200,6 +200,19 @@ async function runSelfTest() {
   return { url: `${S3_PUBLIC_URL}/${key}`, sizeBytes: stat.size, resolution: `${W}x${H}`, fps: FPS };
 }
 
+/** ABORT a recording: stop + DISCARD the file (never uploaded/registered). Used by the app's
+ *  3-hour forgotten-recording cap — the clip is considered abandoned, so it isn't saved. */
+async function abortJob(sessionId) {
+  const job = jobs.get(sessionId);
+  if (!job || job.stopping) return;
+  job.stopping = true;
+  jobs.delete(sessionId);
+  try { job.ffmpeg?.kill("SIGKILL"); } catch {}
+  await teardown(job);
+  try { fs.unlinkSync(job.filePath); } catch {}
+  console.log(`[recorder] aborted ${sessionId} (discarded — not saved)`);
+}
+
 async function teardown(job) {
   try { await job.browser?.close(); } catch {}
   try { job.ffmpeg?.kill("SIGKILL"); } catch {}
@@ -226,6 +239,7 @@ const server = http.createServer(async (req, res) => {
   try {
     if (req.url === "/start") { await startJob(sessionId, String(body.token || "")); return json(200, { ok: true }); }
     if (req.url === "/stop") { void stopJob(sessionId); return json(200, { ok: true }); }
+    if (req.url === "/abort") { void abortJob(sessionId); return json(200, { ok: true }); }
     return json(404, { error: "not found" });
   } catch (e) {
     return json(500, { error: String(e.message || e) });

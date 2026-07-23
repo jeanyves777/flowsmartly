@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { checkInviteToken } from "@/lib/training/access";
 import { getTrainingActor } from "@/lib/training/guest";
 import { addConn, removeConn, touchConn, broadcast, connectedIds, frameEvent } from "@/lib/training/room";
-import { getSessionDTO, meterRoom, getRecentMessages } from "@/lib/training/session";
+import { getSessionDTO, meterRoom, getRecentMessages, enforceRecordingCap } from "@/lib/training/session";
 import type { RoomEvent } from "@/lib/training/types";
 
 export const dynamic = "force-dynamic";
@@ -145,6 +145,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
               // Always meter — attendee-time bills when live>0, and meterRoom also bills the
               // per-minute RECORDING even when only the bot is connected (live can be 0).
               await meterRoom(id, live * 60);
+              // Forgotten-recording cap: a recording left running >3h is auto-stopped + DISCARDED.
+              if (await enforceRecordingCap(id)) {
+                broadcast(id, { type: "room:state", patch: { recording: false, recordingStartedAt: null, recordingPausedAt: null } });
+              }
             } catch {
               /* never let metering kill the stream */
             }

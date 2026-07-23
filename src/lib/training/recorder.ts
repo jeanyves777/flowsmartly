@@ -93,6 +93,22 @@ export async function recorderSelfTest(): Promise<{ ok: boolean; url?: string; s
   }
 }
 
+/** ABORT + DISCARD a recording (best-effort; no-op if unconfigured). The clip is thrown away, not
+ *  saved — used by the 3-hour forgotten-recording cap. */
+export async function abortRoomRecording(sessionId: string): Promise<void> {
+  if (!recorderConfigured()) return;
+  try {
+    await fetch(`${process.env.TRAINING_RECORDER_URL}/abort`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-recorder-secret": process.env.TRAINING_RECORDER_SECRET! },
+      body: JSON.stringify({ sessionId }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (e) {
+    console.error("[recorder] abort failed:", e instanceof Error ? e.message : e);
+  }
+}
+
 /** Ask the recorder service to STOP + finalize (best-effort; no-op if unconfigured). */
 export async function stopRoomRecording(sessionId: string): Promise<void> {
   if (!recorderConfigured()) return;
