@@ -91,6 +91,7 @@ const navItems: NavItem[] = [
   { href: "/admin/features", icon: Sparkles, label: "Features", permission: "EDIT_SETTINGS" },
   { href: "/admin/credits", icon: Coins, label: "Credits", permission: "EDIT_USERS" },
   { href: "/admin/credit-pricing", icon: DollarSign, label: "Credit Pricing", permission: "EDIT_SETTINGS" },
+  { href: "/admin/ai-spend", icon: DollarSign, label: "AI Spend", permission: "VIEW_ANALYTICS" },
   { href: "/admin/content", icon: FileText, label: "Content", permission: "VIEW_CONTENT" },
   { href: "/admin/moderation", icon: ShieldCheck, label: "Moderation", permission: "MODERATE_CONTENT" },
   { href: "/admin/media", icon: FolderOpen, label: "Media", permission: "VIEW_CONTENT" },

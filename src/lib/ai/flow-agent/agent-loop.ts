@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { getAgentModel } from "@/lib/ai/agent-model";
+import { computeClaudeCostCents } from "@/lib/ai/model-pricing";
 import { prisma } from "@/lib/db/client";
 import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
@@ -145,6 +146,16 @@ export interface AgentRunResult {
   finalText: string;
   iterations: number;
   tokensUsed: number;
+  /** Uncached input tokens billed at full rate (Anthropic `usage.input_tokens`). */
+  inputTokens: number;
+  outputTokens: number;
+  /** Tokens served from the prompt cache at ~0.1× (the caching win). */
+  cacheReadTokens: number;
+  /** Tokens written to the prompt cache at ~1.25× (first-iteration overhead). */
+  cacheCreationTokens: number;
+  /** Real dollar cost of the turn, in whole cents. */
+  costCents: number;
+  model: string;
   creditsUsed: number;
   toolsUsed: string[];
   proposedPlans: string[];
@@ -197,8 +208,21 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
   // Join client tools + server tools into the single `tools` array the
   // Messages API expects. The discriminated `ToolUnion` covers both —
   // our plain JSON-Schema client tools satisfy the basic `Tool` arm.
+  // PROMPT CACHING: the tool schemas (~110 tools, ~13-25K tokens) are identical
+  // on every iteration of every turn, so mark the LAST client tool as a cache
+  // breakpoint. Iterations 2..N — and later turns within the 5-min TTL — then
+  // read the whole tool block at ~0.1× instead of re-paying full input price.
+  // Render order is tools → system, so a later breakpoint on the system block
+  // caches tools+system together; this one independently caches the stable tool
+  // schemas even when the (per-turn-varying) system prompt changes. The tiny
+  // web_search server tool sits after the breakpoint and is re-sent uncached.
+  const cachedClientToolDefs = clientToolDefs.map((t, i) =>
+    i === clientToolDefs.length - 1
+      ? { ...t, cache_control: { type: "ephemeral" as const } }
+      : t,
+  );
   const toolDefs = [
-    ...clientToolDefs,
+    ...cachedClientToolDefs,
     ...serverToolDefs,
   ] as unknown as Anthropic.ToolUnion[];
   const toolByName = new Map(tools.map((t) => [t.name, t] as const));
@@ -348,7 +372,10 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
 
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let totalCacheReadTokens = 0;
+  let totalCacheCreationTokens = 0;
   let totalCreditsUsed = 0;
+  let iterationsRun = 0;
   const toolsUsed: string[] = [];
   const proposedPlans: string[] = [];
   let finalText = "";
@@ -667,6 +694,7 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
       input.emit({ type: "error", message: "Conversation aborted by client", recoverable: false });
       break;
     }
+    iterationsRun = iter + 1;
 
     let response: Anthropic.Message;
     let streamedText = "";
@@ -675,7 +703,14 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
         model: model as Parameters<typeof anthropic.messages.stream>[0]["model"],
         max_tokens: MAX_TOKENS,
         temperature: 0.5,
-        system: systemPrompt,
+        // PROMPT CACHING: pass the system prompt as a cached content block so
+        // iterations 2..N read it (together with the tool schemas above) at
+        // ~0.1× instead of full input price. This is the single biggest cost
+        // lever on the agent — a multi-iteration turn re-sent the whole
+        // ~25-40K-token prefix uncached on every pass before this.
+        system: [
+          { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+        ],
         tools: toolDefs,
         messages: messages as Anthropic.MessageParam[],
       });
@@ -701,6 +736,8 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
 
     totalInputTokens += response.usage?.input_tokens ?? 0;
     totalOutputTokens += response.usage?.output_tokens ?? 0;
+    totalCacheReadTokens += response.usage?.cache_read_input_tokens ?? 0;
+    totalCacheCreationTokens += response.usage?.cache_creation_input_tokens ?? 0;
 
     // Capture latest text block (becomes finalText if loop ends here).
     const textBlock = response.content.find((b) => b.type === "text");
@@ -835,10 +872,50 @@ export async function runFlowAgent(input: AgentRunInput): Promise<AgentRunResult
     messages.push({ role: "user", content: toolResults });
   }
 
+  const costCents = computeClaudeCostCents(
+    model,
+    totalInputTokens,
+    totalOutputTokens,
+    totalCacheReadTokens,
+    totalCacheCreationTokens,
+  );
+
+  // Observable in server logs: if cacheRead stays 0 across turns, a silent
+  // cache invalidator is at work (the caching delivered no savings).
+  console.info(
+    `[flow-agent] turn cost model=${model} in=${totalInputTokens} out=${totalOutputTokens} ` +
+      `cacheRead=${totalCacheReadTokens} cacheWrite=${totalCacheCreationTokens} ` +
+      `costCents=${costCents} credits=${totalCreditsUsed} iters=${iterationsRun}`,
+  );
+
+  // Record the REAL dollar cost of this turn so spend can be reconciled against
+  // the credits charged (admin AI-spend view). Off the streaming hot path
+  // (turn is done) and never throws.
+  try {
+    await prisma.aIUsage.create({
+      data: {
+        userId: input.userId,
+        feature: "flow_ai_agent",
+        model,
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        costCents,
+      },
+    });
+  } catch (e) {
+    console.error("[flow-agent] Failed to record AIUsage:", e);
+  }
+
   return {
     finalText,
-    iterations: MAX_ITERATIONS,
+    iterations: iterationsRun,
     tokensUsed: totalInputTokens + totalOutputTokens,
+    inputTokens: totalInputTokens,
+    outputTokens: totalOutputTokens,
+    cacheReadTokens: totalCacheReadTokens,
+    cacheCreationTokens: totalCacheCreationTokens,
+    costCents,
+    model,
     creditsUsed: totalCreditsUsed,
     toolsUsed,
     proposedPlans,

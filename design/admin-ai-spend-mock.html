@@ -1,0 +1,113 @@
+<!--
+  Admin › AI Spend — mock for review (per CLAUDE.md "mock first").
+  Real API dollar spend from the AIUsage table, grouped by feature + model.
+  Self-contained; theme-aware. Numbers here are illustrative sample data.
+-->
+<style>
+  :root {
+    --bg: #f7f8fa; --card: #ffffff; --border: #e6e8ec; --text: #0f1115;
+    --muted: #6b7280; --accent: #6d28d9; --accent-soft: #ede9fe;
+    --pos: #059669; --neg: #dc2626; --bar: #a78bfa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c0d10; --card: #16181d; --border: #262a31; --text: #f3f4f6;
+      --muted: #9aa0aa; --accent: #a78bfa; --accent-soft: #2a2140;
+      --pos: #34d399; --neg: #f87171; --bar: #7c5cff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 60px; }
+  .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: 22px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 4px 0 0; font-size: 13px; }
+  .pills { display: inline-flex; gap: 6px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 4px; }
+  .pill { border: 0; background: transparent; color: var(--muted); padding: 6px 12px; border-radius: 7px;
+    font-size: 13px; font-weight: 600; cursor: pointer; }
+  .pill.active { background: var(--accent-soft); color: var(--accent); }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 22px 0; }
+  @media (max-width: 720px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  .tile { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .tile .k { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .tile .v { font-size: 26px; font-weight: 750; margin-top: 6px; letter-spacing: -.02em; }
+  .tile .v.money { color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  .card h2 { font-size: 14px; margin: 0; padding: 14px 16px; border-bottom: 1px solid var(--border); font-weight: 700; }
+  .tblwrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 640px; }
+  th, td { text-align: right; padding: 11px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.money { font-variant-numeric: tabular-nums; font-weight: 650; }
+  .feat { font-weight: 650; }
+  .model { color: var(--muted); font-size: 12px; }
+  .share { display: inline-flex; align-items: center; gap: 8px; }
+  .track { width: 80px; height: 6px; border-radius: 999px; background: var(--border); overflow: hidden; }
+  .fill { height: 100%; background: var(--bar); border-radius: 999px; }
+  .note { color: var(--muted); font-size: 12px; margin: 14px 2px 0; }
+  tfoot td { font-weight: 750; border-top: 2px solid var(--border); }
+</style>
+
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>AI Spend</h1>
+      <p class="sub">Real Claude API cost from actual usage — grouped by feature and model. Reconcile against credits charged.</p>
+    </div>
+    <div class="pills">
+      <button class="pill">7d</button>
+      <button class="pill active">30d</button>
+      <button class="pill">90d</button>
+    </div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><div class="k">Total spend (30d)</div><div class="v money">$18.42</div></div>
+    <div class="tile"><div class="k">Input tokens</div><div class="v">12.9M</div></div>
+    <div class="tile"><div class="k">Output tokens</div><div class="v">0.31M</div></div>
+    <div class="tile"><div class="k">API calls</div><div class="v">4,128</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Spend by feature</h2>
+    <div class="tblwrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th><th>Model</th><th>Calls</th><th>Input tok</th><th>Output tok</th><th>Cost</th><th>Share</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="feat">flow_ai_agent</td><td class="model">haiku-4-5</td><td>3,540</td><td>9.8M</td><td>0.22M</td>
+            <td class="money">$12.90</td>
+            <td><span class="share"><span class="track"><span class="fill" style="width:70%"></span></span>70%</span></td>
+          </tr>
+          <tr>
+            <td class="feat">flow_ai_agent</td><td class="model">opus-4-8</td><td>112</td><td>2.1M</td><td>0.06M</td>
+            <td class="money">$3.60</td>
+            <td><span class="share"><span class="track"><span class="fill" style="width:20%"></span></span>20%</span></td>
+          </tr>
+          <tr>
+            <td class="feat">ai_run_with_tools</td><td class="model">haiku-4-5</td><td>430</td><td>0.9M</td><td>0.03M</td>
+            <td class="money">$1.35</td>
+            <td><span class="share"><span class="track"><span class="fill" style="width:7%"></span></span>7%</span></td>
+          </tr>
+          <tr>
+            <td class="feat">ai_generate</td><td class="model">haiku-4-5</td><td>46</td><td>0.1M</td><td>0.00M</td>
+            <td class="money">$0.57</td>
+            <td><span class="share"><span class="track"><span class="fill" style="width:3%"></span></span>3%</span></td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr><td>Total</td><td></td><td>4,128</td><td>12.9M</td><td>0.31M</td><td class="money">$18.42</td><td></td></tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  <p class="note">Cost is computed at Anthropic list prices (cache reads billed ~0.1×, writes ~1.25×). After prompt caching ships, watch <b>flow_ai_agent</b> cost per call drop ~85–90%.</p>
+</div>
