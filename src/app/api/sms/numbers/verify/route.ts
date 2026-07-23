@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import {
   submitTollfreeVerification,
   getTollfreeVerificationStatus,
-} from "@/lib/twilio";
+} from "@/lib/telnyx/numbers";
 import {
   notifyTollfreeVerificationSubmitted,
   notifyTollfreeVerificationApproved,

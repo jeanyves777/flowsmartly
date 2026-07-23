@@ -4,7 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { getUserBrand } from "@/lib/brand/get-brand";
 import { buildEmailHtml, EmailBrandInfo } from "@/lib/marketing/templates/email-html";
 import { sendMarketingEmail, validateEmailConfig } from "@/lib/email/marketing-sender";
-import { sendSMS, formatPhoneNumber } from "@/lib/twilio";
+import { sendSMS, formatPhoneNumber } from "@/lib/telnyx/sms";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 

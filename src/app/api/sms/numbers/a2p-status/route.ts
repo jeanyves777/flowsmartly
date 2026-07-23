@@ -7,7 +7,7 @@ import {
   createA2pCampaign,
   submitA2p10DlcRegistration,
   generateMissingComplianceData,
-} from "@/lib/twilio";
+} from "@/lib/telnyx/numbers";
 import {
   notifyA2pRegistrationSubmitted,
   notifyA2pBrandApproved,

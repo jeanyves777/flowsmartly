@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
-import { createAndAssignEmergencyAddress } from "@/lib/twilio";
+import { createAndAssignEmergencyAddress } from "@/lib/telnyx/numbers";
 
 // POST /api/sms/numbers/emergency-address - Set emergency address on existing number
 export async function POST() {

@@ -11,7 +11,7 @@ import {
   formatPhoneNumber,
   SMS_COST,
   MMS_COST,
-} from "@/lib/twilio";
+} from "@/lib/telnyx/sms";
 
 // POST /api/sms/send - Send SMS from user's rented number
 export async function POST(request: NextRequest) {

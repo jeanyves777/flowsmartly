@@ -10,7 +10,7 @@ import { getHolidayById, getHolidayDate } from "@/lib/marketing/holidays";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { triggerActivitySyncForUser } from "@/lib/strategy/activity-matcher";
-import { sendSMS, formatPhoneNumber } from "@/lib/twilio";
+import { sendSMS, formatPhoneNumber } from "@/lib/telnyx/sms";
 import { compositeImageWithText } from "@/lib/media/image-compositor";
 import { uploadToS3 } from "@/lib/utils/s3-client";
 

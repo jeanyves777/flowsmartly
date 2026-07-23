@@ -13,7 +13,7 @@ import {
   submitA2p10DlcRegistration,
   createAndAssignEmergencyAddress,
   PHONE_NUMBER_RENTAL_COST,
-} from "@/lib/twilio";
+} from "@/lib/telnyx/numbers";
 import {
   notifySmsNumberActivated,
   notifyA2pRegistrationSubmitted,

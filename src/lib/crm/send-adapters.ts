@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/client";
 import { sendEmail } from "@/lib/email/core";
-import { sendSMS, formatPhoneNumber } from "@/lib/twilio";
+import { sendSMS, formatPhoneNumber } from "@/lib/telnyx/sms";
 import { generatePitchPDF, generateServiceProposalPDF } from "@/lib/pitch/pdf-generator";
 import { isServiceProposalContent } from "@/lib/pitch/proposal-detail-helpers";
 import { getDynamicCreditCost } from "@/lib/credits/costs";

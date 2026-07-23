@@ -1,18 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ElementType } from "react";
-import { MessageSquare, Sparkles, Phone, Send, CheckCircle2, Clock, Users, AlertTriangle, ShieldCheck, Gauge, XCircle, ExternalLink, ChevronRight, Trash2, MousePointerClick, CalendarClock, PenLine, Search, Pause, Play, RefreshCw, RotateCw, ShieldAlert, Hourglass, ListFilter } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type FormEvent, type ReactNode } from "react";
+import { MessageSquare, Sparkles, Phone, Send, CheckCircle2, Clock, Users, AlertTriangle, ShieldCheck, Gauge, XCircle, ExternalLink, ChevronRight, Trash2, MousePointerClick, CalendarClock, PenLine, Search, Pause, Play, RefreshCw, RotateCw, ShieldAlert, Hourglass, ListFilter, ClipboardList, X, UserRound, Timer } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { AgentWorkingCard } from "./agent-working-card";
+import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
 import { cn } from "@/lib/utils/cn";
 
 /**
- * SMS — a deep new-design SMS-marketing surface (the SMS workspace canvas): the
- * user's number/credit status + their SMS blasts with delivery stats. Read data
- * is real (GET /api/campaigns?type=sms + /api/sms/numbers?action=current).
- * Creating an SMS blast is a heavy generative build (it needs an approved,
- * carrier-registered number and on-brand copy), so it drives the agent via
- * onAsk — never a legacy link. [[surface-buttons-are-ui-actions]]
+ * SMS Studio — a canvas "playground" (same shell as the phone agent): the build
+ * flows left→right across the board (brief → audience → AI message → send →
+ * your line → live results) and the back office (blasts list + carrier
+ * registration + release) lives in a slide-over. The brief bottom-sheet hands
+ * the goal to the agent — building a blast needs a carrier-registered number +
+ * on-brand copy, so it drives onAsk, never a legacy link.
+ * Runs on Telnyx. [[surface-buttons-are-ui-actions]] [[sms-studio-telnyx-redesign]]
  */
 
 interface SmsCampaign {
@@ -135,12 +137,24 @@ function isRegFailed(status?: string | null): boolean {
   const s = (status || "").toUpperCase();
   return ["FAILED", "REJECTED", "TWILIO_REJECTED", "SUSPENDED"].includes(s);
 }
+function isRegApproved(status?: string | null): boolean {
+  return ["APPROVED", "VERIFIED", "SUCCESSFUL", "TWILIO_APPROVED"].includes((status || "").toUpperCase());
+}
 
 const NEW_BLAST_PROMPT =
   "Help me send an SMS blast. Ask me who to send it to and what offer or update I want to share, then write the message (with an opt-out line) and set it up. If my SMS number or compliance isn't ready yet, walk me through getting set up first.";
 
 const SMS_SETUP_PROMPT =
   "Help me set up SMS sending — walk me through getting a verified sender number and confirming opt-in compliance so I can start sending blasts.";
+
+// Brief-sheet quick starts — each hands the agent a goal-shaped prompt.
+const BRIEF_CHIPS: { label: string; prompt: string }[] = [
+  { label: "🎁 Promo / discount", prompt: "Help me send an SMS blast with a promotional discount. Ask me the offer + audience, write the message with an opt-out line, and set it up." },
+  { label: "🔁 Win back lapsed", prompt: "Help me send an SMS win-back blast to customers who haven't ordered recently. Suggest an incentive, write the message with an opt-out line, and set it up." },
+  { label: "📅 Appointment reminder", prompt: "Help me send an SMS appointment-reminder blast. Ask me the details, write a concise reminder with an opt-out line, and set it up." },
+  { label: "⭐ Ask for a review", prompt: "Help me send an SMS blast asking happy customers for a review. Write a friendly message with the review link and an opt-out line, then set it up." },
+  { label: "📣 New product launch", prompt: "Help me send an SMS blast announcing a new product or launch. Ask me the details, write the announcement with an opt-out line, and set it up." },
+];
 
 export function FocusedSms({ refreshKey, onAsk, working }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
   const [campaigns, setCampaigns] = useState<SmsCampaign[]>([]);
@@ -150,6 +164,13 @@ export function FocusedSms({ refreshKey, onAsk, working }: { refreshKey?: number
   // "New SMS blast" was fired → show the in-view agent-working loader until a blast lands.
   const [armed, setArmed] = useState(false);
   const prevCount = useRef(0);
+
+  // Canvas playground shell: pan the board, brief bottom-sheet, back-office slide-over.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const pan = useCanvasPan(scrollRef);
+  const [briefOpen, setBriefOpen] = useState(false);
+  const [backOpen, setBackOpen] = useState(false);
+  const [goal, setGoal] = useState("");
 
   // Search + status filter for the blasts list (server-side via /api/campaigns).
   const [search, setSearch] = useState("");
@@ -180,7 +201,7 @@ export function FocusedSms({ refreshKey, onAsk, working }: { refreshKey?: number
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Which right-pane section is showing (vertical nav in the left aside).
+  // Which back-office section is showing (vertical nav in the left aside).
   const [section, setSection] = useState<"blasts" | "registration">("blasts");
 
   // Load number status (+ aggregate stats not narrowed by the list filter).
@@ -334,7 +355,7 @@ export function FocusedSms({ refreshKey, onAsk, working }: { refreshKey?: number
   }, [load, openId]);
 
   // Release (give up) the rented SMS number after inline confirm. Frees the
-  // number on Twilio and clears it locally → surface drops back to the setup gate.
+  // number on Telnyx and clears it locally → surface drops back to the setup gate.
   const releaseNumber = useCallback(async () => {
     setReleaseBusy(true); setReleaseError(null);
     try {
@@ -371,16 +392,23 @@ export function FocusedSms({ refreshKey, onAsk, working }: { refreshKey?: number
     }
   }, [loadRegistration]);
 
+  const askNew = useCallback(() => { setArmed(true); setBriefOpen(false); onAsk?.(NEW_BLAST_PROMPT); }, [onAsk]);
+  const fireBrief = useCallback((prompt: string) => { setArmed(true); setBriefOpen(false); setGoal(""); onAsk?.(prompt); }, [onAsk]);
+  const submitBrief = useCallback((e: FormEvent) => {
+    e.preventDefault();
+    const g = goal.trim();
+    fireBrief(g ? `Help me send an SMS blast: ${g}. Ask for anything you still need, write the message with an opt-out line, size the audience, and set it up.` : NEW_BLAST_PROMPT);
+  }, [goal, fireBrief]);
+
+  // Aggregate delivery across blasts for the KPI row + Results node.
+  const totalSent = useMemo(() => campaigns.reduce((sum, c) => sum + (c.sent ?? 0), 0), [campaigns]);
+  const totalDelivered = useMemo(() => campaigns.reduce((sum, c) => sum + (c.delivered ?? 0), 0), [campaigns]);
+  const totalFailed = useMemo(() => campaigns.reduce((sum, c) => sum + (c.failed ?? 0), 0), [campaigns]);
+  const deliveryRate = totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0;
+
   if (loading) {
     return <div className="grid min-h-0 flex-1 place-items-center"><FlowLoader size={34} withMark label="Loading your SMS…" /></div>;
   }
-
-  const askNew = () => { setArmed(true); onAsk?.(NEW_BLAST_PROMPT); };
-
-  // Aggregate delivery across blasts for the KPI row.
-  const totalSent = campaigns.reduce((sum, c) => sum + (c.sent ?? 0), 0);
-  const totalDelivered = campaigns.reduce((sum, c) => sum + (c.delivered ?? 0), 0);
-  const deliveryRate = totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 0;
 
   const hasNumber = !!number?.hasNumber;
   const monthlyLimit = number?.monthlyLimit ?? 0;
@@ -391,8 +419,16 @@ export function FocusedSms({ refreshKey, onAsk, working }: { refreshKey?: number
   const isTollFreeNumber = !!number?.phoneNumber && /^\+1(800|833|844|855|866|877|888)/.test(number.phoneNumber);
   const filtersActive = search !== "" || statusFilter !== "all";
 
+  // Overall registration state for the "Your SMS line" node.
+  const regApproved = isTollFreeNumber ? isRegApproved(tollfree?.status) : !!a2p?.isApproved;
+  const regStatusText = !hasNumber
+    ? "No number"
+    : regApproved
+      ? (isTollFreeNumber ? "Toll-free · verified" : "A2P 10DLC · registered")
+      : (isTollFreeNumber ? "Toll-free · in review" : "A2P 10DLC · in review");
+
   // Config gate: no verified sender number yet → show a clean setup landing,
-  // not the blasts UI (you can't send without one). [[unprovisioned-feature-shows-cta]]
+  // not the studio (you can't send without one). [[unprovisioned-feature-shows-cta]]
   if (!hasNumber) {
     return (
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
@@ -422,410 +458,490 @@ export function FocusedSms({ refreshKey, onAsk, working }: { refreshKey?: number
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
-      <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
-        {/* LEFT: sticky number summary + section menu + primary action + filters */}
-        <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
-          {/* number / verification summary */}
-          <div className="rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/10 via-violet-500/5 to-transparent p-4">
-            <div className="flex items-start gap-2.5">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/25 to-violet-500/20 text-brand-500"><Phone className="h-5 w-5" /></span>
-              <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-medium text-muted-foreground">Your SMS number</p>
-                <p className="truncate text-[17px] font-extrabold leading-tight">{number?.phoneNumber}</p>
-              </div>
-            </div>
-            <span className={cn(
-              "mt-2.5 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold",
-              number?.verified ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" : "border-amber-500/30 bg-amber-500/10 text-amber-500"
-            )}>
-              {number?.verified ? <ShieldCheck className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
-              {number?.verified ? "Verified" : "Verification pending"}
-            </span>
-
-            {monthlyLimit > 0 && (
-              <div className="mt-3">
-                <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5"><Gauge className="h-3 w-3" /> This month</span>
-                  <span className="tabular-nums text-foreground">{sentThisMonth.toLocaleString()} / {monthlyLimit.toLocaleString()}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${Math.max(2, usagePct)}%` }} />
-                </div>
-              </div>
-            )}
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <MiniStat label="Sent" value={(stats.sent ?? 0).toLocaleString()} />
-              <MiniStat label="Delivered" value={totalDelivered.toLocaleString()} />
-              <MiniStat label="Delivery" value={`${deliveryRate}%`} />
-              <MiniStat label="Blasts" value={(stats.total ?? campaigns.length).toLocaleString()} />
-            </div>
-          </div>
-
-          {/* primary action */}
-          <button onClick={askNew} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
-            <Sparkles className="h-4 w-4" /> New SMS blast
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {/* sub-toolbar: live status + primary actions */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground">
+          <MessageSquare className="h-3 w-3" /> {(stats.total ?? campaigns.length).toLocaleString()} blasts · {totalDelivered.toLocaleString()} delivered
+        </span>
+        <span className={cn(
+          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+          regApproved ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" : "border-amber-500/30 bg-amber-500/10 text-amber-500",
+        )}>
+          {regApproved ? <ShieldCheck className="h-3 w-3" /> : <Hourglass className="h-3 w-3" />} {number?.phoneNumber}
+        </span>
+        <div className="ms-auto flex items-center gap-2">
+          <button onClick={() => setBackOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-2.5 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground">
+            <ClipboardList className="h-3.5 w-3.5" /> Back office
           </button>
-
-          {/* section menu */}
-          <nav className="rounded-2xl border border-border bg-card p-1.5">
-            {([
-              { id: "blasts" as const, label: "SMS blasts", icon: MessageSquare, count: stats.total ?? campaigns.length },
-              { id: "registration" as const, label: "Carrier registration", icon: ShieldCheck },
-            ]).map((n) => {
-              const active = section === n.id;
-              return (
-                <button
-                  key={n.id}
-                  onClick={() => setSection(n.id)}
-                  className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}
-                >
-                  <n.icon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1 text-start">{n.label}</span>
-                  {typeof n.count === "number" && n.count > 0 && (
-                    <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
-                  )}
-                </button>
-              );
-            })}
-            {!isTollFreeNumber && a2p?.isApproved && (
-              <p className="mt-1 px-3 pb-1 pt-0.5 inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-500"><CheckCircle2 className="h-3 w-3" /> Carrier approved</p>
-            )}
-          </nav>
-
-          {/* filters (drive the blasts list) */}
-          {section === "blasts" && (
-            <div className="rounded-2xl border border-border bg-card p-3 space-y-2.5">
-              <form
-                onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }}
-                className="relative"
-              >
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onBlur={() => setSearch(searchInput.trim())}
-                  placeholder="Search blasts…"
-                  className="w-full rounded-[10px] border border-border bg-background py-1.5 pl-8 pr-8 text-[12.5px] outline-none focus:border-brand-500/50"
-                />
-                {searchInput && (
-                  <button
-                    type="button"
-                    onClick={() => { setSearchInput(""); setSearch(""); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    aria-label="Clear search"
-                  >
-                    <XCircle className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </form>
-              <div className="flex flex-wrap items-center gap-1">
-                <ListFilter className="mr-0.5 h-3.5 w-3.5 text-muted-foreground" />
-                {STATUS_FILTERS.map((f) => (
-                  <button
-                    key={f.value}
-                    onClick={() => setStatusFilter(f.value)}
-                    className={cn(
-                      "rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition",
-                      statusFilter === f.value
-                        ? "border-brand-500/40 bg-brand-500/10 text-brand-500"
-                        : "border-border bg-card text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-                {listLoading && <FlowLoader size={16} />}
-              </div>
-            </div>
-          )}
-
-          {/* release number (kept in the aside, always available) */}
-          {confirmRelease ? (
-            <div className="rounded-2xl border border-rose-500/40 bg-rose-500/5 p-3">
-              <p className="text-[11.5px] font-medium">Release {number?.phoneNumber}? This frees the number — you&apos;ll need to rent a new one to send again.</p>
-              <div className="mt-2 flex items-center gap-2">
-                <button onClick={releaseNumber} disabled={releaseBusy} className="inline-flex items-center gap-1.5 rounded-[8px] bg-rose-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60">
-                  {releaseBusy ? <FlowLoader size={13} /> : <Trash2 className="h-3 w-3" />} Release
-                </button>
-                <button onClick={() => { setConfirmRelease(false); setReleaseError(null); }} disabled={releaseBusy} className="rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">Keep</button>
-              </div>
-              {releaseError && (
-                <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {releaseError}</p>
-              )}
-            </div>
-          ) : (
-            <button onClick={() => { setReleaseError(null); setConfirmRelease(true); }} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-2 text-[12.5px] font-medium text-muted-foreground hover:text-rose-500">
-              <Trash2 className="h-3.5 w-3.5" /> Release number
-            </button>
-          )}
-        </aside>
-
-        {/* RIGHT: the selected section, full width */}
-        <div className="min-w-0 flex-1 space-y-4">
-        {section === "registration" ? (
-          <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <h3 className="inline-flex items-center gap-1.5 text-[13px] font-bold"><ShieldCheck className="h-4 w-4 text-brand-500" /> Carrier registration</h3>
-              <span className="text-[11.5px] text-muted-foreground">{isTollFreeNumber ? "Toll-free verification" : "A2P 10DLC"}</span>
-              <button
-                onClick={loadRegistration}
-                disabled={regLoading || regBusy}
-                className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60"
-              >
-                <RefreshCw className={cn("h-3.5 w-3.5", regLoading && "animate-spin")} /> Refresh
-              </button>
-            </div>
-
-            {regLoading && !a2p && !tollfree ? (
-              <div className="grid place-items-center py-5"><FlowLoader size={20} label="Checking registration…" /></div>
-            ) : isTollFreeNumber ? (
-              <RegRow
-                label="Toll-free verification"
-                status={tollfree?.status}
-                detail={tollfree?.rejectionReason}
-                pending={!tollfree?.hasVerification}
-                pendingText="Verification not submitted yet — the agent submits it when you rent a toll-free number."
-              />
-            ) : (
-              <div className="space-y-2">
-                <RegRow
-                  label="Brand registration"
-                  status={a2p?.brandStatus}
-                  detail={a2p?.brandFailureReason}
-                  pending={!a2p?.hasRegistration}
-                  pendingText="A2P brand not registered yet — the agent submits it when you rent a local number."
-                />
-                <RegRow
-                  label="Campaign registration"
-                  status={a2p?.campaignStatus}
-                  detail={a2p?.campaignFailureReason}
-                  pending={!a2p?.hasRegistration}
-                  pendingText="Created automatically once your brand is approved."
-                />
-              </div>
-            )}
-
-            {/* approved banner / retry on failure */}
-            {!isTollFreeNumber && a2p?.isApproved && (
-              <p className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-medium text-emerald-500"><CheckCircle2 className="h-3.5 w-3.5" /> Fully approved — your number can send marketing SMS.</p>
-            )}
-            {!isTollFreeNumber && a2p?.hasRegistration && (isRegFailed(a2p.brandStatus) || isRegFailed(a2p.campaignStatus)) && (
-              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
-                <span className="inline-flex items-center gap-1.5 text-[12px] text-rose-500"><ShieldAlert className="h-3.5 w-3.5" /> Registration failed.</span>
-                <button onClick={retryA2pRegistration} disabled={regBusy} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
-                  {regBusy ? <FlowLoader size={13} /> : <RotateCw className="h-3.5 w-3.5" />} Resubmit registration
-                </button>
-              </div>
-            )}
-            {isTollFreeNumber && isRegFailed(tollfree?.status) && onAsk && (
-              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
-                <span className="inline-flex items-center gap-1.5 text-[12px] text-rose-500"><ShieldAlert className="h-3.5 w-3.5" /> Toll-free verification was rejected.</span>
-                <button onClick={() => onAsk("My toll-free SMS verification was rejected. Help me fix the issues and resubmit it.")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground">
-                  <Sparkles className="h-3.5 w-3.5" /> Fix with agent
-                </button>
-              </div>
-            )}
-            {regError && (
-              <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {regError}</p>
-            )}
-
-            {/* compliance hint — SMS sending is gated on carrier approval; no legacy link */}
-            {!number?.verified && (
-              <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-500/10 text-amber-500"><AlertTriangle className="h-[18px] w-[18px]" /></span>
-                <div className="min-w-0">
-                  <p className="text-[13px] font-semibold">Carrier verification in progress</p>
-                  <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground">Your number is registered and pending carrier approval. Sending unlocks once it&apos;s verified — the agent will let you know.</p>
-                </div>
-              </div>
-            )}
-
-            <p className="mt-4 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-              <ExternalLink className="h-3 w-3 shrink-0" /> SMS rates and carrier rules vary by country. Recipients must opt in.
-            </p>
-          </section>
-        ) : (
-        <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <h3 className="text-[13px] font-bold">SMS blasts</h3>
-            <button onClick={askNew} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
-              <Sparkles className="h-3.5 w-3.5" /> New blast
-            </button>
-          </div>
-
-          {armed && <AgentWorkingCard working={working} title="Writing your blast" sub={working ? "The agent is drafting your message — it'll appear here." : "Answer the agent's questions in the chat and your blast will land here."} compact />}
-
-          {campaigns.length ? (
-            <div className="space-y-2">
-              {campaigns.map((c) => {
-                const m = statusMeta(c.status);
-                const status = c.status.toLowerCase();
-                const isOpen = openId === c.id;
-                const sent = c.sent ?? 0;
-                const delivered = c.delivered ?? 0;
-                const rate = sent > 0 ? Math.round((delivered / sent) * 100) : 0;
-                const when = whenLabel(c.sentAt) || (c.scheduledAt ? `scheduled ${whenLabel(c.scheduledAt)}` : whenLabel(c.createdAt));
-                const busy = busyId === c.id;
-                const canSend = hasNumber && SENDABLE.has(status);
-                const canDelete = DELETABLE.has(status);
-                const canPause = PAUSABLE.has(status);
-                const canResume = RESUMABLE.has(status);
-                return (
-                  <div key={c.id} className={cn("rounded-xl border bg-muted/30 transition", isOpen ? "border-brand-500/40" : "border-border")}>
-                    <button onClick={() => openBlast(c)} className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-left">
-                      <span className="truncate text-[13px] font-semibold">{c.name}</span>
-                      <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold capitalize", m.tone)}>
-                        <m.icon className="h-3 w-3" /> {status}
-                      </span>
-                      {when && <span className="text-[11.5px] text-muted-foreground">{when}</span>}
-                      <span className="ms-auto text-[12px] text-muted-foreground">
-                        <span className="font-semibold text-foreground tabular-nums">{(c.audience ?? 0).toLocaleString()}</span> recipients
-                      </span>
-                      <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition", isOpen && "rotate-90")} />
-                    </button>
-                    {sent > 0 && (
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border/60 px-3 py-2 text-[11.5px] text-muted-foreground">
-                        <span className="inline-flex items-center gap-1"><Send className="h-3 w-3" /> {sent.toLocaleString()} sent</span>
-                        <span className="inline-flex items-center gap-1 text-emerald-500"><CheckCircle2 className="h-3 w-3" /> {delivered.toLocaleString()} delivered <span className="text-muted-foreground">({rate}%)</span></span>
-                        {!!c.failed && <span className="inline-flex items-center gap-1 text-rose-500"><XCircle className="h-3 w-3" /> {c.failed.toLocaleString()} failed</span>}
-                        {!!c.clicked && <span className="inline-flex items-center gap-1"><MousePointerClick className="h-3 w-3" /> {c.clicked.toLocaleString()} clicked</span>}
-                        {!!c.unsubscribed && <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" /> {c.unsubscribed.toLocaleString()} opted out</span>}
-                        {!!c.segments && <span>{c.segments} segment{c.segments > 1 ? "s" : ""}</span>}
-                      </div>
-                    )}
-
-                    {/* inline detail panel */}
-                    {isOpen && (
-                      <div className="border-t border-border/60 px-3 py-3">
-                        {detailLoading ? (
-                          <div className="grid place-items-center py-6"><FlowLoader size={22} label="Loading blast…" /></div>
-                        ) : detail && detail.id === c.id ? (
-                          <BlastDetail detail={detail} senderNumber={number?.phoneNumber} />
-                        ) : (
-                          <p className="py-3 text-center text-[12.5px] text-muted-foreground">Could not load this blast.</p>
-                        )}
-
-                        {actionError && busyId === null && (confirmSend === c.id || confirmDelete === c.id || !canSend) === false && (
-                          // (handled below near the action buttons)
-                          null
-                        )}
-
-                        {/* management actions — never the agent; these are CRUD */}
-                        {(canSend || canDelete || canPause || canResume) && (
-                          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
-                            {canPause && (
-                              <button
-                                onClick={() => { setConfirmSend(null); setConfirmDelete(null); setActionError(null); setBlastStatus(c.id, "PAUSED"); }}
-                                disabled={busy}
-                                className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-amber-500 disabled:opacity-60"
-                              >
-                                {busy ? <FlowLoader size={13} /> : <Pause className="h-3.5 w-3.5" />} Pause
-                              </button>
-                            )}
-
-                            {canResume && (
-                              <button
-                                onClick={() => { setConfirmSend(null); setConfirmDelete(null); setActionError(null); setBlastStatus(c.id, "DRAFT"); }}
-                                disabled={busy}
-                                className="inline-flex items-center gap-1.5 rounded-[10px] border border-emerald-500/40 bg-emerald-500/5 px-3 py-1.5 text-[12px] font-medium text-emerald-500 hover:bg-emerald-500/10 disabled:opacity-60"
-                              >
-                                {busy ? <FlowLoader size={13} /> : <Play className="h-3.5 w-3.5" />} Resume
-                              </button>
-                            )}
-
-                            {canSend && (
-                              confirmSend === c.id ? (
-                                <span className="inline-flex items-center gap-2 rounded-[10px] border border-brand-500/40 bg-brand-500/5 px-2 py-1">
-                                  <span className="text-[11.5px] font-medium">Send to {(detail?.contactList?.activeCount ?? detail?.contactList?.totalCount ?? c.audience ?? 0).toLocaleString()} now?</span>
-                                  <button
-                                    onClick={() => sendBlast(c.id)}
-                                    disabled={busy}
-                                    className="inline-flex items-center gap-1.5 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60"
-                                  >
-                                    {busy ? <FlowLoader size={13} /> : <Send className="h-3 w-3" />} Confirm
-                                  </button>
-                                  <button onClick={() => setConfirmSend(null)} disabled={busy} className="rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">Cancel</button>
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() => { setConfirmDelete(null); setActionError(null); setConfirmSend(c.id); }}
-                                  className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm"
-                                >
-                                  <Send className="h-3.5 w-3.5" /> Send now
-                                </button>
-                              )
-                            )}
-
-                            {canDelete && (
-                              confirmDelete === c.id ? (
-                                <span className="inline-flex items-center gap-2 rounded-[10px] border border-rose-500/40 bg-rose-500/5 px-2 py-1">
-                                  <span className="text-[11.5px] font-medium">Delete this blast?</span>
-                                  <button
-                                    onClick={() => deleteBlast(c.id)}
-                                    disabled={busy}
-                                    className="inline-flex items-center gap-1.5 rounded-[8px] bg-rose-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60"
-                                  >
-                                    {busy ? <FlowLoader size={13} /> : <Trash2 className="h-3 w-3" />} Confirm
-                                  </button>
-                                  <button onClick={() => setConfirmDelete(null)} disabled={busy} className="rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">Cancel</button>
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() => { setConfirmSend(null); setActionError(null); setConfirmDelete(c.id); }}
-                                  className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-rose-500"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" /> Delete
-                                </button>
-                              )
-                            )}
-
-                            {onAsk && (status === "draft" || status === "scheduled") && (
-                              <button
-                                onClick={() => onAsk(`Help me edit my SMS blast "${c.name}" — let me change the message copy, audience, or schedule, then save it.`)}
-                                className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground"
-                              >
-                                <PenLine className="h-3.5 w-3.5" /> Edit with agent
-                              </button>
-                            )}
-                          </div>
-                        )}
-
-                        {actionError && (openId === c.id) && (
-                          <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {actionError}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : filtersActive ? (
-            <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-muted text-muted-foreground"><Search className="h-6 w-6" /></span>
-              <p className="mt-3 text-[13px] font-medium">No blasts match your filters</p>
-              <p className="mt-1 text-[12px] text-muted-foreground">{search ? `Nothing found for "${search}"` : "No blasts with that status"}{statusFilter !== "all" && search ? ` and status "${statusFilter}"` : ""}.</p>
-              <button onClick={() => { setSearchInput(""); setSearch(""); setStatusFilter("all"); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-4 py-2 text-[13px] font-medium text-muted-foreground hover:text-foreground">
-                <XCircle className="h-4 w-4" /> Clear filters
-              </button>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><MessageSquare className="h-6 w-6" /></span>
-              <p className="mt-3 text-[13px] font-medium">No SMS blasts yet</p>
-              <p className="mt-1 text-[12px] text-muted-foreground">{hasNumber ? "Send your first blast — tell the agent who to reach and what to say." : "Set up a verified SMS number, then send your first blast."}</p>
-              <button onClick={askNew} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
-                <Sparkles className="h-4 w-4" /> {hasNumber ? "Create a blast" : "Set up SMS"}
-              </button>
-            </div>
-          )}
-        </section>
-        )}
+          <button onClick={() => setBriefOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1.5 text-[12px] font-bold text-white shadow-sm">
+            <Sparkles className="h-3.5 w-3.5" /> New blast
+          </button>
         </div>
       </div>
+
+      {/* CANVAS */}
+      <div
+        className="relative min-h-0 flex-1 overflow-hidden"
+        style={{ backgroundImage: "radial-gradient(circle, var(--dot,rgba(120,130,150,.16)) 1px, transparent 1px)", backgroundSize: "22px 22px" }}
+      >
+        <div ref={scrollRef} onPointerDown={pan} className="absolute inset-0 cursor-grab overflow-auto">
+          <div className="relative" style={{ width: 1780, height: 760 }}>
+            {/* wires */}
+            <svg className="pointer-events-none absolute inset-0 h-full w-full" style={{ overflow: "visible" }}>
+              {["M300 250 C355 250 365 250 400 250", "M640 250 C695 250 705 250 740 250", "M980 250 C1035 250 1045 250 1080 250", "M1320 250 C1375 250 1385 250 1420 250", "M860 430 C860 480 860 480 860 520"].map((d, i) => (
+                <path key={i} d={d} className="fill-none stroke-brand-500/25" strokeWidth={2} />
+              ))}
+            </svg>
+
+            {/* 1 · Campaign brief */}
+            <StudioNode x={60} y={150} tone="brand" icon={PenLine} title="Campaign brief" tag="SETUP" onClick={() => setBriefOpen(true)}>
+              <NodeMini k="Goal">Tell the studio what you want — it drafts the message, sizes the audience, and schedules it.</NodeMini>
+              <button onClick={() => setBriefOpen(true)} className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border bg-muted/40 px-2 py-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground">
+                <Sparkles className="h-3.5 w-3.5" /> Start a blast
+              </button>
+            </StudioNode>
+
+            {/* 2 · Audience */}
+            <StudioNode x={400} y={130} tone="violet" icon={UserRound} title="Audience" tag="WHO" onClick={askNew}>
+              <NodeMini k="Segment">Opted-in subscribers — the agent picks the list from your contacts.</NodeMini>
+              <NodeRow label="Skip opted-out" value={<CheckDot on />} />
+              <NodeRow label="Dedupe by number" value={<CheckDot on />} last />
+            </StudioNode>
+
+            {/* 3 · Message (AI-drafted) */}
+            <StudioNode x={740} y={120} tone="cyan" icon={Sparkles} title="Message" tag="AI COPY" onClick={askNew}>
+              <div className="rounded-xl border border-border bg-background p-2">
+                <div className="max-w-[92%] rounded-2xl rounded-bl-sm bg-brand-500/10 px-2.5 py-1.5 text-[11px] leading-snug text-foreground">
+                  Hi {"{first_name}"}, it&apos;s been a while! Here&apos;s 15% off your next order — reply STOP to opt out.
+                </div>
+                <div className="mt-1 flex justify-between text-[9px] text-muted-foreground"><span>1 segment · personalized</span><span>{"{first_name}"}</span></div>
+              </div>
+              <button onClick={askNew} className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-2 py-1.5 text-[11px] font-bold text-white">
+                <Sparkles className="h-3.5 w-3.5" /> Write with agent
+              </button>
+            </StudioNode>
+
+            {/* 4 · Send / schedule */}
+            <StudioNode x={1080} y={135} tone="amber" icon={Timer} title="Send" tag="SCHEDULE" onClick={askNew}>
+              <NodeMini k="When">Send now, or schedule — recipient local time.</NodeMini>
+              <NodeRow label="Throttle (carrier-safe)" value={<span className="font-semibold">auto</span>} />
+              <NodeRow label="Quiet hours" value={<CheckDot on />} last />
+            </StudioNode>
+
+            {/* Your SMS line */}
+            <StudioNode x={1420} y={150} tone="cyan" icon={Phone} title="Your SMS line" tag="NUMBER">
+              <div className="text-center">
+                <b className="font-mono text-[15px]">{number?.phoneNumber}</b>
+                <div className={cn("mt-1 text-[9.5px] font-semibold", regApproved ? "text-emerald-500" : "text-amber-500")}>● {regStatusText}</div>
+              </div>
+              <div className="mt-2 space-y-0.5 rounded-xl border border-border bg-muted/30 p-2">
+                {isTollFreeNumber ? (
+                  <NodeRow label="Toll-free verify" value={<b className={regTone(tollfree?.status).split(" ").pop()}>{regLabel(tollfree?.status)}</b>} last />
+                ) : (
+                  <>
+                    <NodeRow label="Brand" value={<b className={regTone(a2p?.brandStatus).split(" ").pop()}>{regLabel(a2p?.brandStatus)}</b>} />
+                    <NodeRow label="Campaign" value={<b className={regTone(a2p?.campaignStatus).split(" ").pop()}>{regLabel(a2p?.campaignStatus)}</b>} />
+                  </>
+                )}
+                {monthlyLimit > 0 && <NodeRow label="This month" value={<span className="tabular-nums">{sentThisMonth.toLocaleString()} / {monthlyLimit.toLocaleString()}</span>} last />}
+              </div>
+            </StudioNode>
+
+            {/* Results (live) */}
+            <StudioNode x={740} y={520} tone="emerald" icon={Gauge} title="Results" tag="LIVE">
+              <div className="flex gap-1.5">
+                <div className="flex-1 rounded-lg border border-border bg-muted/30 py-1.5 text-center"><b className="block text-[14px] tabular-nums">{totalSent.toLocaleString()}</b><span className="text-[8.5px] font-bold uppercase tracking-wider text-muted-foreground">Sent</span></div>
+                <div className="flex-1 rounded-lg border border-border bg-muted/30 py-1.5 text-center"><b className="block text-[14px] tabular-nums text-emerald-500">{totalDelivered.toLocaleString()}</b><span className="text-[8.5px] font-bold uppercase tracking-wider text-muted-foreground">Delivered</span></div>
+                <div className="flex-1 rounded-lg border border-border bg-muted/30 py-1.5 text-center"><b className="block text-[14px] tabular-nums text-brand-500">{deliveryRate}%</b><span className="text-[8.5px] font-bold uppercase tracking-wider text-muted-foreground">Rate</span></div>
+              </div>
+              <NodeMini k="Replies → the agent handles them" className="mt-2">Inbound replies auto-answer and route to Leads. {totalFailed > 0 ? `${totalFailed.toLocaleString()} failed.` : ""}</NodeMini>
+            </StudioNode>
+
+            <div className="pointer-events-none absolute bottom-3 left-3 rounded-lg border border-border bg-card/80 px-2.5 py-1.5 text-[10.5px] text-muted-foreground">
+              Drag empty space to pan · the AI drafts every message · replies come back to the agent
+            </div>
+          </div>
+        </div>
+
+        {/* brief bottom-sheet */}
+        {briefOpen && (
+          <div data-nopan className="absolute inset-x-3 bottom-3 z-30 rounded-2xl border border-border bg-card p-4 shadow-2xl">
+            <div className="mx-auto mb-2.5 h-1 w-9 rounded-full bg-border" />
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-[14px] font-bold">Start a blast</h3>
+                <p className="mt-0.5 text-[11.5px] text-muted-foreground">Tell the studio the goal — it drafts the message, sizes the audience, and sets a carrier-safe schedule.</p>
+              </div>
+              <button onClick={() => setBriefOpen(false)} className="text-muted-foreground hover:text-foreground" aria-label="Close"><X className="h-4 w-4" /></button>
+            </div>
+            <form onSubmit={submitBrief} className="mt-3 flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2">
+              <Sparkles className="h-4 w-4 shrink-0 text-brand-500" />
+              <input value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="e.g. Win back customers who haven't ordered in 60 days with 15% off this week" className="flex-1 bg-transparent text-[13px] outline-none" autoFocus />
+              <button type="submit" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-brand-500 to-violet-500 text-white" aria-label="Start"><Send className="h-4 w-4" /></button>
+            </form>
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              {BRIEF_CHIPS.map((c) => (
+                <button key={c.label} onClick={() => fireBrief(c.prompt)} className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground">{c.label}</button>
+              ))}
+            </div>
+            {armed && <p className="mt-2.5 inline-flex items-center gap-1.5 text-[11px] text-brand-500"><FlowLoader size={13} /> Handing it to the agent…</p>}
+          </div>
+        )}
+      </div>
+
+      {/* BACK OFFICE — slide-over with the blasts list + carrier registration + release */}
+      {backOpen && (
+        <div className="absolute inset-0 z-40 flex">
+          <div className="flex-1 bg-black/40" onClick={() => setBackOpen(false)} />
+          <div className="flex h-full w-full max-w-[860px] flex-col border-l border-border bg-background shadow-2xl">
+            <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+              <ClipboardList className="h-4 w-4 text-brand-500" />
+              <h2 className="text-[14px] font-bold">SMS back office</h2>
+              <button onClick={() => setBackOpen(false)} className="ms-auto text-muted-foreground hover:text-foreground" aria-label="Close"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
+              <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start">
+                {/* LEFT: number summary + section menu + filters + release */}
+                <aside className="space-y-3 lg:sticky lg:top-0 lg:w-[280px] lg:shrink-0">
+                  <div className="rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/10 via-violet-500/5 to-transparent p-4">
+                    <div className="flex items-start gap-2.5">
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500/25 to-violet-500/20 text-brand-500"><Phone className="h-5 w-5" /></span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-medium text-muted-foreground">Your SMS number</p>
+                        <p className="truncate text-[17px] font-extrabold leading-tight">{number?.phoneNumber}</p>
+                      </div>
+                    </div>
+                    <span className={cn("mt-2.5 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", number?.verified ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" : "border-amber-500/30 bg-amber-500/10 text-amber-500")}>
+                      {number?.verified ? <ShieldCheck className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                      {number?.verified ? "Verified" : "Verification pending"}
+                    </span>
+                    {monthlyLimit > 0 && (
+                      <div className="mt-3">
+                        <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5"><Gauge className="h-3 w-3" /> This month</span>
+                          <span className="tabular-nums text-foreground">{sentThisMonth.toLocaleString()} / {monthlyLimit.toLocaleString()}</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style={{ width: `${Math.max(2, usagePct)}%` }} />
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <MiniStat label="Sent" value={(stats.sent ?? 0).toLocaleString()} />
+                      <MiniStat label="Delivered" value={totalDelivered.toLocaleString()} />
+                      <MiniStat label="Delivery" value={`${deliveryRate}%`} />
+                      <MiniStat label="Blasts" value={(stats.total ?? campaigns.length).toLocaleString()} />
+                    </div>
+                  </div>
+
+                  <button onClick={askNew} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2.5 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+                    <Sparkles className="h-4 w-4" /> New SMS blast
+                  </button>
+
+                  <nav className="rounded-2xl border border-border bg-card p-1.5">
+                    {([
+                      { id: "blasts" as const, label: "SMS blasts", icon: MessageSquare, count: stats.total ?? campaigns.length },
+                      { id: "registration" as const, label: "Carrier registration", icon: ShieldCheck },
+                    ]).map((n) => {
+                      const active = section === n.id;
+                      return (
+                        <button key={n.id} onClick={() => setSection(n.id)} className={cn("flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors", active ? "bg-brand-500/10 text-brand-500" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+                          <n.icon className="h-4 w-4 shrink-0" />
+                          <span className="flex-1 text-start">{n.label}</span>
+                          {typeof n.count === "number" && n.count > 0 && (
+                            <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums", active ? "bg-brand-500/15 text-brand-500" : "bg-muted text-muted-foreground")}>{n.count}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                    {!isTollFreeNumber && a2p?.isApproved && (
+                      <p className="mt-1 inline-flex items-center gap-1.5 px-3 pb-1 pt-0.5 text-[11px] font-medium text-emerald-500"><CheckCircle2 className="h-3 w-3" /> Carrier approved</p>
+                    )}
+                  </nav>
+
+                  {section === "blasts" && (
+                    <div className="space-y-2.5 rounded-2xl border border-border bg-card p-3">
+                      <form onSubmit={(e) => { e.preventDefault(); setSearch(searchInput.trim()); }} className="relative">
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} onBlur={() => setSearch(searchInput.trim())} placeholder="Search blasts…" className="w-full rounded-[10px] border border-border bg-background py-1.5 pl-8 pr-8 text-[12.5px] outline-none focus:border-brand-500/50" />
+                        {searchInput && (
+                          <button type="button" onClick={() => { setSearchInput(""); setSearch(""); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" aria-label="Clear search"><XCircle className="h-3.5 w-3.5" /></button>
+                        )}
+                      </form>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <ListFilter className="mr-0.5 h-3.5 w-3.5 text-muted-foreground" />
+                        {STATUS_FILTERS.map((f) => (
+                          <button key={f.value} onClick={() => setStatusFilter(f.value)} className={cn("rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition", statusFilter === f.value ? "border-brand-500/40 bg-brand-500/10 text-brand-500" : "border-border bg-card text-muted-foreground hover:text-foreground")}>{f.label}</button>
+                        ))}
+                        {listLoading && <FlowLoader size={16} />}
+                      </div>
+                    </div>
+                  )}
+
+                  {confirmRelease ? (
+                    <div className="rounded-2xl border border-rose-500/40 bg-rose-500/5 p-3">
+                      <p className="text-[11.5px] font-medium">Release {number?.phoneNumber}? This frees the number — you&apos;ll need to rent a new one to send again.</p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <button onClick={releaseNumber} disabled={releaseBusy} className="inline-flex items-center gap-1.5 rounded-[8px] bg-rose-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60">
+                          {releaseBusy ? <FlowLoader size={13} /> : <Trash2 className="h-3 w-3" />} Release
+                        </button>
+                        <button onClick={() => { setConfirmRelease(false); setReleaseError(null); }} disabled={releaseBusy} className="rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">Keep</button>
+                      </div>
+                      {releaseError && <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {releaseError}</p>}
+                    </div>
+                  ) : (
+                    <button onClick={() => { setReleaseError(null); setConfirmRelease(true); }} className="inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-2 text-[12.5px] font-medium text-muted-foreground hover:text-rose-500">
+                      <Trash2 className="h-3.5 w-3.5" /> Release number
+                    </button>
+                  )}
+                </aside>
+
+                {/* RIGHT: the selected section */}
+                <div className="min-w-0 flex-1 space-y-4">
+                  {section === "registration" ? (
+                    <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <h3 className="inline-flex items-center gap-1.5 text-[13px] font-bold"><ShieldCheck className="h-4 w-4 text-brand-500" /> Carrier registration</h3>
+                        <span className="text-[11.5px] text-muted-foreground">{isTollFreeNumber ? "Toll-free verification" : "A2P 10DLC"}</span>
+                        <button onClick={loadRegistration} disabled={regLoading || regBusy} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">
+                          <RefreshCw className={cn("h-3.5 w-3.5", regLoading && "animate-spin")} /> Refresh
+                        </button>
+                      </div>
+                      {regLoading && !a2p && !tollfree ? (
+                        <div className="grid place-items-center py-5"><FlowLoader size={20} label="Checking registration…" /></div>
+                      ) : isTollFreeNumber ? (
+                        <RegRow label="Toll-free verification" status={tollfree?.status} detail={tollfree?.rejectionReason} pending={!tollfree?.hasVerification} pendingText="Verification not submitted yet — the agent submits it when you rent a toll-free number." />
+                      ) : (
+                        <div className="space-y-2">
+                          <RegRow label="Brand registration" status={a2p?.brandStatus} detail={a2p?.brandFailureReason} pending={!a2p?.hasRegistration} pendingText="A2P brand not registered yet — the agent submits it when you rent a local number." />
+                          <RegRow label="Campaign registration" status={a2p?.campaignStatus} detail={a2p?.campaignFailureReason} pending={!a2p?.hasRegistration} pendingText="Created automatically once your brand is approved." />
+                        </div>
+                      )}
+                      {!isTollFreeNumber && a2p?.isApproved && (
+                        <p className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-medium text-emerald-500"><CheckCircle2 className="h-3.5 w-3.5" /> Fully approved — your number can send marketing SMS.</p>
+                      )}
+                      {!isTollFreeNumber && a2p?.hasRegistration && (isRegFailed(a2p.brandStatus) || isRegFailed(a2p.campaignStatus)) && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+                          <span className="inline-flex items-center gap-1.5 text-[12px] text-rose-500"><ShieldAlert className="h-3.5 w-3.5" /> Registration failed.</span>
+                          <button onClick={retryA2pRegistration} disabled={regBusy} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm disabled:opacity-60">
+                            {regBusy ? <FlowLoader size={13} /> : <RotateCw className="h-3.5 w-3.5" />} Resubmit registration
+                          </button>
+                        </div>
+                      )}
+                      {isTollFreeNumber && isRegFailed(tollfree?.status) && onAsk && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+                          <span className="inline-flex items-center gap-1.5 text-[12px] text-rose-500"><ShieldAlert className="h-3.5 w-3.5" /> Toll-free verification was rejected.</span>
+                          <button onClick={() => onAsk("My toll-free SMS verification was rejected. Help me fix the issues and resubmit it.")} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground">
+                            <Sparkles className="h-3.5 w-3.5" /> Fix with agent
+                          </button>
+                        </div>
+                      )}
+                      {regError && <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {regError}</p>}
+                      {!number?.verified && (
+                        <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5">
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-500/10 text-amber-500"><AlertTriangle className="h-[18px] w-[18px]" /></span>
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-semibold">Carrier verification in progress</p>
+                            <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground">Your number is registered and pending carrier approval. Sending unlocks once it&apos;s verified — the agent will let you know.</p>
+                          </div>
+                        </div>
+                      )}
+                      <p className="mt-4 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                        <ExternalLink className="h-3 w-3 shrink-0" /> SMS rates and carrier rules vary by country. Recipients must opt in.
+                      </p>
+                    </section>
+                  ) : (
+                    <section className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+                      <div className="mb-3 flex items-center gap-2">
+                        <h3 className="text-[13px] font-bold">SMS blasts</h3>
+                        <button onClick={askNew} className="ms-auto inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
+                          <Sparkles className="h-3.5 w-3.5" /> New blast
+                        </button>
+                      </div>
+
+                      {armed && <AgentWorkingCard working={working} title="Writing your blast" sub={working ? "The agent is drafting your message — it'll appear here." : "Answer the agent's questions in the chat and your blast will land here."} compact />}
+
+                      {campaigns.length ? (
+                        <div className="space-y-2">
+                          {campaigns.map((c) => {
+                            const m = statusMeta(c.status);
+                            const status = c.status.toLowerCase();
+                            const isOpen = openId === c.id;
+                            const sent = c.sent ?? 0;
+                            const delivered = c.delivered ?? 0;
+                            const rate = sent > 0 ? Math.round((delivered / sent) * 100) : 0;
+                            const when = whenLabel(c.sentAt) || (c.scheduledAt ? `scheduled ${whenLabel(c.scheduledAt)}` : whenLabel(c.createdAt));
+                            const busy = busyId === c.id;
+                            const canSend = hasNumber && SENDABLE.has(status);
+                            const canDelete = DELETABLE.has(status);
+                            const canPause = PAUSABLE.has(status);
+                            const canResume = RESUMABLE.has(status);
+                            return (
+                              <div key={c.id} className={cn("rounded-xl border bg-muted/30 transition", isOpen ? "border-brand-500/40" : "border-border")}>
+                                <button onClick={() => openBlast(c)} className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-left">
+                                  <span className="truncate text-[13px] font-semibold">{c.name}</span>
+                                  <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-semibold capitalize", m.tone)}>
+                                    <m.icon className="h-3 w-3" /> {status}
+                                  </span>
+                                  {when && <span className="text-[11.5px] text-muted-foreground">{when}</span>}
+                                  <span className="ms-auto text-[12px] text-muted-foreground">
+                                    <span className="font-semibold text-foreground tabular-nums">{(c.audience ?? 0).toLocaleString()}</span> recipients
+                                  </span>
+                                  <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition", isOpen && "rotate-90")} />
+                                </button>
+                                {sent > 0 && (
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border/60 px-3 py-2 text-[11.5px] text-muted-foreground">
+                                    <span className="inline-flex items-center gap-1"><Send className="h-3 w-3" /> {sent.toLocaleString()} sent</span>
+                                    <span className="inline-flex items-center gap-1 text-emerald-500"><CheckCircle2 className="h-3 w-3" /> {delivered.toLocaleString()} delivered <span className="text-muted-foreground">({rate}%)</span></span>
+                                    {!!c.failed && <span className="inline-flex items-center gap-1 text-rose-500"><XCircle className="h-3 w-3" /> {c.failed.toLocaleString()} failed</span>}
+                                    {!!c.clicked && <span className="inline-flex items-center gap-1"><MousePointerClick className="h-3 w-3" /> {c.clicked.toLocaleString()} clicked</span>}
+                                    {!!c.unsubscribed && <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" /> {c.unsubscribed.toLocaleString()} opted out</span>}
+                                    {!!c.segments && <span>{c.segments} segment{c.segments > 1 ? "s" : ""}</span>}
+                                  </div>
+                                )}
+                                {isOpen && (
+                                  <div className="border-t border-border/60 px-3 py-3">
+                                    {detailLoading ? (
+                                      <div className="grid place-items-center py-6"><FlowLoader size={22} label="Loading blast…" /></div>
+                                    ) : detail && detail.id === c.id ? (
+                                      <BlastDetail detail={detail} senderNumber={number?.phoneNumber} />
+                                    ) : (
+                                      <p className="py-3 text-center text-[12.5px] text-muted-foreground">Could not load this blast.</p>
+                                    )}
+                                    {(canSend || canDelete || canPause || canResume) && (
+                                      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/60 pt-3">
+                                        {canPause && (
+                                          <button onClick={() => { setConfirmSend(null); setConfirmDelete(null); setActionError(null); setBlastStatus(c.id, "PAUSED"); }} disabled={busy} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-amber-500 disabled:opacity-60">
+                                            {busy ? <FlowLoader size={13} /> : <Pause className="h-3.5 w-3.5" />} Pause
+                                          </button>
+                                        )}
+                                        {canResume && (
+                                          <button onClick={() => { setConfirmSend(null); setConfirmDelete(null); setActionError(null); setBlastStatus(c.id, "DRAFT"); }} disabled={busy} className="inline-flex items-center gap-1.5 rounded-[10px] border border-emerald-500/40 bg-emerald-500/5 px-3 py-1.5 text-[12px] font-medium text-emerald-500 hover:bg-emerald-500/10 disabled:opacity-60">
+                                            {busy ? <FlowLoader size={13} /> : <Play className="h-3.5 w-3.5" />} Resume
+                                          </button>
+                                        )}
+                                        {canSend && (
+                                          confirmSend === c.id ? (
+                                            <span className="inline-flex items-center gap-2 rounded-[10px] border border-brand-500/40 bg-brand-500/5 px-2 py-1">
+                                              <span className="text-[11.5px] font-medium">Send to {(detail?.contactList?.activeCount ?? detail?.contactList?.totalCount ?? c.audience ?? 0).toLocaleString()} now?</span>
+                                              <button onClick={() => sendBlast(c.id)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-[8px] bg-gradient-to-r from-brand-500 to-violet-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60">
+                                                {busy ? <FlowLoader size={13} /> : <Send className="h-3 w-3" />} Confirm
+                                              </button>
+                                              <button onClick={() => setConfirmSend(null)} disabled={busy} className="rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">Cancel</button>
+                                            </span>
+                                          ) : (
+                                            <button onClick={() => { setConfirmDelete(null); setActionError(null); setConfirmSend(c.id); }} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm">
+                                              <Send className="h-3.5 w-3.5" /> Send now
+                                            </button>
+                                          )
+                                        )}
+                                        {canDelete && (
+                                          confirmDelete === c.id ? (
+                                            <span className="inline-flex items-center gap-2 rounded-[10px] border border-rose-500/40 bg-rose-500/5 px-2 py-1">
+                                              <span className="text-[11.5px] font-medium">Delete this blast?</span>
+                                              <button onClick={() => deleteBlast(c.id)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-[8px] bg-rose-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60">
+                                                {busy ? <FlowLoader size={13} /> : <Trash2 className="h-3 w-3" />} Confirm
+                                              </button>
+                                              <button onClick={() => setConfirmDelete(null)} disabled={busy} className="rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">Cancel</button>
+                                            </span>
+                                          ) : (
+                                            <button onClick={() => { setConfirmSend(null); setActionError(null); setConfirmDelete(c.id); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-rose-500">
+                                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                                            </button>
+                                          )
+                                        )}
+                                        {onAsk && (status === "draft" || status === "scheduled") && (
+                                          <button onClick={() => onAsk(`Help me edit my SMS blast "${c.name}" — let me change the message copy, audience, or schedule, then save it.`)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground">
+                                            <PenLine className="h-3.5 w-3.5" /> Edit with agent
+                                          </button>
+                                        )}
+                                      </div>
+                                    )}
+                                    {actionError && (openId === c.id) && (
+                                      <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {actionError}</p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : filtersActive ? (
+                        <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+                          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-muted text-muted-foreground"><Search className="h-6 w-6" /></span>
+                          <p className="mt-3 text-[13px] font-medium">No blasts match your filters</p>
+                          <p className="mt-1 text-[12px] text-muted-foreground">{search ? `Nothing found for "${search}"` : "No blasts with that status"}{statusFilter !== "all" && search ? ` and status "${statusFilter}"` : ""}.</p>
+                          <button onClick={() => { setSearchInput(""); setSearch(""); setStatusFilter("all"); }} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-4 py-2 text-[13px] font-medium text-muted-foreground hover:text-foreground">
+                            <XCircle className="h-4 w-4" /> Clear filters
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-border px-4 py-8 text-center">
+                          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/20 text-brand-500"><MessageSquare className="h-6 w-6" /></span>
+                          <p className="mt-3 text-[13px] font-medium">No SMS blasts yet</p>
+                          <p className="mt-1 text-[12px] text-muted-foreground">Send your first blast — tell the agent who to reach and what to say.</p>
+                          <button onClick={askNew} className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[13px] font-semibold text-white shadow-lg shadow-brand-500/30">
+                            <Sparkles className="h-4 w-4" /> Create a blast
+                          </button>
+                        </div>
+                      )}
+                    </section>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+// ── Canvas node primitives ──────────────────────────────────────────────────
+
+const NODE_TONES: Record<string, { bg: string; text: string }> = {
+  brand: { bg: "bg-brand-500/15", text: "text-brand-500" },
+  violet: { bg: "bg-violet-500/15", text: "text-violet-500" },
+  cyan: { bg: "bg-cyan-500/15", text: "text-cyan-500" },
+  amber: { bg: "bg-amber-500/15", text: "text-amber-500" },
+  emerald: { bg: "bg-emerald-500/15", text: "text-emerald-500" },
+};
+
+function StudioNode({ x, y, w = 240, tone, icon: Icon, title, tag, onClick, children }: { x: number; y: number; w?: number; tone: keyof typeof NODE_TONES; icon: ElementType; title: string; tag: string; onClick?: () => void; children: ReactNode }) {
+  const t = NODE_TONES[tone];
+  return (
+    <div data-node className="absolute rounded-2xl border border-border bg-card shadow-lg shadow-black/20" style={{ left: x, top: y, width: w }}>
+      <button type="button" onClick={onClick} disabled={!onClick} className={cn("flex w-full items-center gap-2 border-b border-border px-3 py-2.5 text-left", onClick && "cursor-pointer")}>
+        <span className={cn("grid h-6 w-6 place-items-center rounded-md", t.bg, t.text)}><Icon className="h-3.5 w-3.5" /></span>
+        <b className="flex-1 truncate text-[12.5px]">{title}</b>
+        <span className={cn("rounded-full px-2 py-0.5 text-[8.5px] font-extrabold tracking-wider", t.bg, t.text)}>{tag}</span>
+      </button>
+      <div className="space-y-2 p-3">{children}</div>
+    </div>
+  );
+}
+
+function NodeMini({ k, children, className }: { k: string; children: ReactNode; className?: string }) {
+  return (
+    <div className={cn("rounded-lg border border-border bg-muted/30 px-2.5 py-2 text-[11px] leading-snug", className)}>
+      <div className="mb-0.5 text-[8.5px] font-extrabold uppercase tracking-wider text-muted-foreground">{k}</div>
+      {children}
+    </div>
+  );
+}
+
+function NodeRow({ label, value, last }: { label: string; value: ReactNode; last?: boolean }) {
+  return (
+    <div className={cn("flex items-center justify-between py-1.5 text-[11px]", !last && "border-b border-border/50")}>
+      <span className="text-muted-foreground">{label}</span>
+      <span>{value}</span>
+    </div>
+  );
+}
+
+function CheckDot({ on }: { on?: boolean }) {
+  return <span className={cn("inline-flex h-4 w-4 items-center justify-center rounded-full", on ? "bg-brand-500 text-white" : "bg-muted text-muted-foreground")}>{on ? <CheckCircle2 className="h-3 w-3" /> : null}</span>;
 }
 
 // The inline blast detail: message preview (phone bubble), performance breakdown,
@@ -845,7 +961,6 @@ function BlastDetail({ detail, senderNumber }: { detail: SmsCampaignDetail; send
   const segmentCount = detail.segments ?? (charCount > 0 ? Math.max(1, Math.ceil(charCount / 160)) : 0);
   return (
     <div className="space-y-3">
-      {/* message preview */}
       <div className="rounded-xl border border-border bg-background p-3">
         <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
           <MessageSquare className="h-3.5 w-3.5" /> Message{senderNumber ? ` · from ${senderNumber}` : ""}
@@ -859,8 +974,6 @@ function BlastDetail({ detail, senderNumber }: { detail: SmsCampaignDetail; send
           <p className="mt-1.5 text-[11px] text-muted-foreground">{charCount} chars{segmentCount ? ` · ${segmentCount} segment${segmentCount > 1 ? "s" : ""}` : ""}</p>
         )}
       </div>
-
-      {/* performance (only once it's been sent) */}
       {sent > 0 && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <DetailStat icon={Send} label="Sent" value={sent.toLocaleString()} />
@@ -869,8 +982,6 @@ function BlastDetail({ detail, senderNumber }: { detail: SmsCampaignDetail; send
           <DetailStat icon={XCircle} label="Failed" value={failed.toLocaleString()} tone={failed > 0 ? "text-rose-500" : undefined} />
         </div>
       )}
-
-      {/* audience + timeline */}
       <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-[11.5px] text-muted-foreground">
         <span className="inline-flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {detail.contactList?.name ? `${detail.contactList.name} · ` : ""}{audience.toLocaleString()} recipients</span>
         {unsub > 0 && <span className="inline-flex items-center gap-1.5">{unsub.toLocaleString()} opted out</span>}
@@ -928,7 +1039,7 @@ function RegRow({ label, status, detail, pending, pendingText }: { label: string
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-border bg-muted/30 px-3 py-2.5">
       <span className="text-[12.5px] font-semibold">{label}</span>
       <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-semibold", regTone(status))}>
-        {isRegFailed(status) ? <ShieldAlert className="h-3 w-3" /> : ["APPROVED", "VERIFIED", "SUCCESSFUL", "TWILIO_APPROVED"].includes((status || "").toUpperCase()) ? <ShieldCheck className="h-3 w-3" /> : <Hourglass className="h-3 w-3" />}
+        {isRegFailed(status) ? <ShieldAlert className="h-3 w-3" /> : isRegApproved(status) ? <ShieldCheck className="h-3 w-3" /> : <Hourglass className="h-3 w-3" />}
         {regLabel(status)}
       </span>
       {detail && <span className="w-full text-[11px] text-rose-500">{detail}</span>}
