@@ -98,7 +98,7 @@ export const AGENT_GROUPS: AgentGroup[] = [
     placeholder: "Ask FlowSmartly about your call agent…",
     context: "The user has focused the agent into its **Call agent** group — the voice agent that answers their business phone. Prefer the voice-agent surface. It has a brief (what it does, the business, its greeting), a voice, skills (book / answer / qualify a lead / take a message / transfer / check an order), a phone number, and a live switch. You can still handle anything else they explicitly ask.",
     skills: [
-      { id: "voiceagent", title: "Voice agent", description: "Answers, books & logs every call.", surface: "voiceagent", costKey: "VOICE_AGENT_MINUTE", costHint: "9 cr / min", icon: "PhoneCall", thumb: "/Studio_Menus_Thumnail/voice_studio.webp", keywords: ["voice agent", "call agent", "phone", "receptionist", "answer calls", "call", "booking", "reception", "phone number", "voicemail"] },
+      { id: "voiceagent", title: "Voice agent", description: "Answers, books & logs every call.", surface: "voiceagent", costKey: "VOICE_AGENT_MINUTE", costHint: "15 cr / min", icon: "PhoneCall", thumb: "/Studio_Menus_Thumnail/voice_studio.webp", keywords: ["voice agent", "call agent", "phone", "receptionist", "answer calls", "call", "booking", "reception", "phone number", "voicemail"] },
     ],
   },
   {
@@ -121,7 +121,7 @@ export const AGENT_GROUPS: AgentGroup[] = [
     skills: [
       { id: "campaign", title: "Content campaign", description: "Concrete posts → approve → publish.", surface: "campaign", thumb: "/Studio_Menus_Thumnail/grow/grow1.webp", tools: ["create_content_campaign", "update_post", "regenerate_post_image"], costKey: "AI_POST", costHint: "from 3 cr / post", icon: "CalendarDays", keywords: ["campaign", "content", "batch", "posts"] },
       { id: "email", title: "Email campaign", description: "Draft, design & send.", surface: "email", thumb: "/Studio_Menus_Thumnail/grow/grow3.webp", tools: ["create_email_campaign", "send_email_campaign"], costKey: "EMAIL_SEND", costHint: "1 cr / email", icon: "Mail", keywords: ["email", "newsletter", "blast", "campaign"] },
-      { id: "messaging", title: "SMS / WhatsApp blast", description: "Reach your subscribers directly.", surface: "sms", thumb: "/Studio_Menus_Thumnail/grow/grow2.webp", tools: ["send_sms_campaign", "configure_whatsapp_agent"], costKey: "SMS_SEND", costHint: "from 3 cr", icon: "MessageSquare", keywords: ["sms", "text", "whatsapp", "blast", "broadcast"] },
+      { id: "messaging", title: "SMS / WhatsApp blast", description: "Reach your subscribers directly.", surface: "sms", thumb: "/Studio_Menus_Thumnail/grow/grow2.webp", tools: ["send_sms_campaign", "configure_whatsapp_agent"], costKey: "SMS_SEND", costHint: "~3 cr / text", icon: "MessageSquare", keywords: ["sms", "text", "whatsapp", "blast", "broadcast"] },
       { id: "automations", title: "Automations", description: "Personalized follow-up sequences.", surface: "automations", thumb: "/Studio_Menus_Thumnail/grow/grow5.webp", tools: ["create_automation"], costKey: "AGENT_CREATE_AUTOMATION", costHint: "5 cr", icon: "Workflow", keywords: ["automation", "sequence", "follow-up", "drip"] },
       { id: "adbuilder", title: "Ad builder", description: "Build & launch a paid ad.", surface: "adbuilder", thumb: "/Studio_Menus_Thumnail/grow/grow4.webp", tools: ["create_ad_campaign"], costHint: "your budget", icon: "Megaphone", keywords: ["ad", "ads", "boost", "paid", "campaign", "meta", "google"] },
     ],
