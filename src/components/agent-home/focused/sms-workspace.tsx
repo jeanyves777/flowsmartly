@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ElementType, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
-import { MessageSquare, Sparkles, Phone, Send, CheckCircle2, Clock, Users, AlertTriangle, ShieldCheck, Gauge, XCircle, ExternalLink, ChevronRight, Trash2, MousePointerClick, CalendarClock, PenLine, Search, Pause, Play, RefreshCw, RotateCw, ShieldAlert, Hourglass, ListFilter, ClipboardList, X, UserRound, Timer, Plus, GitBranch, Zap, MessageCircle, Mail, Tag, UserPlus, Wand2 } from "lucide-react";
+import { MessageSquare, Sparkles, Phone, Send, CheckCircle2, Clock, Users, AlertTriangle, ShieldCheck, Gauge, XCircle, ExternalLink, ChevronRight, Trash2, MousePointerClick, CalendarClock, Search, Pause, Play, RefreshCw, RotateCw, ShieldAlert, Hourglass, ListFilter, ClipboardList, X, UserRound, Timer, Plus, GitBranch, Zap, MessageCircle, Mail, Tag, UserPlus, Wand2 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
 import { cn } from "@/lib/utils/cn";
@@ -116,7 +116,7 @@ function isRegApproved(status?: string | null): boolean { return ["APPROVED", "V
 
 
 // ── component ────────────────────────────────────────────────────────────────
-export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
+export function FocusedSms({ refreshKey }: { refreshKey?: number; onAsk?: (prompt: string) => void; working?: boolean }) {
   const [campaigns, setCampaigns] = useState<SmsCampaign[]>([]);
   const [stats, setStats] = useState<SmsStats>({});
   const [number, setNumber] = useState<NumberStatus | null>(null);
@@ -147,6 +147,11 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
   const [section, setSection] = useState<"blasts" | "registration">("blasts");
   const [backOpen, setBackOpen] = useState(false);
 
+  // Compose BRIEF — the blast starts here (name · audience · goal · schedule),
+  // then seeds the canvas. Auto-opens once the sender number is ready.
+  const [briefOpen, setBriefOpen] = useState(false);
+  const briefShown = useRef(false);
+
   // flow-builder state
   const [nodes, setNodes] = useState<FlowNode[]>(DEFAULT_NODES);
   const [links, setLinks] = useState<FlowLink[]>(DEFAULT_LINKS);
@@ -166,6 +171,22 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
     try { const raw = localStorage.getItem(FLOW_KEY); if (raw) { const j = JSON.parse(raw); if (j.nodes?.length) { setNodes(j.nodes); setLinks(j.links || []); } } } catch { /* ignore */ }
   }, []);
   useEffect(() => { try { localStorage.setItem(FLOW_KEY, JSON.stringify({ nodes, links })); } catch { /* ignore */ } }, [nodes, links]);
+
+  // Open the compose brief the first time a sender number is ready.
+  useEffect(() => { if (number?.hasNumber && !briefShown.current) { briefShown.current = true; setBriefOpen(true); } }, [number]);
+
+  // Seed the canvas from the brief: set the audience list + starter message, then
+  // reset to a clean linear flow so the canvas reflects the brief.
+  const startBlast = useCallback((b: { contactListId: string; message: string }) => {
+    setNodes([
+      { id: "aud", type: "audience", x: 80, y: 150, contactListId: b.contactListId, skipOptedOut: true, dedupe: true },
+      { id: "msg", type: "message", x: 400, y: 130, text: b.message, personalize: true },
+      { id: "snd", type: "send", x: 720, y: 150, schedule: "now", throttle: "auto", quietHours: true },
+    ]);
+    setLinks([{ from: "aud", to: "msg", branch: "main" }, { from: "msg", to: "snd", branch: "main" }]);
+    setSelId("msg");
+    setBriefOpen(false);
+  }, []);
 
   const loadNumber = useCallback(async () => {
     const nj = await fetch("/api/sms/numbers?action=current").then((r) => r.json()).catch(() => null);
@@ -398,7 +419,7 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
         <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground"><MessageSquare className="h-3 w-3" /> {(stats.total ?? campaigns.length).toLocaleString()} blasts · {totalDelivered.toLocaleString()} delivered</span>
         <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold", regApproved ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500" : "border-amber-500/30 bg-amber-500/10 text-amber-500")}>{regApproved ? <ShieldCheck className="h-3 w-3" /> : <Hourglass className="h-3 w-3" />} {number?.phoneNumber}</span>
         <div className="ms-auto flex items-center gap-2">
-          <button onClick={() => { setNodes(DEFAULT_NODES); setLinks(DEFAULT_LINKS); setSelId("msg"); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-2.5 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><RotateCw className="h-3.5 w-3.5" /> New flow</button>
+          <button onClick={() => setBriefOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-2.5 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><RotateCw className="h-3.5 w-3.5" /> New blast</button>
           <button onClick={() => setBackOpen(true)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-2.5 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><ClipboardList className="h-3.5 w-3.5" /> Back office</button>
         </div>
       </div>
@@ -493,9 +514,72 @@ export function FocusedSms({ refreshKey, onAsk }: { refreshKey?: number; onAsk?:
           busyId={busyId} actionError={actionError} setActionError={setActionError} sendBlast={sendBlast} deleteBlast={deleteBlast} setBlastStatus={setBlastStatus}
           confirmRelease={confirmRelease} setConfirmRelease={setConfirmRelease} releaseBusy={releaseBusy} releaseError={releaseError} setReleaseError={setReleaseError} releaseNumber={releaseNumber}
           regLoading={regLoading} regBusy={regBusy} regError={regError} loadRegistration={loadRegistration} retryA2pRegistration={retryA2pRegistration}
-          onAsk={onAsk}
         />
       )}
+
+      {briefOpen && <SmsComposeBrief lists={lists} onClose={() => setBriefOpen(false)} onStart={startBlast} />}
+    </div>
+  );
+}
+
+// ── compose brief (name · audience · message · schedule → seeds the canvas) ──
+function SmsComposeBrief({ lists, onClose, onStart }: {
+  lists: ContactList[]; onClose: () => void; onStart: (b: { contactListId: string; message: string }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [listId, setListId] = useState("");
+  const [goal, setGoal] = useState("");
+  const [message, setMessage] = useState("");
+  const [genning, setGenning] = useState(false);
+  const generate = async () => {
+    setGenning(true);
+    const g = goal.trim() || "a short, friendly promotional SMS with a clear offer and an opt-out line";
+    try {
+      const r = await fetch("/api/campaigns/generate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "sms", channel: "sms", goal: g, prompt: g }) }).then((x) => x.json()).catch(() => null);
+      const text = r?.data?.content || r?.data?.message || r?.content || r?.message || "";
+      if (text) setMessage(text);
+      else setMessage("Hey {first_name}! A little thank-you — 15% off anything this week with code THANKS15. Reply STOP to opt out.");
+    } catch { /* ignore */ } finally { setGenning(false); }
+  };
+  return (
+    <div className="absolute inset-0 z-40">
+      <button aria-label="Close" className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-x-3 bottom-3 top-10 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
+        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-border" />
+        <div className="flex items-center gap-2 px-4 py-3">
+          <span className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-[9px] font-extrabold tracking-wider text-cyan-400">BRIEF</span>
+          <h3 className="text-[14px] font-bold">New SMS blast</h3>
+          <button onClick={onClose} className="ml-auto grid h-7 w-7 place-items-center rounded-lg border border-border text-muted-foreground hover:border-brand-500"><X className="h-3.5 w-3.5" /></button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+          <div>
+            <div className="mb-1.5 text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">Blast name</div>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. July flash sale" className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
+          </div>
+          <div>
+            <div className="mb-1.5 text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">Audience</div>
+            {lists.length ? (
+              <select value={listId} onChange={(e) => setListId(e.target.value)} className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500">
+                <option value="">Pick a contact list…</option>
+                {lists.map((l) => <option key={l.id} value={l.id}>{l.name} · {(l.smsEligibleCount ?? 0)} opted-in</option>)}
+              </select>
+            ) : <p className="rounded-lg border border-dashed border-border px-3 py-2 text-[11.5px] text-muted-foreground">No contact lists yet — add contacts first.</p>}
+          </div>
+          <div>
+            <div className="mb-1.5 text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">What's the message about?</div>
+            <textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} placeholder="e.g. 15% off this week for lapsed customers" className="w-full resize-y rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
+            <button onClick={() => void generate()} disabled={genning} className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-50">{genning ? <FlowLoader size={13} /> : <Wand2 className="h-3.5 w-3.5" />} {genning ? "Writing…" : "Draft the message"}</button>
+          </div>
+          <div>
+            <div className="mb-1.5 text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">Message</div>
+            <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} placeholder="Your SMS copy — {first_name} supported. End with an opt-out line." className="w-full resize-y rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
+          </div>
+        </div>
+        <div className="flex items-center justify-between border-t border-border px-4 py-3">
+          <span className="text-[11px] text-muted-foreground">Nothing sends until you launch on the canvas.</span>
+          <button onClick={() => onStart({ contactListId: listId, message: message.trim() })} disabled={!message.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-50"><CheckCircle2 className="h-3.5 w-3.5" /> Build the flow</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -729,7 +813,6 @@ function BackOffice(p: BackOfficeProps) {
                                     {canDelete && (p.confirmDelete === c.id ? (
                                       <span className="inline-flex items-center gap-2 rounded-[10px] border border-rose-500/40 bg-rose-500/5 px-2 py-1"><span className="text-[11.5px] font-medium">Delete?</span><button onClick={() => p.deleteBlast(c.id)} disabled={busy} className="inline-flex items-center gap-1.5 rounded-[8px] bg-rose-500 px-2.5 py-1 text-[11.5px] font-semibold text-white disabled:opacity-60">{busy ? <FlowLoader size={13} /> : <Trash2 className="h-3 w-3" />} Confirm</button><button onClick={() => p.setConfirmDelete(null)} disabled={busy} className="rounded-[8px] px-2 py-1 text-[11.5px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60">Cancel</button></span>
                                     ) : <button onClick={() => { p.setConfirmSend(null); p.setActionError(null); p.setConfirmDelete(c.id); }} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-rose-500"><Trash2 className="h-3.5 w-3.5" /> Delete</button>)}
-                                    {p.onAsk && (status === "draft" || status === "scheduled") && <button onClick={() => p.onAsk!(`Help me edit my SMS blast "${c.name}".`)} className="inline-flex items-center gap-1.5 rounded-[10px] border border-border bg-card px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:text-foreground"><PenLine className="h-3.5 w-3.5" /> Edit</button>}
                                   </div>
                                 )}
                                 {p.actionError && p.openId === c.id && <p className="mt-2 inline-flex items-start gap-1.5 text-[11.5px] text-rose-500"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {p.actionError}</p>}
