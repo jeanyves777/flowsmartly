@@ -2712,6 +2712,11 @@ model MarketingConfig {
   // Emergency Address (E911) — avoids $75/call surcharge
   smsEmergencyAddressSid String? // Twilio Address SID assigned to the phone number
 
+  // Credit charging (Telnyx cost pass-through — same whether the business has its
+  // own 10DLC campaign or routes under our default system campaign)
+  smsSetupChargedAt  DateTime? // one-time A2P setup charge applied (idempotency)
+  smsRentalChargedAt DateTime? // last monthly SMS-line charge, for the rental cron
+
   // Metadata
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
