@@ -6104,7 +6104,8 @@ model VoiceAgent {
 
   // The brief.
   business  String @default("") // what the agent is told about the business
-  greeting  String @default("")
+  greeting  String @default("") // inbound opener — the first line when someone calls IN
+  outboundGreeting String @default("") // opener when the AGENT calls OUT (overrides `greeting` per outbound call)
   knowledge String @default("[]") // JSON: [{kind:"file"|"url", label, url}]
 
   // Legacy voice config blob (deliberately NOT dropped). The xAI model reads the

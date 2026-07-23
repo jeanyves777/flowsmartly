@@ -120,6 +120,16 @@ export function buildElevenLabsAgent(row: Record<string, unknown>): ConvaiAgentP
         similarity_boost: 0.75,
       },
     },
+    // Allow a per-call first_message override so an OUTBOUND call can open with
+    // its own greeting ("Hi, this is … calling") instead of the inbound
+    // "Thanks for calling …". EL only honours the override when it's enabled here.
+    platform_settings: {
+      overrides: {
+        conversation_config_override: {
+          agent: { first_message: true },
+        },
+      },
+    },
     tags: ["flowsmartly"],
   };
 }

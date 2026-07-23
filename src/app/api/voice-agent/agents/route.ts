@@ -14,6 +14,7 @@ import {
   DEFAULT_HOURS,
   PRESET_BY_KEY,
   greetingFor,
+  outboundGreetingFor,
   publicNumber,
   skillsForPreset,
   type AgentSkill,
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
       select: { name: true },
     });
     const greeting: string = (body.greeting || "").trim() || greetingFor(presetKey, kit?.name);
+    const outboundGreeting: string = (body.outboundGreeting || "").trim() || outboundGreetingFor(kit?.name);
 
     // A new agent is a REQUEST, not a live line. Provisioning a real agent needs
     // a human (the provider's agents API is team-gated), so we build each one to
@@ -121,6 +123,7 @@ export async function POST(request: NextRequest) {
         phoneNumberId,
         business,
         greeting,
+        outboundGreeting,
         knowledge: JSON.stringify(body.knowledge || []),
         voiceId: (body.voiceId || "eve").slice(0, 64),
         voiceLabel: (body.voiceLabel || "Eve").slice(0, 64),

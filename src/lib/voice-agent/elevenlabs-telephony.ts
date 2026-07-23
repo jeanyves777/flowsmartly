@@ -81,10 +81,14 @@ export async function provisionElevenLabsNumber(
   }
 }
 
-/** Place an outbound call from the agent's own EL number to `toNumber`. */
+/** Place an outbound call from the agent's own EL number to `toNumber`.
+ *  Opens with an outbound-appropriate greeting: the caller-supplied `firstMessage`
+ *  wins, else the agent's saved `outboundGreeting`, so an outbound call never
+ *  opens with the inbound "Thanks for calling …". */
 export async function placeOutboundCall(
   agentId: string,
   toNumber: string,
+  firstMessage?: string,
 ): Promise<{ ok: boolean; conversationId?: string; error?: string }> {
   const agent = await prisma.voiceAgent.findUnique({ where: { id: agentId }, include: { number: true } });
   const elAgentId = (agent as unknown as { elevenAgentId?: string | null })?.elevenAgentId;
@@ -92,7 +96,10 @@ export async function placeOutboundCall(
   if (!agent || !elAgentId) return { ok: false, error: "This agent isn't set up on the calling platform yet." };
   if (!elNumberId) return { ok: false, error: "This agent has no outbound-capable number yet." };
 
-  const r = await outboundCall({ agentId: elAgentId, agentPhoneNumberId: elNumberId, toNumber });
+  const savedGreeting = (agent as unknown as { outboundGreeting?: string | null })?.outboundGreeting || "";
+  const opener = (firstMessage && firstMessage.trim()) || savedGreeting.trim() || undefined;
+
+  const r = await outboundCall({ agentId: elAgentId, agentPhoneNumberId: elNumberId, toNumber, firstMessage: opener });
   if (!r.ok) return { ok: false, error: r.error };
   return { ok: true, conversationId: r.data.conversation_id };
 }

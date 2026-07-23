@@ -19,6 +19,7 @@ export interface FollowUpRule {
   channel: "sms" | "whatsapp" | "email" | "call";
   message: string; // the text to send; for "call" it's an optional note (the agent handles the call live)
   subject?: string; // email only
+  applyTo?: "any" | "inbound" | "outbound"; // which call direction fires this rule (default any)
 }
 
 const parse = (v: unknown): FollowUpRule[] => {
@@ -40,9 +41,13 @@ export async function runFollowUps(
   call: { fromE164: string; outcome: string | null; channel?: string; direction?: string },
 ): Promise<void> {
   // "call" rules need no message (the agent handles the conversation live); the
-  // messaging channels do.
+  // messaging channels do. `applyTo` scopes a rule to one call direction.
+  const dir = call.direction === "outbound" ? "outbound" : "inbound";
   const rules = parse(agent.followUpRules).filter(
-    (r) => (r.message || r.channel === "call") && (r.outcome === "any" || r.outcome === (call.outcome || "answered")),
+    (r) =>
+      (r.message || r.channel === "call") &&
+      (r.outcome === "any" || r.outcome === (call.outcome || "answered")) &&
+      (!r.applyTo || r.applyTo === "any" || r.applyTo === dir),
   );
   if (!rules.length) return;
 

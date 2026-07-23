@@ -17,6 +17,7 @@ export interface FollowUpRule {
   outcome: string; // an outcome bucket ("missed", "lead", …) or "any"
   channel: "sms" | "whatsapp" | "email" | "call";
   message: string; // for "call" this is an optional note; the agent handles the call live
+  applyTo?: "any" | "inbound" | "outbound"; // which call direction this rule fires on (default any)
 }
 
 export interface VoiceChoice {
@@ -489,7 +490,8 @@ export interface VoiceAgentDraft {
   phoneNumberId: string | null;
   number?: AgentNumber | null;
   business: string;
-  greeting: string;
+  greeting: string; // inbound opener (when someone calls in)
+  outboundGreeting?: string; // opener when the agent calls out
   knowledge: KnowledgeItem[];
   orderConfig: OrderConfig;
   voiceId: string;
@@ -650,6 +652,15 @@ export function greetingFor(presetKey: string, businessName?: string | null): st
   // Falling back to "us" is what makes callers hear "Thanks for calling us."
   // Only do it when we genuinely don't know the name.
   return preset.greeting.replace("{business}", clean(businessName) || "us");
+}
+
+/** Default opener when the AGENT calls OUT — phrased as an outbound call, not
+ *  "thanks for calling". Used to seed the outbound-greeting field. */
+export function outboundGreetingFor(businessName?: string | null): string {
+  const name = clean(businessName);
+  return name
+    ? `Hi, this is ${name} calling — do you have a quick moment?`
+    : `Hi, do you have a quick moment to talk?`;
 }
 
 // ── Helpers ──

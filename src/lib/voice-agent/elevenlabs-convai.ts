@@ -213,20 +213,33 @@ export function deleteConvaiPhoneNumber(phoneNumberId: string) {
 
 // ── Outbound / batch calls (Phase 7) ─────────────────────────────────────────
 
-/** Place a single outbound call from one of our numbers, over SIP or Twilio. */
+/** Place a single outbound call from one of our numbers, over SIP or Twilio.
+ *  `firstMessage` overrides the agent's opening line for this call only — used to
+ *  open an outbound call with "Hi, this is … calling" instead of the inbound
+ *  "Thanks for calling …". Requires the agent to have the first_message override
+ *  enabled (see buildElevenLabsAgent → platform_settings.overrides). */
 export function outboundCall(params: {
   agentId: string;
   agentPhoneNumberId: string;
   toNumber: string;
+  firstMessage?: string;
   provider?: "sip_trunk" | "twilio";
 }) {
   const path = params.provider === "twilio" ? "/twilio/outbound-call" : "/sip-trunk/outbound-call";
+  const firstMessage = params.firstMessage?.trim();
   return call<{ conversation_id?: string; success?: boolean; message?: string }>(path, {
     method: "POST",
     body: JSON.stringify({
       agent_id: params.agentId,
       agent_phone_number_id: params.agentPhoneNumberId,
       to_number: params.toNumber,
+      ...(firstMessage
+        ? {
+            conversation_initiation_client_data: {
+              conversation_config_override: { agent: { first_message: firstMessage } },
+            },
+          }
+        : {}),
     }),
   });
 }
