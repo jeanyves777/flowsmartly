@@ -285,6 +285,18 @@ export async function getPresignedUrl(urlOrKey: string, expiresIn?: number): Pro
 }
 
 /**
+ * A presigned GET that forces a DOWNLOAD (Content-Disposition: attachment) with a friendly
+ * filename — used for one-click "Download" of a stored file without touching the object or
+ * breaking inline <video>/<img> playback of the same object via its public URL.
+ */
+export async function getPresignedDownloadUrl(urlOrKey: string, filename: string, expiresIn?: number): Promise<string> {
+  const key = extractS3Key(urlOrKey);
+  const safe = (filename || "download").replace(/[^\w.\- ]+/g, "_").slice(0, 80);
+  const command = new GetObjectCommand({ Bucket: BUCKET, Key: key, ResponseContentDisposition: `attachment; filename="${safe}"` });
+  return getSignedUrl(s3, command, { expiresIn: expiresIn || PRESIGN_EXPIRES });
+}
+
+/**
  * Sign all S3 URLs in an HTML string with long-lived presigned URLs (7 days).
  * Used for email sending where images must remain accessible.
  */
