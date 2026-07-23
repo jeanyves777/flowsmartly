@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { DeckSlideView } from "./deck-slide-view";
 import { VISUAL_STYLES, VISUAL_STYLE_LABELS, ANNOTATE_VARIANTS } from "@/lib/training/types";
-import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/deck";
+import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/reveal-timing";
 import { AnimationStudio } from "./animation-studio";
 import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle, VisualType } from "@/lib/training/types";
 
