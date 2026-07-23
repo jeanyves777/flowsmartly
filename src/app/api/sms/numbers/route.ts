@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/client";
 import { getSession } from "@/lib/auth/session";
 import { checkPlanAccess } from "@/lib/auth/plan-gate";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
-import { CREDIT_TO_CENTS } from "@/lib/credits/costs";
+import { CREDIT_TO_CENTS, getDynamicCreditCost } from "@/lib/credits/costs";
 import {
   searchAvailableNumbers,
   purchasePhoneNumber,
@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
     // Check compliance status before allowing phone rental
     const complianceCheck = await prisma.marketingConfig.findUnique({
       where: { userId: session.userId },
-      select: { smsComplianceStatus: true, smsOptInImageUrl: true, smsPhoneNumber: true },
+      select: { smsComplianceStatus: true, smsOptInImageUrl: true, smsPhoneNumber: true, smsSetupChargedAt: true },
     });
 
     if (complianceCheck?.smsComplianceStatus !== "APPROVED" || !complianceCheck.smsOptInImageUrl) {
@@ -201,13 +201,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check credit balance (first month rental)
+    // Check credit balance: first-month rental + the one-time A2P carrier-
+    // registration setup (charged once per business — same whether they get their
+    // own 10DLC campaign or route under our default system campaign).
     const balance = await creditService.getBalance(session.userId);
-    const requiredCredits = Math.ceil(PHONE_NUMBER_RENTAL_COST.total / CREDIT_TO_CENTS); // Convert cents to credits
+    const rentalCredits = Math.ceil(PHONE_NUMBER_RENTAL_COST.total / CREDIT_TO_CENTS);
+    const setupCredits = complianceCheck?.smsSetupChargedAt
+      ? 0
+      : await getDynamicCreditCost("SMS_A2P_REGISTRATION").catch(() => 2500);
+    const requiredCredits = rentalCredits + setupCredits;
 
     if (balance < requiredCredits) {
       return NextResponse.json(
-        { success: false, error: { message: `Insufficient credits. You need ${requiredCredits} credits for the first month rental.` } },
+        { success: false, error: { message: `Insufficient credits. You need ${requiredCredits} credits (${rentalCredits} first-month rental${setupCredits ? ` + ${setupCredits} one-time carrier registration` : ""}).` } },
         { status: 400 }
       );
     }
@@ -226,7 +232,7 @@ export async function POST(request: NextRequest) {
     await creditService.deductCredits({
       userId: session.userId,
       type: TRANSACTION_TYPES.USAGE,
-      amount: requiredCredits,
+      amount: rentalCredits,
       description: `SMS number rental: ${result.phoneNumber} (first month)`,
       referenceType: "sms_number_rental",
       referenceId: result.sid,
@@ -249,6 +255,19 @@ export async function POST(request: NextRequest) {
         smsVerified: true,
       },
     });
+
+    // One-time A2P carrier-registration setup charge (idempotent per business).
+    if (setupCredits > 0 && !complianceCheck?.smsSetupChargedAt) {
+      await creditService.deductCredits({
+        userId: session.userId,
+        type: TRANSACTION_TYPES.USAGE,
+        amount: setupCredits,
+        description: "SMS carrier registration (A2P 10DLC) setup",
+        referenceType: "sms_a2p_setup",
+        referenceId: result.sid,
+      });
+      await prisma.marketingConfig.update({ where: { userId: session.userId }, data: { smsSetupChargedAt: new Date() } });
+    }
 
     // Send phone purchase notification (fire-and-forget)
     notifySmsNumberActivated({

@@ -58,8 +58,10 @@ export function calculateAdRevenueSplit(cpvCents: number): {
 export const DEFAULT_CREDIT_COSTS = {
   // --- Messaging (credits per message) ---
   EMAIL_SEND: 1,          // Resend: ~$0.001/email
-  SMS_SEND: 3,            // Twilio: ~$0.0079/SMS
-  MMS_SEND: 5,            // Twilio: ~$0.02/MMS
+  SMS_SEND: 3,            // Telnyx: ~$0.0075/SMS (send + carrier fee) → ~3× markup
+  MMS_SEND: 5,            // Telnyx: ~$0.02/MMS
+  SMS_A2P_REGISTRATION: 2500, // one-time A2P 10DLC setup per business: brand (~$4) + campaign review ($15) + margin
+  SMS_LINE_MONTHLY: 1500,     // recurring SMS line per business: number (~$1) + A2P campaign (~$10/mo) + margin
 
   // --- AI Text Generation (Micro) — GPT-4o-mini ~$0.01-0.03 ---
   AI_POST: 3,
@@ -299,6 +301,8 @@ export const CREDIT_COST_LABELS: Record<CreditCostKey, string> = {
   EMAIL_SEND: "Email send",
   SMS_SEND: "SMS message send",
   MMS_SEND: "MMS message send",
+  SMS_A2P_REGISTRATION: "SMS carrier registration (A2P 10DLC), one-time",
+  SMS_LINE_MONTHLY: "SMS line (number + A2P), monthly",
   AI_POST: "AI post generation",
   AI_CAPTION: "AI caption generation",
   AI_HASHTAGS: "AI hashtag generation",
