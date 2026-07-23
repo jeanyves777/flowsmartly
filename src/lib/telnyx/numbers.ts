@@ -602,29 +602,45 @@ export async function submitA2p10DlcRegistration(params: A2pRegistrationParams):
     }).catch(() => {});
   }
 
-  // Build the campaign under the platform brand.
-  const built = await buildA2pCampaign({
-    brandId: brandSid,
-    useCaseKey: params.smsUseCase,
-    description: compliance.useCaseDescription,
-    messageFlow: compliance.messageFlow,
-    messageSamples: compliance.messageSamples,
-    optOutMessage: compliance.optOutMessage,
-    businessName: params.businessName,
-  });
+  // Current phase: every verified business routes under our ONE approved system
+  // campaign (`TELNYX_DEFAULT_CAMPAIGN_ID`) — no per-user campaign is created
+  // (each costs $15 + needs their own EIN + carrier review). We just assign their
+  // number to the default campaign. Per-business campaign submission becomes an
+  // admin-only decision later, once the compliance flow is proven.
+  const defaultCampaignId = process.env.TELNYX_DEFAULT_CAMPAIGN_ID;
+  let campaignSid: string | undefined;
+  let campaignStatus: string | undefined;
+  let campaignError: string | undefined;
 
-  const campaignSid = built.campaignSid;
-  const campaignStatus = built.status;
-  const campaignError = built.ok ? undefined : built.error;
-  if (!built.ok) console.warn(`[A2P] Campaign creation failed: ${built.error}`);
-
-  // Assign the number to the campaign (non-fatal — needs approval to send).
-  if (built.ok && campaignSid && params.phoneNumber) {
-    const assign = await call("/phone_number_campaigns", {
-      method: "POST",
-      body: JSON.stringify({ phone_number: params.phoneNumber, campaign_id: campaignSid }),
+  if (defaultCampaignId) {
+    campaignSid = defaultCampaignId;
+    campaignStatus = "PENDING";
+    if (params.phoneNumber) {
+      // Assignment only succeeds once the default campaign is carrier-approved;
+      // until then it's non-fatal and the a2p-status poll retries.
+      const assign = await assignNumberToCampaign(params.phoneNumber, defaultCampaignId);
+      if (assign.ok) campaignStatus = "VERIFIED";
+      else { campaignError = assign.error; console.warn(`[A2P] Default-campaign assignment deferred: ${assign.error}`); }
+    }
+  } else {
+    // Fallback (no default configured): create a per-user campaign under the brand.
+    const built = await buildA2pCampaign({
+      brandId: brandSid,
+      useCaseKey: params.smsUseCase,
+      description: compliance.useCaseDescription,
+      messageFlow: compliance.messageFlow,
+      messageSamples: compliance.messageSamples,
+      optOutMessage: compliance.optOutMessage,
+      businessName: params.businessName,
     });
-    if (!assign.ok) console.warn(`[A2P] Number→campaign assignment deferred: ${assign.error}`);
+    campaignSid = built.campaignSid;
+    campaignStatus = built.status;
+    campaignError = built.ok ? undefined : built.error;
+    if (!built.ok) console.warn(`[A2P] Campaign creation failed: ${built.error}`);
+    if (built.ok && campaignSid && params.phoneNumber) {
+      const assign = await assignNumberToCampaign(params.phoneNumber, campaignSid);
+      if (!assign.ok) console.warn(`[A2P] Number→campaign assignment deferred: ${assign.error}`);
+    }
   }
 
   return {
@@ -636,6 +652,20 @@ export async function submitA2p10DlcRegistration(params: A2pRegistrationParams):
     campaignStatus,
     error: campaignError,
   };
+}
+
+/**
+ * Assign a phone number to a 10DLC campaign. Telnyx's endpoint is the camelCase
+ * `/10dlc/phoneNumberCampaign` with `{ phoneNumber, campaignId }` — it returns a
+ * "still pending / not approved" error (10036) until the campaign is carrier-
+ * approved, so callers treat failure as deferred, not fatal.
+ */
+export async function assignNumberToCampaign(phoneNumber: string, campaignId: string): Promise<{ ok: boolean; error?: string }> {
+  const r = await call("/10dlc/phoneNumberCampaign", {
+    method: "POST",
+    body: JSON.stringify({ phoneNumber, campaignId }),
+  });
+  return r.ok ? { ok: true } : { ok: false, error: r.error };
 }
 
 /** Get the status of an A2P 10DLC brand. */
