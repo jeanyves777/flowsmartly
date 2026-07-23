@@ -244,6 +244,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       narration: s.narration ?? p.narration,
       quizReveal: s.quizReveal ?? p.quizReveal,
       videoUrl: s.videoUrl ?? p.videoUrl,
+      infographic: s.infographic ?? p.infographic,
     };
   });
   const deck: TrainingDeck = {

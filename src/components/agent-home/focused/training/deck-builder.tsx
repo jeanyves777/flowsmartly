@@ -376,7 +376,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   };
 
   // ---- slide media: upload your own / regenerate the image / turn it into an AI video ----
-  const [mediaBusy, setMediaBusy] = useState<null | "upload" | "regen" | "aivideo">(null);
+  const [mediaBusy, setMediaBusy] = useState<null | "upload" | "regen" | "aivideo" | "illustration">(null);
   const [aiVideoOpen, setAiVideoOpen] = useState(false);
   const [aiVideoStyle, setAiVideoStyle] = useState("3d");
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
@@ -417,6 +417,18 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       onSession(j.data.session as TrainingSessionDTO);
       setSlideMedia({ videoUrl: j.data.videoUrl as string, visualType: "video" });
       toast({ title: "Demonstration video ready", description: "It plays right on the slide." });
+    } finally { setMediaBusy(null); }
+  };
+  // Agent-authored animated illustration (infographic) — the on-subject alternative to an AI video.
+  const genIllustration = async () => {
+    if (!mat || !slide) return;
+    setMediaBusy("illustration");
+    try {
+      const j = await fetch(`/api/ai/training/${sessionId}/deck/illustration`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id, slideId: slide.id }) }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't design an illustration", variant: "destructive" }); return; }
+      onSession(j.data.session as TrainingSessionDTO);
+      setSlideMedia({ infographic: j.data.infographic as DeckSlide["infographic"], visualType: "diagram", videoUrl: undefined });
+      toast({ title: "Animated illustration ready", description: "It reveals in step with the narration — Preview it." });
     } finally { setMediaBusy(null); }
   };
 
@@ -610,25 +622,27 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black ring-1 ring-border">
                   {slide.videoUrl ? (
                     <video key={slide.videoUrl} src={slide.videoUrl} className="h-full w-full object-cover" muted loop autoPlay playsInline />
+                  ) : slide.infographic?.cards?.length ? (
+                    <div className="h-full w-full"><DeckSlideView slide={slide} styleKey={deck.visualStyle} /></div>
                   ) : slide.visual?.kind === "image" && slide.visual.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img key={slide.visual.url} src={slide.visual.url} alt="" className="h-full w-full object-cover" />
                   ) : (
                     <div className="grid h-full w-full place-items-center bg-gradient-to-br from-[#241f38] to-[#14121f] text-[30px]">{slide.visual?.emoji ?? "🎯"}</div>
                   )}
-                  {slide.videoUrl ? <span className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-black text-white backdrop-blur">▶ Video</span> : null}
+                  {slide.videoUrl ? <span className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-black text-white backdrop-blur">▶ Video</span> : slide.infographic?.cards?.length ? <span className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-black text-brand-300 backdrop-blur">✨ Animated</span> : null}
                   {mediaBusy ? (
                     <div className="absolute inset-0 grid place-items-center bg-black/65 backdrop-blur-sm">
-                      <div className="flex flex-col items-center gap-2 text-white"><Loader2 className="h-6 w-6 animate-spin" /><span className="text-[11px] font-semibold">{mediaBusy === "aivideo" ? "Rendering video…" : mediaBusy === "regen" ? "Generating image…" : "Uploading…"}</span></div>
+                      <div className="flex flex-col items-center gap-2 text-white"><Loader2 className="h-6 w-6 animate-spin" /><span className="text-[11px] font-semibold">{mediaBusy === "aivideo" ? "Rendering video…" : mediaBusy === "illustration" ? "Designing illustration…" : mediaBusy === "regen" ? "Generating image…" : "Uploading…"}</span></div>
                     </div>
                   ) : null}
                 </div>
                 <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  <button onClick={() => void genIllustration()} disabled={!!mediaBusy} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Animate this slide</button>
                   <button onClick={() => mediaInputRef.current?.click()} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><Upload className="h-3.5 w-3.5" /> Upload</button>
                   <button onClick={() => void regenImage()} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><RefreshCw className="h-3.5 w-3.5" /> New image</button>
-                  <button onClick={() => setAiVideoOpen(true)} disabled={!!mediaBusy} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-500/50 px-2 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50"><Film className="h-3.5 w-3.5" /> Turn into AI video</button>
                 </div>
-                <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">Upload your own image or video, or animate this visual into a ~15s clip that plays right on the slide.</p>
+                <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground"><b className="text-foreground">Animate this slide</b> designs an on-subject diagram (cards, icons, connectors) that draws itself in step with the narration — no video render. Or upload your own image/video. <button onClick={() => setAiVideoOpen(true)} disabled={!!mediaBusy} className="text-brand-400 underline disabled:opacity-50">Prefer a rendered AI video?</button></p>
                 <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadMedia(f); e.target.value = ""; }} />
               </div>
             ) : null}
