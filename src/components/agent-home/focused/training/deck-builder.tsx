@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { DeckSlideView } from "./deck-slide-view";
 import { VISUAL_STYLES, VISUAL_STYLE_LABELS, ANNOTATE_VARIANTS } from "@/lib/training/types";
+import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/deck";
 import { AnimationStudio } from "./animation-studio";
 import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle, VisualType } from "@/lib/training/types";
 
@@ -155,6 +156,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   // While previewing a slide, STEP through its reveals so it animates the way the room plays it:
   // Live Draw strokes draw (with the hand), diagram elements build, bullets appear one at a time.
   const [previewStep, setPreviewStep] = useState<number | undefined>(undefined);
+  // Per-slide reveal timing for the preview: the narration <audio>'s onTimeUpdate reads this to
+  // advance the reveals in sync with the voice (content-aware), instead of a blind fixed timer.
+  const previewFracsRef = useRef<{ fracs: number[] | null; steps: number }>({ fracs: null, steps: 1 });
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const previewDurRef = useRef(0); // narration length (s) — drives the per-step hand-writing pace
   const closePreview = () => { setPreviewing(false); setPreviewClip(null); };
   const openClipPreview = (url: string | null) => { if (!url) return; setPrepOpen(false); setPreviewing(true); setPreviewClip(url); };
   const runningAll = useRef(false);
@@ -185,6 +191,20 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   // Prepare modal / a fresh generation) wins; otherwise the slide's own talking video (intro /
   // moment / closing outro), else null → play the slide with narration + the moving avatar.
   const previewActive = previewing || !!previewClip;
+  // The current step's share of the narration → how long the hand takes to draw it, so the pen
+  // keeps pace with the voice in the preview too (matches the live room). [[training-presentation-animation]]
+  const previewWriteMs = (() => {
+    const pf = previewFracsRef.current;
+    const durMs = previewDurRef.current * 1000;
+    if (!durMs || pf.steps < 1 || (previewStep ?? 0) < 1) return undefined;
+    const k = (previewStep ?? 1) - 1;
+    if (pf.fracs && pf.fracs.length === pf.steps) {
+      const start = pf.fracs[k] ?? 0;
+      const end = k + 1 < pf.fracs.length ? pf.fracs[k + 1] : 1;
+      return Math.round((end - start) * durMs * 0.82);
+    }
+    return Math.round((durMs / pf.steps) * 0.82); // even split (whiteboard / diagram)
+  })();
   const previewVideo = previewClip
     ?? (slide?.intro ? (deck?.introVideoUrl ?? null)
       : slide?.presenterMoment ? (slide?.momentVideoUrl ?? null)
@@ -192,10 +212,15 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       : null);
   // Drive the reveal steps while previewing a (non-video) slide so it visibly draws/builds.
   useEffect(() => {
-    if (!previewing || previewVideo || !slide) { setPreviewStep(undefined); return; }
+    if (!previewing || previewVideo || !slide) { setPreviewStep(undefined); previewFracsRef.current = { fracs: null, steps: 1 }; return; }
     const steps = Math.max(1, slide.steps ?? 1);
+    previewFracsRef.current = { fracs: revealFractions(slideRevealUnits(slide), steps), steps };
     setPreviewStep(1);
     if (steps <= 1) return;
+    // With narration, the audio's onTimeUpdate drives the reveals — content-aware and in sync with
+    // the voice (see the <audio> below). Without narration, fall back to a steady timer so the
+    // build still animates as it draws.
+    if (slide.narration?.audioUrl) return;
     let s = 1;
     const pace = slide.type === "livedraw" ? 950 : 850; // a touch slower for the hand to draw
     const t = setInterval(() => { s += 1; setPreviewStep(s); if (s >= steps) clearInterval(t); }, pace);
@@ -580,11 +605,33 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 <video key={previewVideo} src={previewVideo} autoPlay controls playsInline onEnded={() => { if (!previewClip) setPage((p) => Math.min(deck.slides.length - 1, p + 1)); }} className="aspect-video w-full rounded-xl bg-black object-contain shadow-2xl" />
               ) : (
                 <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-2xl">
-                  <DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} />
-                  {(slide.steps ?? 1) > 1 ? <button onClick={() => setPreviewStep(1)} title="Replay the drawing" className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-bold text-white backdrop-blur hover:bg-black/70"><RotateCcw className="h-3.5 w-3.5" /> Replay</button> : null}
+                  <DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} writeMs={previewWriteMs} />
+                  {(slide.steps ?? 1) > 1 ? <button onClick={() => { setPreviewStep(1); const a = previewAudioRef.current; if (a) a.currentTime = 0; }} title="Replay the drawing" className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-bold text-white backdrop-blur hover:bg-black/70"><RotateCcw className="h-3.5 w-3.5" /> Replay</button> : null}
                   {loopUrl ? <video src={loopUrl} autoPlay muted loop playsInline className="absolute bottom-3 right-3 aspect-video w-[24%] rounded-lg object-cover shadow-lg ring-2 ring-brand-500/50" /> : null}
                   {slide.narration?.audioUrl ? (
-                    <audio key={slide.id} src={slide.narration.audioUrl} autoPlay controls onEnded={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} className="absolute inset-x-3 bottom-3 w-[calc(100%-1.5rem)]" />
+                    <audio
+                      ref={previewAudioRef}
+                      key={slide.id}
+                      src={slide.narration.audioUrl}
+                      autoPlay
+                      controls
+                      onTimeUpdate={(e) => {
+                        // Advance the reveals in step with the voice: reveal each bullet as the
+                        // narration crosses its content-aware mark, so the preview matches the room.
+                        const a = e.currentTarget;
+                        if (!a.duration || !isFinite(a.duration)) return;
+                        previewDurRef.current = a.duration; // feeds the per-step hand-writing pace
+                        const { fracs, steps } = previewFracsRef.current;
+                        if (steps < 2) return;
+                        const frac = a.currentTime / a.duration;
+                        const target = fracs && fracs.length >= 2 && fracs.length === steps
+                          ? revealStepAt(frac, fracs, steps)
+                          : Math.min(steps, Math.max(1, Math.floor(frac * steps) + 1));
+                        setPreviewStep((p) => (target > (p ?? 1) ? target : p));
+                      }}
+                      onEnded={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))}
+                      className="absolute inset-x-3 bottom-3 w-[calc(100%-1.5rem)]"
+                    />
                   ) : (
                     <div className="absolute inset-x-3 bottom-3 rounded-lg bg-black/75 px-3 py-2 text-center text-[11px] font-semibold text-amber-300">No narration for this slide yet — generate it in Prepare presenter.</div>
                   )}

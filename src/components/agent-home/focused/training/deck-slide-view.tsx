@@ -143,6 +143,47 @@ function HandPointSteps({ hostRef, reveal }: { hostRef: RefObject<HTMLDivElement
   );
 }
 
+/** A natural "you are here" marker that follows the CURRENT bullet as the narration advances: a
+ *  soft accent pill lifts the just-revealed item ([data-step="{reveal-1}"]) forward and a
+ *  highlighter underline sweeps across it, re-drawing each time the reveal moves. Reads on light
+ *  AND dark slides, and is part of the slide itself (not a chrome overlay). It stays in step with
+ *  the voice because `reveal` is driven by the narration audio. [[training-presentation-animation]] */
+function ActiveBulletMark({ hostRef, reveal, ink }: { hostRef: RefObject<HTMLDivElement | null>; reveal?: number; ink?: string }) {
+  const [m, setM] = useState<{ W: number; H: number; x: number; y: number; w: number; h: number } | null>(null);
+  const [at, setAt] = useState(-1);
+  useLayoutEffect(() => {
+    if (reveal === undefined || reveal < 1) { setM(null); return; }
+    const host = hostRef.current; if (!host) return;
+    const target = reveal - 1;
+    const measure = () => {
+      const el = host.querySelector<HTMLElement>(`[data-step="${target}"]`); if (!el) { setM(null); return; }
+      const c = host.getBoundingClientRect(), s = el.getBoundingClientRect();
+      if (!c.width || !s.width) return;
+      setM({ W: c.width, H: c.height, x: s.left - c.left, y: s.top - c.top, w: s.width, h: s.height }); setAt(target);
+    };
+    measure();
+    const ro = new ResizeObserver(measure); ro.observe(host);
+    const t = setTimeout(measure, 120); // re-settle after the item's fade / slide-in
+    return () => { ro.disconnect(); clearTimeout(t); };
+  }, [reveal, hostRef]);
+  if (!m) return null;
+  const color = ink || "var(--sat)";
+  const padX = Math.max(6, m.h * 0.26), padY = Math.max(4, m.h * 0.2);
+  const rx = Math.min(14, m.h * 0.4);
+  const uy = m.y + m.h + Math.min(6, m.h * 0.16); // highlighter underline sits just below the text
+  return (
+    <svg viewBox={`0 0 ${m.W} ${m.H}`} preserveAspectRatio="none" className="pointer-events-none absolute inset-0 z-[4] h-full w-full">
+      <style>{`@keyframes abm-in{from{opacity:0}to{opacity:1}}@keyframes abm-draw{to{stroke-dashoffset:0}}`}</style>
+      {/* keyed by the step so the pill + underline re-draw as they move to the new current bullet */}
+      <g key={at}>
+        <rect x={m.x - padX} y={m.y - padY} width={m.w + padX * 2} height={m.h + padY * 2} rx={rx} fill={color} opacity={0.1} style={{ animation: "abm-in .28s ease both" } as CSSProperties} />
+        <rect x={m.x - padX} y={m.y - padY} width={m.w + padX * 2} height={m.h + padY * 2} rx={rx} fill="none" stroke={color} strokeWidth={1.5} opacity={0.3} style={{ animation: "abm-in .28s ease both" } as CSSProperties} />
+        <path d={`M ${m.x} ${uy} Q ${m.x + m.w / 2} ${uy + Math.min(3, m.h * 0.08)} ${m.x + m.w} ${uy}`} fill="none" stroke={color} strokeWidth={Math.max(3, m.h * 0.13)} strokeLinecap="round" opacity={0.7} pathLength={1} strokeDasharray={1} strokeDashoffset={1} style={{ animation: "abm-draw .5s ease-out .1s forwards" } as CSSProperties} />
+      </g>
+    </svg>
+  );
+}
+
 // The hand PNG is 392×261 viewBox units; the marker's ink NIB sits at 13.35%/8.2% of it
 // (measured). We pin THAT exact point to the current point on the stroke each frame so the pen
 // end rides ON the line, then fade the hand out at the end. Deterministic — no offset-anchor.
@@ -269,7 +310,7 @@ export function resolveBoard(styleKey?: VisualStyle | null, bs?: BoardStyleSetti
 }
 export function boardTheme(key?: VisualStyle | null): BoardTheme { return resolveBoard(key, null); }
 
-export function DeckSlideView({ slide, reveal, className, styleKey, hand, board }: { slide: DeckSlide; reveal?: number; className?: string; styleKey?: VisualStyle | null; hand?: HandStyleSettings | null; board?: BoardStyleSettings | null }) {
+export function DeckSlideView({ slide, reveal, className, styleKey, hand, board, writeMs }: { slide: DeckSlide; reveal?: number; className?: string; styleKey?: VisualStyle | null; hand?: HandStyleSettings | null; board?: BoardStyleSettings | null; writeMs?: number }) {
   // `reveal` = how many steps are shown (undefined = show everything, e.g. a builder
   // thumbnail). Drives the progressive "drawing as you talk" reveal.
   const hostRef = useRef<HTMLDivElement | null>(null); // slide container, so the hand can circle a keyword
@@ -354,7 +395,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board 
         style={{ backgroundColor: bt.base, backgroundImage: bt.bgImage, backgroundSize: bt.bgSize } as CSSProperties}
       >
         <div className="absolute left-[6%] top-[5%] z-[3] text-[clamp(8px,3.6cqw,32px)] font-extrabold" style={{ color: bt.title, fontFamily: bt.font }}>{md(slide.title)}</div>
-        <DiagramBoard items={slide.board ?? []} reveal={reveal} wide={slide.wide} animated={animate} theme={bt} />
+        <DiagramBoard items={slide.board ?? []} reveal={reveal} wide={slide.wide} animated={animate} theme={bt} writeMs={writeMs} />
       </div>
     );
   }
@@ -394,9 +435,17 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board 
   };
   const inkColor = hand?.color === "brand" ? "var(--sa)" : hand?.color;
   // "point" steps down the list (one gesture per revealed item); the other marks target a keyword.
-  const ann = annStyle === "point" && bullets.length > 0
-    ? <HandPointSteps hostRef={hostRef} reveal={reveal} />
-    : hlPhrase ? <HandAnnotate hostRef={hostRef} active={annActive} style={annStyle} ink={inkColor} showHand={hand?.showHand} tool={hand?.tool} widthMul={hand?.strokeWidth} /> : null;
+  // ALONGSIDE either, a subtle active-bullet marker follows the CURRENT point (the one being
+  // narrated) so the audience always sees where the presenter is — a natural part of the slide,
+  // moving in step with the (narration-synced) reveal. [[training-presentation-animation]]
+  const ann = (
+    <>
+      {annStyle === "point" && bullets.length > 0
+        ? <HandPointSteps hostRef={hostRef} reveal={reveal} />
+        : hlPhrase ? <HandAnnotate hostRef={hostRef} active={annActive} style={annStyle} ink={inkColor} showHand={hand?.showHand} tool={hand?.tool} widthMul={hand?.strokeWidth} /> : null}
+      {reveal !== undefined && bullets.length > 1 ? <ActiveBulletMark hostRef={hostRef} reveal={reveal} ink={inkColor} /> : null}
+    </>
+  );
 
   // A DEMONSTRATION VIDEO slide — a short generated moving illustration beside the teaching text.
   // An AGENT-AUTHORED animated illustration (cards + icons + connectors), revealed with narration.
@@ -795,7 +844,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board 
  *  the viewport PANS to keep the freshly-revealed mark in view, so a long process
  *  reads left→right. Coords are 0..1 of the WIDE canvas (x already normalised by
  *  `wide`); y is 0..1 of the frame height. */
-function DiagramBoard({ items, reveal, wide, animated, theme }: { items: BoardItem[]; reveal?: number; wide?: number; animated?: boolean; theme?: BoardTheme }) {
+function DiagramBoard({ items, reveal, wide, animated, theme, writeMs }: { items: BoardItem[]; reveal?: number; wide?: number; animated?: boolean; theme?: BoardTheme; writeMs?: number }) {
   const bt = theme ?? BOARD_STYLE_PRESETS.clean_grid;
   const FRAME = 1000, H = 562;
   const frames = Math.max(1, wide ?? 1);
@@ -803,6 +852,12 @@ function DiagramBoard({ items, reveal, wide, animated, theme }: { items: BoardIt
   const shown = reveal === undefined ? items : items.filter((it) => (("step" in it ? it.step : 0) ?? 0) < reveal);
   const current = reveal === undefined ? -2 : reveal - 1;
   const x = (v: number) => v * CW, y = (v: number) => v * H;
+  // How long the hand takes to DRAW the current element. `writeMs` is the narration budget for
+  // this reveal step (passed from the live room / preview), so the pen keeps pace with the voice
+  // instead of racing ahead. Clamped to a natural range; falls back to a brisk default when there
+  // is no narration timing (e.g. a static thumbnail). [[training-presentation-animation]]
+  const stepMs = Math.max(600, Math.min(6000, writeMs ?? 750));
+  const drawS = (stepMs / 1000).toFixed(2);
 
   // The whole board always fits in view (no panning) so nothing already revealed is
   // ever hidden — the reveal just fades elements in where they belong.
@@ -816,8 +871,8 @@ function DiagramBoard({ items, reveal, wide, animated, theme }: { items: BoardIt
             if (it.t === "shape") {
               const x1 = x(it.from.x), y1 = y(it.from.y), x2 = x(it.to.x), y2 = y(it.to.y);
               const sw = Math.max(2, (it.size ?? 0.003) * FRAME);
-              const draw = isNow ? { strokeDasharray: 1, strokeDashoffset: 1, animation: "ld-draw .7s ease forwards" as const } : undefined;
-              const pop = isNow ? { transformBox: "fill-box" as const, transformOrigin: "center", animation: "ld-pop .45s ease forwards" as const } : undefined;
+              const draw = isNow ? { strokeDasharray: 1, strokeDashoffset: 1, animation: `ld-draw ${drawS}s ease forwards` } as CSSProperties : undefined;
+              const pop = isNow ? { transformBox: "fill-box" as const, transformOrigin: "center", animation: `ld-pop ${Math.min(0.6, stepMs / 1000).toFixed(2)}s ease forwards` } as CSSProperties : undefined;
               if (it.shape === "rect") {
                 const w = Math.abs(x2 - x1), h = Math.abs(y2 - y1), rx0 = Math.min(x1, x2), ry0 = Math.min(y1, y2);
                 if (bt.nodeShape === "ellipse") {
@@ -832,7 +887,7 @@ function DiagramBoard({ items, reveal, wide, animated, theme }: { items: BoardIt
                 return (
                   <g key={`${it.id}-${isNow}`}>
                     <ellipse cx={cx} cy={cy} rx={rx} ry={ry} pathLength={1} fill="none" stroke={bt.nodeStroke} strokeWidth={sw} style={draw} />
-                    {isNow ? <DrawingHand d={ep} /> : null}
+                    {isNow ? <DrawingHand d={ep} dur={stepMs} /> : null}
                   </g>
                 );
               }
@@ -851,7 +906,7 @@ function DiagramBoard({ items, reveal, wide, animated, theme }: { items: BoardIt
                 <g key={`${it.id}-${isNow}`}>
                   <path d={d} pathLength={1} fill="none" stroke={bt.ink} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={draw} />
                   <polyline points={`${x2 - ah * Math.cos(eAng - Math.PI / 6)},${y2 - ah * Math.sin(eAng - Math.PI / 6)} ${x2},${y2} ${x2 - ah * Math.cos(eAng + Math.PI / 6)},${y2 - ah * Math.sin(eAng + Math.PI / 6)}`} pathLength={1} fill="none" stroke={bt.ink} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" style={draw} />
-                  {isNow ? <DrawingHand d={d} /> : null}
+                  {isNow ? <DrawingHand d={d} dur={stepMs} /> : null}
                 </g>
               );
             }
@@ -882,9 +937,11 @@ function DiagramBoard({ items, reveal, wide, animated, theme }: { items: BoardIt
                     <rect x={px + 2} y={py + 3} width={cardW} height={cardH} rx={9} fill="rgba(0,0,0,.18)" />
                     <rect x={px} y={py} width={cardW} height={cardH} rx={9} fill={bt.sticky} stroke="rgba(0,0,0,.14)" strokeWidth={1.5} />
                     {lines.map((ln, i) => (
-                      <text key={i} x={px + padX} y={py + padY + lh * (i + 0.82)} fontSize={fs} fontWeight={600} fill={bt.stickyText} style={fresh ? { opacity: 0, animation: "ld-write .26s ease forwards", animationDelay: `${(i / Math.max(1, lines.length)) * 0.6}s` } as CSSProperties : undefined}>{ln}</text>
+                      // each line fades in as the pen sweeps it — the delays spread across the
+                      // narration budget so the note is written at speaking pace, not instantly.
+                      <text key={i} x={px + padX} y={py + padY + lh * (i + 0.82)} fontSize={fs} fontWeight={600} fill={bt.stickyText} style={fresh ? { opacity: 0, animation: `ld-write ${(stepMs / lines.length / 1000 * 0.7).toFixed(2)}s ease forwards`, animationDelay: `${((i / Math.max(1, lines.length)) * stepMs / 1000).toFixed(2)}s` } as CSSProperties : undefined}>{ln}</text>
                     ))}
-                    {fresh ? <DrawingHand d={writeD} w={Math.min(150, cardW * 0.62)} dur={Math.max(650, lines.length * 320)} /> : null}
+                    {fresh ? <DrawingHand d={writeD} w={Math.min(150, cardW * 0.62)} dur={stepMs} /> : null}
                   </g>
                 );
               }
