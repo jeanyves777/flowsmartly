@@ -28,6 +28,7 @@ import { InviteSheet, Sheet } from "./invite-sheet";
 import { DeckSlideView } from "./deck-slide-view";
 import { VideoSheet } from "./video-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
+import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/deck";
 import type { BoardItem, BoardTool, LiveStroke, StageSource, TrainingParticipantDTO, TrainingSessionDTO, TrainingMessageDTO, PresenterAnswer } from "@/lib/training/types";
 
 const SHAPES: { id: ShapeKind; Icon: typeof Square; label: string }[] = [
@@ -261,6 +262,14 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     ? material.deck.slides[Math.min(session.stagePage, material.deck.slides.length) - 1]
     : null;
   const deckSteps = deckSlide?.steps ?? 0;
+  // Content-aware reveal timing: instead of splitting the narration into equal 1/steps slices
+  // (which drifts when the narrator dwells longer on one bullet than another), spread the reveals
+  // in proportion to each unit's text length (first ~90% of the clip). Computed client-side, so
+  // every existing deck gets tighter sync with no re-narration. [[training-presentation-animation]]
+  const revealFracs = useMemo<number[] | null>(
+    () => (deckSlide ? revealFractions(slideRevealUnits(deckSlide), deckSteps) : null),
+    [deckSlide?.id, deckSlide?.bullets, deckSlide?.infographic, deckSteps], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const deckSlides = material?.kind === "slides" ? material.deck?.slides ?? null : null;
   const stepsOf = (page: number) => deckSlides ? (deckSlides[Math.min(page, deckSlides.length) - 1]?.steps ?? 1) : 1;
   // The stored step can be a "show everything" sentinel; work off the clamped value so
@@ -303,6 +312,21 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const narration = quizRevealPhase
     ? (deckSlide?.quizReveal ?? deckSlide?.narration ?? null)
     : (deckSlide?.narration ?? null);
+  // How long the hand should take to DRAW the current step's element: the slice of narration this
+  // reveal owns (its mark → the next mark), so the pen writes at speaking pace instead of racing
+  // ahead. Falls back to undefined (a brisk default) when there's no per-step timing.
+  const stepWriteMs = useMemo<number | undefined>(() => {
+    if (!narration?.durationMs || curStep < 1 || deckSteps < 1) return undefined;
+    const k = curStep - 1;
+    if (revealFracs && revealFracs.length === deckSteps) {
+      const start = revealFracs[k] ?? 0;
+      const end = k + 1 < revealFracs.length ? revealFracs[k + 1] : 1;
+      return Math.round((end - start) * narration.durationMs * 0.82); // finish a touch before the next point
+    }
+    // no per-unit weighting (whiteboard / diagram): split the narration evenly across steps — still
+    // paces the pen to the voice instead of racing through in a fraction of a second.
+    return Math.round((narration.durationMs / deckSteps) * 0.82);
+  }, [revealFracs, curStep, deckSteps, narration?.durationMs]);
   // An on-screen MOMENT (intro / between-slide / closing outro) that has a rendered talking
   // video: the VIDEO carries the cloned-voice audio, so we must NOT also play the narration
   // track — the narration is muted for the whole intervention.
@@ -396,19 +420,25 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   // Pause on a Q&A slide, or on a quiz's QUESTION phase (step 1). On the quiz's REVEAL
   // phase (step 2), DON'T pause — let the answer play out and roll to the next slide.
   const quizQuestionPhase = isQuiz && !quizRevealPhase;
-  const stEnv = { session, deckSteps, pages: material?.pages ?? 1, pause: !!deckSlide?.qa || quizQuestionPhase, quizQuestionPhase };
+  const stEnv = { session, deckSteps, revealFracs, pages: material?.pages ?? 1, pause: !!deckSlide?.qa || quizQuestionPhase, quizQuestionPhase };
   const aiStateRef = useRef(stEnv);
   aiStateRef.current = stEnv;
   useEffect(() => {
     const a = aiAudioRef.current;
     if (!host || !a) return;
     const onTime = () => {
-      const { session: s, deckSteps: steps, quizQuestionPhase: qqp } = aiStateRef.current;
+      const { session: s, deckSteps: steps, revealFracs: fracs, quizQuestionPhase: qqp } = aiStateRef.current;
       if (!s.aiPlaying || !a.duration || !isFinite(a.duration) || steps < 1) return;
       // A quiz's QUESTION phase must NOT auto-reveal the answer (step 2) — the host reveals
       // it after the hand-raise check. So cap the auto-reveal at step 1 during the question.
       const cap = qqp ? 1 : steps;
-      const target = Math.min(cap, Math.max(1, Math.floor((a.currentTime / a.duration) * steps) + 1));
+      const frac = a.currentTime / a.duration;
+      // Content-aware timing (fracs) when available: reveal each unit as the narration crosses
+      // its proportional mark, so a bullet the narrator lingers on stays up longer. Falls back
+      // to the even 1/steps split for slides with no per-unit weighting.
+      const target = fracs && fracs.length >= 2 && fracs.length === steps
+        ? revealStepAt(frac, fracs, cap)
+        : Math.min(cap, Math.max(1, Math.floor(frac * steps) + 1));
       if (target > (s.stageStep || 1)) void patch({ stageStep: target });
     };
     let advancing = false;
@@ -624,7 +654,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         );
       }
       // The board box is already a 16:9 letterbox, so the slide just fills it.
-      return slide ? <div className="h-full w-full overflow-hidden"><DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} /></div> : null;
+      return slide ? <div className="h-full w-full overflow-hidden"><DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} writeMs={stepWriteMs} /></div> : null;
     }
     if (material?.kind === "image" || material?.kind === "video") {
       // eslint-disable-next-line @next/next/no-img-element
