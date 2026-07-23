@@ -295,6 +295,24 @@ export function initStoreDirV3(storeId: string, slug: string): string {
     writeFileSync(join(storeDir, "src", "app", "category", "[slug]", "CategoryClient.tsx"), readFileSync(refCategoryClient));
   }
 
+  // Legal / policy pages — pre-built premium template (branded header, sticky
+  // table of contents, numbered sections, contact card). The agent used to hand-
+  // write these as a plain wall of text; ship the polished shared PolicyPage +
+  // the four page.tsx so every store gets the same well-structured legal pages.
+  // They read policies.* from @/lib/data (agent-written), so content stays
+  // per-store.
+  const refPolicyComponent = join(REFERENCE_BASE, "components", "PolicyPage.tsx");
+  if (existsSync(refPolicyComponent)) {
+    writeFileSync(join(storeDir, "src", "components", "PolicyPage.tsx"), readFileSync(refPolicyComponent));
+  }
+  for (const p of ["shipping-policy", "return-policy", "privacy-policy", "terms"]) {
+    const refPolicyPage = join(REFERENCE_BASE, "app", p, "page.tsx");
+    if (existsSync(refPolicyPage)) {
+      mkdirSync(join(storeDir, "src", "app", p), { recursive: true });
+      writeFileSync(join(storeDir, "src", "app", p, "page.tsx"), readFileSync(refPolicyPage));
+    }
+  }
+
   // Account dashboard — redirects to AccountModal (side drawer handles everything).
   const refAccountPath = join(REFERENCE_BASE, "app", "account", "page.tsx");
   if (existsSync(refAccountPath)) {

@@ -489,6 +489,7 @@ Header.tsx MUST have this 3-column structure with a SINGLE horizontal right-icon
 - src/app/account/register/page.tsx (redirects to AccountModal — pre-built, DO NOT OVERWRITE)
 - src/app/account/orders/page.tsx (real order list with pending CTA — pre-built, DO NOT OVERWRITE)
 - src/app/account/orders/[orderId]/page.tsx (order detail: cancel/address/return gating — pre-built, DO NOT OVERWRITE)
+- src/components/PolicyPage.tsx + src/app/shipping-policy/page.tsx + return-policy/page.tsx + privacy-policy/page.tsx + terms/page.tsx (the premium legal-page template with branded header, sticky table-of-contents, numbered sections & contact card — pre-built, DO NOT WRITE. You ONLY need to fill the \`policies\` object in src/lib/data.ts with rich HTML for shipping/returns/privacy/terms — the pages render it automatically. Use <h2> for each top-level section (they become the numbered sections + TOC entries), <h3>/<p>/<ul>/<li> inside, and <blockquote> for callouts.)
 - .env.local
 
 ### CRITICAL — NO DANGLING IMPORTS (this breaks the ENTIRE build):
