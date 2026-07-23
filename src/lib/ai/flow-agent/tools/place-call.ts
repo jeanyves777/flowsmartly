@@ -99,12 +99,12 @@ export const placeCall: FlowAgentTool = {
         return { ok: false, error_code: "validation_failed", message: `"${raw}" isn't a valid phone number. Use full international format, e.g. +14155550123.` };
       }
 
-      const r = await placeOutboundCall(agent.id, e164);
+      const reason = typeof input.reason === "string" && input.reason.trim() ? input.reason.trim() : "";
+      const r = await placeOutboundCall(agent.id, e164, { purpose: reason });
       if (!r.ok) {
         return { ok: false, error_code: "upstream_failed", message: r.error || "Could not place the call right now." };
       }
 
-      const reason = typeof input.reason === "string" && input.reason.trim() ? input.reason.trim() : "";
       const target = who ? `${who} (${e164})` : e164;
       return {
         ok: true,

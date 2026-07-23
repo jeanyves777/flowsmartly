@@ -19,6 +19,7 @@ export interface FollowUpRule {
   channel: "sms" | "whatsapp" | "email" | "call";
   message: string; // the text to send; for "call" it's an optional note (the agent handles the call live)
   subject?: string; // email only
+  applyTo?: "any" | "inbound" | "outbound"; // which call direction fires this rule (default any)
 }
 
 const parse = (v: unknown): FollowUpRule[] => {
@@ -40,9 +41,13 @@ export async function runFollowUps(
   call: { fromE164: string; outcome: string | null; channel?: string; direction?: string },
 ): Promise<void> {
   // "call" rules need no message (the agent handles the conversation live); the
-  // messaging channels do.
+  // messaging channels do. `applyTo` scopes a rule to one call direction.
+  const dir = call.direction === "outbound" ? "outbound" : "inbound";
   const rules = parse(agent.followUpRules).filter(
-    (r) => (r.message || r.channel === "call") && (r.outcome === "any" || r.outcome === (call.outcome || "answered")),
+    (r) =>
+      (r.message || r.channel === "call") &&
+      (r.outcome === "any" || r.outcome === (call.outcome || "answered")) &&
+      (!r.applyTo || r.applyTo === "any" || r.applyTo === dir),
   );
   if (!rules.length) return;
 
@@ -54,7 +59,9 @@ export async function runFollowUps(
         // itself missed can't chain into an endless call loop.
         if (call.direction === "outbound") continue;
         if (!isDialable(to)) continue;
-        const r = await placeOutboundCall(agent.id, to.startsWith("+") ? to : `+${to}`);
+        const r = await placeOutboundCall(agent.id, to.startsWith("+") ? to : `+${to}`, {
+          purpose: rule.message?.trim() || `follow up on their recent call${agent.name ? ` with ${agent.name}` : ""}`,
+        });
         if (!r.ok) console.error("[voice followups] call-back failed:", r.error);
         continue;
       }

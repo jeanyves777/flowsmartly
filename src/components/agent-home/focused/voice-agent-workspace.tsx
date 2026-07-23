@@ -844,6 +844,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
   const [preset, setPreset] = useState(agent?.preset || "recep");
   const [business, setBusiness] = useState(agent?.business || "");
   const [greeting, setGreeting] = useState(agent?.greeting || "");
+  const [outboundGreeting, setOutboundGreeting] = useState(agent?.outboundGreeting || "");
   const [voiceId, setVoiceId] = useState(agent?.voiceId || DEFAULT_VOICE.voiceId);
   const [voiceLabel, setVoiceLabel] = useState(agent?.voiceLabel || DEFAULT_VOICE.name);
   const [order, setOrder] = useState<OrderConfig>(agent?.orderConfig || DEFAULT_ORDER_CONFIG);
@@ -918,7 +919,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
     try {
       if (editing && agent) {
         await onPatch({
-          preset, business, greeting, knowledge, answerMode, voiceId, voiceLabel, orderConfig: order,
+          preset, business, greeting, outboundGreeting, knowledge, answerMode, voiceId, voiceLabel, orderConfig: order,
           skills: skillKeys
             .map((k) => SKILL_BY_KEY[k])
             .filter(Boolean)
@@ -931,7 +932,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          preset, business, greeting, knowledge, skillKeys, answerMode, voiceId, voiceLabel, orderConfig: order,
+          preset, business, greeting, outboundGreeting, knowledge, skillKeys, answerMode, voiceId, voiceLabel, orderConfig: order,
           name: PRESET_BY_KEY[preset]?.title,
         }),
       }).then((r) => r.json());
@@ -1019,10 +1020,18 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
           </div>
 
           <div className="mt-5">
-            <SectionLabel hint="the first thing every caller hears">Greeting</SectionLabel>
+            <SectionLabel hint="the first line when someone calls IN">Inbound greeting</SectionLabel>
             <input value={greeting} onChange={(e) => setGreeting(e.target.value)}
               placeholder="Thanks for calling — how can I help?"
               className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
+          </div>
+
+          <div className="mt-5">
+            <SectionLabel hint="the first line when the agent calls OUT (never &quot;thanks for calling&quot;)">Outbound greeting</SectionLabel>
+            <input value={outboundGreeting} onChange={(e) => setOutboundGreeting(e.target.value)}
+              placeholder="Hi, this is [your business] calling — do you have a quick moment?"
+              className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
+            <p className="mt-1 text-[10px] text-muted-foreground">Used for call-backs and any call the agent places (manual, agent-placed, or a follow-up rule).</p>
           </div>
 
           <div className="mt-5">
@@ -1298,6 +1307,7 @@ function DialOut({ agent, onRefresh }: {
 }) {
   const { toast } = useToast();
   const [to, setTo] = useState("");
+  const [purpose, setPurpose] = useState("");
   const [calling, setCalling] = useState(false);
 
   if (agent.status !== "LIVE" || !agent.number?.e164) return null;
@@ -1314,11 +1324,12 @@ function DialOut({ agent, onRefresh }: {
       const j = await fetch(`/api/voice-agent/agents/${agent.id}/outbound`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ toNumber: e164 }),
+        body: JSON.stringify({ toNumber: e164, purpose: purpose.trim() }),
       }).then((r) => r.json());
       if (j?.success) {
         toast({ title: `Calling ${fmtNumber(e164)}…`, description: "The agent is dialing now — it'll appear in the log once it connects." });
         setTo("");
+        setPurpose("");
         void onRefresh();
       } else {
         toast({ title: j?.error?.message || "Could not place the call", variant: "destructive" });
@@ -1331,27 +1342,37 @@ function DialOut({ agent, onRefresh }: {
   };
 
   return (
-    <div className="mb-3.5 flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5">
-      <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-violet-500/15 text-violet-400">
-        <PhoneOutgoing className="h-4 w-4" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Place a call</div>
-        <input
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") void place(); }}
-          placeholder="+1 415 555 0123"
-          inputMode="tel"
-          className="w-full bg-transparent text-[13.5px] font-semibold outline-none placeholder:text-muted-foreground/50"
-        />
+    <div className="mb-3.5 rounded-xl border border-border bg-card p-2.5">
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-violet-500/15 text-violet-400">
+          <PhoneOutgoing className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Place a call</div>
+          <input
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void place(); }}
+            placeholder="+1 415 555 0123"
+            inputMode="tel"
+            className="w-full bg-transparent text-[13.5px] font-semibold outline-none placeholder:text-muted-foreground/50"
+          />
+        </div>
+        <button
+          onClick={() => void place()}
+          disabled={calling || !to.trim()}
+          className="inline-flex flex-none items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12px] font-bold text-white disabled:opacity-50">
+          {calling ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Dialing…</> : <><PhoneOutgoing className="h-3.5 w-3.5" /> Call</>}
+        </button>
       </div>
-      <button
-        onClick={() => void place()}
-        disabled={calling || !to.trim()}
-        className="inline-flex flex-none items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12px] font-bold text-white disabled:opacity-50">
-        {calling ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Dialing…</> : <><PhoneOutgoing className="h-3.5 w-3.5" /> Call</>}
-      </button>
+      <input
+        value={purpose}
+        onChange={(e) => setPurpose(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") void place(); }}
+        placeholder="Why are you calling? e.g. confirm tomorrow's appointment, follow up on their quote"
+        className="mt-2 w-full rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-[11.5px] outline-none focus:border-brand-500 placeholder:text-muted-foreground/50"
+      />
+      <p className="mt-1 pl-0.5 text-[9px] text-muted-foreground">The agent opens with your outbound greeting, then leads the call toward this goal — it won&apos;t ask &quot;how can I help you&quot;.</p>
     </div>
   );
 }
@@ -2469,6 +2490,12 @@ const FOLLOWUP_CHANNELS: { v: FollowUpRule["channel"]; label: string }[] = [
   { v: "call", label: "Call back" },
 ];
 
+const FOLLOWUP_DIRECTIONS: { v: NonNullable<FollowUpRule["applyTo"]>; label: string }[] = [
+  { v: "any", label: "any" },
+  { v: "inbound", label: "inbound" },
+  { v: "outbound", label: "outbound" },
+];
+
 function FollowUpRules({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void> }) {
   const rules = agent.followUpRules || [];
   const commit = (next: FollowUpRule[]) => void onPatch({ followUpRules: next });
@@ -2484,7 +2511,11 @@ function FollowUpRules({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p
       {rules.map((r, i) => (
         <div key={i} className="space-y-1.5 rounded-lg border border-border bg-muted/30 p-2">
           <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
-            <span className="text-muted-foreground">When</span>
+            <span className="text-muted-foreground">On</span>
+            <select value={r.applyTo || "any"} onChange={(e) => patchRule(i, { applyTo: e.target.value as FollowUpRule["applyTo"] })} className={sel}>
+              {FOLLOWUP_DIRECTIONS.map((d) => <option key={d.v} value={d.v}>{d.label}</option>)}
+            </select>
+            <span className="text-muted-foreground">calls, when</span>
             <select value={r.outcome} onChange={(e) => patchRule(i, { outcome: e.target.value })} className={sel}>
               {FOLLOWUP_OUTCOMES.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
             </select>
@@ -2502,7 +2533,7 @@ function FollowUpRules({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p
             className="w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-[11px] outline-none focus:border-brand-500" />
         </div>
       ))}
-      <button onClick={() => commit([...rules, { outcome: "missed", channel: "sms", message: "" }])}
+      <button onClick={() => commit([...rules, { outcome: "missed", channel: "sms", message: "", applyTo: "any" }])}
         className="text-[10.5px] font-bold text-brand-400 hover:text-brand-300">
         + Add a follow-up
       </button>

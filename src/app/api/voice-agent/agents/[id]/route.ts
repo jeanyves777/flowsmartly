@@ -158,7 +158,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const data: Record<string, unknown> = {};
 
     // Scalars — only what was sent, so an autosave can't blank a field it omits.
-    const str = ["name", "business", "greeting", "answerMode", "timezone", "escalateTo", "noAnswerAction",
+    const str = ["name", "business", "greeting", "outboundGreeting", "answerMode", "timezone", "escalateTo", "noAnswerAction",
       "voiceId", "voiceLabel", "languageHint", "reasoningEffort"];
     for (const k of str) if (typeof body[k] === "string") data[k] = body[k];
 
