@@ -841,6 +841,7 @@ model Contact {
   referralsUsed      Referral[]          @relation("ReferredContact")
   followUpEntries    FollowUpEntry[]
   deviceFingerprints DeviceFingerprint[]
+  sequenceEnrollments SequenceEnrollment[]
 
   @@unique([userId, email])
   @@unique([userId, phone])
@@ -5027,9 +5028,14 @@ model OutreachSequence {
   id        String   @id @default(cuid())
   userId    String
   name      String
-  listId    String? // the SavedLeadList this runs on
+  goal      String   @default("") // the campaign's purpose (from the brief) — steers call/message copy
+  listId    String? // the SavedLeadList this runs on (Lead Studio audience)
+  audienceKind String @default("lead") // "lead" (SavedLead) | "contact" (Contact/ContactList — Follow-ups)
+  contactListId String? // when audienceKind=contact and a whole ContactList is targeted
+  recurring     Boolean @default(false) // loop the sequence instead of completing
+  recurrenceDays Int    @default(0) // days to wait before re-running the loop (0 = immediately)
   status    String   @default("draft") // draft | active | paused | archived
-  steps     String   @default("[]") // JSON: ordered step configs { id, kind, title, channel, delayDays, subject?, body?, style?, condition?, taskType?, status }
+  steps     String   @default("[]") // JSON: ordered step configs { id, kind(email|sms|whatsapp|call|cond|task|book), title, delayDays?, subject?, body?, purpose?, requires?, status? }
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -5038,6 +5044,7 @@ model OutreachSequence {
 
   @@index([userId])
   @@index([listId])
+  @@index([contactListId])
 }
 
 // One lead's progress through a sequence. The scheduler fires the current step
@@ -5047,7 +5054,8 @@ model SequenceEnrollment {
   id            String    @id @default(cuid())
   userId        String
   sequenceId    String
-  savedLeadId   String
+  savedLeadId   String? // Lead-Studio audience (one of savedLeadId / contactId is set)
+  contactId     String? // Follow-ups audience (a CRM Contact)
   opportunityId String?
   currentStep   Int       @default(0)
   status        String    @default("active") // active | waiting | completed | stopped | replied
@@ -5059,11 +5067,13 @@ model SequenceEnrollment {
 
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   sequence  OutreachSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
-  savedLead SavedLead        @relation(fields: [savedLeadId], references: [id], onDelete: Cascade)
+  savedLead SavedLead?       @relation(fields: [savedLeadId], references: [id], onDelete: Cascade)
+  contact   Contact?         @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([sequenceId])
   @@index([savedLeadId])
+  @@index([contactId])
   @@index([status, nextRunAt])
 }
 
