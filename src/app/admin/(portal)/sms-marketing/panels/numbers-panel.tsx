@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { AISpinner } from "@/components/shared/ai-generation-loader";
 import {
+  Zap,
+  Plus,
   Phone,
   CheckCircle2,
   XCircle,
@@ -438,6 +440,7 @@ export function NumbersPanel() {
                 entry={entry}
                 isExpanded={expandedRows.has(entry.userId)}
                 onToggle={() => toggleRow(entry.userId)}
+                onChanged={fetchNumbers}
               />
             </motion.div>
           ))}
@@ -487,11 +490,31 @@ function NumberCard({
   entry,
   isExpanded,
   onToggle,
+  onChanged,
 }: {
   entry: NumberEntry;
   isExpanded: boolean;
   onToggle: () => void;
+  onChanged: () => void;
 }) {
+  const { toast } = useToast();
+  const [busy, setBusy] = useState<null | "default" | "dedicated">(null);
+  const runCampaign = async (action: "default" | "dedicated") => {
+    setBusy(action);
+    try {
+      const j = await fetch(`/api/admin/sms/campaign/${entry.userId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      }).then((r) => r.json()).catch(() => null);
+      if (j?.success) { toast({ title: j.data?.message || "Campaign routing updated." }); onChanged(); }
+      else toast({ title: j?.error?.message || "Could not update campaign routing.", variant: "destructive" });
+    } catch {
+      toast({ title: "Could not update campaign routing.", variant: "destructive" });
+    } finally {
+      setBusy(null);
+    }
+  };
   return (
     <Card>
       <CardContent className="p-4">
@@ -589,11 +612,23 @@ function NumberCard({
             )}
           </div>
 
-          {/* Expand button */}
-          <Button variant="outline" size="sm" onClick={onToggle} className="gap-1 shrink-0">
-            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            Details
-          </Button>
+          {/* Actions */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {entry.smsComplianceStatus === "APPROVED" && entry.smsPhoneNumber && (
+              <>
+                <Button variant="outline" size="sm" disabled={!!busy} onClick={() => runCampaign("default")} className="gap-1" title="Route this business's number to the default system campaign">
+                  {busy === "default" ? <AISpinner className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />} Default campaign
+                </Button>
+                <Button variant="outline" size="sm" disabled={!!busy} onClick={() => runCampaign("dedicated")} className="gap-1" title="Create a dedicated 10DLC campaign for this business">
+                  {busy === "dedicated" ? <AISpinner className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />} Dedicated
+                </Button>
+              </>
+            )}
+            <Button variant="outline" size="sm" onClick={onToggle} className="gap-1">
+              {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              Details
+            </Button>
+          </div>
         </div>
 
         {/* Expanded Details */}
