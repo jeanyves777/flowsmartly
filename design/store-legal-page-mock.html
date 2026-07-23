@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Storefront · Legal page template</title>
+<style>
+  :root{
+    --brand:#2f5cff; --brand-600:#2447d6; --brand-50:#eef2ff;
+    --bg:#f7f8fb; --surface:#ffffff; --ink:#0f1622; --ink-2:#3b4658; --muted:#6b7688;
+    --line:#e7ebf2; --ring:rgba(47,92,255,.14);
+    --radius:18px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0a0d14; --surface:#111725; --ink:#eef1f7; --ink-2:#c3cbd9; --muted:#8b95a7; --line:#1f2735; --brand-50:#141d33; --ring:rgba(47,92,255,.25); }
+  }
+  /* viewer theme toggle wins over the OS media query, both directions */
+  :root[data-theme="dark"]{ --bg:#0a0d14; --surface:#111725; --ink:#eef1f7; --ink-2:#c3cbd9; --muted:#8b95a7; --line:#1f2735; --brand-50:#141d33; --ring:rgba(47,92,255,.25); }
+  :root[data-theme="light"]{ --bg:#f7f8fb; --surface:#ffffff; --ink:#0f1622; --ink-2:#3b4658; --muted:#6b7688; --line:#e7ebf2; --brand-50:#eef2ff; --ring:rgba(47,92,255,.14); }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+
+  /* top store bar (context only) */
+  .topbar{background:#0e1730;color:#fff;text-align:center;font-size:12.5px;font-weight:600;letter-spacing:.02em;padding:8px}
+  .nav{position:sticky;top:0;z-index:20;background:color-mix(in oklab,var(--surface) 88%, transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .brand{font-weight:800;font-size:20px;letter-spacing:-.02em;display:flex;align-items:center;gap:9px}
+  .brand .dot{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--brand),#7aa2ff);display:inline-block}
+  .navlinks{display:flex;gap:22px;font-size:14px;color:var(--muted);font-weight:600}
+
+  /* hero */
+  .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line);
+    background:
+      radial-gradient(120% 140% at 88% -20%, color-mix(in oklab,var(--brand) 18%, transparent), transparent 60%),
+      linear-gradient(180deg, color-mix(in oklab,var(--brand) 6%, var(--surface)), var(--bg));}
+  .hero .wrap{padding:34px 20px 30px}
+  .crumbs{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center;margin-bottom:18px}
+  .crumbs a{text-decoration:none;font-weight:600}
+  .crumbs .sep{opacity:.5}
+  .head{display:flex;gap:18px;align-items:flex-start}
+  .badge{width:58px;height:58px;border-radius:16px;flex:0 0 auto;display:grid;place-items:center;color:#fff;
+    background:linear-gradient(135deg,var(--brand),#6f97ff);box-shadow:0 10px 24px -10px var(--brand);font-size:26px}
+  .head h1{margin:0;font-size:34px;line-height:1.1;letter-spacing:-.02em;font-weight:820}
+  .meta{margin-top:10px;display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;color:var(--muted)}
+  .meta .pill{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-weight:600}
+  .lead{margin:18px 0 0;max-width:70ch;color:var(--ink-2);font-size:16.5px}
+
+  /* body grid */
+  .body{padding:30px 0 70px}
+  .grid{display:grid;grid-template-columns:250px 1fr;gap:34px;align-items:start}
+  @media (max-width:900px){ .grid{grid-template-columns:1fr} .toc{display:none} }
+
+  /* sticky TOC */
+  .toc{position:sticky;top:88px}
+  .toc .lbl{font-size:11px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+  .toc ul{list-style:none;margin:0;padding:0;border-left:2px solid var(--line)}
+  .toc li a{display:block;padding:7px 0 7px 16px;margin-left:-2px;border-left:2px solid transparent;color:var(--muted);text-decoration:none;font-size:13.5px;font-weight:600;transition:.15s}
+  .toc li a:hover{color:var(--ink)}
+  .toc li a.active{color:var(--brand);border-left-color:var(--brand)}
+  .help{margin-top:22px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .help h4{margin:0 0 4px;font-size:13.5px}
+  .help p{margin:0 0 10px;font-size:12.5px;color:var(--muted)}
+  .help a{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:600;color:var(--brand);text-decoration:none;padding:3px 0}
+
+  /* content card */
+  .doc{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:30px 34px;box-shadow:0 1px 0 rgba(15,22,34,.02),0 20px 40px -34px rgba(15,22,34,.25)}
+  /* key-points summary */
+  .summary{background:linear-gradient(180deg,var(--brand-50),transparent);border:1px solid color-mix(in oklab,var(--brand) 22%, var(--line));border-radius:14px;padding:16px 18px;margin-bottom:26px}
+  .summary .st{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px;color:var(--brand);letter-spacing:.02em;margin-bottom:8px}
+  .summary ul{margin:0;padding-left:18px;color:var(--ink-2);font-size:14.5px}
+  .summary li{margin:4px 0}
+
+  .doc section{scroll-margin-top:96px;padding:22px 0;border-top:1px solid var(--line)}
+  .doc section:first-of-type{border-top:0;padding-top:0}
+  .doc h2{font-size:20px;font-weight:800;letter-spacing:-.01em;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+  .doc h2 .n{width:26px;height:26px;border-radius:8px;background:var(--brand-50);color:var(--brand);font-size:13px;font-weight:800;display:grid;place-items:center;flex:0 0 auto}
+  .doc h3{font-size:15.5px;font-weight:700;margin:18px 0 4px;color:var(--ink)}
+  .doc p{margin:8px 0;color:var(--ink-2)}
+  .doc strong{color:var(--ink);font-weight:700}
+  .doc ul.body-list{margin:10px 0;padding:0;list-style:none;display:grid;gap:8px}
+  .doc ul.body-list li{position:relative;padding-left:26px;color:var(--ink-2)}
+  .doc ul.body-list li::before{content:"";position:absolute;left:4px;top:9px;width:8px;height:8px;border-radius:3px;background:var(--brand);opacity:.7}
+  .note{border-left:3px solid var(--brand);background:var(--brand-50);border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0;font-size:14px;color:var(--ink-2)}
+
+  /* footer of doc */
+  .related{margin-top:30px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media (max-width:640px){ .related{grid-template-columns:1fr} }
+  .related a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:13px 15px;text-decoration:none;transition:.15s}
+  .related a:hover{border-color:color-mix(in oklab,var(--brand) 40%, var(--line));transform:translateY(-1px)}
+  .related .k{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+  .related .v{font-size:14px;font-weight:700;margin-top:3px;display:flex;align-items:center;justify-content:space-between}
+  .contact{margin-top:22px;border:1px solid color-mix(in oklab,var(--brand) 24%, var(--line));background:var(--brand-50);border-radius:16px;padding:20px 22px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
+  .contact h3{margin:0;font-size:16px}
+  .contact p{margin:3px 0 0;font-size:13px;color:var(--muted)}
+  .cbtns{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:7px;border-radius:11px;padding:9px 15px;font-size:13.5px;font-weight:700;text-decoration:none;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+  .btn.primary{background:var(--brand);border-color:transparent;color:#fff}
+  .bar{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--brand),#7aa2ff);z-index:40;width:0}
+  .foot{border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+  .foot .wrap{padding:22px 20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+</style>
+</head>
+<body>
+<div class="bar" id="bar"></div>
+<div class="topbar">Expert Technology Assessments</div>
+<div class="nav"><div class="wrap"><div class="brand"><span class="dot"></span> GCS</div><div class="navlinks"><span>Home</span><span>Services</span><span>About</span><span>FAQ</span></div></div></div>
+
+<header class="hero"><div class="wrap">
+  <div class="crumbs"><a href="#">Home</a><span class="sep">›</span><a href="#">Legal</a><span class="sep">›</span><span style="color:var(--ink);font-weight:700">Service Delivery Policy</span></div>
+  <div class="head">
+    <div class="badge">🚚</div>
+    <div>
+      <h1>Service Delivery Policy</h1>
+      <div class="meta">
+        <span class="pill">📅 Updated Apr 2026</span>
+        <span class="pill">⏱ ~2 min read</span>
+        <span class="pill">General Computing Solutions (GCS)</span>
+      </div>
+    </div>
+  </div>
+  <p class="lead">How we schedule, deliver, and communicate your technology assessments and consulting engagements — timelines, formats, and what to expect from our team.</p>
+</div></header>
+
+<main class="body"><div class="wrap"><div class="grid">
+  <!-- TOC -->
+  <aside class="toc">
+    <p class="lbl">On this page</p>
+    <ul id="toclist">
+      <li><a href="#s1" class="active">Delivery timeline</a></li>
+      <li><a href="#s2">Report format</a></li>
+      <li><a href="#s3">Communication</a></li>
+      <li><a href="#s4">Expedited delivery</a></li>
+    </ul>
+    <div class="help">
+      <h4>Questions?</h4>
+      <p>Our team is happy to help with anything about this policy.</p>
+      <a href="#">✉️ info@itatgcs.com</a>
+      <a href="#">🖨️ Print / save PDF</a>
+    </div>
+  </aside>
+
+  <!-- Document -->
+  <article class="doc">
+    <div class="summary">
+      <div class="st">✦ Key points</div>
+      <ul>
+        <li>Standard assessments delivered within <strong>5–7 business days</strong> of completion.</li>
+        <li>All deliverables provided as comprehensive <strong>PDF reports</strong>.</li>
+        <li><strong>Expedited delivery</strong> available on request for an additional fee.</li>
+      </ul>
+    </div>
+
+    <p style="margin-top:0"><strong>General Computing Solutions (GCS)</strong> provides technology assessment and consulting services. Delivery of every engagement is handled as described below.</p>
+
+    <section id="s1">
+      <h2><span class="n">1</span> Delivery timeline</h2>
+      <ul class="body-list">
+        <li><strong>Standard Assessments:</strong> delivered within 5–7 business days of service completion.</li>
+        <li><strong>Custom Architecture Review:</strong> delivered within 1 week (7 business days).</li>
+        <li><strong>Expedited Delivery:</strong> available upon request for an additional fee.</li>
+      </ul>
+    </section>
+
+    <section id="s2">
+      <h2><span class="n">2</span> Report format</h2>
+      <p>All deliverables are provided as comprehensive <strong>PDF documents</strong> and may include supplementary materials — spreadsheets, visualizations, and supporting data — as applicable to the engagement.</p>
+    </section>
+
+    <section id="s3">
+      <h2><span class="n">3</span> Communication</h2>
+      <p>Our team maintains regular communication throughout the engagement period. You'll receive <strong>status updates</strong> and have direct access to contact us with questions at any point.</p>
+      <div class="note">Prefer a specific cadence or channel? Let us know at kickoff and we'll tailor updates to your team.</div>
+    </section>
+
+    <section id="s4">
+      <h2><span class="n">4</span> Expedited delivery</h2>
+      <p>Need results sooner? Expedited turnaround is available for most assessments for an additional fee. Reach out before you order and we'll confirm timing and pricing.</p>
+    </section>
+
+    <!-- doc footer -->
+    <div class="contact">
+      <div><h3>Questions about this policy?</h3><p>Reach the GCS team — we're happy to help.</p></div>
+      <div class="cbtns"><a class="btn primary" href="#">✉️ Email us</a><a class="btn" href="#">🖨️ Print</a></div>
+    </div>
+
+    <div class="related">
+      <a href="#"><div class="k">Legal</div><div class="v">Refund Policy <span>›</span></div></a>
+      <a href="#"><div class="k">Legal</div><div class="v">Privacy Policy <span>›</span></div></a>
+      <a href="#"><div class="k">Legal</div><div class="v">Terms &amp; Conditions <span>›</span></div></a>
+    </div>
+  </article>
+</div></div></main>
+
+<footer class="foot"><div class="wrap"><span>© 2026 General Computing Solutions (GCS). All rights reserved.</span><span>Powered by FlowSmartly</span></div></footer>
+
+<script>
+  // reading progress
+  const bar=document.getElementById('bar');
+  addEventListener('scroll',()=>{const h=document.documentElement;const p=h.scrollTop/(h.scrollHeight-h.clientHeight);bar.style.width=(p*100)+'%';});
+  // scroll-spy TOC
+  const links=[...document.querySelectorAll('#toclist a')];
+  const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){links.forEach(l=>l.classList.remove('active'));const i=secs.indexOf(e.target);if(links[i])links[i].classList.add('active');}})},{rootMargin:'-40% 0px -55% 0px'});
+  secs.forEach(s=>s&&io.observe(s));
+</script>
+</body>
+</html>
