@@ -24,8 +24,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!/^\+[1-9]\d{7,14}$/.test(to)) {
     return NextResponse.json({ success: false, error: { message: "Enter the number to call in full international format." } }, { status: 400 });
   }
+  // Optional outbound opener (why we're calling) — replaces the inbound greeting for this call.
+  const opener = String((body as { opener?: string; message?: string }).opener || (body as { message?: string }).message || "").trim() || undefined;
 
-  const r = await placeOutboundCall(id, to);
+  const r = await placeOutboundCall(id, to, opener);
   if (!r.ok) return NextResponse.json({ success: false, error: { message: r.error } }, { status: 400 });
   return NextResponse.json({ success: true, conversationId: r.conversationId });
 }

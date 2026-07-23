@@ -16,6 +16,7 @@ import {
   outboundCall,
   isConvaiEnabled,
 } from "@/lib/voice-agent/elevenlabs-convai";
+import { syncElevenLabsAgent } from "@/lib/voice-agent/elevenlabs-sync";
 
 /** The Telnyx SIP trunk config for EL, from env. Null until the carrier is set up.
  *  Shapes feed EL's `inbound_trunk_config`/`outbound_trunk_config`: inbound uses
@@ -81,10 +82,23 @@ export async function provisionElevenLabsNumber(
   }
 }
 
-/** Place an outbound call from the agent's own EL number to `toNumber`. */
+/** A natural OUTBOUND opener — the agent is dialling THEM, so it must never reuse the inbound
+ *  "thanks for calling" greeting. Uses the caller's opener (e.g. the reason for the call), else a
+ *  friendly default that leans on the agent's name only when it's a real one. */
+function outboundOpener(agentName: string | null | undefined, opener?: string): string {
+  const supplied = (opener || "").trim();
+  if (supplied) return supplied;
+  const nm = (agentName || "").trim();
+  const generic = !nm || /^(my\s+)?(receptionist|assistant|agent|phone agent)$/i.test(nm);
+  return `${generic ? "Hi there!" : `Hi, this is ${nm}.`} Do you have a quick moment to talk?`;
+}
+
+/** Place an outbound call from the agent's own EL number to `toNumber`. `opener` overrides the
+ *  first thing the agent says (defaults to a natural outbound greeting, NOT the inbound one). */
 export async function placeOutboundCall(
   agentId: string,
   toNumber: string,
+  opener?: string,
 ): Promise<{ ok: boolean; conversationId?: string; error?: string }> {
   const agent = await prisma.voiceAgent.findUnique({ where: { id: agentId }, include: { number: true } });
   const elAgentId = (agent as unknown as { elevenAgentId?: string | null })?.elevenAgentId;
@@ -92,7 +106,19 @@ export async function placeOutboundCall(
   if (!agent || !elAgentId) return { ok: false, error: "This agent isn't set up on the calling platform yet." };
   if (!elNumberId) return { ok: false, error: "This agent has no outbound-capable number yet." };
 
-  const r = await outboundCall({ agentId: elAgentId, agentPhoneNumberId: elNumberId, toNumber });
-  if (!r.ok) return { ok: false, error: r.error };
+  const firstMessage = outboundOpener(agent.name as string | null, opener);
+  // Push the current spec first so the agent has the first-message override ENABLED on EL (older
+  // agents were synced before that opt-in existed); best-effort, never blocks the call.
+  await syncElevenLabsAgent(agentId).catch(() => {});
+
+  let r = await outboundCall({ agentId: elAgentId, agentPhoneNumberId: elNumberId, toNumber, firstMessage });
+  if (!r.ok) {
+    // If EL rejected the override (e.g. overrides not live yet on this agent), still connect the
+    // call without it rather than failing outright — the greeting is wrong but the call goes out.
+    console.warn("[elevenlabs] outbound with greeting override failed, retrying plain:", r.error);
+    const retry = await outboundCall({ agentId: elAgentId, agentPhoneNumberId: elNumberId, toNumber });
+    if (!retry.ok) return { ok: false, error: r.error };
+    r = retry;
+  }
   return { ok: true, conversationId: r.data.conversation_id };
 }

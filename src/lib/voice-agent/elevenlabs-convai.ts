@@ -219,14 +219,23 @@ export function outboundCall(params: {
   agentPhoneNumberId: string;
   toNumber: string;
   provider?: "sip_trunk" | "twilio";
+  /** Replace the agent's stored (inbound) greeting for THIS call — used to give outbound calls a
+   *  proper "I'm calling you" opener. Requires the agent to allow first_message overrides. */
+  firstMessage?: string;
 }) {
   const path = params.provider === "twilio" ? "/twilio/outbound-call" : "/sip-trunk/outbound-call";
+  const body: Record<string, unknown> = {
+    agent_id: params.agentId,
+    agent_phone_number_id: params.agentPhoneNumberId,
+    to_number: params.toNumber,
+  };
+  if (params.firstMessage) {
+    body.conversation_initiation_client_data = {
+      conversation_config_override: { agent: { first_message: params.firstMessage } },
+    };
+  }
   return call<{ conversation_id?: string; success?: boolean; message?: string }>(path, {
     method: "POST",
-    body: JSON.stringify({
-      agent_id: params.agentId,
-      agent_phone_number_id: params.agentPhoneNumberId,
-      to_number: params.toNumber,
-    }),
+    body: JSON.stringify(body),
   });
 }

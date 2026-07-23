@@ -120,6 +120,17 @@ export function buildElevenLabsAgent(row: Record<string, unknown>): ConvaiAgentP
         similarity_boost: 0.75,
       },
     },
+    // Allow a per-call FIRST-MESSAGE override. The stored `greeting` is written for INBOUND
+    // ("Thanks for calling …"); on an OUTBOUND call the agent is the one dialling, so the call
+    // placer supplies an outbound-appropriate opener via conversation_initiation_client_data.
+    // EL only honours that override when the agent opts in here. [[voice-agent-elevenlabs-migration]]
+    platform_settings: {
+      overrides: {
+        conversation_config_override: {
+          agent: { first_message: true },
+        },
+      },
+    },
     tags: ["flowsmartly"],
   };
 }
