@@ -766,6 +766,7 @@ model CampaignSend {
   openedAt      DateTime?
   clickedAt     DateTime?
   bouncedAt     DateTime?
+  branchProcessedAt DateTime? // SMS flow: if/else branch action already fired for this send
 
   opens  Int @default(0)
   clicks Int @default(0)
