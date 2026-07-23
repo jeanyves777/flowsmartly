@@ -334,6 +334,10 @@ export interface DeckSlide {
    *  `videoUrl` is filled once the host generates it in the Build Studio. */
   videoPrompt?: string;
   videoUrl?: string;
+  /** an AGENT-AUTHORED animated illustration for this slide — a designed infographic (cards +
+   *  icons + connectors) rendered as HTML/CSS/SVG and animated in step with the narration, instead
+   *  of a generated video. On-subject, cheap, and matches the deck look. */
+  infographic?: SlideInfographic;
   /** the single most important 2-4 word phrase on a DOC slide — the AI co-host's hand circles
    *  and highlights it as it's spoken. Must appear verbatim in the subtitle or a talking point. */
   highlight?: string;
@@ -359,6 +363,37 @@ export const ANNOTATE_VARIANTS: { v: AnnotateStyle; icon: string; label: string;
   { v: "highlight", icon: "🖍️", label: "Marker", hint: "Highlighter sweep" },
   { v: "point", icon: "👉", label: "Point", hint: "Point at it" },
 ];
+
+/* ---------- Agent-authored animated illustrations (infographics) ----------
+ * The agent designs a diagram (a hub of facets, a process flow, a grid, or a two-side comparison)
+ * as a small spec; the renderer draws it with themed HTML/CSS + SVG icons & connectors and reveals
+ * it element-by-element in step with the narration — the on-subject, cheap alternative to a
+ * generated video. [[training-studio]] */
+export const INFOGRAPHIC_LAYOUTS = ["hub", "flow", "grid", "compare"] as const;
+export type InfographicLayout = (typeof INFOGRAPHIC_LAYOUTS)[number];
+/** Icons the agent may pick (mapped to lucide in the renderer; unknown → a dot). */
+export const INFOGRAPHIC_ICONS = [
+  "calculator", "database", "globe", "search", "workflow", "link", "bot", "cpu", "cloud", "zap",
+  "brain", "code", "chart", "message", "shield", "settings", "file", "folder", "mail", "phone",
+  "users", "target", "rocket", "lightbulb", "wrench", "layers", "git-branch", "network", "server",
+  "key", "lock", "eye", "book", "graduation", "dollar", "clock", "check", "alert", "gauge",
+  "sparkles", "filter", "refresh", "send", "download", "upload", "play", "map-pin", "calendar",
+  "star", "heart", "trending-up", "package", "shopping-cart", "credit-card", "bell", "flag", "tag",
+  "image", "video", "mic", "wifi", "hammer", "pen", "palette", "grid", "list", "layout",
+] as const;
+export interface InfographicCard {
+  icon: string;          // one of INFOGRAPHIC_ICONS (else a dot)
+  title: string;         // 1-3 words
+  desc?: string;         // 3-7 words
+  color?: string;        // hex accent; else auto-assigned from a palette
+}
+export interface SlideInfographic {
+  layout: InfographicLayout;
+  caption?: string;      // one supporting line under the title
+  center?: { icon: string; label?: string }; // hub only — the middle node
+  cards: InfographicCard[];   // 2-6
+  footer?: string;       // a short closing line under the diagram
+}
 
 export interface QuizQuestion {
   question: string;

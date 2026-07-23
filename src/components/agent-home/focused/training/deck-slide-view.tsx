@@ -11,6 +11,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { cn } from "@/lib/utils/cn";
 import type { BoardItem, DeckSlide, VisualStyle, HandStyleSettings, BoardStyleSettings, BoardPreset } from "@/lib/training/types";
+import { InfographicView } from "./infographic-view";
 
 type AnnStyle = NonNullable<DeckSlide["annotate"]>;
 /** The circle / underline path (in host pixels) around a measured phrase box. */
@@ -398,6 +399,11 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board 
     : hlPhrase ? <HandAnnotate hostRef={hostRef} active={annActive} style={annStyle} ink={inkColor} showHand={hand?.showHand} tool={hand?.tool} widthMul={hand?.strokeWidth} /> : null;
 
   // A DEMONSTRATION VIDEO slide — a short generated moving illustration beside the teaching text.
+  // An AGENT-AUTHORED animated illustration (cards + icons + connectors), revealed with narration.
+  if (slide.infographic && slide.infographic.cards?.length) {
+    return <InfographicView spec={slide.infographic} reveal={reveal} title={md(slide.title)} subtitle={slide.subtitle ? md(slide.subtitle) : undefined} className={className} />;
+  }
+
   if (slide.videoUrl || (slide.visualType === "video" && slide.videoPrompt)) {
     return (
       <div className={cn("relative grid h-full w-full grid-cols-[.92fr_1.08fr] items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
