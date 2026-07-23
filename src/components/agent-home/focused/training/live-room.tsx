@@ -28,7 +28,7 @@ import { InviteSheet, Sheet } from "./invite-sheet";
 import { DeckSlideView } from "./deck-slide-view";
 import { VideoSheet } from "./video-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
-import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/deck";
+import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/reveal-timing";
 import type { BoardItem, BoardTool, LiveStroke, StageSource, TrainingParticipantDTO, TrainingSessionDTO, TrainingMessageDTO, PresenterAnswer } from "@/lib/training/types";
 
 const SHAPES: { id: ShapeKind; Icon: typeof Square; label: string }[] = [
