@@ -153,12 +153,17 @@ export function listConvaiPhoneNumbers() {
   return call<{ phone_numbers?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>>("/phone-numbers");
 }
 
-/** Import a SIP-trunk number (e.g. Telnyx). `sipTrunkConfig` carries the
- *  termination URI + credentials the provider gave us; without it the number is
- *  created but can't route calls yet. */
+/** Import a SIP-trunk number (e.g. Telnyx). The trunk configs carry the
+ *  termination URI + credentials the provider gave us; without them the number is
+ *  created but can't route calls yet.
+ *  ⚠️ The create payload keys are `inbound_trunk_config`/`outbound_trunk_config`
+ *  (NOT `inbound_trunk`/`outbound_trunk` — those produce a bare, null-trunk number
+ *  with supports_inbound=false), and SIP creds nest under `credentials:{username,
+ *  password}`. Proven live 2026-07-23. Pass `agentId` to bind in the same call. */
 export function importSipPhoneNumber(params: {
   phoneNumber: string;
   label: string;
+  agentId?: string;
   inboundTrunkConfig?: Record<string, unknown>;
   outboundTrunkConfig?: Record<string, unknown>;
 }) {
@@ -168,8 +173,9 @@ export function importSipPhoneNumber(params: {
       provider: "sip_trunk",
       phone_number: params.phoneNumber,
       label: params.label,
-      ...(params.inboundTrunkConfig ? { inbound_trunk: params.inboundTrunkConfig } : {}),
-      ...(params.outboundTrunkConfig ? { outbound_trunk: params.outboundTrunkConfig } : {}),
+      ...(params.agentId ? { agent_id: params.agentId } : {}),
+      ...(params.inboundTrunkConfig ? { inbound_trunk_config: params.inboundTrunkConfig } : {}),
+      ...(params.outboundTrunkConfig ? { outbound_trunk_config: params.outboundTrunkConfig } : {}),
     }),
   });
 }

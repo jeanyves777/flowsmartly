@@ -96,7 +96,7 @@ export const AGENT_GROUPS: AgentGroup[] = [
     key: "callagent", label: "Call agent", icon: "PhoneCall", accent: "#0ea5e9",
     description: "An agent that answers your phone.",
     placeholder: "Ask FlowSmartly about your call agent…",
-    context: "The user has focused the agent into its **Call agent** group — the voice agent that answers their business phone. Prefer the voice-agent surface. It has a brief (what it does, the business, its greeting), a voice, skills (book / answer / qualify a lead / take a message / transfer / check an order), a phone number, and a live switch. You can still handle anything else they explicitly ask.",
+    context: "The user has focused the agent into its **Call agent** group — the voice agent that answers their business phone. Prefer the voice-agent surface. It has a brief (what it does, the business, its greeting), a voice, skills (book / answer / qualify a lead / take a message / transfer / check an order), a phone number, and a live switch. It can also DIAL OUT: when the user asks to call someone (a lead, a customer, a callback), use `place_call` with the person's number or a saved contactId — the live voice agent places the call and handles it. You can still handle anything else they explicitly ask.",
     skills: [
       { id: "voiceagent", title: "Voice agent", description: "Answers, books & logs every call.", surface: "voiceagent", costKey: "VOICE_AGENT_MINUTE", costHint: "15 cr / min", icon: "PhoneCall", thumb: "/Studio_Menus_Thumnail/voice_studio.webp", keywords: ["voice agent", "call agent", "phone", "receptionist", "answer calls", "call", "booking", "reception", "phone number", "voicemail"] },
     ],

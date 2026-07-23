@@ -15,7 +15,7 @@ import {
   Sparkles, X, Phone, Mic, Zap, ClipboardList, Plus, Pencil, Power, PhoneCall,
   Search, Coins, ListChecks, Settings, Hash, PauseCircle, PlayCircle, Trash2,
   ChevronRight, AlertTriangle, FileText, Link2, RefreshCw, Check, Loader2,
-  Volume2, Upload, Square, Copy, PhoneForwarded,
+  Volume2, Upload, Square, Copy, PhoneForwarded, PhoneOutgoing,
 } from "lucide-react";
 
 import { useTextPrompt } from "@/components/agent-home/shared/text-prompt";
@@ -1197,6 +1197,7 @@ function BackOffice({ agent, calls, stats, onClose, onPatch, onRefresh, onOpenVi
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {tab === "calls" && (
           <>
+            <DialOut agent={agent} onRefresh={onRefresh} />
             {stats && (
               <div className="mb-3.5 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
                 {[
@@ -1282,6 +1283,75 @@ function BackOffice({ agent, calls, stats, onClose, onPatch, onRefresh, onOpenVi
         {tab === "controls" && <Controls agent={agent} onPatch={onPatch} />}
         {tab === "number" && <NumberTab agent={agent} onPatch={onPatch} onRefresh={onRefresh} />}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Place an outbound call from the agent's own number. Shown only when the agent
+ * is live with a number (outbound needs both). The dialed call rings from the
+ * agent's line, connects to the agent, and lands in the log with an ↗ once done.
+ */
+function DialOut({ agent, onRefresh }: {
+  agent: VoiceAgentDraft;
+  onRefresh: () => void | Promise<void>;
+}) {
+  const { toast } = useToast();
+  const [to, setTo] = useState("");
+  const [calling, setCalling] = useState(false);
+
+  if (agent.status !== "LIVE" || !agent.number?.e164) return null;
+
+  const place = async () => {
+    const digits = to.replace(/[\s()\-.]/g, "");
+    const e164 = digits.startsWith("+") ? digits : `+${digits}`;
+    if (!/^\+[1-9]\d{7,14}$/.test(e164)) {
+      toast({ title: "Enter the number in full international format, e.g. +14155550123", variant: "destructive" });
+      return;
+    }
+    setCalling(true);
+    try {
+      const j = await fetch(`/api/voice-agent/agents/${agent.id}/outbound`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toNumber: e164 }),
+      }).then((r) => r.json());
+      if (j?.success) {
+        toast({ title: `Calling ${fmtNumber(e164)}…`, description: "The agent is dialing now — it'll appear in the log once it connects." });
+        setTo("");
+        void onRefresh();
+      } else {
+        toast({ title: j?.error?.message || "Could not place the call", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Could not place the call", variant: "destructive" });
+    } finally {
+      setCalling(false);
+    }
+  };
+
+  return (
+    <div className="mb-3.5 flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5">
+      <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-violet-500/15 text-violet-400">
+        <PhoneOutgoing className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Place a call</div>
+        <input
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void place(); }}
+          placeholder="+1 415 555 0123"
+          inputMode="tel"
+          className="w-full bg-transparent text-[13.5px] font-semibold outline-none placeholder:text-muted-foreground/50"
+        />
+      </div>
+      <button
+        onClick={() => void place()}
+        disabled={calling || !to.trim()}
+        className="inline-flex flex-none items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12px] font-bold text-white disabled:opacity-50">
+        {calling ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Dialing…</> : <><PhoneOutgoing className="h-3.5 w-3.5" /> Call</>}
+      </button>
     </div>
   );
 }
@@ -2396,6 +2466,7 @@ const FOLLOWUP_CHANNELS: { v: FollowUpRule["channel"]; label: string }[] = [
   { v: "sms", label: "SMS" },
   { v: "whatsapp", label: "WhatsApp" },
   { v: "email", label: "Email" },
+  { v: "call", label: "Call back" },
 ];
 
 function FollowUpRules({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void> }) {
@@ -2417,7 +2488,7 @@ function FollowUpRules({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p
             <select value={r.outcome} onChange={(e) => patchRule(i, { outcome: e.target.value })} className={sel}>
               {FOLLOWUP_OUTCOMES.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
             </select>
-            <span className="text-muted-foreground">→ send</span>
+            <span className="text-muted-foreground">→</span>
             <select value={r.channel} onChange={(e) => patchRule(i, { channel: e.target.value as FollowUpRule["channel"] })} className={sel}>
               {FOLLOWUP_CHANNELS.map((c) => <option key={c.v} value={c.v}>{c.label}</option>)}
             </select>
@@ -2427,7 +2498,7 @@ function FollowUpRules({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p
             </button>
           </div>
           <textarea value={r.message} onChange={(e) => patchRule(i, { message: e.target.value })} rows={2}
-            placeholder="What to send the caller…"
+            placeholder={r.channel === "call" ? "Optional — why the agent is calling back (context for the call)" : "What to send the caller…"}
             className="w-full resize-none rounded-md border border-border bg-background px-2 py-1.5 text-[11px] outline-none focus:border-brand-500" />
         </div>
       ))}
@@ -2437,6 +2508,9 @@ function FollowUpRules({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p
       </button>
       {rules.some((r) => r.channel === "whatsapp") && (
         <p className="text-[9px] text-muted-foreground">WhatsApp sends once your WhatsApp Business number is connected.</p>
+      )}
+      {rules.some((r) => r.channel === "call") && (
+        <p className="text-[9px] text-muted-foreground">Call back rings the caller from your agent&apos;s number and handles it live (inbound calls only). Talk time is metered per minute.</p>
       )}
     </div>
   );

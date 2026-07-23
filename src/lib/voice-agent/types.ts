@@ -15,8 +15,8 @@
 /** After-the-call routing: when a call ends with `outcome`, follow up on `channel`. */
 export interface FollowUpRule {
   outcome: string; // an outcome bucket ("missed", "lead", …) or "any"
-  channel: "sms" | "whatsapp" | "email";
-  message: string;
+  channel: "sms" | "whatsapp" | "email" | "call";
+  message: string; // for "call" this is an optional note; the agent handles the call live
 }
 
 export interface VoiceChoice {
