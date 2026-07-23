@@ -7,7 +7,7 @@
 import { prisma } from "@/lib/db/client";
 import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
-import { recorderConfigured } from "./recorder";
+import { recorderConfigured, abortRoomRecording } from "./recorder";
 import {
   EMPTY_BOARD,
   type BoardDoc,
@@ -162,6 +162,19 @@ export async function meterRoom(sessionId: string, attendeeSeconds: number): Pro
     data: { metadata: JSON.stringify(meta), ...(charge > 0 ? { creditsSpent: { increment: charge } } : {}) },
   });
   return charge;
+}
+
+/** Forgotten-recording safety cap: if a recording has been running longer than 3 hours (a room
+ *  left open), ABORT + DISCARD it (never saved — it's abandoned) and clear the flags. Returns true
+ *  if it capped, so the caller can broadcast the state change. */
+export async function enforceRecordingCap(sessionId: string): Promise<boolean> {
+  const CAP_MS = 3 * 60 * 60 * 1000;
+  const s = await prisma.trainingSession.findUnique({ where: { id: sessionId }, select: { recording: true, recordingStartedAt: true } });
+  if (!s?.recording || !s.recordingStartedAt) return false;
+  if (Date.now() - s.recordingStartedAt.getTime() <= CAP_MS) return false;
+  await abortRoomRecording(sessionId);
+  await prisma.trainingSession.update({ where: { id: sessionId }, data: { recording: false, recordingStartedAt: null, recordingPausedAt: null } }).catch(() => {});
+  return true;
 }
 
 // ----------------------------------------------------------------- serialize
