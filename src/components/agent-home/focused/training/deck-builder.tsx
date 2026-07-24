@@ -787,20 +787,29 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 between-slide talking moment, or the closing outro. Fixes mis-generated structure. */}
             <div className="rounded-xl border border-border bg-muted/40 p-2.5">
               <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold"><Film className="h-3.5 w-3.5 text-brand-400" /> Presenter role</div>
-              {/* Deck-wide summary — where the intro / closing are + how many moments, clickable to jump. */}
-              <div className="mb-2 flex flex-wrap items-center gap-1 text-[9.5px] font-bold">
+              {/* Deck-wide summary — the REAL presenter video on each role slide (intro / moments /
+                  closing), hover to play, click to jump. So you SEE what's attached, not just a tag. */}
+              <div className="mb-2 grid grid-cols-3 gap-1.5">
                 {(() => {
+                  const items: { label: string; idx: number; url: string | null | undefined }[] = [];
                   const introIdx = deck.slides.findIndex((s) => s.intro);
+                  if (introIdx >= 0) items.push({ label: "Intro", idx: introIdx, url: deck.introVideoUrl });
+                  let mN = 0;
+                  deck.slides.forEach((s, i) => { if (s.presenterMoment) { mN++; items.push({ label: momentTotal > 1 ? `Moment ${mN}` : "Moment", idx: i, url: s.momentVideoUrl }); } });
                   const closingIdx = deck.slides.findIndex((s) => s.outro);
-                  const moments = deck.slides.map((s, i) => ({ s, i })).filter(({ s }) => s.presenterMoment);
-                  const chip = (label: string, idx: number, cls: string) => idx >= 0
-                    ? <button key={label + idx} onClick={() => setPage(idx)} className={cn("rounded px-1.5 py-0.5 text-white hover:opacity-90", cls)}>{label} · {idx + 1}</button>
-                    : <span key={label} className="rounded border border-dashed border-border px-1.5 py-0.5 text-muted-foreground">no {label.toLowerCase()}</span>;
-                  return <>
-                    {chip("Intro", introIdx, "bg-brand-500")}
-                    {moments.length ? moments.map(({ i }, n) => <button key={`m${i}`} onClick={() => setPage(i)} className="rounded bg-violet-600 px-1.5 py-0.5 text-white hover:opacity-90">Moment {moments.length > 1 ? n + 1 : ""} · {i + 1}</button>) : <span className="rounded border border-dashed border-border px-1.5 py-0.5 text-muted-foreground">no moments</span>}
-                    {chip("Closing", closingIdx, "bg-brand-500")}
-                  </>;
+                  if (closingIdx >= 0) items.push({ label: "Closing", idx: closingIdx, url: deck.outroVideoUrl });
+                  if (!items.length) return <div className="col-span-3 rounded-lg border border-dashed border-border px-2 py-2 text-[10px] text-muted-foreground">No presenter videos yet — set a slide’s role below, then generate / reuse / upload its video in Prepare presenter.</div>;
+                  return items.map((it, k) => (
+                    <button key={k} onClick={() => setPage(it.idx)} title={`${it.label} — slide ${it.idx + 1}`} className={cn("group overflow-hidden rounded-lg border text-left", it.idx === page ? "border-brand-500" : "border-border hover:border-brand-500/60")}>
+                      <div className="relative aspect-video w-full bg-black">
+                        {it.url
+                          ? <video src={it.url} muted loop playsInline onMouseEnter={(e) => void e.currentTarget.play().catch(() => {})} onMouseLeave={(e) => e.currentTarget.pause()} className="h-full w-full object-cover" />
+                          : <div className="grid h-full w-full place-items-center bg-muted text-center text-[8px] font-bold leading-tight text-muted-foreground">not<br/>made</div>}
+                        <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[8px] font-black text-white">{it.idx + 1}</span>
+                      </div>
+                      <div className="truncate px-1.5 py-1 text-[9.5px] font-bold">{it.label}</div>
+                    </button>
+                  ));
                 })()}
               </div>
               <div className="grid grid-cols-4 gap-1">
