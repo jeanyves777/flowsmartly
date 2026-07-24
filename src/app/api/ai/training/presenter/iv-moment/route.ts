@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
 
   if (!heygenClient.isAvailable()) return err("The presenter video service isn't configured right now — please try again shortly.", 503);
 
-  const { materialId, target } = (await request.json().catch(() => ({}))) as { materialId?: string; target?: string };
+  const { materialId, target, mode } = (await request.json().catch(() => ({}))) as { materialId?: string; target?: string; mode?: string };
   if (!materialId || !target) return err("Nothing to generate");
 
   const mat = await prisma.trainingMaterial.findFirst({ where: { id: materialId, session: { userId: session.userId } }, select: { id: true, deck: true } });
@@ -67,7 +67,13 @@ export async function POST(request: NextRequest) {
   const slideIdx = deck.slides.findIndex((s) => s.id === target);
   const which: "intro" | "outro" | "moment" = target === "intro" ? "intro" : target === "outro" ? "outro" : "moment";
   const nextTitle = slideIdx >= 0 ? deck.slides.slice(slideIdx + 1).find((s) => !s.presenterMoment && !s.intro && !s.qa && !s.quiz)?.title : undefined;
-  const script = scriptFor(which, presenter.name, nextTitle);
+  // Co-host video for a CONTENT slide: the co-host narrates the WHOLE slide, so the script is the
+  // slide's own narration (or its teaching points if it isn't voiced yet), not a short bridge line.
+  const cohostMode = mode === "cohost" && slideIdx >= 0;
+  const cslide = slideIdx >= 0 ? deck.slides[slideIdx] : null;
+  const script = cohostMode
+    ? ((cslide?.narration?.text || `${cslide?.title || ""}. ${(cslide?.bullets || []).join(". ")}. ${cslide?.notes || ""}`).replace(/\s+/g, " ").trim().slice(0, 4000) || scriptFor("moment", presenter.name))
+    : scriptFor(which, presenter.name, nextTitle);
 
   // HeyGen Avatar IV audio-driven lip-sync (~$0.067/sec) — was a hardcoded flat 90.
   // Charge by the spoken duration off the properly-priced per-30s Avatar IV key,
@@ -108,17 +114,17 @@ export async function POST(request: NextRequest) {
 
     if (target === "intro") deck.introVideoUrl = videoUrl;
     else if (target === "outro") deck.outroVideoUrl = videoUrl;
+    else if (cohostMode && slideIdx >= 0) deck.slides[slideIdx] = { ...deck.slides[slideIdx], cohostVideoUrl: videoUrl };
     else if (slideIdx >= 0) deck.slides[slideIdx] = { ...deck.slides[slideIdx], momentVideoUrl: videoUrl, momentScript: script };
     deck.voiceKey = presenter.voiceProfileId ?? null; // this video speaks in the presenter's current voice
     await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck) } });
 
-    // Save intro / outro to the reusable clip library (best-effort — never blocks the response) so
-    // the user can drop it onto another deck without re-rendering. Voice is stored so the picker can
-    // flag which clips match the current deck's voice. [[training-presenter-talking-video]]
+    // Save to the reusable clip library (best-effort — never blocks the response), tagged by kind so
+    // the picker filters per kind: intro / outro / moment / cohost (a full-slide narration video).
     await prisma.presenterClip.create({ data: {
       userId: session.userId,
       presenterId: deck.presenterId,
-      kind: which, // "intro" | "outro" | "moment" — reusable per kind
+      kind: cohostMode ? "cohost" : which,
       videoUrl,
       thumbnailUrl: result.thumbnailUrl ?? null,
       voiceProfileId: presenter.voiceProfileId ?? null,

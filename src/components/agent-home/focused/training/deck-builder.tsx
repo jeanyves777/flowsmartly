@@ -50,7 +50,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const [wantDoc, setWantDoc] = useState(true);
   const [wantWb, setWantWb] = useState(true);
   const [wantVis, setWantVis] = useState(true);
-  const [busy, setBusy] = useState<null | "gen" | "regen" | "rebuild" | "video" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments" | `moment:${string}`>(null);
+  const [busy, setBusy] = useState<null | "gen" | "regen" | "rebuild" | "video" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments" | "cohostvid" | `moment:${string}`>(null);
   const [rebuildOpen, setRebuildOpen] = useState(false);
   const [animOpen, setAnimOpen] = useState(false);
 
@@ -302,11 +302,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   };
 
   // ---- Reuse library: drop a previously-generated intro / outro / moment onto this deck (no re-render). ----
-  const [reuseKind, setReuseKind] = useState<null | "intro" | "outro" | "moment">(null);
-  const [reuseMomentSlide, setReuseMomentSlide] = useState<string | null>(null); // which moment a reused clip attaches to
+  const [reuseKind, setReuseKind] = useState<null | "intro" | "outro" | "moment" | "cohost">(null);
+  const [reuseMomentSlide, setReuseMomentSlide] = useState<string | null>(null); // which moment/cohost slide a reused clip attaches to
   const [reuseClips, setReuseClips] = useState<PresenterClipDTO[]>([]);
   const [reuseLoading, setReuseLoading] = useState(false);
-  const openReuse = async (kind: "intro" | "outro" | "moment", momentSlideId?: string) => {
+  const openReuse = async (kind: "intro" | "outro" | "moment" | "cohost", momentSlideId?: string) => {
     if (!mat) return;
     setReuseMomentSlide(momentSlideId ?? null);
     setReuseKind(kind); setReuseLoading(true); setReuseClips([]);
@@ -316,12 +316,12 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     } catch { /* ignore — empty list shows the empty state */ } finally { setReuseLoading(false); }
   };
   const applyClip = (c: PresenterClipDTO) => {
-    if (reuseKind === "moment" && reuseMomentSlide) {
-      const sid = reuseMomentSlide;
-      setDeck((d) => { if (!d) return d; const next = { ...d, slides: d.slides.map((x) => (x.id === sid ? { ...x, momentVideoUrl: c.videoUrl } : x)) }; persist(next); return next; });
+    if ((reuseKind === "moment" || reuseKind === "cohost") && reuseMomentSlide) {
+      const sid = reuseMomentSlide, field = reuseKind === "cohost" ? "cohostVideoUrl" : "momentVideoUrl";
+      setDeck((d) => { if (!d) return d; const next = { ...d, slides: d.slides.map((x) => (x.id === sid ? { ...x, [field]: c.videoUrl } : x)) }; persist(next); return next; });
       const idx = deck?.slides.findIndex((x) => x.id === sid) ?? -1; if (idx >= 0) setPage(idx);
       land(c.videoUrl);
-      toast({ title: "Moment reused", description: c.sameVoice ? "Attached from your library — no re-render." : "Attached. Heads up: it's a different voice than this deck." });
+      toast({ title: reuseKind === "cohost" ? "Co-host video reused" : "Moment reused", description: c.sameVoice ? "Attached from your library — no re-render." : "Attached. Heads up: it's a different voice than this deck." });
     } else if (reuseKind === "intro" || reuseKind === "outro") {
       editDeck(reuseKind === "intro" ? { introVideoUrl: c.videoUrl } : { outroVideoUrl: c.videoUrl });
       land(c.videoUrl);
@@ -329,21 +329,39 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     }
     setReuseKind(null); setReuseMomentSlide(null);
   };
-  // Upload your OWN video onto a specific talking moment (attaches as its momentVideoUrl).
+  // Generate the CO-HOST VIDEO for a content slide — a talking-head narrating the whole slide, which
+  // replaces the slide's image (steps stay on the other side).
+  const genCohostVideo = async (slideId: string) => {
+    if (!presenter) { onOpenPresenter?.(); return; }
+    if (!mat) return;
+    setBusy("cohostvid");
+    try {
+      const j = await fetch("/api/ai/training/presenter/iv-moment", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id, target: slideId, mode: "cohost" }),
+      }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't generate the co-host video", variant: "destructive" }); return; }
+      if (j.data.deck) { setDeck(j.data.deck as TrainingDeck); persist(j.data.deck as TrainingDeck); }
+      toast({ title: "Co-host video ready", description: "The co-host narrates this slide from the side." });
+    } finally { setBusy(null); }
+  };
+  // Upload your OWN video onto a specific talking moment OR co-host slide (attaches as its
+  // momentVideoUrl / cohostVideoUrl).
   const momentUploadRef = useRef<HTMLInputElement | null>(null);
   const uploadMomentSlideRef = useRef<string | null>(null);
-  const uploadMomentVideo = async (slideId: string, file: File) => {
+  const uploadMomentTargetRef = useRef<"moment" | "cohost">("moment");
+  const uploadMomentVideo = async (slideId: string, file: File, target: "moment" | "cohost") => {
     if (!mat) return;
-    setBusy(`moment:${slideId}`);
+    setBusy(target === "cohost" ? "cohostvid" : `moment:${slideId}`);
     try {
-      const fd = new FormData(); fd.append("file", file); fd.append("materialId", mat.id); fd.append("slideId", slideId); fd.append("target", "moment");
+      const fd = new FormData(); fd.append("file", file); fd.append("materialId", mat.id); fd.append("slideId", slideId); fd.append("target", target);
       const j = await fetch(`/api/ai/training/${sessionId}/deck/media`, { method: "POST", body: fd }).then((r) => r.json());
       if (!j?.success) { toast({ title: j?.error?.message || "Couldn't attach that video", variant: "destructive" }); return; }
       if (j.data.session) onSession?.(j.data.session);
-      setDeck((d) => { if (!d) return d; const next = { ...d, slides: d.slides.map((x) => (x.id === slideId ? { ...x, momentVideoUrl: j.data.url as string } : x)) }; persist(next); return next; });
+      const field = target === "cohost" ? "cohostVideoUrl" : "momentVideoUrl";
+      setDeck((d) => { if (!d) return d; const next = { ...d, slides: d.slides.map((x) => (x.id === slideId ? { ...x, [field]: j.data.url as string } : x)) }; persist(next); return next; });
       const idx = deck?.slides.findIndex((x) => x.id === slideId) ?? -1; if (idx >= 0) setPage(idx);
       land(j.data.url as string);
-      toast({ title: "Moment video attached", description: "Your uploaded video plays on this moment." });
+      toast({ title: target === "cohost" ? "Co-host video attached" : "Moment video attached", description: "Your uploaded video plays here." });
     } finally { setBusy(null); }
   };
   const deleteClip = async (id: string) => {
@@ -930,6 +948,34 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               </div>
             ) : null}
 
+            {/* CO-HOST VIDEO — replace this slide's image with the co-host narrating it, on the left/right. */}
+            {slide.type === "doc" ? (
+              <div className="rounded-xl border border-border bg-muted/40 p-3">
+                <div className="mb-2 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><Film className="h-3.5 w-3.5" /> Co-host video</div>
+                {slide.cohostVideoUrl ? (
+                  <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black ring-1 ring-border">
+                    {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                    <video key={slide.cohostVideoUrl} src={slide.cohostVideoUrl} muted loop autoPlay playsInline className="h-full w-full object-cover" />
+                    <span className="absolute left-2 top-2 rounded bg-emerald-500/90 px-1.5 py-0.5 text-[8px] font-black text-white">CO-HOST</span>
+                  </div>
+                ) : (
+                  <div className="grid aspect-video w-full place-items-center rounded-lg bg-muted px-4 text-center text-[10.5px] leading-snug text-muted-foreground">The co-host narrates this slide from the side — replaces the image. Generate it below.</div>
+                )}
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-muted-foreground">Video side</span>
+                  <div className="inline-flex rounded-lg border border-border p-0.5">
+                    {(["left", "right"] as const).map((sd) => <button key={sd} onClick={() => setSlideMedia({ cohostSide: sd })} className={cn("rounded-md px-2.5 py-1 text-[11px] font-bold transition", (slide.cohostSide ?? "right") === sd ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{sd === "left" ? "Left" : "Right"}</button>)}
+                  </div>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-1.5">
+                  <button onClick={() => void genCohostVideo(slide.id)} disabled={busy !== null} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50">{busy === "cohostvid" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating co-host…</> : <><Film className="h-3.5 w-3.5" /> {slide.cohostVideoUrl ? "Regenerate" : "Generate"} co-host video</>}</button>
+                  <button onClick={() => void openReuse("cohost", slide.id)} disabled={busy !== null} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><RotateCcw className="h-3 w-3" /> Reuse</button>
+                  <button onClick={() => { uploadMomentSlideRef.current = slide.id; uploadMomentTargetRef.current = "cohost"; momentUploadRef.current?.click(); }} disabled={busy !== null} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><Upload className="h-3 w-3" /> Upload</button>
+                </div>
+                <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">A HeyGen talking-head of the co-host speaking this slide’s narration — it replaces the image; the teaching points stay on the {(slide.cohostSide ?? "right") === "right" ? "left" : "right"}.</p>
+              </div>
+            ) : null}
+
             {/* ANIMATION — the AI presenter's hand marks a keyword as it's spoken. */}
             {slide.type === "doc" ? (
               <div className="rounded-xl border border-border bg-muted/40 p-3">
@@ -1148,7 +1194,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   {a.k === "intro" || a.k === "outro" ? <button onClick={() => void openReuse(a.k as "intro" | "outro")} disabled={busy !== null} title="Reuse an intro/outro you already generated" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><RotateCcw className="h-3 w-3" /> Reuse</button> : null}
                   {a.k.startsWith("moment:") ? <>
                     <button onClick={() => void openReuse("moment", a.k.slice(7))} disabled={busy !== null} title="Reuse a talking-moment video from your library" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><RotateCcw className="h-3 w-3" /> Reuse</button>
-                    <button onClick={() => { uploadMomentSlideRef.current = a.k.slice(7); momentUploadRef.current?.click(); }} disabled={busy !== null} title="Upload your own video for this moment" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><Upload className="h-3 w-3" /> Upload</button>
+                    <button onClick={() => { uploadMomentSlideRef.current = a.k.slice(7); uploadMomentTargetRef.current = "moment"; momentUploadRef.current?.click(); }} disabled={busy !== null} title="Upload your own video for this moment" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><Upload className="h-3 w-3" /> Upload</button>
                   </> : null}
                   <button onClick={a.run} disabled={busy !== null} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40">{busy === a.busyKey ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</> : a.done ? "Regenerate" : "Generate"}</button>
                 </div>
@@ -1163,7 +1209,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       ) : null}
 
       {/* Hidden input for "Upload" on a talking moment — attaches your own video to that moment. */}
-      <input ref={momentUploadRef} type="file" accept="video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; const sid = uploadMomentSlideRef.current; uploadMomentSlideRef.current = null; if (f && sid) void uploadMomentVideo(sid, f); e.target.value = ""; }} />
+      <input ref={momentUploadRef} type="file" accept="video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; const sid = uploadMomentSlideRef.current; const tgt = uploadMomentTargetRef.current; uploadMomentSlideRef.current = null; if (f && sid) void uploadMomentVideo(sid, f, tgt); e.target.value = ""; }} />
 
       {/* Reuse library — pick a previously-generated intro / outro / moment (no re-render). Sits above Prepare. */}
       {reuseKind ? (
@@ -1229,7 +1275,7 @@ function PresenterBar({ presenter, active, loopUrl, slideCount, narratedCount, b
   loopUrl: string | null;
   slideCount: number;
   narratedCount: number;
-  busy: null | "gen" | "regen" | "rebuild" | "video" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments" | `moment:${string}`;
+  busy: null | "gen" | "regen" | "rebuild" | "video" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments" | "cohostvid" | `moment:${string}`;
   hasOutro: boolean;
   momentTotal: number;
   momentReady: number;

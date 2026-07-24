@@ -322,6 +322,12 @@ export interface DeckSlide {
   /** the spoken line for this on-screen moment. Synth'd to the audio the Avatar-IV video
    *  lip-syncs to, and shown as the caption. */
   momentScript?: string;
+  /** CO-HOST VIDEO for THIS content slide: a realistic talking-head of the co-host narrating the
+   *  whole slide, generated on demand. When set, it REPLACES the slide's image in the media area —
+   *  the teaching points stay on one side, the co-host video on the other (`cohostSide`). */
+  cohostVideoUrl?: string;
+  /** which side the co-host video sits on for this slide (the teaching points take the other). */
+  cohostSide?: "left" | "right";
 
   /** ---- content-aware presentation model (independent axes) ---- */
   /** the content layout for this teaching moment (hero, problem→solution, comparison, …). */
