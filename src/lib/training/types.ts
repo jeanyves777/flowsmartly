@@ -352,6 +352,21 @@ export interface DeckSlide {
    *  (false) = a rounded card with padding. */
   cohostFull?: boolean;
 
+  /** FLOATING AVATAR: show the deck's moving-avatar LOOP as a small CIRCULAR picture-in-picture on this
+   *  slide (distinct from the co-host talking video). Draggable/resizable in the builder. */
+  avatarFloat?: boolean;
+  /** floating-avatar centre, as fractions of the stage (0–1). Default ≈ bottom-right. */
+  avatarX?: number;
+  avatarY?: number;
+  /** floating-avatar diameter, as a fraction of the stage width (0–1). Default ≈ small. */
+  avatarW?: number;
+
+  /** how the slide's IMAGE is displayed: "contain" (fit the whole image) / "cover" (fill, may crop).
+   *  Unset = auto (diagrams/illustrations fit, photos fill). */
+  imageFit?: "contain" | "cover";
+  /** extra zoom applied to the slide image (1 = none) so it can be sized to show properly. */
+  imageZoom?: number;
+
   /** ---- content-aware presentation model (independent axes) ---- */
   /** the content layout for this teaching moment (hero, problem→solution, comparison, …). */
   layout?: SlideLayout;

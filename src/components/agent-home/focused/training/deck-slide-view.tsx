@@ -408,6 +408,10 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
   // inside their box (contain) — cropping them (cover) cuts off content. Photos still fill.
   const containImg = v?.style === "illustration" || /illustration|diagram|chart|infographic|graph|figure|flow|dashboard|screenshot|schematic|interface|ui|map/i.test(v?.tag ?? "");
   const hasImg = v?.kind === "image" && !!v.url;
+  // Per-slide override of how the image displays + a zoom, so a mis-detected diagram can be shown whole.
+  const imgFit = slide.imageFit ?? (containImg ? "contain" : "cover");
+  const imgFitClass = imgFit === "contain" ? "object-contain p-[3%]" : "object-cover";
+  const imgZoomStyle = slide.imageZoom && slide.imageZoom !== 1 ? ({ transform: `scale(${slide.imageZoom})` } as CSSProperties) : undefined;
   const bullets = slide.bullets ?? [];
   const shownB = reveal === undefined ? bullets : bullets.slice(0, reveal);
   const lay = slide.layout;
@@ -768,7 +772,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
       <div ref={hostRef} className={cn("relative grid h-full w-full grid-cols-[1.25fr_.85fr] items-stretch gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[5%] py-[5%] text-[rgb(var(--sfg))] [container-type:inline-size]", left && "grid-cols-[.85fr_1.25fr]")}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div className={cn("relative overflow-hidden rounded-[1.6cqw] bg-black ring-1 ring-[rgb(var(--sfg)/0.1)] shadow-2xl", left && "order-2")}>
-          <img src={v!.url} alt="" className={cn("h-full w-full", containImg ? "object-contain p-[3%]" : zoom ? "scale-[1.35] object-cover" : "object-cover")} />
+          <img src={v!.url} alt="" className={cn("h-full w-full", imgFitClass)} style={imgZoomStyle ?? (zoom && imgFit !== "contain" ? ({ transform: "scale(1.35)" } as CSSProperties) : undefined)} />
           {v?.tag ? <span className="absolute bottom-[1.2cqw] left-[1.2cqw] rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black backdrop-blur">{zoom ? "🔍 Detail" : v.tag}</span> : null}
         </div>
         <div className="flex min-w-0 flex-col justify-center">
@@ -838,7 +842,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div className="relative h-full">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={v!.url} alt="" className={cn("absolute inset-0 h-full w-full", containImg ? "object-contain" : "object-cover rounded-[1.4cqw]")} />
+          <img src={v!.url} alt="" className={cn("absolute inset-0 h-full w-full", imgFit === "contain" ? "object-contain" : "object-cover rounded-[1.4cqw]")} style={imgZoomStyle} />
         </div>
         <div className="flex min-w-0 flex-col justify-center">
           <h1 className="text-[clamp(11px,3.6cqw,34px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
