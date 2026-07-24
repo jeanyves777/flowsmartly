@@ -465,14 +465,14 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
       ? size === "s" ? "grid-cols-[1.28fr_.72fr]" : size === "l" ? "grid-cols-[.6fr_1.4fr]" : "grid-cols-[.92fr_1.08fr]"
       : size === "s" ? "grid-cols-[.72fr_1.28fr]" : size === "l" ? "grid-cols-[1.4fr_.6fr]" : "grid-cols-[1.08fr_.92fr]";
     return (
-      <div className={cn("relative grid h-full w-full items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", cols, className)}>
+      <div ref={hostRef} className={cn("relative grid h-full w-full items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", cols, className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div className={cn("flex min-w-0 flex-col justify-center", !videoRight && "order-2")}>
-          <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
-          {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
+          <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{T(slide.title)}</h1>
+          {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{T(slide.subtitle)}</p> : null}
           {shownB.length ? (
             <ul className="mt-[2.5cqw] flex flex-col gap-[1.4cqw]">
-              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{md(b)}</li>)}
+              {shownB.map((b, i) => <li key={i} data-step={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{T(b)}</li>)}
             </ul>
           ) : null}
         </div>
@@ -483,6 +483,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
           <video ref={cohostVideoRef} src={slide.cohostVideoUrl} autoPlay muted={!cohostAudio} loop={!cohostAudio} playsInline onEnded={onCohostEnded} onTimeUpdate={onCohostTime ? (e) => { const v = e.currentTarget; if (v.duration && isFinite(v.duration)) onCohostTime(v.currentTime / v.duration); } : undefined} className="h-full w-full object-cover" />
           <span className="absolute bottom-[1.2cqw] left-[1.2cqw] inline-flex items-center gap-1 rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black text-white backdrop-blur"><span className="h-[.9cqw] w-[.9cqw] rounded-full bg-emerald-400" /> Co-host</span>
         </div>
+        {ann}
       </div>
     );
   }
