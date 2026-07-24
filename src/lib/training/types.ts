@@ -330,6 +330,10 @@ export interface DeckSlide {
   cohostSide?: "left" | "right";
   /** how much of the slide the co-host video takes (s = small, m = medium/default, l = large). */
   cohostSize?: "s" | "m" | "l";
+  /** FLOATING placement: instead of a side column, the co-host video floats as a rounded corner tile
+   *  (like the picture-in-picture presenter) over the full-width slide content. `cohostSide` = corner,
+   *  `cohostSize` = tile size. */
+  cohostFloat?: boolean;
 
   /** ---- content-aware presentation model (independent axes) ---- */
   /** the content layout for this teaching moment (hero, problem→solution, comparison, …). */

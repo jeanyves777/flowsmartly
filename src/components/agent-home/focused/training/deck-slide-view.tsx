@@ -121,16 +121,19 @@ function HandPointSteps({ hostRef, reveal }: { hostRef: RefObject<HTMLDivElement
     if (reveal === undefined || reveal < 1) { setM(null); return; }
     const host = hostRef.current; if (!host) return;
     const target = reveal - 1;
+    let raf = 0, tries = 0;
     const measure = () => {
-      const el = host.querySelector<HTMLElement>(`[data-step="${target}"]`); if (!el) { setM(null); return; }
-      const c = host.getBoundingClientRect(), s = el.getBoundingClientRect();
-      if (!c.width || !s.width) return;
+      const el = host.querySelector<HTMLElement>(`[data-step="${target}"]`);
+      const c = host.getBoundingClientRect(), s = el?.getBoundingClientRect();
+      // On the FIRST reveal the bullet is still sliding/fading in (or the stage is mid-layout, width 0)
+      // — retry per frame until it's laid out, so the very first gesture lands on point 1, not point 2.
+      if (!el || !c.width || !s || !s.width) { if (tries++ < 40) raf = requestAnimationFrame(measure); return; }
       setM({ W: c.width, H: c.height, x: s.left - c.left, y: s.top - c.top, w: s.width, h: s.height }); setAt(target);
     };
     measure();
     const ro = new ResizeObserver(measure); ro.observe(host);
-    const t = setTimeout(measure, 90);
-    return () => { ro.disconnect(); clearTimeout(t); };
+    const t1 = setTimeout(measure, 200), t2 = setTimeout(measure, 420); // re-settle after the slide-in
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); clearTimeout(t1); clearTimeout(t2); };
   }, [reveal, hostRef]);
   if (!m) return null;
   const hw = Math.min(m.W * 0.16, Math.max(64, m.h * 1.5)), hh = hw * 0.667;
@@ -154,16 +157,19 @@ function ActiveBulletMark({ hostRef, reveal, ink }: { hostRef: RefObject<HTMLDiv
     if (reveal === undefined || reveal < 1) { setM(null); return; }
     const host = hostRef.current; if (!host) return;
     const target = reveal - 1;
+    let raf = 0, tries = 0;
     const measure = () => {
-      const el = host.querySelector<HTMLElement>(`[data-step="${target}"]`); if (!el) { setM(null); return; }
-      const c = host.getBoundingClientRect(), s = el.getBoundingClientRect();
-      if (!c.width || !s.width) return;
+      const el = host.querySelector<HTMLElement>(`[data-step="${target}"]`);
+      const c = host.getBoundingClientRect(), s = el?.getBoundingClientRect();
+      // retry per frame until the just-revealed bullet is laid out, so the underline reliably starts
+      // on point 1 (the reveal-1 measurement can miss while the item is still sliding in).
+      if (!el || !c.width || !s || !s.width) { if (tries++ < 40) raf = requestAnimationFrame(measure); return; }
       setM({ W: c.width, H: c.height, x: s.left - c.left, y: s.top - c.top, w: s.width, h: s.height }); setAt(target);
     };
     measure();
     const ro = new ResizeObserver(measure); ro.observe(host);
-    const t = setTimeout(measure, 120); // re-settle after the item's fade / slide-in
-    return () => { ro.disconnect(); clearTimeout(t); };
+    const t1 = setTimeout(measure, 200), t2 = setTimeout(measure, 420); // re-settle after the item's fade / slide-in
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); clearTimeout(t1); clearTimeout(t2); };
   }, [reveal, hostRef]);
   if (!m) return null;
   const color = ink || "var(--sat)";
@@ -459,8 +465,36 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
   // the other side (image replaced by the video). Side chosen per slide. [[training-presenter-talking-video]]
   if (slide.cohostVideoUrl) {
     const videoRight = (slide.cohostSide ?? "right") === "right";
-    // content-vs-video split; the video column grows with cohostSize (s → l).
     const size = slide.cohostSize ?? "m";
+    // When cohostAudio, the co-host video plays its OWN baked narration (unmuted, once) — the slide's
+    // separate narration track is muted by the caller, just like intro/moments. As a thumbnail = muted loop.
+    const cohostVideo = <video ref={cohostVideoRef} src={slide.cohostVideoUrl} autoPlay muted={!cohostAudio} loop={!cohostAudio} playsInline onEnded={onCohostEnded} onTimeUpdate={onCohostTime ? (e) => { const v = e.currentTarget; if (v.duration && isFinite(v.duration)) onCohostTime(v.currentTime / v.duration); } : undefined} className="h-full w-full object-cover" />;
+    const cohostBadge = <span className="absolute bottom-[1.2cqw] left-[1.2cqw] inline-flex items-center gap-1 rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black text-white backdrop-blur"><span className="h-[.9cqw] w-[.9cqw] rounded-full bg-emerald-400" /> Co-host</span>;
+
+    // FLOATING placement: full-width teaching content + the co-host as a picture-in-picture corner
+    // tile (like the floating presenter) instead of a side column.
+    if (slide.cohostFloat) {
+      const tileW = size === "s" ? "w-[22cqw]" : size === "l" ? "w-[34cqw]" : "w-[28cqw]";
+      return (
+        <div ref={hostRef} className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
+          <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
+          <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{T(slide.title)}</h1>
+          {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{T(slide.subtitle)}</p> : null}
+          {shownB.length ? (
+            <ul className={cn("mt-[2.5cqw] flex flex-col gap-[1.4cqw]", videoRight ? "max-w-[68%]" : "ms-auto max-w-[68%]")}>
+              {shownB.map((b, i) => <li key={i} data-step={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{T(b)}</li>)}
+            </ul>
+          ) : null}
+          <div className={cn("absolute bottom-[4cqw] z-[5] aspect-video overflow-hidden rounded-[1.2cqw] bg-black shadow-2xl ring-2 ring-[var(--sa2)]", tileW, videoRight ? "right-[4cqw]" : "left-[4cqw]")}>
+            {cohostVideo}
+            {cohostBadge}
+          </div>
+          {ann}
+        </div>
+      );
+    }
+
+    // SIDE-BY-SIDE (default): content on one side, video column on the other; the column grows with size.
     const cols = videoRight
       ? size === "s" ? "grid-cols-[1.28fr_.72fr]" : size === "l" ? "grid-cols-[.6fr_1.4fr]" : "grid-cols-[.92fr_1.08fr]"
       : size === "s" ? "grid-cols-[.72fr_1.28fr]" : size === "l" ? "grid-cols-[1.4fr_.6fr]" : "grid-cols-[1.08fr_.92fr]";
@@ -477,11 +511,8 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
           ) : null}
         </div>
         <div className={cn("relative aspect-video overflow-hidden rounded-[1.4cqw] bg-black ring-1 ring-[rgb(var(--sfg)/.12)] shadow-2xl", !videoRight && "order-1")}>
-          {/* When cohostAudio, the co-host video plays its OWN baked narration (unmuted, once) — the
-              slide's separate narration track is muted by the caller, just like intro/moments. As a
-              thumbnail it's a muted loop. */}
-          <video ref={cohostVideoRef} src={slide.cohostVideoUrl} autoPlay muted={!cohostAudio} loop={!cohostAudio} playsInline onEnded={onCohostEnded} onTimeUpdate={onCohostTime ? (e) => { const v = e.currentTarget; if (v.duration && isFinite(v.duration)) onCohostTime(v.currentTime / v.duration); } : undefined} className="h-full w-full object-cover" />
-          <span className="absolute bottom-[1.2cqw] left-[1.2cqw] inline-flex items-center gap-1 rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black text-white backdrop-blur"><span className="h-[.9cqw] w-[.9cqw] rounded-full bg-emerald-400" /> Co-host</span>
+          {cohostVideo}
+          {cohostBadge}
         </div>
         {ann}
       </div>
