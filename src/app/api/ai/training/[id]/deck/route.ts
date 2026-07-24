@@ -6,7 +6,7 @@ import { getSessionDTO } from "@/lib/training/session";
 import { generateDeck, parseDeck, deckSlideCount, deckImageCount } from "@/lib/training/deck";
 import { getDynamicCreditCost } from "@/lib/credits/costs";
 import { creditService } from "@/lib/credits";
-import type { TrainingDeck } from "@/lib/training/types";
+import type { TrainingDeck, DeckSlide } from "@/lib/training/types";
 
 const err = (message: string, status = 400) =>
   NextResponse.json({ success: false, error: { message } }, { status });
@@ -122,7 +122,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       slideCount: 3,
       variation: true,
     });
-    const fresh = one?.slides.find((s) => s.type === deck.slides[idx].type) ?? one?.slides[0];
+    // generateDeck WEAVES in interaction slides (intro / moments / Q&A); skip those so we grab the
+    // real CONTENT slide, never the auto-prepended intro (that duplicated the Welcome slide).
+    const isContent = (s: DeckSlide) => !s.intro && !s.presenterMoment && !s.qa && !s.quiz;
+    const fresh = one?.slides.find((s) => s.type === deck.slides[idx].type && isContent(s)) ?? one?.slides.find(isContent);
     if (!fresh) return err("Couldn't regenerate that slide — try again", 502);
     deck.slides[idx] = { ...fresh, id: deck.slides[idx].id };
     await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck), pages: deck.slides.length } });
@@ -149,7 +152,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       slideCount: 3,
       variation: true,
     });
-    const fresh = one?.slides.find((s) => s.type === "doc") ?? one?.slides[0];
+    // Skip the auto-woven interaction slides (intro / moment / Q&A) generateDeck prepends — grab the
+    // real content slide, so "add slide" never inserts a duplicate Welcome/intro.
+    const fresh = one?.slides.find((s) => s.type === "doc" && !s.intro && !s.presenterMoment && !s.qa && !s.quiz) ?? one?.slides.find((s) => !s.intro && !s.presenterMoment && !s.qa && !s.quiz);
     if (!fresh) return err("Couldn't create that slide — try again", 502);
     const newId = `s_${Math.random().toString(36).slice(2, 10)}`;
     deck.slides.splice(after + 1, 0, { ...fresh, id: newId });

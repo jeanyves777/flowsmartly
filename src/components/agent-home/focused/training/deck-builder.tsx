@@ -75,11 +75,19 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     const next: TrainingDeck = { ...deck, slides: deck.slides.map((s) => (s.id === slide.id ? { ...s, ...patch } : s)) };
     setDeck(next); persist(next);
   };
-  // Mark the current slide as the CLOSING (outro) slide — exclusive, so the presenter's outro film
-  // plays on exactly one slide. Turning it on clears the flag from every other slide.
-  const setOutroSlide = (on: boolean) => {
+  // The current slide's PRESENTER ROLE. `intro` and `closing` are EXCLUSIVE (one each across the
+  // deck — setting one clears it from every other slide); `moment` (a between-slide talking bridge)
+  // can be on many; `content` is a normal slide. Lets the host fix mis-generated structure — e.g.
+  // turn a stray duplicate Welcome into a talking moment, or move the intro/closing. [[training-presenter-talking-video]]
+  type SlideRole = "content" | "intro" | "moment" | "closing";
+  const roleOf = (s: DeckSlide | null): SlideRole => s?.intro ? "intro" : s?.presenterMoment ? "moment" : s?.outro ? "closing" : "content";
+  const setRole = (role: SlideRole) => {
     if (!deck || !slide) return;
-    const next: TrainingDeck = { ...deck, slides: deck.slides.map((s) => ({ ...s, outro: s.id === slide.id ? on : (on ? false : s.outro) })) };
+    const next: TrainingDeck = { ...deck, slides: deck.slides.map((s) => {
+      if (s.id === slide.id) return { ...s, intro: role === "intro", presenterMoment: role === "moment", outro: role === "closing" };
+      // clear the exclusive roles from other slides when THIS slide takes them
+      return { ...s, intro: role === "intro" ? false : s.intro, outro: role === "closing" ? false : s.outro };
+    }) };
     setDeck(next); persist(next);
   };
   const editDeck = (patch: Partial<TrainingDeck>) => {
@@ -732,19 +740,30 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             <Field label="Title" value={slide.title} onChange={(v) => editSlide({ title: v })} />
             <Field label="Subtitle" value={slide.subtitle ?? ""} onChange={(v) => editSlide({ subtitle: v })} />
 
-            {/* Closing slide — place the presenter's OUTRO film on this slide (usually the last one). */}
-            {!slide.intro ? (
-              <div className="rounded-xl border border-border bg-muted/40 p-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold"><Film className="h-3.5 w-3.5 text-brand-400" /> Closing slide</div>
-                    <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground">The presenter’s outro plays here to sign off. Turn on for one slide — usually your last.</div>
-                  </div>
-                  <button onClick={() => setOutroSlide(!slide.outro)} className={cn("shrink-0 rounded-full px-3 py-1.5 text-[11px] font-extrabold transition", slide.outro ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>{slide.outro ? "On" : "Set as closing"}</button>
-                </div>
-                {slide.outro && !deck.outroVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the outro in <b>Prepare presenter</b> and it’ll play right here.</p> : null}
+            {/* Presenter role — set what this slide IS: normal content, the opening intro, a
+                between-slide talking moment, or the closing outro. Fixes mis-generated structure. */}
+            <div className="rounded-xl border border-border bg-muted/40 p-2.5">
+              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold"><Film className="h-3.5 w-3.5 text-brand-400" /> Presenter role</div>
+              <div className="grid grid-cols-4 gap-1">
+                {([
+                  { r: "content" as const, label: "Content" },
+                  { r: "intro" as const, label: "Intro" },
+                  { r: "moment" as const, label: "Moment" },
+                  { r: "closing" as const, label: "Closing" },
+                ]).map(({ r, label }) => {
+                  const on = roleOf(slide) === r;
+                  return <button key={r} onClick={() => setRole(r)} className={cn("rounded-lg px-1.5 py-1.5 text-[10.5px] font-bold transition", on ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>{label}</button>;
+                })}
               </div>
-            ) : null}
+              <div className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
+                {roleOf(slide) === "intro" ? "The opening — the co-host introduces the session here (plays the intro film). One per deck."
+                  : roleOf(slide) === "moment" ? "A between-slide bridge — the co-host appears full-screen and speaks. Generate its clip in Prepare presenter → Talking moments."
+                  : roleOf(slide) === "closing" ? "The sign-off — the presenter’s outro film plays here. One per deck, usually your last slide."
+                  : "A normal slide with your content, narrated by the co-host."}
+              </div>
+              {roleOf(slide) === "closing" && !deck.outroVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the outro in <b>Prepare presenter</b> and it’ll play right here.</p> : null}
+              {roleOf(slide) === "intro" && !deck.introVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the intro in <b>Prepare presenter</b>.</p> : null}
+            </div>
             {slide.type === "doc" ? (
               <label className="block">
                 <span className="mb-1 block text-[10.5px] font-bold text-muted-foreground">Talking points (one per line)</span>

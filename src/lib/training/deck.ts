@@ -477,15 +477,18 @@ function presenterMomentSlide(): DeckSlide {
  *  "talking AI" bridge moments where the co-host appears full-screen, spaced quiz checks +
  *  a Q&A checkpoint, and a wrap-up Q&A right before the conclusion. */
 function withInteractions(slides: DeckSlide[], quizzes: QuizQuestion[]): DeckSlide[] {
-  const n = slides.length;
-  if (n < 4) return [introSlide(), ...slides];
+  // Idempotent: drop any interaction slides an earlier pass already inserted, so re-weaving (a
+  // rebuild, or a stray woven input) can NEVER duplicate the intro / moments / Q&A.
+  const content = slides.filter((s) => !s.intro && !s.presenterMoment && !s.qa && !s.quiz);
+  const n = content.length;
+  if (n < 4) return [introSlide(), ...content];
   const checkpointAt = Math.max(1, Math.floor(n * 0.62));
   const quizAt = [Math.max(1, Math.floor(n * 0.4)), Math.max(2, n - 2)];
   // A few full-screen "talking AI" bridges between slides (not on the first/last slide).
   const momentAt = [Math.max(1, Math.floor(n * 0.3)), Math.max(2, Math.floor(n * 0.78))];
   const out: DeckSlide[] = [introSlide()]; // the AI co-host opens the session
   let qi = 0;
-  slides.forEach((s, i) => {
+  content.forEach((s, i) => {
     if (i === n - 1) out.push(qaSlide("final")); // wrap-up Q&A just before the conclusion
     out.push(s);
     if (momentAt.includes(i) && i !== n - 1) out.push(presenterMomentSlide());
