@@ -337,14 +337,20 @@ export interface DeckSlide {
    *  whole slide, generated on demand. When set, it REPLACES the slide's image in the media area —
    *  the teaching points stay on one side, the co-host video on the other (`cohostSide`). */
   cohostVideoUrl?: string;
-  /** which side the co-host video sits on for this slide (the teaching points take the other). */
+  /** which side the co-host video sits on for this slide (the teaching points take the other). For a
+   *  FLOATING tile this is the horizontal corner; pair with `cohostVPos` for the vertical corner. */
   cohostSide?: "left" | "right";
   /** how much of the slide the co-host video takes (s = small, m = medium/default, l = large). */
   cohostSize?: "s" | "m" | "l";
   /** FLOATING placement: instead of a side column, the co-host video floats as a rounded corner tile
-   *  (like the picture-in-picture presenter) over the full-width slide content. `cohostSide` = corner,
-   *  `cohostSize` = tile size. */
+   *  (like the picture-in-picture presenter) over the full-width slide content. `cohostSide`+`cohostVPos`
+   *  = corner, `cohostSize` = tile size. */
   cohostFloat?: boolean;
+  /** FLOATING tile vertical corner (default "bottom") — with `cohostSide` gives the 4 corners. */
+  cohostVPos?: "top" | "bottom";
+  /** SIDE-BY-SIDE style: `true` = the video fills its whole side edge-to-edge (full bleed); default
+   *  (false) = a rounded card with padding. */
+  cohostFull?: boolean;
 
   /** ---- content-aware presentation model (independent axes) ---- */
   /** the content layout for this teaching moment (hero, problem→solution, comparison, …). */

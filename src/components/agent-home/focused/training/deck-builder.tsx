@@ -1006,11 +1006,27 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   </div>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-muted-foreground">{slide.cohostFloat ? "Corner" : "Video side"}</span>
+                  <span className="text-[10px] font-bold text-muted-foreground">{slide.cohostFloat ? "Corner side" : "Video side"}</span>
                   <div className="inline-flex rounded-lg border border-border p-0.5">
                     {(["left", "right"] as const).map((sd) => <button key={sd} onClick={() => setSlideMedia({ cohostSide: sd })} className={cn("rounded-md px-2.5 py-1 text-[11px] font-bold transition", (slide.cohostSide ?? "right") === sd ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{sd === "left" ? "Left" : "Right"}</button>)}
                   </div>
                 </div>
+                {/* Floating → also pick the vertical corner (top/bottom). Side-by-side → card vs full-bleed. */}
+                {slide.cohostFloat ? (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-muted-foreground">Corner top/bottom</span>
+                    <div className="inline-flex rounded-lg border border-border p-0.5">
+                      {(["top", "bottom"] as const).map((vp) => <button key={vp} onClick={() => setSlideMedia({ cohostVPos: vp })} className={cn("rounded-md px-2.5 py-1 text-[11px] font-bold transition", (slide.cohostVPos ?? "bottom") === vp ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{vp === "top" ? "Top" : "Bottom"}</button>)}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-muted-foreground">Video style</span>
+                    <div className="inline-flex rounded-lg border border-border p-0.5">
+                      {([[false, "Card"], [true, "Full"]] as const).map(([fu, lbl]) => <button key={String(fu)} onClick={() => setSlideMedia({ cohostFull: fu })} className={cn("rounded-md px-2.5 py-1 text-[11px] font-bold transition", !!slide.cohostFull === fu ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{lbl}</button>)}
+                    </div>
+                  </div>
+                )}
                 {slide.cohostVideoUrl ? (
                   <div className="mt-2 flex items-center gap-2">
                     <span className="text-[10px] font-bold text-muted-foreground">Video size</span>
@@ -1024,7 +1040,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   <button onClick={() => void openReuse("cohost", slide.id)} disabled={busy !== null} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><RotateCcw className="h-3 w-3" /> Reuse</button>
                   <button onClick={() => { uploadMomentSlideRef.current = slide.id; uploadMomentTargetRef.current = "cohost"; momentUploadRef.current?.click(); }} disabled={busy !== null} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><Upload className="h-3 w-3" /> Upload</button>
                 </div>
-                <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">A HeyGen talking-head of the co-host speaking this slide’s narration. {slide.cohostFloat ? `It floats as a ${(slide.cohostSide ?? "right")} corner tile over the full-width slide.` : `It replaces the image; the teaching points stay on the ${(slide.cohostSide ?? "right") === "right" ? "left" : "right"}.`}</p>
+                <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">A HeyGen talking-head of the co-host speaking this slide’s narration. {slide.cohostFloat ? `It floats as a ${slide.cohostVPos ?? "bottom"}-${slide.cohostSide ?? "right"} corner tile over the slide.` : `It sits ${(slide.cohostSide ?? "right") === "right" ? "right" : "left"} ${slide.cohostFull ? "filling the whole side" : "as a card"}; the content stays on the ${(slide.cohostSide ?? "right") === "right" ? "left" : "right"}.`}</p>
               </div>
             ) : null}
 
