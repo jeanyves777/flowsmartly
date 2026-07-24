@@ -466,6 +466,8 @@ async function buildA2pCampaign(input: {
   messageSamples: string[];
   optOutMessage: string;
   businessName: string;
+  privacyPolicyLink?: string;
+  termsAndConditionsLink?: string;
 }): Promise<{ ok: boolean; campaignSid?: string; status?: string; error?: string }> {
   const usecase = input.usAppToPersonUsecase || A2P_USE_CASE_MAP[input.useCaseKey || "marketing"] || "MARKETING";
   const businessName = input.businessName || "the business";
@@ -499,6 +501,10 @@ async function buildA2pCampaign(input: {
         subscriberOptin: true,
         subscriberOptout: true,
         subscriberHelp: true,
+        // Compliance links — carriers expect the privacy policy (and often terms)
+        // populated on the campaign, not only referenced in the message flow.
+        ...(input.privacyPolicyLink ? { privacyPolicyLink: input.privacyPolicyLink } : {}),
+        ...(input.termsAndConditionsLink ? { termsAndConditionsLink: input.termsAndConditionsLink } : {}),
         embeddedLink: hasLinks,
         embeddedPhone: hasPhone,
         ageGated: false,
@@ -545,6 +551,8 @@ export async function createA2pCampaign(params: {
     optOutMessage:
       params.optOutMessage || `You have been unsubscribed from ${businessName} messages. Reply START to re-subscribe.`,
     businessName,
+    privacyPolicyLink: params.privacyPolicyUrl,
+    termsAndConditionsLink: params.termsOfServiceUrl,
   });
   if (!built.ok) return { success: false, error: built.error };
   return { success: true, campaignSid: built.campaignSid, status: built.status };
@@ -632,6 +640,8 @@ export async function submitA2p10DlcRegistration(params: A2pRegistrationParams):
       messageSamples: compliance.messageSamples,
       optOutMessage: compliance.optOutMessage,
       businessName: params.businessName,
+      privacyPolicyLink: params.privacyPolicyUrl,
+      termsAndConditionsLink: params.termsOfServiceUrl,
     });
     campaignSid = built.campaignSid;
     campaignStatus = built.status;
