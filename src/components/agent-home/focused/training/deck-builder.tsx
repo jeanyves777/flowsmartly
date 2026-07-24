@@ -612,12 +612,22 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
           <span className="ms-auto text-[10.5px] text-muted-foreground">{deck.slides.length}</span>
         </div>
         <div className="flex-1 space-y-2 overflow-auto p-2.5">
-          {deck.slides.map((s, i) => (
-            <button key={s.id} onClick={() => setPage(i)} className={cn("relative block w-full overflow-hidden rounded-lg border-2", i === page ? "border-brand-500" : "border-transparent hover:border-border")}>
-              <div className="aspect-video w-full"><DeckSlideView slide={s} styleKey={deck.visualStyle} board={deck.boardStyle} /></div>
-              <span className="absolute left-1 top-1 grid h-4 min-w-4 place-items-center rounded bg-black/55 px-1 text-[9px] font-extrabold text-white">{i + 1}</span>
-            </button>
-          ))}
+          {deck.slides.map((s, i) => {
+            // Presenter-role badge so the whole deck structure (intro / moments / closing / Q&A /
+            // quiz) is visible at a glance — you can see where each is, even with several moments.
+            const badge = s.intro ? { t: "Intro", c: "bg-brand-500" }
+              : s.outro ? { t: "Closing", c: "bg-brand-500" }
+              : s.presenterMoment ? { t: "Moment", c: "bg-violet-600" }
+              : s.qa ? { t: s.qaKind === "final" ? "Wrap-up" : "Q&A", c: "bg-cyan-600" }
+              : s.quiz ? { t: "Quiz", c: "bg-amber-600" } : null;
+            return (
+              <button key={s.id} onClick={() => setPage(i)} className={cn("relative block w-full overflow-hidden rounded-lg border-2", i === page ? "border-brand-500" : "border-transparent hover:border-border")}>
+                <div className="aspect-video w-full"><DeckSlideView slide={s} styleKey={deck.visualStyle} board={deck.boardStyle} /></div>
+                <span className="absolute left-1 top-1 grid h-4 min-w-4 place-items-center rounded bg-black/55 px-1 text-[9px] font-extrabold text-white">{i + 1}</span>
+                {badge ? <span className={cn("absolute right-1 top-1 rounded px-1 py-px text-[8px] font-black uppercase tracking-wide text-white shadow", badge.c)}>{badge.t}</span> : null}
+              </button>
+            );
+          })}
           <button onClick={() => { setNewSlidePrompt(""); setNewSlideOpen(true); }} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-[11px] font-bold text-muted-foreground hover:border-brand-500 hover:text-brand-400"><Plus className="h-3.5 w-3.5" /> Add slide</button>
         </div>
       </div>
@@ -744,6 +754,22 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 between-slide talking moment, or the closing outro. Fixes mis-generated structure. */}
             <div className="rounded-xl border border-border bg-muted/40 p-2.5">
               <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold"><Film className="h-3.5 w-3.5 text-brand-400" /> Presenter role</div>
+              {/* Deck-wide summary — where the intro / closing are + how many moments, clickable to jump. */}
+              <div className="mb-2 flex flex-wrap items-center gap-1 text-[9.5px] font-bold">
+                {(() => {
+                  const introIdx = deck.slides.findIndex((s) => s.intro);
+                  const closingIdx = deck.slides.findIndex((s) => s.outro);
+                  const moments = deck.slides.map((s, i) => ({ s, i })).filter(({ s }) => s.presenterMoment);
+                  const chip = (label: string, idx: number, cls: string) => idx >= 0
+                    ? <button key={label + idx} onClick={() => setPage(idx)} className={cn("rounded px-1.5 py-0.5 text-white hover:opacity-90", cls)}>{label} · {idx + 1}</button>
+                    : <span key={label} className="rounded border border-dashed border-border px-1.5 py-0.5 text-muted-foreground">no {label.toLowerCase()}</span>;
+                  return <>
+                    {chip("Intro", introIdx, "bg-brand-500")}
+                    {moments.length ? moments.map(({ i }, n) => <button key={`m${i}`} onClick={() => setPage(i)} className="rounded bg-violet-600 px-1.5 py-0.5 text-white hover:opacity-90">Moment {moments.length > 1 ? n + 1 : ""} · {i + 1}</button>) : <span className="rounded border border-dashed border-border px-1.5 py-0.5 text-muted-foreground">no moments</span>}
+                    {chip("Closing", closingIdx, "bg-brand-500")}
+                  </>;
+                })()}
+              </div>
               <div className="grid grid-cols-4 gap-1">
                 {([
                   { r: "content" as const, label: "Content" },
