@@ -26,6 +26,7 @@ import { TrainingBoard, type BoardCursor, type ShapeKind } from "./training-boar
 import { useMedia, type RemoteStream, type DeviceOption } from "./use-media";
 import { InviteSheet, Sheet } from "./invite-sheet";
 import { DeckSlideView } from "./deck-slide-view";
+import { StageLayoutView } from "./stage-layout-view";
 import { VideoSheet } from "./video-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
 import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/reveal-timing";
@@ -659,8 +660,20 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           </div>
         );
       }
-      // The board box is already a 16:9 letterbox, so the slide just fills it.
-      return slide ? <div className="h-full w-full overflow-hidden"><DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} writeMs={stepWriteMs} /></div> : null;
+      // The board box is a 16:9 letterbox. The co-host video shares it per the deck's stageLayout
+      // (right / floating / bottom / hidden) — a muted loop; the narration track carries the voice.
+      return slide ? (
+        <div className="h-full w-full overflow-hidden">
+          <StageLayoutView
+            layout={material.deck?.stageLayout}
+            fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
+            slide={<DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} writeMs={stepWriteMs} />}
+            cohost={material.deck?.presenterActive && material.deck?.presenterVideoUrl
+              ? <video src={material.deck.presenterVideoUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" />
+              : null}
+          />
+        </div>
+      ) : null;
     }
     if (material?.kind === "image" || material?.kind === "video") {
       // eslint-disable-next-line @next/next/no-img-element

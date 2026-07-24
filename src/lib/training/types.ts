@@ -441,6 +441,39 @@ export interface TrainingDeck {
    *  so a tight-crop clip that cuts off the head can be zoomed out / nudged into place. Applies to
    *  all three; set from the builder preview and saved with the deck. */
   presenterFit?: PresenterFit;
+  /** how the co-host video shares the stage with the slides during the presentation. */
+  stageLayout?: StageLayout;
+}
+
+// ------------------------------------------------------------ Stage layout
+/** The co-host video + presentation share the stage: `presentation` (slides only), `cohost_right`
+ *  (slides left, co-host docked right), `floating` (co-host as a picture-in-picture corner tile),
+ *  `cohost_bottom` (co-host as a bottom strip). Plus co-host size and visibility toggles. */
+export type StageMode = "presentation" | "cohost_right" | "floating" | "cohost_bottom";
+export const STAGE_MODES: readonly StageMode[] = ["presentation", "cohost_right", "floating", "cohost_bottom"] as const;
+export const STAGE_MODE_LABELS: Record<StageMode, string> = {
+  presentation: "Presentation only",
+  cohost_right: "Co-host right",
+  floating: "Floating co-host",
+  cohost_bottom: "Co-host bottom",
+};
+export interface StageLayout {
+  mode?: StageMode;
+  size?: "s" | "m" | "l";
+  /** keep the co-host on screen throughout (else it can hide on full-visual slides) */
+  keepVisible?: boolean;
+  /** hide the co-host on hero / full-visual slides so the visual gets the whole stage */
+  hideOnFullVisual?: boolean;
+}
+/** The size of the co-host pane for a stage mode: a FRACTION of the stage width for the docked-right
+ *  split, or a percentage for the floating PiP. */
+export function cohostSize(l?: StageLayout | null): { rightPct: number; bottomPct: number; floatPct: number } {
+  const z = l?.size ?? "m";
+  return {
+    rightPct: z === "s" ? 30 : z === "l" ? 46 : 38,   // width % when docked right
+    bottomPct: z === "s" ? 26 : z === "l" ? 40 : 32,  // height % when docked bottom
+    floatPct: z === "s" ? 20 : z === "l" ? 32 : 26,   // width % as a floating PiP
+  };
 }
 
 /** Framing for the on-screen presenter videos: fit mode, a vertical anchor (`y`, 0 = top … 100 =
