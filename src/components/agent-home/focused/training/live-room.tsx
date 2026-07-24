@@ -29,6 +29,7 @@ import { DeckSlideView } from "./deck-slide-view";
 import { VideoSheet } from "./video-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
 import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/reveal-timing";
+import { presenterVideoStyle } from "@/lib/training/types";
 import type { BoardItem, BoardTool, LiveStroke, StageSource, TrainingParticipantDTO, TrainingSessionDTO, TrainingMessageDTO, PresenterAnswer } from "@/lib/training/types";
 
 const SHAPES: { id: ShapeKind; Icon: typeof Square; label: string }[] = [
@@ -652,7 +653,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         return (
           <div className="relative grid h-full w-full place-items-center overflow-hidden bg-black">
             {momentUrl
-              ? <video ref={(el) => { momentVidRef.current = el; }} key={momentUrl} src={momentUrl} autoPlay playsInline onEnded={onMomentEnd} onPlay={() => setSoundBlocked(false)} onError={() => setSoundBlocked(true)} poster={aiP?.avatarUrl ?? undefined} className="h-full w-full object-contain" />
+              ? <video ref={(el) => { momentVidRef.current = el; }} key={momentUrl} src={momentUrl} autoPlay playsInline onEnded={onMomentEnd} onPlay={() => setSoundBlocked(false)} onError={() => setSoundBlocked(true)} poster={aiP?.avatarUrl ?? undefined} className="h-full w-full" style={presenterVideoStyle(material.deck.presenterFit)} />
               : <AvatarVideo url={material.deck.presenterVideoUrl!} poster={aiP?.avatarUrl} speaking={aiSpeaking} className="object-contain" />}
             <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1 text-[12px] font-bold text-white"><span className="rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1 py-px text-[8.5px] font-black text-[#04222a]">AI</span>{aiP?.name || "Your AI co-host"} · {slide?.intro ? "introducing" : slide?.qa ? "wrapping up" : "speaking"}</span>
           </div>
