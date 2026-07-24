@@ -388,7 +388,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
   // Whiteboard & Live Draw share one renderer — a wide horizontal canvas that pans
   // to follow the reveal. Live Draw additionally animates the CURRENT element on.
   if (slide.type === "whiteboard" || slide.type === "livedraw") {
-    const bt = resolveBoard(styleKey ?? slide.visualStyle, board);
+    const bt = resolveBoard(slide.visualStyle ?? styleKey, board);
     const animate = slide.type === "livedraw" || board?.animate === true;
     return (
       <div
@@ -916,7 +916,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
   );
   })();
 
-  return <div className="contents" style={styleVars(styleKey ?? slide.visualStyle)}>{body}</div>;
+  return <div className="contents" style={styleVars(slide.visualStyle ?? styleKey)}>{body}</div>;
 }
 
 /** An endless horizontal teaching canvas. Revealed marks are static; when `animated`
