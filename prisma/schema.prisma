@@ -2698,6 +2698,7 @@ model MarketingConfig {
 
   // Opt-in proof (screenshot URL showing how users consent to SMS)
   smsOptInImageUrl String?
+  optInSlug        String? @unique // public slug for the hosted SMS opt-in page (/optin/<slug>) — A2P consent proof
 
   // Toll-Free Verification
   smsTollfreeVerifySid    String? // Toll-free verification SID (e.g. TF...)
