@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils/cn";
 import { DeckSlideView } from "./deck-slide-view";
 import { VISUAL_STYLES, VISUAL_STYLE_LABELS, ANNOTATE_VARIANTS, presenterVideoStyle, STAGE_MODES, STAGE_MODE_LABELS } from "@/lib/training/types";
 import { StageLayoutView } from "./stage-layout-view";
+import { NarrationPanel } from "./narration-panel";
 import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/reveal-timing";
 import { AnimationStudio } from "./animation-studio";
 import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle, VisualType, PresenterFit, StageMode, StageLayout } from "@/lib/training/types";
@@ -801,11 +802,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   <StageLayoutView
                     layout={deck.stageLayout}
                     fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
-                    slide={<DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} writeMs={previewWriteMs} />}
-                    cohost={loopUrl ? <video src={loopUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" /> : null}
+                    slide={<DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} writeMs={previewWriteMs} cohostAudio={!!slide.cohostVideoUrl} onCohostEnded={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} />}
+                    cohost={slide.cohostVideoUrl ? null : (loopUrl ? <video src={loopUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" /> : null)}
                   />
                   {(slide.steps ?? 1) > 1 ? <button onClick={() => { setPreviewStep(1); const a = previewAudioRef.current; if (a) a.currentTime = 0; }} title="Replay the drawing" className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-bold text-white backdrop-blur hover:bg-black/70"><RotateCcw className="h-3.5 w-3.5" /> Replay</button> : null}
-                  {slide.narration?.audioUrl ? (
+                  {slide.narration?.audioUrl && !slide.cohostVideoUrl ? (
                     <audio
                       ref={previewAudioRef}
                       key={slide.id}
@@ -834,6 +835,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   )}
                 </div>
               )}
+              {/* ADMIN control: the whole narration — every voice segment, total runtime, downloadable */}
+              <NarrationPanel slides={deck.slides} sessionId={sessionId} materialId={mat.id} currentSlideId={slide.id} onJump={(i) => setPage(i)} />
             </div>
           ) : slide ? (
             <div className="aspect-video w-full max-w-[900px] overflow-hidden rounded-xl shadow-2xl">
@@ -967,6 +970,14 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                     {(["left", "right"] as const).map((sd) => <button key={sd} onClick={() => setSlideMedia({ cohostSide: sd })} className={cn("rounded-md px-2.5 py-1 text-[11px] font-bold transition", (slide.cohostSide ?? "right") === sd ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{sd === "left" ? "Left" : "Right"}</button>)}
                   </div>
                 </div>
+                {slide.cohostVideoUrl ? (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-muted-foreground">Video size</span>
+                    <div className="inline-flex rounded-lg border border-border p-0.5">
+                      {([["s", "Small"], ["m", "Medium"], ["l", "Large"]] as const).map(([sz, lbl]) => <button key={sz} onClick={() => setSlideMedia({ cohostSize: sz })} className={cn("rounded-md px-2.5 py-1 text-[11px] font-bold transition", (slide.cohostSize ?? "m") === sz ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{lbl}</button>)}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mt-2 grid grid-cols-2 gap-1.5">
                   <button onClick={() => void genCohostVideo(slide.id)} disabled={busy !== null} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50">{busy === "cohostvid" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating co-host…</> : <><Film className="h-3.5 w-3.5" /> {slide.cohostVideoUrl ? "Regenerate" : "Generate"} co-host video</>}</button>
                   <button onClick={() => void openReuse("cohost", slide.id)} disabled={busy !== null} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><RotateCcw className="h-3 w-3" /> Reuse</button>

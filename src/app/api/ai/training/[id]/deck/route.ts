@@ -247,6 +247,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       momentVideoUrl: s.momentVideoUrl ?? p.momentVideoUrl,
       momentScript: s.momentScript ?? p.momentScript,
       cohostVideoUrl: s.cohostVideoUrl ?? p.cohostVideoUrl,
+      cohostSide: s.cohostSide ?? p.cohostSide,
+      cohostSize: s.cohostSize ?? p.cohostSize,
       narration: s.narration ?? p.narration,
       quizReveal: s.quizReveal ?? p.quizReveal,
       videoUrl: s.videoUrl ?? p.videoUrl,

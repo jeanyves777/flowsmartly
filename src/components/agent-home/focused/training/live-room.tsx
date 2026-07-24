@@ -341,6 +341,9 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     : (deckSlide?.qa && deckSlide?.qaKind === "final" && !hasOutroSlide) ? (material?.deck?.outroVideoUrl ?? null)
     : null;
   const isMomentVideo = !!momentVideoUrl;
+  // A content slide whose IMAGE is the co-host video: like a moment, it plays its OWN baked audio, so
+  // the separate narration track is muted for this slide.
+  const isCohostVideo = !isMomentVideo && !!deckSlide?.cohostVideoUrl;
   const aiAudioRef = useRef<HTMLAudioElement | null>(null);
   // the on-stage intervention <video> (intro/moment/outro), so a tap can (re)start its audio
   const momentVidRef = useRef<HTMLVideoElement | null>(null);
@@ -370,12 +373,12 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   useEffect(() => {
     const a = aiAudioRef.current;
     if (!a) return;
-    if (aiPlaying && narration?.audioUrl && !isMomentVideo) {
+    if (aiPlaying && narration?.audioUrl && !isMomentVideo && !isCohostVideo) {
       if (a.getAttribute("data-src") !== narration.audioUrl) { a.src = narration.audioUrl; a.setAttribute("data-src", narration.audioUrl); a.currentTime = 0; setCapFrac(0); }
       a.playbackRate = aiRate;
       a.play().then(() => setSoundBlocked(false)).catch(() => setSoundBlocked(true));
-    } else { a.pause(); } // muted during an on-screen intervention video (it carries its own voice)
-  }, [aiPlaying, narration?.audioUrl, isMomentVideo]);
+    } else { a.pause(); } // muted during an on-screen intervention video / co-host slide (it carries its own voice)
+  }, [aiPlaying, narration?.audioUrl, isMomentVideo, isCohostVideo]);
   // NOTE: dismissing the caption hides it for the WHOLE session (it does NOT reappear on
   // the next slide) — that's the requested behaviour, so there is no per-slide reset here.
   // Attendees never click "Present with AI", so their browser blocks the AI voice on
@@ -667,10 +670,10 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           <StageLayoutView
             layout={material.deck?.stageLayout}
             fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
-            slide={<DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} writeMs={stepWriteMs} />}
-            cohost={material.deck?.presenterActive && material.deck?.presenterVideoUrl
+            slide={<DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} writeMs={stepWriteMs} cohostAudio={isCohostVideo} cohostVideoRef={(el) => { momentVidRef.current = el; }} onCohostEnded={onMomentEnd} />}
+            cohost={isCohostVideo ? null : (material.deck?.presenterActive && material.deck?.presenterVideoUrl
               ? <video src={material.deck.presenterVideoUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" />
-              : null}
+              : null)}
           />
         </div>
       ) : null;
