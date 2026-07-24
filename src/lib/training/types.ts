@@ -176,6 +176,17 @@ export const SLIDE_LAYOUTS = [
 ] as const;
 export type SlideLayout = (typeof SLIDE_LAYOUTS)[number];
 
+/** Layouts that re-arrange a slide's title + bullets WITHOUT needing an image or diagram — the safe
+ *  set for changing ANY doc slide's arrangement in place (keeps its content, narration & video). */
+export const TEXT_LAYOUTS: SlideLayout[] = [
+  "hero_statement", "big_idea", "key_takeaways", "step_process", "vertical_journey", "timeline",
+  "before_after", "problem_solution_result", "comparison_table", "pros_cons", "myth_reality",
+  "question_answer", "case_study", "real_world_scenario", "customer_journey", "layered_explanation",
+  "system_architecture", "workshop", "recap_map", "action_plan", "quote", "section_divider", "closing",
+];
+/** Layouts built around a big image — offered when the slide already has one. */
+export const IMAGE_LAYOUTS: SlideLayout[] = ["image_explanation", "full_visual", "concept_3d_callouts", "annotated_photo", "zoom_in"];
+
 /** Visual direction, chosen independently of the layout. */
 export const VISUAL_STYLES = [
   "modern_professional", "cinematic", "3d_technology", "whiteboard_teacher", "editorial",

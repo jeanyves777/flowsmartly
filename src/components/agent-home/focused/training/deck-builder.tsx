@@ -16,7 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { DeckSlideView } from "./deck-slide-view";
-import { VISUAL_STYLES, VISUAL_STYLE_LABELS, ANNOTATE_VARIANTS, presenterVideoStyle, STAGE_MODES, STAGE_MODE_LABELS } from "@/lib/training/types";
+import { VISUAL_STYLES, VISUAL_STYLE_LABELS, ANNOTATE_VARIANTS, presenterVideoStyle, STAGE_MODES, STAGE_MODE_LABELS, TEXT_LAYOUTS, IMAGE_LAYOUTS, INFOGRAPHIC_LAYOUTS, type SlideLayout, type InfographicLayout } from "@/lib/training/types";
 import { StageLayoutView } from "./stage-layout-view";
 import { NarrationPanel } from "./narration-panel";
 import { SeamlessLoop } from "./seamless-loop";
@@ -25,6 +25,9 @@ import { AnimationStudio } from "./animation-studio";
 import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle, VisualType, PresenterFit, StageMode, StageLayout } from "@/lib/training/types";
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
+
+// "hero_statement" → "Hero Statement", "concept_3d_callouts" → "Concept 3D Callouts"
+const layoutLabel = (l: string) => l.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\b3d\b/i, "3D");
 
 interface AutoGen { brief: string; wantDoc: boolean; wantWhiteboard: boolean; wantVisuals: boolean; slideCount: number }
 interface PresenterClipDTO { id: string; kind: string; videoUrl: string; thumbnailUrl: string | null; presenterName: string | null; script: string | null; durationMs: number | null; createdAt: string; sameVoice: boolean }
@@ -860,6 +863,36 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
           <div className="space-y-2.5">
             <Field label="Title" value={slide.title} onChange={(v) => editSlide({ title: v })} />
             <Field label="Subtitle" value={slide.subtitle ?? ""} onChange={(v) => editSlide({ subtitle: v })} />
+
+            {/* Layout & style — re-ARRANGE this slide in place: pick a different layout or visual style
+                for the SAME content. Narration and the co-host video are untouched (client-side, instant). */}
+            <div className="rounded-xl border border-border bg-muted/40 p-2.5">
+              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold"><Palette className="h-3.5 w-3.5 text-brand-400" /> Layout &amp; style</div>
+              <label className="block">
+                <span className="mb-1 block text-[10px] font-bold text-muted-foreground">Visual style</span>
+                <select value={slide.visualStyle ?? ""} onChange={(e) => editSlide({ visualStyle: e.target.value ? (e.target.value as VisualStyle) : undefined })} className="w-full rounded-lg border border-border bg-muted px-2 py-1.5 text-[12px] outline-none focus:border-brand-500">
+                  <option value="">Deck default{deck.visualStyle ? ` (${VISUAL_STYLE_LABELS[deck.visualStyle]})` : ""}</option>
+                  {VISUAL_STYLES.map((s) => <option key={s} value={s}>{VISUAL_STYLE_LABELS[s]}</option>)}
+                </select>
+              </label>
+              {slide.infographic?.cards?.length ? (
+                <label className="mt-2 block">
+                  <span className="mb-1 block text-[10px] font-bold text-muted-foreground">Diagram arrangement</span>
+                  <select value={slide.infographic.layout ?? "hub"} onChange={(e) => editSlide({ infographic: { ...slide.infographic!, layout: e.target.value as InfographicLayout } })} className="w-full rounded-lg border border-border bg-muted px-2 py-1.5 text-[12px] outline-none focus:border-brand-500">
+                    {INFOGRAPHIC_LAYOUTS.map((l) => <option key={l} value={l}>{layoutLabel(l)}</option>)}
+                  </select>
+                </label>
+              ) : (slide.type === "doc" || !slide.type) ? (
+                <label className="mt-2 block">
+                  <span className="mb-1 block text-[10px] font-bold text-muted-foreground">Layout</span>
+                  <select value={slide.layout ?? ""} onChange={(e) => editSlide({ layout: e.target.value ? (e.target.value as SlideLayout) : undefined })} className="w-full rounded-lg border border-border bg-muted px-2 py-1.5 text-[12px] outline-none focus:border-brand-500">
+                    <option value="">Auto</option>
+                    {[...TEXT_LAYOUTS, ...(slide.visual?.url ? IMAGE_LAYOUTS : [])].map((l) => <option key={l} value={l}>{layoutLabel(l)}</option>)}
+                  </select>
+                </label>
+              ) : null}
+              <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">Re-arranges this slide only — same words, narration &amp; co-host video.</p>
+            </div>
 
             {/* Presenter role — set what this slide IS: normal content, the opening intro, a
                 between-slide talking moment, or the closing outro. Fixes mis-generated structure. */}
