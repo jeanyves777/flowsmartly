@@ -27,6 +27,7 @@ import { useMedia, type RemoteStream, type DeviceOption } from "./use-media";
 import { InviteSheet, Sheet } from "./invite-sheet";
 import { DeckSlideView } from "./deck-slide-view";
 import { StageLayoutView } from "./stage-layout-view";
+import { SeamlessLoop } from "./seamless-loop";
 import { VideoSheet } from "./video-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
 import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/reveal-timing";
@@ -69,24 +70,10 @@ const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAI
  *  audio is playing) and FREEZES otherwise — so the avatar is driven by the voice instead
  *  of looping forever. Muted (the cloned voice plays through the shared narration audio).
  *  Falls back to the still portrait poster before the first play. */
+// The AI presenter's moving avatar. Seamless loop (crossfades the seam) so it never visibly
+// restarts; it moves while the AI speaks and holds a frame otherwise.
 function AvatarVideo({ url, poster, speaking, className }: { url: string; poster?: string | null; speaking: boolean; className?: string }) {
-  const ref = useRef<HTMLVideoElement>(null);
-  useEffect(() => {
-    const v = ref.current;
-    if (!v) return;
-    if (speaking) { v.play().catch(() => {}); } else { try { v.pause(); } catch { /* ignore */ } }
-  }, [speaking]);
-  return (
-    <video
-      ref={ref}
-      src={url}
-      poster={poster ?? undefined}
-      muted
-      loop
-      playsInline
-      className={cn("h-full w-full object-cover", className)}
-    />
-  );
+  return <SeamlessLoop url={url} poster={poster} playing={speaking} fit={className?.includes("object-contain") ? "contain" : "cover"} className={className} />;
 }
 
 /** Remote audio has to be in the DOM to be heard, but must never be seen.
@@ -691,7 +678,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
             fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
             slide={<DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} writeMs={stepWriteMs} cohostAudio={isCohostVideo} cohostVideoRef={(el) => { momentVidRef.current = el; }} onCohostEnded={onMomentEnd} onCohostTime={isCohostVideo ? cohostTime : undefined} />}
             cohost={isCohostVideo ? null : (material.deck?.presenterActive && material.deck?.presenterVideoUrl
-              ? <video src={material.deck.presenterVideoUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" />
+              ? <SeamlessLoop url={material.deck.presenterVideoUrl} />
               : null)}
           />
         </div>

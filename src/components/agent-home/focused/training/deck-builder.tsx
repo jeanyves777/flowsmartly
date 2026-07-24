@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, VolumeX, Film, Settings2, Mic, RotateCcw, Radio, Check, Palette, ImageIcon, Upload,
+  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, Film, Settings2, Mic, RotateCcw, Radio, Check, Palette, ImageIcon, Upload,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -19,6 +19,7 @@ import { DeckSlideView } from "./deck-slide-view";
 import { VISUAL_STYLES, VISUAL_STYLE_LABELS, ANNOTATE_VARIANTS, presenterVideoStyle, STAGE_MODES, STAGE_MODE_LABELS } from "@/lib/training/types";
 import { StageLayoutView } from "./stage-layout-view";
 import { NarrationPanel } from "./narration-panel";
+import { SeamlessLoop } from "./seamless-loop";
 import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/reveal-timing";
 import { AnimationStudio } from "./animation-studio";
 import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle, VisualType, PresenterFit, StageMode, StageLayout } from "@/lib/training/types";
@@ -262,12 +263,10 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   }, [previewing, previewVideo, slide?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // large avatar player (inspector) controls
-  const avatarRef = useRef<HTMLVideoElement | null>(null);
   const [avPlaying, setAvPlaying] = useState(true);
-  const [avMuted, setAvMuted] = useState(true);
-  const avToggle = () => { const v = avatarRef.current; if (!v) return; if (v.paused) void v.play(); else v.pause(); };
-  const avRestart = () => { const v = avatarRef.current; if (!v) return; v.currentTime = 0; void v.play(); };
-  const avMute = () => { const v = avatarRef.current; if (!v) return; v.muted = !v.muted; setAvMuted(v.muted); };
+  const [avNonce, setAvNonce] = useState(0);
+  const avToggle = () => setAvPlaying((p) => !p);
+  const avRestart = () => { setAvPlaying(true); setAvNonce((n) => n + 1); };
 
   // Turn the presenter photo into a looping "moving avatar" for the room.
   const animate = async () => {
@@ -803,7 +802,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                     layout={deck.stageLayout}
                     fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
                     slide={<DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} writeMs={previewWriteMs} cohostAudio={!!slide.cohostVideoUrl} onCohostEnded={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} onCohostTime={slide.cohostVideoUrl ? (frac) => { const { fracs, steps } = previewFracsRef.current; if (steps < 2) return; const target = fracs && fracs.length >= 2 && fracs.length === steps ? revealStepAt(frac, fracs, steps) : Math.min(steps, Math.max(1, Math.floor(frac * steps) + 1)); setPreviewStep((p) => (target > (p ?? 1) ? target : p)); } : undefined} />}
-                    cohost={slide.cohostVideoUrl ? null : (loopUrl ? <video src={loopUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" /> : null)}
+                    cohost={slide.cohostVideoUrl ? null : (loopUrl ? <SeamlessLoop url={loopUrl} /> : null)}
                   />
                   {(slide.steps ?? 1) > 1 ? <button onClick={() => { setPreviewStep(1); const a = previewAudioRef.current; if (a) a.currentTime = 0; }} title="Replay the drawing" className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-bold text-white backdrop-blur hover:bg-black/70"><RotateCcw className="h-3.5 w-3.5" /> Replay</button> : null}
                   {slide.narration?.audioUrl && !slide.cohostVideoUrl ? (
@@ -844,7 +843,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 layout={deck.stageLayout}
                 fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
                 slide={<DeckSlideView slide={slide} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} />}
-                cohost={loopUrl ? <video src={loopUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" /> : null}
+                cohost={loopUrl ? <SeamlessLoop url={loopUrl} /> : null}
               />
             </div>
           ) : null}
@@ -1023,14 +1022,13 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             <div className="rounded-2xl border-2 border-brand-500/40 bg-gradient-to-br from-brand-500/[0.06] to-transparent p-2.5">
               <div className="mb-2 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><Film className="h-3.5 w-3.5" /> AI Presenter · Live avatar</div>
               <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
-                <video ref={avatarRef} src={loopUrl} autoPlay muted loop playsInline onPlay={() => setAvPlaying(true)} onPause={() => setAvPlaying(false)} className="absolute inset-0 h-full w-full object-cover" />
+                <SeamlessLoop url={loopUrl} playing={avPlaying} nonce={avNonce} className="absolute inset-0" />
                 <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[8px] font-black text-white backdrop-blur">● LIVE</span>
                 <span className="absolute right-2 top-2 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 text-[8px] font-black text-[#04222a]">AI</span>
               </div>
               <div className="mt-2 flex items-center gap-1.5">
                 <button onClick={avToggle} title={avPlaying ? "Pause" : "Play"} className="grid h-8 w-8 place-items-center rounded-lg border border-border hover:border-brand-500">{avPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
                 <button onClick={avRestart} title="Restart" className="grid h-8 w-8 place-items-center rounded-lg border border-border hover:border-brand-500"><RotateCcw className="h-3.5 w-3.5" /></button>
-                <button onClick={avMute} title={avMuted ? "Unmute" : "Mute"} className="grid h-8 w-8 place-items-center rounded-lg border border-border hover:border-brand-500">{avMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}</button>
                 <button onClick={animate} disabled={busy === "animate"} className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[10.5px] font-bold hover:border-brand-500 disabled:opacity-50">{busy === "animate" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />} Re-animate</button>
               </div>
             </div>
