@@ -330,9 +330,13 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   // An on-screen MOMENT (intro / between-slide / closing outro) that has a rendered talking
   // video: the VIDEO carries the cloned-voice audio, so we must NOT also play the narration
   // track — the narration is muted for the whole intervention.
+  // A host-designated closing slide plays the outro; else the final-Q&A slide auto-plays it, but
+  // only when NO slide is explicitly flagged — so the outro never plays on two slides.
+  const hasOutroSlide = !!(material?.kind === "slides" && material.deck?.slides.some((s) => s.outro));
   const momentVideoUrl = deckSlide?.intro ? (material?.deck?.introVideoUrl ?? null)
     : deckSlide?.presenterMoment ? (deckSlide.momentVideoUrl ?? null)
-    : (deckSlide?.qa && deckSlide?.qaKind === "final") ? (material?.deck?.outroVideoUrl ?? null)
+    : deckSlide?.outro ? (material?.deck?.outroVideoUrl ?? null)
+    : (deckSlide?.qa && deckSlide?.qaKind === "final" && !hasOutroSlide) ? (material?.deck?.outroVideoUrl ?? null)
     : null;
   const isMomentVideo = !!momentVideoUrl;
   const aiAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -640,7 +644,8 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
       // stage with its OWN baked cloned-voice audio; the narration track is muted while it runs.
       const momentUrl = slide?.intro ? material.deck.introVideoUrl
         : slide?.presenterMoment ? slide.momentVideoUrl
-        : (slide?.qa && slide.qaKind === "final") ? material.deck.outroVideoUrl
+        : slide?.outro ? material.deck.outroVideoUrl
+        : (slide?.qa && slide.qaKind === "final" && !hasOutroSlide) ? material.deck.outroVideoUrl
         : null;
       const aiP = session.participants.find((p) => p.isAI);
       if (momentUrl || ((slide?.intro || slide?.presenterMoment) && material.deck.presenterVideoUrl)) {

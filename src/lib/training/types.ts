@@ -306,6 +306,11 @@ export interface DeckSlide {
   /** the opening slide: the AI co-host appears on the Presenter stage and introduces
    *  itself (a disclosed self-intro), then the room moves on to the first slide. */
   intro?: boolean;
+  /** the CLOSING slide: the presenter's outro film (deck.outroVideoUrl) plays here to sign off.
+   *  Set from the builder ("Closing slide" toggle) so the host can place the outro on any slide —
+   *  usually the last one. When any slide is flagged, the final-Q&A slide stops auto-playing the
+   *  outro so it never plays twice. */
+  outro?: boolean;
   /** a "talking AI moment" BETWEEN slides: the co-host appears full-screen and SPEAKS a
    *  short bridge line, then the deck moves on — rendered as a realistic Avatar-IV talking
    *  video (see momentVideoUrl). */
