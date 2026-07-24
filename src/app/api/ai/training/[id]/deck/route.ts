@@ -265,6 +265,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     handStyle: body.deck.handStyle ?? prev.handStyle,
     boardStyle: body.deck.boardStyle ?? prev.boardStyle,
     presenterFit: body.deck.presenterFit ?? prev.presenterFit,
+    stageLayout: body.deck.stageLayout ?? prev.stageLayout,
   };
   await prisma.trainingMaterial.update({
     where: { id: mat.id },
