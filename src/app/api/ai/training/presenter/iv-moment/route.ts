@@ -8,6 +8,7 @@ import { downloadS3ObjectToBuffer, uploadToS3 } from "@/lib/utils/s3-client";
 import { creditService } from "@/lib/credits";
 import { getDynamicCreditCost, DEFAULT_CREDIT_COSTS } from "@/lib/credits/costs";
 import { nanoid } from "nanoid";
+import sharp from "sharp";
 import type { TrainingDeck } from "@/lib/training/types";
 
 const err = (message: string, status = 400) =>
@@ -82,11 +83,16 @@ export async function POST(request: NextRequest) {
     const spoken = await synthesize(script, voice, presenter.pace ?? 1, presenter.deliveryStyle ?? "conversational");
     const audioUrl = await uploadToS3(`presenters/${session.userId}/moment-audio-${nanoid(6)}.mp3`, spoken.buffer, "audio/mpeg");
 
-    // A FRESH copy of the photo so HeyGen gets a valid (non-expired) URL to fetch.
-    const buf = await downloadS3ObjectToBuffer(presenter.portraitUrl);
-    const mime = /\.png($|\?)/i.test(presenter.portraitUrl) ? "image/png" : /\.webp($|\?)/i.test(presenter.portraitUrl) ? "image/webp" : "image/jpeg";
-    const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : "jpg";
-    const imageUrl = await uploadToS3(`presenters/${session.userId}/ref-${nanoid(6)}.${ext}`, buf, mime);
+    // A FRESH copy of the photo — REFRAMED to 16:9 anchored at the TOP. HeyGen renders a 16:9
+    // video and, given a square / portrait photo, crops the MIDDLE band — which slices the top of
+    // the head off. Pre-cropping to 16:9 keeping the top means the full head + headroom survive
+    // (a natural talking-head medium shot). Verified on a real 1024×1024 portrait. An already-16:9
+    // photo is unchanged (cover on same aspect = no crop). [[training-presenter-talking-video]]
+    const raw = await downloadS3ObjectToBuffer(presenter.portraitUrl);
+    let buf = raw;
+    try { buf = await sharp(raw).resize(1280, 720, { fit: "cover", position: "top" }).jpeg({ quality: 92 }).toBuffer(); }
+    catch (e) { console.error("[iv-moment] portrait reframe failed, using original:", e instanceof Error ? e.message : e); buf = raw; }
+    const imageUrl = await uploadToS3(`presenters/${session.userId}/ref-${nanoid(6)}.jpg`, buf, "image/jpeg");
 
     // Avatar IV, audio-driven: the presenter's photo, lip-synced to the cloned voice. No avatar
     // quota consumed (v3 image→video), so this scales to every customer.
