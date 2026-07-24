@@ -121,16 +121,19 @@ function HandPointSteps({ hostRef, reveal }: { hostRef: RefObject<HTMLDivElement
     if (reveal === undefined || reveal < 1) { setM(null); return; }
     const host = hostRef.current; if (!host) return;
     const target = reveal - 1;
+    let raf = 0, tries = 0;
     const measure = () => {
-      const el = host.querySelector<HTMLElement>(`[data-step="${target}"]`); if (!el) { setM(null); return; }
-      const c = host.getBoundingClientRect(), s = el.getBoundingClientRect();
-      if (!c.width || !s.width) return;
+      const el = host.querySelector<HTMLElement>(`[data-step="${target}"]`);
+      const c = host.getBoundingClientRect(), s = el?.getBoundingClientRect();
+      // On the FIRST reveal the bullet is still sliding/fading in (or the stage is mid-layout, width 0)
+      // — retry per frame until it's laid out, so the very first gesture lands on point 1, not point 2.
+      if (!el || !c.width || !s || !s.width) { if (tries++ < 40) raf = requestAnimationFrame(measure); return; }
       setM({ W: c.width, H: c.height, x: s.left - c.left, y: s.top - c.top, w: s.width, h: s.height }); setAt(target);
     };
     measure();
     const ro = new ResizeObserver(measure); ro.observe(host);
-    const t = setTimeout(measure, 90);
-    return () => { ro.disconnect(); clearTimeout(t); };
+    const t1 = setTimeout(measure, 200), t2 = setTimeout(measure, 420); // re-settle after the slide-in
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); clearTimeout(t1); clearTimeout(t2); };
   }, [reveal, hostRef]);
   if (!m) return null;
   const hw = Math.min(m.W * 0.16, Math.max(64, m.h * 1.5)), hh = hw * 0.667;
@@ -154,16 +157,19 @@ function ActiveBulletMark({ hostRef, reveal, ink }: { hostRef: RefObject<HTMLDiv
     if (reveal === undefined || reveal < 1) { setM(null); return; }
     const host = hostRef.current; if (!host) return;
     const target = reveal - 1;
+    let raf = 0, tries = 0;
     const measure = () => {
-      const el = host.querySelector<HTMLElement>(`[data-step="${target}"]`); if (!el) { setM(null); return; }
-      const c = host.getBoundingClientRect(), s = el.getBoundingClientRect();
-      if (!c.width || !s.width) return;
+      const el = host.querySelector<HTMLElement>(`[data-step="${target}"]`);
+      const c = host.getBoundingClientRect(), s = el?.getBoundingClientRect();
+      // retry per frame until the just-revealed bullet is laid out, so the underline reliably starts
+      // on point 1 (the reveal-1 measurement can miss while the item is still sliding in).
+      if (!el || !c.width || !s || !s.width) { if (tries++ < 40) raf = requestAnimationFrame(measure); return; }
       setM({ W: c.width, H: c.height, x: s.left - c.left, y: s.top - c.top, w: s.width, h: s.height }); setAt(target);
     };
     measure();
     const ro = new ResizeObserver(measure); ro.observe(host);
-    const t = setTimeout(measure, 120); // re-settle after the item's fade / slide-in
-    return () => { ro.disconnect(); clearTimeout(t); };
+    const t1 = setTimeout(measure, 200), t2 = setTimeout(measure, 420); // re-settle after the item's fade / slide-in
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); clearTimeout(t1); clearTimeout(t2); };
   }, [reveal, hostRef]);
   if (!m) return null;
   const color = ink || "var(--sat)";

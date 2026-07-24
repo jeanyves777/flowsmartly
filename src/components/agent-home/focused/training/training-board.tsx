@@ -488,7 +488,9 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
     <div
       ref={wrapRef}
       className={cn(
-        "relative h-full w-full touch-none overflow-hidden rounded-xl border border-border",
+        // select-none: dragging a draw tool must DRAW, never select the slide/backdrop text underneath
+        // (which made pointing/circling impossible). The textarea editor opts back in with select-text.
+        "relative h-full w-full touch-none select-none overflow-hidden rounded-xl border border-border",
         doc.bg === "dark" ? "bg-[#12141a]" : "bg-[#f8f8f5]",
         className,
       )}
@@ -612,7 +614,7 @@ export function TrainingBoard({ doc, tool, shapeKind = "rect", color, canDraw, c
             if (e.key === "Escape") { e.preventDefault(); setEditing(null); }
           }}
           placeholder={editing.note ? "Sticky note…" : "Type here…"}
-          className="absolute z-[6] min-w-[120px] max-w-[38%] resize-none rounded-md border border-brand-500 p-1.5 leading-snug shadow-lg outline-none"
+          className="absolute z-[6] min-w-[120px] max-w-[38%] resize-none select-text rounded-md border border-brand-500 p-1.5 leading-snug shadow-lg outline-none"
           style={{
             left: `${editing.x * 100}%`,
             top: `${editing.y * 100}%`,
