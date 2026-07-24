@@ -967,7 +967,13 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   <div className="grid aspect-video w-full place-items-center rounded-lg bg-muted px-4 text-center text-[10.5px] leading-snug text-muted-foreground">The co-host narrates this slide from the side — replaces the image. Generate it below.</div>
                 )}
                 <div className="mt-2 flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-muted-foreground">Video side</span>
+                  <span className="text-[10px] font-bold text-muted-foreground">Placement</span>
+                  <div className="inline-flex rounded-lg border border-border p-0.5">
+                    {([[false, "Side-by-side"], [true, "Floating"]] as const).map(([fl, lbl]) => <button key={String(fl)} onClick={() => setSlideMedia({ cohostFloat: fl })} className={cn("rounded-md px-2.5 py-1 text-[11px] font-bold transition", !!slide.cohostFloat === fl ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{lbl}</button>)}
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-muted-foreground">{slide.cohostFloat ? "Corner" : "Video side"}</span>
                   <div className="inline-flex rounded-lg border border-border p-0.5">
                     {(["left", "right"] as const).map((sd) => <button key={sd} onClick={() => setSlideMedia({ cohostSide: sd })} className={cn("rounded-md px-2.5 py-1 text-[11px] font-bold transition", (slide.cohostSide ?? "right") === sd ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{sd === "left" ? "Left" : "Right"}</button>)}
                   </div>
@@ -985,7 +991,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   <button onClick={() => void openReuse("cohost", slide.id)} disabled={busy !== null} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><RotateCcw className="h-3 w-3" /> Reuse</button>
                   <button onClick={() => { uploadMomentSlideRef.current = slide.id; uploadMomentTargetRef.current = "cohost"; momentUploadRef.current?.click(); }} disabled={busy !== null} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><Upload className="h-3 w-3" /> Upload</button>
                 </div>
-                <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">A HeyGen talking-head of the co-host speaking this slide’s narration — it replaces the image; the teaching points stay on the {(slide.cohostSide ?? "right") === "right" ? "left" : "right"}.</p>
+                <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">A HeyGen talking-head of the co-host speaking this slide’s narration. {slide.cohostFloat ? `It floats as a ${(slide.cohostSide ?? "right")} corner tile over the full-width slide.` : `It replaces the image; the teaching points stay on the ${(slide.cohostSide ?? "right") === "right" ? "left" : "right"}.`}</p>
               </div>
             ) : null}
 
