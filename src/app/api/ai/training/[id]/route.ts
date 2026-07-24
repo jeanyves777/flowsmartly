@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/client";
 import { checkRoomAccess, canControlRoom } from "@/lib/training/access";
 import { getSessionDTO } from "@/lib/training/session";
 import { broadcast } from "@/lib/training/room";
+import { ensureAICohost } from "@/lib/training/ai-cohost";
 import { startRoomRecording, stopRoomRecording } from "@/lib/training/recorder";
 import type { AccessMode, SessionType, StageSource } from "@/lib/training/types";
 
@@ -19,8 +20,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const access = await checkRoomAccess(id, session.userId);
   if (!access.allowed && !access.waiting) return err(access.reason || "Access denied", 403);
 
-  const dto = await getSessionDTO(id);
+  let dto = await getSessionDTO(id);
   if (!dto) return err("Not found", 404);
+  // A live room with a co-host presence but no AI co-host yet (e.g. the deck gained co-host
+  // videos after going live) — add the disclosed co-host so it always shows in the roster.
+  if (dto.status === "live" && !dto.participants.some((p) => p.isAI)) {
+    await ensureAICohost(id).catch(() => {});
+    dto = (await getSessionDTO(id)) ?? dto;
+  }
   return NextResponse.json({ success: true, data: { session: dto, myRole: access.role, waiting: !!access.waiting } });
 }
 

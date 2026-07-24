@@ -765,9 +765,9 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             <button onClick={onExit} title="Exit" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
         </div>
-        <div className="grid flex-1 place-items-center overflow-auto bg-[#0e0e13] p-4">
+        <div className="flex flex-1 overflow-auto bg-[#0e0e13] p-4">
           {previewActive && slide ? (
-            <div className="w-full max-w-[900px]">
+            <div className="m-auto w-full max-w-[900px]">
               <div className="mb-2 flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-500/15 px-2.5 py-1 text-[11px] font-bold text-brand-300"><Radio className="h-3 w-3" /> Previewing — as the room plays it</span>
                 <span className="truncate text-[11px] text-muted-foreground">{previewVideo ? (previewClip ? "Talking presenter video" : "On-screen presenter") : "Slide · narration · moving avatar"}</span>
@@ -802,7 +802,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   <StageLayoutView
                     layout={deck.stageLayout}
                     fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
-                    slide={<DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} writeMs={previewWriteMs} cohostAudio={!!slide.cohostVideoUrl} onCohostEnded={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} />}
+                    slide={<DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} writeMs={previewWriteMs} cohostAudio={!!slide.cohostVideoUrl} onCohostEnded={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} onCohostTime={slide.cohostVideoUrl ? (frac) => { const { fracs, steps } = previewFracsRef.current; if (steps < 2) return; const target = fracs && fracs.length >= 2 && fracs.length === steps ? revealStepAt(frac, fracs, steps) : Math.min(steps, Math.max(1, Math.floor(frac * steps) + 1)); setPreviewStep((p) => (target > (p ?? 1) ? target : p)); } : undefined} />}
                     cohost={slide.cohostVideoUrl ? null : (loopUrl ? <video src={loopUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" /> : null)}
                   />
                   {(slide.steps ?? 1) > 1 ? <button onClick={() => { setPreviewStep(1); const a = previewAudioRef.current; if (a) a.currentTime = 0; }} title="Replay the drawing" className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-bold text-white backdrop-blur hover:bg-black/70"><RotateCcw className="h-3.5 w-3.5" /> Replay</button> : null}
@@ -830,7 +830,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                       onEnded={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))}
                       className="absolute inset-x-3 bottom-3 w-[calc(100%-1.5rem)]"
                     />
-                  ) : (
+                  ) : slide.cohostVideoUrl ? null : (
                     <div className="absolute inset-x-3 bottom-3 rounded-lg bg-black/75 px-3 py-2 text-center text-[11px] font-semibold text-amber-300">No narration for this slide yet — generate it in Prepare presenter.</div>
                   )}
                 </div>
