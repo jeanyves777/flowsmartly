@@ -15,10 +15,10 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
 import { DeckSlideView } from "./deck-slide-view";
-import { VISUAL_STYLES, VISUAL_STYLE_LABELS, ANNOTATE_VARIANTS } from "@/lib/training/types";
+import { VISUAL_STYLES, VISUAL_STYLE_LABELS, ANNOTATE_VARIANTS, presenterVideoStyle } from "@/lib/training/types";
 import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/reveal-timing";
 import { AnimationStudio } from "./animation-studio";
-import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle, VisualType } from "@/lib/training/types";
+import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle, VisualType, PresenterFit } from "@/lib/training/types";
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
@@ -86,6 +86,10 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     const next: TrainingDeck = { ...deck, ...patch };
     setDeck(next); persist(next);
   };
+  // Framing for the on-screen presenter films (intro / moments / outro). Merge a partial into
+  // deck.presenterFit; `null` resets to defaults. Saved with the deck (autosaved via persist).
+  const setFit = (patch: Partial<PresenterFit> | null) =>
+    editDeck({ presenterFit: patch === null ? undefined : { ...(deck?.presenterFit ?? {}), ...patch } });
 
   // The presenter is part of THIS presentation: when one is chosen, record it on the
   // deck; the step in the rail activates/deactivates it.
@@ -615,7 +619,29 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 <button onClick={closePreview} className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-bold hover:border-brand-500"><X className="h-3.5 w-3.5" /> Exit preview</button>
               </div>
               {previewVideo ? (
-                <video key={previewVideo} src={previewVideo} autoPlay controls playsInline onEnded={() => { if (!previewClip) setPage((p) => Math.min(deck.slides.length - 1, p + 1)); }} className="aspect-video w-full rounded-xl bg-black object-contain shadow-2xl" />
+                <>
+                  <div className="overflow-hidden rounded-xl bg-black shadow-2xl">
+                    <video key={previewVideo} src={previewVideo} autoPlay controls playsInline onEnded={() => { if (!previewClip) setPage((p) => Math.min(deck.slides.length - 1, p + 1)); }} className="aspect-video w-full bg-black" style={presenterVideoStyle(deck.presenterFit)} />
+                  </div>
+                  {/* Framing — size + position of the on-screen presenter films. Applies to ALL of them
+                      (intro, talking moments, outro) and saves with the deck. */}
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border bg-muted/40 px-2.5 py-2 text-[11px]">
+                    <span className="inline-flex items-center gap-1.5 font-extrabold text-brand-300"><Film className="h-3.5 w-3.5" /> Presenter framing</span>
+                    <div className="inline-flex rounded-lg border border-border p-0.5">
+                      {(["contain", "cover"] as const).map((m) => (
+                        <button key={m} onClick={() => setFit({ fit: m })} className={cn("rounded-md px-2 py-1 font-bold transition", (deck.presenterFit?.fit ?? "contain") === m ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{m === "contain" ? "Fit whole" : "Fill"}</button>
+                      ))}
+                    </div>
+                    <label className="inline-flex items-center gap-1.5"><span className="text-muted-foreground">Vertical</span>
+                      <input type="range" min={0} max={100} value={deck.presenterFit?.y ?? 50} onChange={(e) => setFit({ y: Number(e.target.value) })} className="w-24 accent-brand-500" title="Top ↔ bottom — pull the head into frame" />
+                    </label>
+                    <label className="inline-flex items-center gap-1.5"><span className="text-muted-foreground">Zoom</span>
+                      <input type="range" min={60} max={140} value={Math.round((deck.presenterFit?.zoom ?? 1) * 100)} onChange={(e) => setFit({ zoom: Number(e.target.value) / 100 })} className="w-24 accent-brand-500" title="Zoom the presenter in / out" />
+                    </label>
+                    <button onClick={() => setFit(null)} className="ms-auto rounded-md border border-border px-2 py-1 font-bold text-muted-foreground hover:border-brand-500">Reset</button>
+                    <span className="w-full text-[10px] text-muted-foreground sm:w-auto">Applies to intro, moments &amp; outro</span>
+                  </div>
+                </>
               ) : (
                 <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-2xl">
                   <DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} writeMs={previewWriteMs} />

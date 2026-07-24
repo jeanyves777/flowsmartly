@@ -437,6 +437,29 @@ export interface TrainingDeck {
   handStyle?: HandStyleSettings;
   /** the whiteboard look (preset + granular overrides); empty = derive from the visual style. */
   boardStyle?: BoardStyleSettings;
+  /** how the on-screen presenter FILMS (intro / talking moments / outro) are framed on the stage,
+   *  so a tight-crop clip that cuts off the head can be zoomed out / nudged into place. Applies to
+   *  all three; set from the builder preview and saved with the deck. */
+  presenterFit?: PresenterFit;
+}
+
+/** Framing for the on-screen presenter videos: fit mode, a vertical anchor (`y`, 0 = top … 100 =
+ *  bottom, so a head cut off at the top is fixed by anchoring to the top), and a zoom (0.6–1.4).
+ *  Defaults = contain / 50 / 1 (whole frame, centered). */
+export interface PresenterFit {
+  fit?: "cover" | "contain";
+  y?: number;
+  zoom?: number;
+}
+
+/** The CSS `style` for a presenter video from its `PresenterFit`. Kept pure so the builder preview
+ *  and the live room frame the clip identically. `object-position` (content-only) does the vertical
+ *  framing so it never disturbs the element's native controls; `scale` handles zoom. */
+export function presenterVideoStyle(f?: PresenterFit | null): { objectFit: "cover" | "contain"; objectPosition: string; transform?: string; transformOrigin: string } {
+  const fit = f?.fit === "cover" ? "cover" : "contain";
+  const y = Math.max(0, Math.min(100, f?.y ?? 50));
+  const zoom = Math.max(0.6, Math.min(1.4, f?.zoom ?? 1));
+  return { objectFit: fit, objectPosition: `50% ${y}%`, transform: zoom !== 1 ? `scale(${zoom})` : undefined, transformOrigin: "center" };
 }
 
 // ------------------------------------------------------------ AI presenter
