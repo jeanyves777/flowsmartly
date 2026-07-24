@@ -86,7 +86,15 @@ export function InfographicView({ spec, reveal, className, title, subtitle }: { 
 
   // ---- HUB: a centre node with facets around it, connectors drawn out to each ----
   if (spec.layout === "hub") {
-    const anchors = HUB[Math.min(6, Math.max(1, cards.length))] || HUB[4];
+    const rawAnchors = HUB[Math.min(6, Math.max(1, cards.length))] || HUB[4];
+    // Cards are ~28cqw wide and centred on their anchor, so an anchor too near an edge pushes
+    // the card off the board. Clamp every anchor (used by BOTH the card AND its connector, so they
+    // stay attached) to keep the whole card inside, clear of the left accent bar. [[training-studio]]
+    const EDGE = 0.05, HALFW = 0.16, TOPH = 0.14, BOTH = 0.15;
+    const anchors: [number, number][] = rawAnchors.map(([x, y]) => [
+      Math.min(1 - EDGE - HALFW, Math.max(EDGE + HALFW, x)),
+      Math.min(1 - BOTH, Math.max(TOPH, y)),
+    ]);
     const CX = 800, CY = 450; // viewBox 1600x900
     return wrap(
       <div className="relative min-h-0 flex-1">
@@ -112,7 +120,7 @@ export function InfographicView({ spec, reveal, className, title, subtitle }: { 
         {/* cards */}
         {cards.map((c, i) => {
           const [ax, ay] = anchors[i];
-          return <div key={i} className="absolute z-[4] w-[30cqw] max-w-[34%]" style={{ left: `${ax * 100}%`, top: `${ay * 100}%`, transform: "translate(-50%,-50%)" }}><Card c={c} i={i} on={on(i)} /></div>;
+          return <div key={i} className="absolute z-[4] w-[26cqw] max-w-[30%]" style={{ left: `${ax * 100}%`, top: `${ay * 100}%`, transform: "translate(-50%,-50%)" }}><Card c={c} i={i} on={on(i)} /></div>;
         })}
       </div>,
     );
