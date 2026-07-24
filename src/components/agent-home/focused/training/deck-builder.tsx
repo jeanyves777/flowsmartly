@@ -9,6 +9,7 @@
  * shared + paged by the same stage plumbing as an uploaded file. [[training-studio]]
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, VolumeX, Film, Settings2, Mic, RotateCcw, Radio, Check, Palette, ImageIcon, Upload,
 } from "lucide-react";
@@ -102,6 +103,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     editDeck({ presenterFit: patch === null ? undefined : { ...(deck?.presenterFit ?? {}), ...patch } });
   // Stage layout — how the co-host video shares the stage with the slides. Merge into deck.stageLayout.
   const [stageMenuOpen, setStageMenuOpen] = useState(false);
+  const stageBtnRef = useRef<HTMLButtonElement | null>(null);
   const setStage = (patch: Partial<StageLayout>) =>
     editDeck({ stageLayout: { ...(deck?.stageLayout ?? { mode: "cohost_right", size: "m", keepVisible: true }), ...patch } });
 
@@ -690,32 +692,43 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               {VISUAL_STYLES.map((s) => <option key={s} value={s} className="bg-card text-foreground">{VISUAL_STYLE_LABELS[s]}</option>)}
             </select>
           </label>
-          {/* Stage layout — how the co-host video shares the stage with the slides. */}
-          <div className="relative shrink-0">
-            <button onClick={() => setStageMenuOpen((o) => !o)} title="Stage layout — how the co-host shares the stage with your slides" className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500">
-              <Presentation className="h-3.5 w-3.5 shrink-0 text-brand-400" /> {STAGE_MODE_LABELS[deck.stageLayout?.mode ?? "cohost_right"]} ▾
-            </button>
-            {stageMenuOpen ? (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setStageMenuOpen(false)} />
-                <div className="absolute right-0 z-50 mt-1.5 w-[236px] rounded-xl border border-border bg-card p-2.5 shadow-2xl">
-                  <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Stage layout</div>
-                  {STAGE_MODES.map((m) => (
-                    <button key={m} onClick={() => setStage({ mode: m })} className={cn("mb-1 flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-[11.5px] font-bold", (deck.stageLayout?.mode ?? "cohost_right") === m ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/50")}>
-                      <svg viewBox="0 0 20 14" width="18" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0 text-brand-400"><rect x="1" y="1" width="18" height="12" rx="2" />{m === "cohost_right" ? <line x1="13" y1="1" x2="13" y2="13" /> : null}{m === "cohost_bottom" ? <line x1="1" y1="9" x2="19" y2="9" /> : null}{m === "floating" ? <rect x="12" y="7" width="6" height="5" rx="1" fill="currentColor" /> : null}</svg>
-                      {STAGE_MODE_LABELS[m]}
-                    </button>
-                  ))}
-                  <div className="mb-1 mt-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Co-host size</div>
-                  <div className="grid grid-cols-3 gap-1">
-                    {(["s", "m", "l"] as const).map((z) => <button key={z} onClick={() => setStage({ size: z })} className={cn("rounded-lg border py-1.5 text-[11px] font-bold", (deck.stageLayout?.size ?? "m") === z ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/50")}>{z === "s" ? "Small" : z === "l" ? "Large" : "Medium"}</button>)}
-                  </div>
-                  <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-[11px] font-semibold"><input type="checkbox" className="accent-brand-500" checked={deck.stageLayout?.keepVisible ?? true} onChange={(e) => setStage({ keepVisible: e.target.checked })} /> Keep co-host visible</label>
-                  <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-[11px] font-semibold"><input type="checkbox" className="accent-brand-500" checked={deck.stageLayout?.hideOnFullVisual ?? false} onChange={(e) => setStage({ hideOnFullVisual: e.target.checked })} /> Hide on full-visual slides</label>
+          {/* Stage layout — how the co-host video shares the stage with the slides. Portalled so the
+              toolbar's horizontal scroll can't clip the popover. */}
+          <button ref={stageBtnRef} onClick={() => setStageMenuOpen((o) => !o)} title="Stage layout — how the co-host shares the stage with your slides" className={cn("inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500", stageMenuOpen ? "border-brand-500 bg-brand-500/10" : "border-border")}>
+            <Presentation className="h-3.5 w-3.5 shrink-0 text-brand-400" /> Stage: {STAGE_MODE_LABELS[deck.stageLayout?.mode ?? "cohost_right"]} ▾
+          </button>
+          {stageMenuOpen && typeof document !== "undefined" ? createPortal(
+            <>
+              <div className="fixed inset-0 z-[80]" onClick={() => setStageMenuOpen(false)} />
+              <div className="fixed z-[81] w-[250px] rounded-xl border border-border bg-card p-2.5 shadow-2xl" style={(() => { const r = stageBtnRef.current?.getBoundingClientRect(); const w = 250; return { top: (r?.bottom ?? 60) + 6, left: Math.max(8, Math.min((r?.left ?? 300), window.innerWidth - w - 8)) }; })()}>
+                <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Stage layout</div>
+                {STAGE_MODES.map((m) => (
+                  <button key={m} onClick={() => setStage({ mode: m })} className={cn("mb-1 flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-[11.5px] font-bold", (deck.stageLayout?.mode ?? "cohost_right") === m ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/50")}>
+                    <svg viewBox="0 0 20 14" width="18" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0 text-brand-400"><rect x="1" y="1" width="18" height="12" rx="2" />{m === "cohost_right" ? <line x1="13" y1="1" x2="13" y2="13" /> : null}{m === "cohost_bottom" ? <line x1="1" y1="9" x2="19" y2="9" /> : null}{m === "floating" ? <rect x="12" y="7" width="6" height="5" rx="1" fill="currentColor" /> : null}</svg>
+                    {STAGE_MODE_LABELS[m]}
+                  </button>
+                ))}
+                <div className="mb-1 mt-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Co-host size</div>
+                <div className="grid grid-cols-3 gap-1">
+                  {(["s", "m", "l"] as const).map((z) => <button key={z} onClick={() => setStage({ size: z })} className={cn("rounded-lg border py-1.5 text-[11px] font-bold", (deck.stageLayout?.size ?? "m") === z ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/50")}>{z === "s" ? "Small" : z === "l" ? "Large" : "Medium"}</button>)}
                 </div>
-              </>
-            ) : null}
-          </div>
+                <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-[11px] font-semibold"><input type="checkbox" className="accent-brand-500" checked={deck.stageLayout?.keepVisible ?? true} onChange={(e) => setStage({ keepVisible: e.target.checked })} /> Keep co-host visible</label>
+                <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-[11px] font-semibold"><input type="checkbox" className="accent-brand-500" checked={deck.stageLayout?.hideOnFullVisual ?? false} onChange={(e) => setStage({ hideOnFullVisual: e.target.checked })} /> Hide on full-visual slides</label>
+                {(deck.stageLayout?.mode ?? "cohost_right") !== "presentation" ? (
+                  <div className="mt-2.5 border-t border-border pt-2.5">
+                    <div className="mb-1 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Co-host video</div>
+                    {ready.loop ? (
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400"><Check className="h-3.5 w-3.5 shrink-0" /> Ready — the co-host speaks your narration beside the slides.</div>
+                    ) : (
+                      <button onClick={() => { setStageMenuOpen(false); void animate(); }} disabled={busy !== null} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-3 py-2 text-[11.5px] font-extrabold text-white disabled:opacity-50">{busy === "animate" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</> : <><Film className="h-3.5 w-3.5" /> Generate co-host video</>}</button>
+                    )}
+                    <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">Hit <b>Preview</b> to see the co-host on the {STAGE_MODE_LABELS[deck.stageLayout?.mode ?? "cohost_right"].toLowerCase()}.</p>
+                  </div>
+                ) : null}
+              </div>
+            </>,
+            document.body,
+          ) : null}
           {slide?.videoPrompt && !slide?.videoUrl ? (
             <button onClick={() => void genVideo()} disabled={busy !== null} title="Generate the ~15s demonstration video for this slide" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
               {busy === "video" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Rendering…</> : <><Film className="h-3.5 w-3.5" /> Video</>}
@@ -805,7 +818,14 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               )}
             </div>
           ) : slide ? (
-            <div className="aspect-video w-full max-w-[900px] overflow-hidden rounded-xl shadow-2xl"><DeckSlideView slide={slide} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} /></div>
+            <div className="aspect-video w-full max-w-[900px] overflow-hidden rounded-xl shadow-2xl">
+              <StageLayoutView
+                layout={deck.stageLayout}
+                fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
+                slide={<DeckSlideView slide={slide} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} />}
+                cohost={loopUrl ? <video src={loopUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" /> : null}
+              />
+            </div>
           ) : null}
         </div>
       </div>
