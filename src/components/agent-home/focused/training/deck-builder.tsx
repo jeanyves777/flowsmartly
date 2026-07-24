@@ -74,6 +74,13 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     const next: TrainingDeck = { ...deck, slides: deck.slides.map((s) => (s.id === slide.id ? { ...s, ...patch } : s)) };
     setDeck(next); persist(next);
   };
+  // Mark the current slide as the CLOSING (outro) slide — exclusive, so the presenter's outro film
+  // plays on exactly one slide. Turning it on clears the flag from every other slide.
+  const setOutroSlide = (on: boolean) => {
+    if (!deck || !slide) return;
+    const next: TrainingDeck = { ...deck, slides: deck.slides.map((s) => ({ ...s, outro: s.id === slide.id ? on : (on ? false : s.outro) })) };
+    setDeck(next); persist(next);
+  };
   const editDeck = (patch: Partial<TrainingDeck>) => {
     if (!deck) return;
     const next: TrainingDeck = { ...deck, ...patch };
@@ -205,10 +212,16 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     }
     return Math.round((durMs / pf.steps) * 0.82); // even split (whiteboard / diagram)
   })();
+  // A host-designated closing slide plays the outro; otherwise the final-Q&A slide auto-plays it
+  // (legacy) — but only when NO slide is explicitly flagged, so the outro never plays twice.
+  const hasOutroSlide = !!deck?.slides.some((s) => s.outro);
+  // Is the outro actually placed anywhere? (an explicit closing slide, or a final-Q&A fallback)
+  const outroPlaced = hasOutroSlide || !!deck?.slides.some((s) => s.qa && s.qaKind === "final");
   const previewVideo = previewClip
     ?? (slide?.intro ? (deck?.introVideoUrl ?? null)
       : slide?.presenterMoment ? (slide?.momentVideoUrl ?? null)
-      : (slide?.qa && slide?.qaKind === "final") ? (deck?.outroVideoUrl ?? null)
+      : slide?.outro ? (deck?.outroVideoUrl ?? null)
+      : (slide?.qa && slide?.qaKind === "final" && !hasOutroSlide) ? (deck?.outroVideoUrl ?? null)
       : null);
   // Drive the reveal steps while previewing a (non-video) slide so it visibly draws/builds.
   useEffect(() => {
@@ -651,6 +664,20 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
           <div className="space-y-2.5">
             <Field label="Title" value={slide.title} onChange={(v) => editSlide({ title: v })} />
             <Field label="Subtitle" value={slide.subtitle ?? ""} onChange={(v) => editSlide({ subtitle: v })} />
+
+            {/* Closing slide — place the presenter's OUTRO film on this slide (usually the last one). */}
+            {!slide.intro ? (
+              <div className="rounded-xl border border-border bg-muted/40 p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold"><Film className="h-3.5 w-3.5 text-brand-400" /> Closing slide</div>
+                    <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground">The presenter’s outro plays here to sign off. Turn on for one slide — usually your last.</div>
+                  </div>
+                  <button onClick={() => setOutroSlide(!slide.outro)} className={cn("shrink-0 rounded-full px-3 py-1.5 text-[11px] font-extrabold transition", slide.outro ? "bg-gradient-to-br from-brand-500 to-violet-600 text-white" : "border border-border text-muted-foreground hover:border-brand-500")}>{slide.outro ? "On" : "Set as closing"}</button>
+                </div>
+                {slide.outro && !deck.outroVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the outro in <b>Prepare presenter</b> and it’ll play right here.</p> : null}
+              </div>
+            ) : null}
             {slide.type === "doc" ? (
               <label className="block">
                 <span className="mb-1 block text-[10.5px] font-bold text-muted-foreground">Talking points (one per line)</span>
@@ -901,7 +928,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 { k: "narration", label: "Voice narration", done: ready.narration, meta: `${narratedCount}/${deck.slides.length} slides`, busyKey: "narrate" as const, run: narrate, preview: null as string | null, show: () => { setPrepOpen(false); setPreviewClip(null); setPreviewing(true); } },
                 { k: "loop", label: "Moving avatar (loops in the corner tile)", done: ready.loop, meta: ready.loop ? "Ready" : "Not generated", busyKey: "animate" as const, run: animate, preview: (deck.presenterVideoUrl ?? presenter?.loopVideoUrl) ?? null, show: () => { setPrepOpen(false); setPreviewClip(null); setPreviewing(true); } },
                 { k: "intro", label: "Intro — presenter on screen", done: ready.intro, meta: ready.intro ? "Ready" : "Not generated", busyKey: "introfilm" as const, run: () => genFilm("intro"), preview: deck.introVideoUrl ?? null, show: () => openClipPreview(deck.introVideoUrl ?? null) },
-                { k: "outro", label: "Outro — presenter on screen", done: ready.outro, meta: ready.outro ? "Ready" : "Not generated", busyKey: "outrofilm" as const, run: () => genFilm("outro"), preview: deck.outroVideoUrl ?? null, show: () => openClipPreview(deck.outroVideoUrl ?? null) },
+                { k: "outro", label: "Outro — presenter on screen", done: ready.outro, meta: ready.outro ? (outroPlaced ? "Ready" : "Ready · set a Closing slide") : "Not generated", busyKey: "outrofilm" as const, run: () => genFilm("outro"), preview: deck.outroVideoUrl ?? null, show: () => openClipPreview(deck.outroVideoUrl ?? null) },
                 { k: "moments", label: "Talking moments between slides", done: ready.moments, meta: `${momentReady}/${momentTotal} ready`, busyKey: "moments" as const, run: genMoments, preview: null as string | null, hide: momentTotal === 0, show: () => { const m = deck.slides.find((s) => s.presenterMoment && s.momentVideoUrl); const idx = deck.slides.findIndex((s) => s.id === m?.id); if (idx >= 0) setPage(idx); openClipPreview(m?.momentVideoUrl ?? null); } },
               ]).filter((a) => !a.hide).map((a) => (
                 <div key={a.k} className={cn("flex items-center gap-3 rounded-xl border p-3 transition-colors", busy === a.busyKey ? "border-brand-500 bg-brand-500/5" : "border-border bg-muted/40")}>
