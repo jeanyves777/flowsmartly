@@ -305,7 +305,7 @@ export function resolveBoard(styleKey?: VisualStyle | null, bs?: BoardStyleSetti
 }
 export function boardTheme(key?: VisualStyle | null): BoardTheme { return resolveBoard(key, null); }
 
-export function DeckSlideView({ slide, reveal, className, styleKey, hand, board, writeMs }: { slide: DeckSlide; reveal?: number; className?: string; styleKey?: VisualStyle | null; hand?: HandStyleSettings | null; board?: BoardStyleSettings | null; writeMs?: number }) {
+export function DeckSlideView({ slide, reveal, className, styleKey, hand, board, writeMs, cohostAudio, cohostVideoRef, onCohostEnded }: { slide: DeckSlide; reveal?: number; className?: string; styleKey?: VisualStyle | null; hand?: HandStyleSettings | null; board?: BoardStyleSettings | null; writeMs?: number; cohostAudio?: boolean; cohostVideoRef?: (el: HTMLVideoElement | null) => void; onCohostEnded?: () => void }) {
   // `reveal` = how many steps are shown (undefined = show everything, e.g. a builder
   // thumbnail). Drives the progressive "drawing as you talk" reveal.
   const hostRef = useRef<HTMLDivElement | null>(null); // slide container, so the hand can circle a keyword
@@ -459,8 +459,13 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
   // the other side (image replaced by the video). Side chosen per slide. [[training-presenter-talking-video]]
   if (slide.cohostVideoUrl) {
     const videoRight = (slide.cohostSide ?? "right") === "right";
+    // content-vs-video split; the video column grows with cohostSize (s → l).
+    const size = slide.cohostSize ?? "m";
+    const cols = videoRight
+      ? size === "s" ? "grid-cols-[1.28fr_.72fr]" : size === "l" ? "grid-cols-[.6fr_1.4fr]" : "grid-cols-[.92fr_1.08fr]"
+      : size === "s" ? "grid-cols-[.72fr_1.28fr]" : size === "l" ? "grid-cols-[1.4fr_.6fr]" : "grid-cols-[1.08fr_.92fr]";
     return (
-      <div className={cn("relative grid h-full w-full items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", videoRight ? "grid-cols-[.92fr_1.08fr]" : "grid-cols-[1.08fr_.92fr]", className)}>
+      <div className={cn("relative grid h-full w-full items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", cols, className)}>
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div className={cn("flex min-w-0 flex-col justify-center", !videoRight && "order-2")}>
           <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
@@ -472,7 +477,10 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
           ) : null}
         </div>
         <div className={cn("relative aspect-video overflow-hidden rounded-[1.4cqw] bg-black ring-1 ring-[rgb(var(--sfg)/.12)] shadow-2xl", !videoRight && "order-1")}>
-          <video src={slide.cohostVideoUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" />
+          {/* When cohostAudio, the co-host video plays its OWN baked narration (unmuted, once) — the
+              slide's separate narration track is muted by the caller, just like intro/moments. As a
+              thumbnail it's a muted loop. */}
+          <video ref={cohostVideoRef} src={slide.cohostVideoUrl} autoPlay muted={!cohostAudio} loop={!cohostAudio} playsInline onEnded={onCohostEnded} className="h-full w-full object-cover" />
           <span className="absolute bottom-[1.2cqw] left-[1.2cqw] inline-flex items-center gap-1 rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black text-white backdrop-blur"><span className="h-[.9cqw] w-[.9cqw] rounded-full bg-emerald-400" /> Co-host</span>
         </div>
       </div>

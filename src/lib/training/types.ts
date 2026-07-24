@@ -328,6 +328,8 @@ export interface DeckSlide {
   cohostVideoUrl?: string;
   /** which side the co-host video sits on for this slide (the teaching points take the other). */
   cohostSide?: "left" | "right";
+  /** how much of the slide the co-host video takes (s = small, m = medium/default, l = large). */
+  cohostSize?: "s" | "m" | "l";
 
   /** ---- content-aware presentation model (independent axes) ---- */
   /** the content layout for this teaching moment (hero, problem→solution, comparison, …). */
