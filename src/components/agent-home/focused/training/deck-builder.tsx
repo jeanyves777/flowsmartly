@@ -48,7 +48,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const [wantDoc, setWantDoc] = useState(true);
   const [wantWb, setWantWb] = useState(true);
   const [wantVis, setWantVis] = useState(true);
-  const [busy, setBusy] = useState<null | "gen" | "regen" | "rebuild" | "video" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments">(null);
+  const [busy, setBusy] = useState<null | "gen" | "regen" | "rebuild" | "video" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments" | `moment:${string}`>(null);
   const [rebuildOpen, setRebuildOpen] = useState(false);
   const [animOpen, setAnimOpen] = useState(false);
 
@@ -310,26 +310,42 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     await fetch(`/api/ai/training/presenter/clips?id=${id}`, { method: "DELETE" }).catch(() => {});
   };
 
-  // Between-slide "talking moments": render an Avatar-IV video for each presenter-moment slide.
+  // Between-slide "talking moments": render an Avatar-IV video for ONE presenter-moment slide, so
+  // each can be generated + reviewed independently (like intro/outro). Returns success.
+  const genMoment = async (slideId: string): Promise<boolean> => {
+    if (!presenter) { onOpenPresenter?.(); return false; }
+    if (!mat || !deck) return false;
+    setBusy(`moment:${slideId}`);
+    try {
+      const j = await fetch("/api/ai/training/presenter/iv-moment", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id, target: slideId }),
+      }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't render that moment", variant: "destructive" }); return false; }
+      if (j.data.deck) { setDeck(j.data.deck as TrainingDeck); persist(j.data.deck as TrainingDeck); }
+      const idx = deck.slides.findIndex((x) => x.id === slideId); if (idx >= 0) setPage(idx);
+      land((j.data.videoUrl as string) ?? null); // lands on its slide as it renders
+      return true;
+    } finally { setBusy(null); }
+  };
+  // "Generate everything" still fills every moment — sequentially, lighting each row in turn.
   const genMoments = async () => {
     if (!presenter) { onOpenPresenter?.(); return; }
     if (!mat || !deck) return;
     const moments = deck.slides.filter((s) => s.presenterMoment);
     if (!moments.length) { toast({ title: "No between-slide moments in this deck" }); return; }
-    setBusy("moments");
-    try {
-      for (const s of moments) {
-        const j = await fetch("/api/ai/training/presenter/iv-moment", {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id, target: s.id }),
-        }).then((r) => r.json());
-        if (!j?.success) { toast({ title: j?.error?.message || "Couldn't render a moment", variant: "destructive" }); break; }
-        if (j.data.deck) { setDeck(j.data.deck as TrainingDeck); persist(j.data.deck as TrainingDeck); }
-        const idx = deck.slides.findIndex((x) => x.id === s.id); if (idx >= 0) setPage(idx);
-        land((j.data.videoUrl as string) ?? null); // each moment lands on its slide as it renders
-      }
-      toast({ title: "Talking moments ready", description: "Your co-host now appears on screen between slides." });
-    } finally { setBusy(null); }
+    for (const s of moments) { if (!s.momentVideoUrl && !(await genMoment(s.id))) break; }
   };
+  // One Prepare-modal row PER talking moment, so each generates + previews on its own (like intro/outro).
+  const momentRows = (deck?.slides ?? []).map((s, i) => ({ s, i })).filter(({ s }) => s.presenterMoment).map(({ s, i }, n) => ({
+    k: `moment:${s.id}`,
+    label: momentTotal > 1 ? `Talking moment ${n + 1}` : "Talking moment between slides",
+    done: !!s.momentVideoUrl,
+    meta: s.momentVideoUrl ? "Ready" : "Not generated",
+    busyKey: `moment:${s.id}` as `moment:${string}`,
+    run: () => genMoment(s.id),
+    preview: (s.momentVideoUrl ?? null) as string | null,
+    show: () => { setPage(i); openClipPreview(s.momentVideoUrl ?? null); },
+  }));
 
   const generate = async (o?: AutoGen) => {
     const b = (o?.brief ?? brief).trim();
@@ -980,8 +996,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 { k: "loop", label: "Moving avatar (loops in the corner tile)", done: ready.loop, meta: ready.loop ? "Ready" : "Not generated", busyKey: "animate" as const, run: animate, preview: (deck.presenterVideoUrl ?? presenter?.loopVideoUrl) ?? null, show: () => { setPrepOpen(false); setPreviewClip(null); setPreviewing(true); } },
                 { k: "intro", label: "Intro — presenter on screen", done: ready.intro, meta: ready.intro ? "Ready" : "Not generated", busyKey: "introfilm" as const, run: () => genFilm("intro"), preview: deck.introVideoUrl ?? null, show: () => openClipPreview(deck.introVideoUrl ?? null) },
                 { k: "outro", label: "Outro — presenter on screen", done: ready.outro, meta: ready.outro ? (outroPlaced ? "Ready" : "Ready · set a Closing slide") : "Not generated", busyKey: "outrofilm" as const, run: () => genFilm("outro"), preview: deck.outroVideoUrl ?? null, show: () => openClipPreview(deck.outroVideoUrl ?? null) },
-                { k: "moments", label: "Talking moments between slides", done: ready.moments, meta: `${momentReady}/${momentTotal} ready`, busyKey: "moments" as const, run: genMoments, preview: null as string | null, hide: momentTotal === 0, show: () => { const m = deck.slides.find((s) => s.presenterMoment && s.momentVideoUrl); const idx = deck.slides.findIndex((s) => s.id === m?.id); if (idx >= 0) setPage(idx); openClipPreview(m?.momentVideoUrl ?? null); } },
-              ]).filter((a) => !a.hide).map((a) => (
+                ...momentRows,
+              ]).map((a) => (
                 <div key={a.k} className={cn("flex items-center gap-3 rounded-xl border p-3 transition-colors", busy === a.busyKey ? "border-brand-500 bg-brand-500/5" : "border-border bg-muted/40")}>
                   <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg", a.done ? "bg-emerald-500/15 text-emerald-400" : busy === a.busyKey ? "bg-brand-500/15 text-brand-400" : "bg-muted text-muted-foreground")}>{a.done ? <Check className="h-4 w-4" /> : busy === a.busyKey ? <Loader2 className="h-4 w-4 animate-spin" /> : busy !== null ? <Loader2 className="h-4 w-4 animate-spin opacity-25" /> : <Film className="h-4 w-4" />}</span>
                   {a.preview ? <video src={a.preview} muted loop autoPlay playsInline className="h-11 w-[74px] shrink-0 rounded-lg object-cover" /> : null}
@@ -1064,7 +1080,7 @@ function PresenterBar({ presenter, active, loopUrl, slideCount, narratedCount, b
   loopUrl: string | null;
   slideCount: number;
   narratedCount: number;
-  busy: null | "gen" | "regen" | "rebuild" | "video" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments";
+  busy: null | "gen" | "regen" | "rebuild" | "video" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments" | `moment:${string}`;
   hasOutro: boolean;
   momentTotal: number;
   momentReady: number;
@@ -1149,7 +1165,7 @@ function PresenterBar({ presenter, active, loopUrl, slideCount, narratedCount, b
             <button onClick={onPrepare} title="Realistic talking outro video — open Prepare presenter" className={cn("inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold hover:border-brand-500", hasOutro ? "border-emerald-500/40 text-emerald-400" : "border-border")}>{busy === "outrofilm" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} {hasOutro ? "Outro ✓" : "Outro"}</button>
           </div>
           {momentTotal > 0 ? (
-            <button onClick={onPrepare} title="Talking moments between slides — open Prepare presenter" className={cn("inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold hover:border-brand-500", momentReady === momentTotal ? "border-emerald-500/40 text-emerald-400" : "border-border")}>{busy === "moments" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} {momentReady === momentTotal ? `Moments ✓ (${momentTotal})` : `Moments (${momentReady}/${momentTotal})`}</button>
+            <button onClick={onPrepare} title="Talking moments between slides — open Prepare presenter" className={cn("inline-flex items-center justify-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold hover:border-brand-500", momentReady === momentTotal ? "border-emerald-500/40 text-emerald-400" : "border-border")}>{busy?.startsWith("moment") ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />} {momentReady === momentTotal ? `Moments ✓ (${momentTotal})` : `Moments (${momentReady}/${momentTotal})`}</button>
           ) : null}
         </div>
       </div>
