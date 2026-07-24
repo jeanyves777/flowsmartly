@@ -106,6 +106,23 @@ export async function POST(request: NextRequest) {
     deck.voiceKey = presenter.voiceProfileId ?? null; // this video speaks in the presenter's current voice
     await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck) } });
 
+    // Save intro / outro to the reusable clip library (best-effort — never blocks the response) so
+    // the user can drop it onto another deck without re-rendering. Voice is stored so the picker can
+    // flag which clips match the current deck's voice. [[training-presenter-talking-video]]
+    if (which === "intro" || which === "outro") {
+      await prisma.presenterClip.create({ data: {
+        userId: session.userId,
+        presenterId: deck.presenterId,
+        kind: which,
+        videoUrl,
+        thumbnailUrl: result.thumbnailUrl ?? null,
+        voiceProfileId: presenter.voiceProfileId ?? null,
+        presenterName: presenter.name ?? null,
+        script,
+        durationMs: spoken.durationMs ?? null,
+      } }).catch((e) => console.error("[iv-moment] clip-library save failed:", e instanceof Error ? e.message : e));
+    }
+
     // return the FULL deck so the client sets it verbatim (no local merge that could drop the URL).
     return NextResponse.json({ success: true, data: { target, videoUrl, deck } });
   } catch (e) {

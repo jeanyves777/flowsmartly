@@ -4654,6 +4654,27 @@ model PresenterProfile {
   @@index([userId])
 }
 
+/// A saved, REUSABLE presenter film (intro / outro) the user already generated. Because the
+/// spoken audio is baked in by HeyGen, a clip is only safely reused when its `voiceProfileId`
+/// matches the deck's current voice — the library highlights the matches. Plain `userId` (no User
+/// relation) keeps the model self-contained. [[training-presenter-talking-video]]
+model PresenterClip {
+  id             String   @id @default(cuid())
+  userId         String
+  presenterId    String?
+  kind           String   // "intro" | "outro"
+  videoUrl       String
+  thumbnailUrl   String?
+  voiceProfileId String?  // the voice baked into the audio — reuse only when it matches
+  voiceLabel     String?  // for display in the picker
+  presenterName  String?  // for display in the picker
+  script         String?  // the spoken line (for display)
+  durationMs     Int?
+  createdAt      DateTime @default(now())
+
+  @@index([userId, kind])
+}
+
 model VoiceGeneration {
   id             String   @id @default(cuid())
   userId         String
