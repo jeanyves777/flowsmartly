@@ -343,17 +343,24 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     if (!moments.length) { toast({ title: "No between-slide moments in this deck" }); return; }
     for (const s of moments) { if (!s.momentVideoUrl && !(await genMoment(s.id))) break; }
   };
-  // One Prepare-modal row PER talking moment, so each generates + previews on its own (like intro/outro).
-  const momentRows = (deck?.slides ?? []).map((s, i) => ({ s, i })).filter(({ s }) => s.presenterMoment).map(({ s, i }, n) => ({
-    k: `moment:${s.id}`,
-    label: momentTotal > 1 ? `Talking moment ${n + 1}` : "Talking moment between slides",
-    done: !!s.momentVideoUrl,
-    meta: s.momentVideoUrl ? "Ready" : "Not generated",
-    busyKey: `moment:${s.id}` as `moment:${string}`,
-    run: () => genMoment(s.id),
-    preview: (s.momentVideoUrl ?? null) as string | null,
-    show: () => { setPage(i); openClipPreview(s.momentVideoUrl ?? null); },
-  }));
+  // One Prepare-modal row PER talking moment, so each generates + previews on its own (like
+  // intro/outro). Each row is IDENTIFIED by where it plays (the content slide before it) + what it
+  // says — so with several moments you always know which video you're attaching to which moment.
+  const momentRows = (deck?.slides ?? []).map((s, i) => ({ s, i })).filter(({ s }) => s.presenterMoment).map(({ s, i }, n) => {
+    const prev = (deck?.slides ?? []).slice(0, i).reverse().find((x) => !x.intro && !x.presenterMoment && !x.qa && !x.quiz);
+    const where = prev?.title ? `after “${prev.title}”` : `slide ${i + 1}`;
+    const script = (s.momentScript || "").trim();
+    return {
+      k: `moment:${s.id}`,
+      label: `Talking moment ${n + 1} · ${where}`,
+      done: !!s.momentVideoUrl,
+      meta: script ? `“${script.slice(0, 70)}${script.length > 70 ? "…" : ""}”` : s.momentVideoUrl ? "Ready" : "Not generated yet",
+      busyKey: `moment:${s.id}` as `moment:${string}`,
+      run: () => genMoment(s.id),
+      preview: (s.momentVideoUrl ?? null) as string | null,
+      show: () => { setPage(i); openClipPreview(s.momentVideoUrl ?? null); },
+    };
+  });
 
   const generate = async (o?: AutoGen) => {
     const b = (o?.brief ?? brief).trim();
