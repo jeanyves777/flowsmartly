@@ -23,6 +23,7 @@ import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
 interface AutoGen { brief: string; wantDoc: boolean; wantWhiteboard: boolean; wantVisuals: boolean; slideCount: number }
+interface PresenterClipDTO { id: string; kind: string; videoUrl: string; thumbnailUrl: string | null; presenterName: string | null; script: string | null; durationMs: number | null; createdAt: string; sameVoice: boolean }
 
 export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, presenter, onOpenPresenter, onSession, onPresent, onStartMeeting, onExit }: {
   session: TrainingSessionDTO;
@@ -283,6 +284,30 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       land((j.data.videoUrl as string) ?? null); // play the fresh talking video in place
       toast({ title: `${kind === "intro" ? "Intro" : "Outro"} video ready`, description: "A realistic talking presenter video is set." });
     } finally { setBusy(null); }
+  };
+
+  // ---- Reuse library: drop a previously-generated intro / outro onto this deck (no re-render). ----
+  const [reuseKind, setReuseKind] = useState<null | "intro" | "outro">(null);
+  const [reuseClips, setReuseClips] = useState<PresenterClipDTO[]>([]);
+  const [reuseLoading, setReuseLoading] = useState(false);
+  const openReuse = async (kind: "intro" | "outro") => {
+    if (!mat) return;
+    setReuseKind(kind); setReuseLoading(true); setReuseClips([]);
+    try {
+      const j = await fetch(`/api/ai/training/presenter/clips?kind=${kind}&materialId=${mat.id}`).then((r) => r.json());
+      if (j?.success) setReuseClips((j.data.clips as PresenterClipDTO[]) ?? []);
+    } catch { /* ignore — empty list shows the empty state */ } finally { setReuseLoading(false); }
+  };
+  const applyClip = (c: PresenterClipDTO) => {
+    if (!reuseKind) return;
+    editDeck(reuseKind === "intro" ? { introVideoUrl: c.videoUrl } : { outroVideoUrl: c.videoUrl });
+    land(c.videoUrl);
+    toast({ title: `${reuseKind === "intro" ? "Intro" : "Outro"} reused`, description: c.sameVoice ? "Set from your library — no re-render." : "Set from your library. Heads up: it's a different voice than this deck." });
+    setReuseKind(null);
+  };
+  const deleteClip = async (id: string) => {
+    setReuseClips((cs) => cs.filter((c) => c.id !== id));
+    await fetch(`/api/ai/training/presenter/clips?id=${id}`, { method: "DELETE" }).catch(() => {});
   };
 
   // Between-slide "talking moments": render an Avatar-IV video for each presenter-moment slide.
@@ -962,6 +987,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   {a.preview ? <video src={a.preview} muted loop autoPlay playsInline className="h-11 w-[74px] shrink-0 rounded-lg object-cover" /> : null}
                   <div className="min-w-0 flex-1"><b className="block text-[12.5px]">{a.label}</b><span className="text-[11px] text-muted-foreground">{busy === a.busyKey ? "Generating…" : busy !== null && !a.done ? "Queued…" : a.meta}</span></div>
                   {a.done ? <button onClick={a.show} disabled={busy !== null} title="Load it onto the stage to see & hear it" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-40"><Play className="h-3 w-3" /> Preview</button> : null}
+                  {a.k === "intro" || a.k === "outro" ? <button onClick={() => void openReuse(a.k as "intro" | "outro")} disabled={busy !== null} title="Reuse an intro/outro you already generated" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><RotateCcw className="h-3 w-3" /> Reuse</button> : null}
                   <button onClick={a.run} disabled={busy !== null} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40">{busy === a.busyKey ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</> : a.done ? "Regenerate" : "Generate"}</button>
                 </div>
               ))}
@@ -969,6 +995,44 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             <div className="flex items-center gap-2 border-t border-border px-5 py-4">
               <button onClick={() => void runAll()} disabled={busy !== null || presenterReady} className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 py-2.5 text-[13px] font-extrabold text-white disabled:opacity-40">{busy !== null ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</> : presenterReady ? <><Check className="h-4 w-4" /> All set</> : <><Sparkles className="h-4 w-4" /> Generate everything</>}</button>
               <button onClick={() => { setPrepOpen(false); if (presenterReady) onStartMeeting?.(mat.id); }} disabled={!presenterReady} className="flex-1 rounded-xl bg-gradient-to-br from-rose-600 to-rose-400 py-2.5 text-[13px] font-extrabold text-white disabled:opacity-40"><Radio className="me-1 inline h-3.5 w-3.5" /> Start meeting</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Reuse library — pick a previously-generated intro / outro (no re-render). Sits above Prepare. */}
+      {reuseKind ? (
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-black/60 p-4" onClick={() => setReuseKind(null)}>
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><RotateCcw className="h-5 w-5" /></span>
+              <div className="min-w-0"><b className="block text-[15px]">Reuse a saved {reuseKind}</b><span className="text-[11.5px] text-muted-foreground">Drop in an {reuseKind} you already made — no re-render. Clips in this deck&apos;s voice are marked.</span></div>
+              <button onClick={() => setReuseKind(null)} className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-bold hover:border-brand-500"><X className="h-4 w-4" /> Close</button>
+            </div>
+            <div className="max-h-[60vh] overflow-auto p-4">
+              {reuseLoading ? (
+                <div className="grid place-items-center py-12 text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>
+              ) : reuseClips.length === 0 ? (
+                <div className="grid place-items-center py-12 text-center text-muted-foreground"><Film className="mb-2 h-8 w-8 opacity-40" /><p className="text-[13px]">No saved {reuseKind}s yet.</p><p className="mt-1 text-[11.5px]">Generate one and it&apos;s saved here to reuse on any deck.</p></div>
+              ) : (
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  {reuseClips.map((c) => (
+                    <div key={c.id} className={cn("group flex flex-col overflow-hidden rounded-xl border bg-muted/40", c.sameVoice ? "border-brand-500/50" : "border-border")}>
+                      <div className="relative aspect-video w-full overflow-hidden bg-black">
+                        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                        <video src={c.videoUrl} muted loop playsInline onMouseEnter={(e) => void e.currentTarget.play().catch(() => {})} onMouseLeave={(e) => e.currentTarget.pause()} className="h-full w-full object-cover" />
+                        <span className={cn("absolute left-2 top-2 rounded-md px-1.5 py-0.5 text-[9px] font-black text-white", c.sameVoice ? "bg-emerald-500/90" : "bg-amber-500/90")}>{c.sameVoice ? "SAME VOICE" : "OTHER VOICE"}</span>
+                        <button onClick={() => void deleteClip(c.id)} title="Remove from library" className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-md bg-black/55 text-white opacity-0 transition hover:bg-rose-500 group-hover:opacity-100"><Trash2 className="h-3 w-3" /></button>
+                      </div>
+                      <div className="flex min-w-0 flex-col gap-1 p-2.5">
+                        <b className="truncate text-[12px]">{c.presenterName || "Presenter"}</b>
+                        {c.script ? <span className="line-clamp-2 text-[10.5px] leading-snug text-muted-foreground">{c.script}</span> : null}
+                        <button onClick={() => applyClip(c)} className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-3 py-1.5 text-[11.5px] font-bold text-white"><Check className="h-3.5 w-3.5" /> Use this {reuseKind}</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
