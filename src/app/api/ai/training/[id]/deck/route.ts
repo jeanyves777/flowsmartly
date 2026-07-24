@@ -250,6 +250,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       cohostSide: s.cohostSide ?? p.cohostSide,
       cohostSize: s.cohostSize ?? p.cohostSize,
       cohostFloat: s.cohostFloat ?? p.cohostFloat,
+      cohostVPos: s.cohostVPos ?? p.cohostVPos,
+      cohostFull: s.cohostFull ?? p.cohostFull,
       narration: s.narration ?? p.narration,
       quizReveal: s.quizReveal ?? p.quizReveal,
       videoUrl: s.videoUrl ?? p.videoUrl,

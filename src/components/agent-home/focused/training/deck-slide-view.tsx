@@ -463,69 +463,72 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
     return <InfographicView spec={slide.infographic} reveal={reveal} title={md(slide.title)} subtitle={slide.subtitle ? md(slide.subtitle) : undefined} className={className} />;
   }
 
-  // CO-HOST VIDEO slide: the co-host narrates this slide from the side; the teaching points stay on
-  // the other side (image replaced by the video). Side chosen per slide. [[training-presenter-talking-video]]
+  // CO-HOST VIDEO slide: the co-host narrates this slide. It can sit BESIDE the content (as a card or
+  // full-bleed side) or FLOAT as a corner tile over it. Content = the slide's animated infographic when
+  // it has one, else the teaching text. [[training-presenter-talking-video]]
   if (slide.cohostVideoUrl) {
     const videoRight = (slide.cohostSide ?? "right") === "right";
     const size = slide.cohostSize ?? "m";
+    const hasDiagram = !!(slide.infographic && slide.infographic.cards?.length);
     // When cohostAudio, the co-host video plays its OWN baked narration (unmuted, once) — the slide's
     // separate narration track is muted by the caller, just like intro/moments. As a thumbnail = muted loop.
     const cohostVideo = <video ref={cohostVideoRef} src={slide.cohostVideoUrl} autoPlay muted={!cohostAudio} loop={!cohostAudio} playsInline onEnded={onCohostEnded} onTimeUpdate={onCohostTime ? (e) => { const v = e.currentTarget; if (v.duration && isFinite(v.duration)) onCohostTime(v.currentTime / v.duration); } : undefined} className="h-full w-full object-cover" />;
     const cohostBadge = <span className="absolute bottom-[1.2cqw] left-[1.2cqw] inline-flex items-center gap-1 rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black text-white backdrop-blur"><span className="h-[.9cqw] w-[.9cqw] rounded-full bg-emerald-400" /> Co-host</span>;
-    const tileW = size === "s" ? "w-[22cqw]" : size === "l" ? "w-[34cqw]" : "w-[28cqw]";
-    const floatingTile = (
-      <div className={cn("absolute bottom-[4cqw] z-[5] aspect-video overflow-hidden rounded-[1.2cqw] bg-black shadow-2xl ring-2 ring-[var(--sa2)]", tileW, videoRight ? "right-[4cqw]" : "left-[4cqw]")}>
-        {cohostVideo}
-        {cohostBadge}
-      </div>
+    const diagram = <InfographicView spec={slide.infographic!} reveal={reveal} title={md(slide.title)} subtitle={slide.subtitle ? md(slide.subtitle) : undefined} />;
+    const textContent = (
+      <>
+        <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{T(slide.title)}</h1>
+        {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{T(slide.subtitle)}</p> : null}
+        {shownB.length ? (
+          <ul className="mt-[2.5cqw] flex flex-col gap-[1.4cqw]">
+            {shownB.map((b, i) => <li key={i} data-step={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{T(b)}</li>)}
+          </ul>
+        ) : null}
+      </>
     );
 
-    // An ANIMATED INFOGRAPHIC slide: keep the diagram full-stage and FLOAT the co-host over it — a side
-    // column would crush the diagram — regardless of the placement toggle.
-    if (slide.infographic && slide.infographic.cards?.length) {
-      return (
-        <div ref={hostRef} className={cn("relative h-full w-full overflow-hidden [container-type:inline-size]", className)}>
-          <InfographicView spec={slide.infographic} reveal={reveal} title={md(slide.title)} subtitle={slide.subtitle ? md(slide.subtitle) : undefined} />
-          {floatingTile}
+    // FLOATING: a picture-in-picture corner tile over the slide's content. Corner = side (L/R) × vPos (T/B).
+    if (slide.cohostFloat) {
+      const tileW = size === "s" ? "w-[22cqw]" : size === "l" ? "w-[34cqw]" : "w-[28cqw]";
+      const floatingTile = (
+        <div className={cn("absolute z-[5] aspect-video overflow-hidden rounded-[1.2cqw] bg-black shadow-2xl ring-2 ring-[var(--sa2)]", tileW, videoRight ? "right-[4cqw]" : "left-[4cqw]", slide.cohostVPos === "top" ? "top-[4cqw]" : "bottom-[4cqw]")}>
+          {cohostVideo}
+          {cohostBadge}
         </div>
       );
-    }
-
-    // FLOATING placement: the co-host is a picture-in-picture corner tile over the full-width teaching text.
-    if (slide.cohostFloat) {
+      if (hasDiagram) {
+        return (
+          <div ref={hostRef} className={cn("relative h-full w-full overflow-hidden [container-type:inline-size]", className)}>
+            {diagram}
+            {floatingTile}
+          </div>
+        );
+      }
       return (
         <div ref={hostRef} className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
           <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
-          <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{T(slide.title)}</h1>
-          {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{T(slide.subtitle)}</p> : null}
-          {shownB.length ? (
-            <ul className={cn("mt-[2.5cqw] flex flex-col gap-[1.4cqw]", videoRight ? "max-w-[68%]" : "ms-auto max-w-[68%]")}>
-              {shownB.map((b, i) => <li key={i} data-step={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{T(b)}</li>)}
-            </ul>
-          ) : null}
+          <div className={cn(videoRight ? "max-w-[68%]" : "ms-auto max-w-[68%]")}>{textContent}</div>
           {floatingTile}
           {ann}
         </div>
       );
     }
 
-    // SIDE-BY-SIDE (default): content on one side, video column on the other; the column grows with size.
+    // SIDE-BY-SIDE: content on one side, video on the other. `cohostFull` = the video fills its whole
+    // side edge-to-edge; default = a rounded card. The column grows with `size`.
+    const full = !!slide.cohostFull;
     const cols = videoRight
       ? size === "s" ? "grid-cols-[1.28fr_.72fr]" : size === "l" ? "grid-cols-[.6fr_1.4fr]" : "grid-cols-[.92fr_1.08fr]"
       : size === "s" ? "grid-cols-[.72fr_1.28fr]" : size === "l" ? "grid-cols-[1.4fr_.6fr]" : "grid-cols-[1.08fr_.92fr]";
     return (
-      <div ref={hostRef} className={cn("relative grid h-full w-full items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", cols, className)}>
-        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
-        <div className={cn("flex min-w-0 flex-col justify-center", !videoRight && "order-2")}>
-          <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{T(slide.title)}</h1>
-          {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{T(slide.subtitle)}</p> : null}
-          {shownB.length ? (
-            <ul className="mt-[2.5cqw] flex flex-col gap-[1.4cqw]">
-              {shownB.map((b, i) => <li key={i} data-step={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{T(b)}</li>)}
-            </ul>
-          ) : null}
-        </div>
-        <div className={cn("relative aspect-video overflow-hidden rounded-[1.4cqw] bg-black ring-1 ring-[rgb(var(--sfg)/.12)] shadow-2xl", !videoRight && "order-1")}>
+      <div ref={hostRef} className={cn("relative grid h-full w-full overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] text-[rgb(var(--sfg))] [container-type:inline-size]", cols, full ? "items-stretch gap-0" : "items-center gap-[4%] px-[6%] py-[6%]", className)}>
+        {!full ? <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" /> : null}
+        {hasDiagram ? (
+          <div className={cn("relative h-full min-w-0 self-stretch [container-type:inline-size]", !videoRight && "order-2")}>{diagram}</div>
+        ) : (
+          <div className={cn("flex min-w-0 flex-col justify-center", !videoRight && "order-2", full && "px-[6%] py-[6%]")}>{textContent}</div>
+        )}
+        <div className={cn("relative overflow-hidden bg-black", !videoRight && "order-1", full ? "h-full w-full" : "aspect-video rounded-[1.4cqw] ring-1 ring-[rgb(var(--sfg)/.12)] shadow-2xl")}>
           {cohostVideo}
           {cohostBadge}
         </div>
