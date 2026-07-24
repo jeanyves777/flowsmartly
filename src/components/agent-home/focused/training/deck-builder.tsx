@@ -294,12 +294,14 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     } finally { setBusy(null); }
   };
 
-  // ---- Reuse library: drop a previously-generated intro / outro onto this deck (no re-render). ----
-  const [reuseKind, setReuseKind] = useState<null | "intro" | "outro">(null);
+  // ---- Reuse library: drop a previously-generated intro / outro / moment onto this deck (no re-render). ----
+  const [reuseKind, setReuseKind] = useState<null | "intro" | "outro" | "moment">(null);
+  const [reuseMomentSlide, setReuseMomentSlide] = useState<string | null>(null); // which moment a reused clip attaches to
   const [reuseClips, setReuseClips] = useState<PresenterClipDTO[]>([]);
   const [reuseLoading, setReuseLoading] = useState(false);
-  const openReuse = async (kind: "intro" | "outro") => {
+  const openReuse = async (kind: "intro" | "outro" | "moment", momentSlideId?: string) => {
     if (!mat) return;
+    setReuseMomentSlide(momentSlideId ?? null);
     setReuseKind(kind); setReuseLoading(true); setReuseClips([]);
     try {
       const j = await fetch(`/api/ai/training/presenter/clips?kind=${kind}&materialId=${mat.id}`).then((r) => r.json());
@@ -307,11 +309,35 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     } catch { /* ignore — empty list shows the empty state */ } finally { setReuseLoading(false); }
   };
   const applyClip = (c: PresenterClipDTO) => {
-    if (!reuseKind) return;
-    editDeck(reuseKind === "intro" ? { introVideoUrl: c.videoUrl } : { outroVideoUrl: c.videoUrl });
-    land(c.videoUrl);
-    toast({ title: `${reuseKind === "intro" ? "Intro" : "Outro"} reused`, description: c.sameVoice ? "Set from your library — no re-render." : "Set from your library. Heads up: it's a different voice than this deck." });
-    setReuseKind(null);
+    if (reuseKind === "moment" && reuseMomentSlide) {
+      const sid = reuseMomentSlide;
+      setDeck((d) => { if (!d) return d; const next = { ...d, slides: d.slides.map((x) => (x.id === sid ? { ...x, momentVideoUrl: c.videoUrl } : x)) }; persist(next); return next; });
+      const idx = deck?.slides.findIndex((x) => x.id === sid) ?? -1; if (idx >= 0) setPage(idx);
+      land(c.videoUrl);
+      toast({ title: "Moment reused", description: c.sameVoice ? "Attached from your library — no re-render." : "Attached. Heads up: it's a different voice than this deck." });
+    } else if (reuseKind === "intro" || reuseKind === "outro") {
+      editDeck(reuseKind === "intro" ? { introVideoUrl: c.videoUrl } : { outroVideoUrl: c.videoUrl });
+      land(c.videoUrl);
+      toast({ title: `${reuseKind === "intro" ? "Intro" : "Outro"} reused`, description: c.sameVoice ? "Set from your library — no re-render." : "Set from your library. Heads up: it's a different voice than this deck." });
+    }
+    setReuseKind(null); setReuseMomentSlide(null);
+  };
+  // Upload your OWN video onto a specific talking moment (attaches as its momentVideoUrl).
+  const momentUploadRef = useRef<HTMLInputElement | null>(null);
+  const uploadMomentSlideRef = useRef<string | null>(null);
+  const uploadMomentVideo = async (slideId: string, file: File) => {
+    if (!mat) return;
+    setBusy(`moment:${slideId}`);
+    try {
+      const fd = new FormData(); fd.append("file", file); fd.append("materialId", mat.id); fd.append("slideId", slideId); fd.append("target", "moment");
+      const j = await fetch(`/api/ai/training/${sessionId}/deck/media`, { method: "POST", body: fd }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't attach that video", variant: "destructive" }); return; }
+      if (j.data.session) onSession?.(j.data.session);
+      setDeck((d) => { if (!d) return d; const next = { ...d, slides: d.slides.map((x) => (x.id === slideId ? { ...x, momentVideoUrl: j.data.url as string } : x)) }; persist(next); return next; });
+      const idx = deck?.slides.findIndex((x) => x.id === slideId) ?? -1; if (idx >= 0) setPage(idx);
+      land(j.data.url as string);
+      toast({ title: "Moment video attached", description: "Your uploaded video plays on this moment." });
+    } finally { setBusy(null); }
   };
   const deleteClip = async (id: string) => {
     setReuseClips((cs) => cs.filter((c) => c.id !== id));
@@ -1056,6 +1082,10 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   <div className="min-w-0 flex-1"><b className="block text-[12.5px]">{a.label}</b><span className="text-[11px] text-muted-foreground">{busy === a.busyKey ? "Generating…" : busy !== null && !a.done ? "Queued…" : a.meta}</span></div>
                   {a.done ? <button onClick={a.show} disabled={busy !== null} title="Load it onto the stage to see & hear it" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-40"><Play className="h-3 w-3" /> Preview</button> : null}
                   {a.k === "intro" || a.k === "outro" ? <button onClick={() => void openReuse(a.k as "intro" | "outro")} disabled={busy !== null} title="Reuse an intro/outro you already generated" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><RotateCcw className="h-3 w-3" /> Reuse</button> : null}
+                  {a.k.startsWith("moment:") ? <>
+                    <button onClick={() => void openReuse("moment", a.k.slice(7))} disabled={busy !== null} title="Reuse a talking-moment video from your library" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><RotateCcw className="h-3 w-3" /> Reuse</button>
+                    <button onClick={() => { uploadMomentSlideRef.current = a.k.slice(7); momentUploadRef.current?.click(); }} disabled={busy !== null} title="Upload your own video for this moment" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><Upload className="h-3 w-3" /> Upload</button>
+                  </> : null}
                   <button onClick={a.run} disabled={busy !== null} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40">{busy === a.busyKey ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</> : a.done ? "Regenerate" : "Generate"}</button>
                 </div>
               ))}
@@ -1068,7 +1098,10 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
         </div>
       ) : null}
 
-      {/* Reuse library — pick a previously-generated intro / outro (no re-render). Sits above Prepare. */}
+      {/* Hidden input for "Upload" on a talking moment — attaches your own video to that moment. */}
+      <input ref={momentUploadRef} type="file" accept="video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; const sid = uploadMomentSlideRef.current; uploadMomentSlideRef.current = null; if (f && sid) void uploadMomentVideo(sid, f); e.target.value = ""; }} />
+
+      {/* Reuse library — pick a previously-generated intro / outro / moment (no re-render). Sits above Prepare. */}
       {reuseKind ? (
         <div className="fixed inset-0 z-[80] grid place-items-center bg-black/60 p-4" onClick={() => setReuseKind(null)}>
           <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>

@@ -58,7 +58,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const buffer = Buffer.from(await file.arrayBuffer());
     const ext = isVideo ? (file.type.includes("webm") ? "webm" : file.type.includes("quicktime") ? "mov" : "mp4") : (file.type.split("/")[1] || "png");
     const url = await uploadToS3(`training/${id}/media/${slideId}-${nanoid(8)}.${ext}`, buffer, file.type);
-    deck.slides[idx] = isVideo
+    // target=moment → attach the uploaded video as this slide's PRESENTER-MOMENT talking video
+    // (plays full-screen with its own audio), not the slide's background visual.
+    const target = String(form?.get("target") || "");
+    deck.slides[idx] = isVideo && target === "moment"
+      ? { ...slide, momentVideoUrl: url }
+      : isVideo
       ? { ...slide, videoUrl: url, visualType: "video" }
       : { ...slide, visual: { ...(slide.visual ?? { kind: "image" }), kind: "image", url, tag: slide.visual?.tag ?? "Photo" }, videoUrl: undefined, visualType: typeForStyle(slide.visual?.style) };
     await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck) } });
