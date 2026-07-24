@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import {
   Workflow, MessageSquare, Mail, MessageCircle, GitBranch, Plus, Pause,
   Save, X, Users, User, Layers, Repeat, Rocket, RefreshCw, Target, CheckCircle2, Loader2,
-  LayoutGrid, ChevronRight, UserRound, ArrowLeft, PhoneOutgoing,
+  LayoutGrid, ChevronRight, UserRound, ArrowLeft, PhoneOutgoing, AlertTriangle, Link2,
 } from "lucide-react";
 
 import { FlowLoader } from "@/components/shared/flow-loader";
@@ -151,6 +151,9 @@ export function FocusedAutomations({ refreshKey }: {
   const [campaigns, setCampaigns] = useState<Seq[]>([]);
   const [contacts, setContacts] = useState<ContactOpt[]>([]);
   const [lists, setLists] = useState<ListOpt[]>([]);
+  // Which channels can actually send right now (so the flow can warn about steps
+  // that would silently wait). call = a LIVE voice agent with a number.
+  const [ready, setReady] = useState<{ call: boolean; sms: boolean; email: boolean; whatsapp: boolean }>({ call: false, sms: false, email: false, whatsapp: false });
 
   // the campaign being edited
   const [seqId, setSeqId] = useState<string | null>(null);
@@ -163,6 +166,8 @@ export function FocusedAutomations({ refreshKey }: {
   const [segment, setSegment] = useState<string | null>(null); // contactListId
   const [recurring, setRecurring] = useState(false);
   const [everyDays, setEveryDays] = useState(30);
+  const [bookingLink, setBookingLink] = useState(""); // optional — offered on calls + {{booking_link}} in messages
+  const [startAt, setStartAt] = useState(""); // optional datetime-local — when the campaign begins (else now)
 
   const [nodes, setNodes] = useState<FlowNode[]>([{ id: "aud", type: "audience", x: 80, y: 150 }]);
   const [links, setLinks] = useState<FlowLink[]>([]);
@@ -186,11 +191,19 @@ export function FocusedAutomations({ refreshKey }: {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [sq, ct, ls] = await Promise.all([
+      const [sq, ct, ls, ch, ag] = await Promise.all([
         fetch("/api/sequences").then((r) => r.json()).catch(() => null),
         fetch("/api/contacts?limit=50").then((r) => r.json()).catch(() => null),
         fetch("/api/contact-lists").then((r) => r.json()).catch(() => null),
+        fetch("/api/sequences/channels").then((r) => r.json()).catch(() => null),
+        fetch("/api/voice-agent/agents").then((r) => r.json()).catch(() => null),
       ]);
+      const chd = ch?.data || {};
+      const agents = Array.isArray(ag?.agents) ? ag.agents : [];
+      setReady({
+        call: agents.some((a: Record<string, unknown>) => a.status === "LIVE" && a.number),
+        sms: !!chd.sms, email: !!chd.email, whatsapp: !!chd.whatsapp,
+      });
       const seqs: Seq[] = (sq?.data?.sequences || []).filter((s: Seq) => (s.audienceKind || "contact") === "contact");
       setCampaigns(seqs);
       const cs: ContactOpt[] = (ct?.contacts || ct?.data?.contacts || []).map((c: Record<string, unknown>) => ({ id: String(c.id), name: String(c.name || [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email || c.phone || "Contact"), email: (c.email as string) || null, phone: (c.phone as string) || null }));
@@ -212,7 +225,15 @@ export function FocusedAutomations({ refreshKey }: {
     for (const l of links) { const a = at(l.from, "r"), c = at(l.to, "l"); if (!a || !c) continue; const dx = Math.max(38, (c.x - a.x) / 2); d += `<path fill="none" stroke="var(--sms-wire,#2a3550)" stroke-width="2.5" d="M${a.x} ${a.y} C${a.x + dx} ${a.y}, ${c.x - dx} ${c.y}, ${c.x} ${c.y}"/>`; }
     svg.innerHTML = d;
   }, [links]);
-  useEffect(() => { recompute(); }, [recompute, nodes]);
+  // Draw AFTER layout (double rAF) and whenever the canvas becomes visible again
+  // (e.g. the brief sheet closes) — otherwise the wires compute against a hidden
+  // board and render blank until the next interaction.
+  useEffect(() => {
+    let r2 = 0;
+    const r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(recompute); });
+    return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); };
+  }, [recompute, nodes, briefOpen, backOpen]);
+  useEffect(() => { const onR = () => recompute(); window.addEventListener("resize", onR); return () => window.removeEventListener("resize", onR); }, [recompute]);
 
   // ── node ops ──
   const patchNode = useCallback((id: string, p: Partial<FlowNode>) => setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, ...p } : n))), []);
@@ -231,7 +252,19 @@ export function FocusedAutomations({ refreshKey }: {
 
   function resetDraft() {
     setSeqId(null); setName(""); setGoal(""); setStatus("draft"); setAudMode("single"); setSingle(null); setSelected([]); setSegment(null);
-    setRecurring(false); setEveryDays(30); setNodes([{ id: "aud", type: "audience", x: 80, y: 150 }]); setLinks([]); setSelId(null);
+    setRecurring(false); setEveryDays(30); setBookingLink(""); setStartAt(""); setNodes([{ id: "aud", type: "audience", x: 80, y: 150 }]); setLinks([]); setSelId(null);
+  }
+
+  /** Bake the booking link into the steps: replace {{booking_link}} everywhere and,
+   *  for call steps, offer it as part of the agent's goal. */
+  function withBookingLink(steps: StepCfg[]): StepCfg[] {
+    const link = bookingLink.trim();
+    if (!link) return steps;
+    const sub = (t?: string) => (t ? t.replace(/\{\{\s*booking_link\s*\}\}/gi, link) : t);
+    return steps.map((s) => {
+      const purpose = s.kind === "call" ? `${sub(s.purpose) || ""}${(s.purpose || "").toLowerCase().includes(link.toLowerCase()) ? "" : ` If they'd like to book, offer this link: ${link}.`}`.trim() : sub(s.purpose);
+      return { ...s, body: sub(s.body), subject: sub(s.subject), purpose };
+    });
   }
 
   function openCampaign(s: Seq) {
@@ -246,9 +279,16 @@ export function FocusedAutomations({ refreshKey }: {
   const audienceCount = audMode === "single" ? (single ? 1 : 0) : audMode === "multi" ? selected.length : (lists.find((l) => l.id === segment)?.totalCount || 0);
   const audienceLabel = audMode === "single" ? (single?.name || "Pick a contact") : audMode === "multi" ? `${selected.length} selected` : (lists.find((l) => l.id === segment)?.name || "Pick a list");
 
+  // Channels this flow uses that can't send yet — the campaign will still enroll,
+  // but those steps wait until the channel is connected. This is what was silently
+  // missing before (a call/SMS step with no live agent / no number just parks).
+  const usedChannels = Array.from(new Set(nodes.filter((n) => n.type !== "audience" && n.type !== "condition").map((n) => n.type as Channel)));
+  const notReady = usedChannels.filter((c) => !ready[c]);
+  const SETUP_HINT: Record<Channel, string> = { call: "Go to Call agent, give it a number and switch it live.", sms: "Go to Grow → SMS and set up a sender number.", email: "Go to Grow → Email and connect a sender.", whatsapp: "Connect a WhatsApp Business number." };
+
   // ── save / activate ──
   async function save(then?: "activate"): Promise<string | null> {
-    const steps = nodesToSteps(nodes, links);
+    const steps = withBookingLink(nodesToSteps(nodes, links));
     setBusy(true); setFlash(null);
     try {
       const body: Record<string, unknown> = {
@@ -273,8 +313,17 @@ export function FocusedAutomations({ refreshKey }: {
     if (audMode !== "segment" && contactIds.length === 0) { toast({ title: "Pick who this targets first.", variant: "destructive" }); return; }
     setBusy(true);
     try {
-      const r = await fetch(`/api/sequences/${id}/activate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactIds: audMode === "segment" ? undefined : contactIds }) }).then((x) => x.json());
-      if (r?.success) { setStatus("active"); setFlash({ ok: true, text: `Live — ${r.data.enrolled} enrolled${r.data.skipped ? `, ${r.data.skipped} skipped (no email/phone)` : ""}.` }); void load(); }
+      const startISO = startAt ? new Date(startAt).toISOString() : undefined;
+      const r = await fetch(`/api/sequences/${id}/activate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactIds: audMode === "segment" ? undefined : contactIds, startAt: startISO }) }).then((x) => x.json());
+      if (r?.success) {
+        setStatus("active");
+        // Fire the first due steps NOW rather than waiting for the 5-min scheduler.
+        void fetch("/api/sequences/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
+        const skip = r.data.skipped ? `, ${r.data.skipped} skipped (no email/phone)` : "";
+        const wait = notReady.length ? ` ${notReady.map((c) => CH_META[c].title).join(" & ")} step${notReady.length > 1 ? "s" : ""} will wait until you connect ${notReady.length > 1 ? "those channels" : "that channel"}.` : " The first step is running now.";
+        setFlash({ ok: true, text: `Live — ${r.data.enrolled} enrolled${skip}.${wait}` });
+        void load();
+      }
       else setFlash({ ok: false, text: r?.error?.message || "Could not activate" });
     } catch { setFlash({ ok: false, text: "Could not activate" }); } finally { setBusy(false); }
   }
@@ -309,6 +358,16 @@ export function FocusedAutomations({ refreshKey }: {
         <button onClick={() => setBriefOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500"><Target className="h-3.5 w-3.5" /> Brief</button>
         {seqId && <button onClick={() => setBackOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[12px] font-semibold hover:border-brand-500"><LayoutGrid className="h-3.5 w-3.5" /> Back office</button>}
       </div>
+
+      {/* channel-readiness banner — a step whose channel isn't connected will wait */}
+      {notReady.length > 0 && (
+        <div className="flex items-start gap-2.5 border-b border-amber-500/25 bg-amber-500/[0.06] px-4 py-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+            <b className="text-foreground">{notReady.map((c) => CH_META[c].title).join(" & ")} {notReady.length > 1 ? "aren't" : "isn't"} set up yet.</b> The campaign still enrolls, but {notReady.length > 1 ? "those steps" : "that step"} will wait until connected. {notReady.map((c) => SETUP_HINT[c]).join(" ")}
+          </p>
+        </div>
+      )}
 
       {/* CANVAS */}
       <div className="relative min-h-0 flex-1 overflow-hidden" style={{ backgroundImage: "radial-gradient(circle, var(--sms-dot, rgba(120,130,150,.16)) 1px, transparent 1px)", backgroundSize: "22px 22px" }}>
@@ -369,8 +428,10 @@ export function FocusedAutomations({ refreshKey }: {
           name={name} setName={setName} goal={goal} setGoal={setGoal}
           audMode={audMode} setAudMode={setAudMode} single={single} selected={selected} segment={segment} lists={lists}
           onPick={() => setPickerOpen(true)} recurring={recurring} setRecurring={setRecurring} everyDays={everyDays} setEveryDays={setEveryDays}
+          bookingLink={bookingLink} setBookingLink={setBookingLink} startAt={startAt} setStartAt={setStartAt}
           hasSteps={nodesToSteps(nodes, links).length > 0}
           onPreset={(p) => {
+            if (p.key !== "blank" && !name.trim()) setName(p.title);
             setGoal(p.goal || goal);
             const aud: FlowNode = { id: "aud", type: "audience", x: 80, y: 150 };
             const laid = p.steps().map((n, i) => ({ ...n, x: 80 + 330 * (i + 1), y: 150 }));
@@ -403,9 +464,10 @@ function BriefSheet(props: {
   name: string; setName: (v: string) => void; goal: string; setGoal: (v: string) => void;
   audMode: AudienceMode; setAudMode: (m: AudienceMode) => void; single: ContactOpt | null; selected: ContactOpt[]; segment: string | null; lists: ListOpt[];
   onPick: () => void; recurring: boolean; setRecurring: (v: boolean) => void; everyDays: number; setEveryDays: (v: number) => void;
+  bookingLink: string; setBookingLink: (v: string) => void; startAt: string; setStartAt: (v: string) => void;
   hasSteps: boolean; onPreset: (p: Preset) => void; onClose: () => void; onSave: () => Promise<void>;
 }) {
-  const { name, setName, goal, setGoal, audMode, setAudMode, single, selected, segment, lists, onPick, recurring, setRecurring, everyDays, setEveryDays, hasSteps, onPreset, onClose, onSave } = props;
+  const { name, setName, goal, setGoal, audMode, setAudMode, single, selected, segment, lists, onPick, recurring, setRecurring, everyDays, setEveryDays, bookingLink, setBookingLink, startAt, setStartAt, hasSteps, onPreset, onClose, onSave } = props;
   const [saving, setSaving] = useState(false);
   const audienceLabel = audMode === "single" ? (single?.name || "Pick a contact") : audMode === "multi" ? (selected.length ? `${selected.length} selected` : "Select contacts") : (lists.find((l) => l.id === segment)?.name || "Pick a list");
   return (
@@ -457,6 +519,17 @@ function BriefSheet(props: {
                   <input value={everyDays} onChange={(e) => setEveryDays(Math.max(1, Math.min(365, Number(e.target.value.replace(/[^0-9]/g, "")) || 1)))} className="w-[56px] rounded-lg border border-border bg-muted/40 px-2 py-1 text-center text-[12px] outline-none focus:border-brand-500" /> days
                 </span>
               )}
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div><SectionLabel hint="when the campaign begins — leave empty to start now">Start</SectionLabel>
+              <input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
+            </div>
+            <div><SectionLabel hint="offered on calls + use {{booking_link}} in messages">Booking link</SectionLabel>
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 focus-within:border-brand-500">
+                <Link2 className="h-4 w-4 flex-none text-muted-foreground" />
+                <input value={bookingLink} onChange={(e) => setBookingLink(e.target.value)} placeholder="https://cal.com/you/consult" className="w-full bg-transparent text-[12.5px] outline-none placeholder:text-muted-foreground/50" />
+              </div>
             </div>
           </div>
         </div>

@@ -61,9 +61,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const already = new Set(existing.map((e) => e.contactId).filter(Boolean));
       const fresh = reachable.filter((c) => !already.has(c.id));
       const stagger = body?.mode === "stagger";
-      const now = Date.now();
+      // Optional scheduled start (datetime the campaign begins); else now.
+      const startMs = typeof body?.startAt === "string" && !Number.isNaN(Date.parse(body.startAt)) ? Date.parse(body.startAt) : Date.now();
+      const base = Math.max(startMs, Date.now());
       for (let i = 0; i < fresh.length; i++) {
-        const nextRunAt = new Date(now + (stagger ? i * 60 * 60 * 1000 : 0));
+        const nextRunAt = new Date(base + (stagger ? i * 60 * 60 * 1000 : 0));
         await prisma.sequenceEnrollment.create({ data: { userId: session.userId, sequenceId: id, contactId: fresh[i].id, currentStep: 0, status: "active", nextRunAt } });
         enrolled += 1;
       }
