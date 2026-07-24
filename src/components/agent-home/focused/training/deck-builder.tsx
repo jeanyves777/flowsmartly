@@ -620,8 +620,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               </div>
               {previewVideo ? (
                 <>
-                  <div className="overflow-hidden rounded-xl bg-black shadow-2xl">
-                    <video key={previewVideo} src={previewVideo} autoPlay controls playsInline onEnded={() => { if (!previewClip) setPage((p) => Math.min(deck.slides.length - 1, p + 1)); }} className="aspect-video w-full bg-black" style={presenterVideoStyle(deck.presenterFit)} />
+                  <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black shadow-2xl">
+                    <video key={previewVideo} src={previewVideo} autoPlay controls playsInline onEnded={() => { if (!previewClip) setPage((p) => Math.min(deck.slides.length - 1, p + 1)); }} className="absolute inset-0 h-full w-full bg-black" style={presenterVideoStyle(deck.presenterFit)} />
                   </div>
                   {/* Framing — size + position of the on-screen presenter films. Applies to ALL of them
                       (intro, talking moments, outro) and saves with the deck. */}

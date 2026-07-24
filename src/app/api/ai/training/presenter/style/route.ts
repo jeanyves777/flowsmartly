@@ -60,7 +60,11 @@ export async function POST(request: NextRequest) {
   if (!charge.success) return err(charge.error || "Not enough credits", 402);
 
   try {
-    const prompt = `Professional presenter portrait of this exact person, upper body centred, facing the camera with a warm, confident, approachable expression, ${cloth ? `wearing ${cloth}` : "in their own clothing"}, ${bg}, soft cinematic studio lighting, sharp focus, premium corporate headshot look, 16:9 framing. Keep the person's exact face, hair, skin tone and identity completely unchanged — only restyle the clothing, lighting and background. No text, no watermark.`;
+    // Framing MATTERS: this portrait is fed straight to HeyGen (Avatar IV), which reproduces its
+    // framing in the talking video. "upper body / headshot" with no headroom put the head at the
+    // top edge → the rendered video cut off the head. Demand the WHOLE head in frame with clear
+    // headroom above the hair, framed from the mid-chest up. [[training-presenter-talking-video]]
+    const prompt = `Professional presenter portrait of this exact person, framed from the mid-chest up and centred horizontally, with the ENTIRE head and hair fully inside the frame and clear HEADROOM (empty space) above the top of the hair — the top of the head must NEVER be cropped or touch the top edge. Position the eyes on the upper-third line, leaving room above. Facing the camera with a warm, confident, approachable expression, ${cloth ? `wearing ${cloth}` : "in their own clothing"}, ${bg}, soft cinematic studio lighting, sharp focus, premium corporate look, 16:9 framing. Keep the person's exact face, hair, skin tone and identity completely unchanged — only restyle the clothing, lighting and background. No text, no watermark.`;
     const r = await editImagesXaiFirst(prompt, [buffer], 1280, 720, { intent: "identity", quality: "high" });
     if (!r.base64) throw new Error("no image");
     const url = await uploadToS3(`presenters/${session.userId}/ready-${nanoid(8)}.png`, Buffer.from(r.base64, "base64"), "image/png");
