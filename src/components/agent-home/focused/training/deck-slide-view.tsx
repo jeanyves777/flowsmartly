@@ -457,7 +457,9 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
 
   // A DEMONSTRATION VIDEO slide — a short generated moving illustration beside the teaching text.
   // An AGENT-AUTHORED animated illustration (cards + icons + connectors), revealed with narration.
-  if (slide.infographic && slide.infographic.cards?.length) {
+  // A co-host video on this slide is handled below (it must render + carry the audio) — don't let the
+  // plain infographic branch short-circuit it (that left the slide muted with no video).
+  if (slide.infographic && slide.infographic.cards?.length && !slide.cohostVideoUrl) {
     return <InfographicView spec={slide.infographic} reveal={reveal} title={md(slide.title)} subtitle={slide.subtitle ? md(slide.subtitle) : undefined} className={className} />;
   }
 
@@ -470,11 +472,27 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
     // separate narration track is muted by the caller, just like intro/moments. As a thumbnail = muted loop.
     const cohostVideo = <video ref={cohostVideoRef} src={slide.cohostVideoUrl} autoPlay muted={!cohostAudio} loop={!cohostAudio} playsInline onEnded={onCohostEnded} onTimeUpdate={onCohostTime ? (e) => { const v = e.currentTarget; if (v.duration && isFinite(v.duration)) onCohostTime(v.currentTime / v.duration); } : undefined} className="h-full w-full object-cover" />;
     const cohostBadge = <span className="absolute bottom-[1.2cqw] left-[1.2cqw] inline-flex items-center gap-1 rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black text-white backdrop-blur"><span className="h-[.9cqw] w-[.9cqw] rounded-full bg-emerald-400" /> Co-host</span>;
+    const tileW = size === "s" ? "w-[22cqw]" : size === "l" ? "w-[34cqw]" : "w-[28cqw]";
+    const floatingTile = (
+      <div className={cn("absolute bottom-[4cqw] z-[5] aspect-video overflow-hidden rounded-[1.2cqw] bg-black shadow-2xl ring-2 ring-[var(--sa2)]", tileW, videoRight ? "right-[4cqw]" : "left-[4cqw]")}>
+        {cohostVideo}
+        {cohostBadge}
+      </div>
+    );
 
-    // FLOATING placement: full-width teaching content + the co-host as a picture-in-picture corner
-    // tile (like the floating presenter) instead of a side column.
+    // An ANIMATED INFOGRAPHIC slide: keep the diagram full-stage and FLOAT the co-host over it — a side
+    // column would crush the diagram — regardless of the placement toggle.
+    if (slide.infographic && slide.infographic.cards?.length) {
+      return (
+        <div ref={hostRef} className={cn("relative h-full w-full overflow-hidden [container-type:inline-size]", className)}>
+          <InfographicView spec={slide.infographic} reveal={reveal} title={md(slide.title)} subtitle={slide.subtitle ? md(slide.subtitle) : undefined} />
+          {floatingTile}
+        </div>
+      );
+    }
+
+    // FLOATING placement: the co-host is a picture-in-picture corner tile over the full-width teaching text.
     if (slide.cohostFloat) {
-      const tileW = size === "s" ? "w-[22cqw]" : size === "l" ? "w-[34cqw]" : "w-[28cqw]";
       return (
         <div ref={hostRef} className={cn("relative flex h-full w-full flex-col justify-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[7%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
           <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
@@ -485,10 +503,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
               {shownB.map((b, i) => <li key={i} data-step={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{T(b)}</li>)}
             </ul>
           ) : null}
-          <div className={cn("absolute bottom-[4cqw] z-[5] aspect-video overflow-hidden rounded-[1.2cqw] bg-black shadow-2xl ring-2 ring-[var(--sa2)]", tileW, videoRight ? "right-[4cqw]" : "left-[4cqw]")}>
-            {cohostVideo}
-            {cohostBadge}
-          </div>
+          {floatingTile}
           {ann}
         </div>
       );
