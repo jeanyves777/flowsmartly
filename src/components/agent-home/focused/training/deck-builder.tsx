@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, Film, Settings2, Mic, RotateCcw, Radio, Check, Palette, ImageIcon, Upload,
+  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, Film, Settings2, Mic, RotateCcw, Radio, Check, Palette, ImageIcon, Upload, PictureInPicture2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -20,6 +20,7 @@ import { VISUAL_STYLES, VISUAL_STYLE_LABELS, ANNOTATE_VARIANTS, presenterVideoSt
 import { StageLayoutView } from "./stage-layout-view";
 import { NarrationPanel } from "./narration-panel";
 import { SeamlessLoop } from "./seamless-loop";
+import { FloatingAvatar } from "./floating-avatar";
 import { slideRevealUnits, revealFractions, revealStepAt, effectiveRevealSteps } from "@/lib/training/reveal-timing";
 import { AnimationStudio } from "./animation-studio";
 import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle, VisualType, PresenterFit, StageMode, StageLayout } from "@/lib/training/types";
@@ -28,6 +29,17 @@ const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 
 // "hero_statement" → "Hero Statement", "concept_3d_callouts" → "Concept 3D Callouts"
 const layoutLabel = (l: string) => l.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()).replace(/\b3d\b/i, "3D");
+
+// floating-avatar presets (centre as stage fractions; width as a fraction of stage width)
+const AVATAR_POS: Record<string, { x: number; y: number; label: string }> = {
+  "bottom-right": { x: 0.86, y: 0.82, label: "Bottom right" },
+  "bottom-left": { x: 0.14, y: 0.82, label: "Bottom left" },
+  "top-right": { x: 0.86, y: 0.2, label: "Top right" },
+  "top-left": { x: 0.14, y: 0.2, label: "Top left" },
+  center: { x: 0.5, y: 0.5, label: "Center" },
+};
+const AVATAR_W: Record<"s" | "m" | "l", number> = { s: 0.13, m: 0.19, l: 0.26 };
+const nearestPosKey = (x?: number, y?: number) => Object.keys(AVATAR_POS).find((k) => Math.abs(AVATAR_POS[k].x - (x ?? 0.86)) < 0.06 && Math.abs(AVATAR_POS[k].y - (y ?? 0.82)) < 0.06) ?? "";
 
 interface AutoGen { brief: string; wantDoc: boolean; wantWhiteboard: boolean; wantVisuals: boolean; slideCount: number }
 interface PresenterClipDTO { id: string; kind: string; videoUrl: string; thumbnailUrl: string | null; presenterName: string | null; script: string | null; durationMs: number | null; createdAt: string; sameVoice: boolean }
@@ -266,10 +278,6 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   }, [previewing, previewVideo, slide?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // large avatar player (inspector) controls
-  const [avPlaying, setAvPlaying] = useState(true);
-  const [avNonce, setAvNonce] = useState(0);
-  const avToggle = () => setAvPlaying((p) => !p);
-  const avRestart = () => { setAvPlaying(true); setAvNonce((n) => n + 1); };
 
   // Turn the presenter photo into a looping "moving avatar" for the room.
   const animate = async () => {
@@ -808,8 +816,14 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                     layout={deck.stageLayout}
                     fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
                     slide={<DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} writeMs={previewWriteMs} cohostAudio={!!slide.cohostVideoUrl} onCohostEnded={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} onCohostTime={slide.cohostVideoUrl ? (frac) => { const { fracs, steps } = previewFracsRef.current; if (steps < 2) return; const target = fracs && fracs.length >= 2 && fracs.length === steps ? revealStepAt(frac, fracs, steps) : Math.min(steps, Math.max(1, Math.floor(frac * steps) + 1)); setPreviewStep((p) => (target > (p ?? 1) ? target : p)); } : undefined} />}
-                    cohost={slide.cohostVideoUrl ? null : (loopUrl ? <SeamlessLoop url={loopUrl} /> : null)}
+                    cohost={(slide.cohostVideoUrl || slide.avatarFloat) ? null : (loopUrl ? <SeamlessLoop url={loopUrl} /> : null)}
                   />
+                  {slide.avatarFloat && loopUrl && !slide.cohostVideoUrl ? (
+                    <FloatingAvatar editable url={loopUrl} x={slide.avatarX} y={slide.avatarY} w={slide.avatarW}
+                      onMove={(x, y) => setSlideMedia({ avatarX: x, avatarY: y })}
+                      onResize={(w) => setSlideMedia({ avatarW: w })}
+                      onRemove={() => setSlideMedia({ avatarFloat: false })} />
+                  ) : null}
                   {(slide.steps ?? 1) > 1 ? <button onClick={() => { setPreviewStep(1); const a = previewAudioRef.current; if (a) a.currentTime = 0; }} title="Replay the drawing" className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-lg bg-black/55 px-2.5 py-1.5 text-[11px] font-bold text-white backdrop-blur hover:bg-black/70"><RotateCcw className="h-3.5 w-3.5" /> Replay</button> : null}
                   {slide.narration?.audioUrl && !slide.cohostVideoUrl ? (
                     <audio
@@ -981,6 +995,23 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   <button onClick={() => mediaInputRef.current?.click()} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><Upload className="h-3.5 w-3.5" /> Upload</button>
                   <button onClick={() => void regenImage()} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><RefreshCw className="h-3.5 w-3.5" /> New image</button>
                 </div>
+                {/* how the image DISPLAYS — fit the whole image (so nothing is cut off) or fill; + a size zoom */}
+                {slide.visual?.kind === "image" && slide.visual.url && !slide.videoUrl && !slide.infographic?.cards?.length ? (
+                  <div className="mt-2 space-y-2 border-t border-border pt-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-muted-foreground">Display</span>
+                      <div className="inline-flex rounded-lg border border-border p-0.5">
+                        {([["", "Auto"], ["contain", "Fit whole"], ["cover", "Fill"]] as const).map(([f, lbl]) => <button key={f || "auto"} onClick={() => editSlide({ imageFit: f || undefined })} className={cn("rounded-md px-2 py-1 text-[11px] font-bold transition", (slide.imageFit ?? "") === f ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{lbl}</button>)}
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-muted-foreground">Size</span>
+                      <input type="range" min={70} max={150} value={Math.round((slide.imageZoom ?? 1) * 100)} onChange={(e) => editSlide({ imageZoom: Number(e.target.value) / 100 })} className="flex-1 accent-brand-500" title="Zoom the image so it shows properly" />
+                      <span className="w-9 text-right text-[10px] tabular-nums text-muted-foreground">{Math.round((slide.imageZoom ?? 1) * 100)}%</span>
+                      {slide.imageZoom && slide.imageZoom !== 1 ? <button onClick={() => editSlide({ imageZoom: undefined })} className="text-[10px] font-bold text-muted-foreground hover:text-foreground">Reset</button> : null}
+                    </label>
+                  </div>
+                ) : null}
                 <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground"><b className="text-foreground">Animate this slide</b> designs an on-subject diagram (cards, icons, connectors) that draws itself in step with the narration — no video render. Or upload your own image/video. <button onClick={() => setAiVideoOpen(true)} disabled={!!mediaBusy} className="text-brand-400 underline disabled:opacity-50">Prefer a rendered AI video?</button></p>
                 <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadMedia(f); e.target.value = ""; }} />
               </div>
@@ -1080,15 +1111,41 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             <div className="rounded-2xl border-2 border-brand-500/40 bg-gradient-to-br from-brand-500/[0.06] to-transparent p-2.5">
               <div className="mb-2 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><Film className="h-3.5 w-3.5" /> AI Presenter · Live avatar</div>
               <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
-                <SeamlessLoop url={loopUrl} playing={avPlaying} nonce={avNonce} className="absolute inset-0" />
-                <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[8px] font-black text-white backdrop-blur">● LIVE</span>
+                <SeamlessLoop url={loopUrl} className="absolute inset-0" />
+                <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[8px] font-bold text-white/90 backdrop-blur"><RotateCcw className="h-2.5 w-2.5" /> Looping</span>
                 <span className="absolute right-2 top-2 rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1.5 py-0.5 text-[8px] font-black text-[#04222a]">AI</span>
               </div>
-              <div className="mt-2 flex items-center gap-1.5">
-                <button onClick={avToggle} title={avPlaying ? "Pause" : "Play"} className="grid h-8 w-8 place-items-center rounded-lg border border-border hover:border-brand-500">{avPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
-                <button onClick={avRestart} title="Restart" className="grid h-8 w-8 place-items-center rounded-lg border border-border hover:border-brand-500"><RotateCcw className="h-3.5 w-3.5" /></button>
-                <button onClick={animate} disabled={busy === "animate"} className="ms-auto inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[10.5px] font-bold hover:border-brand-500 disabled:opacity-50">{busy === "animate" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />} Re-animate</button>
-              </div>
+              {slide ? (
+                <>
+                  <button
+                    onClick={() => editSlide(slide.avatarFloat ? { avatarFloat: false } : { avatarFloat: true, avatarX: AVATAR_POS["bottom-right"].x, avatarY: AVATAR_POS["bottom-right"].y, avatarW: AVATAR_W.s })}
+                    disabled={!!slide.cohostVideoUrl}
+                    title={slide.cohostVideoUrl ? "This slide already shows the co-host video" : undefined}
+                    className={cn("mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[11.5px] font-extrabold transition disabled:opacity-40", slide.avatarFloat ? "border border-rose-500/50 text-rose-400 hover:bg-rose-500/10" : "bg-gradient-to-br from-brand-500 to-violet-600 text-white hover:opacity-95")}
+                  >
+                    <PictureInPicture2 className="h-3.5 w-3.5" /> {slide.avatarFloat ? "Remove floating avatar" : "Add as floating avatar"}
+                  </button>
+                  <p className="mt-1 text-center text-[10px] text-muted-foreground">Show this avatar on the current slide.</p>
+                  {slide.avatarFloat ? (
+                    <>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-muted-foreground">Size</span>
+                        <div className="inline-flex rounded-lg border border-border p-0.5">
+                          {(["s", "m", "l"] as const).map((sz) => <button key={sz} onClick={() => setSlideMedia({ avatarW: AVATAR_W[sz] })} className={cn("rounded-md px-2.5 py-1 text-[11px] font-bold uppercase transition", Math.abs((slide.avatarW ?? AVATAR_W.s) - AVATAR_W[sz]) < 0.02 ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{sz}</button>)}
+                        </div>
+                      </div>
+                      <label className="mt-2 flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-muted-foreground">Position</span>
+                        <select value={nearestPosKey(slide.avatarX, slide.avatarY)} onChange={(e) => { const p = AVATAR_POS[e.target.value]; if (p) setSlideMedia({ avatarX: p.x, avatarY: p.y }); }} className="flex-1 rounded-lg border border-border bg-muted px-2 py-1.5 text-[11.5px] outline-none focus:border-brand-500">
+                          {nearestPosKey(slide.avatarX, slide.avatarY) === "" ? <option value="">Custom (dragged)</option> : null}
+                          {Object.entries(AVATAR_POS).map(([k, p]) => <option key={k} value={k}>{p.label}</option>)}
+                        </select>
+                      </label>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+              <button onClick={animate} disabled={busy === "animate"} className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[10.5px] font-bold hover:border-brand-500 disabled:opacity-50">{busy === "animate" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />} Re-animate</button>
             </div>
           </div>
         ) : null}

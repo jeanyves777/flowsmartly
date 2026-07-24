@@ -28,6 +28,7 @@ import { InviteSheet, Sheet } from "./invite-sheet";
 import { DeckSlideView } from "./deck-slide-view";
 import { StageLayoutView } from "./stage-layout-view";
 import { SeamlessLoop } from "./seamless-loop";
+import { FloatingAvatar } from "./floating-avatar";
 import { VideoSheet } from "./video-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
 import { slideRevealUnits, revealFractions, revealStepAt, effectiveRevealSteps } from "@/lib/training/reveal-timing";
@@ -671,16 +672,19 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
       }
       // The board box is a 16:9 letterbox. The co-host video shares it per the deck's stageLayout
       // (right / floating / bottom / hidden) — a muted loop; the narration track carries the voice.
+      const avatarLoopUrl = material.deck?.presenterVideoUrl ?? null;
+      const showAvatarFloat = !!slide.avatarFloat && !isCohostVideo && !!avatarLoopUrl;
       return slide ? (
-        <div className="h-full w-full overflow-hidden">
+        <div className="relative h-full w-full overflow-hidden">
           <StageLayoutView
             layout={material.deck?.stageLayout}
             fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
             slide={<DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} writeMs={stepWriteMs} cohostAudio={isCohostVideo} cohostVideoRef={(el) => { momentVidRef.current = el; }} onCohostEnded={onMomentEnd} onCohostTime={isCohostVideo ? cohostTime : undefined} />}
-            cohost={isCohostVideo ? null : (material.deck?.presenterActive && material.deck?.presenterVideoUrl
-              ? <SeamlessLoop url={material.deck.presenterVideoUrl} />
+            cohost={(isCohostVideo || showAvatarFloat) ? null : (material.deck?.presenterActive && avatarLoopUrl
+              ? <SeamlessLoop url={avatarLoopUrl} />
               : null)}
           />
+          {showAvatarFloat ? <FloatingAvatar url={avatarLoopUrl!} x={slide.avatarX} y={slide.avatarY} w={slide.avatarW} playing={aiSpeaking} /> : null}
         </div>
       ) : null;
     }
