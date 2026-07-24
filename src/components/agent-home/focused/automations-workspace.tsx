@@ -284,6 +284,8 @@ export function FocusedAutomations({ refreshKey }: {
   // missing before (a call/SMS step with no live agent / no number just parks).
   const usedChannels = Array.from(new Set(nodes.filter((n) => n.type !== "audience" && n.type !== "condition").map((n) => n.type as Channel)));
   const notReady = usedChannels.filter((c) => !ready[c]);
+  // At least one step must be able to send — otherwise activating does nothing.
+  const hasReadyChannel = usedChannels.some((c) => ready[c]);
   const SETUP_HINT: Record<Channel, string> = { call: "Go to Call agent, give it a number and switch it live.", sms: "Go to Grow → SMS and set up a sender number.", email: "Go to Grow → Email and connect a sender.", whatsapp: "Connect a WhatsApp Business number." };
 
   // ── save / activate ──
@@ -307,6 +309,10 @@ export function FocusedAutomations({ refreshKey }: {
 
   async function activate() {
     if (!nodesToSteps(nodes, links).length) { toast({ title: "Add at least one step before launching.", variant: "destructive" }); return; }
+    if (usedChannels.length > 0 && !hasReadyChannel) {
+      toast({ title: "Nothing can send yet", description: `Connect a channel first — ${notReady.map((c) => CH_META[c].title).join(", ")} ${notReady.length > 1 ? "aren't" : "isn't"} set up. ${SETUP_HINT[notReady[0]]}`, variant: "destructive" });
+      return;
+    }
     const id = await save("activate"); if (!id) return;
     // Resolve the audience selection into an enrollment target set.
     const contactIds = audMode === "single" ? (single ? [single.id] : []) : audMode === "multi" ? selected.map((c) => c.id) : [];
@@ -416,6 +422,8 @@ export function FocusedAutomations({ refreshKey }: {
             <button onClick={() => void save()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground disabled:opacity-50">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />} Save</button>
             {status === "active" ? (
               <button onClick={() => void pause()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3.5 py-1.5 text-[12.5px] font-bold text-amber-600 disabled:opacity-50"><Pause className="h-3.5 w-3.5" /> Pause</button>
+            ) : usedChannels.length > 0 && !hasReadyChannel ? (
+              <button onClick={() => activate()} title={`Connect a channel first — ${notReady.map((c) => CH_META[c].title).join(", ")} not set up`} className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3.5 py-1.5 text-[12.5px] font-bold text-amber-600"><AlertTriangle className="h-3.5 w-3.5" /> Connect a channel</button>
             ) : (
               <button onClick={() => void activate()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-1.5 text-[12.5px] font-bold text-white disabled:opacity-50">{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />} Activate</button>
             )}
