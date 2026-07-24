@@ -20,7 +20,7 @@ import { VISUAL_STYLES, VISUAL_STYLE_LABELS, ANNOTATE_VARIANTS, presenterVideoSt
 import { StageLayoutView } from "./stage-layout-view";
 import { NarrationPanel } from "./narration-panel";
 import { SeamlessLoop } from "./seamless-loop";
-import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/reveal-timing";
+import { slideRevealUnits, revealFractions, revealStepAt, effectiveRevealSteps } from "@/lib/training/reveal-timing";
 import { AnimationStudio } from "./animation-studio";
 import type { DeckSlide, TrainingDeck, TrainingSessionDTO, PresenterProfileDTO, VisualStyle, VisualType, PresenterFit, StageMode, StageLayout } from "@/lib/training/types";
 
@@ -248,7 +248,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   // Drive the reveal steps while previewing a (non-video) slide so it visibly draws/builds.
   useEffect(() => {
     if (!previewing || previewVideo || !slide) { setPreviewStep(undefined); previewFracsRef.current = { fracs: null, steps: 1 }; return; }
-    const steps = Math.max(1, slide.steps ?? 1);
+    const steps = effectiveRevealSteps(slide);
     previewFracsRef.current = { fracs: revealFractions(slideRevealUnits(slide), steps), steps };
     setPreviewStep(1);
     if (steps <= 1) return;
@@ -576,7 +576,10 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       const j = await fetch(`/api/ai/training/${sessionId}/deck/illustration`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ materialId: mat.id, slideId: slide.id }) }).then((r) => r.json());
       if (!j?.success) { toast({ title: j?.error?.message || "Couldn't design an illustration", variant: "destructive" }); return; }
       onSession(j.data.session as TrainingSessionDTO);
-      setSlideMedia({ infographic: j.data.infographic as DeckSlide["infographic"], visualType: "diagram", videoUrl: undefined });
+      // steps = card count so every reveal is narrated (else the local re-persist would keep the
+      // slide's OLD step count and drop the extra cards during narration).
+      const infographic = j.data.infographic as DeckSlide["infographic"];
+      setSlideMedia({ infographic, steps: Math.max(1, infographic?.cards?.length ?? slide.steps ?? 1), visualType: "diagram", videoUrl: undefined });
       toast({ title: "Animated illustration ready", description: "It reveals in step with the narration — Preview it." });
     } finally { setMediaBusy(null); }
   };
@@ -693,7 +696,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       {/* stage */}
       <div className="flex min-w-0 flex-col">
         <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <span className="shrink-0 whitespace-nowrap text-[11.5px] font-bold">{slide?.type === "livedraw" ? "Live Draw" : slide?.type === "whiteboard" ? "Whiteboard" : "Document"}{slide?.steps && slide.steps > 1 ? <span className="ms-1 font-normal text-muted-foreground">· {slide.steps} reveals</span> : null}</span>
+          <span className="shrink-0 whitespace-nowrap text-[11.5px] font-bold">{slide?.type === "livedraw" ? "Live Draw" : slide?.type === "whiteboard" ? "Whiteboard" : "Document"}{slide && effectiveRevealSteps(slide) > 1 ? <span className="ms-1 font-normal text-muted-foreground">· {effectiveRevealSteps(slide)} reveals</span> : null}</span>
           <span className="mx-0.5 h-4 w-px shrink-0 bg-border" />
           <button onClick={() => { setRegenInstr(""); setRegenLayout("auto"); setRegenAnn((slide?.annotate as NonNullable<DeckSlide["annotate"]>) ?? "circle"); setRegenDraw("keep"); setRegenOpen(true); }} disabled={busy !== null} title="Regenerate this slide" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500 disabled:opacity-50">
             {busy === "regen" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Regenerate

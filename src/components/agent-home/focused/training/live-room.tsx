@@ -30,7 +30,7 @@ import { StageLayoutView } from "./stage-layout-view";
 import { SeamlessLoop } from "./seamless-loop";
 import { VideoSheet } from "./video-sheet";
 import { canDraw as canDrawFn, canShareScreen, isHost } from "@/lib/training/access";
-import { slideRevealUnits, revealFractions, revealStepAt } from "@/lib/training/reveal-timing";
+import { slideRevealUnits, revealFractions, revealStepAt, effectiveRevealSteps } from "@/lib/training/reveal-timing";
 import { presenterVideoStyle } from "@/lib/training/types";
 import type { BoardItem, BoardTool, LiveStroke, StageSource, TrainingParticipantDTO, TrainingSessionDTO, TrainingMessageDTO, PresenterAnswer } from "@/lib/training/types";
 
@@ -250,7 +250,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
   const deckSlide = material?.kind === "slides" && material.deck?.slides.length
     ? material.deck.slides[Math.min(session.stagePage, material.deck.slides.length) - 1]
     : null;
-  const deckSteps = deckSlide?.steps ?? 0;
+  const deckSteps = deckSlide ? effectiveRevealSteps(deckSlide) : 0;
   // Content-aware reveal timing: instead of splitting the narration into equal 1/steps slices
   // (which drifts when the narrator dwells longer on one bullet than another), spread the reveals
   // in proportion to each unit's text length (first ~90% of the clip). Computed client-side, so
@@ -260,7 +260,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     [deckSlide?.id, deckSlide?.bullets, deckSlide?.infographic, deckSteps], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const deckSlides = material?.kind === "slides" ? material.deck?.slides ?? null : null;
-  const stepsOf = (page: number) => deckSlides ? (deckSlides[Math.min(page, deckSlides.length) - 1]?.steps ?? 1) : 1;
+  const stepsOf = (page: number) => { const s = deckSlides?.[Math.min(page, deckSlides.length) - 1]; return s ? effectiveRevealSteps(s) : 1; };
   // The stored step can be a "show everything" sentinel; work off the clamped value so
   // Prev/Next always move a real step instead of silently decrementing 999→998→…
   const curStep = deckSlide ? Math.min(session.stageStep || 1, deckSteps) : session.stageStep;

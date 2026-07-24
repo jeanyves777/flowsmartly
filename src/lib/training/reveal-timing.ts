@@ -13,6 +13,16 @@ export function slideRevealUnits(slide: Pick<DeckSlide, "infographic" | "bullets
   return null;
 }
 
+/** The number of reveal steps a slide ACTUALLY shows on screen — its animated UNITS (infographic
+ *  cards, else bullets) when it has them, otherwise its stored `steps`. Prefer this over
+ *  `slide.steps` for reveal timing: converting a slide to an animated illustration can change the
+ *  unit count (e.g. 4 bullets → 6 cards), and the stale `steps` would cap the reveal so the extra
+ *  units never appear during narration. [[training-presentation-animation]] */
+export function effectiveRevealSteps(slide: Pick<DeckSlide, "infographic" | "bullets" | "steps">): number {
+  const units = slideRevealUnits(slide);
+  return Math.max(1, units ? units.length : (slide.steps ?? 1));
+}
+
 /** Content-aware reveal timing: the FRACTION of the narration at which each unit should appear,
  *  spread in proportion to each unit's text length so a bullet the narrator dwells on stays up
  *  longer than a short one (vs an even 1/steps split that drifts out of sync). All reveals land in
