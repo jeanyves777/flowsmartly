@@ -63,6 +63,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const target = String(form?.get("target") || "");
     deck.slides[idx] = isVideo && target === "moment"
       ? { ...slide, momentVideoUrl: url }
+      : isVideo && target === "cohost"
+      ? { ...slide, cohostVideoUrl: url }
       : isVideo
       ? { ...slide, videoUrl: url, visualType: "video" }
       : { ...slide, visual: { ...(slide.visual ?? { kind: "image" }), kind: "image", url, tag: slide.visual?.tag ?? "Photo" }, videoUrl: undefined, visualType: typeForStyle(slide.visual?.style) };

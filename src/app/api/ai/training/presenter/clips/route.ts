@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   }
 
   const clips = await prisma.presenterClip.findMany({
-    where: { userId: session.userId, ...(kind === "intro" || kind === "outro" ? { kind } : {}) },
+    where: { userId: session.userId, ...(kind && ["intro", "outro", "moment", "cohost"].includes(kind) ? { kind } : {}) },
     orderBy: { createdAt: "desc" },
     take: 60,
   });

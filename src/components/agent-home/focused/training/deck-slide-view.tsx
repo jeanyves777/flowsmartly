@@ -455,6 +455,30 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
     return <InfographicView spec={slide.infographic} reveal={reveal} title={md(slide.title)} subtitle={slide.subtitle ? md(slide.subtitle) : undefined} className={className} />;
   }
 
+  // CO-HOST VIDEO slide: the co-host narrates this slide from the side; the teaching points stay on
+  // the other side (image replaced by the video). Side chosen per slide. [[training-presenter-talking-video]]
+  if (slide.cohostVideoUrl) {
+    const videoRight = (slide.cohostSide ?? "right") === "right";
+    return (
+      <div className={cn("relative grid h-full w-full items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", videoRight ? "grid-cols-[.92fr_1.08fr]" : "grid-cols-[1.08fr_.92fr]", className)}>
+        <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
+        <div className={cn("flex min-w-0 flex-col justify-center", !videoRight && "order-2")}>
+          <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{md(slide.title)}</h1>
+          {slide.subtitle ? <p className="mt-[1cqw] text-[clamp(6px,2cqw,18px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
+          {shownB.length ? (
+            <ul className="mt-[2.5cqw] flex flex-col gap-[1.4cqw]">
+              {shownB.map((b, i) => <li key={i} className="flex gap-[1.6cqw] text-[clamp(6px,1.9cqw,17px)] leading-snug text-[rgb(var(--sfg)/.85)]"><span className="mt-[.9cqw] h-[1cqw] w-[1cqw] shrink-0 rounded-full bg-[var(--sa2)]" />{md(b)}</li>)}
+            </ul>
+          ) : null}
+        </div>
+        <div className={cn("relative aspect-video overflow-hidden rounded-[1.4cqw] bg-black ring-1 ring-[rgb(var(--sfg)/.12)] shadow-2xl", !videoRight && "order-1")}>
+          <video src={slide.cohostVideoUrl} autoPlay muted loop playsInline className="h-full w-full object-cover" />
+          <span className="absolute bottom-[1.2cqw] left-[1.2cqw] inline-flex items-center gap-1 rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black text-white backdrop-blur"><span className="h-[.9cqw] w-[.9cqw] rounded-full bg-emerald-400" /> Co-host</span>
+        </div>
+      </div>
+    );
+  }
+
   if (slide.videoUrl || (slide.visualType === "video" && slide.videoPrompt)) {
     return (
       <div className={cn("relative grid h-full w-full grid-cols-[.92fr_1.08fr] items-center gap-[4%] overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] px-[6%] py-[6%] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
