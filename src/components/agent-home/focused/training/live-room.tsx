@@ -526,7 +526,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
     const onEnded = () => {
       setAnswering(false);
       answerUrlRef.current = null; // a FINISHED answer must not replay on the next tap
-      if (aiPlayingRef.current) aiAudioRef.current?.play().catch(() => {}); // ease back into the narration
+      if (aiPlayingRef.current && !isMomentVideo && !isCohostVideo) aiAudioRef.current?.play().catch(() => {}); // ease back into the narration (not on a co-host/moment slide — its video carries the voice)
     };
     const onPause = () => setAnswering(false);
     a.addEventListener("ended", onEnded);
@@ -867,7 +867,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
                 the presenter is saying now. (Any tap on the page also unlocks it.) */}
             {soundBlocked && !recorder ? (
               <button
-                onClick={() => { setSoundBlocked(false); if (momentVidRef.current) { momentVidRef.current.muted = false; momentVidRef.current.play().catch(() => {}); } const ans = answerAudioRef.current; if (ans && answerUrlRef.current) ans.play().catch(() => {}); else aiAudioRef.current?.play().catch(() => {}); }}
+                onClick={() => { setSoundBlocked(false); if (momentVidRef.current) { momentVidRef.current.muted = false; momentVidRef.current.play().catch(() => {}); } const ans = answerAudioRef.current; if (ans && answerUrlRef.current) ans.play().catch(() => {}); else if (!isMomentVideo && !isCohostVideo) aiAudioRef.current?.play().catch(() => {}); }}
                 className="absolute inset-0 z-[15] grid place-items-center bg-black/45 backdrop-blur-[2px]"
               >
                 <span className="inline-flex animate-pulse items-center gap-2.5 rounded-full bg-gradient-to-br from-brand-500 to-violet-600 px-5 py-3 text-[14px] font-extrabold text-white shadow-2xl">

@@ -299,6 +299,26 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
     } finally { setBusy(false); }
   };
 
+  // RUN AGAIN: reopen the same ended session AND go straight back live (no new session needed).
+  const restartSession = async () => {
+    if (!sessionId) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/ai/training/${sessionId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reopen: true }),
+      }).then((x) => x.json());
+      if (!r?.success) { toast({ title: r?.error?.message || "Couldn't reopen the session", variant: "destructive" }); return; }
+      const j = await fetch(`/api/ai/training/${sessionId}/live`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start" }),
+      }).then((x) => x.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't restart the session", variant: "destructive" }); return; }
+      if (j.data?.session) room.setSession(j.data.session as TrainingSessionDTO);
+      emitCreditsUpdate();
+      setMode("live");
+      toast({ title: "Session restarted", description: "Running the same session again." });
+    } finally { setBusy(false); }
+  };
+
   const endLive = async () => {
     if (!sessionId) return;
     const j = await fetch(`/api/ai/training/${sessionId}/live`, {
@@ -476,10 +496,11 @@ export function FocusedTraining({ refreshKey }: { refreshKey?: number }) {
         <div className="absolute inset-0 grid place-items-center">
           <div className="w-[380px] text-center">
             <h2 className="text-[17px] font-bold">This session has ended</h2>
-            <p className="mt-1 text-[12.5px] text-muted-foreground">Everyone was returned to the waiting room and the link is closed. Start a new session to run it again.</p>
-            <div className="mt-4 flex justify-center gap-2">
-              <button onClick={() => setMode("plan")} className="rounded-lg border border-border px-4 py-2 text-[12.5px] font-semibold hover:border-brand-500">Back to the plan</button>
-              <button onClick={() => setBriefOpen(true)} className="rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-4 py-2 text-[12.5px] font-bold text-white">New session</button>
+            <p className="mt-1 text-[12.5px] text-muted-foreground">Restart it to run the SAME session again — your slides, presenter and settings are all kept — or start a fresh one.</p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <button onClick={() => void restartSession()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-rose-600 to-rose-400 px-4 py-2 text-[12.5px] font-extrabold text-white disabled:opacity-50"><Radio className="h-3.5 w-3.5" /> {busy ? "Restarting…" : "Restart session"}</button>
+              <button onClick={() => setMode("plan")} disabled={busy} className="rounded-lg border border-border px-4 py-2 text-[12.5px] font-semibold hover:border-brand-500 disabled:opacity-50">Back to the plan</button>
+              <button onClick={() => setBriefOpen(true)} disabled={busy} className="rounded-lg border border-border px-4 py-2 text-[12.5px] font-semibold hover:border-brand-500 disabled:opacity-50">New session</button>
             </div>
           </div>
         </div>
