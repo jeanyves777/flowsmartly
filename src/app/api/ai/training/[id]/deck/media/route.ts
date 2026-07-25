@@ -61,13 +61,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // target=moment → attach the uploaded video as this slide's PRESENTER-MOMENT talking video
     // (plays full-screen with its own audio), not the slide's background visual.
     const target = String(form?.get("target") || "");
-    deck.slides[idx] = isVideo && target === "moment"
-      ? { ...slide, momentVideoUrl: url }
-      : isVideo && target === "cohost"
-      ? { ...slide, cohostVideoUrl: url }
-      : isVideo
-      ? { ...slide, videoUrl: url, visualType: "video" }
-      : { ...slide, visual: { ...(slide.visual ?? { kind: "image" }), kind: "image", url, tag: slide.visual?.tag ?? "Photo" }, videoUrl: undefined, visualType: typeForStyle(slide.visual?.style) };
+    // target=cover → a DECK-LEVEL cover image (intro/first-slide background + thumbnail + lobby),
+    // not this slide's own visual. Only an image; a stray video falls through to the normal paths.
+    if (!isVideo && target === "cover") {
+      deck.coverImageUrl = url;
+    } else {
+      deck.slides[idx] = isVideo && target === "moment"
+        ? { ...slide, momentVideoUrl: url }
+        : isVideo && target === "cohost"
+        ? { ...slide, cohostVideoUrl: url }
+        : isVideo
+        ? { ...slide, videoUrl: url, visualType: "video" }
+        : { ...slide, visual: { ...(slide.visual ?? { kind: "image" }), kind: "image", url, tag: slide.visual?.tag ?? "Photo" }, videoUrl: undefined, visualType: typeForStyle(slide.visual?.style) };
+    }
     await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck) } });
     return NextResponse.json({ success: true, data: { slideId, url, kind: isVideo ? "video" : "image", session: await getSessionDTO(id) } });
   }

@@ -681,7 +681,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           <StageLayoutView
             layout={material.deck?.stageLayout}
             fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
-            slide={<DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} writeMs={stepWriteMs} cohostAudio={isCohostVideo} cohostAutoPlay={!!session.aiPlaying} cohostVideoRef={(el) => { momentVidRef.current = el; }} onCohostEnded={onMomentEnd} onCohostTime={isCohostVideo ? cohostTime : undefined} />}
+            slide={<DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} writeMs={stepWriteMs} coverUrl={material.deck?.coverImageUrl} cohostAudio={isCohostVideo} cohostAutoPlay={!!session.aiPlaying} cohostVideoRef={(el) => { momentVidRef.current = el; }} onCohostEnded={onMomentEnd} onCohostTime={isCohostVideo ? cohostTime : undefined} />}
             cohost={(isCohostVideo || showAvatarFloat) ? null : (material.deck?.presenterActive && avatarLoopUrl
               ? <SeamlessLoop url={avatarLoopUrl} />
               : null)}

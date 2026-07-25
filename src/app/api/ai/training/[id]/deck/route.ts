@@ -94,6 +94,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       visualStyle: prev.visualStyle ?? fresh.visualStyle,
       handStyle: prev.handStyle,
       voiceKey: null,
+      boardStyle: prev.boardStyle,
+      presenterFit: prev.presenterFit,
+      stageLayout: prev.stageLayout,
+      coverImageUrl: prev.coverImageUrl ?? null, // a user-uploaded cover survives a full rebuild
     };
     const title = fresh.slides[0]?.title?.slice(0, 80) || "Training deck";
     await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(merged), pages: fresh.slides.length, name: title } });
@@ -278,6 +282,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     boardStyle: body.deck.boardStyle ?? prev.boardStyle,
     presenterFit: body.deck.presenterFit ?? prev.presenterFit,
     stageLayout: body.deck.stageLayout ?? prev.stageLayout,
+    coverImageUrl: body.deck.coverImageUrl !== undefined ? body.deck.coverImageUrl : prev.coverImageUrl,
   };
   await prisma.trainingMaterial.update({
     where: { id: mat.id },

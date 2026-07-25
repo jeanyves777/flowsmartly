@@ -23,6 +23,7 @@ export interface LibrarySession {
   startedAt?: string | null;
   endedAt?: string | null;
   recordingUrl?: string | null;
+  coverImageUrl?: string | null;
   participantCount?: number;
   segmentCount?: number;
 }
@@ -144,6 +145,9 @@ export function TrainingLibrary({ rows, currentId, onOpen, onWatch, onClose, rel
                         <span className="absolute inset-0 grid place-items-center bg-black/25 transition group-hover:bg-black/40"><span className="grid h-11 w-11 place-items-center rounded-full bg-white/90 text-brand-600 shadow-lg"><Play className="h-5 w-5 translate-x-[1px] fill-current" /></span></span>
                         <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-rose-500/90 px-1.5 py-0.5 text-[9px] font-black text-white"><Film className="h-2.5 w-2.5" /> REC</span>
                       </>
+                    ) : r.coverImageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={r.coverImageUrl} alt="" className="h-full w-full object-cover" />
                     ) : (
                       <span className="grid h-full w-full place-items-center"><GraduationCap className="h-9 w-9 text-brand-400/50" /></span>
                     )}

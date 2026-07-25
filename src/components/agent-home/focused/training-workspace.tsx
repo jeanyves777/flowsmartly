@@ -61,6 +61,7 @@ interface SessionRow {
   startedAt: string | null;
   endedAt?: string | null;
   recordingUrl?: string | null;
+  coverImageUrl?: string | null;
   creditsSpent?: number;
   participantCount?: number;
   segmentCount?: number;
