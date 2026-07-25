@@ -98,9 +98,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const loaded = await load(body.materialId || "", body.slideId || "");
   if (!loaded) return err("That slide no longer exists", 404);
   const { mat, deck, idx } = loaded, slide = deck.slides[idx];
-  const base = (slide.visual?.prompt || `${slide.title}. ${slide.subtitle || ""}`).slice(0, 300);
+  // Ground EVERY regeneration in the TRAINING TOPIC + this slide's own content, so the image can't
+  // drift to a random subject (e.g. a stray photo of a wolf on an "AI agents" slide). We deliberately
+  // do NOT reuse the old slide.visual.prompt as the anchor — a drifted prompt is what caused the drift.
+  const sess = await prisma.trainingSession.findFirst({ where: { id, userId: session.userId }, select: { title: true, brief: true } });
+  const topic = (sess?.brief || sess?.title || "").replace(/\s+/g, " ").trim().slice(0, 180);
+  const bullets = (slide.bullets ?? []).slice(0, 3).map((b) => b.replace(/\*\*/g, "").trim()).filter(Boolean).join("; ");
+  const subject = ([slide.title, slide.subtitle].map((s) => (s || "").trim()).filter(Boolean).join(" — ").slice(0, 160)) || slide.title || "the topic";
+  const instruction = (body.instruction || "").trim().slice(0, 200);
   const style = slide.visual?.style;
-  const full = `${body.instruction ? body.instruction.trim() + ". " : ""}${base}. ${style === "3d" ? "A premium 3D render, Octane/Pixar quality, glossy materials, cinematic studio lighting." : style === "illustration" ? "A polished modern editorial illustration, clean vector shapes." : "Hyper-realistic professional photography, natural lighting, shallow depth of field."} No text, no watermark. variation ${Math.random().toString(36).slice(2, 8)}`;
+  const styleLine = style === "3d" ? "A premium 3D render, Octane/Pixar quality, glossy materials, cinematic studio lighting." : style === "illustration" ? "A polished modern editorial illustration, clean vector shapes." : "Hyper-realistic professional photography, natural lighting, shallow depth of field.";
+  const full = `A relevant, on-topic image for a professional training presentation${topic ? ` about "${topic}"` : ""}. This slide is titled "${subject}"${bullets ? `, covering: ${bullets}` : ""}.${instruction ? ` Art direction: ${instruction}.` : ""} Illustrate the ACTUAL subject literally and professionally — do NOT depict unrelated wildlife, animals, mascots or random scenery. ${styleLine} No text, no watermark, no logos. variation ${Math.random().toString(36).slice(2, 8)}`;
+  const base = instruction || subject;
 
   const COST = Math.max(1, await getDynamicCreditCost("TRAINING_DECK_IMAGE"));
   const charge = await creditService.deductCredits({ userId: session.userId, type: "USAGE", amount: COST, description: "Training Room: regenerate slide image", referenceType: "training_deck_image", referenceId: mat.id });

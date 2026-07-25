@@ -101,6 +101,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   const [busy, setBusy] = useState<null | "gen" | "regen" | "rebuild" | "video" | "save" | "narrate" | "animate" | "introfilm" | "outrofilm" | "moments" | "cohostvid" | `moment:${string}`>(null);
   const [rebuildOpen, setRebuildOpen] = useState(false);
   const [animOpen, setAnimOpen] = useState(false);
+  // A confirm before a DESTRUCTIVE, credit-spending regenerate replaces the slide's current media.
+  const [confirmGen, setConfirmGen] = useState<null | { title: string; body: string; cta: string; run: () => void }>(null);
 
   // local working copy of the deck (edits autosave)
   const [deck, setDeck] = useState<TrainingDeck | null>(mat?.deck ?? null);
@@ -1024,8 +1026,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                 ) : null}
                 {/* generate / replace with AI */}
                 <div className="mt-2.5 grid grid-cols-2 gap-1.5">
-                  <button onClick={() => void genIllustration()} disabled={!!mediaBusy} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Animate this slide</button>
-                  <button onClick={() => void regenImage()} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><ImageIcon className="h-3.5 w-3.5" /> New image</button>
+                  <button onClick={() => setConfirmGen({ title: "Animate this slide?", body: "This designs an on-subject diagram — grounded in this slide and your training topic — that replaces the current image and draws itself in step with the narration. It uses credits.", cta: "Animate slide", run: () => void genIllustration() })} disabled={!!mediaBusy} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Animate this slide</button>
+                  <button onClick={() => setConfirmGen({ title: "Generate a new image?", body: "This replaces the current slide image with a fresh AI image based on this slide's title and your training topic. It uses credits.", cta: "Generate image", run: () => void regenImage() })} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><ImageIcon className="h-3.5 w-3.5" /> New image</button>
                   {slide.videoPrompt && !slide.videoUrl ? (
                     <button onClick={() => void genVideo()} disabled={busy !== null} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-500/50 px-2 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">{busy === "video" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Rendering…</> : <><Film className="h-3.5 w-3.5" /> Video</>}</button>
                   ) : (
@@ -1296,6 +1298,23 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
         momentTotal={deck.slides.filter((s) => s.presenterMoment).length}
         momentReady={deck.slides.filter((s) => s.presenterMoment && s.momentVideoUrl).length}
       />
+
+      {/* CONFIRM a destructive, credit-spending regenerate before it replaces the slide's media. */}
+      {confirmGen ? (
+        <div className="fixed inset-0 z-[85] grid place-items-center bg-black/70 p-4" onClick={() => setConfirmGen(null)}>
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-600 text-white"><Sparkles className="h-5 w-5" /></span>
+              <b className="text-[15px]">{confirmGen.title}</b>
+            </div>
+            <p className="px-5 py-4 text-[12.5px] leading-relaxed text-muted-foreground">{confirmGen.body}</p>
+            <div className="flex justify-end gap-2 border-t border-border px-5 py-3">
+              <button onClick={() => setConfirmGen(null)} className="rounded-lg border border-border px-3.5 py-2 text-[12px] font-bold hover:border-brand-500">Cancel</button>
+              <button onClick={() => { const r = confirmGen.run; setConfirmGen(null); r(); }} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-3.5 py-2 text-[12px] font-extrabold text-white hover:opacity-95"><Sparkles className="h-3.5 w-3.5" /> {confirmGen.cta}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* REGENERATE ONE SLIDE — pick a layout + the hand animation style. */}
       {newSlideOpen ? (
