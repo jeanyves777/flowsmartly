@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils/cn";
 import {
   ANSWER_MODES, DAYS, DEFAULT_HOURS, DEFAULT_ORDER_CONFIG, DEFAULT_VOICE, FULFILLMENTS,
   LANGUAGE_HINTS, OUTCOME_LABEL, PRESETS, PRESET_BY_KEY, SKILL_BY_KEY, SKILL_CATALOG,
-  brandToBusinessBlurb, fmtDuration, fmtNumber, fmtPrice, greetingFor, skillFromDef, skillPos,
+  brandToBusinessBlurb, fmtDuration, fmtNumber, fmtPrice, greetingFor, outboundGreetingFor, skillFromDef, skillPos,
   type AgentCall, type AgentNumber, type AgentSkill, type AnswerMode, type BrandLite,
   type DayKey, type FollowUpRule, type Hours, type KnowledgeItem, type MenuItem, type OrderConfig,
   type VoiceAgentDraft, type VoiceChoice,
@@ -880,11 +880,13 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
         const site = bk.website ? String(bk.website) : "";
         const fillBusiness = !business.trim() && Boolean(blurb);
         const fillGreeting = !greeting.trim();
+        const fillOutbound = !outboundGreeting.trim();
         // Their own site is the one link worth reading by default.
         const fillSite = Boolean(site) && !knowledge.some((x) => x.url === site);
 
         if (fillBusiness) setBusiness(blurb);
         if (fillGreeting) setGreeting(greetingFor(preset, bk.name));
+        if (fillOutbound) setOutboundGreeting(outboundGreetingFor(bk.name));
         if (fillSite) {
           setKnowledge((k) => [
             ...k,
@@ -902,6 +904,7 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
     setPreset(key);
     setSkillKeys(PRESET_BY_KEY[key]?.skills || []);
     if (!greeting.trim()) setGreeting(greetingFor(key, brand?.name));
+    if (!outboundGreeting.trim()) setOutboundGreeting(outboundGreetingFor(brand?.name));
   };
 
   const addKnowledge = async () => {
