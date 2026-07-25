@@ -63,26 +63,52 @@ function Card({ c, i, on }: { c: InfographicCard; i: number; on: boolean }) {
   );
 }
 
-export function InfographicView({ spec, reveal, className, title, subtitle }: { spec: SlideInfographic; reveal?: number; className?: string; title?: string; subtitle?: string }) {
+export function InfographicView({ spec, reveal, className, title, subtitle, beside }: { spec: SlideInfographic; reveal?: number; className?: string; title?: string; subtitle?: string; beside?: boolean }) {
   const cards = spec.cards.slice(0, 6);
   // reveal order: center/first (0), then each card. `on(i)` = card i is visible.
   const on = (i: number) => reveal === undefined || reveal >= i + 1;
   const centerOn = reveal === undefined || reveal >= 0;
 
   const caption = spec.caption || subtitle;
+  // `beside` = the diagram shares the stage with a co-host video, so it lives in a NARROW, tall
+  // column. cqw (container-width) sizing shrinks a hub/grid to nothing there, so we bump the type
+  // and stack big cards vertically to fill the height (see the beside branch below).
   const head = (title || caption) ? (
-    <div className="shrink-0 px-[5%] pt-[3.5cqw] text-center">
-      {title ? <h1 className="text-[clamp(11px,3.4cqw,32px)] font-extrabold leading-tight tracking-tight" style={{ textWrap: "balance" } as CSSProperties}>{title}</h1> : null}
-      {caption ? <p className="mx-auto mt-[.8cqw] max-w-[84%] text-[clamp(6px,1.9cqw,17px)] font-semibold text-[color:var(--sat)]">{caption}</p> : null}
+    <div className={cn("shrink-0 text-center", beside ? "px-[6%] pt-[4cqw]" : "px-[5%] pt-[3.5cqw]")}>
+      {title ? <h1 className={cn("font-extrabold leading-tight tracking-tight", beside ? "text-[clamp(13px,5cqw,30px)]" : "text-[clamp(11px,3.4cqw,32px)]")} style={{ textWrap: "balance" } as CSSProperties}>{title}</h1> : null}
+      {caption ? <p className={cn("mx-auto font-semibold text-[color:var(--sat)]", beside ? "mt-[1cqw] max-w-[92%] text-[clamp(8px,2.8cqw,18px)]" : "mt-[.8cqw] max-w-[84%] text-[clamp(6px,1.9cqw,17px)]")}>{caption}</p> : null}
     </div>
   ) : null;
-  const foot = spec.footer ? <div className="shrink-0 px-[5%] pb-[3cqw] pt-[1.5cqw] text-center text-[clamp(5px,1.7cqw,15px)] font-semibold text-[rgb(var(--sfg)/.7)]">{spec.footer}</div> : null;
+  const foot = spec.footer ? <div className={cn("shrink-0 px-[5%] pb-[3cqw] pt-[1.5cqw] text-center font-semibold text-[rgb(var(--sfg)/.7)]", beside ? "text-[clamp(7px,2.4cqw,16px)]" : "text-[clamp(5px,1.7cqw,15px)]")}>{spec.footer}</div> : null;
   const wrap = (inner: React.ReactNode) => (
     <div className={cn("relative flex h-full w-full flex-col overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] text-[rgb(var(--sfg))] [container-type:inline-size]", className)}>
       <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
       {head}{inner}{foot}
     </div>
   );
+
+  // ---- BESIDE A CO-HOST: a narrow, tall column. Any radial/grid/flow arrangement collapses to a
+  //      tiny cluster here, so ignore the arrangement and render BIG cards stacked to fill the height,
+  //      sized to the co-host column so they read clearly. [[training-presenter-talking-video]] ----
+  if (beside) {
+    return wrap(
+      <div className={cn("flex min-h-0 flex-1 flex-col px-[6%] py-[2.5cqw]", cards.length >= 5 ? "justify-between gap-[1.8cqw]" : "justify-center gap-[2.6cqw]")}>
+        {cards.map((c, i) => {
+          const col = cardColor(c, i);
+          return (
+            <div key={i} className={cn("flex items-center gap-[3cqw] rounded-[2cqw] border-2 px-[3.4cqw] py-[2.8cqw] backdrop-blur-sm transition-all duration-500", on(i) ? "opacity-100 blur-0" : "translate-y-[1.5cqw] opacity-0 blur-[2px]")}
+              style={{ borderColor: col, background: `linear-gradient(135deg, ${col}20, ${col}06)` } as CSSProperties}>
+              <span className="grid h-[8cqw] w-[8cqw] shrink-0 place-items-center rounded-[1.8cqw]" style={{ background: `${col}26` }}><Ic name={c.icon} className="h-[5cqw] w-[5cqw]" style={{ color: col }} /></span>
+              <span className="min-w-0">
+                <b className="block text-[clamp(10px,4cqw,26px)] font-extrabold leading-tight" style={{ color: col }}>{c.title}</b>
+                {c.desc ? <span className="mt-[.6cqw] block text-[clamp(8px,2.7cqw,18px)] leading-snug text-[rgb(var(--sfg)/.85)]">{c.desc}</span> : null}
+              </span>
+            </div>
+          );
+        })}
+      </div>,
+    );
+  }
 
   // ---- HUB: a centre node with facets around it, connectors drawn out to each ----
   if (spec.layout === "hub") {
