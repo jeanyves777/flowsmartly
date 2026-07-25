@@ -8,10 +8,10 @@
  * the deck on the Slides stage. Everything is stored on a `slides` material so it's
  * shared + paged by the same stage plumbing as an uploaded file. [[training-studio]]
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
-  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, Film, Settings2, Mic, RotateCcw, Radio, Check, Palette, ImageIcon, Upload, PictureInPicture2, GripVertical, ArrowUp, ArrowDown,
+  Sparkles, ChevronLeft, ChevronRight, ChevronDown, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, Film, Settings2, Mic, RotateCcw, Radio, Check, Palette, ImageIcon, Upload, PictureInPicture2, GripVertical, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -40,6 +40,37 @@ const AVATAR_POS: Record<string, { x: number; y: number; label: string }> = {
 };
 const AVATAR_W: Record<"s" | "m" | "l", number> = { s: 0.13, m: 0.19, l: 0.26 };
 const nearestPosKey = (x?: number, y?: number) => Object.keys(AVATAR_POS).find((k) => Math.abs(AVATAR_POS[k].x - (x ?? 0.86)) < 0.06 && Math.abs(AVATAR_POS[k].y - (y ?? 0.82)) < 0.06) ?? "";
+
+// Image focal position → CSS object-position, so a face/subject isn't cropped out when filling.
+const FOCALS: { v: string; label: string }[] = [
+  { v: "center", label: "Center" }, { v: "top", label: "Top" }, { v: "bottom", label: "Bottom" },
+  { v: "left", label: "Left" }, { v: "right", label: "Right" }, { v: "top left", label: "Top left" }, { v: "top right", label: "Top right" },
+];
+
+// A collapsible section in the slide inspector (chevron rotates; matches the "Layout & style" cards).
+function Fold({ title, icon, right, defaultOpen = true, children }: { title: string; icon?: ReactNode; right?: ReactNode; defaultOpen?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-xl border border-border bg-muted/40">
+      <div className="flex items-center gap-1.5 px-2.5 py-2">
+        <button type="button" onClick={() => setOpen((o) => !o)} className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] font-bold">
+          {icon}<span className="truncate">{title}</span>
+          <ChevronDown className={cn("ms-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform", open ? "rotate-180" : "")} />
+        </button>
+        {right}
+      </div>
+      {open ? <div className="border-t border-border px-2.5 pb-2.5 pt-2.5">{children}</div> : null}
+    </div>
+  );
+}
+
+// The 4 quick slide compositions (the thumbnail row under Layout & style) → real (layout, visual.layout) pairs.
+const COMPOSITIONS = [
+  { key: "media_right", label: "Media right" },
+  { key: "media_left", label: "Media left" },
+  { key: "full_bleed", label: "Full bleed" },
+  { key: "text_only", label: "Text only" },
+] as const;
 
 interface AutoGen { brief: string; wantDoc: boolean; wantWhiteboard: boolean; wantVisuals: boolean; slideCount: number }
 interface PresenterClipDTO { id: string; kind: string; videoUrl: string; thumbnailUrl: string | null; presenterName: string | null; script: string | null; durationMs: number | null; createdAt: string; sameVoice: boolean }
@@ -757,70 +788,21 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
 
       {/* stage */}
       <div className="flex min-w-0 flex-col">
-        <div className="flex items-center gap-1.5 overflow-x-auto border-b border-border px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <span className="shrink-0 whitespace-nowrap text-[11.5px] font-bold">{slide?.type === "livedraw" ? "Live Draw" : slide?.type === "whiteboard" ? "Whiteboard" : "Document"}{slide && effectiveRevealSteps(slide) > 1 ? <span className="ms-1 font-normal text-muted-foreground">· {effectiveRevealSteps(slide)} reveals</span> : null}</span>
-          <span className="mx-0.5 h-4 w-px shrink-0 bg-border" />
-          <button onClick={() => { setRegenInstr(""); setRegenLayout("auto"); setRegenAnn((slide?.annotate as NonNullable<DeckSlide["annotate"]>) ?? "circle"); setRegenDraw("keep"); setRegenOpen(true); }} disabled={busy !== null} title="Regenerate this slide" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500 disabled:opacity-50">
-            {busy === "regen" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Regenerate
-          </button>
-          <button onClick={() => setRebuildOpen(true)} disabled={busy !== null} title="Rebuild the whole deck with the new content-aware layouts" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
-            {busy === "rebuild" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Rebuild
-          </button>
-          <button onClick={() => setAnimOpen(true)} title="Animation Studio — direct how the presenter's hand marks each slide" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10">
-            <PenLine className="h-3.5 w-3.5" /> Animate
-          </button>
-          <label className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border border-border pl-2 pr-0.5 text-[11px] font-semibold" title="Visual style — re-skins the whole deck">
-            <Palette className="h-3.5 w-3.5 shrink-0 text-brand-400" />
-            <select value={deck.visualStyle ?? "modern_professional"} onChange={(e) => { const v = e.target.value as VisualStyle; const next: TrainingDeck = { ...deck, visualStyle: v }; setDeck(next); persist(next); }} className="max-w-[92px] cursor-pointer truncate bg-transparent py-1.5 text-[11px] font-semibold outline-none">
-              {VISUAL_STYLES.map((s) => <option key={s} value={s} className="bg-card text-foreground">{VISUAL_STYLE_LABELS[s]}</option>)}
-            </select>
-          </label>
-          {/* Stage layout — how the co-host video shares the stage with the slides. Portalled so the
-              toolbar's horizontal scroll can't clip the popover. */}
-          <button ref={stageBtnRef} onClick={() => setStageMenuOpen((o) => !o)} title="Stage layout — how the co-host shares the stage with your slides" className={cn("inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500", stageMenuOpen ? "border-brand-500 bg-brand-500/10" : "border-border")}>
-            <Presentation className="h-3.5 w-3.5 shrink-0 text-brand-400" /> Stage: {STAGE_MODE_LABELS[deck.stageLayout?.mode ?? "cohost_right"]} ▾
-          </button>
-          {stageMenuOpen && typeof document !== "undefined" ? createPortal(
-            <>
-              <div className="fixed inset-0 z-[80]" onClick={() => setStageMenuOpen(false)} />
-              <div className="fixed z-[81] w-[250px] rounded-xl border border-border bg-card p-2.5 shadow-2xl" style={(() => { const r = stageBtnRef.current?.getBoundingClientRect(); const w = 250; return { top: (r?.bottom ?? 60) + 6, left: Math.max(8, Math.min((r?.left ?? 300), window.innerWidth - w - 8)) }; })()}>
-                <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Stage layout</div>
-                {STAGE_MODES.map((m) => (
-                  <button key={m} onClick={() => setStage({ mode: m })} className={cn("mb-1 flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-[11.5px] font-bold", (deck.stageLayout?.mode ?? "cohost_right") === m ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/50")}>
-                    <svg viewBox="0 0 20 14" width="18" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0 text-brand-400"><rect x="1" y="1" width="18" height="12" rx="2" />{m === "cohost_right" ? <line x1="13" y1="1" x2="13" y2="13" /> : null}{m === "cohost_bottom" ? <line x1="1" y1="9" x2="19" y2="9" /> : null}{m === "floating" ? <rect x="12" y="7" width="6" height="5" rx="1" fill="currentColor" /> : null}</svg>
-                    {STAGE_MODE_LABELS[m]}
-                  </button>
-                ))}
-                <div className="mb-1 mt-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Co-host size</div>
-                <div className="grid grid-cols-3 gap-1">
-                  {(["s", "m", "l"] as const).map((z) => <button key={z} onClick={() => setStage({ size: z })} className={cn("rounded-lg border py-1.5 text-[11px] font-bold", (deck.stageLayout?.size ?? "m") === z ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/50")}>{z === "s" ? "Small" : z === "l" ? "Large" : "Medium"}</button>)}
-                </div>
-                <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-[11px] font-semibold"><input type="checkbox" className="accent-brand-500" checked={deck.stageLayout?.keepVisible ?? true} onChange={(e) => setStage({ keepVisible: e.target.checked })} /> Keep co-host visible</label>
-                <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-[11px] font-semibold"><input type="checkbox" className="accent-brand-500" checked={deck.stageLayout?.hideOnFullVisual ?? false} onChange={(e) => setStage({ hideOnFullVisual: e.target.checked })} /> Hide on full-visual slides</label>
-                {(deck.stageLayout?.mode ?? "cohost_right") !== "presentation" ? (
-                  <div className="mt-2.5 border-t border-border pt-2.5">
-                    <div className="mb-1 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Co-host video</div>
-                    {ready.loop ? (
-                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400"><Check className="h-3.5 w-3.5 shrink-0" /> Ready — the co-host speaks your narration beside the slides.</div>
-                    ) : (
-                      <button onClick={() => { setStageMenuOpen(false); void animate(); }} disabled={busy !== null} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-3 py-2 text-[11.5px] font-extrabold text-white disabled:opacity-50">{busy === "animate" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</> : <><Film className="h-3.5 w-3.5" /> Generate co-host video</>}</button>
-                    )}
-                    <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">Hit <b>Preview</b> to see the co-host on the {STAGE_MODE_LABELS[deck.stageLayout?.mode ?? "cohost_right"].toLowerCase()}.</p>
-                  </div>
-                ) : null}
-              </div>
-            </>,
-            document.body,
-          ) : null}
-          {slide?.videoPrompt && !slide?.videoUrl ? (
-            <button onClick={() => void genVideo()} disabled={busy !== null} title="Generate the ~15s demonstration video for this slide" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
-              {busy === "video" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Rendering…</> : <><Film className="h-3.5 w-3.5" /> Video</>}
-            </button>
-          ) : null}
-          <div className="ms-auto flex shrink-0 items-center gap-1.5 ps-1.5">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+          {/* left — slide-type pill. Every slide/deck control now lives in the inspector, not here. */}
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[11.5px] font-bold">
+            <FileText className="h-3.5 w-3.5 text-brand-400" />
+            {slide?.type === "livedraw" ? "Live Draw" : slide?.type === "whiteboard" ? "Whiteboard" : "Document slide"}
+            {slide && effectiveRevealSteps(slide) > 1 ? <span className="font-normal text-muted-foreground">· {effectiveRevealSteps(slide)} reveals</span> : null}
+          </span>
+          {/* center — pager */}
+          <div className="mx-auto flex shrink-0 items-center gap-1.5">
             <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page <= 0} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronLeft className="h-4 w-4" /></button>
             <span className="shrink-0 whitespace-nowrap text-center text-[11px] tabular-nums text-muted-foreground">{page + 1} / {deck.slides.length}</span>
             <button onClick={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} disabled={page >= deck.slides.length - 1} className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
+          </div>
+          {/* right — play / present / go-live / exit */}
+          <div className="flex shrink-0 items-center gap-1.5">
             <button onClick={() => (previewActive ? closePreview() : (setPreviewClip(null), setPreviewing(true)))} title="Play this slide right here — its narration, moving avatar and any talking video" className={cn("inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11.5px] font-bold hover:border-brand-500", previewActive ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border")}>{previewActive ? <><Pause className="h-3.5 w-3.5" /> Exit</> : <><Play className="h-3.5 w-3.5" /> Preview</>}</button>
             <button onClick={() => onPresent(mat.id)} title="Open the full live stage" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-border px-2.5 py-1.5 text-[11.5px] font-bold hover:border-brand-500"><Presentation className="h-3.5 w-3.5" /> Present</button>
             {onStartMeeting ? (
@@ -929,14 +911,12 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             <Field label="Title" value={slide.title} onChange={(v) => editSlide({ title: v })} />
             <Field label="Subtitle" value={slide.subtitle ?? ""} onChange={(v) => editSlide({ subtitle: v })} />
 
-            {/* Layout & style — re-ARRANGE this slide in place: pick a different layout or visual style
-                for the SAME content. Narration and the co-host video are untouched (client-side, instant). */}
-            <div className="rounded-xl border border-border bg-muted/40 p-2.5">
-              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold"><Palette className="h-3.5 w-3.5 text-brand-400" /> Layout &amp; style</div>
+            {/* LAYOUT & STYLE — arrange THIS slide: visual style, layout, and the quick composition. */}
+            <Fold title="Layout & style" icon={<Palette className="h-3.5 w-3.5 text-brand-400" />}>
               <label className="block">
                 <span className="mb-1 block text-[10px] font-bold text-muted-foreground">Visual style</span>
                 <select value={slide.visualStyle ?? ""} onChange={(e) => editSlide({ visualStyle: e.target.value ? (e.target.value as VisualStyle) : undefined })} className="w-full rounded-lg border border-border bg-muted px-2 py-1.5 text-[12px] outline-none focus:border-brand-500">
-                  <option value="">Deck default{deck.visualStyle ? ` (${VISUAL_STYLE_LABELS[deck.visualStyle]})` : ""}</option>
+                  <option value="">Deck default{deck.visualStyle ? ` · ${VISUAL_STYLE_LABELS[deck.visualStyle]}` : ""}</option>
                   {VISUAL_STYLES.map((s) => <option key={s} value={s}>{VISUAL_STYLE_LABELS[s]}</option>)}
                 </select>
               </label>
@@ -947,22 +927,130 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                     {INFOGRAPHIC_LAYOUTS.map((l) => <option key={l} value={l}>{layoutLabel(l)}</option>)}
                   </select>
                 </label>
-              ) : (slide.type === "doc" || !slide.type) ? (
-                <label className="mt-2 block">
-                  <span className="mb-1 block text-[10px] font-bold text-muted-foreground">Layout</span>
-                  <select value={slide.layout ?? ""} onChange={(e) => editSlide({ layout: e.target.value ? (e.target.value as SlideLayout) : undefined })} className="w-full rounded-lg border border-border bg-muted px-2 py-1.5 text-[12px] outline-none focus:border-brand-500">
-                    <option value="">Auto</option>
-                    {[...TEXT_LAYOUTS, ...(slide.visual?.url ? IMAGE_LAYOUTS : [])].map((l) => <option key={l} value={l}>{layoutLabel(l)}</option>)}
-                  </select>
-                </label>
-              ) : null}
-              <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">Re-arranges this slide only — same words, narration &amp; co-host video.</p>
+              ) : (slide.type === "doc" || !slide.type) ? (() => {
+                const comp = slide.layout === "full_visual" || slide.visual?.layout === "full" ? "full_bleed"
+                  : slide.layout === "hero_statement" || (!slide.visual?.url && !slide.infographic?.cards?.length) ? "text_only"
+                  : slide.visual?.layout === "left" ? "media_left"
+                  : slide.visual?.url ? "media_right" : "text_only";
+                return (
+                  <>
+                    <label className="mt-2 block">
+                      <span className="mb-1 block text-[10px] font-bold text-muted-foreground">Layout</span>
+                      <select value={slide.layout ?? ""} onChange={(e) => editSlide({ layout: e.target.value ? (e.target.value as SlideLayout) : undefined })} className="w-full rounded-lg border border-border bg-muted px-2 py-1.5 text-[12px] outline-none focus:border-brand-500">
+                        <option value="">Auto · Split hero</option>
+                        {[...TEXT_LAYOUTS, ...(slide.visual?.url ? IMAGE_LAYOUTS : [])].map((l) => <option key={l} value={l}>{layoutLabel(l)}</option>)}
+                      </select>
+                    </label>
+                    <div className="mt-2 grid grid-cols-4 gap-1.5">
+                      {COMPOSITIONS.map((c) => (
+                        <button key={c.key} type="button" onClick={() => {
+                          if (c.key === "media_right") editSlide({ layout: undefined, visual: slide.visual ? { ...slide.visual, layout: "right" } : slide.visual });
+                          else if (c.key === "media_left") editSlide({ layout: undefined, visual: slide.visual ? { ...slide.visual, layout: "left" } : slide.visual });
+                          else if (c.key === "full_bleed") editSlide({ layout: "full_visual", visual: slide.visual ? { ...slide.visual, layout: "full" } : slide.visual });
+                          else editSlide({ layout: "hero_statement" });
+                        }} className={cn("flex flex-col items-center gap-1 rounded-lg border px-1 py-1.5 text-[9.5px] font-bold transition", comp === c.key ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border text-muted-foreground hover:border-brand-500/60")}>
+                          <svg viewBox="0 0 20 14" width="22" height="15" fill="none" stroke="currentColor" strokeWidth="1.2">
+                            <rect x="1" y="1" width="18" height="12" rx="2" />
+                            {c.key === "media_right" ? <><rect x="11" y="3" width="6" height="8" rx="1" fill="currentColor" stroke="none" /><line x1="3.5" y1="4.5" x2="8.5" y2="4.5" /><line x1="3.5" y1="7" x2="8.5" y2="7" /><line x1="3.5" y1="9.5" x2="7" y2="9.5" /></> : null}
+                            {c.key === "media_left" ? <><rect x="3" y="3" width="6" height="8" rx="1" fill="currentColor" stroke="none" /><line x1="11.5" y1="4.5" x2="16.5" y2="4.5" /><line x1="11.5" y1="7" x2="16.5" y2="7" /><line x1="11.5" y1="9.5" x2="15" y2="9.5" /></> : null}
+                            {c.key === "full_bleed" ? <rect x="1" y="1" width="18" height="12" rx="2" fill="currentColor" stroke="none" /> : null}
+                            {c.key === "text_only" ? <><line x1="4" y1="4.5" x2="16" y2="4.5" /><line x1="4" y1="7" x2="16" y2="7" /><line x1="4" y1="9.5" x2="12" y2="9.5" /></> : null}
+                          </svg>
+                          <span>{c.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">Controls how this slide is composed.</p>
+                  </>
+                );
+              })() : null}
+            </Fold>
+
+            {/* SLIDE MEDIA — this slide's own image / video (also the cover slide's image). */}
+            {slide.type === "doc" ? (
+              <Fold title="Slide media" icon={<ImageIcon className="h-3.5 w-3.5 text-brand-400" />}>
+                <div className="flex gap-2.5">
+                  <div className="relative aspect-video w-24 shrink-0 overflow-hidden rounded-lg bg-black ring-1 ring-border">
+                    {slide.videoUrl ? (
+                      <video key={slide.videoUrl} src={slide.videoUrl} className="h-full w-full object-cover" muted loop autoPlay playsInline />
+                    ) : slide.infographic?.cards?.length ? (
+                      <div className="h-full w-full"><DeckSlideView slide={slide} styleKey={deck.visualStyle} /></div>
+                    ) : slide.visual?.kind === "image" && slide.visual.url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={slide.visual.url} src={slide.visual.url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="grid h-full w-full place-items-center bg-gradient-to-br from-[#241f38] to-[#14121f] text-[24px]">{slide.visual?.emoji ?? "🎯"}</div>
+                    )}
+                    {mediaBusy ? <div className="absolute inset-0 grid place-items-center bg-black/65 backdrop-blur-sm"><Loader2 className="h-5 w-5 animate-spin text-white" /></div> : null}
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
+                    {slide.visual?.url || slide.videoUrl || slide.infographic?.cards?.length ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400"><Check className="h-3.5 w-3.5" /> Applied to slide</span>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-muted-foreground">No media on this slide yet</span>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      <button onClick={() => mediaInputRef.current?.click()} disabled={!!mediaBusy} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><RefreshCw className="h-3.5 w-3.5" /> Replace media</button>
+                      {slide.visual?.url || slide.videoUrl || slide.infographic?.cards?.length ? (
+                        <button onClick={() => void removeMedia("visual")} disabled={!!mediaBusy} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold text-muted-foreground hover:border-rose-500 hover:text-rose-500 disabled:opacity-50">{mediaBusy === "remove" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />} Remove</button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+                {/* how the IMAGE displays — fit vs fill + focal + zoom (image only) */}
+                {slide.visual?.kind === "image" && slide.visual.url && !slide.videoUrl && !slide.infographic?.cards?.length ? (
+                  <div className="mt-2.5 space-y-2 border-t border-border pt-2.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="mb-1 block text-[10px] font-bold text-muted-foreground">Fit</span>
+                        <div className="inline-flex w-full rounded-lg border border-border p-0.5">
+                          {([["cover", "Fill"], ["contain", "Fit"]] as const).map(([f, lbl]) => <button key={f} onClick={() => editSlide({ imageFit: f })} className={cn("flex-1 rounded-md px-2 py-1 text-[11px] font-bold transition", (slide.imageFit ?? "cover") === f ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{lbl}</button>)}
+                        </div>
+                      </div>
+                      <label className="block">
+                        <span className="mb-1 block text-[10px] font-bold text-muted-foreground">Focal position</span>
+                        <select value={slide.imageFocal ?? "center"} onChange={(e) => editSlide({ imageFocal: e.target.value === "center" ? undefined : e.target.value })} className="w-full rounded-lg border border-border bg-muted px-2 py-1.5 text-[11.5px] outline-none focus:border-brand-500">
+                          {FOCALS.map((f) => <option key={f.v} value={f.v}>{f.label}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <label className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-muted-foreground">Size</span>
+                      <input type="range" min={70} max={150} value={Math.round((slide.imageZoom ?? 1) * 100)} onChange={(e) => editSlide({ imageZoom: Number(e.target.value) / 100 })} className="flex-1 accent-brand-500" title="Zoom the image so it shows properly" />
+                      <span className="w-9 text-right text-[10px] tabular-nums text-muted-foreground">{Math.round((slide.imageZoom ?? 1) * 100)}%</span>
+                      {slide.imageZoom && slide.imageZoom !== 1 ? <button onClick={() => editSlide({ imageZoom: undefined })} className="text-[10px] font-bold text-muted-foreground hover:text-foreground">Reset</button> : null}
+                    </label>
+                  </div>
+                ) : null}
+                {/* generate / replace with AI */}
+                <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+                  <button onClick={() => void genIllustration()} disabled={!!mediaBusy} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Animate this slide</button>
+                  <button onClick={() => void regenImage()} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><ImageIcon className="h-3.5 w-3.5" /> New image</button>
+                  {slide.videoPrompt && !slide.videoUrl ? (
+                    <button onClick={() => void genVideo()} disabled={busy !== null} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-brand-500/50 px-2 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">{busy === "video" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Rendering…</> : <><Film className="h-3.5 w-3.5" /> Video</>}</button>
+                  ) : (
+                    <button onClick={() => setAiVideoOpen(true)} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><Film className="h-3.5 w-3.5" /> AI video</button>
+                  )}
+                </div>
+                <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground"><b className="text-foreground">Animate this slide</b> designs an on-subject diagram that draws itself with the narration. Or <b className="text-foreground">Replace media</b> to upload your own image/video.</p>
+                <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadMedia(f); e.target.value = ""; }} />
+              </Fold>
+            ) : null}
+
+            {/* AI SLIDE TOOLS — per-slide AI actions (moved out of the top toolbar). */}
+            <div className="rounded-xl border border-border bg-muted/40 p-2.5">
+              <div className="mb-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">AI slide tools</div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button onClick={() => { setRegenInstr(""); setRegenLayout("auto"); setRegenAnn((slide.annotate as NonNullable<DeckSlide["annotate"]>) ?? "circle"); setRegenDraw("keep"); setRegenOpen(true); }} disabled={busy !== null} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50">{busy === "regen" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />} Regenerate</button>
+                <button onClick={() => setRebuildOpen(true)} disabled={busy !== null} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50">{busy === "rebuild" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Rebuild</button>
+                <button onClick={() => setAnimOpen(true)} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500"><PenLine className="h-3.5 w-3.5" /> Animate</button>
+                <button onClick={() => editSlide({ visualStyle: "storytelling" })} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500"><Bot className="h-3.5 w-3.5" /> Storytelling</button>
+              </div>
+              <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">These actions affect only this slide. <b className="text-foreground">Rebuild</b> re-generates the whole deck.</p>
             </div>
 
-            {/* Presenter role — set what this slide IS: normal content, the opening intro, a
-                between-slide talking moment, or the closing outro. Fixes mis-generated structure. */}
-            <div className="rounded-xl border border-border bg-muted/40 p-2.5">
-              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold"><Film className="h-3.5 w-3.5 text-brand-400" /> Presenter role</div>
+            {/* PRESENTER ROLE — what this slide IS: content, opening intro, talking moment, or closing. */}
+            <Fold title="Presenter role" icon={<Film className="h-3.5 w-3.5 text-brand-400" />} defaultOpen={false}>
               {/* Deck-wide summary — the REAL presenter video on each role slide (intro / moments /
                   closing), hover to play, click to jump. So you SEE what's attached, not just a tag. */}
               <div className="mb-2 grid grid-cols-3 gap-1.5">
@@ -1007,8 +1095,8 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               </div>
               {roleOf(slide) === "closing" && !deck.outroVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the outro in <b>Prepare presenter</b> and it’ll play right here.</p> : null}
               {roleOf(slide) === "intro" && !deck.introVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the intro in <b>Prepare presenter</b>.</p> : null}
-              {roleOf(slide) === "intro" ? <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">This is the cover / first slide. Upload its image in <b className="text-brand-300">Slide media</b> below and pick a <b className="text-brand-300">Layout</b> above — a full image needs no layout (or “Full visual”).</p> : null}
-            </div>
+              {roleOf(slide) === "intro" ? <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">This is the cover / first slide — everyone sees it before the training starts. Upload its image in <b className="text-brand-300">Slide media</b> and pick a composition (a full image = <b className="text-brand-300">Full bleed</b>).</p> : null}
+            </Fold>
             {slide.type === "doc" ? (
               <label className="block">
                 <span className="mb-1 block text-[10.5px] font-bold text-muted-foreground">Talking points (one per line)</span>
@@ -1020,63 +1108,48 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               <textarea value={slide.notes ?? ""} onChange={(e) => editSlide({ notes: e.target.value })} className="min-h-[70px] w-full resize-y rounded-lg border border-border bg-muted px-2.5 py-2 text-[12px] outline-none focus:border-brand-500" />
             </label>
 
-            {/* SLIDE MEDIA — the slide's own image/video (also the intro/cover slide's image): upload,
-                regenerate, animate to a diagram, or turn into an AI video, in place. */}
-            {slide.type === "doc" ? (
-              <div className="rounded-xl border border-border bg-muted/40 p-3">
-                <div className="mb-2 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><ImageIcon className="h-3.5 w-3.5" /> Slide media</div>
-                <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black ring-1 ring-border">
-                  {slide.videoUrl ? (
-                    <video key={slide.videoUrl} src={slide.videoUrl} className="h-full w-full object-cover" muted loop autoPlay playsInline />
-                  ) : slide.infographic?.cards?.length ? (
-                    <div className="h-full w-full"><DeckSlideView slide={slide} styleKey={deck.visualStyle} /></div>
-                  ) : slide.visual?.kind === "image" && slide.visual.url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img key={slide.visual.url} src={slide.visual.url} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="grid h-full w-full place-items-center bg-gradient-to-br from-[#241f38] to-[#14121f] text-[30px]">{slide.visual?.emoji ?? "🎯"}</div>
-                  )}
-                  {slide.videoUrl ? <span className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-black text-white backdrop-blur">▶ Video</span> : slide.infographic?.cards?.length ? <span className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-black text-brand-300 backdrop-blur">✨ Animated</span> : null}
-                  {mediaBusy ? (
-                    <div className="absolute inset-0 grid place-items-center bg-black/65 backdrop-blur-sm">
-                      <div className="flex flex-col items-center gap-2 text-white"><Loader2 className="h-6 w-6 animate-spin" /><span className="text-[11px] font-semibold">{mediaBusy === "aivideo" ? "Rendering video…" : mediaBusy === "illustration" ? "Designing illustration…" : mediaBusy === "regen" ? "Generating image…" : "Uploading…"}</span></div>
-                    </div>
-                  ) : null}
-                </div>
-                <div className="mt-2 grid grid-cols-2 gap-1.5">
-                  <button onClick={() => void genIllustration()} disabled={!!mediaBusy} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Animate this slide</button>
-                  <button onClick={() => mediaInputRef.current?.click()} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><Upload className="h-3.5 w-3.5" /> Upload</button>
-                  <button onClick={() => void regenImage()} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><RefreshCw className="h-3.5 w-3.5" /> New image</button>
-                  {slide.visual?.url || slide.videoUrl || slide.infographic?.cards?.length ? (
-                    <button onClick={() => void removeMedia("visual")} disabled={!!mediaBusy} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold text-muted-foreground hover:border-rose-500 hover:text-rose-500 disabled:opacity-50">{mediaBusy === "remove" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Remove media</button>
-                  ) : null}
-                </div>
-                {/* how the image DISPLAYS — fit the whole image (so nothing is cut off) or fill; + a size zoom */}
-                {slide.visual?.kind === "image" && slide.visual.url && !slide.videoUrl && !slide.infographic?.cards?.length ? (
-                  <div className="mt-2 space-y-2 border-t border-border pt-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-muted-foreground">Display</span>
-                      <div className="inline-flex rounded-lg border border-border p-0.5">
-                        {([["", "Auto"], ["contain", "Fit whole"], ["cover", "Fill"]] as const).map(([f, lbl]) => <button key={f || "auto"} onClick={() => editSlide({ imageFit: f || undefined })} className={cn("rounded-md px-2 py-1 text-[11px] font-bold transition", (slide.imageFit ?? "") === f ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground")}>{lbl}</button>)}
-                      </div>
-                    </div>
-                    <label className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-muted-foreground">Size</span>
-                      <input type="range" min={70} max={150} value={Math.round((slide.imageZoom ?? 1) * 100)} onChange={(e) => editSlide({ imageZoom: Number(e.target.value) / 100 })} className="flex-1 accent-brand-500" title="Zoom the image so it shows properly" />
-                      <span className="w-9 text-right text-[10px] tabular-nums text-muted-foreground">{Math.round((slide.imageZoom ?? 1) * 100)}%</span>
-                      {slide.imageZoom && slide.imageZoom !== 1 ? <button onClick={() => editSlide({ imageZoom: undefined })} className="text-[10px] font-bold text-muted-foreground hover:text-foreground">Reset</button> : null}
-                    </label>
-                  </div>
-                ) : null}
-                <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground"><b className="text-foreground">Animate this slide</b> designs an on-subject diagram (cards, icons, connectors) that draws itself in step with the narration — no video render. Or upload your own image/video. <button onClick={() => setAiVideoOpen(true)} disabled={!!mediaBusy} className="text-brand-400 underline disabled:opacity-50">Prefer a rendered AI video?</button></p>
-                <input ref={mediaInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadMedia(f); e.target.value = ""; }} />
-              </div>
-            ) : null}
-
             {/* CO-HOST VIDEO — replace this slide's image with the co-host narrating it, on the left/right. */}
             {slide.type === "doc" ? (
               <div className="rounded-xl border border-border bg-muted/40 p-3">
-                <div className="mb-2 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><Film className="h-3.5 w-3.5" /> Co-host video</div>
+                <div className="mb-2 flex items-center gap-1.5">
+                  <Film className="h-3.5 w-3.5 text-brand-300" />
+                  <span className="text-[10px] font-extrabold uppercase tracking-wide text-brand-300">Co-host video</span>
+                  <button ref={stageBtnRef} onClick={() => setStageMenuOpen((o) => !o)} title="Stage layout — how the co-host shares the stage with your slides" className={cn("ms-auto inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold hover:border-brand-500", stageMenuOpen ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border text-muted-foreground")}>
+                    <Presentation className="h-3 w-3" /> Stage: {STAGE_MODE_LABELS[deck.stageLayout?.mode ?? "cohost_right"]} ▾
+                  </button>
+                </div>
+                {stageMenuOpen && typeof document !== "undefined" ? createPortal(
+                  <>
+                    <div className="fixed inset-0 z-[80]" onClick={() => setStageMenuOpen(false)} />
+                    <div className="fixed z-[81] w-[250px] rounded-xl border border-border bg-card p-2.5 shadow-2xl" style={(() => { const r = stageBtnRef.current?.getBoundingClientRect(); const w = 250; return { top: (r?.bottom ?? 60) + 6, left: Math.max(8, Math.min((r?.right ?? 300) - w, window.innerWidth - w - 8)) }; })()}>
+                      <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Stage layout</div>
+                      {STAGE_MODES.map((m) => (
+                        <button key={m} onClick={() => setStage({ mode: m })} className={cn("mb-1 flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-[11.5px] font-bold", (deck.stageLayout?.mode ?? "cohost_right") === m ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/50")}>
+                          <svg viewBox="0 0 20 14" width="18" height="13" fill="none" stroke="currentColor" strokeWidth="1.5" className="shrink-0 text-brand-400"><rect x="1" y="1" width="18" height="12" rx="2" />{m === "cohost_right" ? <line x1="13" y1="1" x2="13" y2="13" /> : null}{m === "cohost_bottom" ? <line x1="1" y1="9" x2="19" y2="9" /> : null}{m === "floating" ? <rect x="12" y="7" width="6" height="5" rx="1" fill="currentColor" /> : null}</svg>
+                          {STAGE_MODE_LABELS[m]}
+                        </button>
+                      ))}
+                      <div className="mb-1 mt-2 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Co-host size</div>
+                      <div className="grid grid-cols-3 gap-1">
+                        {(["s", "m", "l"] as const).map((z) => <button key={z} onClick={() => setStage({ size: z })} className={cn("rounded-lg border py-1.5 text-[11px] font-bold", (deck.stageLayout?.size ?? "m") === z ? "border-brand-500 bg-brand-500/10" : "border-border hover:border-brand-500/50")}>{z === "s" ? "Small" : z === "l" ? "Large" : "Medium"}</button>)}
+                      </div>
+                      <label className="mt-2.5 flex cursor-pointer items-center gap-2 text-[11px] font-semibold"><input type="checkbox" className="accent-brand-500" checked={deck.stageLayout?.keepVisible ?? true} onChange={(e) => setStage({ keepVisible: e.target.checked })} /> Keep co-host visible</label>
+                      <label className="mt-1.5 flex cursor-pointer items-center gap-2 text-[11px] font-semibold"><input type="checkbox" className="accent-brand-500" checked={deck.stageLayout?.hideOnFullVisual ?? false} onChange={(e) => setStage({ hideOnFullVisual: e.target.checked })} /> Hide on full-visual slides</label>
+                      {(deck.stageLayout?.mode ?? "cohost_right") !== "presentation" ? (
+                        <div className="mt-2.5 border-t border-border pt-2.5">
+                          <div className="mb-1 text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">Co-host video</div>
+                          {ready.loop ? (
+                            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400"><Check className="h-3.5 w-3.5 shrink-0" /> Ready — the co-host speaks your narration beside the slides.</div>
+                          ) : (
+                            <button onClick={() => { setStageMenuOpen(false); void animate(); }} disabled={busy !== null} className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-3 py-2 text-[11.5px] font-extrabold text-white disabled:opacity-50">{busy === "animate" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating…</> : <><Film className="h-3.5 w-3.5" /> Generate co-host video</>}</button>
+                          )}
+                          <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">Hit <b>Preview</b> to see the co-host on the {STAGE_MODE_LABELS[deck.stageLayout?.mode ?? "cohost_right"].toLowerCase()}.</p>
+                        </div>
+                      ) : null}
+                    </div>
+                  </>,
+                  document.body,
+                ) : null}
                 {slide.cohostVideoUrl ? (
                   <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black ring-1 ring-border">
                     {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
