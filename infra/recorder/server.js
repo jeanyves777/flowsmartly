@@ -15,7 +15,7 @@
  * ticket the app minted. See DEPLOY.md for the box setup (Chrome, ffmpeg, Xvfb, Pulse).
  */
 const http = require("http");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -56,6 +56,20 @@ let nextDisplay = 99;
 const once = (proc, ev) => new Promise((res) => proc.once(ev, res));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Measure a file's loudness (dBFS) via ffmpeg volumedetect (writes to stderr). Used to PROVE a
+// recording has real sound, not just an AAC track — the check that would have caught --mute-audio.
+function measureVolumeDb(file) {
+  try {
+    const r = spawnSync("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-af", "volumedetect", "-f", "null", "-"], { encoding: "utf8", maxBuffer: 1 << 24 });
+    const text = (r.stderr || "") + (r.stdout || "");
+    const mean = /mean_volume:\s*(-?[\d.]+) dB/.exec(text);
+    const max = /max_volume:\s*(-?[\d.]+) dB/.exec(text);
+    return { mean: mean ? parseFloat(mean[1]) : null, max: max ? parseFloat(max[1]) : null };
+  } catch {
+    return { mean: null, max: null };
+  }
+}
+
 async function startJob(sessionId, token) {
   if (jobs.has(sessionId)) return; // already recording
   const display = `:${nextDisplay++}`;
@@ -88,7 +102,10 @@ async function startJob(sessionId, token) {
         "--use-fake-ui-for-media-stream", // auto-accept mic/cam prompts (we don't produce)
         "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
         "--force-device-scale-factor=1", "--high-dpi-support=1",
-        "--hide-scrollbars", "--mute-audio=false",
+        "--hide-scrollbars",
+        // NB: do NOT pass --mute-audio at all. Chromium reads kMuteAudio with HasSwitch(), so even
+        // "--mute-audio=false" MUTES (the switch is present) — it still opens the output stream and
+        // pushes ZERO-filled frames, so the recording captured pure silence (-91 dB). Omit it entirely.
       ],
       env: { ...process.env, DISPLAY: display },
       defaultViewport: { width: W, height: H },
@@ -168,12 +185,12 @@ async function runSelfTest() {
     await sleep(1200);
     browser = await puppeteer.launch({
       headless: false, executablePath: CHROME_PATH,
-      args: [`--display=${display}`, `--window-size=${W},${H}`, "--kiosk", "--start-fullscreen", "--autoplay-policy=no-user-gesture-required", "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--force-device-scale-factor=1", "--hide-scrollbars", "--mute-audio=false"],
+      args: [`--display=${display}`, `--window-size=${W},${H}`, "--kiosk", "--start-fullscreen", "--autoplay-policy=no-user-gesture-required", "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--force-device-scale-factor=1", "--hide-scrollbars"], // NO --mute-audio: HasSwitch() means its mere presence mutes (zero-filled frames → silent capture)
       env: { ...process.env, DISPLAY: display }, defaultViewport: { width: W, height: H },
     });
     const page = (await browser.pages())[0] || (await browser.newPage());
     await page.setViewport({ width: W, height: H });
-    const html = "data:text/html," + encodeURIComponent(`<!doctype html><html><body style="margin:0;height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,#141024,#3a2f6b);color:#fff;font:800 4.5vw system-ui,sans-serif;text-align:center"><div>FlowSmartly recorder self-test<div id=t style="font:600 2vw system-ui;opacity:.8;margin-top:1vw"></div></div><script>const c=new(window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator(),g=c.createGain();g.gain.value=.04;o.frequency.value=440;o.connect(g).connect(c.destination);o.start();c.resume&&c.resume();let n=0;setInterval(()=>{document.getElementById('t').textContent=(++n)+'s · ${W}×${H} · audio+video';},1000);</script></body></html>`);
+    const html = "data:text/html," + encodeURIComponent(`<!doctype html><html><body style="margin:0;height:100vh;display:grid;place-items:center;background:linear-gradient(135deg,#141024,#3a2f6b);color:#fff;font:800 4.5vw system-ui,sans-serif;text-align:center"><div>FlowSmartly recorder self-test<div id=t style="font:600 2vw system-ui;opacity:.8;margin-top:1vw"></div></div><script>const c=new(window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator(),g=c.createGain();g.gain.value=.2;o.frequency.value=440;o.connect(g).connect(c.destination);o.start();c.resume&&c.resume();let n=0;setInterval(()=>{document.getElementById('t').textContent=(++n)+'s · ${W}×${H} · audio+video';},1000);</script></body></html>`);
     await page.goto(html, { waitUntil: "load", timeout: 20000 });
     try { await page.mouse.click(Math.floor(W / 2), Math.floor(H / 2)); } catch {}
     await sleep(800);
@@ -194,10 +211,17 @@ async function runSelfTest() {
   }
   const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
   if (!stat || stat.size < 2048) throw new Error("self-test produced an empty file (check Xvfb/ffmpeg/Pulse)");
+  // ASSERT there is actual SOUND, not just an AAC track. Digital silence = -91 dB; the test tone is
+  // ~-14 dB, so a huge gap. This is the tripwire that would have caught the --mute-audio regression —
+  // an existing stream is NOT proof of audio; only measured volume is. [[training-recording]]
+  const vol = measureVolumeDb(filePath);
+  if (vol.max === null || vol.max < -80) {
+    throw new Error(`self-test AUDIO is SILENT (max_volume=${vol.max ?? "?"} dB, mean=${vol.mean ?? "?"} dB) — Chrome produced no sound. Check: NO --mute-audio flag (any value mutes via HasSwitch), PulseAudio up, PULSE_SOURCE=rec.monitor, --autoplay-policy=no-user-gesture-required.`);
+  }
   const key = `training/_selftest/${Date.now()}.mp4`;
   await s3.send(new PutObjectCommand({ Bucket: S3_BUCKET, Key: key, Body: fs.readFileSync(filePath), ContentType: "video/mp4" }));
   try { fs.unlinkSync(filePath); } catch {}
-  return { url: `${S3_PUBLIC_URL}/${key}`, sizeBytes: stat.size, resolution: `${W}x${H}`, fps: FPS };
+  return { url: `${S3_PUBLIC_URL}/${key}`, sizeBytes: stat.size, resolution: `${W}x${H}`, fps: FPS, audioMaxDb: vol.max, audioMeanDb: vol.mean };
 }
 
 /** ABORT a recording: stop + DISCARD the file (never uploaded/registered). Used by the app's
