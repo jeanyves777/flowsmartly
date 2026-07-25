@@ -7,7 +7,7 @@
  * share / rename / delete. Recordings are registered by the recorder bot (server-side capture);
  * this is where they land. [[training-studio]] [[training-recording]]
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X, Search, Play, Download, Link2, Pencil, Trash2, GraduationCap, Clock, Users, Radio, Calendar, Check, Loader2, Film } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
@@ -54,6 +54,17 @@ export function TrainingLibrary({ rows, currentId, onOpen, onWatch, onClose, rel
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+
+  // A recording finishes uploading a little AFTER the session ends, so the library was stale until a
+  // manual page refresh. Refresh on open + poll while open so new recordings appear on their own.
+  const reloadRef = useRef(reload);
+  reloadRef.current = reload;
+  useEffect(() => {
+    let alive = true;
+    void reloadRef.current();
+    const id = setInterval(() => { if (alive) void reloadRef.current(); }, 8000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
