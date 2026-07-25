@@ -121,6 +121,9 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   // Stage layout — how the co-host video shares the stage with the slides. Merge into deck.stageLayout.
   const [stageMenuOpen, setStageMenuOpen] = useState(false);
   const stageBtnRef = useRef<HTMLButtonElement | null>(null);
+  // Session cover — a DECK-LEVEL setting, reachable from the toolbar on any slide (portalled popover).
+  const [coverMenuOpen, setCoverMenuOpen] = useState(false);
+  const coverBtnRef = useRef<HTMLButtonElement | null>(null);
   const setStage = (patch: Partial<StageLayout>) =>
     editDeck({ stageLayout: { ...(deck?.stageLayout ?? { mode: "cohost_right", size: "m", keepVisible: true }), ...patch } });
 
@@ -827,6 +830,34 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             </>,
             document.body,
           ) : null}
+          {/* SESSION COVER — deck-level; the FIRST slide everyone sees, the lobby screen & the thumbnail.
+              In the toolbar (not a slide's edit panel) so it's reachable from any slide and never reads
+              as applying to the current slide. Portalled so the toolbar's overflow can't clip it. */}
+          <button ref={coverBtnRef} onClick={() => setCoverMenuOpen((o) => !o)} title="Session cover — the first slide everyone sees, the lobby screen and the thumbnail" className={cn("inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold hover:border-brand-500", (coverMenuOpen || deck.coverImageUrl) ? "border-brand-500 bg-brand-500/10" : "border-border")}>
+            <ImageIcon className="h-3.5 w-3.5 shrink-0 text-brand-400" /> Cover{deck.coverImageUrl ? " ✓" : ""} ▾
+          </button>
+          {coverMenuOpen && typeof document !== "undefined" ? createPortal(
+            <>
+              <div className="fixed inset-0 z-[80]" onClick={() => setCoverMenuOpen(false)} />
+              <div className="fixed z-[81] w-[280px] rounded-xl border border-border bg-card p-2.5 shadow-2xl" style={(() => { const r = coverBtnRef.current?.getBoundingClientRect(); const w = 280; return { top: (r?.bottom ?? 60) + 6, left: Math.max(8, Math.min((r?.left ?? 300), window.innerWidth - w - 8)) }; })()}>
+                <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><ImageIcon className="h-3.5 w-3.5" /> Session cover</div>
+                {deck.coverImageUrl ? (
+                  <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black ring-1 ring-border">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img key={deck.coverImageUrl} src={deck.coverImageUrl} alt="" className="h-full w-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="grid aspect-video w-full place-items-center rounded-lg bg-muted px-4 text-center text-[10.5px] leading-snug text-muted-foreground">Upload a cover — it becomes the first slide (no text over it), the lobby screen &amp; the session thumbnail.</div>
+                )}
+                <div className="mt-2 flex items-center gap-1.5">
+                  <button onClick={() => coverInputRef.current?.click()} disabled={mediaBusy === "cover"} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50">{mediaBusy === "cover" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…</> : <><Upload className="h-3.5 w-3.5" /> {deck.coverImageUrl ? "Replace cover" : "Upload cover"}</>}</button>
+                  {deck.coverImageUrl ? <button onClick={() => editDeck({ coverImageUrl: null })} disabled={mediaBusy === "cover"} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold text-muted-foreground hover:border-rose-500 hover:text-rose-500 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /> Remove</button> : null}
+                </div>
+                <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadCover(f); e.target.value = ""; }} />
+              </div>
+            </>,
+            document.body,
+          ) : null}
           {slide?.videoPrompt && !slide?.videoUrl ? (
             <button onClick={() => void genVideo()} disabled={busy !== null} title="Generate the ~15s demonstration video for this slide" className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-brand-500/50 px-2.5 py-1.5 text-[11px] font-bold text-brand-300 hover:bg-brand-500/10 disabled:opacity-50">
               {busy === "video" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Rendering…</> : <><Film className="h-3.5 w-3.5" /> Video</>}
@@ -1022,27 +1053,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               </div>
               {roleOf(slide) === "closing" && !deck.outroVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the outro in <b>Prepare presenter</b> and it’ll play right here.</p> : null}
               {roleOf(slide) === "intro" && !deck.introVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the intro in <b>Prepare presenter</b>.</p> : null}
-              {/* SESSION COVER — deck-level, but only surfaced on the INTRO ("Welcome") slide (it IS that
-                  slide's image), so it doesn't read as applying to a content / co-host slide. It's the
-                  clean first slide everyone sees, the lobby screen, and the session thumbnail. */}
-              {roleOf(slide) === "intro" ? (
-                <div className="mt-2.5 border-t border-border pt-2.5">
-                  <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><ImageIcon className="h-3.5 w-3.5" /> Session cover</div>
-                  {deck.coverImageUrl ? (
-                    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black ring-1 ring-border">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img key={deck.coverImageUrl} src={deck.coverImageUrl} alt="" className="h-full w-full object-cover" />
-                    </div>
-                  ) : (
-                    <div className="grid aspect-video w-full place-items-center rounded-lg bg-muted px-4 text-center text-[10.5px] leading-snug text-muted-foreground">Upload a cover — it becomes the first slide (no text over it), the lobby screen &amp; the session thumbnail.</div>
-                  )}
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <button onClick={() => coverInputRef.current?.click()} disabled={mediaBusy === "cover"} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50">{mediaBusy === "cover" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…</> : <><Upload className="h-3.5 w-3.5" /> {deck.coverImageUrl ? "Replace cover" : "Upload cover"}</>}</button>
-                    {deck.coverImageUrl ? <button onClick={() => editDeck({ coverImageUrl: null })} disabled={mediaBusy === "cover"} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold text-muted-foreground hover:border-rose-500 hover:text-rose-500 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /> Remove</button> : null}
-                  </div>
-                  <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadCover(f); e.target.value = ""; }} />
-                </div>
-              ) : null}
+              {roleOf(slide) === "intro" ? <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">Set this slide&apos;s image from <b className="text-brand-300">Cover</b> in the top toolbar (it&apos;s the whole session&apos;s cover).</p> : null}
             </div>
             {slide.type === "doc" ? (
               <label className="block">

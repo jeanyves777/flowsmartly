@@ -590,7 +590,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
     const isQuote = lay === "quote", isDivider = lay === "section_divider", isClosing = lay === "closing";
     return (
       <div className={cn("relative grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] text-white [container-type:inline-size]", className)}>
-        {hasImg ? <img src={v!.url} alt="" className="absolute inset-0 h-full w-full object-cover opacity-30" /> : null}
+        {hasImg ? <img src={v!.url} alt="" className={cn("absolute inset-0 h-full w-full opacity-30", imgFit === "contain" ? "object-contain" : "object-cover")} style={imgZoomStyle} /> : null}
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/35 to-black/55" />
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div className="relative z-[3] max-w-[88%] px-[7%] text-center">
@@ -652,7 +652,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
   if (lay === "full_visual" && hasImg) {
     return (
       <div className={cn("relative h-full w-full overflow-hidden bg-black [container-type:inline-size]", className)}>
-        <img src={v!.url} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={v!.url} alt="" className={cn("absolute inset-0 h-full w-full", imgFit === "contain" ? "object-contain" : "object-cover")} style={imgZoomStyle} />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/25" />
         <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" />
         <div className="absolute inset-x-0 bottom-0 z-[3] px-[7%] pb-[6%] text-white">
@@ -767,7 +767,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
         <div className="relative aspect-[4/3] overflow-hidden rounded-[1.4cqw] bg-gradient-to-br from-[#2a2440] to-[#3a2f52] ring-1 ring-[rgb(var(--sfg)/.10)]">
           {hasImg ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={v!.url} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            <img src={v!.url} alt="" className={cn("absolute inset-0 h-full w-full", imgFit === "contain" ? "object-contain" : "object-cover")} style={imgZoomStyle} />
           ) : <span className="grid h-full w-full place-items-center text-[8cqw]">{v?.emoji ?? "🏢"}</span>}
         </div>
       </div>
@@ -882,7 +882,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
         </div>
         <div className="relative mt-[1.8cqw] min-h-0 flex-1 overflow-hidden rounded-[1.4cqw] bg-[rgb(var(--sfg)/0.04)] ring-1 ring-[rgb(var(--sfg)/.10)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={v!.url} alt="" className="absolute inset-0 h-full w-full object-contain p-[1.6%]" />
+          <img src={v!.url} alt="" className={cn("absolute inset-0 h-full w-full", imgFit === "cover" ? "object-cover" : "object-contain p-[1.6%]")} style={imgZoomStyle} />
           {v?.tag ? <span className="absolute bottom-[1.2cqw] left-[1.2cqw] rounded-md bg-black/55 px-[1.6cqw] py-[.6cqw] text-[clamp(4px,1.2cqw,11px)] font-black backdrop-blur">{v.tag}</span> : null}
         </div>
         {shownB.length ? (
