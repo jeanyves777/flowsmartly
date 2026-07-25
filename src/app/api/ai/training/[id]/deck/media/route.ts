@@ -78,8 +78,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: true, data: { slideId, url, kind: isVideo ? "video" : "image", session: await getSessionDTO(id) } });
   }
 
+  const body = (await request.json().catch(() => ({}))) as { materialId?: string; slideId?: string; action?: string; instruction?: string; what?: string };
+
+  // ---- REMOVE media from a slide. Writes the deck directly (no `?? prev` merge), so the clear
+  //      actually sticks — the /deck PATCH merge deliberately preserves media across autosaves. ----
+  if (body.action === "remove_media") {
+    const loaded = await load(body.materialId || "", body.slideId || "");
+    if (!loaded) return err("That slide no longer exists", 404);
+    const { mat, deck, idx } = loaded, slide = deck.slides[idx];
+    deck.slides[idx] = body.what === "cohost"
+      ? { ...slide, cohostVideoUrl: undefined }
+      : { ...slide, visual: undefined, videoUrl: undefined, infographic: undefined, visualType: undefined };
+    await prisma.trainingMaterial.update({ where: { id: mat.id }, data: { deck: JSON.stringify(deck) } });
+    return NextResponse.json({ success: true, data: { session: await getSessionDTO(id) } });
+  }
+
   // ---- regenerate the image with AI ----
-  const body = (await request.json().catch(() => ({}))) as { materialId?: string; slideId?: string; action?: string; instruction?: string };
   if (body.action !== "regenerate_image") return err("Unknown action");
   const loaded = await load(body.materialId || "", body.slideId || "");
   if (!loaded) return err("That slide no longer exists", 404);
