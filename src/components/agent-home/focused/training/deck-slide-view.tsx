@@ -505,6 +505,8 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
     const cohostVideo = <video ref={cohostVideoRef} src={slide.cohostVideoUrl} autoPlay={cohostAutoPlay} muted={!cohostAudio} loop={!cohostAudio} playsInline onEnded={onCohostEnded} onTimeUpdate={onCohostTime ? (e) => { const v = e.currentTarget; if (v.duration && isFinite(v.duration)) onCohostTime(v.currentTime / v.duration); } : undefined} className="h-full w-full object-cover" />;
     const cohostBadge = <span className="absolute bottom-[1.2cqw] left-[1.2cqw] inline-flex items-center gap-1 rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black text-white backdrop-blur"><span className="h-[.9cqw] w-[.9cqw] rounded-full bg-emerald-400" /> Co-host</span>;
     const diagram = <InfographicView spec={slide.infographic!} reveal={reveal} title={md(slide.title)} subtitle={slide.subtitle ? md(slide.subtitle) : undefined} />;
+    // Beside the co-host the diagram lives in a narrow, tall column — render it BIG + stacked (see InfographicView `beside`).
+    const diagramBeside = <InfographicView spec={slide.infographic!} reveal={reveal} beside title={md(slide.title)} subtitle={slide.subtitle ? md(slide.subtitle) : undefined} />;
     const textContent = (
       <>
         <h1 className="text-[clamp(11px,3.8cqw,38px)] font-extrabold leading-tight tracking-tight">{T(slide.title)}</h1>
@@ -554,7 +556,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
       <div ref={hostRef} className={cn("relative grid h-full w-full overflow-hidden bg-gradient-to-br from-[var(--sbg1)] to-[var(--sbg2)] text-[rgb(var(--sfg))] [container-type:inline-size]", cols, full ? "items-stretch gap-0" : "items-center gap-[4%] px-[6%] py-[6%]", className)}>
         {!full ? <span className="absolute inset-y-0 left-0 z-[2] w-2 bg-gradient-to-b from-[var(--sa)] to-[var(--sa2)]" /> : null}
         {hasDiagram ? (
-          <div className={cn("relative h-full min-w-0 self-stretch [container-type:inline-size]", !videoRight && "order-2")}>{diagram}</div>
+          <div className={cn("relative h-full min-w-0 self-stretch [container-type:inline-size]", !videoRight && "order-2")}>{diagramBeside}</div>
         ) : (
           <div className={cn("flex min-w-0 flex-col justify-center", !videoRight && "order-2", full && "px-[6%] py-[6%]")}>{textContent}</div>
         )}
