@@ -28,9 +28,19 @@ export async function GET() {
       endedAt: true,
       recordingUrl: true,
       creditsSpent: true,
+      materials: { where: { kind: "slides" }, select: { deck: true }, orderBy: { createdAt: "asc" } },
       _count: { select: { participants: true, segments: true } },
     },
   });
+
+  // A deck's uploaded cover image becomes the library card thumbnail (when there's no recording yet).
+  const coverOf = (mats: { deck: string | null }[]): string | null => {
+    for (const m of mats) {
+      if (!m.deck) continue;
+      try { const c = (JSON.parse(m.deck) as { coverImageUrl?: string | null }).coverImageUrl; if (c) return c; } catch { /* skip */ }
+    }
+    return null;
+  };
 
   return NextResponse.json({
     success: true,
@@ -46,6 +56,7 @@ export async function GET() {
         startedAt: r.startedAt?.toISOString() ?? null,
         endedAt: r.endedAt?.toISOString() ?? null,
         recordingUrl: r.recordingUrl,
+        coverImageUrl: coverOf(r.materials),
         creditsSpent: r.creditsSpent,
         participantCount: r._count.participants,
         segmentCount: r._count.segments,

@@ -103,6 +103,13 @@ export function parseDeck(raw: string | null | undefined): TrainingDeck {
       voiceKey: d.voiceKey ?? null,
       visualStyle: d.visualStyle,
       handStyle: d.handStyle,
+      // Round-trip the rest of the deck-level settings too — parseDeck rebuilds field-by-field, so
+      // anything omitted here is WIPED whenever a route re-parses + re-saves the deck (e.g. a media
+      // upload), which silently lost the stage layout / framing / board style / cover.
+      boardStyle: d.boardStyle,
+      presenterFit: d.presenterFit,
+      stageLayout: d.stageLayout,
+      coverImageUrl: d.coverImageUrl ?? null,
     };
   } catch {
     return { v: 1, slides: [] };

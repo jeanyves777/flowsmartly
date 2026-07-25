@@ -536,10 +536,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   };
 
   // ---- slide media: upload your own / regenerate the image / turn it into an AI video ----
-  const [mediaBusy, setMediaBusy] = useState<null | "upload" | "regen" | "aivideo" | "illustration">(null);
+  const [mediaBusy, setMediaBusy] = useState<null | "upload" | "regen" | "aivideo" | "illustration" | "cover">(null);
   const [aiVideoOpen, setAiVideoOpen] = useState(false);
   const [aiVideoStyle, setAiVideoStyle] = useState("3d");
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
+  const coverInputRef = useRef<HTMLInputElement | null>(null);
   const setSlideMedia = (patch: Partial<DeckSlide>) => setDeck((d) => { if (!d || !slide) return d; const next = { ...d, slides: d.slides.map((x) => (x.id === slide.id ? { ...x, ...patch } : x)) }; persist(next); return next; });
   const styleType = (): VisualType => (slide?.visual?.style === "3d" ? "3d" : slide?.visual?.style === "illustration" ? "illustration" : "photo");
 
@@ -555,6 +556,20 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       const url = j.data.url as string, kind = j.data.kind as string;
       setSlideMedia(kind === "video" ? { videoUrl: url, visualType: "video" } : { visual: { ...(slide.visual ?? { kind: "image" }), kind: "image", url }, videoUrl: undefined, visualType: styleType() });
       toast({ title: kind === "video" ? "Video added to the slide" : "Image replaced" });
+    } finally { setMediaBusy(null); }
+  };
+  // Upload a DECK-LEVEL cover image (intro/first-slide background + library thumbnail + lobby screen).
+  const uploadCover = async (file: File) => {
+    if (!mat || !slide) return;
+    setMediaBusy("cover");
+    try {
+      const fd = new FormData();
+      fd.append("file", file); fd.append("materialId", mat.id); fd.append("slideId", slide.id); fd.append("target", "cover");
+      const j = await fetch(`/api/ai/training/${sessionId}/deck/media`, { method: "POST", body: fd }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't upload the cover", variant: "destructive" }); return; }
+      onSession(j.data.session as TrainingSessionDTO);
+      editDeck({ coverImageUrl: j.data.url as string });
+      toast({ title: "Cover image set", description: "It's the first slide everyone sees and the session thumbnail." });
     } finally { setMediaBusy(null); }
   };
   const regenImage = async () => {
@@ -815,7 +830,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   <StageLayoutView
                     layout={deck.stageLayout}
                     fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
-                    slide={<DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} writeMs={previewWriteMs} cohostAudio={!!slide.cohostVideoUrl} onCohostEnded={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} onCohostTime={slide.cohostVideoUrl ? (frac) => { const { fracs, steps } = previewFracsRef.current; if (steps < 2) return; const target = fracs && fracs.length >= 2 && fracs.length === steps ? revealStepAt(frac, fracs, steps) : Math.min(steps, Math.max(1, Math.floor(frac * steps) + 1)); setPreviewStep((p) => (target > (p ?? 1) ? target : p)); } : undefined} />}
+                    slide={<DeckSlideView slide={slide} reveal={previewStep} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} writeMs={previewWriteMs} coverUrl={deck.coverImageUrl} cohostAudio={!!slide.cohostVideoUrl} onCohostEnded={() => setPage((p) => Math.min(deck.slides.length - 1, p + 1))} onCohostTime={slide.cohostVideoUrl ? (frac) => { const { fracs, steps } = previewFracsRef.current; if (steps < 2) return; const target = fracs && fracs.length >= 2 && fracs.length === steps ? revealStepAt(frac, fracs, steps) : Math.min(steps, Math.max(1, Math.floor(frac * steps) + 1)); setPreviewStep((p) => (target > (p ?? 1) ? target : p)); } : undefined} />}
                     cohost={(slide.cohostVideoUrl || slide.avatarFloat) ? null : (loopUrl ? <SeamlessLoop url={loopUrl} /> : null)}
                   />
                   {slide.avatarFloat && loopUrl && !slide.cohostVideoUrl ? (
@@ -862,7 +877,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               <StageLayoutView
                 layout={deck.stageLayout}
                 fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
-                slide={<DeckSlideView slide={slide} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} />}
+                slide={<DeckSlideView slide={slide} styleKey={deck.visualStyle} hand={deck.handStyle} board={deck.boardStyle} coverUrl={deck.coverImageUrl} />}
                 cohost={loopUrl ? <SeamlessLoop url={loopUrl} /> : null}
               />
             </div>
@@ -956,6 +971,26 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               </div>
               {roleOf(slide) === "closing" && !deck.outroVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the outro in <b>Prepare presenter</b> and it’ll play right here.</p> : null}
               {roleOf(slide) === "intro" && !deck.introVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the intro in <b>Prepare presenter</b>.</p> : null}
+              {/* COVER IMAGE — only on the intro slide. The first slide everyone sees before the training
+                  starts, the lobby screen, and the session thumbnail. Placeholder until the user uploads. */}
+              {roleOf(slide) === "intro" ? (
+                <div className="mt-2.5 border-t border-border pt-2.5">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><ImageIcon className="h-3.5 w-3.5" /> Cover image</div>
+                  {deck.coverImageUrl ? (
+                    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black ring-1 ring-border">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img key={deck.coverImageUrl} src={deck.coverImageUrl} alt="" className="h-full w-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="grid aspect-video w-full place-items-center rounded-lg bg-muted px-4 text-center text-[10.5px] leading-snug text-muted-foreground">Upload a cover — it becomes the first slide, the lobby screen &amp; the session thumbnail.</div>
+                  )}
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <button onClick={() => coverInputRef.current?.click()} disabled={mediaBusy === "cover"} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50">{mediaBusy === "cover" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…</> : <><Upload className="h-3.5 w-3.5" /> {deck.coverImageUrl ? "Replace cover" : "Upload cover"}</>}</button>
+                    {deck.coverImageUrl ? <button onClick={() => editDeck({ coverImageUrl: null })} disabled={mediaBusy === "cover"} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold text-muted-foreground hover:border-rose-500 hover:text-rose-500 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" /> Remove</button> : null}
+                  </div>
+                  <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadCover(f); e.target.value = ""; }} />
+                </div>
+              ) : null}
             </div>
             {slide.type === "doc" ? (
               <label className="block">

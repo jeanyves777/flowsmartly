@@ -487,6 +487,9 @@ export interface TrainingDeck {
   presenterFit?: PresenterFit;
   /** how the co-host video shares the stage with the slides during the presentation. */
   stageLayout?: StageLayout;
+  /** a user-uploaded COVER image rendered as the intro/first-slide background (the "Welcome" slide) —
+   *  also the training's thumbnail and the lobby screen everyone sees before the session starts. */
+  coverImageUrl?: string | null;
 }
 
 // ------------------------------------------------------------ Stage layout

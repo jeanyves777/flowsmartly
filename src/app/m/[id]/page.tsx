@@ -86,12 +86,20 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
     );
   }
 
-  // Admitted but the room isn't live yet — hold with the start time.
+  // Admitted but the room isn't live yet — hold with the start time (over the deck's cover, if any).
   if (session.status !== "live") {
     const starts = session.startsAt ? new Date(session.startsAt) : null;
+    const cover = session.materials?.find((m) => m.kind === "slides")?.deck?.coverImageUrl ?? null;
     return (
-      <div className="grid min-h-screen place-items-center bg-gradient-to-b from-background to-muted/40 p-4">
-        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-7 text-center shadow-2xl">
+      <div className="relative grid min-h-screen place-items-center bg-gradient-to-b from-background to-muted/40 p-4">
+        {cover ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" />
+          </>
+        ) : null}
+        <div className="relative w-full max-w-md rounded-2xl border border-border bg-card/95 p-7 text-center shadow-2xl backdrop-blur">
           <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-600">
             <GraduationCap className="h-6 w-6 text-white" />
           </span>
