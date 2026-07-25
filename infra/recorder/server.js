@@ -88,7 +88,10 @@ async function startJob(sessionId, token) {
         "--use-fake-ui-for-media-stream", // auto-accept mic/cam prompts (we don't produce)
         "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu",
         "--force-device-scale-factor=1", "--high-dpi-support=1",
-        "--hide-scrollbars", "--mute-audio=false",
+        "--hide-scrollbars",
+        // NB: do NOT pass --mute-audio at all. Chromium reads kMuteAudio with HasSwitch(), so even
+        // "--mute-audio=false" MUTES (the switch is present) — it still opens the output stream and
+        // pushes ZERO-filled frames, so the recording captured pure silence (-91 dB). Omit it entirely.
       ],
       env: { ...process.env, DISPLAY: display },
       defaultViewport: { width: W, height: H },
@@ -168,7 +171,7 @@ async function runSelfTest() {
     await sleep(1200);
     browser = await puppeteer.launch({
       headless: false, executablePath: CHROME_PATH,
-      args: [`--display=${display}`, `--window-size=${W},${H}`, "--kiosk", "--start-fullscreen", "--autoplay-policy=no-user-gesture-required", "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--force-device-scale-factor=1", "--hide-scrollbars", "--mute-audio=false"],
+      args: [`--display=${display}`, `--window-size=${W},${H}`, "--kiosk", "--start-fullscreen", "--autoplay-policy=no-user-gesture-required", "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "--force-device-scale-factor=1", "--hide-scrollbars"], // NO --mute-audio: HasSwitch() means its mere presence mutes (zero-filled frames → silent capture)
       env: { ...process.env, DISPLAY: display }, defaultViewport: { width: W, height: H },
     });
     const page = (await browser.pages())[0] || (await browser.newPage());
