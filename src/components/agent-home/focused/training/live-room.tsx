@@ -491,13 +491,14 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
       : Math.min(steps, Math.max(1, Math.floor(frac * steps) + 1));
     if (target > (s.stageStep || 1)) void patch({ stageStep: target });
   }, [host, patch]);
-  // Pause AI must also pause the co-host video (it IS the voice on that slide).
+  // An on-stage presenter video (intro / moment / outro OR a co-host slide) plays ONLY while the AI
+  // is presenting — it must NOT autoplay before "Present with AI" is clicked, and Pause AI pauses it.
   useEffect(() => {
-    if (!isCohostVideo) return;
+    if (!isMomentVideo && !isCohostVideo) return;
     const v = momentVidRef.current;
     if (!v) return;
-    if (session.aiPlaying) v.play().catch(() => {}); else v.pause();
-  }, [isCohostVideo, session.aiPlaying]);
+    if (session.aiPlaying) { v.play().catch(() => {}); } else { try { v.pause(); } catch { /* ignore */ } }
+  }, [isMomentVideo, isCohostVideo, session.aiPlaying]);
   const skipAI = () => { const pages = material?.pages ?? 1; if (session.stagePage < pages) void patch({ stagePage: session.stagePage + 1, stageStep: 1, aiPlaying: true }); else void patch({ aiPlaying: false }); };
   const repeatAI = () => { const a = aiAudioRef.current; if (a) { a.currentTime = 0; } void patch({ stageStep: 1, aiPlaying: true }); };
   const takeoverAI = async () => {
@@ -664,7 +665,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         return (
           <div className="relative grid h-full w-full place-items-center overflow-hidden bg-black">
             {momentUrl
-              ? <video ref={(el) => { momentVidRef.current = el; }} key={momentUrl} src={momentUrl} autoPlay playsInline onEnded={onMomentEnd} onPlay={() => setSoundBlocked(false)} onError={() => setSoundBlocked(true)} onTimeUpdate={(e) => { const v = e.currentTarget; if (v.duration && isFinite(v.duration)) setCapFrac(Math.min(1, v.currentTime / v.duration)); }} poster={aiP?.avatarUrl ?? undefined} className="h-full w-full" style={presenterVideoStyle(material.deck.presenterFit)} />
+              ? <video ref={(el) => { momentVidRef.current = el; }} key={momentUrl} src={momentUrl} autoPlay={!!session.aiPlaying} playsInline onEnded={onMomentEnd} onPlay={() => setSoundBlocked(false)} onError={() => setSoundBlocked(true)} onTimeUpdate={(e) => { const v = e.currentTarget; if (v.duration && isFinite(v.duration)) setCapFrac(Math.min(1, v.currentTime / v.duration)); }} poster={aiP?.avatarUrl ?? undefined} className="h-full w-full" style={presenterVideoStyle(material.deck.presenterFit)} />
               : <AvatarVideo url={material.deck.presenterVideoUrl!} poster={aiP?.avatarUrl} speaking={aiSpeaking} className="object-contain" />}
             <span className="absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1 text-[12px] font-bold text-white"><span className="rounded bg-gradient-to-br from-cyan-400 to-brand-500 px-1 py-px text-[8.5px] font-black text-[#04222a]">AI</span>{aiP?.name || "Your AI co-host"} · {slide?.intro ? "introducing" : slide?.qa ? "wrapping up" : "speaking"}</span>
           </div>
@@ -679,7 +680,7 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
           <StageLayoutView
             layout={material.deck?.stageLayout}
             fullVisual={["hero_statement", "full_visual", "big_idea", "quote", "section_divider", "closing"].includes(slide.layout ?? "")}
-            slide={<DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} writeMs={stepWriteMs} cohostAudio={isCohostVideo} cohostVideoRef={(el) => { momentVidRef.current = el; }} onCohostEnded={onMomentEnd} onCohostTime={isCohostVideo ? cohostTime : undefined} />}
+            slide={<DeckSlideView slide={slide} reveal={session.stageStep} styleKey={material.deck?.visualStyle} hand={material.deck?.handStyle} board={material.deck?.boardStyle} writeMs={stepWriteMs} cohostAudio={isCohostVideo} cohostAutoPlay={!!session.aiPlaying} cohostVideoRef={(el) => { momentVidRef.current = el; }} onCohostEnded={onMomentEnd} onCohostTime={isCohostVideo ? cohostTime : undefined} />}
             cohost={(isCohostVideo || showAvatarFloat) ? null : (material.deck?.presenterActive && avatarLoopUrl
               ? <SeamlessLoop url={avatarLoopUrl} />
               : null)}

@@ -311,7 +311,7 @@ export function resolveBoard(styleKey?: VisualStyle | null, bs?: BoardStyleSetti
 }
 export function boardTheme(key?: VisualStyle | null): BoardTheme { return resolveBoard(key, null); }
 
-export function DeckSlideView({ slide, reveal, className, styleKey, hand, board, writeMs, cohostAudio, cohostVideoRef, onCohostEnded, onCohostTime }: { slide: DeckSlide; reveal?: number; className?: string; styleKey?: VisualStyle | null; hand?: HandStyleSettings | null; board?: BoardStyleSettings | null; writeMs?: number; cohostAudio?: boolean; cohostVideoRef?: (el: HTMLVideoElement | null) => void; onCohostEnded?: () => void; onCohostTime?: (frac: number) => void }) {
+export function DeckSlideView({ slide, reveal, className, styleKey, hand, board, writeMs, cohostAudio, cohostAutoPlay = true, cohostVideoRef, onCohostEnded, onCohostTime }: { slide: DeckSlide; reveal?: number; className?: string; styleKey?: VisualStyle | null; hand?: HandStyleSettings | null; board?: BoardStyleSettings | null; writeMs?: number; cohostAudio?: boolean; cohostAutoPlay?: boolean; cohostVideoRef?: (el: HTMLVideoElement | null) => void; onCohostEnded?: () => void; onCohostTime?: (frac: number) => void }) {
   // `reveal` = how many steps are shown (undefined = show everything, e.g. a builder
   // thumbnail). Drives the progressive "drawing as you talk" reveal.
   const hostRef = useRef<HTMLDivElement | null>(null); // slide container, so the hand can circle a keyword
@@ -476,7 +476,7 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
     const hasDiagram = !!(slide.infographic && slide.infographic.cards?.length);
     // When cohostAudio, the co-host video plays its OWN baked narration (unmuted, once) — the slide's
     // separate narration track is muted by the caller, just like intro/moments. As a thumbnail = muted loop.
-    const cohostVideo = <video ref={cohostVideoRef} src={slide.cohostVideoUrl} autoPlay muted={!cohostAudio} loop={!cohostAudio} playsInline onEnded={onCohostEnded} onTimeUpdate={onCohostTime ? (e) => { const v = e.currentTarget; if (v.duration && isFinite(v.duration)) onCohostTime(v.currentTime / v.duration); } : undefined} className="h-full w-full object-cover" />;
+    const cohostVideo = <video ref={cohostVideoRef} src={slide.cohostVideoUrl} autoPlay={cohostAutoPlay} muted={!cohostAudio} loop={!cohostAudio} playsInline onEnded={onCohostEnded} onTimeUpdate={onCohostTime ? (e) => { const v = e.currentTarget; if (v.duration && isFinite(v.duration)) onCohostTime(v.currentTime / v.duration); } : undefined} className="h-full w-full object-cover" />;
     const cohostBadge = <span className="absolute bottom-[1.2cqw] left-[1.2cqw] inline-flex items-center gap-1 rounded-md bg-black/55 px-[1.6cqw] py-[.7cqw] text-[clamp(5px,1.4cqw,12px)] font-black text-white backdrop-blur"><span className="h-[.9cqw] w-[.9cqw] rounded-full bg-emerald-400" /> Co-host</span>;
     const diagram = <InfographicView spec={slide.infographic!} reveal={reveal} title={md(slide.title)} subtitle={slide.subtitle ? md(slide.subtitle) : undefined} />;
     const textContent = (
