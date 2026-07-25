@@ -322,20 +322,22 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
   // The opening slide — the AI co-host takes the stage to introduce itself. On the live
   // stage the moving avatar replaces this; here (builder / no avatar) it's a warm welcome.
   if (slide.intro) {
+    // With a user-uploaded COVER, the intro slide IS that image — CLEAN, no text/emoji/chip over it
+    // (the cover already carries its own title art). Without one, show the "Welcome" placeholder.
+    if (coverUrl) {
+      return (
+        <div className={cn("relative h-full w-full overflow-hidden bg-black [container-type:inline-size]", className)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        </div>
+      );
+    }
     return (
       <div className={cn("relative grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-[#241f38] via-[#191627] to-[#0f0d17] [container-type:inline-size]", className)}>
-        {/* a user-uploaded COVER photo fills the slide; a dark gradient keeps the welcome copy legible */}
-        {coverUrl ? (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/45 to-black/60" />
-          </>
-        ) : null}
         <div className="relative flex flex-col items-center px-[8%] text-center">
           <div className="mb-[3cqw] grid h-[14cqw] w-[14cqw] place-items-center rounded-full bg-gradient-to-br from-cyan-400/25 to-brand-500/25 ring-2 ring-brand-400/40"><span className="text-[7cqw]">👋</span></div>
-          <h1 className="text-[clamp(11px,5.6cqw,56px)] font-extrabold leading-tight tracking-tight text-white [text-shadow:0_2px_18px_rgba(0,0,0,.55)]">{md(slide.title)}</h1>
-          {slide.subtitle ? <p className={cn("mt-[1.5cqw] text-[clamp(6px,2.4cqw,22px)] font-semibold", coverUrl ? "text-white/90 [text-shadow:0_1px_10px_rgba(0,0,0,.6)]" : "text-[color:var(--sat)]")}>{md(slide.subtitle)}</p> : null}
+          <h1 className="text-[clamp(11px,5.6cqw,56px)] font-extrabold leading-tight tracking-tight text-white">{md(slide.title)}</h1>
+          {slide.subtitle ? <p className="mt-[1.5cqw] text-[clamp(6px,2.4cqw,22px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
           <span className="mt-[3cqw] inline-flex items-center gap-1.5 rounded-full bg-gradient-to-br from-cyan-400 to-brand-500 px-[2.5cqw] py-[1.1cqw] text-[clamp(4px,1.5cqw,12px)] font-black text-[#04222a]">● AI CO-HOST</span>
         </div>
       </div>

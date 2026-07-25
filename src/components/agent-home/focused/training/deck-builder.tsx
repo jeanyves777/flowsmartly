@@ -536,7 +536,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   };
 
   // ---- slide media: upload your own / regenerate the image / turn it into an AI video ----
-  const [mediaBusy, setMediaBusy] = useState<null | "upload" | "regen" | "aivideo" | "illustration" | "cover">(null);
+  const [mediaBusy, setMediaBusy] = useState<null | "upload" | "regen" | "aivideo" | "illustration" | "cover" | "remove">(null);
   const [aiVideoOpen, setAiVideoOpen] = useState(false);
   const [aiVideoStyle, setAiVideoStyle] = useState("3d");
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
@@ -570,6 +570,21 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
       onSession(j.data.session as TrainingSessionDTO);
       editDeck({ coverImageUrl: j.data.url as string });
       toast({ title: "Cover image set", description: "It's the first slide everyone sees and the session thumbnail." });
+    } finally { setMediaBusy(null); }
+  };
+  // Remove a slide's media (image/video/diagram) or its co-host video. Goes through the route's
+  // remove action so the clear survives the /deck merge, then syncs the local deck from the response.
+  const removeMedia = async (what: "visual" | "cohost") => {
+    if (!mat || !slide) return;
+    setMediaBusy("remove");
+    try {
+      const j = await fetch(`/api/ai/training/${sessionId}/deck/media`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "remove_media", materialId: mat.id, slideId: slide.id, what }) }).then((r) => r.json());
+      if (!j?.success) { toast({ title: j?.error?.message || "Couldn't remove it", variant: "destructive" }); return; }
+      const fresh = j.data.session as TrainingSessionDTO;
+      onSession(fresh);
+      const freshDeck = fresh.materials?.find((m) => m.id === mat.id)?.deck;
+      if (freshDeck) setDeck(freshDeck as TrainingDeck);
+      toast({ title: what === "cohost" ? "Co-host video removed" : "Slide media removed" });
     } finally { setMediaBusy(null); }
   };
   const regenImage = async () => {
@@ -1007,9 +1022,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               </div>
               {roleOf(slide) === "closing" && !deck.outroVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the outro in <b>Prepare presenter</b> and it’ll play right here.</p> : null}
               {roleOf(slide) === "intro" && !deck.introVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the intro in <b>Prepare presenter</b>.</p> : null}
-              {/* SESSION COVER — deck-level, reachable from ANY slide (not just the intro). The first slide
-                  everyone sees before the training starts, the lobby screen, and the session thumbnail. */}
-              <div className="mt-2.5 border-t border-border pt-2.5">
+              {/* SESSION COVER — deck-level, but only surfaced on the INTRO ("Welcome") slide (it IS that
+                  slide's image), so it doesn't read as applying to a content / co-host slide. It's the
+                  clean first slide everyone sees, the lobby screen, and the session thumbnail. */}
+              {roleOf(slide) === "intro" ? (
+                <div className="mt-2.5 border-t border-border pt-2.5">
                   <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><ImageIcon className="h-3.5 w-3.5" /> Session cover</div>
                   {deck.coverImageUrl ? (
                     <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black ring-1 ring-border">
@@ -1017,7 +1034,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                       <img key={deck.coverImageUrl} src={deck.coverImageUrl} alt="" className="h-full w-full object-cover" />
                     </div>
                   ) : (
-                    <div className="grid aspect-video w-full place-items-center rounded-lg bg-muted px-4 text-center text-[10.5px] leading-snug text-muted-foreground">Upload a cover — it becomes the first slide, the lobby screen &amp; the session thumbnail.</div>
+                    <div className="grid aspect-video w-full place-items-center rounded-lg bg-muted px-4 text-center text-[10.5px] leading-snug text-muted-foreground">Upload a cover — it becomes the first slide (no text over it), the lobby screen &amp; the session thumbnail.</div>
                   )}
                   <div className="mt-2 flex items-center gap-1.5">
                     <button onClick={() => coverInputRef.current?.click()} disabled={mediaBusy === "cover"} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50">{mediaBusy === "cover" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…</> : <><Upload className="h-3.5 w-3.5" /> {deck.coverImageUrl ? "Replace cover" : "Upload cover"}</>}</button>
@@ -1025,6 +1042,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   </div>
                   <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadCover(f); e.target.value = ""; }} />
                 </div>
+              ) : null}
             </div>
             {slide.type === "doc" ? (
               <label className="block">
@@ -1037,8 +1055,10 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               <textarea value={slide.notes ?? ""} onChange={(e) => editSlide({ notes: e.target.value })} className="min-h-[70px] w-full resize-y rounded-lg border border-border bg-muted px-2.5 py-2 text-[12px] outline-none focus:border-brand-500" />
             </label>
 
-            {/* SLIDE MEDIA — replace with your own image/video, regenerate, or turn into an AI video (in place). */}
-            {slide.type === "doc" ? (
+            {/* SLIDE MEDIA — replace with your own image/video, regenerate, or turn into an AI video (in
+                place). NOT on the intro slide: its image is the Session cover (above), so these controls
+                (which target slide.visual, ignored on the intro) would just read as dead/faded there. */}
+            {slide.type === "doc" && !slide.intro ? (
               <div className="rounded-xl border border-border bg-muted/40 p-3">
                 <div className="mb-2 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><ImageIcon className="h-3.5 w-3.5" /> Slide media</div>
                 <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black ring-1 ring-border">
@@ -1063,6 +1083,9 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   <button onClick={() => void genIllustration()} disabled={!!mediaBusy} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> Animate this slide</button>
                   <button onClick={() => mediaInputRef.current?.click()} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><Upload className="h-3.5 w-3.5" /> Upload</button>
                   <button onClick={() => void regenImage()} disabled={!!mediaBusy} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-50"><RefreshCw className="h-3.5 w-3.5" /> New image</button>
+                  {slide.visual?.url || slide.videoUrl || slide.infographic?.cards?.length ? (
+                    <button onClick={() => void removeMedia("visual")} disabled={!!mediaBusy} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold text-muted-foreground hover:border-rose-500 hover:text-rose-500 disabled:opacity-50">{mediaBusy === "remove" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Remove media</button>
+                  ) : null}
                 </div>
                 {/* how the image DISPLAYS — fit the whole image (so nothing is cut off) or fill; + a size zoom */}
                 {slide.visual?.kind === "image" && slide.visual.url && !slide.videoUrl && !slide.infographic?.cards?.length ? (
@@ -1139,6 +1162,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   <button onClick={() => void genCohostVideo(slide.id)} disabled={busy !== null} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-2 py-2 text-[11.5px] font-extrabold text-white hover:opacity-95 disabled:opacity-50">{busy === "cohostvid" ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating co-host…</> : <><Film className="h-3.5 w-3.5" /> {slide.cohostVideoUrl ? "Regenerate" : "Generate"} co-host video</>}</button>
                   <button onClick={() => void openReuse("cohost", slide.id)} disabled={busy !== null} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><RotateCcw className="h-3 w-3" /> Reuse</button>
                   <button onClick={() => { uploadMomentSlideRef.current = slide.id; uploadMomentTargetRef.current = "cohost"; momentUploadRef.current?.click(); }} disabled={busy !== null} className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold hover:border-brand-500 disabled:opacity-40"><Upload className="h-3 w-3" /> Upload</button>
+                  {slide.cohostVideoUrl ? <button onClick={() => void removeMedia("cohost")} disabled={busy !== null || !!mediaBusy} className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-border px-2 py-1.5 text-[11px] font-bold text-muted-foreground hover:border-rose-500 hover:text-rose-500 disabled:opacity-40">{mediaBusy === "remove" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Remove co-host video</button> : null}
                 </div>
                 <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">A HeyGen talking-head of the co-host speaking this slide’s narration. {slide.cohostFloat ? `It floats as a ${slide.cohostVPos ?? "bottom"}-${slide.cohostSide ?? "right"} corner tile over the slide.` : `It sits ${(slide.cohostSide ?? "right") === "right" ? "right" : "left"} ${slide.cohostFull ? "filling the whole side" : "as a card"}; the content stays on the ${(slide.cohostSide ?? "right") === "right" ? "left" : "right"}.`}</p>
               </div>
