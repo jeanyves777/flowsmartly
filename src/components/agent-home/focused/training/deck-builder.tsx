@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, Film, Settings2, Mic, RotateCcw, Radio, Check, Palette, ImageIcon, Upload, PictureInPicture2,
+  Sparkles, ChevronLeft, ChevronRight, Plus, Trash2, RefreshCw, Play, Pause, X, Presentation, Loader2, PenLine, FileText, Bot, Volume2, Film, Settings2, Mic, RotateCcw, Radio, Check, Palette, ImageIcon, Upload, PictureInPicture2, GripVertical, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils/cn";
@@ -619,6 +619,22 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
     setDeck(next); persist(next); setPage(at);
   };
 
+  // Drag-to-reorder slides in the rail (make the one you added the first, move a moment, etc.).
+  // The selected slide follows its content so the stage keeps showing what you were editing.
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+  const moveSlide = (from: number, to: number) => {
+    if (!deck) return;
+    const n = deck.slides.length;
+    if (from === to || from < 0 || to < 0 || from >= n || to >= n) return;
+    const arr = deck.slides.slice();
+    const [m] = arr.splice(from, 1);
+    arr.splice(to, 0, m);
+    const next = { ...deck, slides: arr };
+    setDeck(next); persist(next);
+    setPage((p) => (p === from ? to : p > from && p <= to ? p - 1 : p < from && p >= to ? p + 1 : p));
+  };
+
   // AI new slide — the agent writes a slide that fits the training, inserted after the selected one.
   const [newSlideOpen, setNewSlideOpen] = useState(false);
   const [newSlidePrompt, setNewSlidePrompt] = useState("");
@@ -708,11 +724,31 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               : s.qa ? { t: s.qaKind === "final" ? "Wrap-up" : "Q&A", c: "bg-cyan-600" }
               : s.quiz ? { t: "Quiz", c: "bg-amber-600" } : null;
             return (
-              <button key={s.id} onClick={() => setPage(i)} className={cn("relative block w-full overflow-hidden rounded-lg border-2", i === page ? "border-brand-500" : "border-transparent hover:border-border")}>
+              <div
+                key={s.id}
+                role="button"
+                tabIndex={0}
+                draggable
+                onClick={() => setPage(i)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPage(i); } }}
+                onDragStart={(e) => { setDragIdx(i); setOverIdx(i); e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", String(i)); } catch { /* some browsers require a set */ } }}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (overIdx !== i) setOverIdx(i); }}
+                onDrop={(e) => { e.preventDefault(); if (dragIdx !== null && dragIdx !== i) moveSlide(dragIdx, i); setDragIdx(null); setOverIdx(null); }}
+                onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
+                className={cn("group relative block w-full cursor-pointer select-none overflow-hidden rounded-lg border-2 transition", i === page ? "border-brand-500" : "border-transparent hover:border-border", dragIdx === i && "opacity-40", overIdx === i && dragIdx !== null && dragIdx !== i && "ring-2 ring-brand-400")}
+              >
                 <div className="aspect-video w-full"><DeckSlideView slide={s} styleKey={deck.visualStyle} board={deck.boardStyle} /></div>
                 <span className="absolute left-1 top-1 grid h-4 min-w-4 place-items-center rounded bg-black/55 px-1 text-[9px] font-extrabold text-white">{i + 1}</span>
                 {badge ? <span className={cn("absolute right-1 top-1 rounded px-1 py-px text-[8px] font-black uppercase tracking-wide text-white shadow", badge.c)}>{badge.t}</span> : null}
-              </button>
+                {/* drag handle + move buttons (fallback for touch / trackpad) — appear on hover */}
+                <span className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/70 to-transparent px-1 pb-0.5 pt-4 opacity-0 transition group-hover:opacity-100">
+                  <GripVertical className="h-3.5 w-3.5 cursor-grab text-white/80" />
+                  <span className="pointer-events-auto flex gap-0.5">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); moveSlide(i, i - 1); }} disabled={i === 0} title="Move up" className="grid h-4 w-4 place-items-center rounded bg-white/20 text-white hover:bg-white/35 disabled:opacity-25"><ArrowUp className="h-3 w-3" /></button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); moveSlide(i, i + 1); }} disabled={i === deck.slides.length - 1} title="Move down" className="grid h-4 w-4 place-items-center rounded bg-white/20 text-white hover:bg-white/35 disabled:opacity-25"><ArrowDown className="h-3 w-3" /></button>
+                  </span>
+                </span>
+              </div>
             );
           })}
           <button onClick={() => { setNewSlidePrompt(""); setNewSlideOpen(true); }} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-[11px] font-bold text-muted-foreground hover:border-brand-500 hover:text-brand-400"><Plus className="h-3.5 w-3.5" /> Add slide</button>
@@ -971,11 +1007,10 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
               </div>
               {roleOf(slide) === "closing" && !deck.outroVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the outro in <b>Prepare presenter</b> and it’ll play right here.</p> : null}
               {roleOf(slide) === "intro" && !deck.introVideoUrl ? <p className="mt-1.5 text-[10px] font-semibold text-amber-500">Generate the intro in <b>Prepare presenter</b>.</p> : null}
-              {/* COVER IMAGE — only on the intro slide. The first slide everyone sees before the training
-                  starts, the lobby screen, and the session thumbnail. Placeholder until the user uploads. */}
-              {roleOf(slide) === "intro" ? (
-                <div className="mt-2.5 border-t border-border pt-2.5">
-                  <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><ImageIcon className="h-3.5 w-3.5" /> Cover image</div>
+              {/* SESSION COVER — deck-level, reachable from ANY slide (not just the intro). The first slide
+                  everyone sees before the training starts, the lobby screen, and the session thumbnail. */}
+              <div className="mt-2.5 border-t border-border pt-2.5">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><ImageIcon className="h-3.5 w-3.5" /> Session cover</div>
                   {deck.coverImageUrl ? (
                     <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-black ring-1 ring-border">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -990,7 +1025,6 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
                   </div>
                   <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadCover(f); e.target.value = ""; }} />
                 </div>
-              ) : null}
             </div>
             {slide.type === "doc" ? (
               <label className="block">
