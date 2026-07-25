@@ -394,8 +394,9 @@ export function LiveRoom({ session, me, cursors, liveStrokes, liveItems, connect
         }
       }
       // Then resume whatever should be audible right now.
-      // An on-screen intervention video (with its baked cloned voice) takes priority.
-      if (momentVidRef.current) { momentVidRef.current.play().then(() => setSoundBlocked(false)).catch(() => {}); }
+      // An on-screen intervention/co-host video takes priority — but ONLY while the AI is presenting;
+      // otherwise a stray click (any tool/button) would start the presenter before "Present with AI".
+      if (momentVidRef.current && aiPlayingRef.current) { momentVidRef.current.play().then(() => setSoundBlocked(false)).catch(() => {}); }
       if (ans && answerUrlRef.current) { ans.play().then(() => setSoundBlocked(false)).catch(() => {}); return; }
       if (ai && aiPlayingRef.current && ai.getAttribute("data-src")) ai.play().then(() => setSoundBlocked(false)).catch(() => {});
     };
