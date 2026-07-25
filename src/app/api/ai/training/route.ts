@@ -37,7 +37,12 @@ export async function GET() {
   const coverOf = (mats: { deck: string | null }[]): string | null => {
     for (const m of mats) {
       if (!m.deck) continue;
-      try { const c = (JSON.parse(m.deck) as { coverImageUrl?: string | null }).coverImageUrl; if (c) return c; } catch { /* skip */ }
+      try {
+        const d = JSON.parse(m.deck) as { coverImageUrl?: string | null; slides?: Array<{ visual?: { url?: string | null } }> };
+        // The cover = the FIRST slide's own image (that's what everyone sees), else a legacy deck cover.
+        const c = d.slides?.[0]?.visual?.url || d.coverImageUrl;
+        if (c) return c;
+      } catch { /* skip */ }
     }
     return null;
   };
