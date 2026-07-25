@@ -288,6 +288,22 @@ export function toSessionDTO(row: SessionWithRelations): TrainingSessionDTO {
           isRecorder: p.isRecorder,
         }),
       ),
+    // Persistent attendance — everyone who ever JOINED (kept even after they LEAVE / are removed),
+    // so the host can review + export who attended, live or long after the session has ended.
+    attendance: row.participants
+      .filter((p) => !p.isAI && !p.isRecorder && !!p.joinedAt)
+      .sort((a, b) => (a.joinedAt?.getTime() ?? 0) - (b.joinedAt?.getTime() ?? 0))
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        email: p.email,
+        role: p.role as ParticipantRole,
+        state: p.state as ParticipantState,
+        joinedAt: p.joinedAt?.toISOString() ?? null,
+        leftAt: p.leftAt?.toISOString() ?? null,
+        secondsIn: p.secondsIn,
+        focusPct: p.focusPct,
+      })),
     materials: row.materials.map(
       (m): TrainingMaterialDTO => ({
         id: m.id,
