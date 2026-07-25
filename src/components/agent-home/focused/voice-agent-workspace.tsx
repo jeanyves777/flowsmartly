@@ -845,6 +845,11 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
   const [business, setBusiness] = useState(agent?.business || "");
   const [greeting, setGreeting] = useState(agent?.greeting || "");
   const [outboundGreeting, setOutboundGreeting] = useState(agent?.outboundGreeting || "");
+  // Self-serve phone number — a new agent needs one before it can be created.
+  const [numArea, setNumArea] = useState("");
+  const [numAvail, setNumAvail] = useState<{ phoneNumber: string; region?: string; locality?: string }[]>([]);
+  const [numBusy, setNumBusy] = useState(false);
+  const [numSel, setNumSel] = useState<string | null>(null);
   const [voiceId, setVoiceId] = useState(agent?.voiceId || DEFAULT_VOICE.voiceId);
   const [voiceLabel, setVoiceLabel] = useState(agent?.voiceLabel || DEFAULT_VOICE.name);
   const [order, setOrder] = useState<OrderConfig>(agent?.orderConfig || DEFAULT_ORDER_CONFIG);
@@ -910,9 +915,27 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
     setKnowledge((k) => [...k, { kind: "url", label: url.replace(/^https?:\/\//, "").slice(0, 40), url }]);
   };
 
+  const searchNumbers = async () => {
+    setNumBusy(true); setNumSel(null);
+    try {
+      const j = await fetch(`/api/voice-agent/numbers?action=available${numArea ? `&areaCode=${numArea}` : ""}`).then((r) => r.json());
+      if (j?.success) {
+        setNumAvail((j.available || []).map((x: Record<string, unknown>) => ({ phoneNumber: String(x.phoneNumber || x.phone_number || ""), region: (x.region as string) || undefined, locality: (x.locality as string) || undefined })).filter((n: { phoneNumber: string }) => n.phoneNumber));
+      } else {
+        setNumAvail([]);
+        toast({ title: j?.error?.message || "Could not find numbers — try another area code", variant: "destructive" });
+      }
+    } catch { toast({ title: "Could not search numbers", variant: "destructive" }); }
+    finally { setNumBusy(false); }
+  };
+
   const submit = async () => {
     if (!business.trim()) {
       toast({ title: "Tell it about your business first", description: "A line or two is enough." });
+      return;
+    }
+    if (!editing && !numSel) {
+      toast({ title: "Pick a phone number first", description: "Search an area code and choose a number — your agent needs a line to make and take calls." });
       return;
     }
     setBusy(true);
@@ -940,8 +963,28 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
         toast({ title: j?.error?.message || "Could not create that agent", variant: "destructive" });
         return;
       }
-      toast({ title: editing ? "Saved" : "Agent created", description: editing ? undefined : "Add your number, then switch it on." });
-      await onSaved(j.agent.id);
+      const agentId = j.agent.id as string;
+      // Rent the picked number — confirm the charge first (user chose this).
+      if (numSel) {
+        const cost = DEFAULT_CREDIT_COSTS.VOICE_AGENT_NUMBER_RENTAL;
+        if (typeof window !== "undefined" && window.confirm(`Rent ${fmtNumber(numSel)} for ${cost} credits + a monthly rental?`)) {
+          const rr = await fetch("/api/voice-agent/numbers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "rent", agentId, phoneNumber: numSel }),
+          }).then((r) => r.json()).catch(() => null);
+          if (rr?.success) {
+            toast({ title: "Agent created with a number", description: rr.provisioned ? "It can make and take calls now — switch it on." : "Number rented — it'll connect in a moment." });
+          } else {
+            toast({ title: "Agent created — number needs a retry", description: rr?.error?.message || "Rent a number from the Number tab in the back office.", variant: "destructive" });
+          }
+        } else {
+          toast({ title: "Agent created", description: "No number rented yet — add one from the back office." });
+        }
+      } else {
+        toast({ title: "Agent created", description: "Add a number, then switch it on." });
+      }
+      await onSaved(agentId);
     } finally {
       setBusy(false);
     }
@@ -1101,20 +1144,46 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
               ))}
             </div>
           </div>
+
+          {!editing && (
+            <div className="mt-5">
+              <SectionLabel hint="rent a number so it can make & take calls — required before you create the agent">Phone number</SectionLabel>
+              <div className="flex gap-2">
+                <input value={numArea} onChange={(e) => setNumArea(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))} onKeyDown={(e) => { if (e.key === "Enter") void searchNumbers(); }} placeholder="Area code (e.g. 413)" inputMode="numeric" className="w-[170px] rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] outline-none focus:border-brand-500" />
+                <button onClick={() => void searchNumbers()} disabled={numBusy} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold hover:border-brand-500 disabled:opacity-50">{numBusy ? <FlowLoader size={13} /> : <Search className="h-3.5 w-3.5" />} Search</button>
+              </div>
+              {numAvail.length > 0 && (
+                <div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {numAvail.map((n) => (
+                    <button key={n.phoneNumber} onClick={() => setNumSel(n.phoneNumber)}
+                      className={cn("rounded-lg border px-3 py-2 text-left", numSel === n.phoneNumber ? "border-brand-500 bg-brand-500/5" : "border-border hover:border-brand-500/40")}>
+                      <b className="block font-mono text-[13px]">{fmtNumber(n.phoneNumber)}</b>
+                      <span className="block text-[10px] text-muted-foreground">{[n.locality, n.region].filter(Boolean).join(", ") || "US"}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {numSel
+                ? <p className="mt-2 text-[11px] font-semibold text-emerald-500">Selected {fmtNumber(numSel)} · rents for {DEFAULT_CREDIT_COSTS.VOICE_AGENT_NUMBER_RENTAL} cr + monthly when you create the agent.</p>
+                : <p className="mt-2 text-[10.5px] text-muted-foreground">Search an area code, then pick a number. Renting costs {DEFAULT_CREDIT_COSTS.VOICE_AGENT_NUMBER_RENTAL} cr + a monthly rental — you&apos;ll confirm before it charges.</p>}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2 border-t border-border px-4 py-3">
           <span className="text-[11px] text-muted-foreground">
             {editing
               ? <>Nothing is charged until it&apos;s live · calls cost <b className="text-amber-500">{DEFAULT_CREDIT_COSTS.VOICE_AGENT_MINUTE} cr / min</b></>
-              : <>Free to build · add your own number next, then switch it on</>}
+              : !numSel
+              ? <>Pick a phone number to finish · calls cost <b className="text-amber-500">{DEFAULT_CREDIT_COSTS.VOICE_AGENT_MINUTE} cr / min</b></>
+              : <>Renting <b className="text-foreground">{fmtNumber(numSel)}</b> · {DEFAULT_CREDIT_COSTS.VOICE_AGENT_NUMBER_RENTAL} cr + monthly · you&apos;ll confirm</>}
           </span>
           <div className="flex-1" />
           <button onClick={onClose} className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold">
             Cancel
           </button>
-          <button onClick={submit} disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60">
+          <button onClick={submit} disabled={busy || (!editing && (!business.trim() || !numSel))}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60 disabled:cursor-not-allowed">
             {busy ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />}
             {editing ? "Save changes" : "Create agent"}
           </button>

@@ -220,6 +220,17 @@ export async function purchasePhoneNumber(phoneNumber: string): Promise<{
   }
 }
 
+/** Point a Telnyx number's VOICE at a connection (the ElevenLabs SIP FQDN
+ *  connection) so inbound calls route to the voice agent. Non-fatal on failure —
+ *  outbound still works; inbound just won't ring until an admin reconciles. */
+export async function setNumberVoiceConnection(sid: string, connectionId: string): Promise<{ ok: boolean; error?: string }> {
+  const r = await call(`/phone_numbers/${sid}`, {
+    method: "PATCH",
+    body: JSON.stringify({ connection_id: connectionId }),
+  });
+  return r.ok ? { ok: true } : { ok: false, error: r.error };
+}
+
 /** Release (delete) a number by its Telnyx resource id. */
 export async function releasePhoneNumber(sid: string): Promise<{ success: boolean; error?: string }> {
   try {
