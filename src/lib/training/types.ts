@@ -592,6 +592,21 @@ export interface TrainingInviteDTO {
   sentAt: string | null;
 }
 
+/** A persistent attendance record — everyone who has JOINED this session, INCLUDING those
+ *  who have since left or been removed (unlike `participants`, the live roster, which drops
+ *  LEFT/REMOVED). Survives the session ending, so the host can review/export it anytime. */
+export interface TrainingAttendeeDTO {
+  id: string;
+  name: string;
+  email: string | null;
+  role: ParticipantRole;
+  state: ParticipantState;
+  joinedAt: string | null;
+  leftAt: string | null;
+  secondsIn: number;
+  focusPct: number;
+}
+
 export interface TrainingSessionDTO {
   id: string;
   title: string;
@@ -646,6 +661,8 @@ export interface TrainingSessionDTO {
 
   segments: TrainingSegmentDTO[];
   participants: TrainingParticipantDTO[];
+  /** the persistent attendance record — everyone who ever joined, kept even after they leave. */
+  attendance: TrainingAttendeeDTO[];
   materials: TrainingMaterialDTO[];
   invites: TrainingInviteDTO[];
 }

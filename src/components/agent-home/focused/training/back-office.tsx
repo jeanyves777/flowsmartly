@@ -7,7 +7,7 @@
  * materials, and past sessions. Every number here is DERIVED from the roster, so
  * the KPI and the table can never disagree. [[training-studio]]
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Users, DoorOpen, Circle, Pencil, Monitor, Mic, Star, X, Hand, SlidersHorizontal,
   Download, Puzzle, Square, FileText, Presentation, Clapperboard, ImageIcon, Plus, Eye,
@@ -48,6 +48,34 @@ export function BackOffice({ session, me, estimate, act, patch, onSession, onAdd
   const attention = inRoom.length ? Math.round(inRoom.reduce((m, p) => m + p.focusPct, 0) / inRoom.length) : 0;
   const elapsed = session.startedAt ? Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000) : 0;
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  const fmtDur = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m` : s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`);
+
+  // Export the attendance as a real .csv (opens straight into Excel/Sheets) — NOT a print dialog.
+  // Uses session.attendance, which persists everyone who ever joined, even after they leave.
+  const exportAttendance = () => {
+    const header = ["Name", "Email", "Role", "Status", "Joined", "Left", "Time in room", "Attention %"];
+    const esc = (v: string | number) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = session.attendance.map((p) => [
+      p.name,
+      p.email ?? "",
+      ROLE_LABEL[p.role] ?? p.role,
+      p.state === "ADMITTED" ? "In room" : p.state === "LEFT" ? "Left" : p.state === "REMOVED" ? "Removed" : p.state === "WAITING" ? "Waiting" : p.state === "DENIED" ? "Denied" : p.state,
+      p.joinedAt ? new Date(p.joinedAt).toLocaleString() : "",
+      p.leftAt ? new Date(p.leftAt).toLocaleString() : p.state === "ADMITTED" ? "Still in room" : "",
+      fmtDur(p.secondsIn),
+      p.focusPct,
+    ]);
+    // BOM so Excel reads UTF-8 (accents, etc.) correctly.
+    const csv = "﻿" + [header, ...rows].map((r) => r.map(esc).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `attendance-${(session.title || "session").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 48) || "session"}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
 
   return (
     <div className="absolute inset-0 overflow-auto bg-background">
@@ -145,6 +173,49 @@ export function BackOffice({ session, me, estimate, act, patch, onSession, onAdd
           </table>
         </div>
 
+        <H>
+          <Download className="h-3.5 w-3.5" /> Attendance
+          <span className="ms-auto flex items-center gap-2 text-[10.5px] font-normal text-muted-foreground">
+            {session.attendance.length} joined · saved to this session
+            <button onClick={exportAttendance} disabled={!session.attendance.length} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[10.5px] font-semibold text-foreground hover:border-brand-500 disabled:opacity-40"><Download className="h-3 w-3" /> Export (Excel)</button>
+          </span>
+        </H>
+        <div className="overflow-hidden rounded-2xl border border-border bg-card">
+          {session.attendance.length ? (
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-muted">
+                  {["Person", "Role", "Joined", "Left", "Time in room", "Status"].map((h, i) => (
+                    <th key={h} className={cn("px-3 py-2.5 text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground", i >= 4 ? "text-left" : "text-left")}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {session.attendance.map((p) => (
+                  <tr key={p.id} className="border-b border-border/60 last:border-b-0 hover:bg-brand-500/[0.04]">
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <Av name={p.name} />
+                        <div>
+                          <b className="block text-[12px] leading-tight">{p.name}</b>
+                          <span className="text-[10px] text-muted-foreground">{p.email || "joined by link"}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5"><span className={cn("rounded-full px-2 py-0.5 text-[9px] font-extrabold", ROLE_STYLE[p.role])}>{ROLE_LABEL[p.role]}</span></td>
+                    <td className="px-3 py-2.5 text-[11px] text-muted-foreground">{p.joinedAt ? new Date(p.joinedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                    <td className="px-3 py-2.5 text-[11px] text-muted-foreground">{p.leftAt ? new Date(p.leftAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : p.state === "ADMITTED" ? <span className="font-semibold text-emerald-400">In room</span> : "—"}</td>
+                    <td className="px-3 py-2.5 text-[11px] text-muted-foreground">{fmtDur(p.secondsIn)}</td>
+                    <td className="px-3 py-2.5 text-[10.5px] text-muted-foreground">{p.state === "ADMITTED" ? "In room" : p.state === "LEFT" ? "Left" : p.state === "REMOVED" ? "Removed" : p.state === "WAITING" ? "Waiting" : p.state === "DENIED" ? "Denied" : p.state}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="px-4 py-6 text-center text-[11px] text-muted-foreground">Nobody has joined yet — your attendance list builds here and stays saved to this session, viewable anytime.</div>
+          )}
+        </div>
+
         <H><SlidersHorizontal className="h-3.5 w-3.5" /> Room controls</H>
         <div className="grid gap-2.5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(258px,1fr))" }}>
           <Tg on={session.waitingRoom} onClick={() => void patch({ waitingRoom: !session.waitingRoom })} Icon={DoorOpen} t="Waiting room" s="Knock before entering" />
@@ -159,7 +230,7 @@ export function BackOffice({ session, me, estimate, act, patch, onSession, onAdd
           <Btn onClick={() => void act("take_pen")} Icon={Pencil}>Take the pen back</Btn>
           <Btn onClick={() => void act("revoke_all_share")} Icon={Monitor}>Revoke all sharing</Btn>
           <Btn onClick={() => void patch({ stageSource: "board" })} Icon={Eye}>Pull to my view</Btn>
-          <Btn onClick={() => window.print()} Icon={Download}>Export attendance</Btn>
+          <Btn onClick={exportAttendance} Icon={Download}>Export attendance (Excel)</Btn>
           {owner && session.status === "live" ? (
             <button onClick={onEnd} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-rose-600 to-rose-400 px-3 py-1.5 text-[11px] font-bold text-white">
               <Square className="h-3 w-3" /> End session
@@ -223,6 +294,16 @@ export function BackOffice({ session, me, estimate, act, patch, onSession, onAdd
 function JoinPageCard({ session, patch, onSession }: { session: TrainingSessionDTO; patch: (b: Record<string, unknown>) => Promise<string | null>; onSession: (s: TrainingSessionDTO) => void }) {
   const [headline, setHeadline] = useState(session.joinHeadline ?? "");
   const [message, setMessage] = useState(session.joinMessage ?? "");
+  // Keep the editor in sync with the SAVED values — after reopening/reusing the session, or a refresh
+  // over SSE — so a persisted headline/welcome never shows blank. But never clobber an edit in progress:
+  // adopt a server value only when the field still equals the LAST server value we showed.
+  const lastSaved = useRef({ h: session.joinHeadline ?? "", m: session.joinMessage ?? "" });
+  useEffect(() => {
+    const h = session.joinHeadline ?? "", m = session.joinMessage ?? "";
+    setHeadline((cur) => (h !== lastSaved.current.h && cur === lastSaved.current.h ? h : cur));
+    setMessage((cur) => (m !== lastSaved.current.m && cur === lastSaved.current.m ? m : cur));
+    lastSaved.current = { h, m };
+  }, [session.joinHeadline, session.joinMessage]);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState<null | "logo" | "banner">(null);
