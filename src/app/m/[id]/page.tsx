@@ -89,7 +89,8 @@ export default function MeetingPage({ params }: { params: Promise<{ id: string }
   // Admitted but the room isn't live yet — hold with the start time (over the deck's cover, if any).
   if (session.status !== "live") {
     const starts = session.startsAt ? new Date(session.startsAt) : null;
-    const cover = session.materials?.find((m) => m.kind === "slides")?.deck?.coverImageUrl ?? null;
+    const deck = session.materials?.find((m) => m.kind === "slides")?.deck;
+    const cover = deck?.slides?.[0]?.visual?.url ?? deck?.coverImageUrl ?? null;
     return (
       <div className="relative grid min-h-screen place-items-center bg-gradient-to-b from-background to-muted/40 p-4">
         {cover ? (

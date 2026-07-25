@@ -311,7 +311,7 @@ export function resolveBoard(styleKey?: VisualStyle | null, bs?: BoardStyleSetti
 }
 export function boardTheme(key?: VisualStyle | null): BoardTheme { return resolveBoard(key, null); }
 
-export function DeckSlideView({ slide, reveal, className, styleKey, hand, board, writeMs, coverUrl, cohostAudio, cohostAutoPlay = true, cohostVideoRef, onCohostEnded, onCohostTime }: { slide: DeckSlide; reveal?: number; className?: string; styleKey?: VisualStyle | null; hand?: HandStyleSettings | null; board?: BoardStyleSettings | null; writeMs?: number; coverUrl?: string | null; cohostAudio?: boolean; cohostAutoPlay?: boolean; cohostVideoRef?: (el: HTMLVideoElement | null) => void; onCohostEnded?: () => void; onCohostTime?: (frac: number) => void }) {
+export function DeckSlideView({ slide, reveal, className, styleKey, hand, board, writeMs, cohostAudio, cohostAutoPlay = true, cohostVideoRef, onCohostEnded, onCohostTime }: { slide: DeckSlide; reveal?: number; className?: string; styleKey?: VisualStyle | null; hand?: HandStyleSettings | null; board?: BoardStyleSettings | null; writeMs?: number; cohostAudio?: boolean; cohostAutoPlay?: boolean; cohostVideoRef?: (el: HTMLVideoElement | null) => void; onCohostEnded?: () => void; onCohostTime?: (frac: number) => void }) {
   // `reveal` = how many steps are shown (undefined = show everything, e.g. a builder
   // thumbnail). Drives the progressive "drawing as you talk" reveal.
   const hostRef = useRef<HTMLDivElement | null>(null); // slide container, so the hand can circle a keyword
@@ -322,26 +322,35 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
   // The opening slide — the AI co-host takes the stage to introduce itself. On the live
   // stage the moving avatar replaces this; here (builder / no avatar) it's a warm welcome.
   if (slide.intro) {
-    // With a user-uploaded COVER, the intro slide IS that image — CLEAN, no text/emoji/chip over it
-    // (the cover already carries its own title art). Without one, show the "Welcome" placeholder.
-    if (coverUrl) {
+    // The intro / first slide behaves like any slide: upload an image via Slide media and it renders
+    // here. With an image + NO explicit layout it's a full-bleed cover (clean, no text — respecting
+    // Fit/Fill + Size). Pick a Layout to fall through to that layout instead. No image → the "Welcome"
+    // placeholder. There is no separate "cover" concept — this slide's own media IS the cover.
+    const introImg = slide.visual?.kind === "image" && slide.visual.url ? slide.visual.url : null;
+    if (introImg && !slide.layout) {
+      const fit = slide.imageFit ?? "cover";
+      const zoom = slide.imageZoom && slide.imageZoom !== 1 ? ({ transform: `scale(${slide.imageZoom})` } as CSSProperties) : undefined;
       return (
         <div className={cn("relative h-full w-full overflow-hidden bg-black [container-type:inline-size]", className)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          <img src={introImg} alt="" className={cn("absolute inset-0 h-full w-full", fit === "contain" ? "object-contain" : "object-cover")} style={zoom} />
         </div>
       );
     }
-    return (
-      <div className={cn("relative grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-[#241f38] via-[#191627] to-[#0f0d17] [container-type:inline-size]", className)}>
-        <div className="relative flex flex-col items-center px-[8%] text-center">
-          <div className="mb-[3cqw] grid h-[14cqw] w-[14cqw] place-items-center rounded-full bg-gradient-to-br from-cyan-400/25 to-brand-500/25 ring-2 ring-brand-400/40"><span className="text-[7cqw]">👋</span></div>
-          <h1 className="text-[clamp(11px,5.6cqw,56px)] font-extrabold leading-tight tracking-tight text-white">{md(slide.title)}</h1>
-          {slide.subtitle ? <p className="mt-[1.5cqw] text-[clamp(6px,2.4cqw,22px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
-          <span className="mt-[3cqw] inline-flex items-center gap-1.5 rounded-full bg-gradient-to-br from-cyan-400 to-brand-500 px-[2.5cqw] py-[1.1cqw] text-[clamp(4px,1.5cqw,12px)] font-black text-[#04222a]">● AI CO-HOST</span>
+    if (introImg) {
+      // has an image AND a chosen layout → let the normal layout branches render it (fall through)
+    } else {
+      return (
+        <div className={cn("relative grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-[#241f38] via-[#191627] to-[#0f0d17] [container-type:inline-size]", className)}>
+          <div className="relative flex flex-col items-center px-[8%] text-center">
+            <div className="mb-[3cqw] grid h-[14cqw] w-[14cqw] place-items-center rounded-full bg-gradient-to-br from-cyan-400/25 to-brand-500/25 ring-2 ring-brand-400/40"><span className="text-[7cqw]">👋</span></div>
+            <h1 className="text-[clamp(11px,5.6cqw,56px)] font-extrabold leading-tight tracking-tight text-white">{md(slide.title)}</h1>
+            {slide.subtitle ? <p className="mt-[1.5cqw] text-[clamp(6px,2.4cqw,22px)] font-semibold text-[color:var(--sat)]">{md(slide.subtitle)}</p> : null}
+            <span className="mt-[3cqw] inline-flex items-center gap-1.5 rounded-full bg-gradient-to-br from-cyan-400 to-brand-500 px-[2.5cqw] py-[1.1cqw] text-[clamp(4px,1.5cqw,12px)] font-black text-[#04222a]">● AI CO-HOST</span>
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
   }
 
   // An on-screen quiz — the question + lettered options; the correct one lights up green
