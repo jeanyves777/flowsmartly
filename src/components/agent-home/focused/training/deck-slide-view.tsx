@@ -329,9 +329,13 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
     const introImg = slide.visual?.kind === "image" && slide.visual.url ? slide.visual.url : null;
     if (introImg && !slide.layout) {
       const fit = slide.imageFit ?? "cover";
-      const zoom = slide.imageZoom && slide.imageZoom !== 1 ? ({ transform: `scale(${slide.imageZoom})` } as CSSProperties) : undefined;
+      const zoom: CSSProperties | undefined = (slide.imageZoom && slide.imageZoom !== 1) || slide.imageFocal
+        ? { ...(slide.imageZoom && slide.imageZoom !== 1 ? { transform: `scale(${slide.imageZoom})` } : {}), ...(slide.imageFocal ? { objectPosition: slide.imageFocal } : {}) }
+        : undefined;
       return (
-        <div className={cn("relative h-full w-full overflow-hidden bg-black [container-type:inline-size]", className)}>
+        <div className={cn("relative grid h-full w-full place-items-center overflow-hidden bg-gradient-to-br from-[#191627] to-black [container-type:inline-size]", className)}>
+          {/* shown only if the image can't load — a cover slide should never be fully blank */}
+          {slide.title ? <span className="pointer-events-none max-w-[80%] text-center text-[clamp(10px,4.2cqw,44px)] font-extrabold leading-tight tracking-tight text-white/70">{md(slide.title)}</span> : null}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={introImg} alt="" className={cn("absolute inset-0 h-full w-full", fit === "contain" ? "object-contain" : "object-cover")} style={zoom} />
         </div>
@@ -430,7 +434,10 @@ export function DeckSlideView({ slide, reveal, className, styleKey, hand, board,
   // Per-slide override of how the image displays + a zoom, so a mis-detected diagram can be shown whole.
   const imgFit = slide.imageFit ?? (containImg ? "contain" : "cover");
   const imgFitClass = imgFit === "contain" ? "object-contain p-[3%]" : "object-cover";
-  const imgZoomStyle = slide.imageZoom && slide.imageZoom !== 1 ? ({ transform: `scale(${slide.imageZoom})` } as CSSProperties) : undefined;
+  // zoom + focal position (object-position) so a face/subject isn't cropped out when the image fills.
+  const imgZoomStyle: CSSProperties | undefined = (slide.imageZoom && slide.imageZoom !== 1) || slide.imageFocal
+    ? { ...(slide.imageZoom && slide.imageZoom !== 1 ? { transform: `scale(${slide.imageZoom})` } : {}), ...(slide.imageFocal ? { objectPosition: slide.imageFocal } : {}) }
+    : undefined;
   const bullets = slide.bullets ?? [];
   const shownB = reveal === undefined ? bullets : bullets.slice(0, reveal);
   const lay = slide.layout;

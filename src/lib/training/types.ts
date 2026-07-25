@@ -366,6 +366,9 @@ export interface DeckSlide {
   imageFit?: "contain" | "cover";
   /** extra zoom applied to the slide image (1 = none) so it can be sized to show properly. */
   imageZoom?: number;
+  /** CSS object-position for the slide image (e.g. "top", "left") so the subject isn't cropped out
+   *  when filling. Unset = center. */
+  imageFocal?: string;
 
   /** ---- content-aware presentation model (independent axes) ---- */
   /** the content layout for this teaching moment (hero, problem→solution, comparison, …). */
