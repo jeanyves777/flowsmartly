@@ -738,7 +738,7 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
   // ---- builder ----
   return (
     <div className="absolute inset-0 flex flex-col bg-background">
-      <div className="grid min-h-0 flex-1 grid-cols-[176px_1fr] md:grid-cols-[186px_1fr_260px]">
+      <div className="grid min-h-0 flex-1 grid-cols-[176px_1fr] md:grid-cols-[186px_1fr_308px]">
       {/* slides rail */}
       <div className="flex flex-col overflow-hidden border-e border-border bg-card">
         <div className="flex items-center gap-1.5 border-b border-border px-3 py-2.5">
@@ -1111,13 +1111,11 @@ export function DeckBuilder({ session, sessionId, autoGen, onAutoConsumed, prese
             {/* CO-HOST VIDEO — replace this slide's image with the co-host narrating it, on the left/right. */}
             {slide.type === "doc" ? (
               <div className="rounded-xl border border-border bg-muted/40 p-3">
-                <div className="mb-2 flex items-center gap-1.5">
-                  <Film className="h-3.5 w-3.5 text-brand-300" />
-                  <span className="text-[10px] font-extrabold uppercase tracking-wide text-brand-300">Co-host video</span>
-                  <button ref={stageBtnRef} onClick={() => setStageMenuOpen((o) => !o)} title="Stage layout — how the co-host shares the stage with your slides" className={cn("ms-auto inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold hover:border-brand-500", stageMenuOpen ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border text-muted-foreground")}>
-                    <Presentation className="h-3 w-3" /> Stage: {STAGE_MODE_LABELS[deck.stageLayout?.mode ?? "cohost_right"]} ▾
-                  </button>
-                </div>
+                <div className="mb-2 flex items-center gap-1.5 whitespace-nowrap text-[10px] font-extrabold uppercase tracking-wide text-brand-300"><Film className="h-3.5 w-3.5 shrink-0" /> Co-host video</div>
+                <button ref={stageBtnRef} onClick={() => setStageMenuOpen((o) => !o)} title="Stage layout — how the co-host shares the stage with your slides" className={cn("mb-2 flex w-full items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold hover:border-brand-500", stageMenuOpen ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border text-muted-foreground")}>
+                  <Presentation className="h-3.5 w-3.5 shrink-0 text-brand-400" /> Stage layout
+                  <span className="ms-auto truncate ps-2 text-muted-foreground">{STAGE_MODE_LABELS[deck.stageLayout?.mode ?? "cohost_right"]} ▾</span>
+                </button>
                 {stageMenuOpen && typeof document !== "undefined" ? createPortal(
                   <>
                     <div className="fixed inset-0 z-[80]" onClick={() => setStageMenuOpen(false)} />
