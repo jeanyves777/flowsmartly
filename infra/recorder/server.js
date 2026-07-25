@@ -35,6 +35,11 @@ const CHROME_PATH = process.env.CHROME_PATH || undefined; // system chromium if 
 const V_PRESET = process.env.RECORDER_PRESET || "veryfast";
 const V_CRF = process.env.RECORDER_CRF || "20"; // 18–23 = visually lossless→good; lower = bigger/better
 const A_BITRATE = process.env.RECORDER_ABITRATE || "192k";
+// A/V SYNC: x11grab (video) and PulseAudio (audio) run on DIFFERENT device clocks, so over a long
+// recording the audio drifts against the video and the talking-head lips desync. Fix = timestamp
+// BOTH inputs by the system wall-clock (one shared clock) so they can't drift apart. REC_AUDIO_OFFSET
+// (seconds, e.g. "-0.15") nudges any residual CONSTANT lip-sync offset; negative advances the audio.
+const AUDIO_OFFSET = process.env.REC_AUDIO_OFFSET || "0";
 
 // S3 (the SAME bucket the app writes to — training/ is public)
 const S3_BUCKET = process.env.S3_BUCKET || "";
@@ -124,11 +129,15 @@ async function startJob(sessionId, token) {
     //    Fragmented = a valid, playable, YouTube-uploadable file even if we're killed mid-record
     //    (raw mp4 would corrupt); yuv420p + faststart keep it universally decodable.
     job.ffmpeg = spawn("ffmpeg", [
-      "-y", "-thread_queue_size", "1024",
+      "-y",
+      // both inputs stamped by the wall-clock → shared clock, no A/V drift over long recordings
+      "-use_wallclock_as_timestamps", "1", "-thread_queue_size", "1024",
       "-f", "x11grab", "-draw_mouse", "0", "-video_size", `${W}x${H}`, "-framerate", String(FPS), "-i", `${display}.0`,
-      "-f", "pulse", "-thread_queue_size", "1024", "-i", process.env.PULSE_SOURCE || "default",
+      "-use_wallclock_as_timestamps", "1", "-thread_queue_size", "1024", "-itsoffset", AUDIO_OFFSET,
+      "-f", "pulse", "-i", process.env.PULSE_SOURCE || "default",
       "-c:v", "libx264", "-preset", V_PRESET, "-crf", V_CRF, "-pix_fmt", "yuv420p",
       "-g", String(FPS * 2), "-profile:v", "high", "-level", "4.2",
+      "-r", String(FPS), // force a constant output frame rate so the video timeline is regular
       "-c:a", "aac", "-b:a", A_BITRATE, "-ar", "48000", "-ac", "2",
       "-movflags", "+frag_keyframe+empty_moov+default_base_moof+faststart",
       "-f", "mp4", filePath,
@@ -195,11 +204,14 @@ async function runSelfTest() {
     try { await page.mouse.click(Math.floor(W / 2), Math.floor(H / 2)); } catch {}
     await sleep(800);
     const ff = spawn("ffmpeg", [
-      "-y", "-thread_queue_size", "1024",
+      "-y",
+      "-use_wallclock_as_timestamps", "1", "-thread_queue_size", "1024",
       "-f", "x11grab", "-draw_mouse", "0", "-video_size", `${W}x${H}`, "-framerate", String(FPS), "-i", `${display}.0`,
-      "-f", "pulse", "-thread_queue_size", "1024", "-i", process.env.PULSE_SOURCE || "default",
+      "-use_wallclock_as_timestamps", "1", "-thread_queue_size", "1024", "-itsoffset", AUDIO_OFFSET,
+      "-f", "pulse", "-i", process.env.PULSE_SOURCE || "default",
       "-t", "7",
       "-c:v", "libx264", "-preset", V_PRESET, "-crf", V_CRF, "-pix_fmt", "yuv420p", "-g", String(FPS * 2), "-profile:v", "high",
+      "-r", String(FPS),
       "-c:a", "aac", "-b:a", A_BITRATE, "-ar", "48000", "-ac", "2",
       "-movflags", "+frag_keyframe+empty_moov+faststart", "-f", "mp4", filePath,
     ], { stdio: ["ignore", "ignore", "ignore"] });
