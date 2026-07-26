@@ -850,6 +850,10 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
   const [numAvail, setNumAvail] = useState<{ phoneNumber: string; region?: string; locality?: string }[]>([]);
   const [numBusy, setNumBusy] = useState(false);
   const [numSel, setNumSel] = useState<string | null>(null);
+  // Branded confirm for the number-rental charge (replaces the native window.confirm). The promise
+  // resolves true/false when the user clicks Rent/Cancel in the in-app modal.
+  const [confirmRent, setConfirmRent] = useState<null | { number: string; cost: number; resolve: (ok: boolean) => void }>(null);
+  const askRentConfirm = (number: string, cost: number) => new Promise<boolean>((resolve) => setConfirmRent({ number, cost, resolve }));
   const [voiceId, setVoiceId] = useState(agent?.voiceId || DEFAULT_VOICE.voiceId);
   const [voiceLabel, setVoiceLabel] = useState(agent?.voiceLabel || DEFAULT_VOICE.name);
   const [order, setOrder] = useState<OrderConfig>(agent?.orderConfig || DEFAULT_ORDER_CONFIG);
@@ -936,7 +940,8 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
   const rentPicked = async (agentId: string): Promise<void> => {
     if (!numSel) return;
     const cost = DEFAULT_CREDIT_COSTS.VOICE_AGENT_NUMBER_RENTAL;
-    if (typeof window !== "undefined" && !window.confirm(`Rent ${fmtNumber(numSel)} for ${cost} credits + a monthly rental?`)) {
+    const confirmed = await askRentConfirm(numSel, cost);
+    if (!confirmed) {
       toast({ title: "Saved — no number rented", description: "Your agent still needs a line to take calls. Add one anytime." });
       return;
     }
@@ -996,6 +1001,37 @@ function BriefSheet({ agent, onClose, onSaved, onPatch, ask }: {
 
   return (
     <div className="absolute inset-0 z-40">
+      {/* Branded number-rental confirm — replaces the native browser alert. Portalled above the brief. */}
+      {confirmRent ? createPortal(
+        <div className="fixed inset-0 z-[70] grid place-items-center p-4">
+          <button aria-label="Cancel" onClick={() => { confirmRent.resolve(false); setConfirmRent(null); }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+            <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
+              <span className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 text-white"><PhoneCall className="h-4 w-4" /></span>
+              <div className="min-w-0">
+                <div className="text-[13px] font-extrabold leading-tight">Rent this number?</div>
+                <div className="text-[11px] text-muted-foreground">Your agent’s own line for calls in &amp; out</div>
+              </div>
+            </div>
+            <div className="px-4 py-3.5">
+              <div className="rounded-xl border border-border bg-muted/50 px-3 py-2.5 text-center font-mono text-[16px] font-bold tracking-tight">{fmtNumber(confirmRent.number)}</div>
+              <div className="mt-3 flex items-center justify-between text-[12px]">
+                <span className="text-muted-foreground">One-time setup</span>
+                <span className="inline-flex items-center gap-1 font-extrabold"><Coins className="h-3.5 w-3.5 text-amber-500" />{confirmRent.cost} credits</span>
+              </div>
+              <div className="mt-1.5 flex items-center justify-between text-[12px]">
+                <span className="text-muted-foreground">Then</span>
+                <span className="font-semibold">a monthly rental</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 border-t border-border px-4 py-3">
+              <button onClick={() => { confirmRent.resolve(false); setConfirmRent(null); }} className="flex-1 rounded-lg border border-border px-3 py-2 text-[12.5px] font-bold text-muted-foreground hover:bg-muted">Cancel</button>
+              <button onClick={() => { confirmRent.resolve(true); setConfirmRent(null); }} className="flex-1 rounded-lg bg-gradient-to-br from-brand-500 to-violet-600 px-3 py-2 text-[12.5px] font-extrabold text-white hover:opacity-95">Rent number</button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      ) : null}
       <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/50" />
       <div className="absolute inset-x-3 bottom-3 top-10 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
         <span className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-border" />
