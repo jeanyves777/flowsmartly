@@ -15,7 +15,7 @@ import {
   Sparkles, X, Phone, Mic, Zap, ClipboardList, Plus, Pencil, Power, PhoneCall,
   Search, Coins, ListChecks, Settings, Hash, PauseCircle, PlayCircle, Trash2,
   ChevronRight, AlertTriangle, FileText, Link2, RefreshCw, Check, Loader2,
-  Volume2, Upload, Square, Copy, PhoneForwarded, PhoneOutgoing,
+  Volume2, Upload, Square, Copy, PhoneForwarded, PhoneOutgoing, CalendarClock,
 } from "lucide-react";
 
 import { useTextPrompt } from "@/components/agent-home/shared/text-prompt";
@@ -72,6 +72,7 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
   const [backOpen, setBackOpen] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [voicePickerOpen, setVoicePickerOpen] = useState(false);
+  const [bookingOpen, setBookingOpen] = useState(false);
   const [skillMenuOpen, setSkillMenuOpen] = useState(false);
 
   const boardRef = useRef<HTMLDivElement>(null);
@@ -259,6 +260,7 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
             <>
               <BriefNode agent={agent} onOpen={() => setBriefOpen(true)} onMove={recomputeWires} />
               <VoiceNode agent={agent} onOpen={() => setVoicePickerOpen(true)} onMove={recomputeWires} />
+              <BookingNode agent={agent} onOpen={() => setBookingOpen(true)} onPatch={save} onMove={recomputeWires} />
 
               {skills.map((s, i) => (
                 <SkillNode key={s.id} skill={s} index={i} agent={agent}
@@ -360,6 +362,10 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
           onPick={async (id) => { setAgentsOpen(false); await loadAgent(id); }}
           onNew={() => { setAgentsOpen(false); setBriefOpen(true); }}
           onClose={() => setAgentsOpen(false)} />
+      )}
+
+      {bookingOpen && agent && (
+        <BookingModal agent={agent} onClose={() => setBookingOpen(false)} onPatch={save} />
       )}
 
       {voicePickerOpen && agent && (
@@ -510,6 +516,93 @@ function VoiceNode({ agent, onOpen, onMove }: { agent: VoiceAgentDraft; onOpen: 
           className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 py-1.5 text-[9.5px] font-bold text-white">
           <Mic className="h-3 w-3" /> Change
         </button>
+      </div>
+    </div>
+  );
+}
+
+// Booking is a first-class canvas node: pick the method from a dropdown right on the
+// node, see a live summary + consent state, and open the full modal to finish setup.
+const BOOKING_TAGS: Record<string, { t: string; tone: string }> = {
+  link: { t: "SHARE LINK", tone: "bg-emerald-500/15 text-emerald-500" },
+  provider: { t: "SCHEDULER", tone: "bg-brand-500/15 text-brand-400" },
+  auto: { t: "AUTO-BOOK", tone: "bg-amber-500/15 text-amber-500" },
+  off: { t: "OFF", tone: "bg-muted text-muted-foreground" },
+};
+const provLabel = (p: string) => ({ calendly: "Calendly", acuity: "Acuity", calcom: "Cal.com", square: "Square" } as Record<string, string>)[p] || p;
+
+function BookingNode({ agent, onOpen, onPatch, onMove }: {
+  agent: VoiceAgentDraft; onOpen: () => void; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void>; onMove: () => void;
+}) {
+  const { ref, start } = useNodeDrag(onMove);
+  const mode = agent.bookingMode || "off";
+  const tag = BOOKING_TAGS[mode] || BOOKING_TAGS.off;
+  const needsConsent = mode === "provider" || mode === "auto";
+  const signed = !!agent.bookingConsentAt && !!agent.bookingConsentBy;
+  const host = (agent.bookingUrl || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  return (
+    <div ref={ref} data-node="__booking" style={{ left: 40, top: 320 }}
+      className="absolute w-[236px] overflow-hidden rounded-2xl border border-emerald-500/40 bg-gradient-to-b from-emerald-500/8 to-card shadow-sm">
+      <NodeHead icon={<CalendarClock className="h-3 w-3" />} tone="bg-emerald-500/15 text-emerald-500"
+        title="Booking" tag={tag.t} tagTone={tag.tone} onPointerDown={start} />
+      <div className="mx-3">
+        <label className="mb-0.5 block text-[8px] font-extrabold uppercase tracking-wide text-muted-foreground">How it books</label>
+        <select value={mode}
+          onChange={(e) => { const v = e.target.value; void onPatch({ bookingMode: v === "off" ? null : v }); }}
+          className="w-full cursor-pointer rounded-lg border border-border bg-muted/40 p-2 text-[10px] font-semibold outline-none focus:border-emerald-500/50">
+          <option value="link">Share my booking link</option>
+          <option value="provider">Connect my scheduler</option>
+          <option value="auto">Auto-book my page</option>
+          <option value="off">Off — just take details</option>
+        </select>
+      </div>
+      <button onClick={onOpen}
+        className="mx-3 mt-2 block w-[calc(100%-24px)] rounded-lg border border-border bg-muted/30 p-2 text-left hover:border-emerald-500">
+        {(mode === "link" || mode === "auto") && (
+          <span className="block truncate text-[9.5px] font-semibold">{host || <span className="text-muted-foreground">Add your booking link…</span>}</span>
+        )}
+        {mode === "provider" && (
+          <span className="block text-[9.5px] font-semibold">{agent.bookingProvider ? provLabel(agent.bookingProvider) : <span className="text-muted-foreground">Pick a scheduler…</span>}</span>
+        )}
+        {mode === "off" && <span className="block text-[9.5px] text-muted-foreground">Agent takes details → emails you</span>}
+        {needsConsent && (
+          <span className={cn("mt-1 inline-flex items-center gap-1 rounded px-1 py-px text-[8px] font-black uppercase tracking-wide", signed ? "bg-emerald-500/15 text-emerald-500" : "bg-amber-500/15 text-amber-500")}>
+            {signed ? "✓ authorized" : "needs signing"}
+          </span>
+        )}
+      </button>
+      <div className="mx-3 mt-2 flex items-center gap-1.5 text-[8.5px] text-muted-foreground">
+        <Check className="h-2.5 w-2.5 flex-none text-emerald-500" /> Owner emailed every request
+      </div>
+      <div className="flex gap-1 p-3">
+        <button onClick={onOpen} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-emerald-500 py-1.5 text-[9.5px] font-bold text-white">
+          <Settings className="h-3 w-3" /> Set up
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The full booking setup — opened from the canvas Booking node; reuses BookingGroup. */
+function BookingModal({ agent, onClose, onPatch }: {
+  agent: VoiceAgentDraft; onClose: () => void; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void>;
+}) {
+  return (
+    <div className="absolute inset-0 z-40">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/50" />
+      <div className="absolute inset-x-3 bottom-3 top-14 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-8 sm:bottom-8">
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <span className="grid h-6 w-6 place-items-center rounded-lg bg-emerald-500/15 text-emerald-500"><CalendarClock className="h-3.5 w-3.5" /></span>
+          <b className="text-[13.5px]">Booking setup</b>
+          <span className="text-[11px] text-muted-foreground">— how the agent books a caller</span>
+          <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="mx-auto max-w-md"><BookingGroup agent={agent} onPatch={onPatch} /></div>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+          <button onClick={onClose} className="rounded-lg bg-gradient-to-r from-brand-500 to-emerald-500 px-4 py-1.5 text-[12px] font-bold text-white">Done</button>
+        </div>
       </div>
     </div>
   );
@@ -1805,10 +1898,6 @@ function Controls({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Par
             );
           })}
         </div>
-      </Group>
-
-      <Group title="Appointment booking" sub="How the agent books — and where requests are emailed.">
-        <BookingGroup agent={agent} onPatch={onPatch} />
       </Group>
 
       <Group title="Escalation" sub="Who the agent rings when it's out of its depth.">
