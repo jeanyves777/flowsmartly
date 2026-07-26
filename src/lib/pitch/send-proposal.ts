@@ -188,6 +188,33 @@ export async function deliverProposal(userId: string, pitchId: string, opts: Del
     emailPitchContent = pitchContent;
   }
 
+  // Inline the proposal's cover/about/impact images as data URIs BEFORE rendering.
+  // The PDF renderer loads HTML via Puppeteer setContent (origin about:blank), so a
+  // remote/presigned/relative <img src> silently fails to load — that's the "all
+  // images missing" bug. Embedding them (like the logo already is) makes the PDF
+  // self-contained: no live fetch at render time, no presign expiry, no origin issue.
+  const pc = proposalContent;
+  if (pc?.visualAssets?.images?.length) {
+    const images = await Promise.all(
+      pc.visualAssets.images.map(async (im) => {
+        const url = typeof im?.url === "string" ? im.url : "";
+        if (!url || url.startsWith("data:")) return im;
+        try {
+          const sharp = (await import("sharp")).default;
+          const raw = await fetchLogoBuffer(url);
+          const meta = await sharp(raw).metadata();
+          const fmt = meta.format === "jpeg" || meta.format === "jpg" ? "image/jpeg" : meta.format === "webp" ? "image/webp" : "image/png";
+          const out = await sharp(raw).resize({ width: 1600, withoutEnlargement: true }).toBuffer();
+          return { ...im, url: `data:${fmt};base64,${out.toString("base64")}` };
+        } catch (e) {
+          console.warn("[deliverProposal] Could not embed proposal image:", im?.kind, e);
+          return im;
+        }
+      }),
+    );
+    proposalContent = { ...pc, visualAssets: { ...pc.visualAssets, images } };
+  }
+
   // Build the PDF — proposals render from the SAME HTML the Studio shows.
   let pdfBuffer: Buffer | undefined;
   try {

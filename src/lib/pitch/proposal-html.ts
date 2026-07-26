@@ -167,7 +167,7 @@ export function renderProposalHtml(content: ServiceProposalContent, opts: Render
     const amt = typeof pricing.amount === "number" ? `$${pricing.amount.toLocaleString()}` : "";
     const orig = typeof pricing.originalAmount === "number" ? `<s>$${pricing.originalAmount.toLocaleString()}</s>` : "";
     sections.push(`
-    <section class="sec">
+    <section class="sec keep">
       ${kicker("pricing", "Investment")}
       <div class="price" style="background:${secondaryInk}">
         <div>
@@ -194,7 +194,7 @@ export function renderProposalHtml(content: ServiceProposalContent, opts: Render
   // ── CLOSING / CONTACT ──
   const contactLines = [contact.email, contact.phone, contact.address].filter(Boolean).map((x) => `<div>${esc(x)}</div>`).join("");
   sections.push(`
-    <section class="sec">
+    <section class="sec keep">
       ${kicker("closing", "Let's get started")}
       <div class="two closing">
         <div>
@@ -219,7 +219,8 @@ export function renderProposalHtml(content: ServiceProposalContent, opts: Render
     .brandname { font-family: Arial, sans-serif; font-size: 15px; font-weight: 800; letter-spacing:.04em; }
     .cover { position:relative; color:#fff; padding: 46px 54px 40px; background: linear-gradient(135deg, ${primaryInk}, ${secondaryInk}); display:flex; gap:28px; align-items:center; }
     .cover.visual-cover { color:${ink}; background:#fff; min-height: 320px; overflow:hidden; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-    .cover.visual-cover:before { content:""; position:absolute; inset:0; background-image: linear-gradient(105deg,transparent 0 18%, rgba(226,232,240,0.55) 18.2%, transparent 18.6% 34%, rgba(226,232,240,0.55) 34.2%, transparent 34.6% 100%); }
+    /* Soft corner wash — no hard-edged stripes, which printed as stray diagonal lines. */
+    .cover.visual-cover:before { content:""; position:absolute; inset:0; background: linear-gradient(120deg, transparent 45%, ${theme.accent}12 100%); }
     .cover.visual-cover:after { content:""; position:absolute; right:-70px; top:-70px; width:220px; height:220px; border-radius:999px; background:${theme.accent}20; }
     .cover-in { flex:1; min-width:0; }
     .visual-cover .cover-in, .visual-cover .cover-img { position:relative; z-index:1; }
@@ -234,6 +235,14 @@ export function renderProposalHtml(content: ServiceProposalContent, opts: Render
     .visual-cover .subtitle { max-width:460px; color:#334155; font-size:18px; line-height:1.5; font-weight:700; opacity:1; }
     .prep-by { display:inline-block; margin-top: 22px; border-radius: 999px; padding: 7px 14px; font-family: Arial, sans-serif; font-size: 11px; font-weight: 800; background:${theme.accent}; color:${textOnColor(theme.accent, ink)}; }
     .sec { padding: 26px 54px; border-top: 1px solid #eef0f3; break-inside: auto; page-break-inside: auto; }
+    /* Print pagination: never strand a section label/heading at a page bottom
+       (its content follows), and keep short blocks whole so they don't half-split. */
+    .kick, h2, h3 { break-after: avoid; page-break-after: avoid; }
+    .cover, .price, .contact, .ring, .bullets li, .checks li, .steps li { break-inside: avoid; page-break-inside: avoid; }
+    /* Short sections whose block can't split (price bar / contact card): keep the
+       whole section together so its label is never stranded above a page break
+       (Chromium doesn't reliably honour break-after on the kicker alone). */
+    .sec.keep { break-inside: avoid; page-break-inside: avoid; }
     .kick { font-family: Arial, sans-serif; font-size: 10.5px; font-weight: 800; letter-spacing:.14em; text-transform: uppercase; color:${primaryInk}; margin-bottom: 8px; }
     h2 { font-size: ${isVisual ? "28px" : "22px"}; font-weight: ${isVisual ? "900" : "700"}; margin: 0; }
     h3 { font-size: 16px; font-weight: ${isVisual ? "800" : "700"}; margin: 0 0 8px; }
@@ -244,8 +253,10 @@ export function renderProposalHtml(content: ServiceProposalContent, opts: Render
     .side-img { flex:0 0 38%; }
     .side-img img { width:100%; border-radius:12px; }
     .two .body, .two > div { flex:1; min-width:0; }
-    .cards { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
-    .card { border:1px solid #e7eaee; border-radius: 12px; padding: 14px; break-inside: avoid; page-break-inside: avoid; }
+    /* flex-wrap (not grid) so cards fragment row-by-row across pages instead of the
+       whole grid jumping — Chromium paginates grid containers unreliably. */
+    .cards { display:flex; flex-wrap:wrap; gap: 12px; margin-top: 12px; }
+    .card { flex: 0 1 calc(50% - 6px); min-width:0; border:1px solid #e7eaee; border-radius: 12px; padding: 14px; break-inside: avoid; page-break-inside: avoid; }
     .chip { display:inline-block; height:26px; width:26px; border-radius:8px; background:${primaryInk}; }
     .card-title { margin-top: 8px; font-family: Arial, sans-serif; font-size: 13.5px; font-weight: 800; color:${secondaryInk}; }
     .card-desc { margin-top: 3px; font-size: 12.5px; color:#3a4757; line-height:1.5; }
@@ -256,8 +267,8 @@ export function renderProposalHtml(content: ServiceProposalContent, opts: Render
     .ring { width: 96px; text-align:center; }
     .ringc { height: 84px; width: 84px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto; font-family: Arial, sans-serif; font-weight: 800; padding: 6px; overflow:hidden; word-break:break-word; line-height:1.05; }
     .ring small { display:block; margin-top: 7px; font-family: Arial, sans-serif; font-size: 11px; color:#55606e; }
-    .tl { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-    .tlc { border:1px solid #e7eaee; border-radius: 12px; padding: 10px; break-inside: avoid; page-break-inside: avoid; }
+    .tl { display:flex; flex-wrap:wrap; gap: 10px; margin-top: 10px; }
+    .tlc { flex: 0 1 calc(50% - 5px); min-width:0; border:1px solid #e7eaee; border-radius: 12px; padding: 10px; break-inside: avoid; page-break-inside: avoid; }
     .tll { font-family: Arial, sans-serif; font-size: 11px; font-weight: 800; text-transform:uppercase; letter-spacing:.05em; }
     .tlt { margin-top: 3px; font-size: 13px; font-weight: 700; }
     .tld { margin-top: 3px; font-size: 12px; color:#55606e; }
