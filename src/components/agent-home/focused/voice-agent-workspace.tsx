@@ -1498,8 +1498,18 @@ function DialOut({ agent, onRefresh }: {
 
   if (agent.status !== "LIVE" || !agent.number?.e164) return null;
 
-  const e164 = () => { const d = to.replace(/[\s()\-.]/g, ""); return d.startsWith("+") ? d : `+${d}`; };
+  // Normalise to E.164, defaulting to US/Canada (+1) so a plain 10-digit number
+  // dials correctly — the old code just prepended "+" and dialed a country-code-less
+  // number that silently failed. International callers type a leading "+".
+  const e164 = () => {
+    const raw = to.replace(/[^\d+]/g, "");
+    if (raw.startsWith("+")) return raw;
+    if (raw.length === 10) return `+1${raw}`;
+    if (raw.length === 11 && raw.startsWith("1")) return `+${raw}`;
+    return `+${raw}`;
+  };
   const canCall = /^\+[1-9]\d{7,14}$/.test(e164());
+  const prettyTarget = e164().replace(/^\+1(\d{3})(\d{3})(\d{4})$/, "+1 $1 $2 $3");
   const fmtTo = (raw: string) => {
     const d = raw.replace(/[^\d+*#]/g, "");
     if (d.startsWith("+") || d.length > 10) return d;
@@ -1603,6 +1613,15 @@ function DialOut({ agent, onRefresh }: {
       </div>
       <div className="min-h-[34px] text-center font-mono text-[20px] font-bold tracking-wide">
         {to ? fmtTo(to) : <span className="text-[13px] font-medium text-muted-foreground/50">Enter a number</span>}
+      </div>
+      <div className="mb-1 min-h-[13px] text-center text-[10px] font-semibold">
+        {!to ? (
+          <span className="text-muted-foreground/70">US/Canada: just the 10 digits · other countries: start with +</span>
+        ) : canCall ? (
+          <span className="text-emerald-500">Will dial {prettyTarget}</span>
+        ) : (
+          <span className="text-amber-500">Add the country code — start with + (e.g. +44), or type 10 digits for US</span>
+        )}
       </div>
       <div className="my-2 grid grid-cols-3 gap-1.5">
         {KEYS.map(([n, l]) => (
