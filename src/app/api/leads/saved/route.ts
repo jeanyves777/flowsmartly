@@ -14,11 +14,29 @@ interface IncomingLead {
   types?: string[];
   googleMapsUrl?: string;
   category?: string;
+  // person-level fields (paste-import + agent-save) — previously dropped
+  email?: string;
+  title?: string;
+  seniority?: string;
+  department?: string;
+  socials?: Record<string, unknown>;
 }
 
 const str = (v: unknown, max = 500): string | null => {
   const s = typeof v === "string" ? v.trim() : "";
   return s ? s.slice(0, max) : null;
+};
+// A trimmed, plausibly-valid email (or null) — so a stray token doesn't land in the email column.
+const email = (v: unknown): string | null => {
+  const s = typeof v === "string" ? v.trim().toLowerCase() : "";
+  return s && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) ? s.slice(0, 320) : null;
+};
+// A JSON socials object → stringified (or "{}") — drops non-string values.
+const socialsJson = (v: unknown): string => {
+  if (!v || typeof v !== "object") return "{}";
+  const out: Record<string, string> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) if (typeof val === "string" && val.trim()) out[k] = val.trim().slice(0, 400);
+  return JSON.stringify(out);
 };
 
 // POST /api/leads/saved — save selected leads into a list (new or existing).
@@ -72,6 +90,13 @@ export async function POST(request: NextRequest) {
           category: category || str(lead.category, 80),
           types: JSON.stringify(Array.isArray(lead.types) ? lead.types.filter((t) => typeof t === "string").slice(0, 12) : []),
           googleMapsUrl: str(lead.googleMapsUrl, 600),
+          // person-level contact fields — were silently dropped before, losing
+          // pasted emails (and any title/socials a caller supplies).
+          email: email(lead.email),
+          title: str(lead.title, 160),
+          seniority: str(lead.seniority, 60),
+          department: str(lead.department, 80),
+          socials: socialsJson(lead.socials),
         },
       });
       saved++;

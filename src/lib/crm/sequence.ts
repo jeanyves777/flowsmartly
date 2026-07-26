@@ -12,7 +12,7 @@ import { prisma } from "@/lib/db/client";
  * [[lead-studio-redesign-approved]]
  */
 
-export type StepKind = "email" | "sms" | "whatsapp" | "call" | "cond" | "task" | "book";
+export type StepKind = "email" | "sms" | "whatsapp" | "call" | "cond" | "task" | "book" | "wait";
 export interface StepCfg {
   id: string;
   kind: StepKind;
@@ -28,7 +28,7 @@ export interface StepCfg {
 
 const DAY = 24 * 60 * 60 * 1000;
 const CHANNEL_OF: Partial<Record<StepKind, "email" | "sms" | "whatsapp">> = { email: "email", book: "email", sms: "sms", whatsapp: "whatsapp" };
-const ACTIVITY_TYPE: Record<StepKind, string> = { email: "email", book: "meeting", sms: "sms", whatsapp: "whatsapp", call: "call", cond: "note", task: "note" };
+const ACTIVITY_TYPE: Record<StepKind, string> = { email: "email", book: "meeting", sms: "sms", whatsapp: "whatsapp", call: "call", cond: "note", task: "note", wait: "note" };
 
 export function parseSteps(json: string | null | undefined): StepCfg[] {
   try { const p = JSON.parse(json || "[]"); return Array.isArray(p) ? (p as StepCfg[]) : []; } catch { return []; }
@@ -109,6 +109,15 @@ export async function runEnrollmentStep(enr: EnrollmentRow, steps: StepCfg[], si
   const t = targetOf(enr);
   const logActivity = (subject: string, type = ACTIVITY_TYPE[step.kind]) =>
     prisma.activity.create({ data: { userId: enr.userId, type, subject, body: step.body || null, savedLeadId: enr.savedLeadId, opportunityId: enr.opportunityId } }).catch(() => {});
+
+  // Wait/delay — a pure timer step, no send. Its delay already elapsed (it was
+  // baked into nextRunAt when we advanced INTO this step), so just move on. Without
+  // this case a wait step falls through to the channel path, resolves to an
+  // undefined channel, and stalls the enrollment in a blocked retry loop forever.
+  if (step.kind === "wait") {
+    await advance(enr.id, steps, enr.currentStep + 1, recur);
+    return "wait";
+  }
 
   // Manual task — park until it's marked done.
   if (step.kind === "task") {

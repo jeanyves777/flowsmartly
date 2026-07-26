@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ElementType, type ReactNode } from "react";
 import {
   Search, Users, Building2, BarChart3, Folder, FolderPlus, Sparkles, Upload, X,
   CheckCircle2, Workflow, ArrowRight, ChevronLeft, ChevronRight, FileText,
@@ -102,6 +102,56 @@ const LEAD_PRESETS: LeadPreset[] = [
 ];
 const FLD = "w-full rounded-[9px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60";
 const SEL = "rounded-[9px] border border-input bg-background px-2.5 py-2 text-[12px] outline-none focus:border-brand-500/60";
+
+type ImportedLead = { name: string; category?: string; email?: string; phone?: string };
+/**
+ * Parse pasted rows or an uploaded CSV into leads. Splits on comma/semicolon/tab
+ * (quote-aware), detects a header row and maps columns by name (so a real CSV
+ * imports regardless of column order + never imports its header as a lead), and
+ * otherwise falls back to the documented Name, Company, Email, Phone order.
+ */
+function parseLeadRows(text: string): ImportedLead[] {
+  const lines = text.split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
+  if (!lines.length) return [];
+  const splitRow = (line: string): string[] => {
+    const out: string[] = []; let cur = ""; let q = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { if (q && line[i + 1] === '"') { cur += '"'; i++; } else q = !q; }
+      else if (!q && (c === "," || c === ";" || c === "\t")) { out.push(cur); cur = ""; }
+      else cur += c;
+    }
+    out.push(cur);
+    return out.map((s) => s.trim());
+  };
+  const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+  const first = splitRow(lines[0]).map((s) => s.toLowerCase());
+  const HEADER_TOKENS = ["name", "company", "email", "e-mail", "phone", "first", "last", "business", "organi", "mobile", "tel", "contact"];
+  const hasHeader = !first.some(isEmail) && first.some((c) => HEADER_TOKENS.some((h) => c.includes(h)));
+  const col = (pred: (c: string) => boolean) => first.findIndex(pred);
+  const idx = hasHeader ? {
+    name: col((c) => c === "name" || c.includes("full name") || c.includes("contact name")),
+    first: col((c) => c.includes("first")),
+    last: col((c) => c.includes("last")),
+    company: col((c) => c.includes("company") || c.includes("business") || c.includes("organi")),
+    email: col((c) => c.includes("email") || c.includes("e-mail")),
+    phone: col((c) => c.includes("phone") || c.includes("mobile") || c.includes("tel")),
+  } : { name: 0, first: -1, last: -1, company: 1, email: 2, phone: 3 };
+  const rows = hasHeader ? lines.slice(1) : lines;
+  const out: ImportedLead[] = [];
+  for (const line of rows) {
+    const f = splitRow(line);
+    const g = (i: number) => (i >= 0 && i < f.length ? f[i].trim() : "");
+    const name = (idx.name >= 0 && g(idx.name)) || [g(idx.first), g(idx.last)].filter(Boolean).join(" ");
+    const email = g(idx.email);
+    const phone = g(idx.phone);
+    const company = g(idx.company);
+    const label = name || email || "";
+    if (!label && !email && !phone) continue;
+    out.push({ name: label || "Lead", category: company || undefined, email: email || undefined, phone: phone || undefined });
+  }
+  return out;
+}
 
 export function FocusedLeads({ initialScreen, initialListId, onAsk, refreshKey, menuOpen: menuOpenProp, agentBusy, onPitchLead, onOpenPitch }: { initialScreen?: string; initialListId?: string | null; refreshKey?: number; onAsk: (p: string) => void; menuOpen?: boolean; agentBusy?: boolean; onPitchLead?: (l: SavedLead) => void; onOpenPitch?: (pitchId: string) => void }) {
   const { toast } = useToast();
@@ -336,13 +386,9 @@ export function FocusedLeads({ initialScreen, initialListId, onAsk, refreshKey, 
   const buildAutomation = (l: LeadList) => { setActiveList(l); setScreen("pipeline"); };
 
   const importPaste = async () => {
-    const rows = pasteRows.split(/\r?\n/).map((r) => r.trim()).filter(Boolean);
-    if (!rows.length) return;
+    const leads = parseLeadRows(pasteRows).slice(0, 500);
+    if (!leads.length) return;
     setImporting(true);
-    const leads = rows.slice(0, 500).map((line) => {
-      const [name, company, email, phone] = line.split(/[\t,;]/).map((s) => s?.trim());
-      return { name: name || email || "Lead", category: company || undefined, email: email || undefined, phone: phone || undefined };
-    });
     try {
       const j = await fetch("/api/leads/saved", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listName: newFolderName.trim() || "Imported list", leads }) }).then((r) => r.json());
       if (j?.success) { setUploadOpen(false); setPasteRows(""); setNewFolderName(""); await loadLists(); setScreen("library"); }
@@ -1022,17 +1068,29 @@ function LibraryScreen({ lists, onBuild, onOpen, uploadOpen, setUploadOpen, past
   uploadOpen: boolean; setUploadOpen: (v: boolean) => void; pasteRows: string; setPasteRows: (v: string) => void;
   newFolderName: string; setNewFolderName: (v: string) => void; importing: boolean; onImport: () => void;
 }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const text = await file.text().catch(() => "");
+      if (text) setPasteRows(text);
+      if (!newFolderName.trim()) setNewFolderName(file.name.replace(/\.[^.]+$/, "").slice(0, 120));
+    }
+    e.target.value = ""; // allow re-selecting the same file
+  };
   if (uploadOpen) {
     return (
       <div className="max-w-2xl">
         <button onClick={() => setUploadOpen(false)} className="mb-3 inline-flex items-center gap-1 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"><ChevronLeft className="h-4 w-4" /> Library</button>
-        <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center">
+        <button onClick={() => fileRef.current?.click()} className="group flex w-full flex-col items-center rounded-2xl border border-dashed border-border bg-card p-6 text-center transition hover:border-brand-500/60">
           <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/20 to-violet-500/15 text-brand-500"><Upload className="h-6 w-6" /></span>
-          <p className="mt-3 text-[13.5px] font-semibold">Paste a list to build a folder</p>
-          <p className="mt-1 text-[12px] text-muted-foreground">One lead per line: <code>Name, Company, Email, Phone</code> — mapped + imported into a new folder, no agent needed.</p>
-        </div>
+          <span className="mt-3 text-[13.5px] font-semibold">Upload a CSV file <span className="text-muted-foreground">or paste below</span></span>
+          <span className="mt-1 text-[12px] text-muted-foreground">A header row (Name, Company, Email, Phone in any order) is mapped automatically — no agent needed.</span>
+          <span className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white"><Upload className="h-4 w-4" /> Choose CSV file</span>
+        </button>
+        <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values" onChange={onFile} className="hidden" />
         <input value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder="New folder name — e.g. “Q3 event list”" className="mt-3 w-full rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
-        <textarea value={pasteRows} onChange={(e) => setPasteRows(e.target.value)} rows={6} placeholder={"Dr. Maria Chen, Bright Smile Dental, maria@brightsmile.com, 512-555-0142\n…"} className="mt-2 w-full resize-y rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
+        <textarea value={pasteRows} onChange={(e) => setPasteRows(e.target.value)} rows={6} placeholder={"Name, Company, Email, Phone\nDr. Maria Chen, Bright Smile Dental, maria@brightsmile.com, 512-555-0142\n…"} className="mt-2 w-full resize-y rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
         <div className="mt-3 flex items-center gap-2">
           <button onClick={onImport} disabled={importing || !pasteRows.trim()} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-semibold text-white disabled:opacity-50">{importing ? <FlowLoader size={14} tone="white" /> : <FolderPlus className="h-4 w-4" />} Import → create folder</button>
           <span className="text-[12px] text-muted-foreground">Then open it and Build automation.</span>
