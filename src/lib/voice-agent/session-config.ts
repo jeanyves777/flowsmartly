@@ -237,7 +237,7 @@ export function buildInstructions(agent: AgentForSession): string {
       agent.escalateOnAsk && "they ask for a person",
       agent.escalateOnUnsure && "you're unsure twice",
     ].filter(Boolean);
-    if (triggers.length) parts.push(`\n\nTransfer to a human when ${triggers.join(", or ")}, using transfer_to_human.`);
+    if (triggers.length) parts.push(`\n\nTransfer the call to a human when ${triggers.join(", or ")}. Tell the caller you're connecting them first.`);
   }
 
   parts.push(`\n\nWhen the call is done, use end_call.`);

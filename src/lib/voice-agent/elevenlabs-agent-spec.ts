@@ -43,15 +43,46 @@ const jParse = <T,>(v: unknown, f: T): T => {
   }
 };
 
-/** The agent's inline tools: system end_call + one webhook per business skill. */
-function buildTools(skills: AgentSkill[], mcpToken: string | null): Array<Record<string, unknown>> {
+/** The agent's inline tools: system end_call + native transfer + one webhook per skill. */
+function buildTools(
+  skills: AgentSkill[],
+  mcpToken: string | null,
+  escalation: { escalateTo?: string | null; escalateOnUpset?: boolean; escalateOnUnsure?: boolean },
+): Array<Record<string, unknown>> {
   const tools: Array<Record<string, unknown>> = [
     { type: "system", name: "end_call", params: { system_tool_type: "end_call" } },
   ];
+
+  // Real transfer to a human. The old "transfer_to_human" webhook only SPOKE the
+  // number — the caller was never actually connected. EL's native transfer_to_number
+  // bridges the caller to the escalation line (conference, works over the SIP trunk).
+  // Added whenever an escalation number is set.
+  const escalateTo = (escalation.escalateTo || "").trim();
+  if (escalateTo) {
+    const conds = ["the caller explicitly asks to speak to a human, a person, or a specific staff member"];
+    if (escalation.escalateOnUpset) conds.push("the caller is clearly upset, angry or distressed");
+    if (escalation.escalateOnUnsure) conds.push("you have tried twice and still can't help");
+    tools.push({
+      type: "system",
+      name: "transfer_to_number",
+      params: {
+        system_tool_type: "transfer_to_number",
+        transfers: [
+          {
+            transfer_destination: { type: "phone", phone_number: escalateTo },
+            condition: `Transfer when ${conds.join(", or when ")}. First tell the caller you're connecting them.`,
+            transfer_type: "conference",
+          },
+        ],
+      },
+    });
+  }
+
   if (!mcpToken) return tools;
   const base = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(/\/$/, "");
-  // The profile is baked into the prompt already, so it needs no tool call.
-  for (const t of mcpToolsFor(skills).filter((x) => x.name !== "get_business_profile")) {
+  // Profile is baked into the prompt; transfer is the native tool above (skip the
+  // old text-only transfer_to_human webhook).
+  for (const t of mcpToolsFor(skills).filter((x) => x.name !== "get_business_profile" && x.name !== "transfer_to_human")) {
     tools.push({
       type: "webhook",
       name: t.name,
@@ -80,7 +111,11 @@ export function buildElevenLabsAgent(row: Record<string, unknown>): ConvaiAgentP
   const voiceId = resolveVoiceId(row.voiceId as string);
   const speed = clamp(Number(row.speakingSpeed ?? 1), 0.7, 1.2);
   const skills = jParse<AgentSkill[]>(row.skills, []);
-  const tools = buildTools(skills, (row.mcpToken as string) || null);
+  const tools = buildTools(skills, (row.mcpToken as string) || null, {
+    escalateTo: row.escalateTo as string | null,
+    escalateOnUpset: row.escalateOnUpset as boolean,
+    escalateOnUnsure: row.escalateOnUnsure as boolean,
+  });
 
   // Extra languages the agent also speaks → EL language presets (it greets and
   // converses in each). The primary stays `language`.
