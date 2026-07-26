@@ -532,6 +532,13 @@ export interface VoiceAgentDraft {
   xaiSyncError?: string | null;
   requestedAt?: string | null;
   approvedAt?: string | null;
+  // Booking — how the agent handles a caller who wants to book (see notify-owner).
+  bookingMode?: string | null; // "link" | "provider" | "auto" | null
+  bookingUrl?: string | null; // the business's own booking page
+  bookingProvider?: string | null; // calendly | acuity | calcom | square
+  bookingNotifyEmail?: string | null; // where requests + messages are emailed
+  bookingConsentAt?: string | null; // when the owner authorized the agent to book
+  bookingConsentBy?: string | null; // typed authorization signature
 }
 
 // ── Calls ──
