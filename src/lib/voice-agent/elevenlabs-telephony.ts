@@ -10,6 +10,7 @@
  */
 
 import { prisma } from "@/lib/db/client";
+import { setNumberVoiceConnection } from "@/lib/telnyx/numbers";
 import { toSessionAgent } from "@/lib/voice-agent/agent-sync";
 import {
   importSipPhoneNumber,
@@ -76,6 +77,15 @@ export async function provisionElevenLabsNumber(
 
     const assigned = await assignConvaiNumberToAgent(elNumberId, elAgentId);
     if (!assigned.ok) return { ok: false, reason: assigned.error };
+
+    // Make sure the carrier actually routes inbound to our EL SIP connection. A
+    // number whose Telnyx connection was never set (an older/admin-assigned line,
+    // or a rent-time hiccup) answers "your call cannot be completed as dialed" even
+    // though EL is ready. Idempotent — safe to re-set on every provision.
+    const conn = process.env.TELNYX_EL_FQDN_CONNECTION_ID;
+    const sid = (agent.number as unknown as { xaiPhoneNumberId?: string | null }).xaiPhoneNumberId;
+    if (conn && sid) await setNumberVoiceConnection(sid, conn).catch(() => {});
+
     return { ok: true, elevenPhoneNumberId: elNumberId };
   } catch (e) {
     console.error("[elevenlabs] provision number failed:", e);
