@@ -12,7 +12,7 @@
 import { deliverSequenceSms } from "@/lib/crm/send-adapters";
 import { prisma } from "@/lib/db/client";
 import { notifyOwner } from "@/lib/voice-agent/notify-owner";
-import { fmtPrice, type MenuItem, type OrderConfig } from "@/lib/voice-agent/types";
+import { fmtPrice, type AgentSkill, type MenuItem, type OrderConfig } from "@/lib/voice-agent/types";
 import { referCall } from "@/lib/voice-agent/xai-phone";
 
 export interface ToolContext {
@@ -186,10 +186,50 @@ async function transfer(a: Args, ctx: ToolContext): Promise<ToolResult> {
 
 // ── captured-on-call, then delivered to the owner ──
 
+// The agent's skill switches (opts) + escalation line — needed to honour the
+// per-skill toggles (save to Contacts / text the summary) from inside a tool.
+async function skillContext(agentId: string): Promise<{ skills: AgentSkill[]; escalateTo: string | null }> {
+  const row = await prisma.voiceAgent
+    .findUnique({ where: { id: agentId }, select: { skills: true, escalateTo: true } })
+    .catch(() => null);
+  let skills: AgentSkill[] = [];
+  try { skills = JSON.parse((row?.skills as string) || "[]"); } catch { /* keep [] */ }
+  return { skills, escalateTo: row?.escalateTo ?? null };
+}
+
+// Save a caller as a Contact so they aren't lost after the call. De-duped by
+// phone; no marketing opt-in is implied (they didn't consent on a phone call).
+async function saveCallerContact(userId: string, name: string, phone: string): Promise<void> {
+  if (!phone && !name) return;
+  try {
+    if (phone) {
+      const existing = await prisma.contact.findFirst({ where: { userId, phone }, select: { id: true } });
+      if (existing) return;
+    }
+    const parts = name.split(/\s+/).filter(Boolean);
+    await prisma.contact.create({
+      data: {
+        userId,
+        phone: phone || null,
+        firstName: parts[0] || name || "Caller",
+        lastName: parts.slice(1).join(" ") || null,
+        tags: JSON.stringify(["phone-agent"]),
+        emailOptedIn: false,
+        smsOptedIn: false,
+      },
+    });
+  } catch (e) {
+    console.error("[call-tools] save contact failed:", e);
+  }
+}
+
 async function takeMessage(a: Args, ctx: ToolContext): Promise<ToolResult> {
   const name = s(a.name) || "Caller";
   const phone = s(a.phone) || ctx.fromE164;
   const message = s(a.message);
+  const { skills, escalateTo } = await skillContext(ctx.agentId);
+  const opts = skills.find((sk) => sk.key === "msg")?.opts || {};
+
   // The whole point of a message is that the owner gets it — email it now.
   const sent = await notifyOwner({
     userId: ctx.userId,
@@ -197,10 +237,25 @@ async function takeMessage(a: Args, ctx: ToolContext): Promise<ToolResult> {
     kind: "message",
     lines: [["From", name], ["Phone", phone], ["Message", message]],
   });
+
+  // "Saves to Contacts" (default on) — the caller becomes a real Contact.
+  if (opts.saveContact !== false) await saveCallerContact(ctx.userId, name, phone);
+
+  // "Texts you the summary" (default on) — also text the owner's line, if set.
+  let texted = false;
+  if (opts.textSummary !== false && escalateTo) {
+    const r = await deliverSequenceSms({
+      userId: ctx.userId,
+      to: escalateTo,
+      body: `New phone message from ${name}${phone ? ` (${phone})` : ""}: ${message}`,
+    }).catch(() => ({ ok: false }));
+    texted = !!r.ok;
+  }
+
   return {
-    output: { ok: true, taken: true, emailed: sent.ok },
+    output: { ok: true, taken: true, emailed: sent.ok, texted },
     outcome: "message",
-    outcomeDetail: `Message recorded${sent.ok ? " & emailed to the team" : ""} — from ${name}${phone ? ` (${phone})` : ""}: ${message}`,
+    outcomeDetail: `Message recorded${sent.ok ? " & emailed to the team" : ""}${texted ? " (owner texted)" : ""} — from ${name}${phone ? ` (${phone})` : ""}: ${message}`,
   };
 }
 
