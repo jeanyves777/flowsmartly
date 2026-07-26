@@ -260,14 +260,15 @@ export function FocusedVoiceAgent({ onOpenView }: { onOpenView?: (key: string) =
             <>
               <BriefNode agent={agent} onOpen={() => setBriefOpen(true)} onMove={recomputeWires} />
               <VoiceNode agent={agent} onOpen={() => setVoicePickerOpen(true)} onMove={recomputeWires} />
-              <BookingNode agent={agent} onOpen={() => setBookingOpen(true)} onPatch={save} onMove={recomputeWires} />
 
               {skills.map((s, i) => (
                 <SkillNode key={s.id} skill={s} index={i} agent={agent}
                   onPatch={(n) => patchSkill(s.id, n)}
                   onDelete={() => removeSkill(s.id)}
                   onMove={recomputeWires}
-                  ask={ask} />
+                  ask={ask}
+                  onAgentPatch={save}
+                  onSetupBooking={() => setBookingOpen(true)} />
               ))}
 
               <div className="absolute" style={{ left: 596 + Math.ceil(skills.length / 2) * 292, top: 260 }}>
@@ -521,69 +522,7 @@ function VoiceNode({ agent, onOpen, onMove }: { agent: VoiceAgentDraft; onOpen: 
   );
 }
 
-// Booking is a first-class canvas node: pick the method from a dropdown right on the
-// node, see a live summary + consent state, and open the full modal to finish setup.
-const BOOKING_TAGS: Record<string, { t: string; tone: string }> = {
-  link: { t: "SHARE LINK", tone: "bg-emerald-500/15 text-emerald-500" },
-  provider: { t: "SCHEDULER", tone: "bg-brand-500/15 text-brand-400" },
-  auto: { t: "AUTO-BOOK", tone: "bg-amber-500/15 text-amber-500" },
-  off: { t: "OFF", tone: "bg-muted text-muted-foreground" },
-};
-const provLabel = (p: string) => ({ calendly: "Calendly", acuity: "Acuity", calcom: "Cal.com", square: "Square" } as Record<string, string>)[p] || p;
-
-function BookingNode({ agent, onOpen, onPatch, onMove }: {
-  agent: VoiceAgentDraft; onOpen: () => void; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void>; onMove: () => void;
-}) {
-  const { ref, start } = useNodeDrag(onMove);
-  const mode = agent.bookingMode || "off";
-  const tag = BOOKING_TAGS[mode] || BOOKING_TAGS.off;
-  const needsConsent = mode === "provider" || mode === "auto";
-  const signed = !!agent.bookingConsentAt && !!agent.bookingConsentBy;
-  const host = (agent.bookingUrl || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
-  return (
-    <div ref={ref} data-node="__booking" style={{ left: 40, top: 320 }}
-      className="absolute w-[236px] overflow-hidden rounded-2xl border border-emerald-500/40 bg-gradient-to-b from-emerald-500/8 to-card shadow-sm">
-      <NodeHead icon={<CalendarClock className="h-3 w-3" />} tone="bg-emerald-500/15 text-emerald-500"
-        title="Booking" tag={tag.t} tagTone={tag.tone} onPointerDown={start} />
-      <div className="mx-3">
-        <label className="mb-0.5 block text-[8px] font-extrabold uppercase tracking-wide text-muted-foreground">How it books</label>
-        <select value={mode}
-          onChange={(e) => { const v = e.target.value; void onPatch({ bookingMode: v === "off" ? null : v }); }}
-          className="w-full cursor-pointer rounded-lg border border-border bg-muted/40 p-2 text-[10px] font-semibold outline-none focus:border-emerald-500/50">
-          <option value="link">Share my booking link</option>
-          <option value="provider">Connect my scheduler</option>
-          <option value="auto">Auto-book my page</option>
-          <option value="off">Off — just take details</option>
-        </select>
-      </div>
-      <button onClick={onOpen}
-        className="mx-3 mt-2 block w-[calc(100%-24px)] rounded-lg border border-border bg-muted/30 p-2 text-left hover:border-emerald-500">
-        {(mode === "link" || mode === "auto") && (
-          <span className="block truncate text-[9.5px] font-semibold">{host || <span className="text-muted-foreground">Add your booking link…</span>}</span>
-        )}
-        {mode === "provider" && (
-          <span className="block text-[9.5px] font-semibold">{agent.bookingProvider ? provLabel(agent.bookingProvider) : <span className="text-muted-foreground">Pick a scheduler…</span>}</span>
-        )}
-        {mode === "off" && <span className="block text-[9.5px] text-muted-foreground">Agent takes details → emails you</span>}
-        {needsConsent && (
-          <span className={cn("mt-1 inline-flex items-center gap-1 rounded px-1 py-px text-[8px] font-black uppercase tracking-wide", signed ? "bg-emerald-500/15 text-emerald-500" : "bg-amber-500/15 text-amber-500")}>
-            {signed ? "✓ authorized" : "needs signing"}
-          </span>
-        )}
-      </button>
-      <div className="mx-3 mt-2 flex items-center gap-1.5 text-[8.5px] text-muted-foreground">
-        <Check className="h-2.5 w-2.5 flex-none text-emerald-500" /> Owner emailed every request
-      </div>
-      <div className="flex gap-1 p-3">
-        <button onClick={onOpen} className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-emerald-500 py-1.5 text-[9.5px] font-bold text-white">
-          <Settings className="h-3 w-3" /> Set up
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/** The full booking setup — opened from the canvas Booking node; reuses BookingGroup. */
+/** The full booking setup — opened from the "Book an appointment" node; reuses BookingGroup. */
 function BookingModal({ agent, onClose, onPatch }: {
   agent: VoiceAgentDraft; onClose: () => void; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void>;
 }) {
@@ -636,10 +575,12 @@ function VoicePickerModal({ voiceId, onClose, onPick }: {
   );
 }
 
-function SkillNode({ skill, index, agent, onPatch, onDelete, onMove, ask }: {
+function SkillNode({ skill, index, agent, onPatch, onDelete, onMove, ask, onAgentPatch, onSetupBooking }: {
   skill: AgentSkill; index: number; agent: VoiceAgentDraft;
   onPatch: (n: Partial<AgentSkill>) => void; onDelete: () => void; onMove: () => void;
   ask: (t: string, d?: string, m?: boolean) => Promise<string | null>;
+  onAgentPatch?: (p: Partial<VoiceAgentDraft>) => Promise<void>;
+  onSetupBooking?: () => void;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const def = SKILL_BY_KEY[skill.key];
@@ -734,7 +675,33 @@ function SkillNode({ skill, index, agent, onPatch, onDelete, onMove, ask }: {
         <Pencil className="h-2.5 w-2.5 flex-none text-muted-foreground" />
       </button>
 
-      {def && def.options.length > 0 && (
+      {/* Booking lives ON the book skill node — pick how it books + open the full
+          setup. Replaces the old dead "reads calendar / texts confirmation" toggles. */}
+      {skill.key === "book" && onAgentPatch ? (
+        <div className="mx-3 mt-2 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-2">
+          <label className="mb-1 block text-[8px] font-extrabold uppercase tracking-wide text-emerald-500/80">How it books</label>
+          <select value={agent.bookingMode || "off"}
+            onChange={(e) => { const v = e.target.value; void onAgentPatch({ bookingMode: v === "off" ? null : v }); }}
+            className="w-full cursor-pointer rounded-lg border border-border bg-muted/40 p-1.5 text-[9.5px] font-semibold outline-none focus:border-emerald-500/50">
+            <option value="link">Share my booking link</option>
+            <option value="provider">Connect my scheduler</option>
+            <option value="auto">Auto-book my page</option>
+            <option value="off">Off — just take details</option>
+          </select>
+          <div className="mt-1 flex items-center gap-1.5 text-[8px] text-muted-foreground">
+            <Check className="h-2.5 w-2.5 flex-none text-emerald-500" /> Owner emailed every request
+            {(agent.bookingMode === "provider" || agent.bookingMode === "auto") && (
+              <span className={cn("ml-auto rounded px-1 py-px text-[7.5px] font-black uppercase tracking-wide", agent.bookingConsentAt && agent.bookingConsentBy ? "bg-emerald-500/15 text-emerald-500" : "bg-amber-500/15 text-amber-500")}>
+                {agent.bookingConsentAt && agent.bookingConsentBy ? "authorized" : "needs signing"}
+              </span>
+            )}
+          </div>
+          <button onClick={onSetupBooking}
+            className="mt-1.5 inline-flex w-full items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 py-1 text-[9px] font-bold text-emerald-500 hover:bg-emerald-500/20">
+            <Settings className="h-2.5 w-2.5" /> Set up booking
+          </button>
+        </div>
+      ) : def && def.options.length > 0 && (
         <div className="mx-3 mt-2 space-y-1.5 rounded-lg border border-border bg-muted/30 p-2">
           {def.options.map((o) => (
             <div key={o.key} className="flex items-center gap-2">
