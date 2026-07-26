@@ -213,7 +213,7 @@ export function buildInstructions(agent: AgentForSession): string {
   parts.push(hoursBlock(agent));
 
   if (agent.knowledge?.length) {
-    parts.push(`\n\nYou may reference these sources the business provided: ${agent.knowledge.map((k) => k.label).join(", ")}. If something isn't covered, say so honestly and offer a callback — never guess prices or facts.`);
+    parts.push(`\n\nYou have the business's own documents in your knowledge base (${agent.knowledge.map((k) => k.label).join(", ")}). Answer questions about prices, services, hours and policies FROM those documents. If something genuinely isn't covered, say so honestly and offer a callback — never guess.`);
   }
 
   const enabled = agent.skills.filter((s) => s.enabled);

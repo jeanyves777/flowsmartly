@@ -6139,6 +6139,9 @@ model VoiceAgent {
   greeting  String @default("") // inbound opener — the first line when someone calls IN
   outboundGreeting String @default("") // opener when the AGENT calls OUT (overrides `greeting` per outbound call)
   knowledge String @default("[]") // JSON: [{kind:"file"|"url", label, url}]
+  // Cache of the ElevenLabs knowledge-base docs created from the knowledge URLs,
+  // so the agent answers from real content (RAG). JSON: [{url, id, name}].
+  knowledgeDocs String @default("[]")
 
   // Legacy voice config blob (deliberately NOT dropped). The xAI model reads the
   // granular fields below; this JSON is kept so the migration stays additive and
