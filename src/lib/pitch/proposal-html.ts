@@ -219,7 +219,8 @@ export function renderProposalHtml(content: ServiceProposalContent, opts: Render
     .brandname { font-family: Arial, sans-serif; font-size: 15px; font-weight: 800; letter-spacing:.04em; }
     .cover { position:relative; color:#fff; padding: 46px 54px 40px; background: linear-gradient(135deg, ${primaryInk}, ${secondaryInk}); display:flex; gap:28px; align-items:center; }
     .cover.visual-cover { color:${ink}; background:#fff; min-height: 320px; overflow:hidden; font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-    .cover.visual-cover:before { content:""; position:absolute; inset:0; background-image: linear-gradient(105deg,transparent 0 18%, rgba(226,232,240,0.55) 18.2%, transparent 18.6% 34%, rgba(226,232,240,0.55) 34.2%, transparent 34.6% 100%); }
+    /* Soft corner wash — no hard-edged stripes, which printed as stray diagonal lines. */
+    .cover.visual-cover:before { content:""; position:absolute; inset:0; background: linear-gradient(120deg, transparent 45%, ${theme.accent}12 100%); }
     .cover.visual-cover:after { content:""; position:absolute; right:-70px; top:-70px; width:220px; height:220px; border-radius:999px; background:${theme.accent}20; }
     .cover-in { flex:1; min-width:0; }
     .visual-cover .cover-in, .visual-cover .cover-img { position:relative; z-index:1; }
