@@ -30,7 +30,7 @@ import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { generateVoice } from "@/lib/voice/voice-engine";
 import { generateWithClonedVoice as generateWithElevenLabs } from "@/lib/voice/elevenlabs-client";
 import { generateWithClonedVoice as generateWithOpenAiClone } from "@/lib/voice/openai-voice-client";
-import { uploadToS3 } from "@/lib/utils/s3-client";
+import { uploadToS3, downloadS3ObjectToBuffer, isS3Url } from "@/lib/utils/s3-client";
 import { creditService, TRANSACTION_TYPES } from "@/lib/credits";
 import { getDynamicCreditCost, checkCreditsAvailable, type CreditCostKey } from "@/lib/credits/costs";
 import { prisma } from "@/lib/db/client";
@@ -56,9 +56,24 @@ function uid(): string {
 }
 
 async function toBuffer(url: string): Promise<Buffer> {
+  // Our OWN S3 objects (cast refs, shot media, audio, music) — pull by key via the
+  // authed client. A stored presigned URL can 403 after its 1h TTL even though the
+  // object is still there, so never fetch() it. [[presigned-urls-expire-read-by-key]]
+  if (isS3Url(url)) {
+    try {
+      return await downloadS3ObjectToBuffer(url);
+    } catch {
+      /* fall through to a plain fetch (e.g. a public object without list perms) */
+    }
+  }
   const res = await fetch(url);
   if (!res.ok) throw new Error(`fetch ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
+}
+
+/** The raw provider reason, truncated — stored on the shot for diagnosis, never shown. */
+function rawReason(err: unknown, max = 400): string {
+  return (err instanceof Error ? err.message : String(err)).slice(0, max);
 }
 
 const isUrl = (u?: string | null): u is string => !!u && /^https?:\/\//i.test(u);
@@ -193,7 +208,7 @@ export async function renderShot(id: string, userId: string, shotId: string): Pr
 
   const { w, h } = narrationDims(p.aspect);
   const beat = Date.now();
-  await patchShot(id, userId, shotId, { status: "rendering", progress: 6, error: null, renderHeartbeatAt: beat });
+  await patchShot(id, userId, shotId, { status: "rendering", progress: 6, error: null, errorDebug: null, renderHeartbeatAt: beat });
 
   // 1) The read. Do this first: its true length decides how long the picture holds,
   //    so a long line can never be clipped mid-sentence by a too-short shot.
@@ -209,8 +224,9 @@ export async function renderShot(id: string, userId: string, shotId: string): Pr
       shot.audioUrl = url; shot.audioMs = durationMs; shot.holdSec = hold;
     }
   } catch (err) {
+    console.error(`[voice-studio] shot ${shotId} narration failed:`, err);
     await refund(userId, VOICE_COST_KEY, `${id}:${shotId}:vo`, "narration failed");
-    await patchShot(id, userId, shotId, { status: "failed", error: sanitizeUserError(err, "generic") });
+    await patchShot(id, userId, shotId, { status: "failed", error: sanitizeUserError(err, "generic"), errorDebug: rawReason(err) });
     return;
   }
 
@@ -268,8 +284,12 @@ export async function renderShot(id: string, userId: string, shotId: string): Pr
       throw err;
     }
   } catch (err) {
-    console.error(`[voice-studio] shot ${shotId} failed:`, err);
-    await patchShot(id, userId, shotId, { status: "failed", error: sanitizeUserError(err, "video") });
+    console.error(`[voice-studio] shot ${shotId} (${shot.kind}) failed:`, err);
+    await patchShot(id, userId, shotId, {
+      status: "failed",
+      error: sanitizeUserError(err, shot.kind === "image" ? "image" : "video"),
+      errorDebug: rawReason(err),
+    });
   } finally {
     void drainShots(id, userId).catch(() => {});
   }

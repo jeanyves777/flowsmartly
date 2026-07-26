@@ -63,6 +63,9 @@ export interface NarrationShot {
   status: ShotStatus;
   progress?: number;
   error?: string | null;
+  /** Raw provider reason behind a failure — diagnostic only, NEVER rendered in the UI
+   *  (the banner reads `error`). Lets us root-cause a failed render without server logs. */
+  errorDebug?: string | null;
   /** Canvas position + width (draggable / resizable). Absent ⇒ auto-laid-out. */
   x?: number;
   y?: number;
@@ -194,6 +197,7 @@ export function normalizeShot(raw: Partial<NarrationShot>, i: number): Narration
     status: (["idle", "queued", "rendering", "ready", "failed"] as const).includes(raw.status as ShotStatus) ? (raw.status as ShotStatus) : "idle",
     progress: typeof raw.progress === "number" ? raw.progress : 0,
     error: raw.error ?? null,
+    errorDebug: raw.errorDebug ?? null,
     x: typeof raw.x === "number" ? raw.x : undefined,
     y: typeof raw.y === "number" ? raw.y : undefined,
     w: typeof raw.w === "number" ? raw.w : undefined,
