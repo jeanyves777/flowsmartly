@@ -1,0 +1,211 @@
+<title>Outbound dialer + in-call session — FlowSmartly</title>
+<style>
+  :root{
+    --bg:#0a0f17; --panel:#111a25; --panel2:#0e1620; --ink:#e9f1fb; --muted:#8fa3bd; --faint:#5f7291;
+    --line:#1e2b3c; --soft:#141f2c; --key:#182331; --brand1:#3b82f6; --brand2:#8b5cf6;
+    --green:#22c55e; --green2:#16a34a; --red:#ef4444; --amber:#f59e0b; --ring:rgba(59,130,246,.3);
+    --shadow:0 24px 60px -30px rgba(0,0,0,.8);
+  }
+  :root[data-theme="light"]{
+    --bg:#eef2f7; --panel:#ffffff; --panel2:#f6f9fc; --ink:#0f1b2d; --muted:#5b6b80; --faint:#8496ac;
+    --line:#dde5ee; --soft:#f2f6fb; --key:#f4f7fb; --ring:rgba(37,99,235,.18); --shadow:0 20px 48px -28px rgba(15,27,45,.36);
+  }
+  @media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+    --bg:#eef2f7; --panel:#ffffff; --panel2:#f6f9fc; --ink:#0f1b2d; --muted:#5b6b80; --faint:#8496ac;
+    --line:#dde5ee; --soft:#f2f6fb; --key:#f4f7fb; --ring:rgba(37,99,235,.18); --shadow:0 20px 48px -28px rgba(15,27,45,.36);
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);min-height:100vh;display:grid;place-items:center;padding:24px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .themeb{position:fixed;top:14px;right:16px;border:1px solid var(--line);background:var(--soft);color:var(--muted);border-radius:9px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer}
+  .phone{width:340px;background:var(--panel);border:1px solid var(--line);border-radius:26px;box-shadow:var(--shadow);overflow:hidden}
+  .hdr{display:flex;align-items:center;gap:9px;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .hdr .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--brand1),var(--brand2))}
+  .hdr b{font-size:13.5px} .hdr small{display:block;color:var(--muted);font-size:11px;font-weight:600}
+
+  /* ── Dialer ── */
+  .dialer{padding:18px}
+  .display{min-height:44px;text-align:center;font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;font-size:27px;font-weight:700;letter-spacing:1px;padding:6px 0 2px;word-break:break-all}
+  .display .ph{color:var(--faint);font-size:16px;font-weight:500;letter-spacing:0}
+  .sub{text-align:center;color:var(--muted);font-size:11px;margin-bottom:12px;min-height:14px}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin:4px 6px 14px}
+  .key{aspect-ratio:1.35;border:0;border-radius:15px;background:var(--key);color:var(--ink);cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;transition:.1s;border:1px solid var(--line)}
+  .key:hover{background:var(--soft);border-color:var(--brand1)} .key:active{transform:scale(.94)}
+  .key .n{font-size:22px;font-weight:700;line-height:1} .key .l{font-size:8px;font-weight:800;letter-spacing:1.5px;color:var(--faint);margin-top:2px;height:9px}
+  .purpose{width:100%;border:1.5px solid var(--line);background:var(--soft);color:var(--ink);border-radius:12px;padding:10px 12px;font-size:12.5px;font-family:inherit;outline:none;resize:none}
+  .purpose:focus{border-color:var(--brand1);box-shadow:0 0 0 4px var(--ring)}
+  .phint{color:var(--faint);font-size:10px;margin:5px 2px 12px;line-height:1.4}
+  .actions{display:flex;align-items:center;gap:12px;justify-content:center}
+  .callbtn{flex:1;border:0;border-radius:14px;padding:14px;font-size:15px;font-weight:800;color:#fff;cursor:pointer;
+    background:linear-gradient(135deg,var(--green),var(--green2));box-shadow:0 12px 26px -12px var(--green);display:inline-flex;align-items:center;justify-content:center;gap:8px}
+  .callbtn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none}
+  .del{width:48px;height:48px;flex:none;border:1px solid var(--line);background:var(--soft);color:var(--muted);border-radius:14px;cursor:pointer;display:grid;place-items:center}
+  .del:hover{color:var(--ink)}
+
+  /* ── In-call session ── */
+  .session{display:none;padding:22px 18px 20px;text-align:center}
+  .session.show{display:block}
+  .statuspill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;padding:4px 11px;border-radius:999px;margin-bottom:16px}
+  .statuspill .dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:blink 1.1s infinite}
+  @keyframes blink{50%{opacity:.3}}
+  .s-dial{background:color-mix(in srgb,var(--amber) 15%,transparent);color:var(--amber)}
+  .s-live{background:color-mix(in srgb,var(--green) 15%,transparent);color:var(--green)}
+  .s-end{background:var(--soft);color:var(--muted)}
+  .avatar{position:relative;width:96px;height:96px;margin:0 auto 12px}
+  .avatar .core{position:absolute;inset:18px;border-radius:50%;background:linear-gradient(135deg,var(--brand1),var(--brand2));display:grid;place-items:center;color:#fff;font-size:26px;font-weight:800;z-index:2}
+  .avatar .ring{position:absolute;inset:0;border-radius:50%;border:2px solid var(--brand1);opacity:0;animation:ring 1.8s infinite}
+  .avatar .ring:nth-child(2){animation-delay:.6s} .avatar .ring:nth-child(3){animation-delay:1.2s}
+  @keyframes ring{0%{transform:scale(.55);opacity:.7}100%{transform:scale(1.05);opacity:0}}
+  .callee{font-size:19px;font-weight:800;font-family:ui-monospace,monospace;letter-spacing:.5px}
+  .timer{color:var(--muted);font-size:13px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+  .goal{margin:12px 0;font-size:11.5px;color:var(--muted);background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:8px 11px}
+  .goal b{color:var(--ink)}
+  .transcript{text-align:left;max-height:190px;overflow-y:auto;margin:14px 0 4px;display:flex;flex-direction:column;gap:8px}
+  .turn{display:flex;gap:7px;align-items:flex-start;animation:pop .25s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .turn .who{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:8.5px;font-weight:900;color:#fff}
+  .turn.agent .who{background:linear-gradient(135deg,var(--brand1),var(--brand2))}
+  .turn.callee .who{background:#475569}
+  .turn .bub{font-size:12px;line-height:1.45;padding:7px 10px;border-radius:11px;max-width:82%}
+  .turn.agent .bub{background:color-mix(in srgb,var(--brand1) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--brand1) 22%,var(--line))}
+  .turn.callee .bub{background:var(--soft);border:1px solid var(--line)}
+  .typing .bub{color:var(--muted);font-style:italic}
+  .outcome{display:none;margin:12px 0;font-size:12.5px;font-weight:700;padding:9px;border-radius:10px}
+  .outcome.show{display:block}
+  .outcome.ok{background:color-mix(in srgb,var(--green) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--green) 30%,var(--line));color:var(--green)}
+  .hang{width:56px;height:56px;margin:8px auto 0;border:0;border-radius:50%;background:var(--red);color:#fff;cursor:pointer;display:grid;place-items:center;box-shadow:0 12px 24px -10px var(--red)}
+  .hang:hover{filter:brightness(1.08)}
+  .again{margin-top:12px;border:1px solid var(--line);background:var(--soft);color:var(--ink);border-radius:11px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;display:none}
+  .again.show{display:inline-block}
+</style>
+
+<button class="themeb" id="themeb">◐ Theme</button>
+<div class="phone">
+  <div class="hdr">
+    <span class="ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9"><path d="M15.5 3.5 19 7l-2.5 2.5M13 11a9 9 0 0 0 9 0M6.6 10.8a15.5 15.5 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .58 3.6 1 1 0 0 1-.24 1z"/></svg></span>
+    <div><b>Place a call</b><small id="hdrsub">Receptionist · General Computing Solutions</small></div>
+  </div>
+
+  <!-- Dialer -->
+  <div class="dialer" id="dialer">
+    <div class="display" id="display"><span class="ph">Enter a number</span></div>
+    <div class="sub" id="dsub"></div>
+    <div class="pad" id="pad"></div>
+    <textarea class="purpose" id="purpose" rows="2" placeholder="Why are you calling? e.g. confirm tomorrow's appointment, follow up on their quote"></textarea>
+    <div class="phint">The agent opens with your outbound greeting, then leads the call toward this goal — it won't ask "how can I help you".</div>
+    <div class="actions">
+      <button class="callbtn" id="callbtn" disabled><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M6.6 10.8a15.5 15.5 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .58 3.6 1 1 0 0 1-.24 1z"/></svg> Call</button>
+      <button class="del" id="del" title="Delete"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M21 5H9L3 12l6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1zM17 9l-5 5M12 9l5 5"/></svg></button>
+    </div>
+  </div>
+
+  <!-- In-call session -->
+  <div class="session" id="session">
+    <div class="statuspill s-dial" id="pill"><span class="dot"></span><span id="pilltext">Dialing…</span></div>
+    <div class="avatar" id="avatar"><span class="ring"></span><span class="ring"></span><span class="ring"></span><span class="core" id="core">GC</span></div>
+    <div class="callee" id="callee">+1 (415) 555 0123</div>
+    <div class="timer" id="timer">0:00</div>
+    <div class="goal" id="goalbox">Goal: <b id="goaltext">follow up on their recent inquiry</b></div>
+    <div class="transcript" id="transcript"></div>
+    <div class="outcome" id="outcome"></div>
+    <button class="hang" id="hang" title="Hang up"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M6.6 10.8a15.5 15.5 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.6.58 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .58 3.6 1 1 0 0 1-.24 1z" transform="rotate(135 12 12)"/></svg></button>
+    <button class="again" id="again">Place another call</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var KEYS=[["1",""],["2","ABC"],["3","DEF"],["4","GHI"],["5","JKL"],["6","MNO"],["7","PQRS"],["8","TUV"],["9","WXYZ"],["*",""],["0","+"],["#",""]];
+  var num="";
+  var pad=document.getElementById("pad"), display=document.getElementById("display"), callbtn=document.getElementById("callbtn");
+  KEYS.forEach(function(k){
+    var b=document.createElement("button"); b.className="key";
+    b.innerHTML='<span class="n">'+k[0]+'</span><span class="l">'+k[1]+'</span>';
+    b.onmousedown=function(){ if(k[0]==="0"){ /* long-press 0 = + handled simply: */ } num+=k[0]; render(); };
+    pad.appendChild(b);
+  });
+  function render(){
+    display.innerHTML = num ? esc(fmt(num)) : '<span class="ph">Enter a number</span>';
+    callbtn.disabled = num.replace(/\D/g,"").length < 7;
+  }
+  function fmt(n){ // light US-style grouping
+    var d=n.replace(/[^\d+*#]/g,"");
+    if(d[0]==="+"||d.length>10) return d;
+    if(d.length>6) return "("+d.slice(0,3)+") "+d.slice(3,6)+" "+d.slice(6);
+    if(d.length>3) return "("+d.slice(0,3)+") "+d.slice(3);
+    return d;
+  }
+  function esc(s){return s.replace(/[&<>]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;"}[c]})}
+  document.getElementById("del").onclick=function(){ num=num.slice(0,-1); render(); };
+
+  // ── Call → session ──
+  var TRANSCRIPT=[
+    ["agent","Hi, this is General Computing Solutions calling — do you have a quick moment?"],
+    ["callee","Hello?"],
+    ["agent","Hi! This is an outbound call from GCS. We're following up on your recent inquiry about our managed IT services — is now a good time?"],
+    ["callee","Oh, right. Um, we actually went with someone else for now."],
+    ["agent","Totally understand. Would it help if I sent over our pricing so you have it for next time?"],
+    ["callee","Sure, you can email it."],
+    ["agent","Great — I'll send that across today. Thanks for your time, have a good one!"],
+  ];
+  var timerInt=null, secs=0, tIdx=0, tInt=null;
+
+  function startCall(){
+    document.getElementById("callee").textContent = fmt(num);
+    document.getElementById("goaltext").textContent = document.getElementById("purpose").value.trim() || "follow up on their recent inquiry";
+    document.getElementById("dialer").style.display="none";
+    document.getElementById("session").classList.add("show");
+    setPill("s-dial","Dialing…");
+    // Dialing → Ringing → In call (this is what polling the EL conversation status drives live)
+    setTimeout(function(){ setPill("s-dial","Ringing…"); }, 1400);
+    setTimeout(function(){ goLive(); }, 3000);
+  }
+  function setPill(cls,txt){
+    var p=document.getElementById("pill"); p.className="statuspill "+cls;
+    document.getElementById("pilltext").textContent=txt;
+  }
+  function goLive(){
+    setPill("s-live","In call");
+    timerInt=setInterval(function(){ secs++; document.getElementById("timer").textContent=Math.floor(secs/60)+":"+String(secs%60).padStart(2,"0"); },1000);
+    // Stream transcript turns as they'd arrive from the live conversation poll.
+    tInt=setInterval(nextTurn, 1600);
+    nextTurn();
+  }
+  function nextTurn(){
+    if(tIdx>=TRANSCRIPT.length){ clearInterval(tInt); setTimeout(endCall,1600); return; }
+    var t=TRANSCRIPT[tIdx++]; var tr=document.getElementById("transcript");
+    var el=document.createElement("div"); el.className="turn "+t[0];
+    el.innerHTML='<span class="who">'+(t[0]==="agent"?"AI":"👤")+'</span><span class="bub">'+esc(t[1])+'</span>';
+    tr.appendChild(el); tr.scrollTop=tr.scrollHeight;
+  }
+  function endCall(){
+    clearInterval(timerInt); clearInterval(tInt);
+    setPill("s-end","Call ended · "+document.getElementById("timer").textContent);
+    document.getElementById("avatar").style.opacity=".4";
+    var o=document.getElementById("outcome"); o.className="outcome ok show"; o.textContent="✓ Answered · GCS Services Declined · logged to your call history";
+    document.getElementById("hang").style.display="none";
+    document.getElementById("again").classList.add("show");
+  }
+  document.getElementById("hang").onclick=endCall;
+  document.getElementById("again").onclick=function(){
+    clearInterval(timerInt); clearInterval(tInt); secs=0; tIdx=0;
+    document.getElementById("timer").textContent="0:00";
+    document.getElementById("transcript").innerHTML="";
+    document.getElementById("outcome").className="outcome";
+    document.getElementById("avatar").style.opacity="1";
+    document.getElementById("hang").style.display="grid";
+    document.getElementById("again").classList.remove("show");
+    document.getElementById("session").classList.remove("show");
+    document.getElementById("dialer").style.display="block";
+    num=""; document.getElementById("purpose").value=""; render();
+  };
+  callbtn.onclick=startCall;
+
+  document.getElementById("themeb").onclick=function(){
+    var cur=document.documentElement.getAttribute("data-theme"), sys=matchMedia("(prefers-color-scheme:dark)").matches;
+    document.documentElement.setAttribute("data-theme",cur==="dark"?"light":cur==="light"?"dark":(sys?"light":"dark"));
+  };
+  render();
+})();
+</script>
