@@ -1,0 +1,252 @@
+<title>Booking canvas node — FlowSmartly</title>
+<style>
+  :root{
+    --bg:#0a0f17; --grid:#141d2a; --panel:#111a25; --panel2:#0e1620; --ink:#e9f1fb; --muted:#8fa3bd; --faint:#5f7291;
+    --line:#1e2b3c; --soft:#141f2c; --brand1:#3b82f6; --brand2:#10b981; --brand-ink:#7db3ff; --violet:#8b5cf6;
+    --ok:#22c55e; --warn:#f59e0b; --ring:rgba(59,130,246,.3); --shadow:0 22px 55px -28px rgba(0,0,0,.75);
+  }
+  :root[data-theme="light"]{
+    --bg:#eef2f7; --grid:#dbe4ef; --panel:#ffffff; --panel2:#f6f9fc; --ink:#0f1b2d; --muted:#5b6b80; --faint:#8496ac;
+    --line:#dde5ee; --soft:#f2f6fb; --brand-ink:#0b4bd8; --ring:rgba(37,99,235,.2); --shadow:0 18px 44px -26px rgba(15,27,45,.34);
+  }
+  @media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+    --bg:#eef2f7; --grid:#dbe4ef; --panel:#ffffff; --panel2:#f6f9fc; --ink:#0f1b2d; --muted:#5b6b80; --faint:#8496ac;
+    --line:#dde5ee; --soft:#f2f6fb; --brand-ink:#0b4bd8; --ring:rgba(37,99,235,.2); --shadow:0 18px 44px -26px rgba(15,27,45,.34);
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .bar{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .bar .t{font-weight:800;font-size:14px} .bar .s{color:var(--muted);font-size:12px}
+  .bar .themeb{margin-left:auto;border:1px solid var(--line);background:var(--soft);color:var(--muted);border-radius:9px;padding:6px 9px;font-size:11.5px;font-weight:700;cursor:pointer}
+  .hint{padding:9px 16px;background:color-mix(in srgb,var(--brand1) 8%,var(--panel));border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .hint b{color:var(--ink)}
+
+  .canvas{position:relative;height:640px;overflow:hidden;
+    background-image:radial-gradient(var(--grid) 1px,transparent 1px);background-size:22px 22px;background-position:-1px -1px}
+  .node{position:absolute;border-radius:16px;border:1px solid var(--line);background:var(--panel);box-shadow:var(--shadow)}
+  .ghost{opacity:.5}
+  .nhead{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--line);cursor:grab}
+  .nhead .ic{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;color:#fff}
+  .nhead .ti{font-weight:800;font-size:12px} .nhead .tag{margin-left:auto;font-size:8px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;padding:2px 6px;border-radius:5px}
+  .dots{color:var(--faint);letter-spacing:1px;font-size:12px;margin-left:6px}
+
+  .booking-node{width:270px;left:600px;top:150px;z-index:3;border-color:color-mix(in srgb,var(--brand1) 45%,var(--line));box-shadow:0 0 0 3px var(--ring),var(--shadow)}
+  .body{padding:11px}
+  .lbl{font-size:8px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+  .sel{position:relative}
+  .sel select{width:100%;appearance:none;cursor:pointer;border:1px solid var(--line);background:var(--soft);color:var(--ink);
+    border-radius:9px;padding:8px 26px 8px 10px;font-size:11.5px;font-weight:700;outline:none}
+  .sel select:focus{border-color:var(--brand1)}
+  .sel:after{content:"▾";position:absolute;right:9px;top:8px;color:var(--muted);pointer-events:none;font-size:11px}
+  .summary{margin-top:9px;border:1px solid var(--line);background:var(--soft);border-radius:9px;padding:8px 9px}
+  .summary .row{display:flex;align-items:center;gap:6px;font-size:10px;padding:2px 0}
+  .summary .row .k{color:var(--faint);font-weight:700;width:52px;flex:none}
+  .summary .row .v{color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip{display:inline-flex;align-items:center;gap:3px;font-size:8.5px;font-weight:800;border-radius:5px;padding:1px 5px}
+  .chip.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+  .chip.warn{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+  .always{margin-top:7px;display:flex;gap:6px;align-items:center;font-size:9px;color:var(--muted)}
+  .always .d{width:15px;height:15px;border-radius:4px;flex:none;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--brand1),var(--brand2))}
+  .foot{display:flex;gap:6px;padding:0 11px 11px}
+  .foot .setup{flex:1;border:0;border-radius:9px;padding:8px;font-size:10.5px;font-weight:800;color:#fff;cursor:pointer;background:linear-gradient(90deg,var(--brand1),var(--violet))}
+  .foot .pw{width:36px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:9px;cursor:pointer}
+
+  svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+  .wires path{stroke:color-mix(in srgb,var(--brand1) 55%,var(--line));stroke-width:2;fill:none}
+
+  /* modal */
+  .scrim{position:fixed;inset:0;background:rgba(3,7,13,.62);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
+  .scrim.open{display:flex}
+  .modal{width:100%;max-width:440px;max-height:88vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+  .mhead{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+  .mhead .ic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--brand1),var(--brand2))}
+  .mhead .t{font-weight:800;font-size:14px} .mhead .s{color:var(--muted);font-size:11.5px}
+  .mhead .x{margin-left:auto;border:0;background:var(--soft);color:var(--muted);width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:15px}
+  .mbody{padding:16px}
+  .field input{width:100%;border:1.5px solid var(--line);background:var(--soft);color:var(--ink);border-radius:10px;padding:10px 12px;font-size:13px;outline:none}
+  .field input:focus{border-color:var(--brand1);box-shadow:0 0 0 4px var(--ring)}
+  .always2{display:flex;gap:9px;align-items:flex-start;background:color-mix(in srgb,var(--brand2) 8%,var(--panel));border:1px solid color-mix(in srgb,var(--brand2) 26%,var(--line));border-radius:10px;padding:10px 12px;margin:10px 0 4px}
+  .always2 .d{width:26px;height:26px;border-radius:7px;flex:none;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--brand1),var(--brand2))}
+  .always2 b{font-size:12px} .always2 small{color:var(--muted);font-size:11.5px}
+  .mlbl{font-size:10px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;color:var(--faint);margin:14px 0 8px}
+  .m{border:1.5px solid var(--line);background:var(--soft);border-radius:12px;padding:12px 13px;cursor:pointer;margin-bottom:9px;transition:.15s}
+  .m:hover{border-color:color-mix(in srgb,var(--brand1) 40%,var(--line))}
+  .m.sel{border-color:var(--brand1);background:color-mix(in srgb,var(--brand1) 8%,var(--panel));box-shadow:0 0 0 4px var(--ring)}
+  .m .h{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px}
+  .m .d{color:var(--muted);font-size:11.5px;margin-top:2px}
+  .radio{width:17px;height:17px;border-radius:50%;border:2px solid var(--line);flex:none;display:grid;place-items:center}
+  .m.sel .radio{border-color:var(--brand1)} .m.sel .radio:after{content:"";width:8px;height:8px;border-radius:50%;background:var(--brand1)}
+  .tag2{font-size:8.5px;font-weight:900;text-transform:uppercase;padding:2px 6px;border-radius:999px}
+  .tag2.rec{background:color-mix(in srgb,var(--brand2) 16%,transparent);color:var(--ok)}
+  .tag2.soon{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+  .cfg{margin-top:11px;padding-top:11px;border-top:1px dashed var(--line);display:none} .m.sel .cfg{display:block}
+  .providers{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .prov{display:flex;align-items:center;gap:8px;border:1.5px solid var(--line);background:var(--panel2);border-radius:9px;padding:8px 10px;cursor:pointer;font-size:12px;font-weight:700}
+  .prov.on{border-color:var(--brand2);background:color-mix(in srgb,var(--brand2) 10%,var(--panel))}
+  .prov .g{width:20px;height:20px;border-radius:5px;display:grid;place-items:center;font-size:11px;font-weight:900;color:#fff}
+  .consent{margin-top:11px;border:1.5px solid color-mix(in srgb,var(--warn) 30%,var(--line));background:color-mix(in srgb,var(--warn) 6%,var(--panel));border-radius:11px;padding:12px;display:none}
+  .consent.show{display:block}
+  .consent p{font-size:11.5px;margin:0 0 9px;line-height:1.5}
+  .srow{display:flex;gap:8px}
+  .srow input{flex:1;border:1.5px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:9px;padding:9px 11px;font-family:"Segoe Script",cursive;font-size:14px;outline:none}
+  .srow button{border:0;border-radius:9px;padding:9px 14px;font-weight:800;font-size:12px;color:#fff;cursor:pointer;background:linear-gradient(135deg,var(--warn),#e8820a)}
+  .srow button:disabled{opacity:.4;cursor:not-allowed}
+  .signed{display:none;margin-top:9px;align-items:center;gap:8px;font-size:11.5px;background:color-mix(in srgb,var(--ok) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--ok) 30%,var(--line));border-radius:9px;padding:8px 11px}
+  .signed.show{display:flex} .signed .c{width:20px;height:20px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;flex:none}
+  .mfoot{display:flex;align-items:center;gap:10px;padding:14px 16px;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--panel)}
+  .mfoot .note{font-size:11px;color:var(--muted)} .mfoot .save{margin-left:auto;border:0;border-radius:10px;padding:11px 18px;font-weight:800;font-size:13px;color:#fff;cursor:pointer;background:linear-gradient(135deg,var(--brand1),#1f9d74)}
+  .mfoot .save:disabled{opacity:.45;cursor:not-allowed}
+</style>
+
+<div class="bar"><span class="ic"></span><div><div class="t">Voice Agent · Playground</div></div>
+  <button class="themeb" id="themeb">◐ Theme</button></div>
+<div class="hint">The <b>Booking</b> step is now a node on the canvas — pick how it books from the <b>dropdown</b>, or hit <b>Set up</b> for the full modal (link / scheduler / auto-book + consent). Same pattern can wrap the other setup steps.</div>
+
+<div class="canvas" id="canvas">
+  <svg class="wires"><path d="M180,210 C 340,210 440,230 600,250" /><path d="M180,360 C 360,360 470,300 600,290" /></svg>
+
+  <!-- ghost context nodes -->
+  <div class="node ghost" style="left:40px;top:150px;width:140px">
+    <div class="nhead"><span class="ic" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6)">✦</span><span class="ti">Brief</span></div>
+    <div class="body" style="font-size:10px;color:var(--muted)">Business, greeting, voice</div>
+  </div>
+  <div class="node ghost" style="left:40px;top:300px;width:140px">
+    <div class="nhead"><span class="ic" style="background:linear-gradient(135deg,#10b981,#3b82f6)">☎</span><span class="ti">Book skill</span></div>
+    <div class="body" style="font-size:10px;color:var(--muted)">"wants to book…"</div>
+  </div>
+
+  <!-- the Booking node -->
+  <div class="node booking-node" id="bnode">
+    <div class="nhead">
+      <span class="ic" style="background:linear-gradient(135deg,#3b82f6,#10b981)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg></span>
+      <span class="ti">Booking</span>
+      <span class="tag" id="nodeTag" style="background:color-mix(in srgb,#10b981 18%,transparent);color:#22c55e">SHARE LINK</span>
+      <span class="dots">⠿</span>
+    </div>
+    <div class="body">
+      <div class="lbl">How it books</div>
+      <div class="sel"><select id="nodeMethod">
+        <option value="link">Share my booking link</option>
+        <option value="provider">Connect my scheduler</option>
+        <option value="auto">Auto-book my page</option>
+        <option value="off">Off — just take details</option>
+      </select></div>
+      <div class="summary" id="nodeSummary"></div>
+      <div class="always"><span class="d"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg></span> Owner emailed every request — always</div>
+    </div>
+    <div class="foot">
+      <button class="setup" id="openModal">⚙ Set up booking</button>
+      <button class="pw" title="Toggle">⏻</button>
+    </div>
+  </div>
+</div>
+
+<!-- modal -->
+<div class="scrim" id="scrim">
+  <div class="modal">
+    <div class="mhead">
+      <span class="ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg></span>
+      <div><div class="t">Booking setup</div><div class="s">How the agent handles a caller who wants to book</div></div>
+      <button class="x" id="closeModal">✕</button>
+    </div>
+    <div class="mbody">
+      <div class="mlbl" style="margin-top:0">Where bookings &amp; messages go</div>
+      <div class="field"><input value="owner@integritytaxgroups.com"></div>
+      <div class="always2"><span class="d"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span>
+        <div><b>Every booking &amp; message is emailed here — always.</b><br><small>No matter the method below, you get the full details.</small></div></div>
+
+      <div class="mlbl">How the agent books</div>
+      <div id="methods">
+        <div class="m" data-m="link">
+          <div class="h"><span class="radio"></span> Share my booking link <span class="tag2 rec">Simplest</span></div>
+          <div class="d">Agent texts callers your page + emails you every request. No account access.</div>
+          <div class="cfg"><div class="lbl" style="color:var(--faint)">Your booking page link</div>
+            <div class="field"><input placeholder="https://yourbusiness.com/book-appointment" value="https://integritytaxgroups.com/book-appointment"></div></div>
+        </div>
+        <div class="m" data-m="provider">
+          <div class="h"><span class="radio"></span> Connect my scheduler <span class="tag2 rec">Real availability</span></div>
+          <div class="d">Agent checks your real open times and books on your account.</div>
+          <div class="cfg"><div class="lbl" style="color:var(--faint)">Choose your scheduler</div>
+            <div class="providers">
+              <div class="prov" data-p="Calendly"><span class="g" style="background:#006bff">C</span> Calendly</div>
+              <div class="prov" data-p="Acuity"><span class="g" style="background:#111">A</span> Acuity</div>
+              <div class="prov" data-p="Cal.com"><span class="g" style="background:#111">▷</span> Cal.com</div>
+              <div class="prov" data-p="Square"><span class="g" style="background:#000">◼</span> Square</div>
+            </div></div>
+        </div>
+        <div class="m" data-m="auto">
+          <div class="h"><span class="radio"></span> Auto-book my page <span class="tag2 soon">Beta</span></div>
+          <div class="d">Agent submits your form after the call, then texts the caller. Email fallback.</div>
+          <div class="cfg"><div class="lbl" style="color:var(--faint)">Your public booking page URL</div>
+            <div class="field"><input placeholder="https://yourbusiness.com/book-appointment"></div></div>
+        </div>
+      </div>
+
+      <div class="consent" id="consent">
+        <div class="lbl" style="color:var(--warn)">⚠ Authorize the agent to book for you</div>
+        <p>I authorize the agent to <b>create, reschedule &amp; cancel appointments on my behalf</b> using the selected method, and to access my scheduler / submit my booking form.</p>
+        <div class="srow"><input id="sig" placeholder="Type your full name to sign"><button id="signbtn" disabled>Sign</button></div>
+        <div class="signed" id="signed"><span class="c"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></span><span id="signedTxt"></span></div>
+      </div>
+    </div>
+    <div class="mfoot"><span class="note" id="mnote">Share-link is ready.</span><button class="save" id="save">Save</button></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var state={method:"link",provider:null,signed:false};
+  var TAGS={link:{t:"SHARE LINK",c:"#22c55e",bg:"#10b981"},provider:{t:"SCHEDULER",c:"#7db3ff",bg:"#3b82f6"},auto:{t:"AUTO-BOOK",c:"#f59e0b",bg:"#f59e0b"},off:{t:"OFF",c:"#8fa3bd",bg:"#5f7291"}};
+
+  function renderNode(){
+    var tag=document.getElementById('nodeTag'); var m=TAGS[state.method];
+    tag.textContent=m.t; tag.style.color=m.c; tag.style.background="color-mix(in srgb,"+m.bg+" 18%,transparent)";
+    var s=document.getElementById('nodeSummary'); var rows="";
+    if(state.method==="link"||state.method==="auto"){ rows+='<div class="row"><span class="k">Link</span><span class="v">integritytaxgroups.com/book</span></div>'; }
+    if(state.method==="provider"){ rows+='<div class="row"><span class="k">Scheduler</span><span class="v">'+(state.provider||"— pick one")+'</span></div>'; }
+    if(state.method==="off"){ rows+='<div class="row"><span class="v" style="color:var(--muted)">Agent takes details → emails you</span></div>'; }
+    var needC=state.method==="provider"||state.method==="auto";
+    if(needC) rows+='<div class="row"><span class="k">Consent</span><span class="v">'+(state.signed?'<span class="chip ok">✓ signed</span>':'<span class="chip warn">needs signing</span>')+'</span></div>';
+    s.innerHTML=rows||'<div class="row"><span class="v" style="color:var(--muted)">Not set up</span></div>';
+  }
+  function refreshModal(){
+    document.querySelectorAll('#methods .m').forEach(function(m){m.classList.toggle('sel',m.dataset.m===state.method)});
+    var needC=state.method==="provider"||state.method==="auto";
+    document.getElementById('consent').classList.toggle('show',needC);
+    document.getElementById('signed').classList.toggle('show',state.signed);
+    if(state.signed) document.getElementById('signedTxt').innerHTML='<b>Authorized</b> · just now';
+    var ok=true,note="Share-link is ready.";
+    if(state.method==="provider"&&!state.provider){ok=false;note="Pick a scheduler.";}
+    else if(needC&&!state.signed){ok=false;note="Sign the authorization.";}
+    else if(state.method==="provider")note="Real availability on "+state.provider+".";
+    else if(state.method==="auto")note="Auto-book after each call (email fallback).";
+    else if(state.method==="off")note="Agent takes details and emails you.";
+    document.getElementById('save').disabled=!ok; document.getElementById('mnote').textContent=note;
+  }
+
+  document.getElementById('nodeMethod').onchange=function(e){state.method=e.target.value;state.signed=false;renderNode();refreshModal();};
+  document.getElementById('openModal').onclick=function(){document.getElementById('scrim').classList.add('open');refreshModal();};
+  document.getElementById('closeModal').onclick=function(){document.getElementById('scrim').classList.remove('open');};
+  document.getElementById('scrim').onclick=function(e){if(e.target===this)this.classList.remove('open');};
+  document.querySelectorAll('#methods .m').forEach(function(m){
+    m.querySelector('.h').onclick=function(){state.method=m.dataset.m;state.signed=false;
+      document.getElementById('nodeMethod').value=state.method;renderNode();refreshModal();};
+  });
+  document.querySelectorAll('.prov').forEach(function(p){
+    p.onclick=function(e){e.stopPropagation();document.querySelectorAll('.prov').forEach(function(x){x.classList.remove('on')});
+      p.classList.add('on');state.provider=p.dataset.p;state.signed=false;renderNode();refreshModal();};
+  });
+  var sig=document.getElementById('sig');
+  sig.addEventListener('input',function(){document.getElementById('signbtn').disabled=!sig.value.trim();});
+  document.getElementById('signbtn').onclick=function(){if(!sig.value.trim())return;state.signed=true;renderNode();refreshModal();};
+  document.getElementById('save').onclick=function(){document.getElementById('scrim').classList.remove('open');};
+
+  document.getElementById('themeb').onclick=function(){
+    var cur=document.documentElement.getAttribute('data-theme');var sysDark=matchMedia('(prefers-color-scheme:dark)').matches;
+    document.documentElement.setAttribute('data-theme',cur==="dark"?"light":cur==="light"?"dark":(sysDark?"light":"dark"));
+  };
+  renderNode();refreshModal();
+})();
+</script>
