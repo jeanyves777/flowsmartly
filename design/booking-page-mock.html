@@ -1,0 +1,346 @@
+<title>Booking page — FlowSmartly</title>
+<style>
+  :root{
+    --bg:#eef2f6; --panel:#ffffff; --ink:#0f1b2d; --muted:#5b6b80; --line:#dde5ee;
+    --soft:#f4f7fb; --soft2:#eaf0f7; --brand1:#2563eb; --brand2:#10b981;
+    --brand-ink:#0b4bd8; --ok:#12a150; --ring:rgba(37,99,235,.22); --shadow:0 18px 50px -24px rgba(15,27,45,.35);
+    --radius:16px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#0a0f17; --panel:#111925; --ink:#eaf1fb; --muted:#93a4bd; --line:#1e2a3b;
+      --soft:#151f2d; --soft2:#172234; --brand-ink:#6ea0ff; --ring:rgba(110,160,255,.28);
+      --shadow:0 24px 60px -28px rgba(0,0,0,.7); }
+  }
+  :root[data-theme="dark"]{ --bg:#0a0f17; --panel:#111925; --ink:#eaf1fb; --muted:#93a4bd; --line:#1e2a3b;
+    --soft:#151f2d; --soft2:#172234; --brand-ink:#6ea0ff; --ring:rgba(110,160,255,.28);
+    --shadow:0 24px 60px -28px rgba(0,0,0,.7); }
+  :root[data-theme="light"]{ --bg:#eef2f6; --panel:#ffffff; --ink:#0f1b2d; --muted:#5b6b80; --line:#dde5ee;
+    --soft:#f4f7fb; --soft2:#eaf0f7; --brand-ink:#0b4bd8; --ring:rgba(37,99,235,.22);
+    --shadow:0 18px 50px -24px rgba(15,27,45,.35); }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.5}
+  .wrap{max-width:960px;margin:0 auto;padding:0 16px 64px}
+
+  /* top bar */
+  .bar{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--panel) 86%,transparent);
+    backdrop-filter:saturate(1.2) blur(10px);border-bottom:1px solid var(--line)}
+  .bar-in{max-width:960px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:12px 16px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.2px}
+  .logo .mark{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;
+    background:linear-gradient(135deg,var(--brand1),var(--brand2));box-shadow:0 6px 16px -6px var(--brand1)}
+  .biz{font-size:15px}
+  .biz small{display:block;font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.2px}
+  .bar .spacer{flex:1}
+  .theme-btn{border:1px solid var(--line);background:var(--soft);color:var(--muted);border-radius:10px;
+    padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer}
+
+  /* hero */
+  .hero{margin-top:18px;border-radius:22px;padding:40px 24px;text-align:center;color:#fff;position:relative;overflow:hidden;
+    background:linear-gradient(120deg,var(--brand1),#1f9d74 78%);box-shadow:var(--shadow)}
+  .hero:after{content:"";position:absolute;inset:0;background:
+    radial-gradient(600px 200px at 80% -20%,rgba(255,255,255,.22),transparent 60%);pointer-events:none}
+  .hero .ico{width:64px;height:64px;border-radius:18px;margin:0 auto 14px;display:grid;place-items:center;
+    background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28)}
+  .hero h1{margin:0;font-size:34px;line-height:1.1;font-weight:850;letter-spacing:-.8px;text-wrap:balance}
+  .hero p{margin:10px auto 0;max-width:520px;opacity:.94;font-size:15px}
+
+  /* card + stepper */
+  .card{margin-top:-26px;position:relative;z-index:2;background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);box-shadow:var(--shadow);padding:22px}
+  .steps{display:flex;align-items:center;gap:8px;padding:4px 2px 18px;border-bottom:1px solid var(--line);margin-bottom:20px}
+  .step{display:flex;align-items:center;gap:9px;font-weight:700;font-size:13px;color:var(--muted)}
+  .step .n{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;
+    background:var(--soft2);color:var(--muted);border:1px solid var(--line);transition:.2s}
+  .step.active{color:var(--ink)} .step.active .n{background:linear-gradient(135deg,var(--brand1),var(--brand2));color:#fff;border-color:transparent}
+  .step.done .n{background:var(--ok);color:#fff;border-color:transparent}
+  .step .bar-line{flex:1;height:2px;background:var(--line);border-radius:2px;min-width:16px}
+  .step-lab{display:none} @media(min-width:620px){.step-lab{display:inline}}
+
+  h2.sec{margin:2px 0 2px;font-size:20px;font-weight:800;letter-spacing:-.3px}
+  .sub{color:var(--muted);font-size:13.5px;margin:0 0 16px}
+
+  /* service options */
+  .opt{display:flex;align-items:center;gap:14px;width:100%;text-align:left;cursor:pointer;
+    border:1.5px solid var(--line);background:var(--soft);border-radius:14px;padding:15px 16px;margin-bottom:11px;transition:.16s}
+  .opt:hover{border-color:color-mix(in srgb,var(--brand1) 40%,var(--line));background:var(--panel)}
+  .opt.sel{border-color:var(--brand1);background:color-mix(in srgb,var(--brand1) 7%,var(--panel));box-shadow:0 0 0 4px var(--ring)}
+  .opt .t{font-weight:800;font-size:15px}
+  .opt .d{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .opt .price{margin-left:auto;font-weight:800;font-size:14px;color:var(--brand-ink);white-space:nowrap}
+  .opt .radio{width:20px;height:20px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;flex-shrink:0}
+  .opt.sel .radio{border-color:var(--brand1)} .opt.sel .radio:after{content:"";width:10px;height:10px;border-radius:50%;background:var(--brand1)}
+
+  /* date + time */
+  .cal-head{display:flex;align-items:center;justify-content:space-between;background:var(--soft);border:1px solid var(--line);
+    border-radius:12px;padding:10px 14px;margin-bottom:14px}
+  .cal-head b{color:var(--brand-ink);font-size:14px} .navb{background:none;border:0;color:var(--muted);font-weight:700;cursor:pointer;font-size:13px;padding:4px 6px}
+  .navb:hover{color:var(--ink)}
+  .days{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-bottom:12px}
+  .day{border:1.5px solid var(--line);background:var(--soft);border-radius:12px;padding:10px 4px;text-align:center;cursor:pointer;transition:.15s}
+  .day:hover{border-color:color-mix(in srgb,var(--brand1) 40%,var(--line))}
+  .day .dow{font-size:11px;color:var(--muted);font-weight:700} .day .dnum{font-size:19px;font-weight:800;margin-top:2px}
+  .day.sel{background:linear-gradient(135deg,var(--brand1),var(--brand2));border-color:transparent;color:#fff}
+  .day.sel .dow{color:rgba(255,255,255,.85)}
+  .months{display:flex;gap:8px;justify-content:center;margin:4px 0 18px;flex-wrap:wrap}
+  .mo{border:1px solid var(--line);background:var(--soft);color:var(--muted);border-radius:999px;padding:6px 14px;font-size:12.5px;font-weight:700;cursor:pointer}
+  .mo.sel{background:var(--brand1);color:#fff;border-color:transparent}
+  .times-h{font-size:13px;font-weight:800;margin:6px 0 10px}
+  .times{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:9px}
+  .slot{border:1.5px solid var(--line);background:var(--soft);border-radius:11px;padding:11px 6px;text-align:center;cursor:pointer;
+    font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;transition:.14s}
+  .slot:hover{border-color:var(--brand1);color:var(--brand-ink)}
+  .slot.sel{background:linear-gradient(135deg,var(--brand1),var(--brand2));border-color:transparent;color:#fff}
+  .slot.taken{opacity:.4;cursor:not-allowed;text-decoration:line-through} .slot.taken:hover{border-color:var(--line);color:var(--ink)}
+  .slot svg{opacity:.6} .slot.sel svg{opacity:.9}
+
+  /* form */
+  .field{margin-bottom:14px} .field label{display:block;font-size:12.5px;font-weight:800;margin-bottom:6px}
+  .field input,.field textarea{width:100%;border:1.5px solid var(--line);background:var(--soft);color:var(--ink);
+    border-radius:11px;padding:12px 13px;font-size:14px;font-family:inherit;outline:none;transition:.15s}
+  .field input:focus,.field textarea:focus{border-color:var(--brand1);box-shadow:0 0 0 4px var(--ring);background:var(--panel)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px} @media(max-width:520px){.row2{grid-template-columns:1fr}}
+  .summary{background:var(--soft);border:1px dashed var(--line);border-radius:12px;padding:13px 15px;margin:2px 0 16px;font-size:13px}
+  .summary .li{display:flex;justify-content:space-between;padding:4px 0} .summary .li b{font-weight:800}
+  .summary .li span{color:var(--muted)}
+
+  /* actions */
+  .actions{display:flex;align-items:center;gap:10px;margin-top:20px}
+  .btn{border:0;border-radius:12px;padding:13px 20px;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit;transition:.15s}
+  .btn.ghost{background:var(--soft);border:1px solid var(--line);color:var(--ink)}
+  .btn.ghost:hover{background:var(--soft2)}
+  .btn.primary{margin-left:auto;color:#fff;background:linear-gradient(135deg,var(--brand1),#1f9d74);box-shadow:0 12px 26px -14px var(--brand1)}
+  .btn.primary:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+  .btn.primary:not(:disabled):hover{filter:brightness(1.04)}
+
+  /* confirmation */
+  .done{text-align:center;padding:22px 6px}
+  .done .check{width:78px;height:78px;border-radius:50%;margin:0 auto 16px;display:grid;place-items:center;color:#fff;
+    background:linear-gradient(135deg,var(--ok),#0e8f6f);box-shadow:0 16px 34px -16px var(--ok);animation:pop .4s ease}
+  @keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+  .done h2{font-size:24px;margin:0 0 6px;letter-spacing:-.4px}
+  .done p{color:var(--muted);margin:0 auto;max-width:420px}
+  .notify{margin:18px auto 0;max-width:460px;display:flex;gap:11px;text-align:left;align-items:flex-start;
+    background:color-mix(in srgb,var(--brand2) 9%,var(--panel));border:1px solid color-mix(in srgb,var(--brand2) 30%,var(--line));
+    border-radius:13px;padding:13px 15px}
+  .notify .em{width:34px;height:34px;border-radius:9px;flex-shrink:0;display:grid;place-items:center;color:#fff;
+    background:linear-gradient(135deg,var(--brand1),var(--brand2))}
+  .notify b{font-size:13.5px} .notify small{color:var(--muted);font-size:12.5px}
+
+  .foot{text-align:center;margin-top:24px;color:var(--muted);font-size:12px}
+  .foot .fs{font-weight:800;color:var(--ink)}
+  .hidden{display:none}
+  .badge{display:inline-flex;align-items:center;gap:6px;background:color-mix(in srgb,var(--brand2) 12%,transparent);
+    color:var(--ok);border:1px solid color-mix(in srgb,var(--brand2) 30%,var(--line));border-radius:999px;
+    padding:3px 10px;font-size:11px;font-weight:800;margin-bottom:10px}
+</style>
+
+<div class="bar">
+  <div class="bar-in">
+    <div class="logo"><span class="mark">✦</span>
+      <span class="biz">Integrity Tax Groups<small>Book an appointment</small></span></div>
+    <span class="spacer"></span>
+    <button class="theme-btn" id="themeBtn">◐ Theme</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="hero">
+    <div class="ico">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/></svg>
+    </div>
+    <h1>Schedule your appointment</h1>
+    <p>Book a free consultation with our tax experts — real open times, confirmed instantly.</p>
+  </div>
+
+  <div class="card">
+    <!-- stepper -->
+    <div class="steps" id="stepper">
+      <div class="step active" data-s="1"><span class="n">1</span><span class="step-lab">Service</span></div>
+      <span class="bar-line"></span>
+      <div class="step" data-s="2"><span class="n">2</span><span class="step-lab">Date &amp; Time</span></div>
+      <span class="bar-line"></span>
+      <div class="step" data-s="3"><span class="n">3</span><span class="step-lab">Your Info</span></div>
+    </div>
+
+    <!-- STEP 1 -->
+    <section id="p1">
+      <h2 class="sec">Select a service</h2>
+      <p class="sub">Choose the type of consultation you need.</p>
+      <div id="services"></div>
+      <div class="actions">
+        <button class="btn primary" id="n1" disabled>Continue →</button>
+      </div>
+    </section>
+
+    <!-- STEP 2 -->
+    <section id="p2" class="hidden">
+      <h2 class="sec">Select a date &amp; time</h2>
+      <p class="sub">These are real open slots — booked times are greyed out.</p>
+      <div class="cal-head">
+        <button class="navb" id="prevW">← Prev</button>
+        <b id="calTitle">July 2026</b>
+        <button class="navb" id="nextW">Next →</button>
+      </div>
+      <div class="days" id="days"></div>
+      <div class="months">
+        <span class="mo sel">July</span><span class="mo">August</span><span class="mo">September</span><span class="mo">October</span>
+      </div>
+      <div class="times-h" id="timesH">Available times</div>
+      <div class="times" id="times"></div>
+      <div class="actions">
+        <button class="btn ghost" data-back="1">← Back</button>
+        <button class="btn primary" id="n2" disabled>Continue →</button>
+      </div>
+    </section>
+
+    <!-- STEP 3 -->
+    <section id="p3" class="hidden">
+      <h2 class="sec">Your details</h2>
+      <p class="sub">We'll send the confirmation here — and notify the business owner.</p>
+      <div class="summary" id="summary"></div>
+      <div class="row2">
+        <div class="field"><label>Full name</label><input id="fName" placeholder="Jane Doe"></div>
+        <div class="field"><label>Mobile number</label><input id="fPhone" placeholder="+1 555 123 4567"></div>
+      </div>
+      <div class="field"><label>Email</label><input id="fEmail" placeholder="jane@email.com"></div>
+      <div class="field"><label>Anything we should know? <span style="color:var(--muted);font-weight:600">(optional)</span></label>
+        <textarea id="fNote" rows="2" placeholder="e.g. first-time filing, self-employed…"></textarea></div>
+      <div class="actions">
+        <button class="btn ghost" data-back="2">← Back</button>
+        <button class="btn primary" id="confirm" disabled>Confirm booking</button>
+      </div>
+    </section>
+
+    <!-- CONFIRMATION -->
+    <section id="done" class="hidden">
+      <div class="done">
+        <div class="check"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <span class="badge">✓ Confirmed</span>
+        <h2>You're booked!</h2>
+        <p id="doneMsg">Your appointment is confirmed. We've sent the details to your email.</p>
+        <div class="notify">
+          <span class="em"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></span>
+          <div><b>The business owner was notified by email</b><br>
+            <small id="ownerMsg">Integrity Tax Groups received the full booking details — service, time, your name, phone and email — the moment you confirmed.</small></div>
+        </div>
+        <div class="actions" style="justify-content:center">
+          <button class="btn ghost" id="again">Book another</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="foot">Secured &amp; powered by <span class="fs">FlowSmartly</span> · This booking page and the phone agent share one calendar.</div>
+</div>
+
+<script>
+(function(){
+  var clock='<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+  var SERVICES=[
+    {id:'prep',t:'Tax Preparation',d:'Duration: 1 hour',p:'Free'},
+    {id:'plan',t:'Tax Planning Consultation',d:'Duration: 45 min',p:'Free'},
+    {id:'biz',t:'Business Tax Services',d:'Duration: 1 hour',p:'Free'},
+    {id:'audit',t:'Audit Support',d:'Duration: 30 min',p:'$75'}
+  ];
+  var DAYS=[
+    {dow:'Mon',n:27,taken:['9:00 AM','1:30 PM','4:00 PM']},
+    {dow:'Tue',n:28,taken:['10:00 AM','2:00 PM']},
+    {dow:'Wed',n:29,taken:['9:30 AM','11:00 AM','3:00 PM','5:30 PM']},
+    {dow:'Thu',n:30,taken:['1:00 PM']},
+    {dow:'Fri',n:31,taken:['9:00 AM','9:30 AM','10:00 AM']}
+  ];
+  var ALL=['9:00 AM','9:30 AM','10:00 AM','10:30 AM','11:00 AM','11:30 AM','1:00 PM','1:30 PM','2:00 PM','2:30 PM','3:00 PM','3:30 PM','4:00 PM','4:30 PM','5:00 PM','5:30 PM','6:00 PM','6:30 PM'];
+  var state={service:null,day:null,time:null};
+
+  // services
+  var sv=document.getElementById('services');
+  SERVICES.forEach(function(s){
+    var b=document.createElement('div'); b.className='opt'; b.dataset.id=s.id;
+    b.innerHTML='<div><div class="t">'+s.t+'</div><div class="d">'+s.d+'</div></div><span class="price">'+s.p+'</span><span class="radio"></span>';
+    b.onclick=function(){
+      document.querySelectorAll('.opt').forEach(function(o){o.classList.remove('sel')});
+      b.classList.add('sel'); state.service=s; document.getElementById('n1').disabled=false;
+    };
+    sv.appendChild(b);
+  });
+
+  // days
+  var dz=document.getElementById('days');
+  DAYS.forEach(function(d,i){
+    var el=document.createElement('div'); el.className='day'; el.dataset.i=i;
+    el.innerHTML='<div class="dow">'+d.dow+'</div><div class="dnum">'+d.n+'</div>';
+    el.onclick=function(){
+      document.querySelectorAll('.day').forEach(function(x){x.classList.remove('sel')});
+      el.classList.add('sel'); state.day=d; state.time=null; renderTimes(d);
+      document.getElementById('n2').disabled=true;
+    };
+    dz.appendChild(el);
+  });
+
+  function renderTimes(d){
+    document.getElementById('timesH').textContent='Available times for '+d.dow+', Jul '+d.n;
+    var tz=document.getElementById('times'); tz.innerHTML='';
+    ALL.forEach(function(t){
+      var taken=d.taken.indexOf(t)>=0;
+      var el=document.createElement('div'); el.className='slot'+(taken?' taken':'');
+      el.innerHTML=clock+'<span>'+t+'</span>';
+      if(!taken) el.onclick=function(){
+        document.querySelectorAll('.slot').forEach(function(x){x.classList.remove('sel')});
+        el.classList.add('sel'); state.time=t; document.getElementById('n2').disabled=false;
+      };
+      tz.appendChild(el);
+    });
+  }
+
+  // navigation
+  function show(step){
+    ['p1','p2','p3','done'].forEach(function(id){document.getElementById(id).classList.add('hidden')});
+    var map={1:'p1',2:'p2',3:'p3',4:'done'}; document.getElementById(map[step]).classList.remove('hidden');
+    document.querySelectorAll('.step').forEach(function(s){
+      var n=+s.dataset.s; s.classList.remove('active','done');
+      if(n<step) s.classList.add('done'); else if(n===step) s.classList.add('active');
+    });
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  document.getElementById('n1').onclick=function(){show(2)};
+  document.getElementById('n2').onclick=function(){buildSummary();checkForm();show(3)};
+  document.querySelectorAll('[data-back]').forEach(function(b){b.onclick=function(){show(+b.dataset.back)}});
+
+  function buildSummary(){
+    document.getElementById('summary').innerHTML=
+      '<div class="li"><span>Service</span><b>'+state.service.t+'</b></div>'+
+      '<div class="li"><span>When</span><b>'+state.day.dow+', Jul '+state.day.n+' · '+state.time+'</b></div>'+
+      '<div class="li"><span>Duration</span><b>'+state.service.d.replace('Duration: ','')+'</b></div>';
+  }
+  function checkForm(){
+    var ok=document.getElementById('fName').value.trim() && document.getElementById('fPhone').value.trim();
+    document.getElementById('confirm').disabled=!ok;
+  }
+  ['fName','fPhone'].forEach(function(id){document.getElementById(id).addEventListener('input',checkForm)});
+
+  document.getElementById('confirm').onclick=function(){
+    var name=document.getElementById('fName').value.trim();
+    document.getElementById('doneMsg').innerHTML='Thanks, <b>'+name+'</b> — your <b>'+state.service.t+'</b> on <b>'+state.day.dow+', Jul '+state.day.n+' at '+state.time+'</b> is confirmed. A confirmation was emailed to you.';
+    show(4);
+  };
+  document.getElementById('again').onclick=function(){
+    state={service:null,day:null,time:null};
+    document.querySelectorAll('.opt,.day,.slot').forEach(function(x){x.classList.remove('sel')});
+    document.getElementById('n1').disabled=true;document.getElementById('n2').disabled=true;document.getElementById('confirm').disabled=true;
+    document.getElementById('times').innerHTML='';document.getElementById('timesH').textContent='Available times';
+    ['fName','fPhone','fEmail','fNote'].forEach(function(id){document.getElementById(id).value=''});
+    show(1);
+  };
+
+  // theme toggle
+  var t=document.getElementById('themeBtn');
+  t.onclick=function(){
+    var cur=document.documentElement.getAttribute('data-theme');
+    var next=cur==='dark'?'light':(cur==='light'?'dark':(matchMedia('(prefers-color-scheme:dark)').matches?'light':'dark'));
+    document.documentElement.setAttribute('data-theme',next);
+  };
+})();
+</script>
