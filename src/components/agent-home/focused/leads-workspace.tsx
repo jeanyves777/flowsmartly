@@ -180,6 +180,18 @@ export function FocusedLeads({ initialScreen, initialListId, onAsk, refreshKey, 
   const findingRef = useRef(false);
   const baselineRef = useRef(0);
   const [presetId, setPresetId] = useState<string | null>(null);
+  // Opening the studio drops the user straight into the search brief — the whole
+  // surface is "brief the agent to find leads", so auto-open it once on the empty
+  // Find screen (desktop only; mobile briefs are chat-seeded, no sheet). A deep
+  // link into a saved list or another screen skips this.
+  const autoBriefedRef = useRef(false);
+  useEffect(() => {
+    if (autoBriefedRef.current || isMobile) return;
+    if (initialListId || (initialScreen && initialScreen !== "find")) return;
+    if (screen !== "find" || findState !== "empty") return;
+    autoBriefedRef.current = true;
+    setBriefOpen(true);
+  }, [isMobile, initialListId, initialScreen, screen, findState]);
   // Where the user actually sells — prefills Location so a search is one tap away.
   // Their audience focus wins over the office address; both stay editable.
   const [homeLocation, setHomeLocation] = useState("");
