@@ -10,6 +10,7 @@
  */
 
 import { prisma } from "@/lib/db/client";
+import { notifyOwner } from "@/lib/voice-agent/notify-owner";
 import { fmtPrice, type MenuItem, type OrderConfig } from "@/lib/voice-agent/types";
 import { referCall } from "@/lib/voice-agent/xai-phone";
 
@@ -182,34 +183,47 @@ async function transfer(a: Args, ctx: ToolContext): Promise<ToolResult> {
   };
 }
 
-// ── captured-on-call (need more wiring than a live call should carry) ──
+// ── captured-on-call, then delivered to the owner ──
 
 async function takeMessage(a: Args, ctx: ToolContext): Promise<ToolResult> {
   const name = s(a.name) || "Caller";
+  const phone = s(a.phone) || ctx.fromE164;
   const message = s(a.message);
-  // Recorded on the call; texting the owner reuses the SMS system and is a
-  // follow-up so we don't half-send here.
+  // The whole point of a message is that the owner gets it — email it now.
+  const sent = await notifyOwner({
+    userId: ctx.userId,
+    agentId: ctx.agentId,
+    kind: "message",
+    lines: [["From", name], ["Phone", phone], ["Message", message]],
+  });
   return {
-    output: { ok: true, taken: true },
+    output: { ok: true, taken: true, emailed: sent.ok },
     outcome: "message",
-    outcomeDetail: `Message from ${name}${s(a.phone) ? ` (${s(a.phone)})` : ""}: ${message}`,
+    outcomeDetail: `Message recorded${sent.ok ? " & emailed to the team" : ""} — from ${name}${phone ? ` (${phone})` : ""}: ${message}`,
   };
 }
 
 async function bookAppointment(a: Args, ctx: ToolContext): Promise<ToolResult> {
-  // Captured on the call. A real calendar write depends on which calendar the
-  // business uses; wiring that is a follow-up, so we record the agreed booking
-  // rather than pretend it hit a calendar it isn't connected to yet.
+  // Businesses keep their OWN booking page — we don't run a calendar. We capture
+  // the agreed booking and EMAIL the owner every detail so nothing is lost. The
+  // per-method behaviour (share link / connected scheduler / auto-book) layers on
+  // top of this in later work; the owner email is the floor under all of them.
   const name = s(a.name);
   const when = s(a.when);
+  const phone = s(a.phone) || ctx.fromE164;
+  const service = s(a.service);
   const action = s(a.action) || "book";
-  const detail = `${action === "cancel" ? "Cancel" : action === "reschedule" ? "Reschedule" : "Booking"}: ${
-    s(a.service) ? `${s(a.service)} · ` : ""
-  }${when} · ${name}`;
+  const label = action === "cancel" ? "Cancellation" : action === "reschedule" ? "Reschedule" : "Booking request";
+  const sent = await notifyOwner({
+    userId: ctx.userId,
+    agentId: ctx.agentId,
+    kind: "booking",
+    lines: [["Type", label], ["Service", service], ["When", when], ["Name", name], ["Phone", phone], ["Notes", s(a.notes)]],
+  });
   return {
-    output: { ok: true, confirmed: true, when },
+    output: { ok: true, confirmed: true, when, emailed: sent.ok },
     outcome: "booked",
-    outcomeDetail: detail,
+    outcomeDetail: `${label} recorded${sent.ok ? " & emailed to the team" : ""}: ${service ? `${service} · ` : ""}${when} · ${name}`,
   };
 }
 

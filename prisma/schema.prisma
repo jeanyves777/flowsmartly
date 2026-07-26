@@ -6197,6 +6197,18 @@ model VoiceAgent {
   // once per call from the call log (see elevenlabs-followups).
   followUpRules String @default("[]")
 
+  // Booking. Businesses keep their OWN booking page — we don't run a calendar
+  // product. This is how the agent handles a caller who wants to book, and where
+  // it emails the request. Every booking + message is emailed to the owner
+  // regardless of mode (see notify-owner).
+  bookingMode        String? // "link" | "provider" | "auto" | null (capture + email only)
+  bookingUrl         String? // the business's own public booking page (mode=link|auto)
+  bookingProvider    String? // calendly | acuity | calcom | square (mode=provider)
+  bookingAuth        String? // JSON creds/token for the connected scheduler (mode=provider)
+  bookingNotifyEmail String? // where requests + messages are emailed; falls back to the owner's account email
+  bookingConsentAt   DateTime? // when the owner authorized the agent to book on their behalf (provider/auto)
+  bookingConsentBy   String?   // the typed authorization signature (full name)
+
   // Spend. A hard cap — the agent stops answering when it's hit.
   spendCapCredits Int      @default(5000)
   spentThisPeriod Int      @default(0)
