@@ -211,6 +211,20 @@ export function deleteConvaiPhoneNumber(phoneNumberId: string) {
   return call<void>(`/phone-numbers/${encodeURIComponent(phoneNumberId)}`, { method: "DELETE" });
 }
 
+/** Create a knowledge-base document by scraping a URL. EL fetches + extracts the
+ *  page itself, so the agent can answer from its real content (RAG). Returns the
+ *  document id to attach under the agent's prompt.knowledge_base. */
+export function createKnowledgeBaseUrl(url: string, name: string) {
+  return call<{ id: string; name: string }>("/knowledge-base/url", {
+    method: "POST",
+    body: JSON.stringify({ url, name }),
+  });
+}
+
+export function deleteKnowledgeBaseDoc(id: string) {
+  return call<void>(`/knowledge-base/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
 // ── Outbound / batch calls (Phase 7) ─────────────────────────────────────────
 
 /** Place a single outbound call from one of our numbers, over SIP or Twilio.

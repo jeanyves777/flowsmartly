@@ -9,7 +9,7 @@
 
 import { prisma } from "@/lib/db/client";
 import { buildElevenLabsAgent } from "@/lib/voice-agent/elevenlabs-agent-spec";
-import { assignConvaiNumberToAgent, createConvaiAgent, updateConvaiAgent, isConvaiEnabled } from "@/lib/voice-agent/elevenlabs-convai";
+import { assignConvaiNumberToAgent, createConvaiAgent, createKnowledgeBaseUrl, updateConvaiAgent, isConvaiEnabled } from "@/lib/voice-agent/elevenlabs-convai";
 
 export type ElevenSyncState = "synced" | "error";
 
@@ -20,6 +20,11 @@ export async function syncElevenLabsAgent(
 
   const row = await prisma.voiceAgent.findUnique({ where: { id: agentId } });
   if (!row) return { state: "error" };
+
+  // Make the business's knowledge (URLs) into ElevenLabs knowledge-base docs and
+  // cache their ids on the row, so the agent can ANSWER from the real content
+  // (RAG) instead of just knowing the source names. Best-effort; never blocks sync.
+  await ensureKnowledgeDocs(row as unknown as { id: string; knowledge?: unknown; knowledgeDocs?: unknown }).catch(() => {});
 
   const payload = buildElevenLabsAgent(row as unknown as Record<string, unknown>);
   const existingId = (row as unknown as { elevenAgentId?: string | null }).elevenAgentId || null;
@@ -46,6 +51,41 @@ export async function syncElevenLabsAgent(
   await rebindNumber(row as unknown as { phoneNumberId?: string | null }, newAgentId).catch(() => {});
 
   return mark(agentId, "synced", { elevenAgentId: newAgentId });
+}
+
+type KbDoc = { url: string; id: string; name: string };
+const jp = <T,>(v: unknown, f: T): T => {
+  try { return typeof v === "string" ? (JSON.parse(v) as T) : f; } catch { return f; }
+};
+
+/** Ensure every knowledge URL is an ElevenLabs knowledge-base doc, caching the ids
+ *  on the row so each is created only once. Prunes docs whose URL was removed.
+ *  Best-effort — a failed doc is simply skipped (the agent still works). */
+async function ensureKnowledgeDocs(row: { id: string; knowledge?: unknown; knowledgeDocs?: unknown }): Promise<void> {
+  const items = jp<{ kind?: string; label?: string; url?: string }[]>(row.knowledge, []);
+  const urls = items.map((k) => (k.url || "").trim()).filter((u) => /^https?:\/\//i.test(u));
+  let docs = jp<KbDoc[]>(row.knowledgeDocs, []);
+  const before = docs.length;
+
+  // Drop docs whose URL is no longer in the knowledge list.
+  const wanted = new Set(urls);
+  docs = docs.filter((d) => wanted.has(d.url));
+  let changed = docs.length !== before;
+
+  // Create any missing.
+  const have = new Set(docs.map((d) => d.url));
+  for (const k of items) {
+    const u = (k.url || "").trim();
+    if (!/^https?:\/\//i.test(u) || have.has(u)) continue;
+    const r = await createKnowledgeBaseUrl(u, (k.label || u).slice(0, 80));
+    if (r.ok) { docs.push({ url: u, id: r.data.id, name: r.data.name || k.label || u }); have.add(u); changed = true; }
+  }
+
+  if (changed) {
+    const json = JSON.stringify(docs);
+    await prisma.voiceAgent.update({ where: { id: row.id }, data: { knowledgeDocs: json } }).catch(() => {});
+    row.knowledgeDocs = json; // keep the in-memory row fresh for buildElevenLabsAgent
+  }
 }
 
 /** Point the agent's phone number at its current EL agent id so inbound calls route

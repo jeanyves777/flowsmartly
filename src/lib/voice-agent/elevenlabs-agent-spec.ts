@@ -131,6 +131,12 @@ export function buildElevenLabsAgent(row: Record<string, unknown>): ConvaiAgentP
   // enforce inside EL's runtime.
   const maxCallSec = Math.min(1200, Math.max(120, Math.floor(Number(row.spendCapCredits ?? 5000) / 15) * 60));
 
+  // Knowledge base — the EL docs created from the business's URLs (see
+  // elevenlabs-sync.ensureKnowledgeDocs). Attaching them + enabling RAG lets the
+  // agent ANSWER from the real content, not just recite the source names.
+  const kbDocs = jParse<{ url: string; id: string; name: string }[]>(row.knowledgeDocs, []);
+  const knowledgeBase = kbDocs.map((d) => ({ type: "url", name: d.name, id: d.id, usage_mode: "auto" }));
+
   return {
     name,
     conversation_config: {
@@ -143,6 +149,7 @@ export function buildElevenLabsAgent(row: Record<string, unknown>): ConvaiAgentP
           llm: DEFAULT_LLM,
           temperature: 0.3,
           tools,
+          ...(knowledgeBase.length ? { knowledge_base: knowledgeBase, rag: { enabled: true } } : {}),
         },
       },
       conversation: { max_duration_seconds: maxCallSec },
