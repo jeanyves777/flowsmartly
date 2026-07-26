@@ -1628,6 +1628,77 @@ function Group({ title, sub, children, danger }: {
   );
 }
 
+// Booking setup — how the agent handles a caller who wants to book. Businesses
+// keep their own booking page; this picks the method + where requests are emailed,
+// and captures the authorization signature when the agent acts on their behalf.
+function BookingGroup({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void> }) {
+  const [sig, setSig] = useState("");
+  const mode = agent.bookingMode || "";
+  const needsConsent = mode === "provider" || mode === "auto";
+  const signed = !!agent.bookingConsentAt && !!agent.bookingConsentBy;
+  const inputCls = "w-full rounded-lg border border-border bg-muted/40 px-2 py-1.5 text-[11.5px] outline-none focus:border-brand-500";
+  const methods: { k: string; t: string; d: string; soon?: boolean }[] = [
+    { k: "link", t: "Share my booking link", d: "Agent texts callers your page + emails you every request." },
+    { k: "provider", t: "Connect my scheduler", d: "Real availability on Calendly / Acuity / Cal.com / Square.", soon: true },
+    { k: "auto", t: "Auto-book my page", d: "Agent submits your form after the call (email fallback).", soon: true },
+  ];
+  return (
+    <div className="grid gap-2">
+      <label className="block">
+        <span className="mb-1 block text-[10px] font-semibold text-muted-foreground">Email bookings &amp; messages to</span>
+        <input value={agent.bookingNotifyEmail || ""} placeholder="Defaults to your account email"
+          onChange={(e) => void onPatch({ bookingNotifyEmail: e.target.value })} className={inputCls} />
+      </label>
+      <div className="grid gap-1.5">
+        {methods.map((m) => {
+          const on = mode === m.k;
+          return (
+            <button key={m.k} type="button" onClick={() => void onPatch({ bookingMode: on ? null : m.k })}
+              className={cn("rounded-lg border px-2.5 py-2 text-left transition", on ? "border-brand-500 bg-brand-500/5" : "border-border hover:border-brand-500/40")}>
+              <span className="flex items-center gap-1.5 text-[11px] font-bold">{m.t}{m.soon ? <span className="rounded bg-amber-500/15 px-1 py-px text-[8.5px] font-black uppercase tracking-wide text-amber-500">Soon</span> : null}</span>
+              <span className="mt-0.5 block text-[9.5px] leading-snug text-muted-foreground">{m.d}</span>
+            </button>
+          );
+        })}
+      </div>
+      {(mode === "link" || mode === "auto") && (
+        <label className="block">
+          <span className="mb-1 block text-[10px] font-semibold text-muted-foreground">Your booking page link</span>
+          <input value={agent.bookingUrl || ""} placeholder="https://yourbusiness.com/book"
+            onChange={(e) => void onPatch({ bookingUrl: e.target.value })} className={inputCls} />
+          <span className="mt-1 block text-[9px] text-muted-foreground">On a call the agent texts this to the caller and emails you the request.</span>
+        </label>
+      )}
+      {mode === "provider" && (
+        <label className="block">
+          <span className="mb-1 block text-[10px] font-semibold text-muted-foreground">Scheduler</span>
+          <select value={agent.bookingProvider || ""} onChange={(e) => void onPatch({ bookingProvider: e.target.value })} className={inputCls}>
+            <option value="">Choose…</option>
+            <option value="calendly">Calendly</option><option value="acuity">Acuity</option>
+            <option value="calcom">Cal.com</option><option value="square">Square</option>
+          </select>
+          <span className="mt-1 block text-[9px] text-amber-500">Live availability + booking is rolling out — until then every request is emailed to you.</span>
+        </label>
+      )}
+      {needsConsent && (signed ? (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-2 text-[10px]">
+          <b className="text-emerald-500">Authorized</b> by {agent.bookingConsentBy}
+          {" · "}<button type="button" className="underline hover:text-rose-500" onClick={() => void onPatch({ bookingConsentAt: null, bookingConsentBy: null })}>revoke</button>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2">
+          <p className="mb-1.5 text-[9.5px] leading-snug text-muted-foreground">Authorize the agent to create, reschedule &amp; cancel bookings on your behalf.</p>
+          <div className="flex gap-1.5">
+            <input value={sig} onChange={(e) => setSig(e.target.value)} placeholder="Type your full name to sign" className={cn(inputCls, "flex-1")} />
+            <button type="button" disabled={!sig.trim()} onClick={() => { void onPatch({ bookingConsentBy: sig.trim(), bookingConsentAt: new Date().toISOString() }); setSig(""); }}
+              className="rounded-lg bg-amber-500 px-2.5 py-1.5 text-[10.5px] font-bold text-white disabled:opacity-40">Sign</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Controls({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void> }) {
   const hours: Hours = agent.hours || DEFAULT_HOURS;
   const setDay = (d: DayKey, next: Partial<{ open: string; close: string; on: boolean }>) => {
@@ -1734,6 +1805,10 @@ function Controls({ agent, onPatch }: { agent: VoiceAgentDraft; onPatch: (p: Par
             );
           })}
         </div>
+      </Group>
+
+      <Group title="Appointment booking" sub="How the agent books — and where requests are emailed.">
+        <BookingGroup agent={agent} onPatch={onPatch} />
       </Group>
 
       <Group title="Escalation" sub="Who the agent rings when it's out of its depth.">

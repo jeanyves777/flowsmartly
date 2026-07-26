@@ -9,6 +9,7 @@
  * the call and flagged, never faked as done.
  */
 
+import { deliverSequenceSms } from "@/lib/crm/send-adapters";
 import { prisma } from "@/lib/db/client";
 import { notifyOwner } from "@/lib/voice-agent/notify-owner";
 import { fmtPrice, type MenuItem, type OrderConfig } from "@/lib/voice-agent/types";
@@ -220,10 +221,26 @@ async function bookAppointment(a: Args, ctx: ToolContext): Promise<ToolResult> {
     kind: "booking",
     lines: [["Type", label], ["Service", service], ["When", when], ["Name", name], ["Phone", phone], ["Notes", s(a.notes)]],
   });
+
+  // If the business shares its own booking page (mode=link|auto), text the caller
+  // the link so they can lock in their exact time. Best-effort — needs the tenant's
+  // SMS number configured and a caller number; never blocks the call.
+  let texted = false;
+  if (action !== "cancel" && phone) {
+    const agentRow = await prisma.voiceAgent
+      .findUnique({ where: { id: ctx.agentId }, select: { bookingMode: true, bookingUrl: true } })
+      .catch(() => null);
+    const url = (agentRow?.bookingUrl || "").trim();
+    if (url && (agentRow?.bookingMode === "link" || agentRow?.bookingMode === "auto")) {
+      const r = await deliverSequenceSms({ userId: ctx.userId, to: phone, body: `Book your appointment here: ${url}` }).catch(() => ({ ok: false }));
+      texted = !!r.ok;
+    }
+  }
+
   return {
-    output: { ok: true, confirmed: true, when, emailed: sent.ok },
+    output: { ok: true, confirmed: true, when, emailed: sent.ok, texted },
     outcome: "booked",
-    outcomeDetail: `${label} recorded${sent.ok ? " & emailed to the team" : ""}: ${service ? `${service} · ` : ""}${when} · ${name}`,
+    outcomeDetail: `${label} recorded${sent.ok ? " & emailed to the team" : ""}${texted ? "; booking link texted to the caller" : ""}: ${service ? `${service} · ` : ""}${when} · ${name}`,
   };
 }
 

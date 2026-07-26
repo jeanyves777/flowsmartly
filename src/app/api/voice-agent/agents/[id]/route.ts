@@ -159,8 +159,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     // Scalars — only what was sent, so an autosave can't blank a field it omits.
     const str = ["name", "business", "greeting", "outboundGreeting", "answerMode", "timezone", "escalateTo", "noAnswerAction",
-      "voiceId", "voiceLabel", "languageHint", "reasoningEffort"];
+      "voiceId", "voiceLabel", "languageHint", "reasoningEffort",
+      "bookingMode", "bookingUrl", "bookingProvider", "bookingNotifyEmail", "bookingConsentBy"];
     for (const k of str) if (typeof body[k] === "string") data[k] = body[k];
+
+    // Booking mode/consent can also be cleared (null), and consent carries a timestamp.
+    for (const k of ["bookingMode", "bookingConsentBy"]) if (body[k] === null) data[k] = null;
+    if (body.bookingConsentAt !== undefined) data.bookingConsentAt = body.bookingConsentAt ? new Date(body.bookingConsentAt as string) : null;
 
     const bools = [
       "escalateOnUpset", "escalateOnUnsure", "escalateOnAsk", "warnAt80", "autoTopUp",
