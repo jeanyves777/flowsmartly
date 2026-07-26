@@ -15,7 +15,7 @@ import {
   Sparkles, X, Phone, Mic, Zap, ClipboardList, Plus, Pencil, Power, PhoneCall,
   Search, Coins, ListChecks, Settings, Hash, PauseCircle, PlayCircle, Trash2,
   ChevronRight, AlertTriangle, FileText, Link2, RefreshCw, Check, Loader2,
-  Volume2, Upload, Square, Copy, PhoneForwarded, PhoneOutgoing, CalendarClock,
+  Volume2, Upload, Square, Copy, PhoneForwarded, PhoneOutgoing, CalendarClock, PhoneOff, Delete,
 } from "lucide-react";
 
 import { useTextPrompt } from "@/components/agent-home/shared/text-prompt";
@@ -1477,71 +1477,156 @@ function DialOut({ agent, onRefresh }: {
   const { toast } = useToast();
   const [to, setTo] = useState("");
   const [purpose, setPurpose] = useState("");
-  const [calling, setCalling] = useState(false);
+  const [view, setView] = useState<"dial" | "session">("dial");
+  const [status, setStatus] = useState<"dialing" | "live" | "ended">("dialing");
+  const [secs, setSecs] = useState(0);
+  const [turns, setTurns] = useState<{ role: string; text: string }[]>([]);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [dialed, setDialed] = useState("");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollCount = useRef(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const stop = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (timerRef.current) clearInterval(timerRef.current);
+    pollRef.current = null; timerRef.current = null;
+  };
+  useEffect(() => stop, []);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [turns]);
 
   if (agent.status !== "LIVE" || !agent.number?.e164) return null;
 
+  const e164 = () => { const d = to.replace(/[\s()\-.]/g, ""); return d.startsWith("+") ? d : `+${d}`; };
+  const canCall = /^\+[1-9]\d{7,14}$/.test(e164());
+  const fmtTo = (raw: string) => {
+    const d = raw.replace(/[^\d+*#]/g, "");
+    if (d.startsWith("+") || d.length > 10) return d;
+    if (d.length > 6) return `(${d.slice(0, 3)}) ${d.slice(3, 6)} ${d.slice(6)}`;
+    if (d.length > 3) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+    return d;
+  };
+  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+  const poll = async (cid: string) => {
+    pollCount.current += 1;
+    if (pollCount.current > 300) { setStatus("ended"); stop(); return; } // ~12 min safety cap
+    const j = await fetch(`/api/voice-agent/agents/${agent.id}/call-status?conversationId=${encodeURIComponent(cid)}`).then((r) => r.json()).catch(() => null);
+    if (!j?.success) return;
+    if (Array.isArray(j.transcript) && j.transcript.length) setTurns(j.transcript.map((t: { role: string; text: string }) => ({ role: t.role, text: t.text })));
+    if (j.summary) setSummary(j.summary);
+    const st = String(j.status || "").toLowerCase();
+    if (st === "done" || st === "failed") { setStatus("ended"); stop(); void onRefresh(); }
+  };
+
   const place = async () => {
-    const digits = to.replace(/[\s()\-.]/g, "");
-    const e164 = digits.startsWith("+") ? digits : `+${digits}`;
-    if (!/^\+[1-9]\d{7,14}$/.test(e164)) {
-      toast({ title: "Enter the number in full international format, e.g. +14155550123", variant: "destructive" });
-      return;
-    }
-    setCalling(true);
+    if (!canCall) { toast({ title: "Enter the number in full international format, e.g. +14155550123", variant: "destructive" }); return; }
+    const num = e164();
+    setDialed(num); setView("session"); setStatus("dialing"); setSecs(0); setTurns([]); setSummary(null); pollCount.current = 0;
     try {
       const j = await fetch(`/api/voice-agent/agents/${agent.id}/outbound`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ toNumber: e164, purpose: purpose.trim() }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toNumber: num, purpose: purpose.trim() }),
       }).then((r) => r.json());
-      if (j?.success) {
-        toast({ title: `Calling ${fmtNumber(e164)}…`, description: "The agent is dialing now — it'll appear in the log once it connects." });
-        setTo("");
-        setPurpose("");
-        void onRefresh();
-      } else {
+      if (!j?.success || !j.conversationId) {
         toast({ title: j?.error?.message || "Could not place the call", variant: "destructive" });
+        setView("dial"); return;
       }
+      setStatus("live");
+      timerRef.current = setInterval(() => setSecs((s) => s + 1), 1000);
+      void poll(j.conversationId);
+      pollRef.current = setInterval(() => void poll(j.conversationId), 2500);
     } catch {
       toast({ title: "Could not place the call", variant: "destructive" });
-    } finally {
-      setCalling(false);
+      setView("dial");
     }
   };
 
-  return (
-    <div className="mb-3.5 rounded-xl border border-border bg-card p-2.5">
-      <div className="flex items-center gap-2.5">
-        <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-violet-500/15 text-violet-400">
-          <PhoneOutgoing className="h-4 w-4" />
+  const hangUp = () => { setStatus("ended"); stop(); void onRefresh(); };
+  const reset = () => { stop(); setView("dial"); setTo(""); setPurpose(""); setTurns([]); setSecs(0); setStatus("dialing"); setSummary(null); };
+
+  // ── Live in-call session ──
+  if (view === "session") {
+    return (
+      <div className="mb-3.5 overflow-hidden rounded-xl border border-border bg-card p-3.5 text-center">
+        <span className={cn("mb-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide",
+          status === "ended" ? "bg-muted text-muted-foreground" : status === "live" ? "bg-emerald-500/15 text-emerald-500" : "bg-amber-500/15 text-amber-500")}>
+          {status !== "ended" && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />}
+          {status === "dialing" ? "Dialing…" : status === "live" ? "In call" : `Ended · ${mmss(secs)}`}
         </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Place a call</div>
-          <input
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") void place(); }}
-            placeholder="+1 415 555 0123"
-            inputMode="tel"
-            className="w-full bg-transparent text-[13.5px] font-semibold outline-none placeholder:text-muted-foreground/50"
-          />
+        <div className="relative mx-auto mb-2 h-16 w-16">
+          {status !== "ended" && <span className="absolute inset-0 animate-ping rounded-full border border-brand-500/50" />}
+          <span className={cn("absolute inset-2 grid place-items-center rounded-full bg-gradient-to-br from-brand-500 to-violet-600 text-white", status === "ended" && "opacity-50")}>
+            <PhoneOutgoing className="h-5 w-5" />
+          </span>
         </div>
-        <button
-          onClick={() => void place()}
-          disabled={calling || !to.trim()}
-          className="inline-flex flex-none items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12px] font-bold text-white disabled:opacity-50">
-          {calling ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Dialing…</> : <><PhoneOutgoing className="h-3.5 w-3.5" /> Call</>}
+        <div className="font-mono text-[15px] font-bold tracking-wide">{fmtTo(dialed)}</div>
+        {status === "live" && <div className="mt-0.5 text-[12px] font-semibold tabular-nums text-muted-foreground">{mmss(secs)}</div>}
+        {purpose.trim() && <div className="mx-auto mt-2 max-w-[240px] rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[10.5px] text-muted-foreground">Goal: <b className="text-foreground">{purpose.trim()}</b></div>}
+
+        {turns.length > 0 ? (
+          <div ref={scrollRef} className="mt-3 max-h-[180px] space-y-1.5 overflow-y-auto text-left">
+            {turns.map((t, i) => (
+              <div key={i} className="flex items-start gap-1.5">
+                <span className={cn("mt-0.5 grid h-4 w-4 flex-none place-items-center rounded-full text-[7px] font-black text-white", t.role === "agent" ? "bg-gradient-to-br from-brand-500 to-violet-600" : "bg-slate-500")}>{t.role === "agent" ? "AI" : "🙂"}</span>
+                <span className={cn("rounded-lg border px-2 py-1 text-[10.5px] leading-snug", t.role === "agent" ? "border-brand-500/20 bg-brand-500/10" : "border-border bg-muted/50")}>{t.text}</span>
+              </div>
+            ))}
+          </div>
+        ) : status !== "ended" ? (
+          <div className="mt-3 text-[10.5px] text-muted-foreground">{status === "dialing" ? "Connecting the call…" : "Waiting for the conversation…"}</div>
+        ) : null}
+
+        {status === "ended" && summary && (
+          <div className="mt-3 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-2.5 py-2 text-[10.5px] text-emerald-500">✓ {summary}</div>
+        )}
+
+        {status !== "ended" ? (
+          <button onClick={hangUp} title="Hang up" className="mx-auto mt-3 grid h-11 w-11 place-items-center rounded-full bg-rose-500 text-white shadow-lg transition hover:brightness-110">
+            <PhoneOff className="h-5 w-5" />
+          </button>
+        ) : (
+          <button onClick={reset} className="mt-3 rounded-lg border border-border bg-muted/40 px-3.5 py-1.5 text-[11px] font-bold hover:border-brand-500">Place another call</button>
+        )}
+      </div>
+    );
+  }
+
+  // ── Dialer ──
+  const KEYS: [string, string][] = [["1", ""], ["2", "ABC"], ["3", "DEF"], ["4", "GHI"], ["5", "JKL"], ["6", "MNO"], ["7", "PQRS"], ["8", "TUV"], ["9", "WXYZ"], ["*", ""], ["0", "+"], ["#", ""]];
+  return (
+    <div className="mb-3.5 rounded-xl border border-border bg-card p-3">
+      <div className="mb-1 flex items-center gap-2">
+        <span className="grid h-7 w-7 flex-none place-items-center rounded-lg bg-violet-500/15 text-violet-400"><PhoneOutgoing className="h-3.5 w-3.5" /></span>
+        <div className="text-[8.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Place a call</div>
+      </div>
+      <div className="min-h-[34px] text-center font-mono text-[20px] font-bold tracking-wide">
+        {to ? fmtTo(to) : <span className="text-[13px] font-medium text-muted-foreground/50">Enter a number</span>}
+      </div>
+      <div className="my-2 grid grid-cols-3 gap-1.5">
+        {KEYS.map(([n, l]) => (
+          <button key={n} onClick={() => setTo((v) => v + n)}
+            className="flex flex-col items-center justify-center rounded-lg border border-border bg-muted/30 py-1.5 transition hover:border-brand-500 hover:bg-muted/60 active:scale-95">
+            <span className="text-[16px] font-bold leading-none">{n}</span>
+            <span className="mt-0.5 h-2 text-[7px] font-extrabold tracking-widest text-muted-foreground">{l}</span>
+          </button>
+        ))}
+      </div>
+      <textarea value={purpose} onChange={(e) => setPurpose(e.target.value)} rows={2}
+        placeholder="Why are you calling? e.g. confirm tomorrow's appointment"
+        className="w-full resize-none rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-[11px] outline-none focus:border-brand-500 placeholder:text-muted-foreground/50" />
+      <p className="mb-2 mt-1 text-[9px] leading-snug text-muted-foreground">Opens with your outbound greeting, then leads toward this goal — it won&apos;t ask &quot;how can I help you&quot;.</p>
+      <div className="flex items-center gap-2">
+        <button onClick={() => void place()} disabled={!canCall}
+          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 py-2.5 text-[13px] font-extrabold text-white disabled:opacity-40">
+          <PhoneOutgoing className="h-4 w-4" /> Call
+        </button>
+        <button onClick={() => setTo((v) => v.slice(0, -1))} disabled={!to} title="Delete"
+          className="grid h-9 w-10 flex-none place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground disabled:opacity-30">
+          <Delete className="h-4 w-4" />
         </button>
       </div>
-      <input
-        value={purpose}
-        onChange={(e) => setPurpose(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") void place(); }}
-        placeholder="Why are you calling? e.g. confirm tomorrow's appointment, follow up on their quote"
-        className="mt-2 w-full rounded-lg border border-border bg-muted/40 px-3 py-1.5 text-[11.5px] outline-none focus:border-brand-500 placeholder:text-muted-foreground/50"
-      />
-      <p className="mt-1 pl-0.5 text-[9px] text-muted-foreground">The agent opens with your outbound greeting, then leads the call toward this goal — it won&apos;t ask &quot;how can I help you&quot;.</p>
     </div>
   );
 }
