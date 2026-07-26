@@ -48,7 +48,11 @@ export function sanitizeUserError(raw: unknown, ctx: UserErrorContext = "generic
   if (/timeout|timed out|deadline|took too long|etimedout|esockettimedout/i.test(text)) {
     return `That ${nounFor(ctx)} took too long and timed out — please try again.`;
   }
-  if (/content|safety|moderat|policy|blocked|nsfw|violat|not allowed|prohibited|flagged/i.test(text)) {
+  // NOTE: match "content" ONLY in a policy context (content policy/rules/filter/…),
+  // never the bare word — provider SDK errors say "GenerateContentRequest.contents",
+  // "no content", "content-type" etc., and mislabelling those as a policy block tells
+  // users to rephrase a perfectly fine prompt (and hides the real failure).
+  if (/content[\s_-]?(?:polic|rule|filter|moderat|guidelin|warning|violation|restrict)|prohibited[\s_-]?content|safety|moderat|policy|nsfw|violat|not allowed|disallowed|prohibited|flagged|content_?filter/i.test(text)) {
     return "That couldn't be generated — it may conflict with content rules. Try rephrasing the prompt.";
   }
   // Actionable messages WE authored — keep them (they're already friendly).
