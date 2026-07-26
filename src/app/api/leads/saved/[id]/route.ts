@@ -21,9 +21,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json();
     const data: Record<string, unknown> = {};
     if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim().slice(0, 200);
+    if (body.email !== undefined) {
+      const e = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+      if (e && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return NextResponse.json({ success: false, error: { message: "That doesn't look like a valid email." } }, { status: 400 });
+      data.email = e ? e.slice(0, 320) : null;
+    }
     if (body.phone !== undefined) data.phone = str(body.phone, 60);
     if (body.website !== undefined) data.website = str(body.website, 400);
     if (body.address !== undefined) data.address = str(body.address);
+    if (body.title !== undefined) data.title = str(body.title, 160);
+    if (body.seniority !== undefined) data.seniority = str(body.seniority, 60);
+    if (body.department !== undefined) data.department = str(body.department, 80);
     if (body.category !== undefined) data.category = str(body.category, 80);
     if (body.notes !== undefined) data.notes = str(body.notes, 4000);
     if (body.listId !== undefined) {

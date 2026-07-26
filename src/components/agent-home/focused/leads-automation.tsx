@@ -46,6 +46,7 @@ const ADD_TYPES: { kind: Kind; label: string; icon: typeof Mail }[] = [
   { kind: "cond", label: "Condition / branch", icon: GitBranch },
   { kind: "task", label: "Manual task", icon: CheckSquare },
   { kind: "wait", label: "Wait / delay", icon: Clock },
+  { kind: "book", label: "Request a time", icon: CalendarDays },
 ];
 const NEW_STEP: Record<Kind, { title: string; when: string; status: Status }> = {
   email: { title: "New email", when: "+3 days", status: "blocked" },
@@ -107,6 +108,7 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
   const [selected, setSelected] = useState<string>("pitch");
   const [dragId, setDragId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [replaceFor, setReplaceFor] = useState<string | null>(null);
   const [sequenceId, setSequenceId] = useState<string | null>(null);
   const [active, setActive] = useState(false);
   const [writingStep, setWritingStep] = useState<string | null>(null);
@@ -130,12 +132,16 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
   // "Let the agent write it": save the flow so the agent can find it, then ask the
   // agent (hidden) to compose + call build_sequence_step, which writes the copy INTO
   // this step's card (not the chat). A loader shows until the draft lands.
-  const write = async (s: Step) => {
+  const write = async (s: Step, opts?: { style?: string; goal?: string }) => {
     if (!listId) return; // need a target list before the agent can write/personalize
     await fetch("/api/sequences", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listId, name: `${listName || "List"} outreach`, steps: steps.map(toCfg) }) }).catch(() => {});
     setWritingStep(s.id);
     const w = s.kind === "sms" ? "SMS" : s.kind === "whatsapp" ? "WhatsApp message" : s.kind === "book" ? "booking request" : "email";
-    onAsk(`Write the "${s.title}" ${w} for the "${listName || "lead"}" outreach automation${listId ? ` (listId: ${listId})` : ""} — personalize it for the audience's industry, in my brand voice. Then call build_sequence_step with listId="${listId || ""}", stepId="${s.id}" and the ${s.kind === "email" || s.kind === "book" ? "subject + " : ""}body so it lands in the step card. Don't paste it in the chat.`);
+    const style = opts?.style?.trim();
+    const goal = opts?.goal?.trim();
+    const styleClause = style ? ` Write it in a ${style} style.` : "";
+    const goalClause = goal ? ` The goal of this step: ${goal}.` : "";
+    onAsk(`Write the "${s.title}" ${w} for the "${listName || "lead"}" outreach automation${listId ? ` (listId: ${listId})` : ""} — personalize it for the audience's industry, in my brand voice.${styleClause}${goalClause} Then call build_sequence_step with listId="${listId || ""}", stepId="${s.id}" and the ${s.kind === "email" || s.kind === "book" ? "subject + " : ""}body so it lands in the step card. Don't paste it in the chat.`);
   };
 
   // Load the saved sequence for this list (steps + on/off state).
@@ -285,6 +291,14 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
   const togglePause = (id: string) =>
     setSteps((prev) => prev.map((s) => (s.id === id ? { ...s, status: s.status === "paused" ? "blocked" : "paused" } : s)));
   const removeStep = (id: string) => setSteps((prev) => prev.filter((s) => s.id !== id));
+  // Swap a step for a different type IN PLACE (keeps its id + position); the copy
+  // for the old kind no longer applies, so reset to the new kind's defaults.
+  const replaceStep = (id: string, kind: Kind) => {
+    const n = NEW_STEP[kind];
+    setSteps((prev) => prev.map((s) => (s.id === id ? { id: s.id, kind, title: n.title, when: n.when, status: n.status } : s)));
+    setSelected(id);
+    setReplaceFor(null);
+  };
 
   return (
     <div
@@ -439,7 +453,22 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
                     {s.kind !== "cond" && s.kind !== "task" && (
                       <IconBtn title={s.status === "paused" ? "Activate" : "Pause"} onClick={(e) => { e.stopPropagation(); togglePause(s.id); }}>{s.status === "paused" ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}</IconBtn>
                     )}
-                    <IconBtn title="Replace" onClick={(e) => e.stopPropagation()}><Repeat className="h-3 w-3" /></IconBtn>
+                    <span className="relative">
+                      <IconBtn title="Replace with another step type" onClick={(e) => { e.stopPropagation(); setReplaceFor((v) => (v === s.id ? null : s.id)); }}><Repeat className="h-3 w-3" /></IconBtn>
+                      {replaceFor === s.id && (
+                        <>
+                          <button aria-label="Close" onClick={(e) => { e.stopPropagation(); setReplaceFor(null); }} className="fixed inset-0 z-10 cursor-default" />
+                          <div onClick={(e) => e.stopPropagation()} className="absolute end-0 top-full z-20 mt-1 w-44 rounded-xl border border-border bg-popover p-1.5 shadow-2xl">
+                            <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Replace with</p>
+                            {ADD_TYPES.map((t) => (
+                              <button key={t.kind} onClick={(e) => { e.stopPropagation(); replaceStep(s.id, t.kind); }} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-start text-[12px] font-semibold hover:bg-muted">
+                                <span className={cn("grid h-5 w-5 place-items-center rounded-md", tone(t.kind))}><t.icon className="h-3 w-3" /></span> {t.label}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </span>
                     <IconBtn title="Remove" onClick={(e) => { e.stopPropagation(); removeStep(s.id); }}><X className="h-3 w-3" /></IconBtn>
                   </div>
                 </div>
@@ -464,7 +493,7 @@ export function LeadsAutomation({ listId, listName, leadCount, onAsk, refreshKey
         </div>
 
         <div className="min-w-0 flex-1">
-          <StepBrief step={step} connected={connected} onAsk={onAsk} onWrite={() => write(step)} hasList={!!listId} />
+          <StepBrief step={step} connected={connected} onAsk={onAsk} onWrite={(style, goal) => write(step, { style, goal })} hasList={!!listId} onUpdate={(patch) => updateStep(step.id, patch)} />
           {(writingStep === step.id || step.body) && (
             <>
               <div className="ms-6 h-4 w-0.5 bg-gradient-to-b from-brand-500/50 to-violet-500/40" />
@@ -502,13 +531,19 @@ const STYLE_PRESETS: Record<string, [string, string][]> = {
 const TASK_RECS: [string, string][] = [
   ["Call the lead", "phone"], ["Print & mail flyer", "3-fold · post"], ["Hand-deliver", "in person"], ["Send a mailer", "gift / package"],
 ];
+const BRANCH_WHENS: [string, string][] = [["No reply", "to the last email"], ["Opened, no reply", "engaged"], ["Email bounced", "bad address"], ["Link clicked", "warm"]];
+const TASK_DEFAULT_DESC = "Print the pitch as a 3-fold flyer in Print Studio and post it to the prospect's mailing address. Mark done once it's in the mail — then the next step triggers.";
 
 /** Per-step brief — style/type + agent-build + channel gating, or the branch/task editors. */
-function StepBrief({ step, connected, onAsk, onWrite, hasList }: { step: Step; connected: Record<string, boolean>; onAsk: (p: string) => void; onWrite: () => void; hasList: boolean }) {
+function StepBrief({ step, connected, onAsk, onWrite, hasList, onUpdate }: { step: Step; connected: Record<string, boolean>; onAsk: (p: string) => void; onWrite: (style?: string, goal?: string) => void; hasList: boolean; onUpdate: (patch: Partial<Step>) => void }) {
   const [style, setStyle] = useState(0);
+  const [goal, setGoal] = useState("");
+  // Reset the per-step inputs when the selected step changes.
+  useEffect(() => { setStyle(0); setGoal(""); }, [step.id]);
   const ch = CHANNEL_OF[step.kind];
   const isMsg = step.kind === "email" || step.kind === "sms" || step.kind === "whatsapp" || step.kind === "book";
   const presets = STYLE_PRESETS[step.kind] ?? STYLE_PRESETS.email;
+  const styleLabel = presets[style]?.[0];
 
   return (
     <div className="rounded-2xl border border-brand-500 bg-gradient-to-b from-brand-500/[0.05] to-transparent shadow-[0_20px_50px_-30px_rgba(46,166,255,0.6)]">
@@ -519,11 +554,11 @@ function StepBrief({ step, connected, onAsk, onWrite, hasList }: { step: Step; c
       </div>
       <div className="p-4">
         {step.kind === "cond" ? (
-          <BranchEditor onAsk={onAsk} />
+          <BranchEditor step={step} onAsk={onAsk} onUpdate={onUpdate} />
         ) : step.kind === "task" ? (
-          <TaskEditor onAsk={onAsk} />
+          <TaskEditor step={step} onAsk={onAsk} onUpdate={onUpdate} />
         ) : step.kind === "wait" ? (
-          <WaitEditor />
+          <WaitEditor step={step} onUpdate={onUpdate} />
         ) : (
           <>
             <p className="mb-1.5 text-[11px] font-bold text-muted-foreground">Style</p>
@@ -533,7 +568,7 @@ function StepBrief({ step, connected, onAsk, onWrite, hasList }: { step: Step; c
               ))}
             </div>
             <p className="mb-1.5 mt-3 text-[11px] font-bold text-muted-foreground">Goal / offer for this step</p>
-            <textarea rows={2} placeholder="What should this message achieve? Draw from your Brand Kit's services." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
+            <textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} placeholder="What should this message achieve? Draw from your Brand Kit's services." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
             {isMsg && ch && !connected[ch] && (
               <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/[0.08] px-3.5 py-2.5 text-[12.5px] text-amber-200">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
@@ -542,7 +577,7 @@ function StepBrief({ step, connected, onAsk, onWrite, hasList }: { step: Step; c
               </div>
             )}
             <div className="mt-3.5 flex flex-wrap items-center gap-2">
-              <button onClick={onWrite} disabled={!hasList} title={hasList ? "" : "Select a list first"} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"><Sparkles className="h-4 w-4" /> Let the agent write it</button>
+              <button onClick={() => onWrite(styleLabel, goal)} disabled={!hasList} title={hasList ? "" : "Select a list first"} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"><Sparkles className="h-4 w-4" /> Let the agent write it</button>
               <span className="text-[11.5px] text-muted-foreground">{hasList ? "The agent drafts it below — you edit + approve before it sends." : "Select a list first — the agent personalizes each step to it."}</span>
             </div>
           </>
@@ -706,54 +741,77 @@ function PL({ label, children }: { label: string; children: ReactNode }) {
   return <div><label className="mb-1 block text-[11px] font-bold text-muted-foreground">{label}</label>{children}</div>;
 }
 
-function WaitEditor() {
+function WaitEditor({ step, onUpdate }: { step: Step; onUpdate: (patch: Partial<Step>) => void }) {
+  const [days, setDays] = useState(3);
+  const [saved, setSaved] = useState(false);
+  // Sync the input to the step's persisted delay (and when switching steps).
+  useEffect(() => { const m = /(\d+)/.exec(step.when || ""); setDays(m ? Number(m[0]) : 3); setSaved(false); }, [step.id, step.when]);
+  const save = () => { const n = Math.max(0, days); onUpdate({ when: `+${n} day${n === 1 ? "" : "s"}` }); setSaved(true); };
   return (
     <>
       <p className="mb-1.5 text-[11px] font-bold text-muted-foreground">Wait before the next step</p>
       <div className="flex items-center gap-2">
-        <input type="number" defaultValue={3} min={0} className="w-20 rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
+        <input type="number" value={days} min={0} onChange={(e) => { setDays(Math.max(0, Math.floor(Number(e.target.value) || 0))); setSaved(false); }} className="w-20 rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
         <span className="text-[12.5px] text-muted-foreground">days</span>
       </div>
       <p className="mt-3 flex items-center gap-2 text-[12px] text-muted-foreground"><Clock className="h-4 w-4" /> Holds each lead here, then continues the sequence.</p>
-      <div className="mt-3.5"><button className="rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white">Save</button></div>
+      <div className="mt-3.5 flex items-center gap-2"><button onClick={save} className="rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white">Save</button>{saved && <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-500"><Check className="h-3.5 w-3.5" /> Saved</span>}</div>
     </>
   );
 }
 
-function BranchEditor({ onAsk }: { onAsk: (p: string) => void }) {
-  const whens: [string, string][] = [["No reply", "to the last email"], ["Opened, no reply", "engaged"], ["Email bounced", "bad address"], ["Link clicked", "warm"]];
+function BranchEditor({ step, onAsk, onUpdate }: { step: Step; onAsk: (p: string) => void; onUpdate: (patch: Partial<Step>) => void }) {
   const [w, setW] = useState(0);
+  useEffect(() => { const i = BRANCH_WHENS.findIndex(([t]) => (step.title || "").startsWith(t)); setW(i < 0 ? 0 : i); }, [step.id, step.title]);
+  const save = () => {
+    onUpdate({ title: `${BRANCH_WHENS[w][0]} · has WhatsApp`, when: "agent routes per lead" });
+    onAsk(`Configure the branch: if a lead ${BRANCH_WHENS[w][0].toLowerCase()} and has a WhatsApp number, route them to the WhatsApp step, else skip to the next email.`);
+  };
   return (
     <>
       <p className="mb-1.5 text-[11px] font-bold text-muted-foreground">When</p>
       <div className="grid grid-cols-2 gap-2">
-        {whens.map(([t, h], i) => (
+        {BRANCH_WHENS.map(([t, h], i) => (
           <button key={t} onClick={() => setW(i)} className={cn("rounded-[10px] border p-2 text-center text-[12px] font-bold", i === w ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border")}>{t}<span className="block text-[10px] font-medium text-muted-foreground">{h}</span></button>
         ))}
       </div>
       <p className="mb-1.5 mt-3 text-[11px] font-bold text-muted-foreground">Then</p>
       <div className="flex items-center gap-2 rounded-[10px] border border-border bg-card px-3 py-2.5 text-[12px]"><MessageCircle className="h-4 w-4 text-emerald-400" /> Send the <b>WhatsApp nudge</b> — else skip to the next email</div>
       <div className="mt-3 flex items-center gap-2 text-[12px] text-muted-foreground"><Zap className="h-4 w-4 text-violet-400" /> The agent evaluates this per lead from the contact info found in discovery, and skips channels a lead can't receive.</div>
-      <button onClick={() => onAsk("Configure the branch: if a lead doesn't reply and has a WhatsApp number, route them to the WhatsApp step.")} className="mt-3.5 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white"><Sparkles className="h-4 w-4" /> Save branch</button>
+      <button onClick={save} className="mt-3.5 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white"><Sparkles className="h-4 w-4" /> Save branch</button>
     </>
   );
 }
 
-function TaskEditor({ onAsk }: { onAsk: (p: string) => void }) {
+function TaskEditor({ step, onAsk, onUpdate }: { step: Step; onAsk: (p: string) => void; onUpdate: (patch: Partial<Step>) => void }) {
   const [rec, setRec] = useState(1);
+  const [desc, setDesc] = useState(TASK_DEFAULT_DESC);
+  const [saved, setSaved] = useState(false);
+  // Recover the previously-saved task type + description when this step is opened.
+  useEffect(() => {
+    const r = TASK_RECS.findIndex(([t]) => t === step.title);
+    setRec(r < 0 ? 1 : r);
+    setDesc(step.body || TASK_DEFAULT_DESC);
+    setSaved(false);
+  }, [step.id, step.title, step.body]);
+  const save = () => {
+    onUpdate({ title: TASK_RECS[rec][0], body: desc.trim() || TASK_DEFAULT_DESC });
+    setSaved(true);
+    onAsk(`Set up a manual task step: "${TASK_RECS[rec][0]}" — it should pause the sequence until I mark it done.`);
+  };
   return (
     <>
       <p className="mb-1.5 text-[11px] font-bold text-muted-foreground">Task type — <span className="text-brand-500">the agent suggests</span></p>
       <div className="grid grid-cols-2 gap-2">
         {TASK_RECS.map(([t, h], i) => (
-          <button key={t} onClick={() => setRec(i)} className={cn("rounded-[10px] border p-2 text-center text-[12px] font-bold", i === rec ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border")}>{t}<span className="block text-[10px] font-medium text-muted-foreground">{h}</span></button>
+          <button key={t} onClick={() => { setRec(i); setSaved(false); }} className={cn("rounded-[10px] border p-2 text-center text-[12px] font-bold", i === rec ? "border-brand-500 bg-brand-500/10 text-brand-500" : "border-border")}>{t}<span className="block text-[10px] font-medium text-muted-foreground">{h}</span></button>
         ))}
       </div>
       <p className="mb-1.5 mt-3 text-[11px] font-bold text-muted-foreground">What needs to happen?</p>
-      <textarea rows={2} defaultValue="Print the pitch as a 3-fold flyer in Print Studio and post it to the prospect's mailing address. Mark done once it's in the mail — then the next step triggers." className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
+      <textarea value={desc} onChange={(e) => { setDesc(e.target.value); setSaved(false); }} rows={2} className="w-full resize-none rounded-[10px] border border-input bg-background px-3 py-2 text-[12.5px] outline-none focus:border-brand-500/60" />
       {rec === 1 && <p className="mt-2.5 flex items-center gap-2 text-[12px] text-muted-foreground"><Printer className="h-4 w-4" /> Opens Print Studio with the pitch as a tri-fold — order print + mail, or fulfil it yourself.</p>}
       <p className="mt-3 flex items-center gap-2 text-[12px] text-muted-foreground"><Clock className="h-4 w-4" /> The sequence pauses here until this task is marked done — then the next step triggers.</p>
-      <button onClick={() => onAsk(`Set up a manual task step: "${TASK_RECS[rec][0]}" — it should pause the sequence until I mark it done.`)} className="mt-3.5 inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white"><Sparkles className="h-4 w-4" /> Save task</button>
+      <div className="mt-3.5 flex items-center gap-2"><button onClick={save} className="inline-flex items-center gap-1.5 rounded-[10px] bg-gradient-to-r from-brand-500 to-violet-500 px-3.5 py-2 text-[12.5px] font-semibold text-white"><Sparkles className="h-4 w-4" /> Save task</button>{saved && <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-500"><Check className="h-3.5 w-3.5" /> Saved</span>}</div>
     </>
   );
 }
