@@ -83,13 +83,40 @@ async function saveLead(a: Args, ctx: ToolContext): Promise<ToolResult> {
     },
     select: { id: true },
   });
+
+  // "Starts the follow-up" (lead skill option) — enroll the new lead into the
+  // owner's active lead campaign so it gets the multi-step outreach, not just sit
+  // in the list. No-op if the toggle is off or there's no active lead sequence.
+  let enrolled = false;
+  const { skills } = await skillContext(ctx.agentId);
+  if (skills.find((sk) => sk.key === "lead")?.opts?.startFollowUp) {
+    enrolled = await enrollLeadInSequence(ctx.userId, lead.id).catch(() => false);
+  }
+
   return {
-    output: { ok: true, saved: true },
+    output: { ok: true, saved: true, enrolled },
     outcome: "lead",
-    outcomeDetail: `New lead: ${name}${s(a.interest) ? ` — ${s(a.interest)}` : ""}`,
+    outcomeDetail: `New lead: ${name}${s(a.interest) ? ` — ${s(a.interest)}` : ""}${enrolled ? " — added to your follow-up campaign" : ""}`,
     linkedType: "lead",
     linkedId: lead.id,
   };
+}
+
+/** Enroll a saved lead into the owner's most-recent ACTIVE lead campaign so the
+ *  outreach engine works it. De-duped; returns false if there's no active one. */
+async function enrollLeadInSequence(userId: string, savedLeadId: string): Promise<boolean> {
+  const seq = await prisma.outreachSequence.findFirst({
+    where: { userId, status: "active", audienceKind: "lead" },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true },
+  });
+  if (!seq) return false;
+  const exists = await prisma.sequenceEnrollment.findFirst({ where: { sequenceId: seq.id, savedLeadId }, select: { id: true } });
+  if (exists) return true;
+  await prisma.sequenceEnrollment.create({
+    data: { userId, sequenceId: seq.id, savedLeadId, currentStep: 0, status: "active", nextRunAt: new Date() },
+  });
+  return true;
 }
 
 async function placeOrder(a: Args, ctx: ToolContext): Promise<ToolResult> {
