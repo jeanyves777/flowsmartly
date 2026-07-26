@@ -145,7 +145,7 @@ class XAIClient {
         );
 
         const errMsg = error instanceof Error ? error.message : String(error);
-        const isTransient = /rate|limit|timeout|503|529|overloaded|capacity/i.test(errMsg);
+        const isTransient = /rate|limit|timeout|429|resource.?exhausted|503|529|overloaded|capacity/i.test(errMsg);
         if (!isTransient) break;
 
         if (attempt < maxRetries) {
@@ -213,7 +213,7 @@ class XAIClient {
         );
 
         const errMsg = error instanceof Error ? error.message : String(error);
-        const isTransient = /rate|limit|timeout|503|529|overloaded|capacity/i.test(errMsg);
+        const isTransient = /rate|limit|timeout|429|resource.?exhausted|503|529|overloaded|capacity/i.test(errMsg);
         if (!isTransient) break;
 
         if (attempt < maxRetries) {
@@ -283,7 +283,7 @@ class XAIClient {
         );
 
         const errMsg = error instanceof Error ? error.message : String(error);
-        const isTransient = /rate|limit|timeout|503|529|overloaded|capacity/i.test(errMsg);
+        const isTransient = /rate|limit|timeout|429|resource.?exhausted|503|529|overloaded|capacity/i.test(errMsg);
         if (!isTransient) break;
 
         if (attempt < maxRetries) {
@@ -356,7 +356,7 @@ class XAIClient {
         );
 
         const errMsg = error instanceof Error ? error.message : String(error);
-        const isTransient = /rate|limit|timeout|503|529|overloaded|capacity/i.test(errMsg);
+        const isTransient = /rate|limit|timeout|429|resource.?exhausted|503|529|overloaded|capacity/i.test(errMsg);
         if (!isTransient) break;
 
         if (attempt < maxRetries) {
