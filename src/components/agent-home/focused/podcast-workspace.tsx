@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { Mic, Sparkles, Upload, X, FolderOpen, Users, Play, ArrowLeftRight, Wand2, Film, RefreshCw, ImagePlus } from "lucide-react";
+import { Mic, Sparkles, Upload, X, FolderOpen, Users, Play, ArrowLeftRight, Wand2, Film, RefreshCw, ImagePlus, Pencil, AlertTriangle, Check, Download } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
@@ -38,6 +38,8 @@ export function FocusedPodcast() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<"simple" | "canvas">("simple");
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
 
   // catalogs
   useEffect(() => {
@@ -165,10 +167,27 @@ export function FocusedPodcast() {
     } finally { setBusy(false); }
   };
 
+  // Re-render just ONE turn (a "beat").
+  const renderOneTurn = async (turnId: string) => {
+    if (!project) return;
+    const j = await fetch(`/api/ai/video-podcast/project/${project.id}/turns/${turnId}/generate`, { method: "POST" }).then((r) => r.json());
+    if (j?.success) setProject(j.data.project);
+  };
+  // Edit a turn's line inline; save re-queues just that turn.
+  const saveTurnText = async () => {
+    if (!editing || !project) { setEditing(null); return; }
+    const text = editing.text.trim();
+    const turns = project.turns.map((t) => (t.id === editing.id ? { ...t, text, status: "idle" as const, clipUrl: null } : t));
+    const next = { ...project, turns };
+    setProject(next); setEditing(null); await save(next);
+  };
+
   const stats = useMemo(() => {
     const turns = project?.turns || [];
     return { total: turns.length, ready: turns.filter((t) => t.status === "ready").length, rendering: turns.filter((t) => t.status === "rendering" || t.status === "queued").length };
   }, [project]);
+  const failedTurn = !!project?.turns.some((t) => t.status === "failed");
+  const words = useMemo(() => (project?.turns || []).reduce((n, t) => n + (t.text.match(/\S+/g) || []).length, 0), [project]);
   const bothSet = !!(project?.host.avatarId && project?.host.voiceId && project?.guest.avatarId && project?.guest.voiceId);
   const est = useMemo(() => Math.round((project?.durationMin || 1) * (project ? (project.host.isPhoto || project.guest.isPhoto ? 320 : 80) : 80)), [project]);
 
@@ -176,12 +195,25 @@ export function FocusedPodcast() {
     <div className="relative h-full w-full overflow-auto">
       {headerSlot && createPortal(
         <div className="flex items-center gap-2">
+          <div className="hidden overflow-hidden rounded-lg border border-border text-[11px] font-bold sm:flex">
+            <button onClick={() => setView("simple")} className={cn("px-2.5 py-1", view === "simple" ? "bg-sky-500 text-white" : "text-muted-foreground")}>Simple</button>
+            <button onClick={() => setView("canvas")} className={cn("px-2.5 py-1", view === "canvas" ? "bg-sky-500 text-white" : "text-muted-foreground")}>Canvas</button>
+          </div>
           {project && <span className="hidden text-[11.5px] text-muted-foreground sm:inline">{stats.ready}/{stats.total} turns · {project.durationMin} min</span>}
           <button onClick={() => setLibOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold hover:border-sky-400/60"><FolderOpen className="h-3.5 w-3.5" /> My podcasts</button>
-          <button onClick={() => { setProject(null); try { localStorage.removeItem(LAST_KEY); } catch { /* ignore */ } }} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-400 to-blue-500 px-3 py-1.5 text-[12px] font-semibold text-white"><Sparkles className="h-3.5 w-3.5" /> New</button>
+          <button onClick={() => { setProject(null); setView("canvas"); try { localStorage.removeItem(LAST_KEY); } catch { /* ignore */ } }} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-400 to-blue-500 px-3 py-1.5 text-[12px] font-semibold text-white"><Sparkles className="h-3.5 w-3.5" /> New</button>
         </div>, headerSlot)}
 
-      <div className="mx-auto grid max-w-[1180px] gap-5 p-5 lg:grid-cols-[1.34fr_.66fr]">
+      {view === "simple" && (
+        <SimpleView
+          project={project} stats={stats} words={words} failedTurn={failedTurn} bothSet={bothSet} est={est} busy={busy}
+          editing={editing} setEditing={setEditing} onSaveTurn={saveTurnText}
+          onPickAvatar={(role) => setPick({ kind: "avatar", role })} onPickVoice={(role) => setPick({ kind: "voice", role })}
+          onDraft={draft} onGenerateAll={generateAll} onCompose={compose} onRenderTurn={renderOneTurn} onToggleOwn={() => mutate({ ownScript: !project?.ownScript })} onBrief={(v) => mutate({ brief: v })}
+        />
+      )}
+
+      <div className={cn("mx-auto grid max-w-[1180px] gap-5 p-5 lg:grid-cols-[1.34fr_.66fr]", view === "simple" && "hidden")}>
         {/* LEFT — the brief */}
         <section className="rounded-2xl border border-border bg-card/60 p-5">
           <Label>Speakers</Label>
@@ -341,6 +373,225 @@ export function FocusedPodcast() {
         </PickerModal>
       )}
       {libOpen && <LibrarySheet onClose={() => setLibOpen(false)} onPick={(id) => { fetch(`/api/ai/video-podcast/project/${id}`).then((r) => r.json()).then((j) => { if (j?.success) { setProject(j.data.project); setLibOpen(false); } }); }} />}
+    </div>
+  );
+}
+
+// ─────────────────────────────── Simple view (stepper · stage · turns)
+
+type StepState = "done" | "wait" | "run" | "fail";
+function StepDot({ state }: { state: StepState }) {
+  return (
+    <span className={cn("grid h-5 w-5 flex-none place-items-center rounded-full text-[10px] font-bold",
+      state === "done" ? "bg-emerald-500 text-white" : state === "fail" ? "bg-red-500 text-white" : state === "run" ? "bg-sky-500 text-white" : "border border-border text-muted-foreground")}>
+      {state === "done" ? <Check className="h-3 w-3" /> : state === "fail" ? "!" : state === "run" ? <FlowLoader size={11} tone="white" /> : ""}
+    </span>
+  );
+}
+
+interface SimpleProps {
+  project: PodcastProject | null;
+  stats: { total: number; ready: number; rendering: number };
+  words: number; failedTurn: boolean; bothSet: boolean; est: number; busy: boolean;
+  editing: { id: string; text: string } | null;
+  setEditing: (e: { id: string; text: string } | null) => void;
+  onSaveTurn: () => void;
+  onPickAvatar: (role: PodcastRole) => void;
+  onPickVoice: (role: PodcastRole) => void;
+  onDraft: () => void; onGenerateAll: () => void; onCompose: () => void; onRenderTurn: (id: string) => void;
+  onToggleOwn: () => void; onBrief: (v: string) => void;
+}
+
+function SimpleView({ project, stats, words, failedTurn, bothSet, est, busy, editing, setEditing, onSaveTurn, onPickAvatar, onPickVoice, onDraft, onGenerateAll, onCompose, onRenderTurn, onToggleOwn, onBrief }: SimpleProps) {
+  const drafting = project?.draftStatus === "drafting";
+  const scriptDone = (project?.turns.length || 0) > 0 && !drafting;
+  const finalReady = isUrl(project?.finalVideoUrl);
+  const composing = project?.finalStatus === "rendering";
+  const hasTurns = (project?.turns.length || 0) > 0;
+
+  const s = {
+    speakers: (bothSet ? "done" : "wait") as StepState,
+    script: (project?.draftStatus === "failed" ? "fail" : scriptDone ? "done" : drafting ? "run" : "wait") as StepState,
+    turns: (failedTurn ? "fail" : stats.total > 0 && stats.ready === stats.total ? "done" : stats.rendering > 0 ? "run" : "wait") as StepState,
+    final: (finalReady ? "done" : project?.finalStatus === "failed" ? "fail" : composing ? "run" : "wait") as StepState,
+  };
+
+  // circular progress value for the stage
+  const pct = composing ? (project?.finalProgress || 0)
+    : stats.total > 0 && stats.rendering > 0 ? Math.round((stats.ready / stats.total) * 100)
+    : 0;
+  const stageMsg = composing ? "Composing your podcast…"
+    : stats.rendering > 0 ? `Filming turns · ${stats.ready}/${stats.total} done`
+    : drafting ? "Writing the conversation…"
+    : hasTurns ? "Ready to film" : "Write the conversation to begin";
+
+  // failure banner
+  const fail = project?.draftStatus === "failed" ? { msg: "Couldn't write the conversation.", cta: "Retry writing", on: onDraft }
+    : project?.finalStatus === "failed" ? { msg: "Composing the podcast failed. Your turns are safe.", cta: "Retry compose", on: onCompose }
+    : failedTurn ? { msg: "A turn failed to render. Retry just the failed ones.", cta: "Retry turns", on: onGenerateAll }
+    : null;
+
+  const steps: { n: number; label: string; sub: string; state: StepState; body?: React.ReactNode }[] = [
+    { n: 1, label: "Speakers", sub: bothSet ? `${project?.host.name || "Host"} × ${project?.guest.name || "Guest"}` : "Pick a host & a guest", state: s.speakers,
+      body: (
+        <div className="mt-2 flex gap-2">
+          {(["host", "guest"] as PodcastRole[]).map((role) => {
+            const sp = project ? project[role] : undefined;
+            return (
+              <div key={role} className="flex-1">
+                <button onClick={() => onPickAvatar(role)} className="relative mx-auto block h-11 w-11 overflow-hidden rounded-full border border-border bg-card">
+                  {isUrl(sp?.portraitUrl) ? <Image src={sp!.portraitUrl!} alt="" fill sizes="44px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><Users className="h-4 w-4" /></span>}
+                </button>
+                <button onClick={() => onPickVoice(role)} className={cn("mt-1 block w-full truncate rounded-md border px-1 py-0.5 text-center text-[9px]", sp?.voiceId ? "border-sky-400/50 text-sky-400" : "border-border text-muted-foreground")}>{sp?.voiceLabel || "voice"}</button>
+              </div>
+            );
+          })}
+        </div>
+      ) },
+    { n: 2, label: "Script", sub: scriptDone ? `${stats.total} turns · ${words} words` : drafting ? "Writing…" : project?.ownScript ? "Your transcript" : "AI-written", state: s.script,
+      body: !scriptDone && !drafting ? <button onClick={onDraft} disabled={busy} className="mt-2 w-full rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 py-1.5 text-[11px] font-bold text-white disabled:opacity-60">Write the conversation</button> : project?.draftStatus === "failed" ? <button onClick={onDraft} className="mt-2 w-full rounded-lg border border-red-500/50 py-1.5 text-[11px] font-bold text-red-400">Retry writing</button> : undefined },
+    { n: 3, label: "Turns", sub: `${stats.ready}/${stats.total || "…"} filmed`, state: s.turns,
+      body: hasTurns && stats.ready < stats.total && stats.rendering === 0 ? <button onClick={onGenerateAll} disabled={busy || !bothSet} className="mt-2 w-full rounded-lg border border-border py-1.5 text-[11px] font-bold hover:border-sky-400/60 disabled:opacity-50">Film all turns</button> : undefined },
+    { n: 4, label: "Final video", sub: finalReady ? "Ready" : composing ? "Composing…" : "Waiting", state: s.final,
+      body: stats.ready > 0 && !finalReady && !composing ? <button onClick={onCompose} disabled={busy} className="mt-2 w-full rounded-lg bg-gradient-to-r from-sky-400 to-blue-500 py-1.5 text-[11px] font-bold text-white disabled:opacity-60">Compose podcast</button> : undefined },
+  ];
+
+  return (
+    <div className="flex h-full w-full flex-col gap-5 overflow-y-auto p-5 lg:flex-row">
+      {/* LEFT — step rail */}
+      <div className="w-full shrink-0 lg:w-[236px]">
+        <div className="flex flex-col">
+          {steps.map((st, i) => (
+            <div key={st.n} className="relative flex gap-3 pb-4">
+              {i < steps.length - 1 && <span className={cn("absolute left-[9px] top-6 h-[calc(100%-12px)] w-px", st.state === "done" ? "bg-emerald-500/50" : "bg-border")} />}
+              <StepDot state={st.state} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 text-[13px] font-bold">{st.label}{st.state === "fail" && <span className="text-[10px] font-semibold text-red-400">Needs attention</span>}</div>
+                <div className={cn("text-[11px]", st.state === "wait" ? "text-muted-foreground" : "text-muted-foreground/90")}>{st.sub}</div>
+                {st.body}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-1 rounded-xl border border-border bg-card/60 p-3 text-[11px] text-muted-foreground">
+          💡 Editing a turn re-films only that turn — the rest is untouched.
+        </div>
+      </div>
+
+      {/* CENTER — stage */}
+      <div className="flex flex-1 flex-col items-center gap-3">
+        {!hasTurns && !drafting ? (
+          <div className="w-full max-w-[560px] rounded-2xl border border-border bg-card/60 p-5">
+            <p className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">What's the episode about?</p>
+            <textarea value={project?.brief || ""} onChange={(e) => onBrief(e.target.value)} placeholder={project?.ownScript ? "Paste your transcript — Host: … / Guest: …" : "Describe the topic, talking points, or paste a link. We'll write the back-and-forth."}
+              className="min-h-[130px] w-full resize-y rounded-xl border border-border bg-card p-3 text-[13px] outline-none placeholder:text-muted-foreground/60" />
+            <div className="mt-3 flex flex-wrap items-center gap-2.5">
+              <button onClick={onDraft} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-[12.5px] font-bold text-white disabled:opacity-60"><Wand2 className="h-4 w-4" /> {project?.ownScript ? "Use this script" : "Write the conversation"}</button>
+              <button onClick={onToggleOwn} className={cn("text-[12px]", project?.ownScript ? "text-sky-400" : "text-muted-foreground")}>{project?.ownScript ? "✓ Using my own script" : "Use my own script"}</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="relative w-full max-w-[560px] overflow-hidden rounded-2xl border border-border bg-black" style={{ aspectRatio: "16 / 9" }}>
+              {finalReady ? (
+                // eslint-disable-next-line jsx-a11y/media-has-caption
+                <video src={project!.finalVideoUrl!} controls playsInline className="h-full w-full object-contain" />
+              ) : (
+                <div className="grid h-full w-full place-items-center bg-gradient-to-br from-slate-800/60 to-slate-950">
+                  <div className="text-center">
+                    {pct > 0 ? <Ring pct={pct} /> : <FlowLoader size={34} />}
+                    <p className="mt-3 text-[13px] font-semibold">{stageMsg}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {fail && (
+              <div className="flex w-full max-w-[560px] flex-wrap items-center gap-3 rounded-xl border border-red-500/40 bg-red-500/[0.06] px-4 py-3">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
+                <span className="min-w-0 flex-1 text-[12.5px] text-red-300">{fail.msg}</span>
+                <button onClick={fail.on} className="rounded-lg bg-red-500 px-3 py-1.5 text-[12px] font-bold text-white">{fail.cta}</button>
+              </div>
+            )}
+
+            {/* horizontal status bar */}
+            <div className="flex w-full max-w-[560px] items-center justify-between gap-1 px-1">
+              {[["Speakers", s.speakers], ["Script", s.script], ["Turns", s.turns], ["Final", s.final]].map(([lbl, stt], i) => (
+                <div key={lbl as string} className="flex flex-1 items-center gap-1">
+                  <div className="flex flex-col items-center gap-1 text-center">
+                    <StepDot state={stt as StepState} />
+                    <span className="text-[9.5px] text-muted-foreground">{lbl}</span>
+                  </div>
+                  {i < 3 && <span className={cn("mb-4 h-px flex-1", (stt as StepState) === "done" ? "bg-emerald-500/50" : "bg-border")} />}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap justify-center gap-2">
+              {finalReady && <>
+                <a href={project!.finalVideoUrl!} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold"><Download className="h-3.5 w-3.5" /> Download</a>
+                <button onClick={onCompose} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold disabled:opacity-50"><RefreshCw className="h-3.5 w-3.5" /> Re-compose</button>
+              </>}
+              {!finalReady && stats.ready > 0 && stats.ready === stats.total && !composing && (
+                <button onClick={onCompose} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-400 to-blue-500 px-4 py-2 text-[12.5px] font-bold text-white disabled:opacity-60"><Sparkles className="h-4 w-4" /> Compose podcast</button>
+              )}
+              {!finalReady && hasTurns && stats.ready < stats.total && stats.rendering === 0 && (
+                <button onClick={onGenerateAll} disabled={busy || !bothSet} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-400 to-blue-500 px-4 py-2 text-[12.5px] font-bold text-white disabled:opacity-60"><Film className="h-4 w-4" /> Film all turns</button>
+              )}
+            </div>
+            {!bothSet && hasTurns && <p className="text-[11px] text-amber-500">Give the host and guest an avatar and a voice to film.</p>}
+          </>
+        )}
+        <p className="text-center text-[11px] text-muted-foreground">Writing is free · full render <b className="text-foreground">~{est} cr</b> for a {project?.durationMin || 1}-min episode</p>
+      </div>
+
+      {/* RIGHT — the conversation (turns) */}
+      <div className="w-full shrink-0 lg:w-[344px]">
+        <div className="mb-2 flex items-center gap-2">
+          <p className="text-[13px] font-bold">The conversation</p>
+          {stats.total > 0 && <span className="text-[11px] text-muted-foreground">{stats.total} turns</span>}
+        </div>
+        {!hasTurns ? (
+          <div className="rounded-xl border border-border bg-card/60 p-6 text-center text-[12px] text-muted-foreground">The written turns show up here — each becomes one filmed shot you can edit.</div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {project!.turns.map((t, i) => (
+              <div key={t.id} className="flex items-start gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5">
+                <span className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md text-[10px] font-bold", t.speaker === "host" ? "bg-sky-500/15 text-sky-400" : "bg-violet-500/15 text-violet-400")}>{i + 1}</span>
+                <div className="min-w-0 flex-1">
+                  {editing?.id === t.id ? (
+                    <textarea autoFocus value={editing.text} onChange={(e) => setEditing({ id: t.id, text: e.target.value })} onBlur={onSaveTurn}
+                      onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) onSaveTurn(); }}
+                      className="w-full resize-y rounded-md border border-sky-400/50 bg-background p-1.5 text-[11.5px] outline-none" rows={3} />
+                  ) : (
+                    <p className="line-clamp-2 text-[11.5px] leading-snug">{t.text}</p>
+                  )}
+                  <div className="mt-1 flex items-center gap-2 text-[9px] text-muted-foreground">
+                    <span className={cn("rounded px-1.5 py-0.5 font-bold uppercase", t.speaker === "host" ? "bg-sky-500/15 text-sky-400" : "bg-violet-500/15 text-violet-400")}>{t.speaker}</span>
+                    {t.status === "rendering" || t.status === "queued" ? <FlowLoader size={10} /> : t.status === "ready" ? <span className="text-emerald-500">● filmed</span> : t.status === "failed" ? <span className="text-red-400">▲ failed</span> : <span>not filmed</span>}
+                  </div>
+                </div>
+                <button onClick={() => setEditing({ id: t.id, text: t.text })} title="Edit line" className="flex-none text-muted-foreground hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+                <button onClick={() => onRenderTurn(t.id)} title="Re-film this turn" className="flex-none text-muted-foreground hover:text-foreground"><RefreshCw className="h-3.5 w-3.5" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Small circular progress ring. */
+function Ring({ pct }: { pct: number }) {
+  const r = 26, c = 2 * Math.PI * r, off = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
+  return (
+    <div className="relative mx-auto h-[68px] w-[68px]">
+      <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90">
+        <circle cx="32" cy="32" r={r} fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="5" />
+        <circle cx="32" cy="32" r={r} fill="none" stroke="#38bdf8" strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={off} />
+      </svg>
+      <span className="absolute inset-0 grid place-items-center text-[14px] font-bold">{Math.round(pct)}%</span>
     </div>
   );
 }
