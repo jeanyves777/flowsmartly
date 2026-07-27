@@ -15,10 +15,29 @@
  */
 import type { FilmCharacter } from "@/lib/video-director/types";
 
-export type NarrationMode = "voiceover" | "film";
+/**
+ * voiceover = audio takes · film = narrated images/video · oncam = "On-camera explainer":
+ * a full HeyGen Avatar IV clone (talks + gestures) on top, designed explainer graphics
+ * below, both locked to ONE cloned-voice audio track so they can't drift.
+ */
+export type NarrationMode = "voiceover" | "film" | "oncam";
 /** How the narration is pictured. `images` = every shot a still; `mixed` = stills carry it, video hits the moments. */
 export type VisualTreatment = "images" | "mixed";
 export type ShotKind = "image" | "video" | "character";
+
+/** The designed bottom-half graphic for an on-camera-explainer beat (rendered, not AI-photo). */
+export type ExplainerGraphicKind = "title" | "iconflow" | "keypoints" | "stat" | "diagram" | "quote";
+export interface ExplainerGraphic {
+  kind: ExplainerGraphicKind;
+  /** Big on-screen title, e.g. "WHAT IS AGENTIC AI?". */
+  headline?: string;
+  /** The burned caption line for this beat, e.g. "It doesn't just respond — it takes action." */
+  caption?: string;
+  /** Flow/point items, e.g. GOAL → PLAN → TOOLS → ACTION. `icon` is a named glyph key. */
+  items?: { label: string; icon?: string; sub?: string }[];
+  /** A single big number/label for a `stat` card. */
+  stat?: { value: string; label?: string };
+}
 /** AI-generated, or a file the user brought. Never stock. */
 export type ShotSource = "ai" | "upload";
 export type ShotStatus = "idle" | "queued" | "rendering" | "ready" | "failed";
@@ -57,6 +76,8 @@ export interface NarrationShot {
   source: ShotSource;
   imageUrl?: string | null;
   videoUrl?: string | null;
+  /** On-camera-explainer: the designed bottom-half graphic for this beat (rendered, not AI-photo). */
+  graphic?: ExplainerGraphic | null;
   /** This beat's narration audio (kept per-shot so one line can be re-read alone). */
   audioUrl?: string | null;
   audioMs?: number | null;
@@ -102,6 +123,16 @@ export interface NarrationProject {
   music?: string | null;
   musicVolume?: number;
   captionsOn?: boolean;
+  /** ── On-camera explainer (oncam mode) ──────────────────────────────
+   *  A full HeyGen Avatar IV clone (talks + gestures) reads the whole script as ONE
+   *  continuous take (top layer), driven by the same cloned-voice audio the explainer
+   *  beats below are timed to — so the two layers stay locked in sync. */
+  presenterImageUrl?: string | null;   // clone SOURCE image (upper-body, hands visible)
+  presenterMotion?: string | null;     // Avatar IV gesture/energy prompt
+  presenterVideoUrl?: string | null;   // the rendered continuous Avatar IV take
+  presenterStatus?: ShotStatus;
+  presenterHeartbeatAt?: number;
+  presenterTries?: number;
   /** Background drafting (script + cast + every shot prompt) — the canvas polls this. */
   draftStatus?: "drafting" | "ready" | "failed" | null;
   draftError?: string | null;
@@ -192,6 +223,7 @@ export function normalizeShot(raw: Partial<NarrationShot>, i: number): Narration
     source: raw.source === "upload" ? "upload" : "ai",
     imageUrl: raw.imageUrl ?? null,
     videoUrl: raw.videoUrl ?? null,
+    graphic: raw.graphic && typeof raw.graphic === "object" ? raw.graphic : null,
     audioUrl: raw.audioUrl ?? null,
     audioMs: raw.audioMs ?? null,
     status: (["idle", "queued", "rendering", "ready", "failed"] as const).includes(raw.status as ShotStatus) ? (raw.status as ShotStatus) : "idle",
@@ -217,7 +249,7 @@ export function normalizeNarration(raw: Partial<NarrationProject> & { id: string
     title: String(raw.title || base.title).slice(0, 160),
     brief: String(raw.brief || "").slice(0, 8000),
     script: String(raw.script || "").slice(0, 20000),
-    mode: raw.mode === "voiceover" ? "voiceover" : "film",
+    mode: raw.mode === "voiceover" ? "voiceover" : raw.mode === "oncam" ? "oncam" : "film",
     treatment: raw.treatment === "images" ? "images" : "mixed",
     aspect: NARRATION_ASPECTS.includes(raw.aspect as NarrationAspect) ? (raw.aspect as NarrationAspect) : base.aspect,
     narrationStyle: NARRATION_STYLES.includes(raw.narrationStyle as NarrationStyle) ? (raw.narrationStyle as NarrationStyle) : base.narrationStyle,

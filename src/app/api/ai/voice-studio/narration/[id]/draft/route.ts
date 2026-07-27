@@ -26,6 +26,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     narrationStyle: body.narrationStyle ?? project.narrationStyle,
     voice: body.voice ?? project.voice,
     mode: body.mode ?? project.mode,
+    presenterImageUrl: body.presenterImageUrl ?? project.presenterImageUrl,
+    presenterMotion: body.presenterMotion ?? project.presenterMotion,
     draftStatus: "drafting",
     draftError: null,
   });

@@ -11,7 +11,7 @@
  * so the same subject shows up the same way in every shot. [[voice-studio]]
  */
 import {
-  getNarration, saveNarration, patchShot, patchTake, patchNarrationFinal,
+  getNarration, saveNarration, patchShot, patchTake, patchNarrationFinal, patchNarrationPresenter,
 } from "./store";
 import { draftNarration } from "./draft";
 import {
@@ -21,12 +21,16 @@ import {
 import { buildCastAnchor } from "@/lib/video-director/cast";
 import { normalizeCharacter, type FilmCharacter } from "@/lib/video-director/types";
 import {
-  imageToKenBurnsClip, fitClipTo, buildNarrationTrack, narrateOver, mixMusicUnder,
-  compositeTimedText, silentAudio,
+  imageToKenBurnsClip, imageToClip, fitClipTo, buildNarrationTrack, narrateOver, mixMusicUnder,
+  compositeTimedText, silentAudio, overlayTopBand,
 } from "@/lib/video-director/clip-helpers";
 import { concatenateVideoBuffers } from "@/lib/video/concat-videos";
+import { renderExplainerGraphic } from "./explainer-graphic";
+import { getUserBrand } from "@/lib/brand/get-brand";
+import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { generateImageXaiFirst, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
+import { heygenClient } from "@/lib/ai/heygen-client";
 import { generateVoice } from "@/lib/voice/voice-engine";
 import { generateWithClonedVoice as generateWithElevenLabs } from "@/lib/voice/elevenlabs-client";
 import { generateWithClonedVoice as generateWithOpenAiClone } from "@/lib/voice/openai-voice-client";
@@ -39,6 +43,7 @@ import { sanitizeUserError } from "@/lib/ai/user-error";
 const VOICE_COST_KEY: CreditCostKey = "AI_VOICE_GENERATION";
 const IMAGE_COST_KEY: CreditCostKey = "AI_VISUAL_DESIGN";
 const VIDEO_COST_KEY: CreditCostKey = "AI_VIDEO_LITE";
+const PRESENTER_COST_KEY: CreditCostKey = "AI_AVATAR_VIDEO_PREMIUM"; // Avatar IV, per 30s
 
 const MAX_CONCURRENT_SHOTS = 3;
 /** Reference-to-video is capped at 10s upstream; longer holds freeze-pad the tail. */
@@ -236,6 +241,14 @@ export async function renderShot(id: string, userId: string, shotId: string): Pr
     return;
   }
 
+  // On-camera-explainer graphic beat: the bottom is a DESIGNED graphic rendered at
+  // stitch time (composeOnCam), so there is no per-shot picture — the read is all
+  // this beat needs to be "ready".
+  if (shot.graphic) {
+    await patchShot(id, userId, shotId, { status: "ready", progress: 100, renderHeartbeatAt: Date.now() });
+    return;
+  }
+
   const refs = castRefsFor(p, shot);
   const prompt = `${shot.prompt}${identityLine(p, shot)}`;
 
@@ -323,6 +336,98 @@ export async function generateAllShots(id: string, userId: string): Promise<{ ok
   await saveNarration(id, userId, p);
   await drainShots(id, userId);
   return { ok: true, queued: pending.length };
+}
+
+// ─────────────────────────────── on-camera explainer: the presenter take
+
+/**
+ * Render the CONTINUOUS presenter (top layer) for an on-camera-explainer project.
+ * Concatenate every beat's cloned-voice read into ONE track (so its timing matches
+ * the composite exactly), then drive an audio-driven HeyGen Avatar IV from the
+ * project's clone image + that track — the person talks + gestures to our EXACT
+ * audio. Because the same track times the explainer beats below, the two layers
+ * stay locked. Never throws — a failure lands on the project so the canvas can
+ * show it and offer a redo. [[voice-oncam-explainer-feature]]
+ */
+export async function renderPresenter(id: string, userId: string): Promise<void> {
+  const p0 = await getNarration(id, userId);
+  if (!p0 || p0.mode !== "oncam") return;
+
+  const beat = setInterval(() => {
+    void patchNarrationPresenter(id, userId, { presenterHeartbeatAt: Date.now() }).catch(() => {});
+  }, FINAL_BEAT_MS);
+
+  let charged = 0;
+  try {
+    await patchNarrationPresenter(id, userId, { presenterStatus: "rendering", presenterHeartbeatAt: Date.now() });
+    const p = await getNarration(id, userId);
+    if (!p) return;
+    const presenterImageUrl = p.presenterImageUrl;
+    if (!isUrl(presenterImageUrl)) throw new Error("Add a presenter photo (your clone) before rendering.");
+
+    // 1) Every beat's read, in order → one continuous track (same timing as the composite).
+    const ordered = p.shots.filter((s) => s.line.trim()).sort((a, b) => a.order - b.order);
+    if (ordered.length === 0) throw new Error("Write at least one beat before rendering the presenter.");
+
+    const segments: { buf: Buffer; holdSec: number }[] = [];
+    for (const s of ordered) {
+      if (isUrl(s.audioUrl)) {
+        segments.push({ buf: await toBuffer(s.audioUrl), holdSec: s.holdSec });
+        continue;
+      }
+      // Beat not read yet — read it now (charge voice per beat, same as a shot read).
+      const vErr = await charge(userId, VOICE_COST_KEY, `${id}:${s.id}:vo`, "Voice Studio — narration beat", { narrationId: id, shotId: s.id });
+      if (vErr) throw new Error(vErr);
+      const { buffer, durationMs } = await narrate(s.line, p.voice, userId);
+      const url = await uploadToS3(`narration/${id}/vo-${s.id}-${uid()}.mp3`, buffer, "audio/mpeg");
+      const hold = Math.max(s.holdSec, Math.min(MAX_HOLD_SEC, Math.round((durationMs / 1000 + 0.6) * 10) / 10));
+      await patchShot(id, userId, s.id, { audioUrl: url, audioMs: durationMs, holdSec: hold });
+      segments.push({ buf: buffer, holdSec: hold });
+    }
+
+    const track = await buildNarrationTrack(segments);
+    const audioUrl = await uploadToS3(`narration/${id}/presenter-audio-${uid()}.mp3`, track, "audio/mpeg");
+    const durationSec = Math.max(1, segments.reduce((n, s) => n + s.holdSec, 0));
+
+    // 2) Charge the Avatar IV take (per 30s).
+    const unit = await getDynamicCreditCost(PRESENTER_COST_KEY).catch(() => 0);
+    const amount = unit * Math.max(1, Math.ceil(durationSec / 30));
+    if (amount > 0) {
+      const block = await checkCreditsAvailable(userId, amount, false, false);
+      if (block) throw new Error(block.message);
+      const res = await creditService.deductCredits({
+        userId, type: TRANSACTION_TYPES.USAGE, amount,
+        referenceType: "narration", referenceId: `${id}:presenter`,
+        description: "Voice Studio — on-camera presenter (Avatar IV)",
+        metadata: { feature: PRESENTER_COST_KEY, narrationId: id, seconds: durationSec },
+      });
+      if (!res.success) throw new Error(res.error || "Could not charge credits.");
+      charged = amount;
+    }
+
+    // 3) Audio-driven Avatar IV — the clone talks + gestures to our exact track.
+    const heygen = await heygenClient.generateImageToVideo({
+      imageUrl: presenterImageUrl,
+      audioUrl,
+      title: p.title,
+      estimatedSeconds: durationSec,
+      onStatus: () => { void patchNarrationPresenter(id, userId, { presenterHeartbeatAt: Date.now() }).catch(() => {}); },
+    });
+    const url = await uploadToS3(`narration/${id}/presenter-${uid()}.mp4`, heygen.videoBuffer, "video/mp4");
+    await patchNarrationPresenter(id, userId, { presenterVideoUrl: url, presenterStatus: "ready", presenterHeartbeatAt: Date.now() });
+  } catch (err) {
+    console.error(`[voice-studio] presenter render failed for ${id}:`, err);
+    if (charged > 0) {
+      await creditService.addCredits({
+        userId, type: TRANSACTION_TYPES.REFUND, amount: charged,
+        referenceType: "narration", referenceId: `${id}:presenter:refund`,
+        description: "Refund — presenter render failed",
+      }).catch(() => {});
+    }
+    await patchNarrationPresenter(id, userId, { presenterStatus: "failed", presenterHeartbeatAt: Date.now() }).catch(() => {});
+  } finally {
+    clearInterval(beat);
+  }
 }
 
 // ─────────────────────────────── voiceover takes
@@ -458,6 +563,112 @@ function wrapText(text: string, maxChars: number): string {
   }
   if (row) rows.push(row);
   return rows.join("\n");
+}
+
+// ─────────────────────────────── on-camera explainer: the stitch
+
+/**
+ * Stitch an ON-CAMERA EXPLAINER. Each beat's bottom layer — a designed graphic
+ * (rendered) or b-roll (AI image/video) — is laid to its exact hold; then the
+ * continuous Avatar IV presenter is overlaid into the TOP band. The presenter clip
+ * already carries the shared narration audio, so voice, presenter motion and the
+ * per-beat reveals stay locked. Fire-and-forget; poll finalStatus.
+ * [[voice-oncam-explainer-feature]]
+ */
+export async function composeOnCam(id: string, userId: string): Promise<void> {
+  const beat = setInterval(() => {
+    void patchNarrationFinal(id, userId, { finalHeartbeatAt: Date.now() }).catch(() => {});
+  }, FINAL_BEAT_MS);
+  try {
+    await patchNarrationFinal(id, userId, { finalStatus: "rendering", finalProgress: 5, finalHeartbeatAt: Date.now() }).catch(() => {});
+    const p = await getNarration(id, userId);
+    if (!p) return;
+    if (!isUrl(p.presenterVideoUrl)) throw new Error("Render the presenter before stitching.");
+    const { w, h } = narrationDims(p.aspect);
+    const presenterPct = 0.44;
+    const bandH = Math.round(h * presenterPct);
+
+    // Brand: neon accent + logo come from the user's Brand Kit (best-effort).
+    const brand = await getUserBrand(userId).catch(() => null);
+    const gBrand = {
+      name: brand?.name || undefined,
+      accent: brand?.colors?.accent || brand?.colors?.primary || undefined,
+      accent2: brand?.colors?.secondary || undefined,
+    };
+
+    const ordered = p.shots
+      .filter((s) => s.line.trim() || s.graphic || isUrl(s.imageUrl) || isUrl(s.videoUrl))
+      .sort((a, b) => a.order - b.order);
+    if (ordered.length === 0) throw new Error("Add at least one beat before stitching.");
+
+    // 1) Bottom layer, per beat, cut to its exact hold (holds stay additive).
+    const clips: Buffer[] = [];
+    for (const s of ordered) {
+      let clip: Buffer | null = null;
+      try {
+        if (s.graphic) {
+          const png = await renderExplainerGraphic(s.graphic, { width: w, height: h, presenterPct, brand: gBrand });
+          clip = await imageToClip(png, s.holdSec, w, h);
+        } else if (isUrl(s.videoUrl)) {
+          clip = await fitClipTo(await toBuffer(s.videoUrl), w, h, s.holdSec);
+        } else if (isUrl(s.imageUrl)) {
+          clip = await imageToKenBurnsClip(await toBuffer(s.imageUrl), s.holdSec, w, h, s.move);
+        } else {
+          // No bottom asset — a branded title/caption frame so the beat still reads.
+          const png = await renderExplainerGraphic(
+            { kind: "title", headline: p.title, caption: s.line },
+            { width: w, height: h, presenterPct, brand: gBrand },
+          );
+          clip = await imageToClip(png, s.holdSec, w, h);
+        }
+        // Designed graphics already carry their caption; burn one on b-roll beats.
+        if (clip && p.captionsOn && !s.graphic && s.line.trim()) {
+          try {
+            clip = await compositeTimedText(clip, w, h, {
+              text: wrapText(s.line.trim(), p.aspect === "9:16" ? 28 : 46),
+              x: "center", y: "bottom", font: "sans", fontSize: p.aspect === "9:16" ? 34 : 40,
+              color: "#ffffff", backgroundColor: "#000000", opacity: 1, startSec: 0, endSec: s.holdSec, boxed: true,
+            });
+          } catch (e) {
+            console.error(`[voice-studio] oncam caption skipped for ${s.id}:`, e instanceof Error ? e.message : e);
+          }
+        }
+      } catch (e) {
+        console.error(`[voice-studio] oncam beat ${s.id} skipped:`, e instanceof Error ? e.message : e);
+      }
+      if (clip) clips.push(clip);
+    }
+    if (clips.length === 0) throw new Error("Could not assemble any beats.");
+
+    // 2) Concatenate the bottom track, then overlay the continuous presenter on top.
+    const bg = clips.length === 1 ? clips[0] : await concatenateVideoBuffers(clips);
+    let film = await overlayTopBand(bg, await toBuffer(p.presenterVideoUrl), w, h, bandH);
+
+    // 3) Music bed (best-effort — never lose the film over it).
+    if (isUrl(p.music)) {
+      try { film = await mixMusicUnder(film, await toBuffer(p.music), p.musicVolume ?? 0.18); }
+      catch (e) { console.error(`[voice-studio] oncam music skipped for ${id}:`, e instanceof Error ? e.message : e); }
+    }
+
+    // 4) Brand logo watermark over the presenter (best-effort; the graphic's own logo
+    //    sits under the presenter band, so stamp the real logo on top here).
+    if (brand?.logo) {
+      try { film = await overlayBrandLogoOnVideo(film, brand.logo); }
+      catch (e) { console.error(`[voice-studio] oncam logo skipped for ${id}:`, e instanceof Error ? e.message : e); }
+    }
+
+    const url = await uploadToS3(`narration/${id}/final-${uid()}.mp4`, film, "video/mp4");
+    const fresh = await getNarration(id, userId);
+    if (!fresh) return;
+    fresh.finalVideoUrl = url; fresh.finalStatus = "ready"; fresh.finalProgress = 100;
+    fresh.finalHeartbeatAt = Date.now(); fresh.finalTries = 0;
+    await saveNarration(id, userId, fresh);
+  } catch (err) {
+    console.error(`[voice-studio] oncam stitch failed for ${id}:`, err instanceof Error ? err.message : err);
+    await patchNarrationFinal(id, userId, { finalStatus: "failed", finalProgress: 0 }).catch(() => {});
+  } finally {
+    clearInterval(beat);
+  }
 }
 
 // ─────────────────────────────── resume

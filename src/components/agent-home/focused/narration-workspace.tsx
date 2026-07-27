@@ -255,7 +255,9 @@ export function FocusedNarration() {
   }, [shots, project?.characters.length]);
   useEffect(() => { recomputeWires(); }, [recomputeWires, project?.id, project?.finalVideoUrl]);
 
-  const isFilm = project?.mode === "film";
+  // On-camera explainers use the same canvas as a film (shots + generate-all + stitch);
+  // only voiceover uses the takes UI.
+  const isFilm = project?.mode === "film" || project?.mode === "oncam";
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -983,6 +985,47 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
         : null,
   );
   const [busy, setBusy] = useState(false);
+  // On-camera explainer: the presenter (Avatar IV clone source) — a saved clone or an upload.
+  const [presenterImageUrl, setPresenterImageUrl] = useState<string | null>(project?.presenterImageUrl || null);
+  const [presenterUploading, setPresenterUploading] = useState(false);
+  const [clones, setClones] = useState<{ url: string; name: string }[]>([]);
+  useEffect(() => {
+    if (mode !== "oncam") return;
+    let cancelled = false;
+    fetch("/api/ai/clone-studio/project")
+      .then((r) => r.json())
+      .then((j: { success?: boolean; data?: { items?: unknown[] } }) => {
+        if (cancelled || !j?.success) return;
+        const items = Array.isArray(j.data?.items) ? j.data!.items! : [];
+        const out: { url: string; name: string }[] = [];
+        for (const it of items as Array<Record<string, unknown>>) {
+          const cs = Array.isArray(it?.clones) ? (it.clones as Array<Record<string, unknown>>) : [];
+          for (const c of cs) {
+            const photos = Array.isArray(c?.photoUrls) ? (c.photoUrls as string[]) : [];
+            const url = (typeof c?.imageUrl === "string" && c.imageUrl) || photos[0];
+            if (typeof url === "string" && /^https?:/i.test(url)) out.push({ url, name: typeof c?.name === "string" ? c.name : "Clone" });
+          }
+        }
+        setClones(out.slice(0, 8));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [mode]);
+  const onPresenterUpload = async (file: File | null) => {
+    if (!file) return;
+    setPresenterUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const j = await fetch("/api/ai/voice-studio/presenter-photo", { method: "POST", body: fd }).then((r) => r.json());
+      if (j?.success && j.data?.url) setPresenterImageUrl(j.data.url as string);
+      else toast({ title: "Upload failed", description: j?.error?.message, variant: "destructive" });
+    } finally { setPresenterUploading(false); }
+  };
+  const presenterOptions = [
+    ...(presenterImageUrl && !clones.some((c) => c.url === presenterImageUrl) ? [{ url: presenterImageUrl, name: "Your photo" }] : []),
+    ...clones,
+  ];
 
   const words = (mode === "voiceover" ? script : brief).trim().split(/\s+/).filter(Boolean).length;
   const secs = Math.round(words / 2.4);
@@ -990,6 +1033,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
   const go = async () => {
     const text = mode === "voiceover" ? script.trim() : brief.trim();
     if (!text) { toast({ title: mode === "voiceover" ? "Write the script first." : "Tell it what to narrate." }); return; }
+    if (mode === "oncam" && !presenterImageUrl) { toast({ title: "Pick or upload a presenter photo first." }); return; }
     setBusy(true); setLoading(true);
     try {
       const voice = {
@@ -1001,7 +1045,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
         style: (selVoice?.kind === "profile" ? selVoice.style : null) || "narrative",
         speed: 1,
       };
-      const body = { title: (text.slice(0, 60) || "Narration"), brief: text, script: mode === "voiceover" ? script : "", mode, treatment, aspect, narrationStyle: style, takeCount, voice };
+      const body = { title: (text.slice(0, 60) || "Narration"), brief: text, script: mode === "voiceover" ? script : "", mode, treatment, aspect, narrationStyle: style, takeCount, voice, presenterImageUrl: mode === "oncam" ? presenterImageUrl : undefined };
       if (project) {
         // Editing an existing brief re-drafts it in place.
         const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/draft`, {
@@ -1032,7 +1076,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
       <div className="absolute inset-x-3 bottom-3 top-10 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-5 sm:bottom-4">
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
           <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-500">BRIEF</span>
-          <b className="text-[13.5px]">{mode === "film" ? "Narrated video" : "Voiceover"}</b>
+          <b className="text-[13.5px]">{mode === "oncam" ? "On-camera explainer" : mode === "film" ? "Narrated video" : "Voiceover"}</b>
           <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
         </div>
 
@@ -1040,8 +1084,9 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
           <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">What are we making?</p>
           <div className="flex gap-2.5">
             {([["voiceover", Mic, "Voiceover", "Audio only. The script read as takes you can use anywhere.", `${V}/voice2.webp`],
-               ["film", Film, "Narrated video", "Images and video, narrated end to end.", `${V}/voice1.webp`]] as const).map(([m, Icon, label, hint, thumb]) => (
-              <button key={m} onClick={() => setMode(m)}
+               ["film", Film, "Narrated video", "Images and video, narrated end to end.", `${V}/voice1.webp`],
+               ["oncam", Clapperboard, "On-camera explainer", "You on camera (cloned) + an animated explainer below.", `${V}/voice1.webp`]] as const).map(([m, Icon, label, hint, thumb]) => (
+              <button key={m} onClick={() => { setMode(m); if (m === "oncam") setAspect("9:16"); }}
                 className={cn("flex max-w-[320px] flex-1 flex-col overflow-hidden rounded-xl border-2 text-left transition", mode === m ? "border-violet-500" : "border-border hover:-translate-y-0.5")}>
                 <span className="relative block aspect-[16/7] w-full overflow-hidden bg-muted">
                   <img src={thumb} alt="" className="h-full w-full object-cover" />
@@ -1063,19 +1108,19 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
             <div className="mb-2.5">
               <BriefSuggest kind="film" onApply={(p) => {
                 const text = typeof p.brief === "string" ? p.brief : "";
-                if (text) { if (mode === "film") setBrief(text); else setScript(text); }
+                if (text) { if (mode === "voiceover") setScript(text); else setBrief(text); }
               }} />
             </div>
             <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">
-              {mode === "film" ? "What should it narrate?" : "Script"}
+              {mode === "voiceover" ? "Script" : mode === "oncam" ? "What should it explain?" : "What should it narrate?"}
               <span className="ml-2 font-semibold normal-case tracking-normal text-muted-foreground/70">
-                {mode === "film" ? "— it writes the script, casts it and drafts every shot" : "— what the narrator reads, word for word"}
+                {mode === "voiceover" ? "— what the narrator reads, word for word" : mode === "oncam" ? "— your clone presents it; it drafts the on-screen explainer" : "— it writes the script, casts it and drafts every shot"}
               </span>
             </p>
             <textarea
-              value={mode === "film" ? brief : script}
-              onChange={(e) => (mode === "film" ? setBrief(e.target.value) : setScript(e.target.value))}
-              placeholder={mode === "film" ? "The twelve hours after harvest — why 40% of what we grow never reaches a plate, and the farmers rewriting that." : "Paste or write what the narrator says…"}
+              value={mode === "voiceover" ? script : brief}
+              onChange={(e) => (mode === "voiceover" ? setScript(e.target.value) : setBrief(e.target.value))}
+              placeholder={mode === "voiceover" ? "Paste or write what the narrator says…" : mode === "oncam" ? "What is agentic AI, for absolute beginners — and why it doesn't just answer, it takes action." : "The twelve hours after harvest — why 40% of what we grow never reaches a plate, and the farmers rewriting that."}
               className="min-h-[92px] w-full resize-y rounded-xl border border-border bg-muted/30 p-3 text-[12.5px] leading-relaxed outline-none focus:border-violet-500"
             />
             {mode === "voiceover" && <p className="mt-1.5 text-right text-[10.5px] text-muted-foreground">≈ <b className="text-amber-500">{fmt(secs)}</b> · {words} words</p>}
@@ -1087,6 +1132,35 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
             </p>
             <VoiceBrowser selected={selVoice} onSelect={setSelVoice} />
           </div>
+
+          {mode === "oncam" && (
+            <div className="mt-5">
+              <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">
+                Presenter <span className="font-semibold normal-case tracking-normal text-muted-foreground/70">— your clone on camera; pick a saved one or upload</span>
+              </p>
+              <div className="flex flex-wrap gap-2.5">
+                {presenterOptions.map((o) => (
+                  <button key={o.url} onClick={() => setPresenterImageUrl(o.url)} className="relative w-[74px] text-center">
+                    {presenterImageUrl === o.url && (
+                      <span className="absolute -right-1 -top-1 z-10 grid h-5 w-5 place-items-center rounded-full border-2 border-card bg-violet-500 text-white"><Check className="h-3 w-3" /></span>
+                    )}
+                    <span className={cn("block h-[74px] w-[74px] overflow-hidden rounded-xl border-2", presenterImageUrl === o.url ? "border-violet-500" : "border-border")}>
+                      <img src={o.url} alt="" className="h-full w-full object-cover" />
+                    </span>
+                    <span className={cn("mt-1 block truncate text-[10px]", presenterImageUrl === o.url ? "text-foreground" : "text-muted-foreground")}>{o.name}</span>
+                  </button>
+                ))}
+                <label className="w-[74px] cursor-pointer text-center">
+                  <span className="grid h-[74px] w-[74px] place-items-center rounded-xl border-2 border-dashed border-border text-muted-foreground">
+                    {presenterUploading ? <FlowLoader size={18} /> : <Upload className="h-5 w-5" />}
+                  </span>
+                  <span className="mt-1 block text-[10px] text-muted-foreground">Upload photo</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0] || null; e.target.value = ""; onPresenterUpload(f); }} />
+                </label>
+              </div>
+              <p className="mt-2 text-[10px] text-muted-foreground/70">Upper-body photo works best — hands visible so gestures read.</p>
+            </div>
+          )}
 
           <div className="mt-5">
             <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Narration style</p>
@@ -1126,7 +1200,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
           )}
 
           <div className="mt-5 flex flex-wrap gap-6">
-            {mode === "film" && (
+            {mode !== "voiceover" && (
               <div>
                 <p className="mb-1.5 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Aspect</p>
                 <div className="flex gap-1.5">
@@ -1148,7 +1222,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
 
         <div className="flex items-center gap-2 border-t border-border px-4 py-3">
           <span className="text-[11px] text-muted-foreground">
-            {mode === "film" ? "Charged per shot as it renders" : `≈ ${takeCount * 5} cr`}
+            {mode === "voiceover" ? `≈ ${takeCount * 5} cr` : mode === "oncam" ? "Charged as it renders — presenter take + each beat" : "Charged per shot as it renders"}
           </span>
           <div className="flex-1" />
           <button onClick={onClose} className="rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold">Cancel</button>
@@ -1182,7 +1256,7 @@ function LibrarySheet({ onClose, onPick }: { onClose: () => void; onPick: (id: s
             <button key={it.id} onClick={() => onPick(it.id)} className="w-full rounded-xl border border-border p-2.5 text-left hover:border-violet-500/60">
               <b className="block truncate text-[12px]">{it.title}</b>
               <span className="text-[10px] text-muted-foreground">
-                {it.mode === "film" ? `${it.readyCount}/${it.shotCount} shots` : "voiceover"} · {new Date(it.updatedAt).toLocaleDateString()}
+                {it.mode !== "voiceover" ? `${it.readyCount}/${it.shotCount} shots` : "voiceover"} · {new Date(it.updatedAt).toLocaleDateString()}
                 {it.finalVideoUrl ? " · stitched" : ""}
               </span>
             </button>

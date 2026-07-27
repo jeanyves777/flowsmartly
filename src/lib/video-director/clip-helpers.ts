@@ -156,6 +156,38 @@ export async function imageToKenBurnsClip(
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
 
+/**
+ * Overlay a presenter clip into the TOP BAND of a background clip (both any dims).
+ * The presenter is scaled to COVER the WxbandH band and cropped, then placed at
+ * (0,0). The presenter's audio drives the result (it already carries the narration),
+ * and `-shortest` ends at the shorter of the two — bg length == presenter length by
+ * construction, so this is the on-camera-explainer composite: talking head on top,
+ * designed graphic / b-roll below, one shared audio clock.
+ */
+export async function overlayTopBand(
+  bgBuf: Buffer,
+  presenterBuf: Buffer,
+  w: number,
+  h: number,
+  bandH: number,
+): Promise<Buffer> {
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Video assembly is not available on this server.");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-dir-band-"));
+  try {
+    const bg = path.join(dir, "bg.mp4"), pv = path.join(dir, "pv.mp4"), out = path.join(dir, "out.mp4");
+    await writeFile(bg, bgBuf); await writeFile(pv, presenterBuf);
+    const band = Math.max(1, Math.min(h, Math.round(bandH)));
+    const fc = `[1:v]scale=${w}:${band}:force_original_aspect_ratio=increase,crop=${w}:${band},setsar=1[pv];[0:v][pv]overlay=0:0:eof_action=pass[v]`;
+    const pvHasAudio = await hasAudio(pv);
+    const args = ["-i", bg, "-i", pv, "-filter_complex", fc, "-map", "[v]"];
+    if (pvHasAudio) args.push("-map", "1:a"); else args.push("-map", "0:a?");
+    args.push("-shortest", ...ENC, out);
+    await run(ff, args, 600000);
+    return await readFile(out);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+}
+
 /** Map a Director transition name to an ffmpeg xfade transition. */
 export function xfadeName(t?: string): string {
   switch (t) {
