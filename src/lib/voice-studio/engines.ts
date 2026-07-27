@@ -241,11 +241,21 @@ export async function renderShot(id: string, userId: string, shotId: string): Pr
     return;
   }
 
-  // On-camera-explainer graphic beat: the bottom is a DESIGNED graphic rendered at
-  // stitch time (composeOnCam), so there is no per-shot picture — the read is all
-  // this beat needs to be "ready".
+  // On-camera-explainer graphic beat: RENDER the designed graphic now → imageUrl, so it
+  // shows as a live preview (beat card + main player) and the stitch reuses it.
   if (shot.graphic) {
-    await patchShot(id, userId, shotId, { status: "ready", progress: 100, renderHeartbeatAt: Date.now() });
+    try {
+      const brand = await getUserBrand(userId).catch(() => null);
+      const png = await renderExplainerGraphic(shot.graphic, {
+        width: w, height: h, presenterPct: 0.44,
+        brand: { name: brand?.name || undefined, accent: brand?.colors?.accent || brand?.colors?.primary || undefined, accent2: brand?.colors?.secondary || undefined },
+      });
+      const url = await uploadToS3(`narration/${id}/beat-${shotId}-${uid()}.png`, png, "image/png");
+      await patchShot(id, userId, shotId, { imageUrl: url, source: "ai", status: "ready", progress: 100, renderHeartbeatAt: Date.now() });
+    } catch (err) {
+      console.error(`[voice-studio] graphic beat ${shotId} failed:`, err);
+      await patchShot(id, userId, shotId, { status: "failed", error: sanitizeUserError(err, "image"), errorDebug: rawReason(err) });
+    }
     return;
   }
 
@@ -424,7 +434,7 @@ export async function renderPresenter(id: string, userId: string): Promise<void>
         description: "Refund — presenter render failed",
       }).catch(() => {});
     }
-    await patchNarrationPresenter(id, userId, { presenterStatus: "failed", presenterError: sanitizeUserError(err, "video"), presenterHeartbeatAt: Date.now() }).catch(() => {});
+    await patchNarrationPresenter(id, userId, { presenterStatus: "failed", presenterError: sanitizeUserError(err, "video"), presenterErrorDebug: rawReason(err, 500), presenterHeartbeatAt: Date.now() }).catch(() => {});
   } finally {
     clearInterval(beat);
   }
@@ -607,7 +617,8 @@ export async function composeOnCam(id: string, userId: string): Promise<void> {
       let clip: Buffer | null = null;
       try {
         if (s.graphic) {
-          const png = await renderExplainerGraphic(s.graphic, { width: w, height: h, presenterPct, brand: gBrand });
+          // Reuse the graphic already rendered at beat time (imageUrl); render fresh only if missing.
+          const png = isUrl(s.imageUrl) ? await toBuffer(s.imageUrl) : await renderExplainerGraphic(s.graphic, { width: w, height: h, presenterPct, brand: gBrand });
           clip = await imageToClip(png, s.holdSec, w, h);
         } else if (isUrl(s.videoUrl)) {
           clip = await fitClipTo(await toBuffer(s.videoUrl), w, h, s.holdSec);

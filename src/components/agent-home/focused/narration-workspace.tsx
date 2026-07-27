@@ -144,8 +144,12 @@ export function FocusedNarration() {
     setBatching(true);
     try {
       const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/generate-all`, { method: "POST" }).then((r) => r.json());
-      if (j?.success) { setProject(j.data.project); if (j.data.message) toast({ title: j.data.message }); }
-      else toast({ title: "Could not start", description: j?.error?.message, variant: "destructive" });
+      if (j?.success) {
+        setProject(j.data.project);
+        // Oncam re-kicks the presenter + assembles — don't surface the "shots already done" line.
+        if (project?.mode === "oncam") toast({ title: "Rendering your video…" });
+        else if (j.data.message) toast({ title: j.data.message });
+      } else toast({ title: "Could not start", description: j?.error?.message, variant: "destructive" });
     } finally { setBatching(false); }
   };
   const renderShot = async (shotId: string) => {
@@ -1318,6 +1322,8 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
   const parts = [scriptSt === "done" ? 1 : 0, total ? ready / total : 0, presenterReady ? 1 : 0, finalReady ? 1 : 0];
   const pct = finalReady ? 100 : Math.round((parts.reduce((a, b) => a + b, 0) / 4) * 100);
   const C = 2 * Math.PI * 44;
+  // A rendered beat graphic to preview the explainer look behind the presenter.
+  const previewUrl = shots.find((s) => u(s.imageUrl))?.imageUrl;
 
   const dot = (s: St, n: number) => (
     <span className={cn("grid h-[19px] w-[19px] flex-none place-items-center rounded-full text-[11px] font-bold",
@@ -1337,7 +1343,7 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
   return (
     <div className="flex h-full w-full gap-4 overflow-hidden p-4">
       {/* LEFT — stepper */}
-      <div className="hidden w-56 flex-none flex-col overflow-y-auto pr-1 lg:flex">
+      <div className="hidden w-48 flex-none flex-col overflow-y-auto pr-1 lg:flex">
         <div className="relative pb-5 pl-8">
           <span className="absolute left-[9px] top-6 bottom-0 w-px bg-emerald-600/50" />
           <span className="absolute left-0 top-0">{dot(scriptSt, 1)}</span>
@@ -1376,15 +1382,18 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
       </div>
 
       {/* CENTER — player */}
-      <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
-        <div className="relative overflow-hidden rounded-2xl border border-border bg-black" style={{ aspectRatio: "16 / 10" }}>
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-3 overflow-y-auto py-2">
+        <div className="relative mx-auto h-[62vh] max-h-[660px] min-h-[340px] overflow-hidden rounded-2xl border border-border bg-black" style={{ aspectRatio: "9 / 16" }}>
           {finalReady ? (
             <video src={project.finalVideoUrl as string} controls playsInline className="h-full w-full bg-black object-contain" />
           ) : (
             <>
-              <div className="absolute inset-0 bg-gradient-to-b from-[#141d38] to-[#0a1122]" />
-              {u(project.presenterImageUrl) && <img src={project.presenterImageUrl as string} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />}
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
+              {u(previewUrl)
+                ? <img src={previewUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                : <div className="absolute inset-0 bg-gradient-to-b from-[#141d38] to-[#0a1122]" />}
+              {u(project.presenterImageUrl) && <img src={project.presenterImageUrl as string} alt="" className="absolute inset-x-0 top-0 h-[44%] w-full object-cover" />}
+              <div className="absolute inset-0 bg-black/40" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
                 <div className="relative grid h-24 w-24 place-items-center">
                   <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90">
                     <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(139,92,246,.25)" strokeWidth="8" />
@@ -1393,7 +1402,7 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
                   <span className="text-xl font-black">{pct}%</span>
                 </div>
                 <div className="text-lg font-bold">{presenterRendering ? "Preparing your presenter…" : working ? "Building your video…" : notStarted ? "Ready to generate" : presenterFailed ? "Presenter needs a retry" : "Waiting…"}</div>
-                <div className="text-[13px] text-muted-foreground">{ready === total && total > 0 ? "Explainer beats are ready" : `Explainer beats ${ready}/${total || "…"}`}</div>
+                <div className="text-[13px] text-white/70">{ready === total && total > 0 ? "Explainer beats are ready" : `Explainer beats ${ready}/${total || "…"}`}</div>
                 {notStarted && (
                   <button onClick={onGenerate} className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-bold text-white">
                     <Sparkles className="h-4 w-4" /> Generate video
@@ -1442,8 +1451,10 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
         <div className="flex flex-1 flex-col gap-2 overflow-y-auto pr-1">
           {shots.map((s, i) => (
             <div key={s.id} className="flex gap-2.5 rounded-xl border border-border bg-card p-2.5">
-              <div className={cn("grid h-14 w-14 flex-none place-items-center rounded-lg border", s.graphic ? "border-sky-500/40 bg-gradient-to-br from-sky-950/60 to-slate-950" : "border-border bg-muted")}>
-                <span className="text-[10px] font-bold text-sky-400/80">{i + 1}</span>
+              <div className="h-14 w-14 flex-none overflow-hidden rounded-lg border border-border bg-muted">
+                {u(s.imageUrl)
+                  ? <img src={s.imageUrl as string} alt="" className="h-full w-full object-cover" />
+                  : <div className="grid h-full w-full place-items-center text-[10px] font-bold text-muted-foreground">{i + 1}</div>}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="line-clamp-2 text-[11.5px] leading-snug">{s.line}</div>
