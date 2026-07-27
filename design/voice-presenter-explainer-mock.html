@@ -1,0 +1,463 @@
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     FlowSmartly · Voice Studio — NEW style mockup: "On-camera explainer"
+     Left  = the brief modal, now with a third card (app chrome: dark + violet).
+     Right = the rendered 9:16 output (client-branded neon world, per the GCS ref).
+     Single-theme on purpose: this surface is the dark studio + a video frame.
+  ───────────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --bg: #08080d; --panel: #0f0f16; --card: #16161f; --card2: #1c1c27;
+    --border: rgba(255,255,255,.09); --border-2: rgba(255,255,255,.16);
+    --text: #edecf2; --muted: #8b8b9a; --muted-2: #6a6a78;
+    --violet: #8b5cf6; --violet-600: #7c3aed; --violet-soft: rgba(139,92,246,.14);
+    --amber: #f5a623;
+    /* client output brand (GCS) */
+    --nvy-0:#070c1c; --nvy-1:#0b1330; --neon:#3b9dff; --neon-2:#66b7ff;
+    --neon-glow: rgba(59,157,255,.55); --danger:#ff3b46;
+    --r: 14px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  body { margin:0; background:
+      radial-gradient(1100px 600px at 78% -8%, rgba(139,92,246,.10), transparent 60%),
+      var(--bg);
+    color:var(--text); font-family:var(--font); -webkit-font-smoothing:antialiased;
+    line-height:1.45; padding:26px 20px 60px; }
+  .wrap { max-width:1180px; margin:0 auto; }
+
+  /* mock context bar */
+  .mockbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    margin:0 4px 20px; color:var(--muted); font-size:12px; }
+  .mockbar .logo { display:flex; align-items:center; gap:8px; color:var(--text); font-weight:800; letter-spacing:-.01em; }
+  .mockbar .dot { width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
+    background:linear-gradient(135deg,#3b82f6,#8b5cf6); color:#fff; font-weight:900; font-size:13px; }
+  .mockbar .tag { margin-left:auto; border:1px solid var(--border); border-radius:999px; padding:4px 11px;
+    background:var(--card); font-weight:600; }
+
+  .grid { display:grid; grid-template-columns: 1.28fr .72fr; gap:22px; align-items:start; }
+  @media (max-width: 900px){ .grid{ grid-template-columns:1fr; } }
+
+  /* ── LEFT: brief modal ─────────────────────────────────────── */
+  .modal { background:linear-gradient(180deg, var(--panel), #0c0c12);
+    border:1px solid var(--border); border-radius:20px; padding:22px 22px 18px;
+    box-shadow: 0 30px 80px -40px rgba(0,0,0,.9); }
+  .modal h2 { display:flex; align-items:center; gap:10px; margin:0 0 4px; font-size:17px; letter-spacing:-.01em; }
+  .pill-brief { font-size:9.5px; font-weight:800; letter-spacing:.14em; color:#c4b5fd;
+    background:var(--violet-soft); border:1px solid rgba(139,92,246,.35); padding:3px 8px; border-radius:6px; }
+  .label { font-size:10.5px; font-weight:800; letter-spacing:.13em; color:var(--muted);
+    text-transform:uppercase; margin:20px 0 9px; }
+  .label .thin { color:var(--muted-2); font-weight:600; letter-spacing:.02em; text-transform:none; }
+
+  .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:11px; }
+  @media (max-width:560px){ .cards{ grid-template-columns:1fr; } }
+  .card { position:relative; text-align:left; cursor:pointer; overflow:hidden;
+    border:2px solid var(--border); border-radius:var(--r); background:var(--card);
+    transition:transform .15s ease, border-color .15s ease; color:inherit; font:inherit; padding:0; }
+  .card:hover { transform:translateY(-2px); border-color:var(--border-2); }
+  .card.sel { border-color:var(--violet); }
+  .card:focus-visible { outline:2px solid var(--neon); outline-offset:2px; }
+  .card .thumb { height:92px; position:relative; overflow:hidden;
+    display:grid; place-items:center; background:#0d0d14; }
+  .card.sel .thumb { }
+  .card .meta { padding:9px 11px 11px; background:var(--card); }
+  .card.sel .meta { background:var(--violet-soft); }
+  .card .ttl { display:flex; align-items:center; gap:7px; font-weight:800; font-size:12.5px; }
+  .card .hint { color:var(--muted); font-size:10.5px; margin-top:3px; line-height:1.3; }
+  .badge-new { position:absolute; left:8px; top:8px; z-index:3; font-size:8.5px; font-weight:900;
+    letter-spacing:.1em; color:#0a0a0f; background:linear-gradient(90deg,#7ee0ff,#3b9dff);
+    padding:3px 7px; border-radius:6px; box-shadow:0 4px 14px -4px var(--neon-glow); }
+  .badge-sel { position:absolute; right:8px; top:8px; z-index:3; font-size:8.5px; font-weight:800;
+    color:#fff; background:var(--violet); padding:3px 8px; border-radius:999px; }
+
+  /* mini thumbnails drawn in CSS */
+  .mini { width:100%; height:100%; position:relative; }
+  .mini.vo { display:flex; align-items:center; justify-content:center; gap:3px;
+    background:radial-gradient(120px 60px at 50% 40%, rgba(139,92,246,.25), transparent), #0c0c14; }
+  .mini.vo i { width:3px; border-radius:3px; background:linear-gradient(#c4b5fd,#8b5cf6); }
+  .mini.film { background:linear-gradient(120deg,#1a2438,#3a2a4a); }
+  .mini.film::after{ content:""; position:absolute; inset:0;
+    background:linear-gradient(0deg, rgba(0,0,0,.55), transparent 60%),
+    radial-gradient(60px 40px at 30% 40%, rgba(255,180,120,.5), transparent),
+    radial-gradient(70px 50px at 75% 55%, rgba(120,170,255,.5), transparent); }
+  .mini.exp { background:linear-gradient(180deg,#081027,#0a1a3a); display:flex; flex-direction:column; }
+  .mini.exp .top{ flex:1.05; border-bottom:1px solid rgba(90,150,255,.35); position:relative;
+    background:radial-gradient(60px 40px at 50% 60%, rgba(59,157,255,.35), transparent); }
+  .mini.exp .top::after{ content:""; position:absolute; left:50%; top:44%; transform:translate(-50%,-50%);
+    width:26px;height:26px;border-radius:50%;
+    background:linear-gradient(#cfe6ff,#7fb4ff); box-shadow:0 0 0 5px rgba(120,170,255,.18); }
+  .mini.exp .bot{ flex:1; display:flex; align-items:center; justify-content:center; gap:5px; }
+  .mini.exp .bot b{ width:11px;height:11px;border-radius:3px;border:1.5px solid var(--neon);
+    box-shadow:0 0 8px -2px var(--neon-glow); }
+
+  /* prompt + config */
+  .brief-in { margin-top:2px; }
+  .ta { width:100%; min-height:96px; resize:vertical; border-radius:12px; border:1px solid var(--border);
+    background:#0c0c13; color:var(--text); font:inherit; font-size:13px; padding:12px 13px; }
+  .ta:focus { outline:none; border-color:var(--violet); }
+  .cfgrow { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .chip { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600;
+    border:1px solid var(--border); background:var(--card); border-radius:999px; padding:6px 11px; color:var(--text); }
+  .chip svg{ width:13px;height:13px; }
+  .chip .k{ color:var(--muted); }
+  .foot { display:flex; align-items:center; gap:12px; margin-top:18px; padding-top:14px;
+    border-top:1px solid var(--border); }
+  .foot .charge { color:var(--muted); font-size:11.5px; }
+  .btns{ margin-left:auto; display:flex; gap:9px; }
+  .btn { border-radius:10px; font:inherit; font-weight:700; font-size:12.5px; padding:9px 15px; cursor:pointer; }
+  .btn.ghost{ background:var(--card); border:1px solid var(--border); color:var(--text); }
+  .btn.go{ border:none; color:#fff; background:linear-gradient(90deg,#3b82f6,#8b5cf6);
+    display:inline-flex; align-items:center; gap:7px; box-shadow:0 10px 26px -10px rgba(124,58,237,.7); }
+
+  /* ── RIGHT: 9:16 output preview ────────────────────────────── */
+  .previewcol { position:sticky; top:20px; display:flex; flex-direction:column; gap:12px; }
+  .previewcap { font-size:11px; color:var(--muted); text-align:center; }
+  .phone { width:100%; max-width:300px; margin:0 auto; aspect-ratio:9/16; border-radius:26px;
+    border:1px solid var(--border-2); padding:8px; background:#000;
+    box-shadow:0 40px 90px -40px #000, inset 0 0 0 1px rgba(255,255,255,.04); }
+  .screen { width:100%; height:100%; border-radius:19px; overflow:hidden; position:relative;
+    background:var(--nvy-0); }
+
+  /* generic modes hidden unless active */
+  .out { position:absolute; inset:0; display:none; }
+  .out.on { display:block; }
+
+  /* --- voiceover output --- */
+  #out-vo { background:radial-gradient(150px 120px at 50% 34%, rgba(139,92,246,.25), transparent), #0a0a12;
+    display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:22px; }
+  #out-vo.on{ display:flex; }
+  .vo-mic{ width:66px;height:66px;border-radius:50%; display:grid;place-items:center;
+    background:linear-gradient(135deg,#7c3aed,#3b82f6); box-shadow:0 0 40px -8px rgba(124,58,237,.7); }
+  .vo-take{ width:100%; border:1px solid var(--border); border-radius:12px; background:#12121b;
+    padding:10px 12px; display:flex; align-items:center; gap:9px; }
+  .vo-take .wf{ flex:1; display:flex; align-items:center; gap:2px; height:22px; }
+  .vo-take .wf i{ flex:1; background:#8b5cf6; border-radius:2px; opacity:.8; }
+  .vo-take .t{ font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; }
+
+  /* --- narrated video output --- */
+  #out-film{ background:
+      linear-gradient(0deg, rgba(0,0,0,.7), transparent 55%),
+      radial-gradient(120px 90px at 34% 40%, rgba(255,170,110,.6), transparent),
+      radial-gradient(150px 120px at 74% 58%, rgba(120,160,255,.55), transparent),
+      linear-gradient(120deg,#16233c,#3a2b46); }
+  #out-film .cap{ position:absolute; left:0; right:0; bottom:16px; text-align:center; padding:0 18px; }
+  #out-film .cap span{ background:rgba(0,0,0,.72); color:#fff; font-weight:700; font-size:12px;
+    padding:5px 9px; border-radius:6px; box-decoration-break:clone; -webkit-box-decoration-break:clone; }
+
+  /* --- PRESENTER EXPLAINER output (the new one) --- */
+  #out-exp{ background:
+      radial-gradient(120% 60% at 50% 0%, var(--nvy-1), var(--nvy-0) 70%); }
+  .brandchip{ position:absolute; left:12px; top:11px; z-index:5; display:flex; align-items:center; gap:6px;
+    color:#fff; font-weight:900; letter-spacing:.02em; font-size:13px; }
+  .brandchip .gg{ display:grid;place-items:center; width:22px;height:22px;border-radius:6px;
+    background:linear-gradient(135deg,#2f8bff,#0a3faa); font-size:11px; box-shadow:0 0 14px -3px var(--neon-glow); }
+  .brandchip small{ font-size:6.5px; letter-spacing:.16em; color:#9dc3ff; display:block; margin-top:-2px; font-weight:700; }
+
+  /* top: talking-head presenter */
+  .exp-top{ position:absolute; left:0; right:0; top:0; height:44%;
+    background:
+      radial-gradient(90px 120px at 50% 26%, rgba(120,170,255,.28), transparent 70%),
+      linear-gradient(180deg,#0d1a3d,#08122b);
+    overflow:hidden; }
+  .spotlight{ position:absolute; inset:0; background:radial-gradient(120px 150px at 50% 8%, rgba(150,190,255,.22), transparent 62%); }
+  .bust{ position:absolute; left:50%; bottom:-6px; transform:translateX(-50%); width:150px; }
+  .mic{ position:absolute; left:50%; bottom:2px; transform:translateX(-30%); z-index:3; }
+  .clone-tags{ position:absolute; right:9px; top:9px; z-index:4; display:flex; flex-direction:column; gap:5px; align-items:flex-end; }
+  .clone-tags .ct{ font-size:7.5px; font-weight:800; letter-spacing:.08em; padding:3px 6px; border-radius:999px;
+    background:rgba(59,157,255,.16); border:1px solid rgba(59,157,255,.5); color:#bcd8ff; }
+  .clone-tags .ct.live{ background:rgba(255,59,70,.16); border-color:rgba(255,59,70,.6); color:#ffc3c7; }
+  .speakbars{ position:absolute; left:50%; bottom:6px; transform:translateX(-50%); z-index:4;
+    display:flex; align-items:flex-end; gap:2px; height:14px; }
+  .speakbars i{ width:2.4px; background:linear-gradient(#cfe6ff,#3b9dff); border-radius:2px; height:5px; }
+
+  /* title chip on the seam */
+  .titlechip{ position:absolute; left:50%; top:44%; transform:translate(-50%,-50%); z-index:6;
+    white-space:nowrap; font-weight:900; letter-spacing:.03em; font-size:12.5px; color:#fff;
+    border:1.5px solid var(--neon); border-radius:8px; padding:5px 12px; background:#08122b;
+    box-shadow:0 0 18px -4px var(--neon-glow); }
+
+  /* bottom: animated explainer */
+  .exp-bot{ position:absolute; left:0; right:0; bottom:0; top:44%; padding:34px 12px 0; }
+  .flow{ display:flex; align-items:flex-start; justify-content:space-between; gap:4px; position:relative; }
+  .node{ flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; opacity:0;
+    transform:translateY(6px); animation:rise .5s ease forwards; }
+  .node .ic{ width:46px;height:46px;border-radius:11px; display:grid;place-items:center;
+    border:1.5px solid var(--neon); background:rgba(10,25,60,.7); box-shadow:0 0 16px -5px var(--neon-glow); }
+  .node .ic svg{ width:24px;height:24px; }
+  .node .nm{ font-size:9px; font-weight:900; letter-spacing:.1em; color:#dbe9ff; }
+  .flow .wire{ position:absolute; top:23px; height:2px; background:linear-gradient(90deg,transparent,var(--neon),transparent);
+    left:11%; right:11%; z-index:-1; opacity:.6; }
+  .flow .wire::after{ content:""; position:absolute; top:-2px; width:6px;height:6px;border-radius:50%;
+    background:#bfe0ff; box-shadow:0 0 10px 2px var(--neon-glow); animation:travel 2.4s linear infinite; }
+
+  .mascot{ position:absolute; left:50%; top:26px; transform:translateX(-50%); z-index:2; }
+  .loop{ margin:16px auto 0; width:70%; height:26px; border:2px solid var(--neon); border-top:none;
+    border-radius:0 0 16px 16px; opacity:.5; }
+  .chatx{ position:absolute; left:14px; bottom:60px; display:flex; align-items:center; gap:4px; z-index:3; }
+  .chatx .bub{ width:34px;height:22px;border:1.6px solid #6f8fc0; border-radius:8px; position:relative;
+    display:flex;align-items:center;justify-content:center; gap:2px; }
+  .chatx .bub i{ width:3px;height:3px;border-radius:50%;background:#9db4dd; }
+  .chatx .x{ width:14px;height:14px;border-radius:50%;background:var(--danger); color:#fff;
+    display:grid;place-items:center;font-size:9px;font-weight:900; box-shadow:0 0 10px -2px var(--danger); }
+
+  .caption{ position:absolute; left:0; right:0; bottom:16px; text-align:center; padding:0 20px; z-index:5; }
+  .caption b{ color:#fff; font-weight:800; font-size:12.5px; }
+  .caption b .hl{ color:var(--neon-2); }
+
+  /* how it renders */
+  .how{ margin-top:24px; border:1px solid var(--border); border-radius:16px; background:var(--panel);
+    padding:16px 18px; }
+  .how h3{ margin:0 0 4px; font-size:13px; letter-spacing:-.01em; }
+  .how p.sub{ margin:0 0 14px; color:var(--muted); font-size:12px; }
+  .steps{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  @media (max-width:760px){ .steps{ grid-template-columns:1fr 1fr; } }
+  .step{ border:1px solid var(--border); border-radius:12px; padding:12px; background:var(--card); }
+  .step .n{ font-size:10px; font-weight:900; color:var(--violet); letter-spacing:.06em; }
+  .step .h{ font-weight:800; font-size:12.5px; margin:5px 0 3px; }
+  .step .d{ color:var(--muted); font-size:11px; line-height:1.4; }
+  .note{ margin-top:12px; font-size:11px; color:var(--muted-2); }
+  .note b{ color:var(--muted); }
+
+  @keyframes rise{ to{ opacity:1; transform:none; } }
+  @keyframes travel{ from{ left:-2%; } to{ left:100%; } }
+  @keyframes bars{ 0%,100%{ height:5px; } 50%{ height:14px; } }
+  @keyframes vobars{ 0%,100%{ height:6px; } 50%{ height:20px; } }
+  @media (prefers-reduced-motion: reduce){
+    .node{ animation:none; opacity:1; transform:none; }
+    .flow .wire::after,.speakbars i,.vo-take .wf i{ animation:none !important; }
+  }
+</style>
+
+<div class="wrap">
+  <div class="mockbar">
+    <span class="logo"><span class="dot">F</span> FlowSmartly · Voice&nbsp;Studio</span>
+    <span>New narration style — design mock</span>
+    <span class="tag">Not the live app · for look sign-off</span>
+  </div>
+
+  <div class="grid">
+    <!-- ─────────── LEFT: brief modal ─────────── -->
+    <section class="modal" aria-label="Narration brief">
+      <h2><span class="pill-brief">BRIEF</span> <span id="modalTitle">On-camera explainer</span></h2>
+
+      <div class="label">What are we making?</div>
+      <div class="cards" id="cards">
+        <button class="card" data-mode="voiceover" aria-pressed="false">
+          <span class="thumb"><span class="mini vo" id="voBars"></span></span>
+          <span class="meta">
+            <span class="ttl">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+              Voiceover
+            </span>
+            <span class="hint">Audio only. The script read as takes you can use anywhere.</span>
+          </span>
+        </button>
+
+        <button class="card" data-mode="film" aria-pressed="false">
+          <span class="thumb"><span class="mini film"></span></span>
+          <span class="meta">
+            <span class="ttl">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16M16 4v16"/></svg>
+              Narrated video
+            </span>
+            <span class="hint">Images and video, narrated end to end.</span>
+          </span>
+        </button>
+
+        <button class="card sel" data-mode="presenter" aria-pressed="true">
+          <span class="badge-new">NEW</span>
+          <span class="badge-sel">Selected</span>
+          <span class="thumb">
+            <span class="mini exp"><span class="top"></span><span class="bot"><b></b><b></b><b></b><b></b></span></span>
+          </span>
+          <span class="meta">
+            <span class="ttl">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7ee0ff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 3l.7 1.8L21.5 5.5l-1.8.7L19 8l-.7-1.8L16.5 5.5l1.8-.7z"/></svg>
+              On-camera explainer
+            </span>
+            <span class="hint">You on camera (cloned), an animated explainer below.</span>
+          </span>
+        </button>
+      </div>
+
+      <div class="label" id="promptLabel">What should it narrate? <span class="thin">— your clone reads it; it drafts the on-screen explainer</span></div>
+      <div class="brief-in">
+        <textarea class="ta" id="ta">What is agentic AI, for absolute beginners — and why it doesn't just answer, it takes action: goal, plan, tools, action.</textarea>
+      </div>
+
+      <div class="cfgrow" id="cfg">
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="#7ee0ff" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/></svg><span class="k">Aspect</span> 9:16 · Reels/Shorts</span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="#7ee0ff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="3.2"/><path d="M6 20a6 6 0 0 1 12 0"/></svg><span class="k">Narrator</span> your cloned voice + face</span>
+        <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="#7ee0ff" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg><span class="k">Brand</span> GCS logo + colors</span>
+      </div>
+
+      <div class="foot">
+        <span class="charge" id="charge">Charged per shot as it renders — talking-head take + each explainer beat</span>
+        <span class="btns">
+          <span class="btn ghost">Cancel</span>
+          <span class="btn go">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M5 3l4 9-4 9 15-9z"/></svg>
+            Generate
+          </span>
+        </span>
+      </div>
+    </section>
+
+    <!-- ─────────── RIGHT: 9:16 output preview ─────────── -->
+    <aside class="previewcol">
+      <div class="previewcap" id="pcap">What renders · <b style="color:var(--neon-2)">On-camera explainer</b></div>
+      <div class="phone"><div class="screen">
+
+        <!-- voiceover -->
+        <div class="out" id="out-vo">
+          <div class="vo-mic">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+          </div>
+          <div class="vo-take"><div class="wf" id="wf1"></div><span class="t">0:42</span></div>
+          <div class="vo-take"><div class="wf" id="wf2"></div><span class="t">0:41</span></div>
+        </div>
+
+        <!-- narrated video -->
+        <div class="out" id="out-film">
+          <div class="cap"><span>You already use agent-like systems every day.</span></div>
+        </div>
+
+        <!-- PRESENTER EXPLAINER -->
+        <div class="out on" id="out-exp">
+          <div class="brandchip"><span class="gg">G</span><span>GCS<small>GENERAL COMPUTING</small></span></div>
+
+          <div class="exp-top">
+            <div class="spotlight"></div>
+            <div class="clone-tags">
+              <span class="ct">YOU · CLONED</span>
+              <span class="ct live">● FULL AVATAR IV</span>
+              <span class="ct">talks + gestures</span>
+            </div>
+            <!-- bust silhouette -->
+            <svg class="bust" viewBox="0 0 150 120" fill="none">
+              <defs><linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#2a3f6e"/><stop offset="1" stop-color="#0c1836"/></linearGradient></defs>
+              <circle cx="75" cy="42" r="27" fill="url(#bg1)" stroke="#3b9dff" stroke-opacity=".5"/>
+              <path d="M28 120c0-28 21-44 47-44s47 16 47 44z" fill="url(#bg1)" stroke="#3b9dff" stroke-opacity=".5"/>
+            </svg>
+            <svg class="mic" width="34" height="60" viewBox="0 0 34 60" fill="none" stroke="#8fb6f0" stroke-width="2">
+              <rect x="10" y="4" width="14" height="26" rx="7" fill="#0b1330" fill-opacity=".2"/><path d="M17 34v18"/><path d="M6 46h22"/></svg>
+            <div class="speakbars" id="spk"></div>
+          </div>
+
+          <div class="titlechip">WHAT IS AGENTIC AI?</div>
+
+          <div class="exp-bot">
+            <!-- mascot -->
+            <svg class="mascot" width="42" height="42" viewBox="0 0 48 48" fill="none">
+              <rect x="12" y="14" width="24" height="20" rx="9" fill="#e9f2ff" stroke="#3b9dff"/>
+              <circle cx="19" cy="24" r="2.6" fill="#1a6fe0"/><circle cx="29" cy="24" r="2.6" fill="#1a6fe0"/>
+              <path d="M24 8v4" stroke="#3b9dff" stroke-width="2"/><circle cx="24" cy="7" r="2" fill="#3b9dff"/>
+              <path d="M12 22H8m28 0h4" stroke="#3b9dff" stroke-width="2"/></svg>
+
+            <div class="flow">
+              <span class="wire"></span>
+              <span class="node" style="animation-delay:.1s"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#7ee0ff" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.4"/></svg></span><span class="nm">GOAL</span></span>
+              <span class="node" style="animation-delay:.35s"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#7ee0ff" stroke-width="2"><rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 9h6M9 13h6"/></svg></span><span class="nm">PLAN</span></span>
+              <span class="node" style="animation-delay:.6s"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#7ee0ff" stroke-width="2"><path d="M14 7a4 4 0 0 0-5 5l-5 5 2 2 5-5a4 4 0 0 0 5-5l-2 2-2-2 2-2z"/></svg></span><span class="nm">TOOLS</span></span>
+              <span class="node" style="animation-delay:.85s"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#7ee0ff" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></span><span class="nm">ACTION</span></span>
+            </div>
+            <div class="loop"></div>
+            <div class="chatx"><span class="bub"><i></i><i></i><i></i></span><span class="x">✕</span></div>
+          </div>
+
+          <div class="caption" id="expcap"><b>It doesn't just respond — <span class="hl">it takes action.</span></b></div>
+        </div>
+
+      </div></div>
+      <div class="previewcap" id="pcap2" style="color:var(--muted-2)">Full Avatar IV clone (top) · designed explainer (bottom) · locked in sync · your brand</div>
+    </aside>
+  </div>
+
+  <!-- how it renders -->
+  <div class="how">
+    <h3>How “On-camera explainer” renders</h3>
+    <p class="sub">One script drives two layers, stacked into a 9:16 the whole way through. Same brief flow as the other styles — it writes the script, then drafts every beat.</p>
+    <div class="steps">
+      <div class="step"><div class="n">TOP LAYER</div><div class="h">Your cloned narrator</div><div class="d">A full HeyGen Avatar IV video of your clone — talking and gesturing (not a still), one continuous take from the whole script's audio.</div></div>
+      <div class="step"><div class="n">BOTTOM LAYER</div><div class="h">Animated explainer</div><div class="d">Designed graphics per beat — title chip, key-point icons, diagrams, mascot — revealed on the same audio clock, so it lands exactly as the presenter says it.</div></div>
+      <div class="step"><div class="n">BRAND</div><div class="h">On-brand, auto</div><div class="d">Your logo, colors and a burned caption track, pulled from the Brand Kit — no manual styling.</div></div>
+      <div class="step"><div class="n">OUTPUT</div><div class="h">Post-ready 9:16</div><div class="d">Stitched vertical video sized for Reels / Shorts / TikTok, ready to publish or drop on the canvas.</div></div>
+    </div>
+    <p class="note"><b>Locked:</b> name “On-camera explainer” · top = full HeyGen Avatar IV (talks + gestures) · bottom = newly-generated designed graphics · both locked to one shared audio clock. <b>Still tunable:</b> split ratio (top 44% shown), title-chip placement, caption style.</p>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // build waveform / speak bars
+    function fill(el, n, cls, min, max, dur) {
+      if (!el) return;
+      for (var i = 0; i < n; i++) {
+        var b = document.createElement("i");
+        var h = min + Math.round(Math.random() * (max - min));
+        b.style.height = h + "px";
+        if (!reduce) b.style.animation = cls + " " + dur + "s ease-in-out " + (i * 0.05) + "s infinite";
+        el.appendChild(b);
+      }
+    }
+    fill(document.getElementById("voBars"), 12, "vobars", 6, 26, 1.1);
+    fill(document.getElementById("wf1"), 34, "vobars", 4, 20, 1.0);
+    fill(document.getElementById("wf2"), 34, "vobars", 4, 20, 1.0);
+    fill(document.getElementById("spk"), 9, "bars", 5, 14, 0.7);
+
+    // mode switching
+    var titles = { voiceover: "Voiceover", film: "Narrated video", presenter: "On-camera explainer" };
+    var prompts = {
+      voiceover: 'Script <span class="thin">— what the narrator reads, word for word</span>',
+      film: 'What should it narrate? <span class="thin">— it writes the script, casts it and drafts every shot</span>',
+      presenter: 'What should it narrate? <span class="thin">— your clone reads it; it drafts the on-screen explainer</span>'
+    };
+    var charges = {
+      voiceover: "≈ 10 cr · read as 2 takes",
+      film: "Charged per shot as it renders",
+      presenter: "Charged per shot as it renders — talking-head take + each explainer beat"
+    };
+    var cfgShow = { voiceover:false, film:true, presenter:true };
+    var outs = { voiceover: "out-vo", film: "out-film", presenter: "out-exp" };
+
+    var cards = document.querySelectorAll("#cards .card");
+    function select(mode) {
+      cards.forEach(function (c) {
+        var on = c.dataset.mode === mode;
+        c.classList.toggle("sel", on);
+        c.setAttribute("aria-pressed", on ? "true" : "false");
+        var bs = c.querySelector(".badge-sel");
+        if (on && !bs && c.dataset.mode !== "presenter") { /* only presenter has a static badge; skip */ }
+      });
+      document.getElementById("modalTitle").textContent = titles[mode];
+      document.getElementById("promptLabel").innerHTML = prompts[mode];
+      document.getElementById("charge").textContent = charges[mode];
+      document.getElementById("cfg").style.display = cfgShow[mode] ? "flex" : "none";
+      document.getElementById("pcap").innerHTML = 'What renders · <b style="color:var(--neon-2)">' + titles[mode] + '</b>';
+      ["out-vo","out-film","out-exp"].forEach(function (id) {
+        document.getElementById(id).classList.toggle("on", id === outs[mode]);
+      });
+      // move the "Selected" pill onto the active card
+      document.querySelectorAll(".badge-sel").forEach(function(b){ b.remove(); });
+      var act = document.querySelector('.card[data-mode="'+mode+'"]');
+      var pill = document.createElement("span"); pill.className = "badge-sel"; pill.textContent = "Selected";
+      act.appendChild(pill);
+    }
+    cards.forEach(function (c) { c.addEventListener("click", function () { select(c.dataset.mode); }); });
+    select("presenter");
+
+    // caption cycling on the explainer preview
+    var caps = [
+      'It doesn’t just respond — <span class="hl">it takes action.</span>',
+      'Give it a <span class="hl">goal</span>, it makes a <span class="hl">plan</span>.',
+      'It picks the <span class="hl">tools</span> and does the work.',
+      'A regular chatbot just talks. <span class="hl">An agent acts.</span>'
+    ];
+    if (!reduce) {
+      var ci = 0, cap = document.querySelector("#expcap b");
+      setInterval(function () { ci = (ci + 1) % caps.length; if (cap) cap.innerHTML = caps[ci]; }, 2600);
+    }
+  })();
+</script>
