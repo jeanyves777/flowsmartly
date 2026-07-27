@@ -1,4 +1,9 @@
 import puppeteer, { Browser } from "puppeteer";
+import { spawn } from "child_process";
+import { mkdtemp, rm, readFile } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+import { findFFmpegPath } from "@/lib/cartoon/video-compositor";
 
 /**
  * Headless-Chrome HTML→PNG renderer used by the Claude template-designer
@@ -143,6 +148,82 @@ async function renderOnce(html: string, opts: RenderHtmlOptions): Promise<Buffer
     return Buffer.from(screenshot);
   } finally {
     await page.close().catch(() => {});
+  }
+}
+
+export interface RenderVideoOptions {
+  width: number;
+  height: number;
+  /** Length of the clip in seconds. Frames = round(durationSec * fps), bounded. */
+  durationSec: number;
+  /** Capture rate — 18 is smooth for this designed-motion style and keeps renders quick. */
+  fps?: number;
+  /** 1 keeps the capture at the native canvas size (a video doesn't need retina 2x). */
+  deviceScaleFactor?: number;
+  fontLoadDelayMs?: number;
+}
+
+function runFfmpeg(cmd: string, args: string[], timeoutMs = 300_000): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(cmd, args, { windowsHide: true });
+    let stderr = "";
+    proc.stderr.on("data", (d) => { stderr += d.toString(); if (stderr.length > 12000) stderr = stderr.slice(-12000); });
+    const timer = setTimeout(() => { proc.kill("SIGKILL"); reject(new Error("ffmpeg timed out")); }, timeoutMs);
+    proc.on("error", (e) => { clearTimeout(timer); reject(e); });
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      code === 0 ? resolve() : reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-500)}`));
+    });
+  });
+}
+
+/**
+ * Render an ANIMATED HTML document (CSS keyframes) to an MP4 Buffer. The page's motion is
+ * captured DETERMINISTICALLY: every animation is paused, then for each frame we seek the Web
+ * Animations API to that timestamp and screenshot — so the output is exactly `durationSec`
+ * long and frame-accurate regardless of render speed (no realtime screen-recording jitter).
+ * Frames are JPEG (fast) → ffmpeg → H.264. Used for the on-camera-explainer's per-beat motion
+ * graphics. Reuses the shared browser + concurrency semaphore. [[voice-oncam-explainer-feature]]
+ */
+export async function renderHtmlToVideo(html: string, opts: RenderVideoOptions): Promise<Buffer> {
+  const ff = findFFmpegPath();
+  if (!ff) throw new Error("Video assembly is not available on this server (ffmpeg missing).");
+  const fps = opts.fps ?? 18;
+  const frames = Math.max(1, Math.min(300, Math.round(opts.durationSec * fps)));
+  const frameMs = 1000 / fps;
+  await acquireRenderSlot();
+  const dir = await mkdtemp(join(tmpdir(), "htmlvid-"));
+  try {
+    const browser = await getBrowser();
+    const page = await browser.newPage();
+    try {
+      await page.setViewport({ width: opts.width, height: opts.height, deviceScaleFactor: opts.deviceScaleFactor ?? 1 });
+      await page.setContent(html, { waitUntil: "networkidle0", timeout: 30_000 });
+      if (opts.fontLoadDelayMs ?? 250) await new Promise((r) => setTimeout(r, opts.fontLoadDelayMs ?? 250));
+      // Pause every animation so nothing advances on wall-clock time between screenshots.
+      await page.evaluate(() => { for (const a of document.getAnimations()) { try { a.pause(); } catch { /* noop */ } } });
+      for (let i = 0; i < frames; i++) {
+        const t = i * frameMs;
+        // Seek all animations to this frame's time and force a style/layout flush before capture.
+        await page.evaluate((ms) => {
+          for (const a of document.getAnimations()) { try { a.currentTime = ms; } catch { /* noop */ } }
+          void document.body.offsetHeight;
+        }, t);
+        await page.screenshot({ path: join(dir, `f${String(i).padStart(5, "0")}.jpg`), type: "jpeg", quality: 92 });
+      }
+    } finally {
+      await page.close().catch(() => {});
+    }
+    const out = join(dir, "out.mp4");
+    await runFfmpeg(ff, [
+      "-framerate", String(fps), "-i", join(dir, "f%05d.jpg"),
+      "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", String(fps),
+      "-movflags", "+faststart", "-y", out,
+    ]);
+    return await readFile(out);
+  } finally {
+    releaseRenderSlot();
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }
 

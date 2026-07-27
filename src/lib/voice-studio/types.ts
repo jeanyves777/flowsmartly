@@ -37,6 +37,9 @@ export interface ExplainerGraphic {
   items?: { label: string; icon?: string; sub?: string }[];
   /** A single big number/label for a `stat` card. */
   stat?: { value: string; label?: string };
+  /** ONE emoji that ILLUSTRATES this beat's subject (🏠 🤖 📺 📈 💬 …). Rendered as the
+   *  animated hero. Optional — falls back to a kind-appropriate default. */
+  subject?: string;
 }
 /** AI-generated, or a file the user brought. Never stock. */
 export type ShotSource = "ai" | "upload";

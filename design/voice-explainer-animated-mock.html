@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>On-camera explainer — animated motion graphics (preview)</title>
+<style>
+  :root{
+    --brand:#7c5cff;          /* brand accent — injected per user in the real build */
+    --brand-2:#22d3ee;        /* neon cyan companion */
+    --navy:#0b1020;
+    --navy-2:#0f1630;
+    --ink:#eef2ff;
+    --muted:#9aa6c8;
+    --card:#141b34;
+    --line:rgba(255,255,255,.10);
+    --font: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:var(--font);
+    background:
+      radial-gradient(1200px 700px at 20% -10%, #1b2450 0%, transparent 60%),
+      radial-gradient(900px 600px at 100% 110%, #16213f 0%, transparent 55%),
+      #070a16;
+    color:var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh; padding:28px 16px; gap:34px; flex-wrap:wrap;
+  }
+
+  /* ── phone-frame 9:16 stage ───────────────────────────── */
+  .stage-wrap{display:flex;flex-direction:column;align-items:center;gap:14px}
+  .phone{
+    position:relative; width:340px; height:604px; border-radius:30px;
+    background:var(--navy); overflow:hidden;
+    box-shadow:0 40px 90px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06),
+               inset 0 0 0 1px rgba(255,255,255,.04);
+  }
+  .caption-note{color:var(--muted);font-size:12.5px;letter-spacing:.02em;max-width:340px;text-align:center;line-height:1.5}
+
+  /* ── presenter plate (top 44%) — HeyGen Avatar IV take ── */
+  .presenter{
+    position:absolute; top:0; left:0; right:0; height:44%;
+    background:
+      radial-gradient(120% 90% at 50% 0%, #26305a 0%, #10152c 70%),
+      var(--navy-2);
+    overflow:hidden; z-index:3;
+  }
+  .presenter::after{content:"";position:absolute;inset:0;
+    background:linear-gradient(180deg,transparent 62%, rgba(11,16,32,.65) 100%);}
+  .avatar{
+    position:absolute; left:50%; bottom:-6px; transform:translateX(-50%);
+    width:190px; height:230px;
+    background:
+      radial-gradient(60px 74px at 50% 34%, #f3d9c2 0%, #e8c4a6 60%, #d9b193 100%) no-repeat,
+      linear-gradient(180deg,#2b3566,#1a2247) no-repeat;
+    background-size:100% 100%;
+    border-radius:90px 90px 20px 20px;
+    box-shadow:inset 0 -30px 40px rgba(0,0,0,.35);
+    animation:talk 2.6s ease-in-out infinite;
+  }
+  .avatar::before{ /* shoulders / torso */
+    content:""; position:absolute; left:50%; bottom:0; transform:translateX(-50%);
+    width:190px; height:120px; border-radius:60px 60px 0 0;
+    background:linear-gradient(180deg,#3a4a8f,#26306b);
+  }
+  .avatar .mouth{
+    position:absolute; left:50%; top:46%; transform:translateX(-50%);
+    width:26px; height:6px; border-radius:6px; background:#7c3b3b;
+    animation:mouth .32s ease-in-out infinite;
+  }
+  @keyframes talk{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-3px)}}
+  @keyframes mouth{0%,100%{height:4px}50%{height:11px}}
+  .presenter .tag{
+    position:absolute; left:12px; top:12px; z-index:4;
+    font-size:10.5px; letter-spacing:.06em; text-transform:uppercase;
+    color:#cbd6ff; background:rgba(12,18,40,.55); border:1px solid var(--line);
+    padding:4px 8px; border-radius:999px; backdrop-filter:blur(6px);
+  }
+
+  /* ── scene stage (bottom) — the ANIMATED graphics ─────── */
+  .scene{
+    position:absolute; left:0; right:0; bottom:0; height:56%;
+    background:
+      radial-gradient(90% 70% at 50% 120%, rgba(124,92,255,.16) 0%, transparent 60%),
+      linear-gradient(180deg,#0c1226 0%, #0a0f22 100%);
+    overflow:hidden; z-index:2;
+  }
+  .scene::before{ /* faint grid */
+    content:""; position:absolute; inset:0; opacity:.5;
+    background-image:
+      linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+    background-size:26px 26px;
+    -webkit-mask-image:radial-gradient(120% 90% at 50% 40%, #000 55%, transparent 90%);
+            mask-image:radial-gradient(120% 90% at 50% 40%, #000 55%, transparent 90%);
+  }
+  /* brand seam line under presenter */
+  .seam{position:absolute; top:44%; left:0; right:0; height:2px; z-index:3;
+    background:linear-gradient(90deg,transparent,var(--brand),var(--brand-2),transparent);
+    filter:drop-shadow(0 0 6px rgba(124,92,255,.7));}
+
+  .beat{position:absolute; inset:0; padding:20px 18px 22px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none;}
+  .beat.on{opacity:1; pointer-events:auto;}
+
+  /* title chip (kept above the seam per the approved static design) */
+  .kicker{position:absolute; top:calc(44% - 30px); left:50%; transform:translateX(-50%);
+    font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--brand-2);
+    z-index:4; white-space:nowrap;}
+
+  /* animated element base — driven by .on to (re)play on each beat */
+  .fly{opacity:0; transform:translateY(18px) scale(.9);}
+  .beat.on .fly{animation:flyIn .62s cubic-bezier(.2,.8,.2,1) forwards;}
+  @keyframes flyIn{to{opacity:1; transform:translateY(0) scale(1);}}
+  .beat.on .d1{animation-delay:.06s}.beat.on .d2{animation-delay:.20s}
+  .beat.on .d3{animation-delay:.34s}.beat.on .d4{animation-delay:.48s}
+  .beat.on .d5{animation-delay:.62s}
+
+  /* HERO subject illustration (emoji = recognizable subject: house/human/tv…) */
+  .hero{font-size:96px; line-height:1; filter:drop-shadow(0 14px 22px rgba(0,0,0,.5));}
+  .beat.on .hero{animation:pop .7s cubic-bezier(.2,1.3,.35,1) forwards, float 3.4s ease-in-out .7s infinite;}
+  @keyframes pop{0%{opacity:0;transform:scale(.4) rotate(-8deg)}60%{opacity:1;transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-9px)}}
+
+  .title{font-size:26px; font-weight:800; letter-spacing:-.01em; text-align:center; line-height:1.12; text-wrap:balance;}
+  .sub{color:var(--muted); font-size:13.5px; text-align:center; margin-top:6px; max-width:250px;}
+
+  /* iconflow: steps + drawing arrows */
+  .flow{display:flex; align-items:center; gap:8px}
+  .step{display:flex; flex-direction:column; align-items:center; gap:6px; width:74px}
+  .chip{width:60px; height:60px; border-radius:16px; display:grid; place-items:center; font-size:30px;
+    background:linear-gradient(160deg,#1c2547,#141b34);
+    border:1px solid var(--line); box-shadow:0 10px 20px rgba(0,0,0,.35), inset 0 0 0 1px rgba(124,92,255,.12);}
+  .step .lab{font-size:11px; color:#cdd6f4; text-align:center; font-weight:600}
+  .arrow{width:22px; height:22px; position:relative; opacity:0}
+  .beat.on .arrow{animation:flyIn .4s ease forwards}
+  .arrow svg{width:100%;height:100%}
+  .arrow path{stroke:var(--brand-2); stroke-width:2.4; fill:none; stroke-linecap:round;
+    stroke-dasharray:40; stroke-dashoffset:40;}
+  .beat.on .arrow path{animation:draw .5s ease forwards .2s}
+  @keyframes draw{to{stroke-dashoffset:0}}
+
+  /* keypoints around a hero subject */
+  .orbit{position:relative; width:230px; height:210px; display:grid; place-items:center}
+  .pt{position:absolute; display:flex; align-items:center; gap:7px; padding:7px 10px; border-radius:12px;
+    background:rgba(18,25,50,.85); border:1px solid var(--line); font-size:11.5px; font-weight:600;
+    box-shadow:0 8px 18px rgba(0,0,0,.4); white-space:nowrap; backdrop-filter:blur(4px);}
+  .pt .dot{width:8px;height:8px;border-radius:50%;background:var(--brand);box-shadow:0 0 8px var(--brand)}
+  .pt.p1{top:6px; left:-6px}.pt.p2{top:8px; right:-8px}
+  .pt.p3{bottom:8px; left:0}.pt.p4{bottom:2px; right:-2px}
+
+  /* stat: counter + bar */
+  .stat{font-size:64px; font-weight:900; letter-spacing:-.02em;
+    background:linear-gradient(180deg,#fff,#b9c4ff); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .bar{width:210px; height:12px; border-radius:999px; background:rgba(255,255,255,.09); overflow:hidden; margin-top:12px}
+  .bar > i{display:block; height:100%; width:0;
+    background:linear-gradient(90deg,var(--brand),var(--brand-2)); border-radius:999px;}
+  .beat.on .bar > i{animation:fill 1.1s cubic-bezier(.2,.8,.2,1) forwards .3s}
+  @keyframes fill{to{width:var(--pct,72%)}}
+
+  /* particles */
+  .spark{position:absolute; width:7px; height:7px; border-radius:50%; background:var(--brand-2);
+    opacity:.0; filter:drop-shadow(0 0 6px var(--brand-2));}
+  .beat.on .spark{animation:spark 2.6s ease-in-out infinite}
+  @keyframes spark{0%{opacity:0;transform:translateY(10px) scale(.6)}25%{opacity:.9}100%{opacity:0;transform:translateY(-26px) scale(1)}}
+
+  /* progress dots */
+  .dots{display:flex; gap:6px}
+  .dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.2);transition:.3s}
+  .dots i.on{background:var(--brand); box-shadow:0 0 8px var(--brand); width:16px; border-radius:6px}
+
+  .cap{position:absolute; left:14px; right:14px; bottom:12px; z-index:4; text-align:center;
+    font-size:12.5px; color:#e8ecff; text-shadow:0 2px 8px rgba(0,0,0,.7); line-height:1.35;}
+
+  .legend{max-width:340px}
+  .legend h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+  .legend li{font-size:13px;color:#cdd6f4;line-height:1.7;list-style:none;display:flex;gap:8px}
+  .legend li b{color:#fff}
+  .legend .k{color:var(--brand-2)}
+</style>
+</head>
+<body>
+  <div class="stage-wrap">
+    <div class="phone">
+      <!-- presenter -->
+      <div class="presenter">
+        <span class="tag">Presenter · HeyGen Avatar IV</span>
+        <div class="avatar"><span class="mouth"></span></div>
+      </div>
+      <div class="seam"></div>
+      <div class="kicker" id="kicker">WHAT IS AGENTIC AI?</div>
+
+      <!-- animated scenes -->
+      <div class="scene" id="scene">
+        <!-- beat 0: title -->
+        <div class="beat" data-beat="0">
+          <span class="spark" style="left:26%;top:30%"></span>
+          <span class="spark" style="left:70%;top:26%;animation-delay:.6s"></span>
+          <span class="spark" style="left:52%;top:56%;animation-delay:1.1s"></span>
+          <div class="hero">🤖</div>
+          <div class="title fly d2">AI that <span style="color:var(--brand-2)">acts</span>, not just answers</div>
+          <div class="sub fly d3">It perceives, decides, and takes action for you.</div>
+        </div>
+
+        <!-- beat 1: iconflow -->
+        <div class="beat" data-beat="1">
+          <div class="title fly d1" style="font-size:19px;margin-bottom:16px">How an agent works</div>
+          <div class="flow">
+            <div class="step fly d2"><div class="chip">👁️</div><div class="lab">Perceive</div></div>
+            <div class="arrow"><svg viewBox="0 0 24 24"><path d="M3 12 H19 M14 7 L20 12 L14 17"/></svg></div>
+            <div class="step fly d3"><div class="chip">🧠</div><div class="lab">Decide</div></div>
+            <div class="arrow"><svg viewBox="0 0 24 24"><path d="M3 12 H19 M14 7 L20 12 L14 17"/></svg></div>
+            <div class="step fly d4"><div class="chip">⚡</div><div class="lab">Act</div></div>
+          </div>
+        </div>
+
+        <!-- beat 2: keypoints around a real-world subject -->
+        <div class="beat" data-beat="2">
+          <div class="title fly d1" style="font-size:19px;margin-bottom:8px">It runs your world</div>
+          <div class="orbit">
+            <div class="hero" style="font-size:104px">🏠</div>
+            <div class="pt p1 fly d2"><span class="dot"></span>Books appointments</div>
+            <div class="pt p2 fly d3"><span class="dot"></span>Answers calls</div>
+            <div class="pt p3 fly d4"><span class="dot"></span>Sends follow-ups</div>
+            <div class="pt p4 fly d5"><span class="dot"></span>Closes leads</div>
+          </div>
+        </div>
+
+        <!-- beat 3: stat -->
+        <div class="beat" data-beat="3">
+          <span class="spark" style="left:30%;top:22%"></span>
+          <span class="spark" style="left:66%;top:30%;animation-delay:.7s"></span>
+          <div class="hero" style="font-size:58px">📈</div>
+          <div class="stat fly d2"><span id="count">0</span>%</div>
+          <div class="bar fly d2" style="--pct:78%"><i></i></div>
+          <div class="sub fly d3">of routine work handled without you lifting a finger.</div>
+        </div>
+
+        <div class="cap" id="cap"></div>
+      </div>
+    </div>
+    <div class="dots" id="dots"><i class="on"></i><i></i><i></i><i></i></div>
+    <div class="caption-note">Preview loops the 4 beats. In the real render each beat is captured to video and stitched under the presenter — one shared voice track keeps them in sync.</div>
+  </div>
+
+  <div class="legend">
+    <h3>What's animated (the fix)</h3>
+    <ul>
+      <li>🎬 <span><b>Real motion, not stills.</b> Each beat's <span class="k">subject illustration</span> (🤖 🏠 📈 …) pops in, floats, and its supporting chips/labels <span class="k">fly in staggered</span>, arrows <span class="k">draw</span>, numbers <span class="k">count up</span>.</span></li>
+      <li>⏱️ <span><b>Follows the pace.</b> Each scene's entrance + hold is timed to that beat's narration length — no dead air, the picture moves while the presenter talks.</span></li>
+      <li>🧩 <span><b>Subject-aware.</b> The drafter picks the illustration + layout per beat (title / flow / key-points / stat) from the script — a house for “your business”, a brain for “decides”, a chart for a result.</span></li>
+      <li>🔗 <span><b>Same designed look</b> as the approved static version — we just render the HTML/CSS scene <b>to video</b> instead of a PNG.</span></li>
+    </ul>
+  </div>
+
+<script>
+  const beats = [...document.querySelectorAll('.beat')];
+  const dots  = [...document.querySelectorAll('#dots i')];
+  const caps  = [
+    "Agentic AI doesn’t just answer — it takes action.",
+    "It perceives what’s happening, decides, then acts.",
+    "One agent runs the busywork across your business.",
+    "Handling most routine work automatically.",
+  ];
+  const HOLD = [4200, 4200, 4600, 4200];
+  let i = -1;
+
+  function countUp(el, to, ms){
+    const start = performance.now();
+    function step(t){
+      const p = Math.min(1, (t-start)/ms);
+      el.textContent = Math.round(to * (p<1 ? (1-Math.pow(1-p,2)) : 1));
+      if(p<1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function show(n){
+    beats.forEach(b=>b.classList.remove('on'));
+    dots.forEach((d,k)=>d.classList.toggle('on',k===n));
+    const b = beats[n];
+    // reflow so the fly-in animations replay each cycle
+    void b.offsetWidth;
+    b.classList.add('on');
+    document.getElementById('cap').textContent = caps[n];
+    if(n===3){ const c=document.getElementById('count'); c.textContent='0'; setTimeout(()=>countUp(c,78,1000),300); }
+  }
+  function tick(){ i=(i+1)%beats.length; show(i); setTimeout(tick, HOLD[i]); }
+  tick();
+</script>
+</body>
+</html>

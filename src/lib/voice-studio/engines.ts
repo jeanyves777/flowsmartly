@@ -25,7 +25,7 @@ import {
   compositeTimedText, silentAudio, overlayTopBand,
 } from "@/lib/video-director/clip-helpers";
 import { concatenateVideoBuffers } from "@/lib/video/concat-videos";
-import { renderExplainerGraphic } from "./explainer-graphic";
+import { renderExplainerGraphic, renderExplainerVideo } from "./explainer-graphic";
 import { getUserBrand } from "@/lib/brand/get-brand";
 import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { isCreditExhaustion, creditExhaustionUserMessage, alertAdminsCreditExhaustion } from "@/lib/ops/provider-credit-alert";
@@ -659,20 +659,29 @@ export async function composeOnCam(id: string, userId: string): Promise<void> {
       let clip: Buffer | null = null;
       try {
         if (s.graphic) {
-          // Reuse the graphic already rendered at beat time (imageUrl); render fresh only if missing.
-          const png = isUrl(s.imageUrl) ? await toBuffer(s.imageUrl) : await renderExplainerGraphic(s.graphic, { width: w, height: h, presenterPct, brand: gBrand });
-          clip = await imageToClip(png, s.holdSec, w, h);
+          // Designed beat → ANIMATED motion graphic (hero pops+floats, items fly in, wires draw),
+          // paced to this beat's hold so the picture moves with the narration. Fall back to a still
+          // clip only if the animated render fails, so a beat never drops out of the film.
+          try {
+            clip = await renderExplainerVideo(s.graphic, s.holdSec, { width: w, height: h, presenterPct, brand: gBrand });
+          } catch (e) {
+            console.error(`[voice-studio] oncam animated beat ${s.id} fell back to still:`, e instanceof Error ? e.message : e);
+            const png = isUrl(s.imageUrl) ? await toBuffer(s.imageUrl) : await renderExplainerGraphic(s.graphic, { width: w, height: h, presenterPct, brand: gBrand });
+            clip = await imageToClip(png, s.holdSec, w, h);
+          }
         } else if (isUrl(s.videoUrl)) {
           clip = await fitClipTo(await toBuffer(s.videoUrl), w, h, s.holdSec);
         } else if (isUrl(s.imageUrl)) {
           clip = await imageToKenBurnsClip(await toBuffer(s.imageUrl), s.holdSec, w, h, s.move);
         } else {
-          // No bottom asset — a branded title/caption frame so the beat still reads.
-          const png = await renderExplainerGraphic(
-            { kind: "title", headline: p.title, caption: s.line },
-            { width: w, height: h, presenterPct, brand: gBrand },
-          );
-          clip = await imageToClip(png, s.holdSec, w, h);
+          // No bottom asset — an animated branded title/caption frame so the beat still reads.
+          const g = { kind: "title" as const, headline: p.title, caption: s.line };
+          try {
+            clip = await renderExplainerVideo(g, s.holdSec, { width: w, height: h, presenterPct, brand: gBrand });
+          } catch {
+            const png = await renderExplainerGraphic(g, { width: w, height: h, presenterPct, brand: gBrand });
+            clip = await imageToClip(png, s.holdSec, w, h);
+          }
         }
         // Designed graphics already carry their caption; burn one on b-roll beats.
         if (clip && p.captionsOn && !s.graphic && s.line.trim()) {
