@@ -146,7 +146,7 @@ interface OnCamBeat {
   line?: string;
   bottom?: "graphic" | "broll";
   graphic?: {
-    kind?: string; headline?: string; caption?: string;
+    kind?: string; headline?: string; caption?: string; subject?: string;
     items?: { label?: string; icon?: string; sub?: string }[];
     stat?: { value?: string; label?: string };
   };
@@ -180,6 +180,7 @@ async function draftOnCam(id: string, userId: string, p: NarrationProject, brief
     `- Make ALMOST EVERY beat a "graphic". Even a real-world EXAMPLE becomes a DIAGRAM, never a photo — e.g. a thermostat is an iconflow "SENSES → DECIDES → ACTS", not a picture of a thermostat. Turn the idea into steps/points/a number. Fill "graphic":\n` +
     `   • "kind": "iconflow" (2-4 SEQUENTIAL steps/stages) | "keypoints" (2-5 PARALLEL points) | "stat" (one big number) | "quote" (a punchy line) | "title" (a section-title card) | "diagram".\n` +
     `   • "headline": a SHORT all-caps on-screen title (e.g. "WHAT IS AGENTIC AI?"). Use on the opening beat and when the section changes; omit otherwise.\n` +
+    `   • "subject": EXACTLY ONE emoji that ILLUSTRATES what THIS beat is about — the concrete thing being discussed (🏠 house, 🤖 robot/AI, 📞 calls, 📈 growth, 💬 chat, 🧠 decisions, 🛒 store, 👥 customers, 📅 bookings, ⚙️ how-it-works…). Pick the most literal object for the beat; it becomes the animated hero. ALWAYS include it.\n` +
     `   • "caption": the ONE-LINE takeaway burned at the bottom — short and punchy.\n` +
     `   • "items" (iconflow/keypoints): 2-5 of {"label":"SHORT CAPS WORD","icon":ONE OF [${ICON_KEYS.join(", ")}],"sub":"optional 2-4 word detail"}. Labels MUST be the REAL steps/points of the content — never generic filler.\n` +
     `   • "stat" (stat kind): {"value":"40%","label":"short label"}.\n` +
@@ -187,7 +188,7 @@ async function draftOnCam(id: string, userId: string, p: NarrationProject, brief
     `- So: of ~${approxBeats} beats, at least ${Math.max(1, approxBeats - 1)} MUST be "graphic".\n\n` +
     `Return JSON ONLY:\n` +
     `{"title":"short title","script":"the full narration","beats":[` +
-    `{"line":"exact slice","bottom":"graphic","graphic":{"kind":"iconflow","headline":"WHAT IS AGENTIC AI?","caption":"It doesn't just respond — it takes action.","items":[{"label":"GOAL","icon":"goal"},{"label":"PLAN","icon":"plan"},{"label":"TOOLS","icon":"tools"},{"label":"ACTION","icon":"action"}]}},` +
+    `{"line":"exact slice","bottom":"graphic","graphic":{"kind":"iconflow","headline":"WHAT IS AGENTIC AI?","subject":"🤖","caption":"It doesn't just respond — it takes action.","items":[{"label":"GOAL","icon":"goal"},{"label":"PLAN","icon":"plan"},{"label":"TOOLS","icon":"tools"},{"label":"ACTION","icon":"action"}]}},` +
     `{"line":"exact slice","bottom":"broll","prompt":"...","motion":"image"}]}`;
 
   let json: OnCamDraftShape | null = null;
@@ -218,6 +219,7 @@ async function draftOnCam(id: string, userId: string, p: NarrationProject, brief
       const graphic: ExplainerGraphic = {
         kind,
         headline: g.headline ? String(g.headline).trim().slice(0, 60) : undefined,
+        subject: g.subject ? String(g.subject).trim().slice(0, 8) : undefined, // one emoji (ZWJ-safe cap)
         caption: g.caption ? String(g.caption).trim().slice(0, 140) : line.slice(0, 140),
         items,
         stat: g.stat?.value ? { value: String(g.stat.value).slice(0, 12), label: g.stat.label ? String(g.stat.label).slice(0, 40) : undefined } : undefined,
