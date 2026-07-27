@@ -61,6 +61,7 @@ import { FocusedLogo } from "./focused/logo-workspace";
 import { FocusedVoice } from "./focused/voice-workspace";
 import { FocusedNarration } from "./focused/narration-workspace";
 import { FocusedClone } from "./focused/clone-workspace";
+import { FocusedPodcast } from "./focused/podcast-workspace";
 import { FocusedVoiceAgent } from "./focused/voice-agent-workspace";
 import { FocusedTraining } from "./focused/training-workspace";
 import { FocusedVideo } from "./focused/video-workspace";
@@ -177,6 +178,7 @@ const FOCUS_META: Record<string, { label: string; subtitle: string; icon: Lucide
   voice: { label: "Voice studio", subtitle: "A voiceover, or a narrated video", icon: Mic },
   voices: { label: "Voices & cloning", subtitle: "Clone your voice, manage the rest", icon: Mic },
   clone: { label: "Clone yourself", subtitle: "Your face in any scene, outfit or pose", icon: UserSquare2 },
+  podcast: { label: "Video Podcast", subtitle: "Two speakers, one conversation — we write, voice & cut it", icon: Mic },
   voiceagent: { label: "Voice Agent", subtitle: "An agent that answers your phone — books, takes messages, logs every call", icon: PhoneCall },
   training: { label: "Training Room", subtitle: "Live rooms — everyone on video, a shared whiteboard, your docs on the board", icon: GraduationCap },
   avatar: { label: "Avatar Studio", subtitle: "Talking-avatar videos from your clone", icon: UserSquare2 },
@@ -325,7 +327,7 @@ const AGENT_VIEW: Record<string, { surface: string; label: string }> = {
 // "grow" and "business" are category CONTAINERS (they open a nav panel, not a
 // real surface) — deliberately excluded so /home/grow and /home/business deep-
 // link cleanly to Home instead of a "coming soon" placeholder.
-const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "voices", "clone", "voiceagent", "training", "video", "director", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
+const FOCUS_VIEWS = new Set(["create", "print", "brand", "analytics", "billing", "connections", "account", "profile", "publish", "sell", "web", "portfolio", "landing", "outreach", "domains", "pitch", "forms", "automations", "customers", "reviews", "leads", "pitchstudio", "campaign", "compose", "email", "sms", "whatsapp", "teams", "referrals", "media", "logo", "voice", "voices", "clone", "podcast", "voiceagent", "training", "video", "director", "reel", "avatar", "delivery", "adbuilder", "storyad", "calendar", "credits", "plans"]);
 
 // Views reached FROM the store (Sell) — they get a "Back to store" so the user
 // returns to the store dashboard instead of exiting all the way to the menu.
@@ -1512,6 +1514,8 @@ export function AgentHome() {
                   <FocusedVoice onAsk={sendAction} onOpenView={openView} refreshKey={actionCount} working={sending} />
                 ) : focused === "clone" ? (
                   <FocusedClone onOpenView={openView} />
+                ) : focused === "podcast" ? (
+                  <FocusedPodcast />
                 ) : focused === "voiceagent" ? (
                   <FocusedVoiceAgent onOpenView={openView} />
                 ) : focused === "training" ? (

@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FlowSmartly · Video Podcast Studio — mock</title>
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     FlowSmartly · Video Podcast Studio — interactive design mock.
+     Two speakers (host + guest) → AI writes the back-and-forth (or paste
+     your own) → each turn renders as a talking clip and we cut between a
+     2-shot "full scene" and single-speaker close-ups → one podcast.
+     Built on what already exists: photo-avatars (Clone / Avatar library),
+     cloned/library voices, HeyGen Avatar-IV lip-sync, our stitch+composite.
+     Dark studio theme to match /home. Self-contained; vanilla JS.
+  ───────────────────────────────────────────────────────────── */
+  *,*::before,*::after{box-sizing:border-box;}
+  :root{
+    --bg:#08080d; --panel:#0f0f16; --card:#15151e; --card2:#1b1b26; --card3:#20202c;
+    --border:rgba(255,255,255,.09); --border-2:rgba(255,255,255,.17);
+    --text:#edecf2; --muted:#8b8b9a; --muted-2:#63636f;
+    --brand:#38bdf8; --brand-2:#3b82f6; --violet:#8b5cf6;
+    --brand-soft:rgba(56,189,248,.13); --violet-soft:rgba(139,92,246,.14);
+    --pink:#ec4899; --amber:#f5a623; --ok:#34d399; --danger:#ff4d5a;
+    --r:14px; --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  body{margin:0;background:
+      radial-gradient(1200px 620px at 82% -10%, rgba(56,189,248,.10), transparent 60%),
+      radial-gradient(900px 500px at 8% 110%, rgba(139,92,246,.09), transparent 60%),
+      var(--bg);
+    color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;line-height:1.45;padding:22px 18px 70px;}
+  .wrap{max-width:1200px;margin:0 auto;}
+  button{font:inherit;color:inherit;cursor:pointer;}
+
+  /* mock context bar */
+  .mockbar{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin:0 4px 18px;color:var(--muted);font-size:12px;}
+  .mockbar .logo{display:flex;align-items:center;gap:8px;color:var(--text);font-weight:800;letter-spacing:-.01em;}
+  .mockbar .dot{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:#fff;font-weight:900;font-size:13px;}
+  .mockbar .tag{margin-left:auto;border:1px solid var(--border);border-radius:999px;padding:4px 11px;background:var(--card);font-weight:600;}
+
+  /* studio header */
+  .shead{display:flex;align-items:center;gap:14px;margin:0 2px 18px;}
+  .back{width:38px;height:38px;border-radius:999px;border:1px solid var(--border);background:var(--card);display:grid;place-items:center;flex:0 0 auto;}
+  .shead h1{margin:0;font-size:22px;letter-spacing:-.02em;}
+  .shead p{margin:2px 0 0;color:var(--muted);font-size:12.5px;}
+  .shead .right{margin-left:auto;display:flex;align-items:center;gap:9px;}
+  .credit{border:1px solid var(--border);background:var(--card);border-radius:999px;padding:6px 12px;font-weight:700;font-size:12.5px;display:flex;align-items:center;gap:6px;}
+  .credit b{color:var(--brand);}
+  .exit{border:1px solid var(--border);background:var(--card);border-radius:10px;padding:7px 13px;font-size:12.5px;color:var(--muted);}
+
+  .grid{display:grid;grid-template-columns:1.34fr .66fr;gap:20px;align-items:start;}
+  @media (max-width:940px){.grid{grid-template-columns:1fr;}}
+
+  .panel{background:linear-gradient(180deg,var(--panel),#0c0c12);border:1px solid var(--border);border-radius:20px;padding:20px;box-shadow:0 30px 80px -46px rgba(0,0,0,.9);}
+  .label{font-size:10.5px;font-weight:800;letter-spacing:.13em;color:var(--muted);text-transform:uppercase;margin:22px 0 9px;display:flex;align-items:center;gap:8px;}
+  .label:first-child{margin-top:0;}
+  .label .thin{color:var(--muted-2);font-weight:600;letter-spacing:.02em;text-transform:none;}
+  .label .link{margin-left:auto;color:var(--brand);font-weight:700;letter-spacing:0;text-transform:none;font-size:11.5px;display:inline-flex;align-items:center;gap:5px;border:0;background:none;padding:0;}
+
+  /* speaker rows */
+  .speaker{display:flex;align-items:center;gap:14px;border:1px solid var(--border);border-radius:16px;padding:12px 14px;background:var(--card);transition:border-color .15s;}
+  .speaker:hover{border-color:var(--border-2);}
+  .speaker.host{background:linear-gradient(100deg,var(--brand-soft),transparent 60%);}
+  .speaker.guest{background:linear-gradient(100deg,var(--violet-soft),transparent 60%);}
+  .avatar{position:relative;width:58px;height:58px;border-radius:999px;flex:0 0 auto;overflow:hidden;border:2px solid var(--border-2);display:grid;place-items:center;background:#0d0d15;cursor:pointer;}
+  .avatar svg{width:30px;height:30px;color:var(--muted);}
+  .avatar.h{background:radial-gradient(circle at 40% 30%, #1b3a5a, #0b1c2e);}
+  .avatar.g{background:radial-gradient(circle at 40% 30%, #3a2154, #1c1030);}
+  .avatar .edit{position:absolute;right:-2px;bottom:-2px;width:20px;height:20px;border-radius:999px;background:var(--brand-2);border:2px solid var(--panel);display:grid;place-items:center;color:#fff;font-size:10px;}
+  .sp-body{min-width:0;flex:1;}
+  .sp-role{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);}
+  .sp-name{font-weight:800;font-size:14px;margin:1px 0 6px;}
+  .voice-btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:var(--card2);border-radius:999px;padding:5px 11px 5px 6px;font-size:12px;color:var(--text);}
+  .voice-btn .play{width:20px;height:20px;border-radius:999px;background:#0d0d15;display:grid;place-items:center;color:var(--brand);font-size:9px;}
+  .voice-btn.set{border-color:var(--brand);color:var(--brand);}
+  .swap{width:34px;height:34px;border-radius:999px;border:1px solid var(--border);background:var(--card2);display:grid;place-items:center;margin:8px auto;color:var(--muted);}
+
+  /* content box */
+  .content{border:1px solid var(--border);border-radius:16px;background:var(--card);overflow:hidden;}
+  .content textarea{width:100%;min-height:150px;resize:vertical;border:0;background:transparent;color:var(--text);font:inherit;font-size:13.5px;padding:14px 15px;outline:none;}
+  .content textarea::placeholder{color:var(--muted-2);}
+  .content .toolbar{display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--border);background:var(--card2);flex-wrap:wrap;}
+  .iconbtn{width:32px;height:32px;border-radius:9px;border:1px solid var(--border);background:var(--card);display:grid;place-items:center;color:var(--muted);}
+  .iconbtn:hover{color:var(--text);border-color:var(--border-2);}
+  .toggle{display:inline-flex;align-items:center;gap:9px;font-size:12.5px;color:var(--muted);}
+  .tg{width:38px;height:22px;border-radius:999px;background:#2a2a36;position:relative;transition:background .15s;border:1px solid var(--border);flex:0 0 auto;}
+  .tg::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:999px;background:#fff;transition:transform .15s;}
+  .toggle.on .tg{background:var(--brand-2);} .toggle.on .tg::after{transform:translateX(16px);}
+  .select{margin-left:auto;position:relative;}
+  .select>button{display:flex;align-items:center;gap:8px;border:1px solid var(--brand);border-radius:10px;background:var(--card);padding:7px 12px;font-size:12.5px;font-weight:700;color:var(--text);}
+  .menu{position:absolute;bottom:calc(100% + 6px);right:0;min-width:150px;background:var(--card3);border:1px solid var(--border-2);border-radius:12px;padding:6px;box-shadow:0 20px 50px -20px rgba(0,0,0,.9);display:none;z-index:20;}
+  .menu.open{display:block;}
+  .menu button{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:none;padding:8px 10px;border-radius:8px;font-size:12.5px;color:var(--text);}
+  .menu button:hover{background:var(--card);}
+  .menu button.sel{color:var(--brand);}
+  .gem{color:var(--amber);font-size:11px;}
+
+  /* option rows */
+  .optrow{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px;}
+  @media (max-width:560px){.optrow{grid-template-columns:1fr;}}
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:12px;background:var(--card);padding:4px;gap:4px;}
+  .seg button{border:0;background:none;border-radius:9px;padding:8px 12px;font-size:12.5px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:6px;}
+  .seg button.on{background:var(--brand-2);color:#fff;}
+  .drop{border:1px solid var(--border);border-radius:11px;background:var(--card);padding:9px 12px;font-size:12.5px;font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;}
+  .hintline{font-size:11px;color:var(--muted-2);margin-top:7px;}
+
+  /* right: preview */
+  .prev-title{font-weight:800;font-size:13px;margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+  .stage{display:grid;grid-template-columns:1fr .42fr;gap:9px;}
+  .full{aspect-ratio:16/9;border-radius:12px;border:1px solid var(--border);background:linear-gradient(160deg,#101826,#0a0e18);position:relative;overflow:hidden;display:grid;place-items:center;}
+  .side{display:grid;grid-template-rows:1fr 1fr;gap:9px;}
+  .cut{border-radius:10px;border:1px solid var(--border);background:linear-gradient(160deg,#141020,#0b0913);position:relative;overflow:hidden;display:grid;place-items:center;min-height:64px;}
+  .cut .cap,.full .cap{position:absolute;left:8px;bottom:7px;font-size:9.5px;font-weight:700;color:#cfd6e6;background:rgba(0,0,0,.45);padding:2px 7px;border-radius:6px;}
+  .stage .live{outline:2px solid var(--brand);outline-offset:-2px;box-shadow:0 0 0 4px var(--brand-soft);}
+  /* two seated figures in the full scene */
+  .figs{display:flex;gap:26px;align-items:flex-end;height:100%;padding:14px 0 0;}
+  .fig{width:52px;text-align:center;opacity:.9;}
+  .fig .head{width:34px;height:34px;border-radius:999px;margin:0 auto 3px;}
+  .fig .body{width:46px;height:34px;border-radius:16px 16px 4px 4px;margin:0 auto;}
+  .fig.h .head{background:#2c5a86;} .fig.h .body{background:#21486b;}
+  .fig.g .head{background:#5a3a86;} .fig.g .body{background:#472b6b;}
+  .fig.talk{opacity:1;transform:translateY(-2px);}
+  .fig.talk .head{box-shadow:0 0 0 3px var(--brand-soft);}
+  .mini{width:40px;height:40px;border-radius:999px;}
+  .mini.h{background:radial-gradient(circle at 40% 30%,#2c5a86,#12283d);}
+  .mini.g{background:radial-gradient(circle at 40% 30%,#5a3a86,#2a1a44);}
+
+  .details{margin-top:16px;border:1px solid var(--border);border-radius:14px;background:var(--card);min-height:120px;padding:14px;}
+  .details .empty{color:var(--muted-2);font-size:12.5px;text-align:center;padding:26px 8px;}
+  .turn{display:flex;gap:9px;margin-bottom:11px;font-size:12.5px;}
+  .turn .who{flex:0 0 auto;width:20px;height:20px;border-radius:999px;margin-top:1px;}
+  .turn .who.h{background:var(--brand-2);} .turn .who.g{background:var(--violet);}
+  .turn .txt b{display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:2px;}
+  .genbtn{margin-top:14px;width:100%;border:0;border-radius:12px;padding:13px;font-weight:800;font-size:13.5px;color:#04121c;background:linear-gradient(90deg,#7ee0ff,#38bdf8);display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 14px 34px -16px rgba(56,189,248,.6);}
+  .genbtn.busy{filter:grayscale(.2);opacity:.85;}
+  .costline{text-align:center;font-size:11px;color:var(--muted);margin-top:9px;}
+  .costline b{color:var(--text);}
+
+  /* how it works strip */
+  .how{margin-top:20px;border:1px dashed var(--border-2);border-radius:16px;padding:15px 16px;background:rgba(255,255,255,.015);}
+  .how h4{margin:0 0 10px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);}
+  .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+  @media (max-width:720px){.steps{grid-template-columns:1fr 1fr;}}
+  .step{font-size:12px;color:var(--muted);}
+  .step .n{width:24px;height:24px;border-radius:8px;background:var(--card2);border:1px solid var(--border);display:grid;place-items:center;font-weight:800;color:var(--brand);margin-bottom:7px;font-size:12px;}
+  .step b{color:var(--text);display:block;font-size:12.5px;margin-bottom:2px;}
+
+  /* picker modal */
+  .scrim{position:fixed;inset:0;background:rgba(4,4,8,.66);backdrop-filter:blur(3px);display:none;place-items:center;z-index:60;padding:20px;}
+  .scrim.open{display:grid;}
+  .picker{width:100%;max-width:520px;background:var(--panel);border:1px solid var(--border-2);border-radius:18px;padding:18px;box-shadow:0 40px 90px -30px #000;}
+  .picker h3{margin:0 0 3px;font-size:15px;}
+  .picker p{margin:0 0 14px;color:var(--muted);font-size:12px;}
+  .pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  @media (max-width:460px){.pgrid{grid-template-columns:repeat(3,1fr);}}
+  .pcard{border:2px solid var(--border);border-radius:13px;background:var(--card);padding:9px;text-align:center;}
+  .pcard:hover{border-color:var(--border-2);}
+  .pcard.sel{border-color:var(--brand);}
+  .pface{width:100%;aspect-ratio:1;border-radius:10px;margin-bottom:6px;}
+  .pcard small{font-size:10.5px;color:var(--muted);display:block;line-height:1.2;}
+  .pcard b{font-size:11.5px;display:block;}
+  .picker .prow{display:flex;gap:8px;margin-top:15px;}
+  .picker .prow button{flex:1;border-radius:11px;padding:10px;font-weight:700;font-size:12.5px;}
+  .btn-ghost{border:1px solid var(--border);background:var(--card);color:var(--muted);}
+  .btn-solid{border:0;background:linear-gradient(90deg,#7ee0ff,#38bdf8);color:#04121c;}
+  .upload-strip{border:1px dashed var(--border-2);border-radius:11px;padding:11px;text-align:center;color:var(--muted);font-size:12px;margin-top:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="mockbar">
+    <span class="logo"><span class="dot">F</span> FlowSmartly</span>
+    <span class="tag">Design mock · Video Podcast Studio · v1</span>
+  </div>
+
+  <div class="shead">
+    <button class="back" aria-label="Back">‹</button>
+    <div>
+      <h1>Video Podcast</h1>
+      <p>Two speakers, one conversation — we write it, voice it, and cut it into a real podcast.</p>
+    </div>
+    <div class="right">
+      <span class="credit">⚡ <b>8,338</b> credits</span>
+      <button class="exit">✕ Exit</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- LEFT: the brief -->
+    <section class="panel">
+      <div class="label">Speakers</div>
+
+      <div class="speaker host">
+        <div class="avatar h" data-pick="host" title="Choose the host avatar">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.5-9 6v2h18v-2c0-3.5-4-6-9-6z"/></svg>
+          <span class="edit">✎</span>
+        </div>
+        <div class="sp-body">
+          <div class="sp-role">Host</div>
+          <div class="sp-name" id="hostName">Choose an avatar</div>
+          <button class="voice-btn" data-voice="host"><span class="play">▶</span> Select a voice</button>
+        </div>
+      </div>
+
+      <div class="swap" title="Swap host & guest">⇅</div>
+
+      <div class="speaker guest">
+        <div class="avatar g" data-pick="guest" title="Choose the guest avatar">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.5-9 6v2h18v-2c0-3.5-4-6-9-6z"/></svg>
+          <span class="edit">✎</span>
+        </div>
+        <div class="sp-body">
+          <div class="sp-role">Guest</div>
+          <div class="sp-name" id="guestName">Choose an avatar</div>
+          <button class="voice-btn" data-voice="guest"><span class="play">▶</span> Select a voice</button>
+        </div>
+        <button class="label link" style="margin:0;align-self:flex-start" id="inviteBtn">★ Invite a real guest</button>
+      </div>
+
+      <div class="label">Podcast content <span class="thin">— what should they talk about?</span></div>
+      <div class="content">
+        <textarea id="content" placeholder="Describe the episode: a topic, talking points, a link, or paste a document. We'll write a natural back-and-forth between your two speakers.
+
+e.g. “A 3-minute chat about how small businesses can use AI to get more reviews — friendly, a few concrete examples, end with one clear call to action.”"></textarea>
+        <div class="toolbar">
+          <button class="iconbtn" title="Upload a document (PDF, doc, notes)">⤒</button>
+          <button class="iconbtn" title="Let AI draft the conversation">✦</button>
+          <label class="toggle" id="ownScript"><span class="tg"></span> Use my own script</label>
+          <div class="select" id="durSelect">
+            <button>1 min <span style="color:var(--muted)">▾</span></button>
+            <div class="menu">
+              <button data-dur="1" class="sel">1 min <span>✓</span></button>
+              <button data-dur="2">2 min <span class="gem">◆</span></button>
+              <button data-dur="3">3 min <span class="gem">◆</span></button>
+              <button data-dur="5">5 min <span class="gem">◆</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hintline" id="scriptHint">AI writes the conversation from your brief. Flip <b>Use my own script</b> to paste an exact <code>Host:</code> / <code>Guest:</code> transcript instead.</div>
+
+      <div class="optrow">
+        <div>
+          <div class="label">Quality</div>
+          <div class="seg" id="qual">
+            <button class="on" data-q="std">720p · Standard</button>
+            <button data-q="hd">1080p · Quality <span class="gem">◆</span></button>
+          </div>
+        </div>
+        <div>
+          <div class="label">Video layout</div>
+          <div class="seg" id="layout">
+            <button class="on" data-l="16:9">▭ 16:9</button>
+            <button data-l="1:1">◻ 1:1</button>
+            <button data-l="9:16">▯ 9:16</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="label">Cutting style <span class="thin">— how we move between shots</span></div>
+      <div class="seg" id="cut" style="flex-wrap:wrap">
+        <button class="on" data-c="auto">✨ Auto (recommended)</button>
+        <button data-c="two">Mostly the 2-shot</button>
+        <button data-c="close">Mostly close-ups</button>
+      </div>
+
+      <div class="label">Scene instructions <span class="thin">(optional)</span></div>
+      <input class="drop" style="width:100%" id="scene" placeholder="e.g. warm studio, wooden desk, soft key light, coffee mugs" />
+
+      <div class="how">
+        <h4>How it comes together</h4>
+        <div class="steps">
+          <div class="step"><div class="n">1</div><b>Pick 2 speakers</b>Photo avatars from your Clones or Avatar library, each with its own voice.</div>
+          <div class="step"><div class="n">2</div><b>We write it</b>A natural host↔guest conversation from your brief — or paste your own.</div>
+          <div class="step"><div class="n">3</div><b>We shoot it</b>Each turn is lip-synced, then cut between a 2-shot and close-ups.</div>
+          <div class="step"><div class="n">4</div><b>One podcast</b>Stitched into a single video, saved to your library, ready to publish.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: preview -->
+    <aside class="panel">
+      <p class="prev-title">◎ Live layout preview</p>
+      <div class="stage">
+        <div class="full live" id="cutFull">
+          <div class="figs"><div class="fig h talk" id="figH"><div class="head"></div><div class="body"></div></div><div class="fig g" id="figG"><div class="head"></div><div class="body"></div></div></div>
+          <span class="cap">Full scene · 2-shot</span>
+        </div>
+        <div class="side">
+          <div class="cut" id="cutH"><div class="mini h"></div><span class="cap">Host</span></div>
+          <div class="cut" id="cutG"><div class="mini g"></div><span class="cap">Guest</span></div>
+        </div>
+      </div>
+      <div class="hintline" id="cutNote">Auto-cuts to whoever's talking, dropping to the 2-shot on hand-offs.</div>
+
+      <div class="label" style="margin-top:16px">Podcast details</div>
+      <div class="details" id="details">
+        <div class="empty">Your episode title, description and the written conversation will appear here.</div>
+      </div>
+
+      <button class="genbtn" id="gen">✦ Generate preview</button>
+      <div class="costline" id="cost">Preview is free · full render <b>~9 cr / min</b> of finished podcast</div>
+    </aside>
+  </div>
+</div>
+
+<!-- avatar picker -->
+<div class="scrim" id="scrim">
+  <div class="picker">
+    <h3 id="pkTitle">Choose the host</h3>
+    <p>Pick a photo avatar. These come from your <b>Clone Yourself</b> actors and your <b>Avatar library</b> — the same face carries through the whole episode.</p>
+    <div class="pgrid" id="pgrid"></div>
+    <div class="upload-strip">＋ Upload a photo to make a new photo-avatar</div>
+    <div class="prow">
+      <button class="btn-ghost" id="pkCancel">Cancel</button>
+      <button class="btn-solid" id="pkUse">Use this avatar</button>
+    </div>
+  </div>
+</div>
+
+<!-- voice picker -->
+<div class="scrim" id="vscrim">
+  <div class="picker">
+    <h3 id="vkTitle">Choose a voice</h3>
+    <p>Your cloned voices and library voices. Give each speaker a distinct one so the conversation feels real.</p>
+    <div class="pgrid" id="vgrid" style="grid-template-columns:1fr 1fr"></div>
+    <div class="prow">
+      <button class="btn-ghost" id="vkCancel">Cancel</button>
+      <button class="btn-solid" id="vkUse">Use this voice</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+
+  // ── sample data (stands in for the user's clones / avatars / voices) ──
+  const AVATARS=[
+    {id:"me",   name:"Me",        sub:"your clone",  c:"#2c5a86"},
+    {id:"me2",  name:"Me · suit", sub:"your clone",  c:"#1f6f5a"},
+    {id:"aria", name:"Aria",      sub:"library",     c:"#864b6b"},
+    {id:"marcus",name:"Marcus",   sub:"library",     c:"#5a3a86"},
+    {id:"nina", name:"Nina",      sub:"library",     c:"#86602c"},
+    {id:"leo",  name:"Leo",       sub:"library",     c:"#2c8672"},
+    {id:"sofia",name:"Sofia",     sub:"library",     c:"#863a54"},
+    {id:"kai",  name:"Kai",       sub:"library",     c:"#3a5a86"},
+  ];
+  const VOICES=[
+    {id:"myclone",name:"My cloned voice",sub:"cloned · warm"},
+    {id:"river",  name:"River",   sub:"friendly · US"},
+    {id:"ember",  name:"Ember",   sub:"confident · US"},
+    {id:"sage",   name:"Sage",    sub:"calm · UK"},
+    {id:"nova",   name:"Nova",    sub:"bright · US"},
+    {id:"atlas",  name:"Atlas",   sub:"deep · US"},
+  ];
+
+  const state={host:{avatar:null,voice:null},guest:{avatar:null,voice:null},dur:1,who:"host",vwho:"host",pickSel:null,vSel:null,cut:"auto"};
+
+  // ── avatar picker ──
+  const scrim=$("#scrim"), pgrid=$("#pgrid");
+  function openPick(role){
+    state.who=role; state.pickSel=state[role].avatar?.id||null;
+    $("#pkTitle").textContent = role==="host"?"Choose the host":"Choose the guest";
+    pgrid.innerHTML=AVATARS.map(a=>`<button class="pcard ${state.pickSel===a.id?'sel':''}" data-a="${a.id}">
+      <span class="pface" style="background:radial-gradient(circle at 40% 30%,${a.c},#0c0f16)"></span>
+      <b>${a.name}</b><small>${a.sub}</small></button>`).join("");
+    scrim.classList.add("open");
+  }
+  pgrid.addEventListener("click",e=>{const b=e.target.closest(".pcard");if(!b)return;state.pickSel=b.dataset.a;
+    $$("#pgrid .pcard").forEach(c=>c.classList.toggle("sel",c===b));});
+  $("#pkCancel").onclick=()=>scrim.classList.remove("open");
+  $("#pkUse").onclick=()=>{const a=AVATARS.find(x=>x.id===state.pickSel);if(a){state[state.who].avatar=a;
+    const av=$(`.avatar.${state.who==='host'?'h':'g'}`);av.querySelector('svg').style.display='none';
+    av.style.background=`radial-gradient(circle at 40% 30%,${a.c},#0c0f16)`;
+    $(`#${state.who}Name`).textContent=a.name;}scrim.classList.remove("open");refreshCost();};
+  $$(".avatar[data-pick]").forEach(a=>a.onclick=()=>openPick(a.dataset.pick));
+
+  // ── voice picker ──
+  const vscrim=$("#vscrim"),vgrid=$("#vgrid");
+  function openVoice(role){state.vwho=role;state.vSel=state[role].voice?.id||null;
+    $("#vkTitle").textContent=`Choose the ${role} voice`;
+    vgrid.innerHTML=VOICES.map(v=>`<button class="pcard ${state.vSel===v.id?'sel':''}" data-v="${v.id}" style="text-align:left;display:flex;align-items:center;gap:9px">
+      <span class="pface" style="width:34px;height:34px;margin:0;background:linear-gradient(135deg,#38bdf8,#8b5cf6)"></span>
+      <span><b>${v.name}</b><small>${v.sub}</small></span></button>`).join("");
+    vscrim.classList.add("open");}
+  vgrid.addEventListener("click",e=>{const b=e.target.closest(".pcard");if(!b)return;state.vSel=b.dataset.v;
+    $$("#vgrid .pcard").forEach(c=>c.classList.toggle("sel",c===b));});
+  $("#vkCancel").onclick=()=>vscrim.classList.remove("open");
+  $("#vkUse").onclick=()=>{const v=VOICES.find(x=>x.id===state.vSel);if(v){state[state.vwho].voice=v;
+    const btn=$(`.voice-btn[data-voice="${state.vwho}"]`);btn.classList.add("set");
+    btn.innerHTML=`<span class="play">▶</span> ${v.name}`;}vscrim.classList.remove("open");};
+  $$(".voice-btn[data-voice]").forEach(b=>b.onclick=()=>openVoice(b.dataset.voice));
+
+  // ── swap host & guest ──
+  $(".swap").onclick=()=>{const t=state.host;state.host=state.guest;state.guest=t;
+    // repaint both rows
+    ["host","guest"].forEach(r=>{const s=state[r],av=$(`.avatar.${r==='host'?'h':'g'}`);
+      if(s.avatar){av.querySelector('svg').style.display='none';av.style.background=`radial-gradient(circle at 40% 30%,${s.avatar.c},#0c0f16)`;$(`#${r}Name`).textContent=s.avatar.name;}
+      else{av.querySelector('svg').style.display='';$(`#${r}Name`).textContent='Choose an avatar';}
+      const btn=$(`.voice-btn[data-voice="${r}"]`);
+      if(s.voice){btn.classList.add('set');btn.innerHTML=`<span class="play">▶</span> ${s.voice.name}`;}
+      else{btn.classList.remove('set');btn.innerHTML='<span class="play">▶</span> Select a voice';}});};
+
+  // ── own-script toggle ──
+  $("#ownScript").onclick=()=>{const on=$("#ownScript").classList.toggle("on");
+    $("#content").placeholder = on
+      ? "Paste your transcript:\n\nHost: Welcome back to the show…\nGuest: Thanks for having me!\nHost: So let's get into it…"
+      : "Describe the episode: a topic, talking points, a link, or paste a document. We'll write a natural back-and-forth between your two speakers.";
+    $("#scriptHint").innerHTML = on
+      ? "You're providing the exact words. Label each line <code>Host:</code> or <code>Guest:</code> — we voice and shoot it verbatim."
+      : "AI writes the conversation from your brief. Flip <b>Use my own script</b> to paste an exact <code>Host:</code> / <code>Guest:</code> transcript instead.";};
+
+  // ── duration menu ──
+  const dsel=$("#durSelect");
+  dsel.querySelector("button").onclick=()=>dsel.querySelector(".menu").classList.toggle("open");
+  $$("#durSelect .menu button").forEach(b=>b.onclick=()=>{state.dur=+b.dataset.dur;
+    $$("#durSelect .menu button").forEach(x=>x.querySelector('span')&&x.classList.remove('sel'));
+    dsel.querySelector("button").innerHTML=`${b.dataset.dur} min <span style="color:var(--muted)">▾</span>`;
+    dsel.querySelector(".menu").classList.remove("open");refreshCost();});
+  document.addEventListener("click",e=>{if(!dsel.contains(e.target))dsel.querySelector(".menu").classList.remove("open");});
+
+  // ── segmented pickers ──
+  function seg(id,cb){$$(`#${id} button`).forEach(b=>b.onclick=()=>{$$(`#${id} button`).forEach(x=>x.classList.remove("on"));b.classList.add("on");cb&&cb(b);});}
+  seg("qual",refreshCost); seg("layout"); seg("cut",b=>{state.cut=b.dataset.c;
+    $("#cutNote").textContent={auto:"Auto-cuts to whoever's talking, dropping to the 2-shot on hand-offs.",two:"Mostly the wide 2-shot, with occasional close-ups for emphasis.",close:"Mostly close-ups on the speaker, with the 2-shot for hand-offs."}[b.dataset.c];});
+
+  // ── cost ──
+  function refreshCost(){const hd=$('#qual button.on').dataset.q==='hd';
+    const per=hd?14:9;const total=per*state.dur;
+    $("#cost").innerHTML=`Preview is free · full render <b>~${per} cr / min</b> → about <b>${total} cr</b> for a ${state.dur}-min episode`;}
+  refreshCost();
+
+  // ── generate preview (fills details + animates the cut) ──
+  const SAMPLE=[
+    {w:"h",t:"Welcome back! Today we're talking about something every small business owner asks me — how do I actually get more reviews without begging?"},
+    {w:"g",t:"Right, and the honest answer is: make it stupidly easy. One link, sent at the right moment."},
+    {w:"h",t:"The right moment being…?"},
+    {w:"g",t:"Right after a happy interaction. A finished job, a great meal. That's when people actually want to say something nice."},
+    {w:"h",t:"So automate the ask. What's the one thing to avoid?"},
+    {w:"g",t:"Don't send a wall of text. A friendly one-liner and a button. That's it. Try it this week — you'll be surprised."},
+  ];
+  const gen=$("#gen");
+  gen.onclick=()=>{
+    if(!state.host.avatar||!state.guest.avatar){flash(gen,"Pick a host and a guest first");return;}
+    gen.classList.add("busy");gen.textContent="✦ Writing the conversation…";
+    setTimeout(()=>{
+      const hn=state.host.avatar.name, gn=state.guest.avatar.name;
+      $("#details").innerHTML=
+        `<div style="font-weight:800;font-size:13.5px;margin-bottom:3px">More reviews, less begging — an AI playbook</div>
+         <div style="color:var(--muted);font-size:11.5px;margin-bottom:12px">${state.dur}-min episode · ${hn} × ${gn} · auto-cut</div>`+
+        SAMPLE.map(s=>`<div class="turn"><span class="who ${s.w}"></span><span class="txt"><b>${s.w==='h'?hn:gn}</b>${s.t}</span></div>`).join("");
+      gen.classList.remove("busy");gen.textContent="↻ Regenerate";
+      startCutting();
+    },900);
+  };
+  // animate the "cut to whoever's talking"
+  let cutTimer=null,ci=0;
+  function startCutting(){clearInterval(cutTimer);const seq=SAMPLE.map(s=>s.w);ci=0;
+    const apply=()=>{const w=seq[ci%seq.length];const two=(ci%3===2);
+      $("#cutFull").classList.toggle("live",two);
+      $("#cutH").classList.toggle("live",!two&&w==="h");
+      $("#cutG").classList.toggle("live",!two&&w==="g");
+      $("#figH").classList.toggle("talk",w==="h");$("#figG").classList.toggle("talk",w==="g");
+      ci++;};
+    apply();cutTimer=setInterval(apply,1100);}
+
+  function flash(el,msg){const o=el.textContent;el.textContent=msg;el.style.background="linear-gradient(90deg,#ffb4bb,#ff4d5a)";
+    setTimeout(()=>{el.textContent=o;el.style.background="";},1500);}
+
+  $("#inviteBtn").onclick=()=>flash($("#inviteBtn"),"★ send a join link (mock)");
+})();
+</script>
+</body>
+</html>
