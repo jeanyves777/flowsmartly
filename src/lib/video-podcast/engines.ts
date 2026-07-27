@@ -103,11 +103,17 @@ export async function draftPodcast(id: string, userId: string): Promise<void> {
       pairs = parseTranscript(p.brief, hostName, guestName);
     } else {
       const budget = wordBudget(p.durationMin);
+      const styleLine = p.stylePreset === "interview" ? "Format: an INTERVIEW — the host asks sharp questions, the guest answers with depth and specifics."
+        : p.stylePreset === "debate" ? "Format: a FRIENDLY DEBATE — the two respectfully disagree and push each other, landing on common ground."
+        : p.stylePreset === "expert" ? "Format: an EXPERT BREAKDOWN — the guest explains, the host draws out clear, concrete takeaways for a lay audience."
+        : "Format: a natural back-and-forth conversation.";
       const written = await ai.generateJSON<{ title?: string; turns?: DraftedTurn[] }>(
         `Write a natural, engaging two-person podcast conversation.\n` +
         `HOST is "${hostName}". GUEST is "${guestName}".\n` +
+        `TONE: ${p.tone || "Conversational"}. ${styleLine}\n` +
         `TOPIC / BRIEF:\n${p.brief.slice(0, 4000)}\n\n` +
-        `Rules: alternate speakers, start with the host welcoming, keep lines conversational and specific (no filler), end with one clear takeaway or call to action. ` +
+        `Structure it as a HOOK (grab attention), a MAIN DISCUSSION (examples, insight, back-and-forth), and a TAKEAWAY (summarise + next step). ` +
+        `Rules: alternate speakers, start with the host welcoming, keep lines specific (no filler), end with one clear takeaway or call to action. ` +
         `Total spoken words across all turns must be about ${budget} (a ${p.durationMin}-minute episode). ` +
         `Return {"title":"short episode title","turns":[{"speaker":"host"|"guest","text":"spoken line"}]}.`,
         { maxTokens: 2200, temperature: 0.7 },

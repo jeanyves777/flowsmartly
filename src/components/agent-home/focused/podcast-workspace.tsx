@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { Mic, Sparkles, Upload, X, FolderOpen, Users, Play, ArrowLeftRight, Wand2, Film, RefreshCw, ImagePlus, Pencil, AlertTriangle, Check, Download } from "lucide-react";
+import { Mic, Sparkles, Upload, X, FolderOpen, Users, Play, ArrowLeftRight, Wand2, Film, RefreshCw, ImagePlus, Pencil, AlertTriangle, Check, Download, Link2, BarChart3, MessageSquare, Plus, MoreVertical, Zap, CheckCircle2 } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
 import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
@@ -17,7 +17,13 @@ import { useToast } from "@/hooks/use-toast";
 import type { PodcastProject, PodcastRole, PodcastAspect, PodcastQuality, CutStyle } from "@/lib/video-podcast/types";
 
 type Avatar = { id: string; name: string; previewUrl?: string; gender?: string; isCustom: boolean; defaultVoiceId?: string };
-type Voice = { id: string; name: string; language?: string; gender?: string };
+type Voice = { id: string; name: string; language?: string; gender?: string; previewUrl?: string };
+const TONES = ["Conversational", "Energetic", "Warm", "Professional", "Playful", "Serious"];
+const STYLES: { id: string; label: string; icon: "Mic" | "Users" | "Chart"; tone: string; seed: string }[] = [
+  { id: "interview", label: "Interview", icon: "Mic", tone: "Conversational", seed: "An interview where the host asks sharp questions and the guest answers with depth." },
+  { id: "debate", label: "Friendly debate", icon: "Users", tone: "Energetic", seed: "A friendly debate where the two respectfully disagree and push each other's thinking." },
+  { id: "expert", label: "Expert breakdown", icon: "Chart", tone: "Professional", seed: "An expert breakdown where the guest explains a topic and the host pulls out clear takeaways." },
+];
 
 const LAST_KEY = "podcast:lastProjectId";
 const ASPECTS: { id: PodcastAspect; label: string }[] = [{ id: "16:9", label: "▭ 16:9" }, { id: "1:1", label: "◻ 1:1" }, { id: "9:16", label: "▯ 9:16" }];
@@ -106,7 +112,7 @@ export function FocusedPodcast() {
     setSpeaker(pick.role, { name: a.name, avatarId: a.id, isPhoto: a.isCustom, portraitUrl: a.previewUrl || null, ...(a.defaultVoiceId ? {} : {}) });
     setPick(null);
   };
-  const chooseVoice = (v: Voice) => { if (!pick) return; setSpeaker(pick.role, { voiceId: v.id, voiceLabel: v.name }); setPick(null); };
+  const chooseVoice = (v: Voice) => { if (!pick) return; setSpeaker(pick.role, { voiceId: v.id, voiceLabel: v.name, voicePreviewUrl: v.previewUrl || null }); setPick(null); };
 
   /** Turn a photo (from the computer or the media library) into a talking photo
    *  avatar for this speaker — HeyGen returns an Avatar-IV-capable id + preview. */
@@ -210,6 +216,10 @@ export function FocusedPodcast() {
           editing={editing} setEditing={setEditing} onSaveTurn={saveTurnText}
           onPickAvatar={(role) => setPick({ kind: "avatar", role })} onPickVoice={(role) => setPick({ kind: "voice", role })}
           onDraft={draft} onGenerateAll={generateAll} onCompose={compose} onRenderTurn={renderOneTurn} onToggleOwn={() => mutate({ ownScript: !project?.ownScript })} onBrief={(v) => mutate({ brief: v })}
+          onTone={(t) => mutate({ tone: t })} onLength={(d) => mutate({ durationMin: d })}
+          onStyle={(st) => mutate({ stylePreset: st.id, tone: st.tone, brief: (project?.brief?.trim() ? project.brief : st.seed) })}
+          onAppendBrief={(txt) => mutate({ brief: (project?.brief?.trim() ? project.brief + "\n" + txt : txt) })}
+          onAddSpeaker={() => toast({ title: "A host and a guest for now", description: "Multi-guest episodes are coming." })}
         />
       )}
 
@@ -218,7 +228,7 @@ export function FocusedPodcast() {
         <section className="rounded-2xl border border-border bg-card/60 p-5">
           <Label>Speakers</Label>
           <SpeakerRow role="host" sp={project?.host} onAvatar={() => setPick({ kind: "avatar", role: "host" })} onVoice={() => setPick({ kind: "voice", role: "host" })} />
-          <div className="my-2 grid place-items-center"><button onClick={swap} title="Swap host & guest" className="grid h-8 w-8 place-items-center rounded-full border border-border bg-card2 text-muted-foreground"><ArrowLeftRight className="h-3.5 w-3.5" /></button></div>
+          <div className="my-2 grid place-items-center"><button onClick={swap} title="Swap host & guest" className="grid h-8 w-8 place-items-center rounded-full border border-border bg-muted text-muted-foreground"><ArrowLeftRight className="h-3.5 w-3.5" /></button></div>
           <SpeakerRow role="guest" sp={project?.guest} onAvatar={() => setPick({ kind: "avatar", role: "guest" })} onVoice={() => setPick({ kind: "voice", role: "guest" })} />
 
           <Label>Podcast content <span className="font-normal normal-case text-muted-foreground/70">— what should they talk about?</span></Label>
@@ -231,7 +241,7 @@ export function FocusedPodcast() {
                 : "Describe the episode: a topic, talking points, or a link. We'll write a natural back-and-forth between your two speakers."}
               className="min-h-[150px] w-full resize-y bg-transparent p-3.5 text-[13.5px] outline-none placeholder:text-muted-foreground/60"
             />
-            <div className="flex flex-wrap items-center gap-2.5 border-t border-border bg-card2/40 p-2.5">
+            <div className="flex flex-wrap items-center gap-2.5 border-t border-border bg-muted/30 p-2.5">
               <button onClick={draft} disabled={busy || drafting} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60">
                 {drafting ? <FlowLoader size={13} tone="white" /> : <Wand2 className="h-3.5 w-3.5" />} {project?.ownScript ? "Use this script" : "Write the conversation"}
               </button>
@@ -400,133 +410,207 @@ interface SimpleProps {
   onPickVoice: (role: PodcastRole) => void;
   onDraft: () => void; onGenerateAll: () => void; onCompose: () => void; onRenderTurn: (id: string) => void;
   onToggleOwn: () => void; onBrief: (v: string) => void;
+  onTone: (t: string) => void; onLength: (d: number) => void;
+  onStyle: (st: { id: string; tone: string; seed: string }) => void;
+  onAppendBrief: (txt: string) => void; onAddSpeaker: () => void;
 }
 
-function SimpleView({ project, stats, words, failedTurn, bothSet, est, busy, editing, setEditing, onSaveTurn, onPickAvatar, onPickVoice, onDraft, onGenerateAll, onCompose, onRenderTurn, onToggleOwn, onBrief }: SimpleProps) {
+/** Play a short voice sample without a persistent player. */
+function playSample(url?: string | null) {
+  if (!url) return;
+  try { const a = new Audio(url); void a.play(); } catch { /* ignore */ }
+}
+
+function SimpleView(p: SimpleProps) {
+  const { project, stats, words, failedTurn, bothSet, est, busy, editing, setEditing, onSaveTurn, onPickAvatar, onPickVoice, onDraft, onGenerateAll, onCompose, onRenderTurn, onToggleOwn, onBrief, onTone, onLength, onStyle, onAppendBrief, onAddSpeaker } = p;
   const drafting = project?.draftStatus === "drafting";
-  const scriptDone = (project?.turns.length || 0) > 0 && !drafting;
+  const hasTurns = (project?.turns.length || 0) > 0;
   const finalReady = isUrl(project?.finalVideoUrl);
   const composing = project?.finalStatus === "rendering";
-  const hasTurns = (project?.turns.length || 0) > 0;
+  const scriptDone = hasTurns && !drafting;
+  const empty = !hasTurns && !drafting; // the build-your-episode state
 
-  const s = {
+  const st = {
     speakers: (bothSet ? "done" : "wait") as StepState,
     script: (project?.draftStatus === "failed" ? "fail" : scriptDone ? "done" : drafting ? "run" : "wait") as StepState,
     turns: (failedTurn ? "fail" : stats.total > 0 && stats.ready === stats.total ? "done" : stats.rendering > 0 ? "run" : "wait") as StepState,
     final: (finalReady ? "done" : project?.finalStatus === "failed" ? "fail" : composing ? "run" : "wait") as StepState,
   };
-
-  // circular progress value for the stage
-  const pct = composing ? (project?.finalProgress || 0)
-    : stats.total > 0 && stats.rendering > 0 ? Math.round((stats.ready / stats.total) * 100)
-    : 0;
-  const stageMsg = composing ? "Composing your podcast…"
-    : stats.rendering > 0 ? `Filming turns · ${stats.ready}/${stats.total} done`
-    : drafting ? "Writing the conversation…"
-    : hasTurns ? "Ready to film" : "Write the conversation to begin";
-
-  // failure banner
-  const fail = project?.draftStatus === "failed" ? { msg: "Couldn't write the conversation.", cta: "Retry writing", on: onDraft }
-    : project?.finalStatus === "failed" ? { msg: "Composing the podcast failed. Your turns are safe.", cta: "Retry compose", on: onCompose }
-    : failedTurn ? { msg: "A turn failed to render. Retry just the failed ones.", cta: "Retry turns", on: onGenerateAll }
-    : null;
-
-  const steps: { n: number; label: string; sub: string; state: StepState; body?: React.ReactNode }[] = [
-    { n: 1, label: "Speakers", sub: bothSet ? `${project?.host.name || "Host"} × ${project?.guest.name || "Guest"}` : "Pick a host & a guest", state: s.speakers,
-      body: (
-        <div className="mt-2 flex gap-2">
-          {(["host", "guest"] as PodcastRole[]).map((role) => {
-            const sp = project ? project[role] : undefined;
-            return (
-              <div key={role} className="flex-1">
-                <button onClick={() => onPickAvatar(role)} className="relative mx-auto block h-11 w-11 overflow-hidden rounded-full border border-border bg-card">
-                  {isUrl(sp?.portraitUrl) ? <Image src={sp!.portraitUrl!} alt="" fill sizes="44px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><Users className="h-4 w-4" /></span>}
-                </button>
-                <button onClick={() => onPickVoice(role)} className={cn("mt-1 block w-full truncate rounded-md border px-1 py-0.5 text-center text-[9px]", sp?.voiceId ? "border-sky-400/50 text-sky-400" : "border-border text-muted-foreground")}>{sp?.voiceLabel || "voice"}</button>
-              </div>
-            );
-          })}
-        </div>
-      ) },
-    { n: 2, label: "Script", sub: scriptDone ? `${stats.total} turns · ${words} words` : drafting ? "Writing…" : project?.ownScript ? "Your transcript" : "AI-written", state: s.script,
-      body: !scriptDone && !drafting ? <button onClick={onDraft} disabled={busy} className="mt-2 w-full rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 py-1.5 text-[11px] font-bold text-white disabled:opacity-60">Write the conversation</button> : project?.draftStatus === "failed" ? <button onClick={onDraft} className="mt-2 w-full rounded-lg border border-red-500/50 py-1.5 text-[11px] font-bold text-red-400">Retry writing</button> : undefined },
-    { n: 3, label: "Turns", sub: `${stats.ready}/${stats.total || "…"} filmed`, state: s.turns,
-      body: hasTurns && stats.ready < stats.total && stats.rendering === 0 ? <button onClick={onGenerateAll} disabled={busy || !bothSet} className="mt-2 w-full rounded-lg border border-border py-1.5 text-[11px] font-bold hover:border-sky-400/60 disabled:opacity-50">Film all turns</button> : undefined },
-    { n: 4, label: "Final video", sub: finalReady ? "Ready" : composing ? "Composing…" : "Waiting", state: s.final,
-      body: stats.ready > 0 && !finalReady && !composing ? <button onClick={onCompose} disabled={busy} className="mt-2 w-full rounded-lg bg-gradient-to-r from-sky-400 to-blue-500 py-1.5 text-[11px] font-bold text-white disabled:opacity-60">Compose podcast</button> : undefined },
+  const dur = project?.durationMin || 1;
+  const totalSec = dur * 60;
+  const hookSec = Math.max(8, Math.round(totalSec * 0.17));
+  const plan = [
+    { icon: <Zap className="h-3.5 w-3.5" />, tint: "text-violet-400 bg-violet-500/15", title: "Hook", desc: "Grab attention with a relatable question or bold statement.", sec: hookSec },
+    { icon: <MessageSquare className="h-3.5 w-3.5" />, tint: "text-sky-400 bg-sky-500/15", title: "Main discussion", desc: "Explore the topic with examples, insights, and back-and-forth.", sec: totalSec - hookSec * 2 },
+    { icon: <CheckCircle2 className="h-3.5 w-3.5" />, tint: "text-emerald-400 bg-emerald-500/15", title: "Takeaway", desc: "Summarize the key takeaway and next steps.", sec: hookSec },
   ];
 
+  // circular progress + status for the working stage
+  const pct = composing ? (project?.finalProgress || 0) : stats.total > 0 && stats.rendering > 0 ? Math.round((stats.ready / stats.total) * 100) : 0;
+  const stageMsg = composing ? "Composing your podcast…" : stats.rendering > 0 ? `Filming turns · ${stats.ready}/${stats.total} done` : drafting ? "Writing the conversation…" : "Ready to film";
+  const fail = project?.draftStatus === "failed" ? { msg: "Couldn't write the conversation.", cta: "Retry writing", on: onDraft }
+    : project?.finalStatus === "failed" ? { msg: "Composing failed. Your turns are safe.", cta: "Retry compose", on: onCompose }
+    : failedTurn ? { msg: "A turn failed to film. Retry the failed ones.", cta: "Retry turns", on: onGenerateAll } : null;
+
+  const steps: { n: number; label: string; sub: string; state: StepState; speakerCards?: boolean }[] = [
+    { n: 1, label: "Speakers", sub: "Pick a host & a guest", state: st.speakers, speakerCards: true },
+    { n: 2, label: "Episode brief", sub: "Describe the topic & goals", state: st.script === "done" ? "done" : project?.brief?.trim() ? "run" : "wait" },
+    { n: 3, label: "Conversation", sub: "Generate your script", state: st.script },
+    { n: 4, label: "Final video", sub: "Stitching & polish", state: st.final },
+  ];
+
+  const roleCard = (role: PodcastRole) => {
+    const sp = project ? project[role] : undefined;
+    const isHost = role === "host";
+    return (
+      <div className={cn("rounded-xl border p-3", isHost ? "border-violet-500/30 bg-violet-500/[0.05]" : "border-sky-500/30 bg-sky-500/[0.05]")}>
+        <div className={cn("mb-2 text-[10px] font-bold uppercase tracking-wide", isHost ? "text-violet-400" : "text-sky-400")}>{isHost ? "Host" : "Guest"}</div>
+        <div className="flex items-center gap-3">
+          <button onClick={() => onPickAvatar(role)} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-border bg-card">
+            {isUrl(sp?.portraitUrl) ? <Image src={sp!.portraitUrl!} alt="" fill sizes="56px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><Users className="h-5 w-5" /></span>}
+          </button>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13.5px] font-bold">{sp?.name || "Choose an avatar"}</div>
+            <div className="truncate text-[11px] text-muted-foreground">{sp?.voiceLabel ? `Voice: ${sp.voiceLabel}` : "No voice yet"}</div>
+            <div className="mt-1.5 flex items-center gap-3">
+              <button onClick={() => (sp?.voicePreviewUrl ? playSample(sp.voicePreviewUrl) : onPickVoice(role))} className="grid h-6 w-6 place-items-center rounded-full border border-border text-muted-foreground hover:text-foreground"><Play className="h-3 w-3" /></button>
+              <button onClick={() => onPickAvatar(role)} className={cn("text-[11px] font-semibold", isHost ? "text-violet-400" : "text-sky-400")}>Change</button>
+              {!sp?.voiceId && <button onClick={() => onPickVoice(role)} className="text-[11px] font-semibold text-muted-foreground hover:text-foreground">Set voice</button>}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="flex h-full w-full flex-col gap-5 overflow-y-auto p-5 lg:flex-row">
-      {/* LEFT — step rail */}
-      <div className="w-full shrink-0 lg:w-[236px]">
+    <div className="flex h-full w-full gap-5 overflow-y-auto p-5">
+      {/* LEFT — steps + speaker cards */}
+      <div className="hidden w-[300px] shrink-0 flex-col gap-3 rounded-2xl border border-border bg-card/40 p-4 lg:flex">
         <div className="flex flex-col">
-          {steps.map((st, i) => (
-            <div key={st.n} className="relative flex gap-3 pb-4">
-              {i < steps.length - 1 && <span className={cn("absolute left-[9px] top-6 h-[calc(100%-12px)] w-px", st.state === "done" ? "bg-emerald-500/50" : "bg-border")} />}
-              <StepDot state={st.state} />
+          {steps.map((s, i) => (
+            <div key={s.n} className="relative flex gap-3 pb-4">
+              {i < steps.length - 1 && <span className={cn("absolute left-[13px] top-7 h-[calc(100%-16px)] w-px", s.state === "done" ? "bg-emerald-500/40" : "bg-border")} />}
+              <span className={cn("grid h-7 w-7 flex-none place-items-center rounded-full text-[11px] font-bold",
+                s.state === "done" ? "bg-emerald-500 text-white" : s.state === "fail" ? "bg-red-500 text-white" : s.state === "run" ? "bg-violet-500 text-white" : i === 0 && empty ? "bg-violet-500 text-white" : "border border-border text-muted-foreground")}>
+                {s.state === "done" ? <Check className="h-3.5 w-3.5" /> : s.state === "fail" ? "!" : s.n}
+              </span>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 text-[13px] font-bold">{st.label}{st.state === "fail" && <span className="text-[10px] font-semibold text-red-400">Needs attention</span>}</div>
-                <div className={cn("text-[11px]", st.state === "wait" ? "text-muted-foreground" : "text-muted-foreground/90")}>{st.sub}</div>
-                {st.body}
+                <div className="flex items-center gap-1.5 text-[13.5px] font-bold">{s.label}{s.state === "fail" && <span className="text-[10px] font-semibold text-red-400">Needs attention</span>}</div>
+                <div className="text-[11px] text-muted-foreground">{s.sub}</div>
+                {s.speakerCards && (
+                  <div className="mt-2.5 flex flex-col gap-2">
+                    {roleCard("host")}
+                    {roleCard("guest")}
+                    <button onClick={onAddSpeaker} className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-border py-2 text-[11.5px] font-semibold text-muted-foreground hover:border-violet-500/50 hover:text-foreground"><Plus className="h-3.5 w-3.5" /> Add speaker</button>
+                  </div>
+                )}
               </div>
             </div>
           ))}
         </div>
-        <div className="mt-1 rounded-xl border border-border bg-card/60 p-3 text-[11px] text-muted-foreground">
-          💡 Editing a turn re-films only that turn — the rest is untouched.
+        <div className="mt-auto flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-[11px] text-muted-foreground">
+          <span>🕐 {stats.total} turns</span><span>·</span><span>About {dur} min</span><span>·</span><span className="text-amber-400">⚡ ~{est} cr</span>
         </div>
       </div>
 
-      {/* CENTER — stage */}
-      <div className="flex flex-1 flex-col items-center gap-3">
-        {!hasTurns && !drafting ? (
-          <div className="w-full max-w-[560px] rounded-2xl border border-border bg-card/60 p-5">
-            <p className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">What's the episode about?</p>
-            <textarea value={project?.brief || ""} onChange={(e) => onBrief(e.target.value)} placeholder={project?.ownScript ? "Paste your transcript — Host: … / Guest: …" : "Describe the topic, talking points, or paste a link. We'll write the back-and-forth."}
-              className="min-h-[130px] w-full resize-y rounded-xl border border-border bg-card p-3 text-[13px] outline-none placeholder:text-muted-foreground/60" />
-            <div className="mt-3 flex flex-wrap items-center gap-2.5">
-              <button onClick={onDraft} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-[12.5px] font-bold text-white disabled:opacity-60"><Wand2 className="h-4 w-4" /> {project?.ownScript ? "Use this script" : "Write the conversation"}</button>
-              <button onClick={onToggleOwn} className={cn("text-[12px]", project?.ownScript ? "text-sky-400" : "text-muted-foreground")}>{project?.ownScript ? "✓ Using my own script" : "Use my own script"}</button>
+      {/* CENTER */}
+      <div className="min-w-0 flex-1">
+        {empty ? (
+          <div className="rounded-2xl border border-border bg-card/40 p-5">
+            <p className="mb-4 text-[17px] font-bold">Build your episode</p>
+            {/* speaker strip */}
+            <div className="mb-5 flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+              <StripSpeaker sp={project?.host} role="host" onClick={() => onPickAvatar("host")} />
+              <div className="flex flex-1 items-center justify-center gap-[3px]">
+                {Array.from({ length: 22 }).map((_, i) => (
+                  <span key={i} className="w-[3px] rounded-full bg-gradient-to-b from-violet-400 to-sky-400" style={{ height: `${8 + Math.abs(Math.sin(i * 1.3)) * 26}px`, opacity: 0.5 + Math.abs(Math.cos(i)) * 0.5 }} />
+                ))}
+              </div>
+              <StripSpeaker sp={project?.guest} role="guest" onClick={() => onPickAvatar("guest")} right />
+            </div>
+
+            <p className="mb-2 text-[13px] font-bold">What should they discuss?</p>
+            <div className="relative">
+              <textarea value={project?.brief || ""} onChange={(e) => onBrief(e.target.value)} maxLength={2000}
+                placeholder={project?.ownScript ? "Paste your transcript — Host: … / Guest: …" : "e.g. Explain how AI agents differ from chatbots, using simple everyday examples."}
+                className="min-h-[110px] w-full resize-y rounded-xl border border-border bg-card p-3.5 pb-7 text-[13.5px] outline-none placeholder:text-muted-foreground/50 focus:border-violet-500/50" />
+              <span className="pointer-events-none absolute bottom-2.5 right-3 text-[10.5px] text-muted-foreground/60">{(project?.brief || "").length}/2000</span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button onClick={() => onAppendBrief("Link: https://")} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><Link2 className="h-3.5 w-3.5" /> Paste link</button>
+              <button onClick={() => onAppendBrief("Talking points:\n• ")} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold text-muted-foreground hover:text-foreground"><MessageSquare className="h-3.5 w-3.5" /> Add talking points</button>
+              <label className="ml-auto flex items-center gap-1.5 text-[11.5px] text-muted-foreground">Tone
+                <select value={project?.tone || "Conversational"} onChange={(e) => onTone(e.target.value)} className="rounded-lg border border-border bg-card px-2 py-1.5 text-[12px] font-semibold text-foreground outline-none">
+                  {TONES.map((t) => <option key={t}>{t}</option>)}
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">Length
+                <select value={dur} onChange={(e) => onLength(Number(e.target.value))} className="rounded-lg border border-border bg-card px-2 py-1.5 text-[12px] font-semibold text-foreground outline-none">
+                  {DURATIONS.map((d) => <option key={d} value={d}>{d} minute{d > 1 ? "s" : ""}</option>)}
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <button onClick={onDraft} disabled={busy} className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-3 text-[13.5px] font-bold text-white shadow-lg shadow-violet-500/25 disabled:opacity-60"><Wand2 className="h-4 w-4" /> {project?.ownScript ? "Use this script" : "Write the conversation"}</button>
+              <button onClick={onToggleOwn} className={cn("text-[12.5px] font-semibold", project?.ownScript ? "text-violet-400" : "text-muted-foreground hover:text-foreground")}>{project?.ownScript ? "✓ My own script" : "Use my own script"}</button>
+            </div>
+
+            <p className="mb-2 mt-6 text-[13px] font-bold">Try an episode style</p>
+            <div className="grid grid-cols-3 gap-2.5">
+              {STYLES.map((s) => {
+                const Icon = s.icon === "Mic" ? Mic : s.icon === "Users" ? Users : BarChart3;
+                const on = project?.stylePreset === s.id;
+                return (
+                  <button key={s.id} onClick={() => onStyle(s)} className={cn("flex items-center gap-2 rounded-xl border px-3 py-3 text-[12.5px] font-semibold transition", on ? "border-violet-500 bg-violet-500/10 text-foreground" : "border-border hover:border-violet-500/40")}>
+                    <Icon className={cn("h-4 w-4", on ? "text-violet-400" : "text-muted-foreground")} /> {s.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 rounded-xl border border-border bg-card p-3.5">
+              <p className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Episode plan <span className="font-semibold normal-case text-muted-foreground/60">(preview)</span></p>
+              <div className="flex flex-col gap-2">
+                {plan.map((r) => (
+                  <div key={r.title} className="flex items-center gap-3 rounded-lg bg-muted/30 px-2.5 py-2">
+                    <span className={cn("grid h-7 w-7 flex-none place-items-center rounded-lg", r.tint)}>{r.icon}</span>
+                    <div className="min-w-0 flex-1"><div className="text-[12.5px] font-bold">{r.title}</div><div className="truncate text-[11px] text-muted-foreground">{r.desc}</div></div>
+                    <span className="flex-none text-[11px] text-muted-foreground">~{r.sec} sec</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         ) : (
-          <>
-            <div className="relative w-full max-w-[560px] overflow-hidden rounded-2xl border border-border bg-black" style={{ aspectRatio: "16 / 9" }}>
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative w-full max-w-[620px] overflow-hidden rounded-2xl border border-border bg-black" style={{ aspectRatio: "16 / 9" }}>
               {finalReady ? (
                 // eslint-disable-next-line jsx-a11y/media-has-caption
                 <video src={project!.finalVideoUrl!} controls playsInline className="h-full w-full object-contain" />
               ) : (
                 <div className="grid h-full w-full place-items-center bg-gradient-to-br from-slate-800/60 to-slate-950">
-                  <div className="text-center">
-                    {pct > 0 ? <Ring pct={pct} /> : <FlowLoader size={34} />}
-                    <p className="mt-3 text-[13px] font-semibold">{stageMsg}</p>
-                  </div>
+                  <div className="text-center">{pct > 0 ? <Ring pct={pct} /> : <FlowLoader size={34} />}<p className="mt-3 text-[13px] font-semibold">{stageMsg}</p></div>
                 </div>
               )}
             </div>
-
             {fail && (
-              <div className="flex w-full max-w-[560px] flex-wrap items-center gap-3 rounded-xl border border-red-500/40 bg-red-500/[0.06] px-4 py-3">
+              <div className="flex w-full max-w-[620px] flex-wrap items-center gap-3 rounded-xl border border-red-500/40 bg-red-500/[0.06] px-4 py-3">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
                 <span className="min-w-0 flex-1 text-[12.5px] text-red-300">{fail.msg}</span>
                 <button onClick={fail.on} className="rounded-lg bg-red-500 px-3 py-1.5 text-[12px] font-bold text-white">{fail.cta}</button>
               </div>
             )}
-
-            {/* horizontal status bar */}
-            <div className="flex w-full max-w-[560px] items-center justify-between gap-1 px-1">
-              {[["Speakers", s.speakers], ["Script", s.script], ["Turns", s.turns], ["Final", s.final]].map(([lbl, stt], i) => (
-                <div key={lbl as string} className="flex flex-1 items-center gap-1">
-                  <div className="flex flex-col items-center gap-1 text-center">
-                    <StepDot state={stt as StepState} />
-                    <span className="text-[9.5px] text-muted-foreground">{lbl}</span>
-                  </div>
-                  {i < 3 && <span className={cn("mb-4 h-px flex-1", (stt as StepState) === "done" ? "bg-emerald-500/50" : "bg-border")} />}
+            <div className="flex w-full max-w-[620px] items-center justify-between gap-1 px-1">
+              {([["Speakers", st.speakers], ["Script", st.script], ["Turns", st.turns], ["Final", st.final]] as [string, StepState][]).map(([lbl, stt], i) => (
+                <div key={lbl} className="flex flex-1 items-center gap-1">
+                  <div className="flex flex-col items-center gap-1 text-center"><StepDot state={stt} /><span className="text-[9.5px] text-muted-foreground">{lbl}</span></div>
+                  {i < 3 && <span className={cn("mb-4 h-px flex-1", stt === "done" ? "bg-emerald-500/50" : "bg-border")} />}
                 </div>
               ))}
             </div>
-
             <div className="flex flex-wrap justify-center gap-2">
               {finalReady && <>
                 <a href={project!.finalVideoUrl!} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold"><Download className="h-3.5 w-3.5" /> Download</a>
@@ -539,35 +623,56 @@ function SimpleView({ project, stats, words, failedTurn, bothSet, est, busy, edi
                 <button onClick={onGenerateAll} disabled={busy || !bothSet} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-400 to-blue-500 px-4 py-2 text-[12.5px] font-bold text-white disabled:opacity-60"><Film className="h-4 w-4" /> Film all turns</button>
               )}
             </div>
-            {!bothSet && hasTurns && <p className="text-[11px] text-amber-500">Give the host and guest an avatar and a voice to film.</p>}
-          </>
+            {!bothSet && <p className="text-[11px] text-amber-500">Give the host and guest an avatar and a voice to film.</p>}
+            <p className="text-center text-[11px] text-muted-foreground">Full render <b className="text-foreground">~{est} cr</b> for a {dur}-min episode</p>
+          </div>
         )}
-        <p className="text-center text-[11px] text-muted-foreground">Writing is free · full render <b className="text-foreground">~{est} cr</b> for a {project?.durationMin || 1}-min episode</p>
       </div>
 
-      {/* RIGHT — the conversation (turns) */}
-      <div className="w-full shrink-0 lg:w-[344px]">
-        <div className="mb-2 flex items-center gap-2">
-          <p className="text-[13px] font-bold">The conversation</p>
-          {stats.total > 0 && <span className="text-[11px] text-muted-foreground">{stats.total} turns</span>}
+      {/* RIGHT — conversation */}
+      <div className="hidden w-[352px] shrink-0 flex-col rounded-2xl border border-border bg-card/40 p-4 lg:flex">
+        <div className="mb-3 flex items-center gap-2">
+          <p className="text-[15px] font-bold">Conversation</p>
+          <span className="text-[11px] text-muted-foreground">{stats.total} turns</span>
+          <MoreVertical className="ml-auto h-4 w-4 text-muted-foreground" />
         </div>
         {!hasTurns ? (
-          <div className="rounded-xl border border-border bg-card/60 p-6 text-center text-[12px] text-muted-foreground">The written turns show up here — each becomes one filmed shot you can edit.</div>
+          <div className="flex flex-1 flex-col">
+            <div className="grid flex-1 place-items-center py-6 text-center">
+              <div>
+                {/* two avatars + chat bubbles */}
+                <div className="mx-auto mb-5 flex items-center justify-center gap-1">
+                  <ConvoFace sp={project?.host} tint="ring-violet-400" />
+                  <span className="h-4 w-8 rounded-full bg-violet-500/30" />
+                  <span className="h-6 w-12 rounded-lg bg-sky-500/30" />
+                  <ConvoFace sp={project?.guest} tint="ring-sky-400" />
+                </div>
+                <p className="text-[15px] font-bold">Your conversation will appear here</p>
+                <p className="mt-1 text-[12px] text-muted-foreground">Each turn becomes an editable filmed shot.</p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <ExampleTurn sp={project?.host} role="host" text="Ask the first question or introduce the topic." />
+              <ExampleTurn sp={project?.guest} role="guest" text="Answer, respond, or add your perspective." />
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <button disabled className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border py-2 text-[12px] font-semibold text-muted-foreground opacity-60"><Play className="h-3.5 w-3.5" /> Preview conversation</button>
+            </div>
+            <p className="mt-1.5 text-center text-[10.5px] text-muted-foreground">Generate the script to preview turns.</p>
+          </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 overflow-y-auto">
             {project!.turns.map((t, i) => (
               <div key={t.id} className="flex items-start gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5">
-                <span className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md text-[10px] font-bold", t.speaker === "host" ? "bg-sky-500/15 text-sky-400" : "bg-violet-500/15 text-violet-400")}>{i + 1}</span>
+                <span className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md text-[10px] font-bold", t.speaker === "host" ? "bg-violet-500/15 text-violet-400" : "bg-sky-500/15 text-sky-400")}>{i + 1}</span>
                 <div className="min-w-0 flex-1">
                   {editing?.id === t.id ? (
-                    <textarea autoFocus value={editing.text} onChange={(e) => setEditing({ id: t.id, text: e.target.value })} onBlur={onSaveTurn}
-                      onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) onSaveTurn(); }}
-                      className="w-full resize-y rounded-md border border-sky-400/50 bg-background p-1.5 text-[11.5px] outline-none" rows={3} />
+                    <textarea autoFocus value={editing.text} onChange={(e) => setEditing({ id: t.id, text: e.target.value })} onBlur={onSaveTurn} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) onSaveTurn(); }} className="w-full resize-y rounded-md border border-violet-400/50 bg-background p-1.5 text-[11.5px] outline-none" rows={3} />
                   ) : (
                     <p className="line-clamp-2 text-[11.5px] leading-snug">{t.text}</p>
                   )}
                   <div className="mt-1 flex items-center gap-2 text-[9px] text-muted-foreground">
-                    <span className={cn("rounded px-1.5 py-0.5 font-bold uppercase", t.speaker === "host" ? "bg-sky-500/15 text-sky-400" : "bg-violet-500/15 text-violet-400")}>{t.speaker}</span>
+                    <span className={cn("rounded px-1.5 py-0.5 font-bold uppercase", t.speaker === "host" ? "bg-violet-500/15 text-violet-400" : "bg-sky-500/15 text-sky-400")}>{t.speaker}</span>
                     {t.status === "rendering" || t.status === "queued" ? <FlowLoader size={10} /> : t.status === "ready" ? <span className="text-emerald-500">● filmed</span> : t.status === "failed" ? <span className="text-red-400">▲ failed</span> : <span>not filmed</span>}
                   </div>
                 </div>
@@ -582,7 +687,45 @@ function SimpleView({ project, stats, words, failedTurn, bothSet, est, busy, edi
   );
 }
 
-/** Small circular progress ring. */
+function StripSpeaker({ sp, role, onClick, right }: { sp?: PodcastProject["host"]; role: PodcastRole; onClick: () => void; right?: boolean }) {
+  const isHost = role === "host";
+  return (
+    <button onClick={onClick} className={cn("flex items-center gap-2.5", right && "flex-row-reverse text-right")}>
+      <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-border bg-card">
+        {isUrl(sp?.portraitUrl) ? <Image src={sp!.portraitUrl!} alt="" fill sizes="48px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><Users className="h-5 w-5" /></span>}
+      </span>
+      <span className="min-w-0">
+        <span className={cn("block text-[11px] font-bold", isHost ? "text-violet-400" : "text-sky-400")}>{isHost ? "Host" : "Guest"}</span>
+        <span className="block truncate text-[12.5px] font-bold">{sp?.name || "Choose"}</span>
+        <span className="block truncate text-[10.5px] text-muted-foreground">{sp?.voiceLabel ? `Voice: ${sp.voiceLabel}` : "voice"}</span>
+      </span>
+    </button>
+  );
+}
+
+function ConvoFace({ sp, tint }: { sp?: PodcastProject["host"]; tint: string }) {
+  return (
+    <span className={cn("relative grid h-12 w-12 place-items-center overflow-hidden rounded-full bg-card ring-2", tint)}>
+      {isUrl(sp?.portraitUrl) ? <Image src={sp!.portraitUrl!} alt="" fill sizes="48px" className="object-cover" unoptimized /> : <Users className="h-5 w-5 text-muted-foreground" />}
+    </span>
+  );
+}
+
+function ExampleTurn({ sp, role, text }: { sp?: PodcastProject["host"]; role: PodcastRole; text: string }) {
+  const isHost = role === "host";
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-border bg-card px-3 py-3">
+      <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-muted">
+        {isUrl(sp?.portraitUrl) ? <Image src={sp!.portraitUrl!} alt="" fill sizes="32px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><Users className="h-3.5 w-3.5" /></span>}
+      </span>
+      <div className="min-w-0 flex-1">
+        <span className={cn("text-[11.5px] font-bold", isHost ? "text-violet-400" : "text-sky-400")}>{isHost ? "Host" : "Guest"}</span>
+        <span className="ml-1.5 text-[11.5px] text-muted-foreground">{text}</span>
+        <div className="mt-1.5 space-y-1"><span className="block h-1.5 w-full rounded-full bg-muted/60" /><span className="block h-1.5 w-2/3 rounded-full bg-muted/40" /></div>
+      </div>
+    </div>
+  );
+}
 function Ring({ pct }: { pct: number }) {
   const r = 26, c = 2 * Math.PI * r, off = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
   return (

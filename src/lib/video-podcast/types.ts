@@ -30,6 +30,8 @@ export interface PodcastSpeaker {
   /** Voice id (HeyGen / cloned), and a label for the UI. */
   voiceId: string | null;
   voiceLabel: string | null;
+  /** A short sample of the voice, for the ▶ preview on the speaker card. */
+  voicePreviewUrl?: string | null;
 }
 
 /** One line of the conversation → one rendered clip. */
@@ -58,6 +60,10 @@ export interface PodcastProject {
   brief: string;
   /** true = the user pasted an exact Host:/Guest: transcript; false = AI writes it. */
   ownScript: boolean;
+  /** Delivery tone the script is written in (e.g. "Conversational", "Debate"). */
+  tone?: string;
+  /** An episode-style preset ("interview" | "debate" | "expert") that shapes the write. */
+  stylePreset?: string | null;
   turns: PodcastTurn[];
   durationMin: number;
   quality: PodcastQuality;
@@ -142,6 +148,7 @@ function normalizeSpeaker(raw: Partial<PodcastSpeaker> | undefined): PodcastSpea
     portraitUrl: s.portraitUrl ?? null,
     voiceId: s.voiceId ?? null,
     voiceLabel: s.voiceLabel ? String(s.voiceLabel).slice(0, 120) : null,
+    voicePreviewUrl: s.voicePreviewUrl ?? null,
   };
 }
 
@@ -172,6 +179,8 @@ export function normalizePodcast(raw: Partial<PodcastProject> & { id: string }):
     guest: normalizeSpeaker(raw.guest),
     brief: String(raw.brief || "").slice(0, 8000),
     ownScript: !!raw.ownScript,
+    tone: raw.tone ? String(raw.tone).slice(0, 60) : "Conversational",
+    stylePreset: (["interview", "debate", "expert"] as string[]).includes(String(raw.stylePreset)) ? String(raw.stylePreset) : null,
     turns: turns.sort((a, b) => a.order - b.order).map((t, i) => ({ ...t, order: i })),
     durationMin: Math.max(1, Math.min(10, raw.durationMin || 1)),
     quality: raw.quality === "hd" ? "hd" : "standard",
