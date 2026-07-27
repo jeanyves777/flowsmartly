@@ -132,6 +132,7 @@ export interface NarrationProject {
   presenterVideoUrl?: string | null;   // the rendered continuous Avatar IV take
   presenterStatus?: ShotStatus;
   presenterError?: string | null;      // friendly reason the presenter take failed
+  presenterErrorDebug?: string | null; // raw reason (diagnostic; not rendered)
   presenterHeartbeatAt?: number;
   presenterTries?: number;
   /** Background drafting (script + cast + every shot prompt) — the canvas polls this. */
