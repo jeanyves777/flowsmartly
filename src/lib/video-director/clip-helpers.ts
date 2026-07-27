@@ -178,7 +178,8 @@ export async function overlayTopBand(
     const bg = path.join(dir, "bg.mp4"), pv = path.join(dir, "pv.mp4"), out = path.join(dir, "out.mp4");
     await writeFile(bg, bgBuf); await writeFile(pv, presenterBuf);
     const band = Math.max(1, Math.min(h, Math.round(bandH)));
-    const fc = `[1:v]scale=${w}:${band}:force_original_aspect_ratio=increase,crop=${w}:${band},setsar=1[pv];[0:v][pv]overlay=0:0:eof_action=pass[v]`;
+    // Crop from the TOP (y=0), not center, so a talking head is never cut off at the forehead.
+    const fc = `[1:v]scale=${w}:${band}:force_original_aspect_ratio=increase,crop=${w}:${band}:(iw-${w})/2:0,setsar=1[pv];[0:v][pv]overlay=0:0:eof_action=pass[v]`;
     const pvHasAudio = await hasAudio(pv);
     const args = ["-i", bg, "-i", pv, "-filter_complex", fc, "-map", "[v]"];
     if (pvHasAudio) args.push("-map", "1:a"); else args.push("-map", "0:a?");
