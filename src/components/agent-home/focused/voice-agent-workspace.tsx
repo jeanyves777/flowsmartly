@@ -527,20 +527,22 @@ function BookingModal({ agent, onClose, onPatch }: {
   agent: VoiceAgentDraft; onClose: () => void; onPatch: (p: Partial<VoiceAgentDraft>) => Promise<void>;
 }) {
   return (
-    <div className="absolute inset-0 z-40">
-      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/50" />
-      <div className="absolute inset-x-3 bottom-3 top-14 flex flex-col rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-8 sm:bottom-8">
-        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <span className="grid h-6 w-6 place-items-center rounded-lg bg-emerald-500/15 text-emerald-500"><CalendarClock className="h-3.5 w-3.5" /></span>
-          <b className="text-[13.5px]">Booking setup</b>
-          <span className="text-[11px] text-muted-foreground">— how the agent books a caller</span>
-          <button onClick={onClose} className="ml-auto grid h-6 w-6 place-items-center rounded-lg border border-border text-muted-foreground"><X className="h-3 w-3" /></button>
+    <div className="absolute inset-0 z-40 grid place-items-center p-4">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative flex max-h-[86vh] w-full max-w-[420px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+        <div className="flex items-center gap-2.5 border-b border-border px-4 py-3">
+          <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-gradient-to-br from-emerald-500 to-brand-500 text-white"><CalendarClock className="h-4 w-4" /></span>
+          <div className="min-w-0">
+            <b className="block text-[13.5px] leading-tight">Booking setup</b>
+            <span className="text-[11px] text-muted-foreground">How the agent books a caller</span>
+          </div>
+          <button onClick={onClose} className="ml-auto grid h-7 w-7 flex-none place-items-center rounded-lg border border-border text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <div className="mx-auto max-w-md"><BookingGroup agent={agent} onPatch={onPatch} /></div>
+          <BookingGroup agent={agent} onPatch={onPatch} />
         </div>
-        <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
-          <button onClick={onClose} className="rounded-lg bg-gradient-to-r from-brand-500 to-emerald-500 px-4 py-1.5 text-[12px] font-bold text-white">Done</button>
+        <div className="flex items-center justify-end border-t border-border px-4 py-3">
+          <button onClick={onClose} className="rounded-lg bg-gradient-to-r from-brand-500 to-emerald-500 px-5 py-2 text-[12.5px] font-bold text-white">Done</button>
         </div>
       </div>
     </div>
