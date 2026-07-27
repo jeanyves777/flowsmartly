@@ -334,6 +334,7 @@ export function FocusedNarration() {
             onRedo={renderShot}
             onRewrite={rewriteLine}
             onPublish={() => setPublishOpen(true)}
+            onEditBrief={() => setBriefOpen(true)}
           />
         </div>
       )}
@@ -1283,13 +1284,14 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
  * one finished video (auto-assembled) with a progress readout and a compact,
  * editable beat list. The Canvas toggle flips back to the full node view.
  */
-function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onPublish }: {
+function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onPublish, onEditBrief }: {
   project: NarrationProject;
   batching: boolean;
   onGenerate: () => void;
   onRedo: (shotId: string) => void;
   onRewrite: (shotId: string) => void;
   onPublish: () => void;
+  onEditBrief: () => void;
 }) {
   const u = (s?: string | null): s is string => !!s && /^https?:\/\//i.test(s);
   const shots = project.shots;
@@ -1304,74 +1306,165 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
   const notStarted = !finalReady && !rendering && !presenterRendering && !stitching && ready === 0 && !batching;
   const working = !finalReady && (batching || rendering || presenterRendering || stitching || (total > 0 && ready < total));
 
-  const step = (label: string, state: "done" | "wait" | "run" | "fail") => (
-    <div className="flex items-center gap-2 text-[12px]">
-      <span className={cn("grid h-4 w-4 flex-none place-items-center rounded-full text-[9px] font-bold",
-        state === "done" ? "bg-emerald-500 text-white" : state === "fail" ? "bg-red-500 text-white" : state === "run" ? "bg-violet-500 text-white" : "border border-border text-muted-foreground")}>
-        {state === "done" ? "✓" : state === "fail" ? "!" : ""}
-      </span>
-      <span className={state === "wait" ? "text-muted-foreground" : "text-foreground"}>{label}</span>
-      {state === "run" && <FlowLoader size={11} />}
+  type St = "done" | "wait" | "run" | "fail";
+  const scriptSt: St = project.draftStatus === "ready" ? "done" : project.draftStatus === "drafting" ? "run" : "wait";
+  const beatsSt: St = total > 0 && ready === total ? "done" : rendering || batching ? "run" : "wait";
+  const presSt: St = presenterReady ? "done" : presenterFailed ? "fail" : presenterRendering ? "run" : "wait";
+  const finalSt: St = finalReady ? "done" : stitching ? "run" : "wait";
+
+  const words = (project.script || shots.map((s) => s.line).join(" ")).trim().split(/\s+/).filter(Boolean).length;
+  const dur = (sec?: number) => { const n = Math.max(0, Math.round(sec || 0)); return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`; };
+  const totalSec = shots.reduce((n, s) => n + (s.holdSec || 0), 0);
+  const parts = [scriptSt === "done" ? 1 : 0, total ? ready / total : 0, presenterReady ? 1 : 0, finalReady ? 1 : 0];
+  const pct = finalReady ? 100 : Math.round((parts.reduce((a, b) => a + b, 0) / 4) * 100);
+  const C = 2 * Math.PI * 44;
+
+  const dot = (s: St, n: number) => (
+    <span className={cn("grid h-[19px] w-[19px] flex-none place-items-center rounded-full text-[11px] font-bold",
+      s === "done" ? "bg-emerald-500 text-white" : s === "fail" ? "bg-red-500 text-white" : s === "run" ? "bg-violet-500 text-white" : "border border-border text-muted-foreground")}>
+      {s === "done" ? "✓" : s === "fail" ? "!" : s === "run" ? "" : n}
+    </span>
+  );
+  const trackCell = (label: string, sub: string, s: St) => (
+    <div>
+      <div className={cn("text-[12px] font-bold", s === "fail" ? "text-red-400" : s === "wait" ? "text-muted-foreground" : "")}>
+        {s === "done" ? "✅ " : s === "fail" ? "⚠ " : s === "run" ? "◍ " : "④ "}{label}
+      </div>
+      <div className="text-[10.5px] text-muted-foreground">{sub}</div>
     </div>
   );
 
   return (
-    <div className="flex h-full w-full flex-col gap-5 overflow-y-auto p-5 md:flex-row md:gap-8">
-      <div className="flex flex-1 flex-col items-center gap-3">
-        <div className="relative w-[300px] max-w-full overflow-hidden rounded-3xl border border-border bg-black" style={{ aspectRatio: "9 / 16" }}>
-          {finalReady ? (
-            <video src={project.finalVideoUrl as string} controls playsInline className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center">
-              {working ? <FlowLoader size={34} /> : <Film className="h-9 w-9 text-muted-foreground" />}
-              <p className="text-[12.5px] font-semibold">{working ? "Building your video…" : notStarted ? "Ready to generate" : "Waiting…"}</p>
+    <div className="flex h-full w-full gap-4 overflow-hidden p-4">
+      {/* LEFT — stepper */}
+      <div className="hidden w-56 flex-none flex-col overflow-y-auto pr-1 lg:flex">
+        <div className="relative pb-5 pl-8">
+          <span className="absolute left-[9px] top-6 bottom-0 w-px bg-emerald-600/50" />
+          <span className="absolute left-0 top-0">{dot(scriptSt, 1)}</span>
+          <div className="text-[13px] font-bold">1 · Script</div>
+          <div className="mt-0.5 text-[11.5px] text-muted-foreground">{scriptSt === "done" ? "Script drafted" : scriptSt === "run" ? "Writing…" : "Waiting"}</div>
+          {words > 0 && <div className="text-[11px] text-muted-foreground/70">{words} words</div>}
+        </div>
+        <div className="relative pb-5 pl-8">
+          <span className={cn("absolute left-[9px] top-6 bottom-0 w-px", beatsSt === "done" ? "bg-emerald-600/50" : "bg-border")} />
+          <span className="absolute left-0 top-0">{dot(beatsSt, 2)}</span>
+          <div className="text-[13px] font-bold">2 · Explainer</div>
+          <div className="mt-0.5 text-[11.5px] text-muted-foreground">Explainer beats</div>
+          <div className="text-[11px] text-muted-foreground/70">{ready}/{total || "…"} complete</div>
+        </div>
+        <div className="relative pb-5 pl-8">
+          <span className="absolute left-[9px] top-6 bottom-0 w-px bg-border" />
+          <span className="absolute left-0 top-0">{dot(presSt, 3)}</span>
+          <div className="text-[13px] font-bold">3 · Presenter</div>
+          {presenterFailed && <div className="mt-0.5 text-[11px] font-bold text-red-400">Needs attention</div>}
+          <div className="mt-0.5 text-[11.5px] text-muted-foreground">Your clone</div>
+          {u(project.presenterImageUrl) && (
+            <div className="mt-1.5 h-10 w-10 overflow-hidden rounded-lg border border-border">
+              <img src={project.presenterImageUrl as string} alt="" className="h-full w-full object-cover" />
             </div>
           )}
+          {presenterFailed && <button onClick={onGenerate} className="mt-1.5 rounded-md border border-red-500/50 px-2 py-1 text-[10.5px] font-semibold text-red-400">Retry presenter</button>}
         </div>
-
-        {!finalReady && (
-          <div className="flex w-[300px] max-w-full flex-col gap-1.5 rounded-xl border border-border bg-card px-4 py-3">
-            {step("Script drafted", project.draftStatus === "ready" ? "done" : project.draftStatus === "drafting" ? "run" : "wait")}
-            {step(`Explainer beats ${ready}/${total || "…"}`, total > 0 && ready === total ? "done" : rendering ? "run" : "wait")}
-            {step("Presenter (your clone)", presenterReady ? "done" : presenterFailed ? "fail" : presenterRendering ? "run" : "wait")}
-            {step("Stitched into one video", finalReady ? "done" : stitching ? "run" : "wait")}
-          </div>
-        )}
-
-        <div className="flex flex-wrap justify-center gap-2">
-          {notStarted && (
-            <button onClick={onGenerate} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-bold text-white">
-              <Sparkles className="h-4 w-4" /> Generate video
-            </button>
-          )}
-          {finalReady && (
-            <>
-              <button onClick={onGenerate} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold"><RefreshCw className="h-3.5 w-3.5" /> Regenerate</button>
-              <button onClick={() => window.open(project.finalVideoUrl as string, "_blank")} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold"><Upload className="h-3.5 w-3.5 rotate-180" /> Download</button>
-              <button onClick={onPublish} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-bold text-white">Publish</button>
-            </>
-          )}
-          {presenterFailed && !working && (
-            <button onClick={onGenerate} className="rounded-lg border border-red-500/50 px-3 py-2 text-[12px] font-semibold text-red-400">Retry presenter</button>
-          )}
+        <div className="relative pl-8">
+          <span className="absolute left-0 top-0">{dot(finalSt, 4)}</span>
+          <div className={cn("text-[13px] font-bold", finalSt === "wait" && "text-muted-foreground")}>Final video</div>
+          <div className="mt-0.5 text-[11.5px] text-muted-foreground">{finalReady ? "Ready" : stitching ? "Stitching…" : "Waiting to start"}</div>
+        </div>
+        <div className="mt-auto rounded-xl border border-border bg-card p-3 text-[11px] text-muted-foreground">
+          <b className="text-foreground">Tip:</b> retry only the failed step to save time.
         </div>
       </div>
 
-      <div className="w-full md:w-[340px]">
-        <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">
-          Beats <span className="font-semibold normal-case tracking-normal text-muted-foreground/70">— edit a line, it re-renders just that beat</span>
-        </p>
-        <div className="flex flex-col gap-2">
+      {/* CENTER — player */}
+      <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
+        <div className="relative overflow-hidden rounded-2xl border border-border bg-black" style={{ aspectRatio: "16 / 10" }}>
+          {finalReady ? (
+            <video src={project.finalVideoUrl as string} controls playsInline className="h-full w-full bg-black object-contain" />
+          ) : (
+            <>
+              <div className="absolute inset-0 bg-gradient-to-b from-[#141d38] to-[#0a1122]" />
+              {u(project.presenterImageUrl) && <img src={project.presenterImageUrl as string} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />}
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
+                <div className="relative grid h-24 w-24 place-items-center">
+                  <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90">
+                    <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(139,92,246,.25)" strokeWidth="8" />
+                    <circle cx="50" cy="50" r="44" fill="none" stroke="#8b5cf6" strokeWidth="8" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - pct / 100)} />
+                  </svg>
+                  <span className="text-xl font-black">{pct}%</span>
+                </div>
+                <div className="text-lg font-bold">{presenterRendering ? "Preparing your presenter…" : working ? "Building your video…" : notStarted ? "Ready to generate" : presenterFailed ? "Presenter needs a retry" : "Waiting…"}</div>
+                <div className="text-[13px] text-muted-foreground">{ready === total && total > 0 ? "Explainer beats are ready" : `Explainer beats ${ready}/${total || "…"}`}</div>
+                {notStarted && (
+                  <button onClick={onGenerate} className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-bold text-white">
+                    <Sparkles className="h-4 w-4" /> Generate video
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {presenterFailed && (
+          <div className="flex items-center gap-3 rounded-xl border border-red-500/40 bg-red-500/10 p-3.5">
+            <span className="text-lg text-red-400">⚠</span>
+            <div className="flex-1">
+              <div className="text-[13px] font-bold text-red-400">Presenter generation failed</div>
+              <div className="text-[11.5px] text-muted-foreground">{project.presenterError || "Your explainer is safe. Retry only the presenter."}</div>
+            </div>
+            <button onClick={onGenerate} className="rounded-lg bg-red-500 px-3 py-2 text-[12px] font-bold text-white">Retry presenter</button>
+            <button onClick={onEditBrief} className="rounded-lg border border-border px-3 py-2 text-[12px] font-semibold">Change presenter</button>
+          </div>
+        )}
+
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
+            {trackCell("Script", scriptSt === "done" ? "Complete" : "…", scriptSt)}
+            {trackCell("Explainer", `${ready} beats`, beatsSt)}
+            {trackCell("Presenter", presenterFailed ? "Needs attention" : presenterReady ? "Ready" : "…", presSt)}
+            {trackCell("Stitching", finalReady ? "Done" : stitching ? "Stitching…" : "Waiting", finalSt)}
+          </div>
+        </div>
+
+        {finalReady && (
+          <div className="flex flex-wrap gap-2">
+            <button onClick={onGenerate} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold"><RefreshCw className="h-3.5 w-3.5" /> Regenerate</button>
+            <button onClick={() => window.open(project.finalVideoUrl as string, "_blank")} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold"><Upload className="h-3.5 w-3.5 rotate-180" /> Download</button>
+            <button onClick={onPublish} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-bold text-white">Publish</button>
+          </div>
+        )}
+      </div>
+
+      {/* RIGHT — beats */}
+      <div className="hidden w-[350px] flex-none flex-col overflow-hidden xl:flex">
+        <div className="mb-2 flex items-center justify-between">
+          <div><b className="text-[13px]">Explainer beats</b> <span className="text-[11px] text-muted-foreground">{total} scenes · {dur(totalSec)}</span></div>
+        </div>
+        <div className="flex flex-1 flex-col gap-2 overflow-y-auto pr-1">
           {shots.map((s, i) => (
-            <div key={s.id} className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5">
-              <span className="grid h-5 w-5 flex-none place-items-center rounded-md bg-violet-500/15 text-[10px] font-bold text-violet-400">{i + 1}</span>
-              <span className="flex-1 text-[11.5px] leading-snug line-clamp-2">{s.line}</span>
-              <span className={cn("flex-none rounded px-1.5 py-0.5 text-[8px] font-bold uppercase", s.graphic ? "bg-sky-500/15 text-sky-400" : "bg-muted text-muted-foreground")}>{s.graphic ? "diagram" : "b-roll"}</span>
-              <button onClick={() => onRewrite(s.id)} title="Rewrite line" className="flex-none text-muted-foreground hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
-              <button onClick={() => onRedo(s.id)} title="Re-render beat" className="flex-none text-muted-foreground hover:text-foreground"><RefreshCw className="h-3.5 w-3.5" /></button>
+            <div key={s.id} className="flex gap-2.5 rounded-xl border border-border bg-card p-2.5">
+              <div className={cn("grid h-14 w-14 flex-none place-items-center rounded-lg border", s.graphic ? "border-sky-500/40 bg-gradient-to-br from-sky-950/60 to-slate-950" : "border-border bg-muted")}>
+                <span className="text-[10px] font-bold text-sky-400/80">{i + 1}</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="line-clamp-2 text-[11.5px] leading-snug">{s.line}</div>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">{dur(s.holdSec)}</span>
+                  <span className={cn("rounded px-1.5 py-0.5 text-[8px] font-bold uppercase", s.graphic ? "bg-sky-500/15 text-sky-400" : "bg-muted text-muted-foreground")}>{s.graphic ? "Diagram" : "B-roll"}</span>
+                </div>
+              </div>
+              <div className="flex flex-none flex-col gap-1.5 text-muted-foreground">
+                <button onClick={() => onRewrite(s.id)} title="Rewrite line" className="hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+                <button onClick={() => onRedo(s.id)} title="Re-render beat" className="hover:text-foreground"><RefreshCw className="h-3.5 w-3.5" /></button>
+              </div>
             </div>
           ))}
         </div>
+        <button
+          onClick={() => (finalReady ? window.open(project.finalVideoUrl as string, "_blank") : onGenerate())}
+          className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-500 to-violet-500 py-2.5 text-[13px] font-bold text-white">
+          <Play className="h-4 w-4" /> {finalReady ? "Play video" : "Generate video"}
+        </button>
+        <div className="mt-1.5 text-[10.5px] text-muted-foreground/70">Editing one beat only re-renders that scene.</div>
       </div>
     </div>
   );
