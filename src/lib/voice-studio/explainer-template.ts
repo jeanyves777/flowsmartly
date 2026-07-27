@@ -147,7 +147,8 @@ export function buildExplainerHtml(g: ExplainerGraphic, opts: RenderExplainerOpt
     .wm{font-size:26px;letter-spacing:.02em;line-height:1}
     .wm small{display:block;font-family:"Segoe UI",Arial,sans-serif;font-weight:700;font-size:9px;letter-spacing:.22em;color:#9dc3ff;margin-top:3px}
     .logoimg{height:52px;width:auto;filter:drop-shadow(0 0 16px ${accent}66)}
-    .title{position:absolute;left:50%;top:${topPct}%;transform:translate(-50%,-50%);z-index:6;
+    /* Title sits just BELOW the seam so the presenter band (top ${topPct}%) never covers it. */
+    .title{position:absolute;left:50%;top:calc(${topPct}% + 44px);transform:translate(-50%,-50%);z-index:6;
       white-space:nowrap;font-size:30px;letter-spacing:.02em;padding:12px 26px;border-radius:14px;
       border:2px solid ${accent};background:#08122b;box-shadow:0 0 26px -6px ${accent}aa;text-transform:uppercase}
     .body{position:absolute;left:0;right:0;top:${topPct}%;bottom:0;padding:120px 40px 150px;
