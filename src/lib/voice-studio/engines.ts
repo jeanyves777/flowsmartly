@@ -11,7 +11,7 @@
  * so the same subject shows up the same way in every shot. [[voice-studio]]
  */
 import {
-  getNarration, saveNarration, patchShot, patchTake, patchNarrationFinal,
+  getNarration, saveNarration, patchShot, patchTake, patchNarrationFinal, patchNarrationPresenter,
 } from "./store";
 import { draftNarration } from "./draft";
 import {
@@ -27,6 +27,7 @@ import {
 import { concatenateVideoBuffers } from "@/lib/video/concat-videos";
 import { generateImageXaiFirst, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
+import { heygenClient } from "@/lib/ai/heygen-client";
 import { generateVoice } from "@/lib/voice/voice-engine";
 import { generateWithClonedVoice as generateWithElevenLabs } from "@/lib/voice/elevenlabs-client";
 import { generateWithClonedVoice as generateWithOpenAiClone } from "@/lib/voice/openai-voice-client";
@@ -39,6 +40,7 @@ import { sanitizeUserError } from "@/lib/ai/user-error";
 const VOICE_COST_KEY: CreditCostKey = "AI_VOICE_GENERATION";
 const IMAGE_COST_KEY: CreditCostKey = "AI_VISUAL_DESIGN";
 const VIDEO_COST_KEY: CreditCostKey = "AI_VIDEO_LITE";
+const PRESENTER_COST_KEY: CreditCostKey = "AI_AVATAR_VIDEO_PREMIUM"; // Avatar IV, per 30s
 
 const MAX_CONCURRENT_SHOTS = 3;
 /** Reference-to-video is capped at 10s upstream; longer holds freeze-pad the tail. */
@@ -323,6 +325,98 @@ export async function generateAllShots(id: string, userId: string): Promise<{ ok
   await saveNarration(id, userId, p);
   await drainShots(id, userId);
   return { ok: true, queued: pending.length };
+}
+
+// ─────────────────────────────── on-camera explainer: the presenter take
+
+/**
+ * Render the CONTINUOUS presenter (top layer) for an on-camera-explainer project.
+ * Concatenate every beat's cloned-voice read into ONE track (so its timing matches
+ * the composite exactly), then drive an audio-driven HeyGen Avatar IV from the
+ * project's clone image + that track — the person talks + gestures to our EXACT
+ * audio. Because the same track times the explainer beats below, the two layers
+ * stay locked. Never throws — a failure lands on the project so the canvas can
+ * show it and offer a redo. [[voice-oncam-explainer-feature]]
+ */
+export async function renderPresenter(id: string, userId: string): Promise<void> {
+  const p0 = await getNarration(id, userId);
+  if (!p0 || p0.mode !== "oncam") return;
+
+  const beat = setInterval(() => {
+    void patchNarrationPresenter(id, userId, { presenterHeartbeatAt: Date.now() }).catch(() => {});
+  }, FINAL_BEAT_MS);
+
+  let charged = 0;
+  try {
+    await patchNarrationPresenter(id, userId, { presenterStatus: "rendering", presenterHeartbeatAt: Date.now() });
+    const p = await getNarration(id, userId);
+    if (!p) return;
+    const presenterImageUrl = p.presenterImageUrl;
+    if (!isUrl(presenterImageUrl)) throw new Error("Add a presenter photo (your clone) before rendering.");
+
+    // 1) Every beat's read, in order → one continuous track (same timing as the composite).
+    const ordered = p.shots.filter((s) => s.line.trim()).sort((a, b) => a.order - b.order);
+    if (ordered.length === 0) throw new Error("Write at least one beat before rendering the presenter.");
+
+    const segments: { buf: Buffer; holdSec: number }[] = [];
+    for (const s of ordered) {
+      if (isUrl(s.audioUrl)) {
+        segments.push({ buf: await toBuffer(s.audioUrl), holdSec: s.holdSec });
+        continue;
+      }
+      // Beat not read yet — read it now (charge voice per beat, same as a shot read).
+      const vErr = await charge(userId, VOICE_COST_KEY, `${id}:${s.id}:vo`, "Voice Studio — narration beat", { narrationId: id, shotId: s.id });
+      if (vErr) throw new Error(vErr);
+      const { buffer, durationMs } = await narrate(s.line, p.voice, userId);
+      const url = await uploadToS3(`narration/${id}/vo-${s.id}-${uid()}.mp3`, buffer, "audio/mpeg");
+      const hold = Math.max(s.holdSec, Math.min(MAX_HOLD_SEC, Math.round((durationMs / 1000 + 0.6) * 10) / 10));
+      await patchShot(id, userId, s.id, { audioUrl: url, audioMs: durationMs, holdSec: hold });
+      segments.push({ buf: buffer, holdSec: hold });
+    }
+
+    const track = await buildNarrationTrack(segments);
+    const audioUrl = await uploadToS3(`narration/${id}/presenter-audio-${uid()}.mp3`, track, "audio/mpeg");
+    const durationSec = Math.max(1, segments.reduce((n, s) => n + s.holdSec, 0));
+
+    // 2) Charge the Avatar IV take (per 30s).
+    const unit = await getDynamicCreditCost(PRESENTER_COST_KEY).catch(() => 0);
+    const amount = unit * Math.max(1, Math.ceil(durationSec / 30));
+    if (amount > 0) {
+      const block = await checkCreditsAvailable(userId, amount, false, false);
+      if (block) throw new Error(block.message);
+      const res = await creditService.deductCredits({
+        userId, type: TRANSACTION_TYPES.USAGE, amount,
+        referenceType: "narration", referenceId: `${id}:presenter`,
+        description: "Voice Studio — on-camera presenter (Avatar IV)",
+        metadata: { feature: PRESENTER_COST_KEY, narrationId: id, seconds: durationSec },
+      });
+      if (!res.success) throw new Error(res.error || "Could not charge credits.");
+      charged = amount;
+    }
+
+    // 3) Audio-driven Avatar IV — the clone talks + gestures to our exact track.
+    const heygen = await heygenClient.generateImageToVideo({
+      imageUrl: presenterImageUrl,
+      audioUrl,
+      title: p.title,
+      estimatedSeconds: durationSec,
+      onStatus: () => { void patchNarrationPresenter(id, userId, { presenterHeartbeatAt: Date.now() }).catch(() => {}); },
+    });
+    const url = await uploadToS3(`narration/${id}/presenter-${uid()}.mp4`, heygen.videoBuffer, "video/mp4");
+    await patchNarrationPresenter(id, userId, { presenterVideoUrl: url, presenterStatus: "ready", presenterHeartbeatAt: Date.now() });
+  } catch (err) {
+    console.error(`[voice-studio] presenter render failed for ${id}:`, err);
+    if (charged > 0) {
+      await creditService.addCredits({
+        userId, type: TRANSACTION_TYPES.REFUND, amount: charged,
+        referenceType: "narration", referenceId: `${id}:presenter:refund`,
+        description: "Refund — presenter render failed",
+      }).catch(() => {});
+    }
+    await patchNarrationPresenter(id, userId, { presenterStatus: "failed", presenterHeartbeatAt: Date.now() }).catch(() => {});
+  } finally {
+    clearInterval(beat);
+  }
 }
 
 // ─────────────────────────────── voiceover takes

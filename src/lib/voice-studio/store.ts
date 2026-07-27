@@ -132,3 +132,17 @@ export async function patchNarrationFinal(
   await saveNarration(id, userId, p);
   return p;
 }
+
+/** Merge-patch the on-camera-explainer PRESENTER fields (the Avatar IV take) without touching shots. */
+export async function patchNarrationPresenter(
+  id: string,
+  userId: string,
+  patch: Partial<Pick<NarrationProject,
+    "presenterStatus" | "presenterVideoUrl" | "presenterImageUrl" | "presenterMotion" | "presenterHeartbeatAt" | "presenterTries">>,
+): Promise<NarrationProject | null> {
+  const p = await getNarration(id, userId);
+  if (!p) return null;
+  Object.assign(p, patch);
+  await saveNarration(id, userId, p);
+  return p;
+}
