@@ -226,7 +226,7 @@ export async function renderShot(id: string, userId: string, shotId: string): Pr
       const { buffer, durationMs } = await narrate(shot.line, p.voice, userId);
       const url = await uploadToS3(`narration/${id}/vo-${shotId}-${uid()}.mp3`, buffer, "audio/mpeg");
       const spoken = Math.max(1, durationMs / 1000);
-      const hold = Math.max(shot.holdSec, Math.min(MAX_HOLD_SEC, Math.round((spoken + 0.6) * 10) / 10));
+      const hold = Math.max(shot.holdSec, Math.min(MAX_HOLD_SEC, Math.round((spoken + 0.2) * 10) / 10));
       await patchShot(id, userId, shotId, { audioUrl: url, audioMs: durationMs, holdSec: hold, progress: 28, renderHeartbeatAt: Date.now() });
       shot.audioUrl = url; shot.audioMs = durationMs; shot.holdSec = hold;
     }
@@ -325,6 +325,22 @@ export async function drainShots(id: string, userId: string, max = MAX_CONCURREN
   const p = await getNarration(id, userId);
   if (!p) return 0;
   const live = p.shots.filter((s) => s.status === "rendering").length;
+
+  // On-camera explainer: kick the presenter take ONLY once every beat is ready —
+  // sequential AFTER the beats, so step 3 can't show a premature/stale failure while
+  // the beats (step 2) are still rendering.
+  if (
+    p.mode === "oncam" &&
+    live === 0 &&
+    p.shots.length > 0 &&
+    p.shots.every((s) => s.status === "ready") &&
+    /^https?:\/\//i.test(p.presenterImageUrl || "") &&
+    p.presenterStatus !== "rendering" &&
+    !/^https?:\/\//i.test(p.presenterVideoUrl || "")
+  ) {
+    void renderPresenter(id, userId).catch(() => {});
+  }
+
   const free = Math.max(0, max - live);
   if (free === 0) return 0;
   const next = p.shots.filter((s) => s.status === "queued").slice(0, free);
@@ -392,7 +408,7 @@ export async function renderPresenter(id: string, userId: string): Promise<void>
       if (vErr) throw new Error(vErr);
       const { buffer, durationMs } = await narrate(s.line, p.voice, userId);
       const url = await uploadToS3(`narration/${id}/vo-${s.id}-${uid()}.mp3`, buffer, "audio/mpeg");
-      const hold = Math.max(s.holdSec, Math.min(MAX_HOLD_SEC, Math.round((durationMs / 1000 + 0.6) * 10) / 10));
+      const hold = Math.max(s.holdSec, Math.min(MAX_HOLD_SEC, Math.round((durationMs / 1000 + 0.2) * 10) / 10));
       await patchShot(id, userId, s.id, { audioUrl: url, audioMs: durationMs, holdSec: hold });
       segments.push({ buf: buffer, holdSec: hold });
     }
