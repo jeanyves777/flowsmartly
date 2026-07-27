@@ -85,6 +85,10 @@ export function FocusedNarration() {
   const [picker, setPicker] = useState<{ shotId: string; kind: ShotKind } | "music" | null>(null);
   const [playing, setPlaying] = useState<string | null>(null);
   const [batching, setBatching] = useState(false);
+  // On-camera explainer: default to the SIMPLE (non-canvas) view — one auto-assembled
+  // video — with a toggle to the full node canvas for hand-tuning.
+  const [oncamView, setOncamView] = useState<"simple" | "canvas">("simple");
+  const autoComposedRef = useRef<string | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const pan = useCanvasPan(scrollRef);
@@ -258,6 +262,21 @@ export function FocusedNarration() {
   // On-camera explainers use the same canvas as a film (shots + generate-all + stitch);
   // only voiceover uses the takes UI.
   const isFilm = project?.mode === "film" || project?.mode === "oncam";
+  const oncam = project?.mode === "oncam";
+
+  // SIMPLE mode auto-stitches: once every beat is ready AND the presenter take is in,
+  // compose itself — no manual Stitch button. Fires once per project (guarded by ref).
+  useEffect(() => {
+    if (!oncam || oncamView !== "simple" || !project) return;
+    const beatsReady = stats.pending === 0 && stats.ready > 0 && stats.rendering === 0;
+    const presenterReady = /^https?:\/\//i.test(project.presenterVideoUrl || "");
+    const noFinal = !/^https?:\/\//i.test(project.finalVideoUrl || "") && project.finalStatus !== "rendering";
+    if (beatsReady && presenterReady && noFinal && autoComposedRef.current !== project.id) {
+      autoComposedRef.current = project.id;
+      void compose();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oncam, oncamView, project?.id, project?.finalVideoUrl, project?.finalStatus, project?.presenterVideoUrl, stats.pending, stats.ready, stats.rendering]);
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -273,6 +292,12 @@ export function FocusedNarration() {
             className="hidden w-[150px] truncate rounded-lg border border-transparent bg-transparent px-2 py-1 text-[12.5px] font-bold hover:border-border focus:border-brand-500/60 focus:bg-card focus:outline-none md:block"
             placeholder="Untitled narration"
           />
+          )}
+          {oncam && (
+            <div className="hidden overflow-hidden rounded-lg border border-border text-[11px] font-bold sm:flex">
+              <button onClick={() => setOncamView("simple")} className={cn("px-2.5 py-1", oncamView === "simple" ? "bg-violet-500 text-white" : "text-muted-foreground")}>Simple</button>
+              <button onClick={() => setOncamView("canvas")} className={cn("px-2.5 py-1", oncamView === "canvas" ? "bg-violet-500 text-white" : "text-muted-foreground")}>Canvas</button>
+            </div>
           )}
           {project && isFilm && (
             <span className="hidden items-center gap-1 text-[11.5px] text-muted-foreground sm:inline-flex">
@@ -296,6 +321,22 @@ export function FocusedNarration() {
             <Sparkles className="h-3.5 w-3.5" /> New
           </button>
         </div>, headerSlot)}
+
+      {/* On-camera explainer SIMPLE view — a non-canvas overlay: one auto-assembled
+          video + a compact beat list. Gated to oncam, so the film/voiceover canvas
+          underneath is never affected. Toggle to "Canvas" hides this. */}
+      {oncam && oncamView === "simple" && project && (
+        <div className="absolute inset-0 z-20 bg-background">
+          <SimpleOnCamView
+            project={project}
+            batching={batching}
+            onGenerate={generateAll}
+            onRedo={renderShot}
+            onRewrite={rewriteLine}
+            onPublish={() => setPublishOpen(true)}
+          />
+        </div>
+      )}
 
       {/* global loader — derived from polled state, so it returns if you leave and come back */}
       {(stats.rendering > 0 || takesRendering) && (
@@ -1229,6 +1270,107 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
           <button onClick={go} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-bold text-white disabled:opacity-60">
             {busy ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────── on-camera explainer: simple (non-canvas) view
+
+/**
+ * The SIMPLE view for an on-camera explainer: no node canvas, no manual stitch —
+ * one finished video (auto-assembled) with a progress readout and a compact,
+ * editable beat list. The Canvas toggle flips back to the full node view.
+ */
+function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onPublish }: {
+  project: NarrationProject;
+  batching: boolean;
+  onGenerate: () => void;
+  onRedo: (shotId: string) => void;
+  onRewrite: (shotId: string) => void;
+  onPublish: () => void;
+}) {
+  const u = (s?: string | null): s is string => !!s && /^https?:\/\//i.test(s);
+  const shots = project.shots;
+  const total = shots.length;
+  const ready = shots.filter((s) => s.status === "ready").length;
+  const rendering = shots.some((s) => s.status === "rendering");
+  const presenterReady = u(project.presenterVideoUrl);
+  const presenterFailed = project.presenterStatus === "failed";
+  const presenterRendering = project.presenterStatus === "rendering";
+  const finalReady = u(project.finalVideoUrl);
+  const stitching = project.finalStatus === "rendering";
+  const notStarted = !finalReady && !rendering && !presenterRendering && !stitching && ready === 0 && !batching;
+  const working = !finalReady && (batching || rendering || presenterRendering || stitching || (total > 0 && ready < total));
+
+  const step = (label: string, state: "done" | "wait" | "run" | "fail") => (
+    <div className="flex items-center gap-2 text-[12px]">
+      <span className={cn("grid h-4 w-4 flex-none place-items-center rounded-full text-[9px] font-bold",
+        state === "done" ? "bg-emerald-500 text-white" : state === "fail" ? "bg-red-500 text-white" : state === "run" ? "bg-violet-500 text-white" : "border border-border text-muted-foreground")}>
+        {state === "done" ? "✓" : state === "fail" ? "!" : ""}
+      </span>
+      <span className={state === "wait" ? "text-muted-foreground" : "text-foreground"}>{label}</span>
+      {state === "run" && <FlowLoader size={11} />}
+    </div>
+  );
+
+  return (
+    <div className="flex h-full w-full flex-col gap-5 overflow-y-auto p-5 md:flex-row md:gap-8">
+      <div className="flex flex-1 flex-col items-center gap-3">
+        <div className="relative w-[300px] max-w-full overflow-hidden rounded-3xl border border-border bg-black" style={{ aspectRatio: "9 / 16" }}>
+          {finalReady ? (
+            <video src={project.finalVideoUrl as string} controls playsInline className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center">
+              {working ? <FlowLoader size={34} /> : <Film className="h-9 w-9 text-muted-foreground" />}
+              <p className="text-[12.5px] font-semibold">{working ? "Building your video…" : notStarted ? "Ready to generate" : "Waiting…"}</p>
+            </div>
+          )}
+        </div>
+
+        {!finalReady && (
+          <div className="flex w-[300px] max-w-full flex-col gap-1.5 rounded-xl border border-border bg-card px-4 py-3">
+            {step("Script drafted", project.draftStatus === "ready" ? "done" : project.draftStatus === "drafting" ? "run" : "wait")}
+            {step(`Explainer beats ${ready}/${total || "…"}`, total > 0 && ready === total ? "done" : rendering ? "run" : "wait")}
+            {step("Presenter (your clone)", presenterReady ? "done" : presenterFailed ? "fail" : presenterRendering ? "run" : "wait")}
+            {step("Stitched into one video", finalReady ? "done" : stitching ? "run" : "wait")}
+          </div>
+        )}
+
+        <div className="flex flex-wrap justify-center gap-2">
+          {notStarted && (
+            <button onClick={onGenerate} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-bold text-white">
+              <Sparkles className="h-4 w-4" /> Generate video
+            </button>
+          )}
+          {finalReady && (
+            <>
+              <button onClick={onGenerate} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold"><RefreshCw className="h-3.5 w-3.5" /> Regenerate</button>
+              <button onClick={() => window.open(project.finalVideoUrl as string, "_blank")} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold"><Upload className="h-3.5 w-3.5 rotate-180" /> Download</button>
+              <button onClick={onPublish} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-bold text-white">Publish</button>
+            </>
+          )}
+          {presenterFailed && !working && (
+            <button onClick={onGenerate} className="rounded-lg border border-red-500/50 px-3 py-2 text-[12px] font-semibold text-red-400">Retry presenter</button>
+          )}
+        </div>
+      </div>
+
+      <div className="w-full md:w-[340px]">
+        <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">
+          Beats <span className="font-semibold normal-case tracking-normal text-muted-foreground/70">— edit a line, it re-renders just that beat</span>
+        </p>
+        <div className="flex flex-col gap-2">
+          {shots.map((s, i) => (
+            <div key={s.id} className="flex items-center gap-2.5 rounded-xl border border-border bg-card px-3 py-2.5">
+              <span className="grid h-5 w-5 flex-none place-items-center rounded-md bg-violet-500/15 text-[10px] font-bold text-violet-400">{i + 1}</span>
+              <span className="flex-1 text-[11.5px] leading-snug line-clamp-2">{s.line}</span>
+              <span className={cn("flex-none rounded px-1.5 py-0.5 text-[8px] font-bold uppercase", s.graphic ? "bg-sky-500/15 text-sky-400" : "bg-muted text-muted-foreground")}>{s.graphic ? "diagram" : "b-roll"}</span>
+              <button onClick={() => onRewrite(s.id)} title="Rewrite line" className="flex-none text-muted-foreground hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
+              <button onClick={() => onRedo(s.id)} title="Re-render beat" className="flex-none text-muted-foreground hover:text-foreground"><RefreshCw className="h-3.5 w-3.5" /></button>
+            </div>
+          ))}
         </div>
       </div>
     </div>

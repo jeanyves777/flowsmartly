@@ -176,14 +176,15 @@ async function draftOnCam(id: string, userId: string, p: NarrationProject, brief
     `- "script" = the full spoken narration as flowing prose, written to be HEARD (short sentences, concrete words, no bullets or headings).\n` +
     `- Split it into beats: each beat's "line" is the EXACT slice of the script heard during it. Concatenating every line in order MUST reproduce the script verbatim — do not paraphrase, add or drop words.\n` +
     `- A line is 1-2 sentences (~6-30 words).\n\n` +
-    `EACH BEAT'S BOTTOM VISUAL — pick the RIGHT one:\n` +
-    `- "graphic": a DESIGNED on-screen graphic, for beats that teach STRUCTURE (steps, points, a number, a definition, a punchy takeaway). This is the point of an explainer — PREFER it. Fill "graphic":\n` +
+    `EACH BEAT'S BOTTOM VISUAL — DEFAULT TO A DESIGNED GRAPHIC. This is a designed explainer, NOT a stock slideshow:\n` +
+    `- Make ALMOST EVERY beat a "graphic". Even a real-world EXAMPLE becomes a DIAGRAM, never a photo — e.g. a thermostat is an iconflow "SENSES → DECIDES → ACTS", not a picture of a thermostat. Turn the idea into steps/points/a number. Fill "graphic":\n` +
     `   • "kind": "iconflow" (2-4 SEQUENTIAL steps/stages) | "keypoints" (2-5 PARALLEL points) | "stat" (one big number) | "quote" (a punchy line) | "title" (a section-title card) | "diagram".\n` +
     `   • "headline": a SHORT all-caps on-screen title (e.g. "WHAT IS AGENTIC AI?"). Use on the opening beat and when the section changes; omit otherwise.\n` +
     `   • "caption": the ONE-LINE takeaway burned at the bottom — short and punchy.\n` +
     `   • "items" (iconflow/keypoints): 2-5 of {"label":"SHORT CAPS WORD","icon":ONE OF [${ICON_KEYS.join(", ")}],"sub":"optional 2-4 word detail"}. Labels MUST be the REAL steps/points of the content — never generic filler.\n` +
     `   • "stat" (stat kind): {"value":"40%","label":"short label"}.\n` +
-    `- "broll": a real-world atmospheric shot, ONLY when a designed graphic would be forced (emotional/narrative/transition beats). Fill "prompt" (a full cinematic visual description that stands alone) and "motion":"image" or "video".\n\n` +
+    `- "broll" is the RARE EXCEPTION — AT MOST ONE beat in the whole video, and only for a purely emotional/atmospheric moment a diagram genuinely can't carry. If in doubt, use a graphic. Fill "prompt" (a full cinematic visual description) and "motion":"image" or "video".\n` +
+    `- So: of ~${approxBeats} beats, at least ${Math.max(1, approxBeats - 1)} MUST be "graphic".\n\n` +
     `Return JSON ONLY:\n` +
     `{"title":"short title","script":"the full narration","beats":[` +
     `{"line":"exact slice","bottom":"graphic","graphic":{"kind":"iconflow","headline":"WHAT IS AGENTIC AI?","caption":"It doesn't just respond — it takes action.","items":[{"label":"GOAL","icon":"goal"},{"label":"PLAN","icon":"plan"},{"label":"TOOLS","icon":"tools"},{"label":"ACTION","icon":"action"}]}},` +
