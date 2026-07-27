@@ -23,7 +23,18 @@ export interface RenderExplainerOptions {
   presenterPct?: number;      // default 0.44
   brand?: ExplainerGraphicBrand;
   deviceScaleFactor?: number; // default 2 (retina)
+  /** Emit CSS keyframe motion (hero pops+floats, items fly in staggered, wires draw). The
+   *  video rasterizer seeks these via the Web Animations API; the still preview leaves it off
+   *  so the thumbnail shows the settled frame. */
+  animated?: boolean;
+  /** This beat's seconds on screen — used to pace the entrance so it lands early and settles. */
+  holdSec?: number;
 }
+
+/** A kind-appropriate hero emoji when the drafter didn't pick a subject. */
+const SUBJECT_FALLBACK: Record<string, string> = {
+  title: "✨", iconflow: "⚙️", keypoints: "📌", stat: "📈", quote: "💬", diagram: "🧩",
+};
 
 /** Minimal stroke-icon set, keyed by the drafter's `item.icon`. Falls back to a dot. */
 const ICONS: Record<string, string> = {
@@ -63,45 +74,60 @@ function captionHtml(caption: string, accent: string): string {
   return esc(caption);
 }
 
+/** The animated subject illustration. `--i:0` so it reveals first. `variant`:
+ *  "fore" = big foreground hero, "sm" = compact foreground, "back" = large ghosted
+ *  backdrop (for list-heavy kinds that have no vertical room for a stacked hero). */
+function heroHtml(g: ExplainerGraphic, variant: "fore" | "sm" | "back" = "fore"): string {
+  const emoji = (g.subject || SUBJECT_FALLBACK[g.kind] || "✨").trim();
+  const cls = variant === "back" ? "hero back" : variant === "sm" ? "hero sm" : "hero";
+  return `<div class="${cls}" style="--i:0">${esc(emoji)}</div>`;
+}
+
+/** Build a `<div class="flow">` of icon nodes joined by drawing wires (rv indices staggered). */
+function flowHtml(items: { label: string; icon?: string; sub?: string }[], accent: string, max: number): string {
+  const nodes = items.slice(0, max);
+  let html = "";
+  nodes.forEach((it, i) => {
+    if (i > 0) html += `<div class="wire rv" style="--i:${i + 0.5}"></div>`;
+    html += `<div class="node rv" style="--i:${i + 1}">
+        <div class="ic">${icon(it.icon, accent)}</div>
+        <div class="nm">${esc(it.label)}</div>
+        ${it.sub ? `<div class="sub">${esc(it.sub)}</div>` : ""}
+      </div>`;
+  });
+  return `<div class="flow">${html}</div>`;
+}
+
 function bodyForKind(g: ExplainerGraphic, accent: string): string {
   const items = g.items || [];
   switch (g.kind) {
-    case "iconflow": {
-      const tiles = items.slice(0, 4).map((it) => `
-        <div class="node">
-          <div class="ic">${icon(it.icon, accent)}</div>
-          <div class="nm">${esc(it.label)}</div>
-          ${it.sub ? `<div class="sub">${esc(it.sub)}</div>` : ""}
-        </div>`).join('<div class="wire"></div>');
-      return `<div class="flow">${tiles}</div>`;
-    }
+    case "iconflow":
+      return heroHtml(g, "sm") + flowHtml(items, accent, 4);
     case "keypoints": {
-      const rows = items.slice(0, 5).map((it) => `
-        <div class="kp">
+      const rows = items.slice(0, 5).map((it, i) => `
+        <div class="kp rv" style="--i:${i + 1}">
           <div class="kpic">${icon(it.icon || "check", accent)}</div>
           <div class="kptext"><b>${esc(it.label)}</b>${it.sub ? `<span>${esc(it.sub)}</span>` : ""}</div>
         </div>`).join("");
-      return `<div class="keypoints">${rows}</div>`;
+      return heroHtml(g, "back") + `<div class="keypoints">${rows}</div>`;
     }
     case "stat": {
       const s = g.stat || { value: items[0]?.label || "—" };
-      return `<div class="stat"><div class="statval">${esc(s.value)}</div>${s.label ? `<div class="statlbl">${esc(s.label)}</div>` : ""}</div>`;
+      return heroHtml(g, "sm") +
+        `<div class="stat"><div class="statval rv" style="--i:1">${esc(s.value)}</div>${s.label ? `<div class="statlbl rv" style="--i:2">${esc(s.label)}</div>` : ""}</div>`;
     }
     case "quote": {
       const q = g.caption || items[0]?.label || "";
-      return `<div class="quote"><span class="mark">“</span>${esc(q)}<span class="mark">”</span></div>`;
+      return heroHtml(g, "sm") + `<div class="quote rv" style="--i:1"><span class="mark">“</span>${esc(q)}<span class="mark">”</span></div>`;
     }
+    case "title":
+      return heroHtml(g, "fore");
     case "diagram":
     default: {
-      if (items.length <= 3) {
-        const tiles = items.slice(0, 3).map((it) => `
-          <div class="node"><div class="ic">${icon(it.icon, accent)}</div><div class="nm">${esc(it.label)}</div></div>`)
-          .join('<div class="wire"></div>');
-        return `<div class="flow">${tiles}</div>`;
-      }
-      const rows = items.slice(0, 5).map((it) => `
-        <div class="kp"><div class="kpic">${icon(it.icon || "check", accent)}</div><div class="kptext"><b>${esc(it.label)}</b></div></div>`).join("");
-      return `<div class="keypoints">${rows}</div>`;
+      if (items.length <= 3) return heroHtml(g, "sm") + flowHtml(items, accent, 3);
+      const rows = items.slice(0, 5).map((it, i) => `
+        <div class="kp rv" style="--i:${i + 1}"><div class="kpic">${icon(it.icon || "check", accent)}</div><div class="kptext"><b>${esc(it.label)}</b></div></div>`).join("");
+      return heroHtml(g, "back") + `<div class="keypoints">${rows}</div>`;
     }
   }
 }
@@ -118,6 +144,11 @@ export function buildExplainerHtml(g: ExplainerGraphic, opts: RenderExplainerOpt
   const tagline = (b.tagline || "").trim();
   const headline = (g.headline || "").trim();
   const caption = (g.caption || "").trim();
+  const animated = !!opts.animated;
+  // Pace the stagger to the beat: shorter beats reveal faster so everything is on screen
+  // (settled) with time to spare before the narration moves on.
+  const hold = Math.max(1, opts.holdSec ?? 4);
+  const stg = Math.max(0.07, Math.min(0.14, (hold * 0.32) / 6));
 
   const logo = b.logoDataUri
     ? `<img class="logoimg" src="${b.logoDataUri}" alt="" />`
@@ -151,8 +182,8 @@ export function buildExplainerHtml(g: ExplainerGraphic, opts: RenderExplainerOpt
     .title{position:absolute;left:50%;top:calc(${topPct}% + 44px);transform:translate(-50%,-50%);z-index:6;
       white-space:nowrap;font-size:30px;letter-spacing:.02em;padding:12px 26px;border-radius:14px;
       border:2px solid ${accent};background:#08122b;box-shadow:0 0 26px -6px ${accent}aa;text-transform:uppercase}
-    .body{position:absolute;left:0;right:0;top:${topPct}%;bottom:0;padding:120px 40px 150px;
-      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px}
+    .body{position:absolute;left:0;right:0;top:${topPct}%;bottom:0;padding:108px 40px 120px;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:30px;z-index:1}
     .flow{display:flex;align-items:flex-start;justify-content:center;gap:10px;width:100%}
     .node{display:flex;flex-direction:column;align-items:center;gap:12px;flex:1;max-width:150px}
     .ic{width:110px;height:110px;border-radius:24px;display:grid;place-items:center;
@@ -176,12 +207,36 @@ export function buildExplainerHtml(g: ExplainerGraphic, opts: RenderExplainerOpt
     .quote .mark{color:${accent};font-size:64px;line-height:0;vertical-align:-.25em}
     .caption{position:absolute;left:0;right:0;bottom:70px;text-align:center;padding:0 44px;z-index:6;
       font-size:31px;line-height:1.25;text-shadow:0 2px 12px rgba(0,0,0,.7)}
-  </style></head><body>
+    /* ── subject illustration (hero) ── */
+    .hero{font-size:170px;line-height:1;text-align:center;margin-bottom:2px;z-index:2;
+      filter:drop-shadow(0 18px 26px rgba(0,0,0,.55))}
+    .hero.sm{font-size:108px}
+    .hero.back{position:absolute;left:50%;top:calc(${topPct}% + (100% - ${topPct}%) * 0.52);
+      transform:translate(-50%,-50%);font-size:340px;opacity:.13;margin:0;z-index:-1;
+      filter:drop-shadow(0 0 44px ${accent}66)}
+    ${animated ? `
+    /* ── motion: hero pops+floats, items fly in staggered, wires draw ── */
+    body.anim{--stg:${stg}s}
+    body.anim .rv{opacity:0;animation:rvIn .58s cubic-bezier(.2,.8,.2,1) both;
+      animation-delay:calc(.14s + var(--i,0)*var(--stg))}
+    @keyframes rvIn{from{opacity:0;transform:translateY(26px) scale(.94)}to{opacity:1;transform:none}}
+    body.anim .wire.rv{opacity:0;transform-origin:left center;animation:wireGrow .5s ease both;
+      animation-delay:calc(.22s + var(--i,0)*var(--stg))}
+    @keyframes wireGrow{from{opacity:0;transform:scaleX(0)}to{opacity:1;transform:scaleX(1)}}
+    body.anim .hero{animation:heroPop .72s cubic-bezier(.2,1.35,.35,1) both,heroFloat 3.6s ease-in-out 1s infinite}
+    @keyframes heroPop{0%{opacity:0;transform:scale(.35) rotate(-8deg)}60%{opacity:1;transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}
+    @keyframes heroFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+    body.anim .hero.back{animation:heroPopBack .9s ease both}
+    @keyframes heroPopBack{from{opacity:0;transform:translate(-50%,-50%) scale(.6)}to{opacity:.13;transform:translate(-50%,-50%) scale(1)}}
+    body.anim .title{animation:titleIn .55s cubic-bezier(.2,.8,.2,1) both}
+    @keyframes titleIn{from{opacity:0;transform:translate(-50%,-50%) translateY(16px) scale(.92)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+    ` : ""}
+  </style></head><body class="${animated ? "anim" : ""}">
     <div class="grid"></div><div class="glowR"></div>
     <div class="presenter"></div>
     ${logo ? `<div class="brand">${logo}</div>` : ""}
     ${headline ? `<div class="title">${esc(headline)}</div>` : ""}
     <div class="body">${bodyForKind(g, accent)}</div>
-    ${caption ? `<div class="caption">${captionHtml(caption, accent)}</div>` : ""}
+    ${caption ? `<div class="caption rv" style="--i:6">${captionHtml(caption, accent)}</div>` : ""}
   </body></html>`;
 }
