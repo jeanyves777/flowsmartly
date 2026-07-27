@@ -158,10 +158,11 @@ export const NARRATION_ASPECTS: NarrationAspect[] = ["9:16", "1:1", "16:9"];
 /** Words per second for a natural read — the same figure the Director uses for dialogue. */
 export const NARRATION_WORDS_PER_SEC = 2.4;
 /** A beat never sits on screen for less/more than this, however long the line is. */
-export const MIN_HOLD_SEC = 2.5;
+export const MIN_HOLD_SEC = 1.2;
 export const MAX_HOLD_SEC = 15;
-/** Breath after a line, so shots don't cut the instant the voice stops. */
-export const HOLD_PAD_SEC = 0.6;
+/** Small breath after a line so beats don't cut the instant the voice stops — kept tight
+ *  so the video flows with the narration instead of sitting in silence. */
+export const HOLD_PAD_SEC = 0.2;
 
 export function holdForLine(line: string): number {
   const words = (line.trim().match(/\S+/g) || []).length;

@@ -142,6 +142,8 @@ export function FocusedNarration() {
   const generateAll = async () => {
     if (!project) return;
     setBatching(true);
+    // Re-arm auto-compose so a fresh run re-stitches (the route also clears the old final).
+    autoComposedRef.current = null;
     try {
       const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/generate-all`, { method: "POST" }).then((r) => r.json());
       if (j?.success) {
