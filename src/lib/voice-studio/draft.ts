@@ -11,7 +11,7 @@
  */
 import { ai } from "@/lib/ai/client";
 import { getNarration, saveNarration } from "./store";
-import { holdForLine, normalizeShot, type NarrationProject, type NarrationShot, type ShotKind } from "./types";
+import { holdForLine, normalizeShot, type NarrationProject, type NarrationShot, type ShotKind, type ExplainerGraphic } from "./types";
 import { normalizeCharacter, type FilmCharacter } from "@/lib/video-director/types";
 import { sanitizeUserError } from "@/lib/ai/user-error";
 
@@ -50,6 +50,10 @@ export async function draftNarration(id: string, userId: string): Promise<void> 
       await patchDraft(id, userId, { draftStatus: "failed", draftError: "Tell the studio what to narrate first." });
       return;
     }
+
+    // On-camera explainer drafts differently: no depicted film cast (the host is the
+    // Avatar IV presenter), and each beat carries a DESIGNED graphic or a b-roll prompt.
+    if (p.mode === "oncam") { await draftOnCam(id, userId, p, brief); return; }
 
     const wantsVideo = p.treatment === "mixed";
     const targetSec = Math.max(20, Math.min(240, p.shots.length ? p.shots.reduce((n, s) => n + s.holdSec, 0) : 45));
@@ -134,6 +138,105 @@ export async function draftNarration(id: string, userId: string): Promise<void> 
     console.error("[voice-studio] draft failed:", err);
     await patchDraft(id, userId, { draftStatus: "failed", draftError: sanitizeUserError(err, "generic") });
   }
+}
+
+// ─────────────────────────────── on-camera explainer draft
+
+interface OnCamBeat {
+  line?: string;
+  bottom?: "graphic" | "broll";
+  graphic?: {
+    kind?: string; headline?: string; caption?: string;
+    items?: { label?: string; icon?: string; sub?: string }[];
+    stat?: { value?: string; label?: string };
+  };
+  prompt?: string;
+  motion?: string;
+}
+interface OnCamDraftShape { title?: string; script?: string; beats?: OnCamBeat[]; }
+
+const GRAPHIC_KINDS = ["title", "iconflow", "keypoints", "stat", "quote", "diagram"];
+const ICON_KEYS = ["goal", "plan", "tools", "action", "idea", "data", "time", "money", "chat", "rocket", "check", "gear", "target", "brain", "shield", "chart", "user", "bolt"];
+
+/**
+ * Draft an ON-CAMERA EXPLAINER: the host's spoken script split into beats, each with
+ * EITHER a designed on-screen graphic (the teachable beats — steps/points/number/
+ * definition) OR an atmospheric b-roll prompt. The host is the Avatar IV presenter,
+ * so there is no depicted film cast. [[voice-oncam-explainer-feature]]
+ */
+async function draftOnCam(id: string, userId: string, p: NarrationProject, brief: string): Promise<void> {
+  const targetSec = Math.max(20, Math.min(180, p.shots.length ? p.shots.reduce((n, s) => n + s.holdSec, 0) : 45));
+  const approxBeats = Math.max(3, Math.min(14, Math.round(targetSec / 7)));
+
+  const prompt =
+    `You are an expert explainer scriptwriter + motion designer. Brief: "${brief}".\n\n` +
+    `Write a SHORT-FORM ON-CAMERA EXPLAINER (~${targetSec}s, ~${approxBeats} beats) for a 9:16 vertical video: a single on-camera HOST speaks the whole thing to camera while DESIGNED GRAPHICS appear below them.\n\n` +
+    `THE HOST + SCRIPT\n` +
+    `- ONE host (the viewer, on camera) narrates start to finish: ${STYLE_VOICE[p.narrationStyle] || STYLE_VOICE.explainer}.\n` +
+    `- "script" = the full spoken narration as flowing prose, written to be HEARD (short sentences, concrete words, no bullets or headings).\n` +
+    `- Split it into beats: each beat's "line" is the EXACT slice of the script heard during it. Concatenating every line in order MUST reproduce the script verbatim — do not paraphrase, add or drop words.\n` +
+    `- A line is 1-2 sentences (~6-30 words).\n\n` +
+    `EACH BEAT'S BOTTOM VISUAL — pick the RIGHT one:\n` +
+    `- "graphic": a DESIGNED on-screen graphic, for beats that teach STRUCTURE (steps, points, a number, a definition, a punchy takeaway). This is the point of an explainer — PREFER it. Fill "graphic":\n` +
+    `   • "kind": "iconflow" (2-4 SEQUENTIAL steps/stages) | "keypoints" (2-5 PARALLEL points) | "stat" (one big number) | "quote" (a punchy line) | "title" (a section-title card) | "diagram".\n` +
+    `   • "headline": a SHORT all-caps on-screen title (e.g. "WHAT IS AGENTIC AI?"). Use on the opening beat and when the section changes; omit otherwise.\n` +
+    `   • "caption": the ONE-LINE takeaway burned at the bottom — short and punchy.\n` +
+    `   • "items" (iconflow/keypoints): 2-5 of {"label":"SHORT CAPS WORD","icon":ONE OF [${ICON_KEYS.join(", ")}],"sub":"optional 2-4 word detail"}. Labels MUST be the REAL steps/points of the content — never generic filler.\n` +
+    `   • "stat" (stat kind): {"value":"40%","label":"short label"}.\n` +
+    `- "broll": a real-world atmospheric shot, ONLY when a designed graphic would be forced (emotional/narrative/transition beats). Fill "prompt" (a full cinematic visual description that stands alone) and "motion":"image" or "video".\n\n` +
+    `Return JSON ONLY:\n` +
+    `{"title":"short title","script":"the full narration","beats":[` +
+    `{"line":"exact slice","bottom":"graphic","graphic":{"kind":"iconflow","headline":"WHAT IS AGENTIC AI?","caption":"It doesn't just respond — it takes action.","items":[{"label":"GOAL","icon":"goal"},{"label":"PLAN","icon":"plan"},{"label":"TOOLS","icon":"tools"},{"label":"ACTION","icon":"action"}]}},` +
+    `{"line":"exact slice","bottom":"broll","prompt":"...","motion":"image"}]}`;
+
+  let json: OnCamDraftShape | null = null;
+  try {
+    json = await ai.generateJSON<OnCamDraftShape>(prompt, { maxTokens: 6000, temperature: 0.7 });
+  } catch {
+    json = null;
+  }
+  const beats = Array.isArray(json?.beats) ? json!.beats.filter((b) => b?.line?.trim()) : [];
+  if (beats.length === 0) {
+    await patchDraft(id, userId, { draftStatus: "failed", draftError: "The studio couldn't storyboard that. Try a more specific brief." });
+    return;
+  }
+
+  const built: NarrationShot[] = beats.slice(0, 20).map((b, i) => {
+    const line = String(b.line).trim();
+    const isGraphic = b.bottom !== "broll" && (b.bottom === "graphic" || !!b.graphic);
+    if (isGraphic && b.graphic) {
+      const g = b.graphic;
+      const kind = (GRAPHIC_KINDS.includes(String(g.kind)) ? g.kind : "keypoints") as ExplainerGraphic["kind"];
+      const items = Array.isArray(g.items)
+        ? g.items.filter((it) => it?.label?.trim()).slice(0, 5).map((it) => ({
+            label: String(it.label).trim().slice(0, 40),
+            icon: it.icon && ICON_KEYS.includes(String(it.icon).toLowerCase()) ? String(it.icon).toLowerCase() : undefined,
+            sub: it.sub ? String(it.sub).trim().slice(0, 60) : undefined,
+          }))
+        : undefined;
+      const graphic: ExplainerGraphic = {
+        kind,
+        headline: g.headline ? String(g.headline).trim().slice(0, 60) : undefined,
+        caption: g.caption ? String(g.caption).trim().slice(0, 140) : line.slice(0, 140),
+        items,
+        stat: g.stat?.value ? { value: String(g.stat.value).slice(0, 12), label: g.stat.label ? String(g.stat.label).slice(0, 40) : undefined } : undefined,
+      };
+      return normalizeShot({ id: rid("shot"), order: i, kind: "image", line, prompt: "", graphic, source: "ai", status: "idle", holdSec: holdForLine(line) }, i);
+    }
+    // b-roll beat — reuses the existing AI image/video shot engine.
+    const motion: ShotKind = b.motion === "video" ? "video" : "image";
+    return normalizeShot({ id: rid("shot"), order: i, kind: motion, line, prompt: String(b.prompt || "").trim() || line, graphic: null, source: "ai", status: "idle", holdSec: holdForLine(line) }, i);
+  });
+
+  const fresh = await getNarration(id, userId);
+  if (!fresh) return;
+  fresh.title = (json?.title || fresh.title || "On-camera explainer").slice(0, 160);
+  fresh.script = String(json?.script || built.map((s) => s.line).join(" ")).trim();
+  fresh.characters = []; // the host is the Avatar IV presenter, not depicted film cast
+  fresh.shots = built;
+  fresh.draftStatus = "ready";
+  fresh.draftError = null;
+  await saveNarration(id, userId, fresh);
 }
 
 async function patchDraft(id: string, userId: string, patch: Partial<NarrationProject>): Promise<void> {

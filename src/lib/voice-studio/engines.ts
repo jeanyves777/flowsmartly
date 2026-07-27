@@ -239,6 +239,14 @@ export async function renderShot(id: string, userId: string, shotId: string): Pr
     return;
   }
 
+  // On-camera-explainer graphic beat: the bottom is a DESIGNED graphic rendered at
+  // stitch time (composeOnCam), so there is no per-shot picture — the read is all
+  // this beat needs to be "ready".
+  if (shot.graphic) {
+    await patchShot(id, userId, shotId, { status: "ready", progress: 100, renderHeartbeatAt: Date.now() });
+    return;
+  }
+
   const refs = castRefsFor(p, shot);
   const prompt = `${shot.prompt}${identityLine(p, shot)}`;
 
