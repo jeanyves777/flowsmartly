@@ -170,7 +170,8 @@ export function holdForLine(line: string): number {
 }
 
 export function narrationDims(aspect: NarrationAspect): { w: number; h: number } {
-  return aspect === "16:9" ? { w: 1280, h: 720 } : aspect === "1:1" ? { w: 1080, h: 1080 } : { w: 720, h: 1280 };
+  // Full-HD so the presenter + designed graphics stay crisp (720p read as "poor quality").
+  return aspect === "16:9" ? { w: 1920, h: 1080 } : aspect === "1:1" ? { w: 1080, h: 1080 } : { w: 1080, h: 1920 };
 }
 
 export function aspectToSize(a: NarrationAspect): string {
