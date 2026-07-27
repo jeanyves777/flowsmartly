@@ -359,7 +359,7 @@ export async function renderPresenter(id: string, userId: string): Promise<void>
 
   let charged = 0;
   try {
-    await patchNarrationPresenter(id, userId, { presenterStatus: "rendering", presenterHeartbeatAt: Date.now() });
+    await patchNarrationPresenter(id, userId, { presenterStatus: "rendering", presenterError: null, presenterHeartbeatAt: Date.now() });
     const p = await getNarration(id, userId);
     if (!p) return;
     const presenterImageUrl = p.presenterImageUrl;
@@ -424,7 +424,7 @@ export async function renderPresenter(id: string, userId: string): Promise<void>
         description: "Refund — presenter render failed",
       }).catch(() => {});
     }
-    await patchNarrationPresenter(id, userId, { presenterStatus: "failed", presenterHeartbeatAt: Date.now() }).catch(() => {});
+    await patchNarrationPresenter(id, userId, { presenterStatus: "failed", presenterError: sanitizeUserError(err, "video"), presenterHeartbeatAt: Date.now() }).catch(() => {});
   } finally {
     clearInterval(beat);
   }
