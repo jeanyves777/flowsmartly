@@ -130,8 +130,12 @@ export function FocusedPodcast() {
 
   /** Turn a photo (from the computer or the media library) into a talking photo
    *  avatar for this speaker — HeyGen returns an Avatar-IV-capable id + preview. */
+  // Which speaker a pending photo belongs to. Held in a ref because the library
+  // picker (z-50) sits BELOW the avatar modal (z-60), so we CLOSE the avatar modal
+  // before opening the library — which would otherwise lose `pick.role`.
+  const photoRole = useRef<PodcastRole | null>(null);
   const photoToAvatar = async (src: { file?: File; imageUrl?: string }) => {
-    const role = pick?.role;
+    const role = photoRole.current ?? pick?.role;
     if (!role) return;
     setUploading(true);
     try {
@@ -145,15 +149,19 @@ export function FocusedPodcast() {
       const j = await res.json();
       if (j?.success && j.data?.avatarId) {
         setSpeaker(role, { name: role === "host" ? "Host" : "Guest", avatarId: j.data.avatarId, isPhoto: true, portraitUrl: j.data.previewUrl || src.imageUrl || null });
-        setPick(null);
+        setPick(null); setImgLibOpen(false);
       } else {
         toast({ title: "Couldn't use that photo", description: j?.error?.message || "Try a clear, front-facing photo.", variant: "destructive" });
       }
     } catch {
       toast({ title: "Upload failed", description: "Please try again.", variant: "destructive" });
-    } finally { setUploading(false); }
+    } finally { setUploading(false); photoRole.current = null; }
   };
   const onFile = (files: FileList | null) => { const f = files?.[0]; if (f) void photoToAvatar({ file: f }); };
+  // Open the library / file dialog for a speaker: remember the role, and for the
+  // library CLOSE the avatar modal so it isn't hidden behind it.
+  const openImgLib = (role: PodcastRole) => { photoRole.current = role; setPick(null); setImgLibOpen(true); };
+  const openUpload = (role: PodcastRole) => { photoRole.current = role; fileRef.current?.click(); };
 
   const swap = () => { if (!project) return; void mutate({ host: project.guest, guest: project.host }); };
 
@@ -357,11 +365,11 @@ export function FocusedPodcast() {
         <PickerModal title={`Choose the ${pick.role}`} sub="Upload a photo, pick one from your library, or use a saved avatar — the same face carries through the episode." onClose={() => setPick(null)}>
           {/* Always-available ways to set a face, even with no saved avatars yet. */}
           <div className="mb-3 grid grid-cols-2 gap-2.5">
-            <button disabled={uploading} onClick={() => fileRef.current?.click()} className="flex items-center gap-2.5 rounded-xl border-2 border-dashed border-border p-3 text-left hover:border-sky-400 disabled:opacity-60">
+            <button disabled={uploading} onClick={() => pick && openUpload(pick.role)} className="flex items-center gap-2.5 rounded-xl border-2 border-dashed border-border p-3 text-left hover:border-sky-400 disabled:opacity-60">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-500/15 text-sky-400">{uploading ? <FlowLoader size={16} /> : <Upload className="h-4 w-4" />}</span>
               <span><b className="block text-[12.5px]">Upload a photo</b><small className="text-[10.5px] text-muted-foreground">From your computer</small></span>
             </button>
-            <button disabled={uploading} onClick={() => setImgLibOpen(true)} className="flex items-center gap-2.5 rounded-xl border-2 border-dashed border-border p-3 text-left hover:border-sky-400 disabled:opacity-60">
+            <button disabled={uploading} onClick={() => pick && openImgLib(pick.role)} className="flex items-center gap-2.5 rounded-xl border-2 border-dashed border-border p-3 text-left hover:border-sky-400 disabled:opacity-60">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-violet-500/15 text-violet-400"><ImagePlus className="h-4 w-4" /></span>
               <span><b className="block text-[12.5px]">From my library</b><small className="text-[10.5px] text-muted-foreground">Pick a saved image</small></span>
             </button>
