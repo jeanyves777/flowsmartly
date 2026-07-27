@@ -9,8 +9,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
-import { Mic, Sparkles, Upload, X, FolderOpen, Users, Play, ArrowLeftRight, Wand2, Film, RefreshCw } from "lucide-react";
+import { Mic, Sparkles, Upload, X, FolderOpen, Users, Play, ArrowLeftRight, Wand2, Film, RefreshCw, ImagePlus } from "lucide-react";
 import { FlowLoader } from "@/components/shared/flow-loader";
+import { MediaLibraryPicker } from "@/components/shared/media-library-picker";
 import { cn } from "@/lib/utils/cn";
 import { useToast } from "@/hooks/use-toast";
 import type { PodcastProject, PodcastRole, PodcastAspect, PodcastQuality, CutStyle } from "@/lib/video-podcast/types";
@@ -33,6 +34,9 @@ export function FocusedPodcast() {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [pick, setPick] = useState<{ kind: "avatar" | "voice"; role: PodcastRole } | null>(null);
   const [libOpen, setLibOpen] = useState(false);
+  const [imgLibOpen, setImgLibOpen] = useState(false); // pick a library image → make a speaker avatar
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
   // catalogs
@@ -101,6 +105,33 @@ export function FocusedPodcast() {
     setPick(null);
   };
   const chooseVoice = (v: Voice) => { if (!pick) return; setSpeaker(pick.role, { voiceId: v.id, voiceLabel: v.name }); setPick(null); };
+
+  /** Turn a photo (from the computer or the media library) into a talking photo
+   *  avatar for this speaker — HeyGen returns an Avatar-IV-capable id + preview. */
+  const photoToAvatar = async (src: { file?: File; imageUrl?: string }) => {
+    const role = pick?.role;
+    if (!role) return;
+    setUploading(true);
+    try {
+      let res: Response;
+      if (src.file) {
+        const fd = new FormData(); fd.append("file", src.file);
+        res = await fetch("/api/ai/avatar-studio/upload-photo", { method: "POST", body: fd });
+      } else {
+        res = await fetch("/api/ai/avatar-studio/upload-photo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ imageUrl: src.imageUrl }) });
+      }
+      const j = await res.json();
+      if (j?.success && j.data?.avatarId) {
+        setSpeaker(role, { name: role === "host" ? "Host" : "Guest", avatarId: j.data.avatarId, isPhoto: true, portraitUrl: j.data.previewUrl || src.imageUrl || null });
+        setPick(null);
+      } else {
+        toast({ title: "Couldn't use that photo", description: j?.error?.message || "Try a clear, front-facing photo.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Upload failed", description: "Please try again.", variant: "destructive" });
+    } finally { setUploading(false); }
+  };
+  const onFile = (files: FileList | null) => { const f = files?.[0]; if (f) void photoToAvatar({ file: f }); };
 
   const swap = () => { if (!project) return; void mutate({ host: project.guest, guest: project.host }); };
 
@@ -267,7 +298,19 @@ export function FocusedPodcast() {
       </div>
 
       {pick?.kind === "avatar" && (
-        <PickerModal title={`Choose the ${pick.role}`} sub="From your photo avatars and clones — the same face carries through the episode." onClose={() => setPick(null)}>
+        <PickerModal title={`Choose the ${pick.role}`} sub="Upload a photo, pick one from your library, or use a saved avatar — the same face carries through the episode." onClose={() => setPick(null)}>
+          {/* Always-available ways to set a face, even with no saved avatars yet. */}
+          <div className="mb-3 grid grid-cols-2 gap-2.5">
+            <button disabled={uploading} onClick={() => fileRef.current?.click()} className="flex items-center gap-2.5 rounded-xl border-2 border-dashed border-border p-3 text-left hover:border-sky-400 disabled:opacity-60">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-500/15 text-sky-400">{uploading ? <FlowLoader size={16} /> : <Upload className="h-4 w-4" />}</span>
+              <span><b className="block text-[12.5px]">Upload a photo</b><small className="text-[10.5px] text-muted-foreground">From your computer</small></span>
+            </button>
+            <button disabled={uploading} onClick={() => setImgLibOpen(true)} className="flex items-center gap-2.5 rounded-xl border-2 border-dashed border-border p-3 text-left hover:border-sky-400 disabled:opacity-60">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-violet-500/15 text-violet-400"><ImagePlus className="h-4 w-4" /></span>
+              <span><b className="block text-[12.5px]">From my library</b><small className="text-[10.5px] text-muted-foreground">Pick a saved image</small></span>
+            </button>
+          </div>
+          <p className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Or use a saved avatar</p>
           <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
             {avatars.map((a) => (
               <button key={a.id} onClick={() => chooseAvatar(a)} className="overflow-hidden rounded-xl border-2 border-border p-1.5 text-center hover:border-sky-400">
@@ -278,10 +321,12 @@ export function FocusedPodcast() {
                 <b className="mt-1 block truncate text-[11px]">{a.name}</b>
               </button>
             ))}
-            {avatars.length === 0 && <p className="col-span-full py-8 text-center text-[12px] text-muted-foreground">No avatars yet — create one in Clone Yourself or Avatar Studio.</p>}
+            {avatars.length === 0 && <p className="col-span-full py-6 text-center text-[12px] text-muted-foreground">No saved avatars yet — upload a photo or pick from your library above.</p>}
           </div>
         </PickerModal>
       )}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onFile(e.target.files); e.target.value = ""; }} />
+      <MediaLibraryPicker open={imgLibOpen} onClose={() => setImgLibOpen(false)} filterTypes={["image"]} title="Pick a photo for this speaker" onSelect={(url) => { setImgLibOpen(false); void photoToAvatar({ imageUrl: url }); }} />
       {pick?.kind === "voice" && (
         <PickerModal title={`Choose the ${pick.role} voice`} sub="Cloned and library voices — give each speaker a distinct one." onClose={() => setPick(null)}>
           <div className="grid grid-cols-2 gap-2.5">
