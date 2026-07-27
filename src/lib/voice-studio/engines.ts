@@ -26,6 +26,8 @@ import {
 } from "@/lib/video-director/clip-helpers";
 import { concatenateVideoBuffers } from "@/lib/video/concat-videos";
 import { renderExplainerGraphic } from "./explainer-graphic";
+import { getUserBrand } from "@/lib/brand/get-brand";
+import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { generateImageXaiFirst, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { heygenClient } from "@/lib/ai/heygen-client";
@@ -586,6 +588,14 @@ export async function composeOnCam(id: string, userId: string): Promise<void> {
     const presenterPct = 0.44;
     const bandH = Math.round(h * presenterPct);
 
+    // Brand: neon accent + logo come from the user's Brand Kit (best-effort).
+    const brand = await getUserBrand(userId).catch(() => null);
+    const gBrand = {
+      name: brand?.name || undefined,
+      accent: brand?.colors?.accent || brand?.colors?.primary || undefined,
+      accent2: brand?.colors?.secondary || undefined,
+    };
+
     const ordered = p.shots
       .filter((s) => s.line.trim() || s.graphic || isUrl(s.imageUrl) || isUrl(s.videoUrl))
       .sort((a, b) => a.order - b.order);
@@ -597,7 +607,7 @@ export async function composeOnCam(id: string, userId: string): Promise<void> {
       let clip: Buffer | null = null;
       try {
         if (s.graphic) {
-          const png = await renderExplainerGraphic(s.graphic, { width: w, height: h, presenterPct });
+          const png = await renderExplainerGraphic(s.graphic, { width: w, height: h, presenterPct, brand: gBrand });
           clip = await imageToClip(png, s.holdSec, w, h);
         } else if (isUrl(s.videoUrl)) {
           clip = await fitClipTo(await toBuffer(s.videoUrl), w, h, s.holdSec);
@@ -607,7 +617,7 @@ export async function composeOnCam(id: string, userId: string): Promise<void> {
           // No bottom asset — a branded title/caption frame so the beat still reads.
           const png = await renderExplainerGraphic(
             { kind: "title", headline: p.title, caption: s.line },
-            { width: w, height: h, presenterPct },
+            { width: w, height: h, presenterPct, brand: gBrand },
           );
           clip = await imageToClip(png, s.holdSec, w, h);
         }
@@ -638,6 +648,13 @@ export async function composeOnCam(id: string, userId: string): Promise<void> {
     if (isUrl(p.music)) {
       try { film = await mixMusicUnder(film, await toBuffer(p.music), p.musicVolume ?? 0.18); }
       catch (e) { console.error(`[voice-studio] oncam music skipped for ${id}:`, e instanceof Error ? e.message : e); }
+    }
+
+    // 4) Brand logo watermark over the presenter (best-effort; the graphic's own logo
+    //    sits under the presenter band, so stamp the real logo on top here).
+    if (brand?.logo) {
+      try { film = await overlayBrandLogoOnVideo(film, brand.logo); }
+      catch (e) { console.error(`[voice-studio] oncam logo skipped for ${id}:`, e instanceof Error ? e.message : e); }
     }
 
     const url = await uploadToS3(`narration/${id}/final-${uid()}.mp4`, film, "video/mp4");

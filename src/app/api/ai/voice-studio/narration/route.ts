@@ -23,20 +23,24 @@ export async function POST(request: NextRequest) {
   if (!session) return NextResponse.json({ success: false, error: { message: "Unauthorized" } }, { status: 401 });
   const body = (await request.json().catch(() => ({}))) as Partial<NarrationProject>;
 
+  const mode = body.mode || "film";
   const project = await createNarration(session.userId, {
     title: body.title || "Untitled narration",
     brief: body.brief || "",
     script: body.script || "",
-    mode: body.mode || "film",
+    mode,
     treatment: body.treatment || "mixed",
-    aspect: body.aspect || "16:9",
+    // On-camera explainers are vertical by default (Reels/Shorts/TikTok).
+    aspect: body.aspect || (mode === "oncam" ? "9:16" : "16:9"),
     narrationStyle: body.narrationStyle || "documentary",
     voice: body.voice,
     takeCount: body.takeCount ?? 2,
-    captionsOn: body.captionsOn ?? false,
-    // A voiceover needs no storyboard — it's just the read.
-    draftStatus: (body.mode || "film") === "film" ? "drafting" : "ready",
+    captionsOn: body.captionsOn ?? (mode === "oncam"),
+    presenterImageUrl: body.presenterImageUrl ?? null,
+    presenterMotion: body.presenterMotion ?? null,
+    // A voiceover needs no storyboard — it's just the read. Film + on-camera both draft.
+    draftStatus: mode === "voiceover" ? "ready" : "drafting",
   });
-  if (project.mode === "film") void draftNarration(project.id, session.userId);
+  if (mode === "film" || mode === "oncam") void draftNarration(project.id, session.userId);
   return NextResponse.json({ success: true, data: { project } });
 }
