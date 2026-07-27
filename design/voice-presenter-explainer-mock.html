@@ -91,6 +91,23 @@
 
   /* prompt + config */
   .brief-in { margin-top:2px; }
+  /* presenter picker */
+  .ppick { margin-top:18px; }
+  .pp-row { display:flex; gap:10px; flex-wrap:wrap; }
+  .pp { position:relative; width:74px; cursor:pointer; text-align:center; }
+  .pp .av { width:74px; height:74px; border-radius:14px; border:2px solid var(--border); overflow:hidden;
+    display:grid; place-items:center; font-weight:800; font-size:22px; color:#fff; transition:border-color .15s; }
+  .pp:hover .av { border-color:var(--border-2); }
+  .pp.sel .av { border-color:var(--violet); box-shadow:0 0 0 3px var(--violet-soft); }
+  .pp .nm { margin-top:6px; font-size:10.5px; color:var(--muted); font-weight:600; }
+  .pp.sel .nm { color:var(--text); }
+  .pp .tick { position:absolute; right:-3px; top:-3px; width:19px; height:19px; border-radius:50%; display:none;
+    background:var(--violet); color:#fff; place-items:center; font-size:11px; font-weight:900; border:2px solid var(--panel); }
+  .pp.sel .tick { display:grid; }
+  .pp.upload .av { border-style:dashed; background:var(--card); color:var(--muted); }
+  .pp .badge-yours { position:absolute; left:3px; bottom:22px; font-size:7px; font-weight:800; letter-spacing:.06em;
+    background:var(--violet); color:#fff; padding:1px 4px; border-radius:4px; }
+  .pp-hint { margin-top:9px; font-size:10.5px; color:var(--muted-2); display:flex; align-items:center; gap:6px; }
   .ta { width:100%; min-height:96px; resize:vertical; border-radius:12px; border:1px solid var(--border);
     background:#0c0c13; color:var(--text); font:inherit; font-size:13px; padding:12px 13px; }
   .ta:focus { outline:none; border-color:var(--violet); }
@@ -284,6 +301,36 @@
         <textarea class="ta" id="ta">What is agentic AI, for absolute beginners — and why it doesn't just answer, it takes action: goal, plan, tools, action.</textarea>
       </div>
 
+      <div class="ppick" id="ppick">
+        <div class="label">Presenter <span class="thin">— your clone on camera; pick a saved one or upload</span></div>
+        <div class="pp-row" id="ppRow">
+          <button class="pp sel" data-p="you">
+            <span class="tick">✓</span><span class="badge-yours">YOURS</span>
+            <span class="av" style="background:linear-gradient(135deg,#7c3aed,#3b82f6)">JY</span>
+            <span class="nm">You (clone)</span>
+          </button>
+          <button class="pp" data-p="host2">
+            <span class="tick">✓</span>
+            <span class="av" style="background:linear-gradient(135deg,#0ea5e9,#22d3ee)">AM</span>
+            <span class="nm">Ama</span>
+          </button>
+          <button class="pp" data-p="host3">
+            <span class="tick">✓</span>
+            <span class="av" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">MK</span>
+            <span class="nm">Marcus</span>
+          </button>
+          <button class="pp upload" data-p="upload">
+            <span class="tick">✓</span>
+            <span class="av"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg></span>
+            <span class="nm">Upload photo</span>
+          </button>
+        </div>
+        <div class="pp-hint">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8b8b9a" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+          Upper-body photo works best — hands visible so gestures read. No clone yet? <span style="color:var(--violet)">Clone yourself →</span>
+        </div>
+      </div>
+
       <div class="cfgrow" id="cfg">
         <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="#7ee0ff" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/></svg><span class="k">Aspect</span> 9:16 · Reels/Shorts</span>
         <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="#7ee0ff" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="3.2"/><path d="M6 20a6 6 0 0 1 12 0"/></svg><span class="k">Narrator</span> your cloned voice + face</span>
@@ -435,6 +482,7 @@
       document.getElementById("promptLabel").innerHTML = prompts[mode];
       document.getElementById("charge").textContent = charges[mode];
       document.getElementById("cfg").style.display = cfgShow[mode] ? "flex" : "none";
+      document.getElementById("ppick").style.display = mode === "presenter" ? "block" : "none";
       document.getElementById("pcap").innerHTML = 'What renders · <b style="color:var(--neon-2)">' + titles[mode] + '</b>';
       ["out-vo","out-film","out-exp"].forEach(function (id) {
         document.getElementById(id).classList.toggle("on", id === outs[mode]);
@@ -447,6 +495,14 @@
     }
     cards.forEach(function (c) { c.addEventListener("click", function () { select(c.dataset.mode); }); });
     select("presenter");
+
+    // presenter picker — single-select tile
+    document.querySelectorAll("#ppRow .pp").forEach(function (t) {
+      t.addEventListener("click", function () {
+        document.querySelectorAll("#ppRow .pp").forEach(function (x) { x.classList.remove("sel"); });
+        t.classList.add("sel");
+      });
+    });
 
     // caption cycling on the explainer preview
     var caps = [
