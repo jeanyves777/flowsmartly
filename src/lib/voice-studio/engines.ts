@@ -356,7 +356,13 @@ export async function generateAllShots(id: string, userId: string): Promise<{ ok
   const p = await getNarration(id, userId);
   if (!p) return { ok: false, queued: 0, message: "Not found" };
   const pending = p.shots.filter((s) => s.status !== "ready" && s.status !== "rendering");
-  if (pending.length === 0) return { ok: true, queued: 0, message: "Every shot is already done." };
+  if (pending.length === 0) {
+    // Nothing to render — but an on-camera explainer with all beats ready still needs the
+    // presenter kicked (drainShots does it). Without this, clicking "Generate video" once
+    // the beats are done would no-op and HeyGen would never be called.
+    await drainShots(id, userId);
+    return { ok: true, queued: 0, message: "Every shot is already done." };
+  }
   for (const s of pending) {
     const i = p.shots.findIndex((x) => x.id === s.id);
     p.shots[i] = { ...p.shots[i], status: "queued", progress: 0, error: null };
