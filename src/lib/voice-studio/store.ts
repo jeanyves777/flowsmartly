@@ -138,7 +138,7 @@ export async function patchNarrationPresenter(
   id: string,
   userId: string,
   patch: Partial<Pick<NarrationProject,
-    "presenterStatus" | "presenterVideoUrl" | "presenterImageUrl" | "presenterMotion" | "presenterHeartbeatAt" | "presenterTries">>,
+    "presenterStatus" | "presenterVideoUrl" | "presenterImageUrl" | "presenterMotion" | "presenterError" | "presenterHeartbeatAt" | "presenterTries">>,
 ): Promise<NarrationProject | null> {
   const p = await getNarration(id, userId);
   if (!p) return null;

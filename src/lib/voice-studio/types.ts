@@ -131,6 +131,7 @@ export interface NarrationProject {
   presenterMotion?: string | null;     // Avatar IV gesture/energy prompt
   presenterVideoUrl?: string | null;   // the rendered continuous Avatar IV take
   presenterStatus?: ShotStatus;
+  presenterError?: string | null;      // friendly reason the presenter take failed
   presenterHeartbeatAt?: number;
   presenterTries?: number;
   /** Background drafting (script + cast + every shot prompt) — the canvas polls this. */
