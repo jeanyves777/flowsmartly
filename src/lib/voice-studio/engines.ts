@@ -15,7 +15,7 @@ import {
 } from "./store";
 import { draftNarration } from "./draft";
 import {
-  narrationDims, holdForLine, MAX_HOLD_SEC,
+  narrationDims, holdForLine, MAX_HOLD_SEC, MIN_HOLD_SEC,
   type NarrationProject, type NarrationShot, type NarrationVoice,
 } from "./types";
 import { buildCastAnchor } from "@/lib/video-director/cast";
@@ -403,10 +403,17 @@ export async function renderPresenter(id: string, userId: string): Promise<void>
     const ordered = p.shots.filter((s) => s.line.trim()).sort((a, b) => a.order - b.order);
     if (ordered.length === 0) throw new Error("Write at least one beat before rendering the presenter.");
 
+    // Hold = the ACTUAL spoken length + a small breath, clamped — NOT the (often inflated)
+    // draft word-count estimate. Using the estimate left the picture holding in silence after
+    // the voice stopped ("pauses between the animations"). This is authoritative for both the
+    // presenter audio track AND the per-beat clip durations in the composite.
+    const audioHold = (ms: number) => Math.min(MAX_HOLD_SEC, Math.max(MIN_HOLD_SEC, Math.round((ms / 1000 + 0.2) * 10) / 10));
     const segments: { buf: Buffer; holdSec: number }[] = [];
     for (const s of ordered) {
       if (isUrl(s.audioUrl)) {
-        segments.push({ buf: await toBuffer(s.audioUrl), holdSec: s.holdSec });
+        const hold = s.audioMs ? audioHold(s.audioMs) : s.holdSec;
+        if (hold !== s.holdSec) await patchShot(id, userId, s.id, { holdSec: hold }).catch(() => {});
+        segments.push({ buf: await toBuffer(s.audioUrl), holdSec: hold });
         continue;
       }
       // Beat not read yet — read it now (charge voice per beat, same as a shot read).
@@ -414,7 +421,7 @@ export async function renderPresenter(id: string, userId: string): Promise<void>
       if (vErr) throw new Error(vErr);
       const { buffer, durationMs } = await narrate(s.line, p.voice, userId);
       const url = await uploadToS3(`narration/${id}/vo-${s.id}-${uid()}.mp3`, buffer, "audio/mpeg");
-      const hold = Math.max(s.holdSec, Math.min(MAX_HOLD_SEC, Math.round((durationMs / 1000 + 0.2) * 10) / 10));
+      const hold = audioHold(durationMs);
       await patchShot(id, userId, s.id, { audioUrl: url, audioMs: durationMs, holdSec: hold });
       segments.push({ buf: buffer, holdSec: hold });
     }
@@ -446,8 +453,16 @@ export async function renderPresenter(id: string, userId: string): Promise<void>
     const bandH = Math.max(2, Math.round(ph * 0.44));
     let presenterSrc = presenterImageUrl;
     try {
-      const framed = await sharp(await toBuffer(presenterImageUrl))
-        .resize(pw, bandH, { fit: "cover", position: "top" })
+      // Smart-crop to the SUBJECT (face) rather than a fixed edge: a photo with headroom
+      // above the head would keep the empty space with position:"top" and shove the person to
+      // the bottom of the band (exactly the "space on top, missed the person" bug). rotate()
+      // honors EXIF orientation; failOn:"none" tolerates unusual/large source formats so the
+      // reframe never throws and silently sends the unframed original; flatten drops any alpha
+      // onto the studio navy so a transparent PNG can't composite see-through.
+      const framed = await sharp(await toBuffer(presenterImageUrl), { failOn: "none" })
+        .rotate()
+        .flatten({ background: "#0b1330" })
+        .resize(pw, bandH, { fit: "cover", position: sharp.strategy.attention })
         .jpeg({ quality: 92 })
         .toBuffer();
       presenterSrc = await uploadToS3(`narration/${id}/presenter-src-${uid()}.jpg`, framed, "image/jpeg");

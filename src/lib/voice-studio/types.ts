@@ -123,6 +123,8 @@ export interface NarrationProject {
   shots: NarrationShot[];
   takes: NarrationTake[];
   takeCount: number;
+  /** Target run time in SECONDS the drafter aims for (on-camera explainer: user picks 1-5 min). */
+  targetSec?: number;
   music?: string | null;
   musicVolume?: number;
   captionsOn?: boolean;
@@ -265,6 +267,7 @@ export function normalizeNarration(raw: Partial<NarrationProject> & { id: string
     shots: shots.sort((a, b) => a.order - b.order).map((s, i) => ({ ...s, order: i })),
     takes: Array.isArray(raw.takes) ? raw.takes.filter(Boolean).slice(0, 6) : [],
     takeCount: Math.max(1, Math.min(4, raw.takeCount || 2)),
+    targetSec: raw.targetSec != null ? Math.max(30, Math.min(300, Math.round(raw.targetSec))) : base.targetSec,
     draftStatus: raw.draftStatus === "drafting" || raw.draftStatus === "ready" || raw.draftStatus === "failed" ? raw.draftStatus : null,
   };
 }
