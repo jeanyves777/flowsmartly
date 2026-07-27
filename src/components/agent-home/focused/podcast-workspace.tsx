@@ -46,12 +46,26 @@ export function FocusedPodcast() {
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<"simple" | "canvas">("simple");
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [q, setQ] = useState(""); // picker search (avatars & voices)
+  useEffect(() => { setQ(""); }, [pick]); // reset the search each time a picker opens
 
   // catalogs
   useEffect(() => {
     fetch("/api/ai/avatar-studio/avatars").then((r) => r.json()).then((j) => { if (j?.success) setAvatars(j.data?.avatars || []); }).catch(() => {});
     fetch("/api/ai/avatar-studio/voices").then((r) => r.json()).then((j) => { if (j?.success) setVoices(j.data?.voices || []); }).catch(() => {});
   }, []);
+
+  // The catalog is ~1200 avatars — render only a searched, capped slice (your own
+  // avatars first) so the picker opens instantly instead of hanging on 1200 images.
+  const shownAvatars = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    const list = s ? avatars.filter((a) => a.name.toLowerCase().includes(s)) : avatars;
+    return [...list].sort((a, b) => Number(b.isCustom) - Number(a.isCustom)).slice(0, 48);
+  }, [avatars, q]);
+  const shownVoices = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    return (s ? voices.filter((v) => `${v.name} ${v.language || ""} ${v.gender || ""}`.toLowerCase().includes(s)) : voices).slice(0, 80);
+  }, [voices, q]);
 
   // restore last project on mount (studio unmounts on surface switch)
   useEffect(() => {
@@ -352,33 +366,47 @@ export function FocusedPodcast() {
               <span><b className="block text-[12.5px]">From my library</b><small className="text-[10.5px] text-muted-foreground">Pick a saved image</small></span>
             </button>
           </div>
-          <p className="mb-2 text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Or use a saved avatar</p>
+          <div className="mb-2 flex items-center gap-2">
+            <p className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">Or use a ready avatar</p>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search avatars…" className="ml-auto w-40 rounded-lg border border-border bg-card px-2.5 py-1.5 text-[12px] outline-none focus:border-sky-400" />
+          </div>
           <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
-            {avatars.map((a) => (
+            {shownAvatars.map((a) => (
               <button key={a.id} onClick={() => chooseAvatar(a)} className="overflow-hidden rounded-xl border-2 border-border p-1.5 text-center hover:border-sky-400">
                 <span className="relative block aspect-square overflow-hidden rounded-lg bg-muted">
-                  {a.previewUrl ? <Image src={a.previewUrl} alt="" fill sizes="120px" className="object-cover" unoptimized /> : <span className="grid h-full w-full place-items-center text-muted-foreground"><Users className="h-5 w-5" /></span>}
+                  {/* plain lazy <img>: hundreds of next/image instances hang the modal */}
+                  {a.previewUrl
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={a.previewUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    : <span className="grid h-full w-full place-items-center text-muted-foreground"><Users className="h-5 w-5" /></span>}
                   {a.isCustom && <span className="absolute left-1 top-1 rounded bg-sky-500/90 px-1 py-0.5 text-[7px] font-bold text-white">yours</span>}
                 </span>
                 <b className="mt-1 block truncate text-[11px]">{a.name}</b>
               </button>
             ))}
-            {avatars.length === 0 && <p className="col-span-full py-6 text-center text-[12px] text-muted-foreground">No saved avatars yet — upload a photo or pick from your library above.</p>}
+            {avatars.length > 0 && shownAvatars.length === 0 && <p className="col-span-full py-6 text-center text-[12px] text-muted-foreground">No avatar matches “{q}”.</p>}
+            {avatars.length === 0 && <p className="col-span-full py-6 text-center text-[12px] text-muted-foreground">Loading avatars… or upload a photo / pick from your library above.</p>}
           </div>
+          {avatars.length > shownAvatars.length && <p className="mt-2 text-center text-[10.5px] text-muted-foreground">Showing {shownAvatars.length} of {avatars.length} — search to narrow down.</p>}
         </PickerModal>
       )}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onFile(e.target.files); e.target.value = ""; }} />
       <MediaLibraryPicker open={imgLibOpen} onClose={() => setImgLibOpen(false)} filterTypes={["image"]} title="Pick a photo for this speaker" onSelect={(url) => { setImgLibOpen(false); void photoToAvatar({ imageUrl: url }); }} />
       {pick?.kind === "voice" && (
         <PickerModal title={`Choose the ${pick.role} voice`} sub="Cloned and library voices — give each speaker a distinct one." onClose={() => setPick(null)}>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search voices…" className="mb-3 w-full rounded-lg border border-border bg-card px-3 py-2 text-[12.5px] outline-none focus:border-sky-400" />
           <div className="grid grid-cols-2 gap-2.5">
-            {voices.map((v) => (
-              <button key={v.id} onClick={() => chooseVoice(v)} className="flex items-center gap-2.5 rounded-xl border-2 border-border p-2.5 text-left hover:border-sky-400">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sky-400 to-violet-500 text-white"><Mic className="h-3.5 w-3.5" /></span>
-                <span className="min-w-0"><b className="block truncate text-[12px]">{v.name}</b><small className="text-[10.5px] text-muted-foreground">{[v.gender, v.language].filter(Boolean).join(" · ")}</small></span>
-              </button>
+            {shownVoices.map((v) => (
+              <div key={v.id} className="flex items-center gap-2.5 rounded-xl border-2 border-border p-2.5 hover:border-sky-400">
+                <button onClick={() => chooseVoice(v)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sky-400 to-violet-500 text-white"><Mic className="h-3.5 w-3.5" /></span>
+                  <span className="min-w-0"><b className="block truncate text-[12px]">{v.name}</b><small className="text-[10.5px] text-muted-foreground">{[v.gender, v.language].filter(Boolean).join(" · ")}</small></span>
+                </button>
+                {v.previewUrl && <button onClick={() => playSample(v.previewUrl)} title="Preview" className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border text-muted-foreground hover:text-foreground"><Play className="h-3 w-3" /></button>}
+              </div>
             ))}
-            {voices.length === 0 && <p className="col-span-full py-8 text-center text-[12px] text-muted-foreground">No voices available.</p>}
+            {voices.length > 0 && shownVoices.length === 0 && <p className="col-span-full py-8 text-center text-[12px] text-muted-foreground">No voice matches “{q}”.</p>}
+            {voices.length === 0 && <p className="col-span-full py-8 text-center text-[12px] text-muted-foreground">Loading voices…</p>}
           </div>
         </PickerModal>
       )}
