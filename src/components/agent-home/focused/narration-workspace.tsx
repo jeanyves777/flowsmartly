@@ -104,7 +104,11 @@ export function FocusedNarration() {
   }), [shots]);
 
   const takesRendering = (project?.takes || []).some((t) => t.status === "rendering" || t.status === "queued");
-  const live = stats.rendering > 0 || takesRendering || project?.finalStatus === "rendering";
+  // Keep polling through the on-camera PRESENTER render too (HeyGen, ~1-3 min) — otherwise the
+  // UI stops updating after the beats finish, never sees the presenter complete, and never
+  // auto-composes until a manual refresh.
+  const live = stats.rendering > 0 || takesRendering
+    || project?.finalStatus === "rendering" || project?.presenterStatus === "rendering";
   const drafting = project?.draftStatus === "drafting";
 
   // Surface an escape hint if a draft runs long (the server auto-recovers a stalled one).
@@ -1027,6 +1031,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
   const [aspect, setAspect] = useState<NarrationAspect>(project?.aspect || "16:9");
   const [style, setStyle] = useState<NarrationStyle>(project?.narrationStyle || "documentary");
   const [takeCount, setTakeCount] = useState(project?.takeCount || 1);
+  const [targetMin, setTargetMin] = useState(Math.max(1, Math.min(5, Math.round((project?.targetSec || 120) / 60))));
   const [selVoice, setSelVoice] = useState<SelVoice | null>(
     project?.voice.profileId ? { kind: "profile", id: project.voice.profileId, label: project.voice.label }
       : project?.voice.elevenLabsVoiceId ? { kind: "eleven", voiceId: project.voice.elevenLabsVoiceId, label: project.voice.label }
@@ -1093,7 +1098,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
         style: (selVoice?.kind === "profile" ? selVoice.style : null) || "narrative",
         speed: 1,
       };
-      const body = { title: (text.slice(0, 60) || "Narration"), brief: text, script: mode === "voiceover" ? script : "", mode, treatment, aspect, narrationStyle: style, takeCount, voice, presenterImageUrl: mode === "oncam" ? presenterImageUrl : undefined };
+      const body = { title: (text.slice(0, 60) || "Narration"), brief: text, script: mode === "voiceover" ? script : "", mode, treatment, aspect, narrationStyle: style, takeCount, targetSec: mode === "voiceover" ? undefined : targetMin * 60, voice, presenterImageUrl: mode === "oncam" ? presenterImageUrl : undefined };
       if (project) {
         // Editing an existing brief re-drafts it in place.
         const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/draft`, {
@@ -1259,6 +1264,17 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
                 </div>
               </div>
             )}
+            {mode !== "voiceover" && (
+              <div>
+                <p className="mb-1.5 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Length</p>
+                <div className="flex gap-1.5">
+                  {[1, 2, 3, 4, 5].map((m) => (
+                    <button key={m} onClick={() => setTargetMin(m)}
+                      className={cn("rounded-lg border px-2.5 py-1 text-[10.5px] font-bold", targetMin === m ? "border-violet-500 text-violet-500" : "border-border text-muted-foreground")}>{m}m</button>
+                  ))}
+                </div>
+              </div>
+            )}
             {mode === "voiceover" && (
               <div>
                 <p className="mb-1.5 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">Takes · {takeCount}</p>
@@ -1384,8 +1400,10 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
       </div>
 
       {/* CENTER — player (landscape frame; content is 9:16). All center content shares
-          max-w-3xl so the player, banner and tracker line up. */}
-      <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
+          max-w-3xl so the player, banner and tracker line up, and is vertically centered
+          (my-auto) so the column never leaves a big empty gap below. */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+       <div className="my-auto flex w-full flex-col gap-3 py-2">
         <div className="relative mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-black" style={{ aspectRatio: "16 / 10" }}>
           {finalReady ? (
             <video src={project.finalVideoUrl as string} controls playsInline className="mx-auto h-full bg-black" style={{ aspectRatio: "9 / 16" }} />
@@ -1450,6 +1468,7 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
             <button onClick={onPublish} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-bold text-white">Publish</button>
           </div>
         )}
+       </div>
       </div>
 
       {/* RIGHT — beats */}

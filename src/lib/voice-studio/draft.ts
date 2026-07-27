@@ -165,8 +165,9 @@ const ICON_KEYS = ["goal", "plan", "tools", "action", "idea", "data", "time", "m
  * so there is no depicted film cast. [[voice-oncam-explainer-feature]]
  */
 async function draftOnCam(id: string, userId: string, p: NarrationProject, brief: string): Promise<void> {
-  const targetSec = Math.max(20, Math.min(180, p.shots.length ? p.shots.reduce((n, s) => n + s.holdSec, 0) : 45));
-  const approxBeats = Math.max(3, Math.min(14, Math.round(targetSec / 7)));
+  // The user picks the length (1-5 min) in the brief; fall back to 2 min. ~8s a beat.
+  const targetSec = Math.max(30, Math.min(300, p.targetSec || (p.shots.length ? p.shots.reduce((n, s) => n + s.holdSec, 0) : 120)));
+  const approxBeats = Math.max(3, Math.min(40, Math.round(targetSec / 8)));
 
   const prompt =
     `You are an expert explainer scriptwriter + motion designer. Brief: "${brief}".\n\n` +
@@ -203,7 +204,7 @@ async function draftOnCam(id: string, userId: string, p: NarrationProject, brief
     return;
   }
 
-  const built: NarrationShot[] = beats.slice(0, 20).map((b, i) => {
+  const built: NarrationShot[] = beats.slice(0, 40).map((b, i) => {
     const line = String(b.line).trim();
     const isGraphic = b.bottom !== "broll" && (b.bottom === "graphic" || !!b.graphic);
     if (isGraphic && b.graphic) {

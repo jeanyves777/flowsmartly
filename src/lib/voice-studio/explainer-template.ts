@@ -145,10 +145,10 @@ export function buildExplainerHtml(g: ExplainerGraphic, opts: RenderExplainerOpt
   const headline = (g.headline || "").trim();
   const caption = (g.caption || "").trim();
   const animated = !!opts.animated;
-  // Pace the stagger to the beat: shorter beats reveal faster so everything is on screen
-  // (settled) with time to spare before the narration moves on.
+  // Pace the stagger to the beat: items appear ONE BY ONE (clearly stepwise, not all at once),
+  // scaled so a short beat still lands everything with time to spare before the narration moves on.
   const hold = Math.max(1, opts.holdSec ?? 4);
-  const stg = Math.max(0.07, Math.min(0.14, (hold * 0.32) / 6));
+  const stg = Math.max(0.14, Math.min(0.34, (hold * 0.5) / 6));
 
   const logo = b.logoDataUri
     ? `<img class="logoimg" src="${b.logoDataUri}" alt="" />`

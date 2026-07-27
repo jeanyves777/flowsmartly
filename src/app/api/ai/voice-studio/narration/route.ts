@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     narrationStyle: body.narrationStyle || "documentary",
     voice: body.voice,
     takeCount: body.takeCount ?? 2,
+    targetSec: body.targetSec,
     captionsOn: body.captionsOn ?? (mode === "oncam"),
     presenterImageUrl: body.presenterImageUrl ?? null,
     presenterMotion: body.presenterMotion ?? null,
