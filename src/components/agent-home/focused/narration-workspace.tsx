@@ -308,9 +308,9 @@ export function FocusedNarration() {
               <span className="text-emerald-500">{stats.ready} ready</span> · <span>{stats.rendering} rendering</span> · <span>{fmt(stats.length)}</span>
             </span>
           )}
-          {isFilm && stats.pending > 0 && (
-            <button onClick={generateAll} disabled={batching} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60">
-              {batching ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} Generate all ({stats.pending})
+          {isFilm && (stats.pending > 0 || live) && (
+            <button onClick={generateAll} disabled={batching || live} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-1.5 text-[12px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+              {batching || live ? <FlowLoader size={13} tone="white" /> : <Sparkles className="h-3.5 w-3.5" />} {batching || live ? "Generating…" : `Generate all (${stats.pending})`}
             </button>
           )}
           {isFilm && project.characters.length > 0 && (
@@ -1381,40 +1381,47 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
         </div>
       </div>
 
-      {/* CENTER — player */}
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-3 overflow-y-auto py-2">
-        <div className="relative mx-auto h-[62vh] max-h-[660px] min-h-[340px] overflow-hidden rounded-2xl border border-border bg-black" style={{ aspectRatio: "9 / 16" }}>
+      {/* CENTER — player (landscape frame; content is 9:16). All center content shares
+          max-w-3xl so the player, banner and tracker line up. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto">
+        <div className="relative mx-auto w-full max-w-3xl overflow-hidden rounded-2xl border border-border bg-black" style={{ aspectRatio: "16 / 10" }}>
           {finalReady ? (
-            <video src={project.finalVideoUrl as string} controls playsInline className="h-full w-full bg-black object-contain" />
+            <video src={project.finalVideoUrl as string} controls playsInline className="mx-auto h-full bg-black" style={{ aspectRatio: "9 / 16" }} />
           ) : (
             <>
-              {u(previewUrl)
-                ? <img src={previewUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                : <div className="absolute inset-0 bg-gradient-to-b from-[#141d38] to-[#0a1122]" />}
-              {u(project.presenterImageUrl) && <img src={project.presenterImageUrl as string} alt="" className="absolute inset-x-0 top-0 h-[44%] w-full object-cover" />}
-              <div className="absolute inset-0 bg-black/40" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
-                <div className="relative grid h-24 w-24 place-items-center">
+              {u(project.presenterImageUrl)
+                ? <img src={project.presenterImageUrl as string} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                : <div className="absolute inset-0 bg-gradient-to-b from-slate-700/50 to-slate-950" />}
+              {u(previewUrl) && <img src={previewUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-20" />}
+              <div className="absolute inset-0 bg-black/55" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 px-6 pb-10 text-center">
+                <div className="relative grid h-20 w-20 place-items-center">
                   <svg viewBox="0 0 100 100" className="absolute inset-0 -rotate-90">
                     <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(139,92,246,.25)" strokeWidth="8" />
                     <circle cx="50" cy="50" r="44" fill="none" stroke="#8b5cf6" strokeWidth="8" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - pct / 100)} />
                   </svg>
-                  <span className="text-xl font-black">{pct}%</span>
+                  <span className="text-lg font-black">{pct}%</span>
                 </div>
-                <div className="text-lg font-bold">{presenterRendering ? "Preparing your presenter…" : working ? "Building your video…" : notStarted ? "Ready to generate" : presenterFailed ? "Presenter needs a retry" : "Waiting…"}</div>
-                <div className="text-[13px] text-white/70">{ready === total && total > 0 ? "Explainer beats are ready" : `Explainer beats ${ready}/${total || "…"}`}</div>
+                <div className="text-base font-bold">{presenterRendering ? "Preparing your presenter…" : working ? "Building your video…" : notStarted ? "Ready to generate" : presenterFailed ? "Presenter needs a retry" : "Waiting…"}</div>
+                <div className="text-[12px] text-white/70">{ready === total && total > 0 ? "Explainer beats are ready" : `Explainer beats ${ready}/${total || "…"}`}</div>
                 {notStarted && (
                   <button onClick={onGenerate} className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-4 py-2 text-[12.5px] font-bold text-white">
                     <Sparkles className="h-4 w-4" /> Generate video
                   </button>
                 )}
               </div>
+              {/* controls bar (decorative during build; the real <video> shows its own when ready) */}
+              <div className="absolute inset-x-0 bottom-0 flex h-9 items-center gap-3 bg-black/55 px-4 text-white/70 backdrop-blur">
+                <Play className="h-3.5 w-3.5" /><span className="text-[10.5px] tabular-nums">0:00 / {dur(totalSec)}</span>
+                <div className="h-1 flex-1 rounded bg-white/15"><div className="h-full rounded bg-violet-500" style={{ width: `${pct}%` }} /></div>
+                <span className="rounded border border-white/25 px-1 text-[9px]">CC</span>
+              </div>
             </>
           )}
         </div>
 
         {presenterFailed && (
-          <div className="flex items-center gap-3 rounded-xl border border-red-500/40 bg-red-500/10 p-3.5">
+          <div className="mx-auto flex w-full max-w-3xl items-center gap-3 rounded-xl border border-red-500/40 bg-red-500/10 p-3.5">
             <span className="text-lg text-red-400">⚠</span>
             <div className="flex-1">
               <div className="text-[13px] font-bold text-red-400">Presenter generation failed</div>
@@ -1425,7 +1432,7 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
           </div>
         )}
 
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="mx-auto w-full max-w-3xl rounded-xl border border-border bg-card p-4">
           <div className="grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
             {trackCell("Script", scriptSt === "done" ? "Complete" : "…", scriptSt)}
             {trackCell("Explainer", `${ready} beats`, beatsSt)}
@@ -1435,7 +1442,7 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
         </div>
 
         {finalReady && (
-          <div className="flex flex-wrap gap-2">
+          <div className="mx-auto flex w-full max-w-3xl flex-wrap gap-2">
             <button onClick={onGenerate} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold"><RefreshCw className="h-3.5 w-3.5" /> Regenerate</button>
             <button onClick={() => window.open(project.finalVideoUrl as string, "_blank")} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold"><Upload className="h-3.5 w-3.5 rotate-180" /> Download</button>
             <button onClick={onPublish} className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-brand-500 to-violet-500 px-3 py-2 text-[12px] font-bold text-white">Publish</button>
@@ -1471,9 +1478,10 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
           ))}
         </div>
         <button
+          disabled={working}
           onClick={() => (finalReady ? window.open(project.finalVideoUrl as string, "_blank") : onGenerate())}
-          className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-500 to-violet-500 py-2.5 text-[13px] font-bold text-white">
-          <Play className="h-4 w-4" /> {finalReady ? "Play video" : "Generate video"}
+          className="mt-2 inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-brand-500 to-violet-500 py-2.5 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">
+          {working ? <FlowLoader size={14} tone="white" /> : <Play className="h-4 w-4" />} {finalReady ? "Play video" : working ? "Building…" : "Generate video"}
         </button>
         <div className="mt-1.5 text-[10.5px] text-muted-foreground/70">Editing one beat only re-renders that scene.</div>
       </div>
