@@ -28,6 +28,7 @@ import { concatenateVideoBuffers } from "@/lib/video/concat-videos";
 import { renderExplainerGraphic } from "./explainer-graphic";
 import { getUserBrand } from "@/lib/brand/get-brand";
 import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
+import { isCreditExhaustion, creditExhaustionUserMessage, alertAdminsCreditExhaustion } from "@/lib/ops/provider-credit-alert";
 import { generateImageXaiFirst, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { heygenClient } from "@/lib/ai/heygen-client";
@@ -434,7 +435,16 @@ export async function renderPresenter(id: string, userId: string): Promise<void>
         description: "Refund — presenter render failed",
       }).catch(() => {});
     }
-    await patchNarrationPresenter(id, userId, { presenterStatus: "failed", presenterError: sanitizeUserError(err, "video"), presenterErrorDebug: rawReason(err, 500), presenterHeartbeatAt: Date.now() }).catch(() => {});
+    // Guardrail: a provider out-of-credits failure can never succeed on retry, so tell
+    // the user it's paused (not "try again"), and alert admins to top the provider up.
+    const exhausted = isCreditExhaustion(err);
+    if (exhausted) void alertAdminsCreditExhaustion("HeyGen (Avatar IV presenter)", rawReason(err, 600));
+    await patchNarrationPresenter(id, userId, {
+      presenterStatus: "failed",
+      presenterError: exhausted ? creditExhaustionUserMessage("Your presenter") : sanitizeUserError(err, "video"),
+      presenterErrorDebug: rawReason(err, 500),
+      presenterHeartbeatAt: Date.now(),
+    }).catch(() => {});
   } finally {
     clearInterval(beat);
   }
