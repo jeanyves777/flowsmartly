@@ -26,6 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     narrationStyle: body.narrationStyle ?? project.narrationStyle,
     voice: body.voice ?? project.voice,
     targetSec: body.targetSec ?? project.targetSec,
+    explainerStyle: body.explainerStyle ?? project.explainerStyle,
     mode: body.mode ?? project.mode,
     presenterImageUrl: body.presenterImageUrl ?? project.presenterImageUrl,
     presenterMotion: body.presenterMotion ?? project.presenterMotion,

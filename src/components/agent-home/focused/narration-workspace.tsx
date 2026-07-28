@@ -28,7 +28,7 @@ import { useCanvasPan } from "@/components/agent-home/shared/use-canvas-pan";
 import { BriefSuggest } from "./brief-suggest";
 import type {
   NarrationProject, NarrationShot, NarrationMode, VisualTreatment,
-  NarrationAspect, NarrationStyle, ShotKind,
+  NarrationAspect, NarrationStyle, ShotKind, ExplainerStyleId,
 } from "@/lib/voice-studio/types";
 import type { FilmCharacter } from "@/lib/video-director/types";
 
@@ -46,6 +46,14 @@ const STYLES: { id: NarrationStyle; label: string; hint: string; thumb: string }
   { id: "audiobook", label: "Audiobook", hint: "Intimate, unhurried, story-first.", thumb: `${V}/voice4.webp` },
   { id: "news", label: "News read", hint: "Crisp, neutral, on the beat.", thumb: `${V}/voice5.webp` },
   { id: "meditation", label: "Meditation", hint: "Soft, slow, lots of air.", thumb: `${V}/voice8.webp` },
+];
+
+// On-camera explainer graphics LOOK — a selectable token set (Brand Kit tints it), not hardcoded.
+const EX_STYLES: { id: ExplainerStyleId; name: string; blurb: string }[] = [
+  { id: "neon", name: "Neon", blurb: "Dark & glowing" },
+  { id: "editorial", name: "Editorial", blurb: "Light & refined" },
+  { id: "minimal", name: "Minimal", blurb: "Clean & calm" },
+  { id: "bold", name: "Bold", blurb: "Punchy gradient" },
 ];
 
 const TREATMENTS: { id: VisualTreatment; label: string; hint: string }[] = [
@@ -1045,6 +1053,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
   const [style, setStyle] = useState<NarrationStyle>(project?.narrationStyle || "documentary");
   const [takeCount, setTakeCount] = useState(project?.takeCount || 1);
   const [targetMin, setTargetMin] = useState(Math.max(1, Math.min(5, Math.round((project?.targetSec || 120) / 60))));
+  const [exStyle, setExStyle] = useState<ExplainerStyleId>(project?.explainerStyle || "neon");
   const [selVoice, setSelVoice] = useState<SelVoice | null>(
     project?.voice.profileId ? { kind: "profile", id: project.voice.profileId, label: project.voice.label }
       : project?.voice.elevenLabsVoiceId ? { kind: "eleven", voiceId: project.voice.elevenLabsVoiceId, label: project.voice.label }
@@ -1111,7 +1120,7 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
         style: (selVoice?.kind === "profile" ? selVoice.style : null) || "narrative",
         speed: 1,
       };
-      const body = { title: (text.slice(0, 60) || "Narration"), brief: text, script: mode === "voiceover" ? script : "", mode, treatment, aspect, narrationStyle: style, takeCount, targetSec: mode === "voiceover" ? undefined : targetMin * 60, voice, presenterImageUrl: mode === "oncam" ? presenterImageUrl : undefined };
+      const body = { title: (text.slice(0, 60) || "Narration"), brief: text, script: mode === "voiceover" ? script : "", mode, treatment, aspect, narrationStyle: style, takeCount, targetSec: mode === "voiceover" ? undefined : targetMin * 60, explainerStyle: mode === "oncam" ? exStyle : undefined, voice, presenterImageUrl: mode === "oncam" ? presenterImageUrl : undefined };
       if (project) {
         // Editing an existing brief re-drafts it in place.
         const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/draft`, {
@@ -1225,6 +1234,31 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
                 </label>
               </div>
               <p className="mt-2 text-[10px] text-muted-foreground/70">Upper-body photo works best — hands visible so gestures read.</p>
+            </div>
+          )}
+
+          {mode === "oncam" && (
+            <div className="mt-5">
+              <p className="mb-2 text-[9.5px] font-extrabold uppercase tracking-wide text-muted-foreground">
+                Graphics style <span className="font-semibold normal-case tracking-normal text-muted-foreground/70">— the animated on-screen look; your Brand Kit colors tint it</span>
+              </p>
+              <div className="grid grid-cols-4 gap-2.5">
+                {EX_STYLES.map((s) => (
+                  <button key={s.id} type="button" onClick={() => setExStyle(s.id)}
+                    className={cn("relative overflow-hidden rounded-xl border-2 text-left transition", exStyle === s.id ? "border-violet-500" : "border-border hover:border-violet-500/50")}>
+                    {exStyle === s.id && (
+                      <span className="absolute right-1 top-1 z-10 grid h-5 w-5 place-items-center rounded-full border-2 border-card bg-violet-500 text-white"><Check className="h-3 w-3" /></span>
+                    )}
+                    <span className="block aspect-[9/11] overflow-hidden bg-muted">
+                      <img src={`/explainer-styles/${s.id}.jpg`} alt="" className="h-full w-full object-cover" />
+                    </span>
+                    <span className="block px-2 py-1.5">
+                      <span className="block text-[11px] font-bold leading-tight">{s.name}</span>
+                      <span className="block text-[9.5px] text-muted-foreground">{s.blurb}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

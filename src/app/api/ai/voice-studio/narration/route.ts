@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
     voice: body.voice,
     takeCount: body.takeCount ?? 2,
     targetSec: body.targetSec,
+    explainerStyle: body.explainerStyle,
     captionsOn: body.captionsOn ?? (mode === "oncam"),
     presenterImageUrl: body.presenterImageUrl ?? null,
     presenterMotion: body.presenterMotion ?? null,
