@@ -26,7 +26,11 @@ export interface CompositionOptions {
   presenterPct?: number;
   style?: ExplainerStyleId;
   brand?: CompositionBrand;
+  /** Live-preview mode: auto-play + loop the timeline (for in-browser preview before generating,
+   *  instead of a paused timeline the renderer seeks frame-by-frame). */
+  preview?: boolean;
 }
+const TIMELINE = (preview?: boolean) => `gsap.timeline({ ${preview ? "repeat: -1, repeatDelay: 1.1" : "paused: true"} })`;
 
 // ── style presets: each is only a token set (validated against real renders) ──
 const PRESETS: Record<ExplainerStyleId, { fonts: string; vars: Record<string, string> }> = {
@@ -213,7 +217,7 @@ export function buildOverlayComposition(g: ExplainerGraphic, opts: CompositionOp
 <body><div id="root">${statCard}${pills}${lower}</div>
   <script>
     window.__timelines = window.__timelines || {};
-    var tl = gsap.timeline({ paused: true });
+    var tl = ${TIMELINE(opts.preview)};
     ${isStat ? `tl.to(".stat",{opacity:1,duration:.5,ease:"back.out(1.5)"},.25).from(".stat",{y:-26,scale:.85},.25).to(".stat",{y:-14,duration:2.2,ease:"sine.inOut",yoyo:true,repeat:1},1.1);` : ""}
     ${pills ? `tl.to(".pill",{opacity:1,duration:.45,ease:"power3.out",stagger:.2},.4).from(".pill",{x:-44},.4);` : ""}
     ${lower ? `tl.to(".lower",{opacity:1,duration:.55,ease:"power3.out"},.9).from(".lower",{y:44},.9);` : ""}
@@ -256,7 +260,7 @@ export function buildExplainerComposition(g: ExplainerGraphic, opts: Composition
   </div>
   <script>
     window.__timelines = window.__timelines || {};
-    var tl = gsap.timeline({ paused: true });
+    var tl = ${TIMELINE(opts.preview)};
     ${headline ? `tl.from(".kicker",{opacity:0,y:-14,duration:.4,ease:"power2.out"},0);` : ""}
     ${caption && g.kind !== "quote" ? `tl.from(".head",{opacity:0,y:20,duration:.55,ease:"power3.out"},.15);` : ""}
     ${body.tweens}
