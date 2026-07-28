@@ -34,9 +34,13 @@ function channelOf(source?: string): string {
  *  AND no transcript never really connected → "missed". We only import FINAL
  *  conversations now, so these signals are trustworthy (before, a still-ringing
  *  call was imported with 0 messages and frozen as "missed" forever). */
-function outcomeOf(c: ConvaiConversationSummary, durationSec: number, hasTranscript: boolean): string {
+function outcomeOf(c: ConvaiConversationSummary, durationSec: number, hasTranscript: boolean, callerSpoke: boolean): string {
   const connected = (c.message_count || 0) > 0 || durationSec > 0 || hasTranscript;
   if (!connected) return "missed";
+  // The line connected but the CALLER never said a word — a robocall, auto-dialer,
+  // or dropped call. That's not an answered conversation; treat it as missed so it
+  // isn't billed (see the metering guard below).
+  if (!callerSpoke) return "missed";
   const t = new Set(c.tool_names || []);
   if (t.has("book_appointment")) return "booked";
   if (t.has("place_order")) return "order";
@@ -122,16 +126,19 @@ async function upsertFromConversation(
     .filter((t) => t.message)
     .map((t) => ({ role: t.role === "agent" ? "agent" : "caller", at: t.time_in_call_secs ?? 0, text: t.message }));
 
-  const outcome = outcomeOf(c, durationSec, transcript.length > 0);
+  // Did the caller actually say anything? A silent/robocall/dropped call has only
+  // the agent's turns (greeting + "are you there?") and no real caller speech.
+  const callerSpoke = transcript.some((t) => t.role === "caller" && (t.text || "").trim().length > 1);
+  const outcome = outcomeOf(c, durationSec, transcript.length > 0, callerSpoke);
   const direction = (c.direction || phone?.direction || "inbound").toLowerCase().includes("out") ? "outbound" : "inbound";
 
   // Meter the call: one credit-charge per started minute, at our per-minute rate
-  // (which carries our markup over the ElevenLabs + telephony cost). Only real,
-  // connected calls are billed — and NEVER on a heal (re-sync), so we don't
-  // double-bill a call the first import already metered.
+  // (which carries our markup over the ElevenLabs + telephony cost). Only bill a
+  // REAL conversation where the caller spoke — never a silent robocall / dead-air /
+  // dropped call — and NEVER on a heal (re-sync), so we don't double-bill.
   const minutes = Math.max(0, Math.ceil(durationSec / 60));
   let creditsCharged = 0;
-  if (!isHeal && minutes > 0 && perMinute > 0) {
+  if (!isHeal && callerSpoke && minutes > 0 && perMinute > 0) {
     const amount = minutes * perMinute;
     const r = await creditService
       .deductCredits({
