@@ -161,6 +161,68 @@ html,body{width:var(--w);height:var(--h);overflow:hidden;color:var(--ink);font-f
 .quote{font-family:var(--font-head);font-size:44px;line-height:1.3;text-align:center;max-width:840px;font-style:italic;opacity:0}
 .caption{position:absolute;left:0;right:0;bottom:100px;text-align:center;padding:0 80px;font-size:38px;font-weight:600;line-height:1.3;color:var(--caption-col);text-shadow:var(--caption-glow);opacity:0}`;
 
+// Floating glassy graphics over a TRANSPARENT bg — composited onto the full-frame presenter.
+const OVERLAY_CSS = `
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:var(--w);height:var(--h);overflow:hidden;background:transparent;color:#fff;font-family:var(--font-body),system-ui,sans-serif}
+#root{position:relative;width:var(--w);height:var(--h);background:transparent}
+.glass{background:var(--card-bg);border:var(--card-border);box-shadow:var(--card-glow);backdrop-filter:var(--card-blur)}
+.stat{position:absolute;right:44px;top:150px;width:360px;padding:30px 32px;border-radius:26px;opacity:0}
+.stat .big{font-family:var(--font-head);font-size:100px;font-weight:700;line-height:1;color:var(--accent);text-shadow:var(--hl-glow)}
+.stat .lbl{font-family:var(--font-body);font-size:28px;font-weight:600;color:var(--muted);margin-top:6px}
+.pill{position:absolute;left:44px;display:flex;align-items:center;gap:16px;padding:20px 26px;border-radius:999px;opacity:0;
+  font-family:var(--font-head);font-size:30px;font-weight:700;text-shadow:0 2px 12px rgba(0,0,0,.5)}
+.pill .d{flex:none;width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:28px;background:var(--ic-bg);border:var(--ic-border)}
+.lower{position:absolute;left:44px;right:44px;bottom:230px;display:flex;align-items:center;gap:26px;padding:32px 36px;border-radius:28px;opacity:0}
+.lower .ic{flex:none;width:96px;height:96px;border-radius:22px;display:grid;place-items:center;font-size:48px;background:var(--ic-bg);border:var(--ic-border);box-shadow:var(--ic-glow)}
+.lower .tx b{display:block;font-family:var(--font-head);font-size:48px;font-weight:700;letter-spacing:-.01em;line-height:1.1;text-shadow:0 2px 14px rgba(0,0,0,.55)}
+.lower .tx .hl{color:var(--accent)}`;
+
+/**
+ * OVERLAY layout: floating glassy graphics over a TRANSPARENT background, rendered with alpha and
+ * composited onto the full-frame presenter. Same token presets as the split layout (Brand Kit
+ * tints --accent), so the look matches the chosen style. [[hyperframes-oncam-graphics]]
+ */
+export function buildOverlayComposition(g: ExplainerGraphic, opts: CompositionOptions = {}): string {
+  const w = opts.width ?? 1080;
+  const h = opts.height ?? 1920;
+  const styleId: ExplainerStyleId = opts.style && PRESETS[opts.style] ? opts.style : "neon";
+  const preset = PRESETS[styleId];
+  const hold = Math.max(1, opts.holdSec ?? 4);
+  const vars: Record<string, string> = { ...preset.vars, "--w": `${w}px`, "--h": `${h}px` };
+  if (opts.brand?.accent && /^#([0-9a-f]{3,8})$/i.test(opts.brand.accent)) vars["--accent"] = opts.brand.accent;
+  if (opts.brand?.accent2 && /^#([0-9a-f]{3,8})$/i.test(opts.brand.accent2)) vars["--accent2"] = opts.brand.accent2;
+  const rootVars = Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(";");
+
+  const caption = (g.caption || g.headline || "").trim();
+  const items = (g.items || []).slice(0, 3);
+  const isStat = g.kind === "stat" && !!g.stat;
+
+  const statCard = isStat
+    ? `<div class="stat glass"><div class="big">${esc(g.stat!.value)}</div>${g.stat!.label ? `<div class="lbl">${esc(g.stat!.label)}</div>` : ""}</div>` : "";
+  const pills = isStat ? "" : items.map((it, i) =>
+    `<div class="pill glass" style="top:${34 + i * 10}%"><div class="d">${esc(icon(it.icon))}</div><span>${esc(it.label)}</span></div>`).join("");
+  const lower = caption
+    ? `<div class="lower glass"><div class="ic">${esc(subjectEmoji(g))}</div><div class="tx"><b>${headHtml(caption)}</b></div></div>` : "";
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=${w}, height=${h}"/>
+<link href="https://fonts.googleapis.com/css2?family=${preset.fonts}&display=block" rel="stylesheet"/>
+<script>${gsapSrc()}</script>
+<style>:root{${rootVars}}${OVERLAY_CSS}</style></head>
+<body><div id="root">${statCard}${pills}${lower}</div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    var tl = gsap.timeline({ paused: true });
+    ${isStat ? `tl.to(".stat",{opacity:1,duration:.5,ease:"back.out(1.5)"},.25).from(".stat",{y:-26,scale:.85},.25).to(".stat",{y:-14,duration:2.2,ease:"sine.inOut",yoyo:true,repeat:1},1.1);` : ""}
+    ${pills ? `tl.to(".pill",{opacity:1,duration:.45,ease:"power3.out",stagger:.2},.4).from(".pill",{x:-44},.4);` : ""}
+    ${lower ? `tl.to(".lower",{opacity:1,duration:.55,ease:"power3.out"},.9).from(".lower",{y:44},.9);` : ""}
+    tl.set({}, {}, ${hold});
+    window.__timelines["main"] = tl;
+  </script>
+</body></html>`;
+}
+
 /** Build a self-contained, GSAP-timed HTML composition for one beat, in the chosen style. */
 export function buildExplainerComposition(g: ExplainerGraphic, opts: CompositionOptions = {}): string {
   const w = opts.width ?? 1080;

@@ -63,6 +63,33 @@ export async function probeDurationSec(buf: Buffer): Promise<number | null> {
   }
 }
 
+/**
+ * Trim leading + trailing silence from a spoken clip so consecutive beats concatenate into ONE
+ * continuous read — the narrator never sits in dead air waiting between beats. Returns the trimmed
+ * buffer + its true duration (ms). Best-effort: on any failure (or if trimming would nuke the read)
+ * it returns the input unchanged with durationMs 0, so the caller keeps its original timing.
+ */
+export async function trimAudioSilence(buf: Buffer): Promise<{ buffer: Buffer; durationMs: number }> {
+  const ff = findFFmpegPath();
+  if (!ff) return { buffer: buf, durationMs: 0 };
+  const dir = await mkdtemp(path.join(os.tmpdir(), "fs-trim-"));
+  try {
+    const inP = path.join(dir, "in.mp3"), outP = path.join(dir, "out.mp3");
+    await writeFile(inP, buf);
+    // strip head silence, reverse + strip the (now-head, originally-tail) silence, reverse back
+    const af = "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.03:detection=peak,areverse,silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.03:detection=peak,areverse";
+    await run(ff, ["-i", inP, "-af", af, "-c:a", "libmp3lame", "-q:a", "4", "-y", outP], 120000);
+    const out = await readFile(outP);
+    const sec = await probeDurationSec(out);
+    if (!out.length || !sec || sec < 0.2) return { buffer: buf, durationMs: 0 };
+    return { buffer: out, durationMs: Math.round(sec * 1000) };
+  } catch {
+    return { buffer: buf, durationMs: 0 };
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 function hasAudio(filePath: string): Promise<boolean> {
   const probe = ffprobePath();
   if (!probe) return Promise.resolve(false);

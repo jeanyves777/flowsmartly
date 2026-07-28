@@ -22,10 +22,11 @@ import { buildCastAnchor } from "@/lib/video-director/cast";
 import { normalizeCharacter, type FilmCharacter } from "@/lib/video-director/types";
 import {
   imageToKenBurnsClip, imageToClip, fitClipTo, buildNarrationTrack, narrateOver, mixMusicUnder,
-  compositeTimedText, silentAudio, overlayTopBand,
+  compositeTimedText, silentAudio, overlayTopBand, trimAudioSilence,
 } from "@/lib/video-director/clip-helpers";
 import { concatenateVideoBuffers } from "@/lib/video/concat-videos";
 import { renderExplainerGraphic, renderExplainerVideo } from "./explainer-graphic";
+import { framePresenterForHeyGen } from "./presenter-frame";
 import { getUserBrand } from "@/lib/brand/get-brand";
 import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { isCreditExhaustion, creditExhaustionUserMessage, alertAdminsCreditExhaustion } from "@/lib/ops/provider-credit-alert";
@@ -409,20 +410,29 @@ export async function renderPresenter(id: string, userId: string): Promise<void>
     const audioHold = (ms: number) => Math.min(MAX_HOLD_SEC, Math.max(0.4, ms / 1000));
     const segments: { buf: Buffer; holdSec: number }[] = [];
     for (const s of ordered) {
+      // Get the read (reuse stored audio, else narrate + charge once).
+      let raw: Buffer;
+      let rawMs: number;
       if (isUrl(s.audioUrl)) {
-        const hold = s.audioMs ? audioHold(s.audioMs) : s.holdSec;
-        if (hold !== s.holdSec) await patchShot(id, userId, s.id, { holdSec: hold }).catch(() => {});
-        segments.push({ buf: await toBuffer(s.audioUrl), holdSec: hold });
-        continue;
+        raw = await toBuffer(s.audioUrl);
+        rawMs = s.audioMs || 0;
+      } else {
+        const vErr = await charge(userId, VOICE_COST_KEY, `${id}:${s.id}:vo`, "Voice Studio — narration beat", { narrationId: id, shotId: s.id });
+        if (vErr) throw new Error(vErr);
+        const r = await narrate(s.line, p.voice, userId);
+        raw = r.buffer;
+        rawMs = r.durationMs;
       }
-      // Beat not read yet — read it now (charge voice per beat, same as a shot read).
-      const vErr = await charge(userId, VOICE_COST_KEY, `${id}:${s.id}:vo`, "Voice Studio — narration beat", { narrationId: id, shotId: s.id });
-      if (vErr) throw new Error(vErr);
-      const { buffer, durationMs } = await narrate(s.line, p.voice, userId);
-      const url = await uploadToS3(`narration/${id}/vo-${s.id}-${uid()}.mp3`, buffer, "audio/mpeg");
-      const hold = audioHold(durationMs);
-      await patchShot(id, userId, s.id, { audioUrl: url, audioMs: durationMs, holdSec: hold });
-      segments.push({ buf: buffer, holdSec: hold });
+      // TRIM the read's own leading/trailing silence so beats butt up with ZERO dead air — the
+      // narrator talks continuously and NEVER pauses to wait for the picture.
+      const t = await trimAudioSilence(raw);
+      const buf = t.durationMs ? t.buffer : raw;
+      const ms = t.durationMs || rawMs || 2000;
+      const hold = audioHold(ms);
+      // Persist the trimmed read so re-renders reuse it (already gapless) + keep timing in sync.
+      const url = await uploadToS3(`narration/${id}/vo-${s.id}-${uid()}.mp3`, buf, "audio/mpeg");
+      await patchShot(id, userId, s.id, { audioUrl: url, audioMs: ms, holdSec: hold }).catch(() => {});
+      segments.push({ buf, holdSec: hold });
     }
 
     const track = await buildNarrationTrack(segments);
@@ -445,13 +455,13 @@ export async function renderPresenter(id: string, userId: string): Promise<void>
       charged = amount;
     }
 
-    // 3) Send the clone/upload image to HeyGen AS-IS — full resolution, ORIGINAL framing.
-    //    Do NOT downscale/crop/re-compress it first: that degraded quality and re-positioned the
-    //    subject. The clone image is already well-framed; the final composite crops the presenter
-    //    VIDEO to the top band (overlayTopBand), so band framing is handled there, not by mangling
-    //    the source. [[voice-oncam-explainer-feature]]
+    // 3) VALIDATE + FRAME the clone photo the proven Training way (1280x720 top-anchored cover) so
+    //    HeyGen gets a consistent upper-body headshot and never cuts the head off. A broken/tiny
+    //    image throws a clear, user-facing error rather than a mangled take. [[training-presenter-talking-video]]
+    const framed = await framePresenterForHeyGen(await toBuffer(presenterImageUrl));
+    const presenterSrc = await uploadToS3(`narration/${id}/presenter-src-${uid()}.jpg`, framed, "image/jpeg");
     const heygen = await heygenClient.generateImageToVideo({
-      imageUrl: presenterImageUrl,
+      imageUrl: presenterSrc,
       audioUrl,
       title: p.title,
       estimatedSeconds: durationSec,
