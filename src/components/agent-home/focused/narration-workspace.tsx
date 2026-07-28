@@ -1374,6 +1374,7 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
 }) {
   const u = (s?: string | null): s is string => !!s && /^https?:\/\//i.test(s);
   const shots = project.shots;
+  const [previewShot, setPreviewShot] = useState<string | null>(null);
   const total = shots.length;
   const ready = shots.filter((s) => s.status === "ready").length;
   const rendering = shots.some((s) => s.status === "rendering");
@@ -1576,6 +1577,7 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
                 </div>
               </div>
               <div className="flex flex-none flex-col gap-2 text-muted-foreground">
+                <button onClick={() => setPreviewShot(s.id)} title="Preview animation" className="hover:text-violet-400"><Play className="h-3.5 w-3.5" /></button>
                 <button onClick={() => onRewrite(s.id)} title="Rewrite line" className="hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
                 <button onClick={() => onRedo(s.id)} title="Re-render beat" className="hover:text-foreground"><RefreshCw className="h-3.5 w-3.5" /></button>
               </div>
@@ -1590,6 +1592,25 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
         </button>
         <div className="mt-2 text-[10.5px] text-muted-foreground/70">Editing one beat only re-renders that scene.</div>
       </div>
+
+      {/* Live animation preview — plays the beat's graphic in-browser (GSAP), no render needed. */}
+      {previewShot && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4" onClick={() => setPreviewShot(null)}>
+          <div className="flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 text-[12px] font-semibold text-white/80">
+              Animation preview <span className="ml-1 rounded-full bg-white/10 px-2.5 py-0.5 capitalize text-white/70">{project.explainerStyle || "neon"}</span>
+            </div>
+            <iframe
+              key={previewShot}
+              src={`/api/ai/voice-studio/narration/${project.id}/preview?shot=${previewShot}`}
+              title="Animation preview"
+              className="rounded-2xl border border-white/15 bg-black shadow-2xl"
+              style={{ height: "min(74vh, 640px)", aspectRatio: "9 / 16" }}
+            />
+            <button onClick={() => setPreviewShot(null)} className="mt-3 rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-[12.5px] font-semibold text-white hover:bg-white/15">Close</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
