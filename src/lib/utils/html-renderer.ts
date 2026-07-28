@@ -161,6 +161,9 @@ export interface RenderVideoOptions {
   /** 1 keeps the capture at the native canvas size (a video doesn't need retina 2x). */
   deviceScaleFactor?: number;
   fontLoadDelayMs?: number;
+  /** Capture with a TRANSPARENT background (PNG frames → lossless qtrle .mov, RGBA alpha
+   *  preserved). For overlay compositions that float over the presenter. Default: opaque MP4. */
+  alpha?: boolean;
 }
 
 function runFfmpeg(cmd: string, args: string[], timeoutMs = 300_000): Promise<void> {
@@ -189,6 +192,7 @@ export async function renderHtmlToVideo(html: string, opts: RenderVideoOptions):
   const ff = findFFmpegPath();
   if (!ff) throw new Error("Video assembly is not available on this server (ffmpeg missing).");
   const fps = opts.fps ?? 18;
+  const alpha = !!opts.alpha;
   const frames = Math.max(1, Math.min(300, Math.round(opts.durationSec * fps)));
   await acquireRenderSlot();
   const dir = await mkdtemp(join(tmpdir(), "htmlvid-"));
@@ -217,17 +221,18 @@ export async function renderHtmlToVideo(html: string, opts: RenderVideoOptions):
           else { for (const a of document.getAnimations()) { try { a.currentTime = sec * 1000; } catch { /* noop */ } } }
           void document.body.offsetHeight;
         }, tSec);
-        await page.screenshot({ path: join(dir, `f${String(i).padStart(5, "0")}.jpg`), type: "jpeg", quality: 92 });
+        await page.screenshot(alpha
+          ? { path: join(dir, `f${String(i).padStart(5, "0")}.png`), type: "png", omitBackground: true }
+          : { path: join(dir, `f${String(i).padStart(5, "0")}.jpg`), type: "jpeg", quality: 92 });
       }
     } finally {
       await page.close().catch(() => {});
     }
-    const out = join(dir, "out.mp4");
-    await runFfmpeg(ff, [
-      "-framerate", String(fps), "-i", join(dir, "f%05d.jpg"),
-      "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", String(fps),
-      "-movflags", "+faststart", "-y", out,
-    ]);
+    // Alpha → lossless qtrle .mov (RGBA preserved; vp9/yuva was unreliable). Else opaque H.264 MP4.
+    const out = join(dir, alpha ? "out.mov" : "out.mp4");
+    await runFfmpeg(ff, alpha
+      ? ["-framerate", String(fps), "-i", join(dir, "f%05d.png"), "-c:v", "qtrle", "-pix_fmt", "argb", "-r", String(fps), "-y", out]
+      : ["-framerate", String(fps), "-i", join(dir, "f%05d.jpg"), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", String(fps), "-movflags", "+faststart", "-y", out]);
     return await readFile(out);
   } finally {
     releaseRenderSlot();

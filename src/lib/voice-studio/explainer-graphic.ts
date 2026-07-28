@@ -9,7 +9,7 @@
  */
 import { renderHtmlToPng, renderHtmlToVideo } from "@/lib/utils/html-renderer";
 import { buildExplainerHtml, type RenderExplainerOptions } from "./explainer-template";
-import { buildExplainerComposition } from "./explainer-composition";
+import { buildExplainerComposition, buildOverlayComposition } from "./explainer-composition";
 import type { ExplainerGraphic, ExplainerStyleId } from "./types";
 
 export { buildExplainerHtml } from "./explainer-template";
@@ -54,5 +54,28 @@ export async function renderExplainerVideo(
     fps: 18,
     deviceScaleFactor: 1, // native canvas size — a video doesn't need retina 2x
     fontLoadDelayMs: 450, // GSAP + Google Fonts settle
+  });
+}
+
+/**
+ * Render one beat's OVERLAY graphic to a TRANSPARENT (alpha) .mov Buffer — floating glassy
+ * callouts/pills/lower-third that composite OVER the full-frame presenter. Same token style as the
+ * split layout. Used by composeOnCam's overlay branch. [[hyperframes-oncam-graphics]]
+ */
+export async function renderExplainerOverlayVideo(
+  g: ExplainerGraphic,
+  holdSec: number,
+  opts: RenderExplainerOptions = {},
+  style?: ExplainerStyleId,
+): Promise<Buffer> {
+  const width = opts.width ?? 1080;
+  const height = opts.height ?? 1920;
+  const html = buildOverlayComposition(g, {
+    width, height, holdSec, style,
+    brand: { accent: opts.brand?.accent, accent2: opts.brand?.accent2 },
+  });
+  return renderHtmlToVideo(html, {
+    width, height, durationSec: holdSec, fps: 18, deviceScaleFactor: 1, fontLoadDelayMs: 450,
+    alpha: true, // transparent → qtrle .mov, composited onto the presenter
   });
 }
