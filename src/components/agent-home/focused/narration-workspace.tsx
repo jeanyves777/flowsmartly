@@ -1301,6 +1301,16 @@ function BriefSheet({ project, onClose, onDone, setLoading }: {
 
 // ─────────────────────────────── on-camera explainer: simple (non-canvas) view
 
+/** A bright, recognizable icon for a beat's thumbnail — its subject emoji, else a
+ *  kind-appropriate default. The rendered graphic is dark navy (for the video), so at
+ *  56px it reads as empty; a big emoji tile is clean and instantly scannable. */
+const BEAT_EMOJI: Record<string, string> = {
+  title: "✨", iconflow: "🔀", keypoints: "📌", stat: "📈", quote: "💬", diagram: "🧩",
+};
+function beatEmoji(s: NarrationShot): string {
+  return s.graphic?.subject || (s.graphic?.kind ? BEAT_EMOJI[s.graphic.kind] : "") || (s.graphic ? "🧩" : "🎬");
+}
+
 /**
  * The SIMPLE view for an on-camera explainer: no node canvas, no manual stitch —
  * one finished video (auto-assembled) with a progress readout and a compact,
@@ -1479,10 +1489,9 @@ function SimpleOnCamView({ project, batching, onGenerate, onRedo, onRewrite, onP
         <div className="flex flex-1 flex-col gap-2 overflow-y-auto pr-1">
           {shots.map((s, i) => (
             <div key={s.id} className="flex gap-2.5 rounded-xl border border-border bg-card p-2.5">
-              <div className="h-14 w-14 flex-none overflow-hidden rounded-lg border border-border bg-muted">
-                {u(s.imageUrl)
-                  ? <img src={s.imageUrl as string} alt="" className="h-full w-full object-cover" />
-                  : <div className="grid h-full w-full place-items-center text-[10px] font-bold text-muted-foreground">{i + 1}</div>}
+              <div className="relative grid h-14 w-14 flex-none place-items-center overflow-hidden rounded-lg border border-border bg-gradient-to-br from-violet-500/20 via-sky-500/10 to-transparent">
+                <span className="text-2xl leading-none">{beatEmoji(s)}</span>
+                <span className="absolute left-1 top-1 grid h-4 w-4 place-items-center rounded bg-black/45 text-[9px] font-bold text-white">{i + 1}</span>
               </div>
               <div className="min-w-0 flex-1">
                 <div className="line-clamp-2 text-[11.5px] leading-snug">{s.line}</div>
