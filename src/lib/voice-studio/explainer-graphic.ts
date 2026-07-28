@@ -9,7 +9,8 @@
  */
 import { renderHtmlToPng, renderHtmlToVideo } from "@/lib/utils/html-renderer";
 import { buildExplainerHtml, type RenderExplainerOptions } from "./explainer-template";
-import type { ExplainerGraphic } from "./types";
+import { buildExplainerComposition } from "./explainer-composition";
+import type { ExplainerGraphic, ExplainerStyleId } from "./types";
 
 export { buildExplainerHtml } from "./explainer-template";
 export type { RenderExplainerOptions, ExplainerGraphicBrand } from "./explainer-template";
@@ -28,24 +29,30 @@ export async function renderExplainerGraphic(
 }
 
 /**
- * Render one beat's ANIMATED motion graphic to an MP4 Buffer (full 9:16 frame): the subject
- * hero pops + floats, items fly in staggered, wires draw — paced to `holdSec` so the picture
- * moves with the narration instead of sitting static. This replaces the still PNG in the final
- * on-camera-explainer stitch. [[voice-oncam-explainer-feature]]
+ * Render one beat's ANIMATED motion graphic to an MP4 Buffer (full 9:16 frame) via the
+ * HyperFrames-style, GSAP-timed, TOKEN-DRIVEN composition (explainer-composition.ts): the subject
+ * hero, staggered card fly-ins, drawing wires — all in the user-selected `style`, tinted by their
+ * Brand Kit. Paced to `holdSec` so the picture moves with the narration. Replaces the flat static
+ * graphic in the final on-camera-explainer stitch. [[hyperframes-oncam-graphics]]
  */
 export async function renderExplainerVideo(
   g: ExplainerGraphic,
   holdSec: number,
   opts: RenderExplainerOptions = {},
+  style?: ExplainerStyleId,
 ): Promise<Buffer> {
-  const width = opts.width ?? 720;
-  const height = opts.height ?? 1280;
-  return renderHtmlToVideo(buildExplainerHtml(g, { ...opts, animated: true, holdSec }), {
+  const width = opts.width ?? 1080;
+  const height = opts.height ?? 1920;
+  const html = buildExplainerComposition(g, {
+    width, height, holdSec, presenterPct: opts.presenterPct, style,
+    brand: { accent: opts.brand?.accent, accent2: opts.brand?.accent2 },
+  });
+  return renderHtmlToVideo(html, {
     width,
     height,
     durationSec: holdSec,
     fps: 18,
     deviceScaleFactor: 1, // native canvas size — a video doesn't need retina 2x
-    fontLoadDelayMs: 250,
+    fontLoadDelayMs: 450, // GSAP + Google Fonts settle
   });
 }

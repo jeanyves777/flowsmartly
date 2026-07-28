@@ -190,7 +190,6 @@ export async function renderHtmlToVideo(html: string, opts: RenderVideoOptions):
   if (!ff) throw new Error("Video assembly is not available on this server (ffmpeg missing).");
   const fps = opts.fps ?? 18;
   const frames = Math.max(1, Math.min(300, Math.round(opts.durationSec * fps)));
-  const frameMs = 1000 / fps;
   await acquireRenderSlot();
   const dir = await mkdtemp(join(tmpdir(), "htmlvid-"));
   try {
@@ -200,15 +199,24 @@ export async function renderHtmlToVideo(html: string, opts: RenderVideoOptions):
       await page.setViewport({ width: opts.width, height: opts.height, deviceScaleFactor: opts.deviceScaleFactor ?? 1 });
       await page.setContent(html, { waitUntil: "networkidle0", timeout: 30_000 });
       if (opts.fontLoadDelayMs ?? 250) await new Promise((r) => setTimeout(r, opts.fontLoadDelayMs ?? 250));
-      // Pause every animation so nothing advances on wall-clock time between screenshots.
-      await page.evaluate(() => { for (const a of document.getAnimations()) { try { a.pause(); } catch { /* noop */ } } });
+      // Pause everything so nothing advances on wall-clock time between screenshots. Prefer a
+      // GSAP timeline registry (window.__timelines) when present — HyperFrames-style compositions
+      // register a paused master timeline there; otherwise fall back to the Web Animations API
+      // (CSS keyframes). [[hyperframes-oncam-graphics]]
+      await page.evaluate(() => {
+        const tls = (window as unknown as { __timelines?: Record<string, { pause(): void }> }).__timelines;
+        if (tls) { for (const k of Object.keys(tls)) { try { tls[k].pause(); } catch { /* noop */ } } }
+        else { for (const a of document.getAnimations()) { try { a.pause(); } catch { /* noop */ } } }
+      });
       for (let i = 0; i < frames; i++) {
-        const t = i * frameMs;
-        // Seek all animations to this frame's time and force a style/layout flush before capture.
-        await page.evaluate((ms) => {
-          for (const a of document.getAnimations()) { try { a.currentTime = ms; } catch { /* noop */ } }
+        const tSec = i / fps;
+        // Seek to this frame's time (GSAP in seconds, WAAPI in ms) + flush layout before capture.
+        await page.evaluate((sec) => {
+          const tls = (window as unknown as { __timelines?: Record<string, { seek(t: number): void; duration(): number }> }).__timelines;
+          if (tls) { for (const k of Object.keys(tls)) { try { const tl = tls[k]; tl.seek(Math.min(sec, tl.duration())); } catch { /* noop */ } } }
+          else { for (const a of document.getAnimations()) { try { a.currentTime = sec * 1000; } catch { /* noop */ } } }
           void document.body.offsetHeight;
-        }, t);
+        }, tSec);
         await page.screenshot({ path: join(dir, `f${String(i).padStart(5, "0")}.jpg`), type: "jpeg", quality: 92 });
       }
     } finally {
