@@ -402,11 +402,11 @@ export async function renderPresenter(id: string, userId: string): Promise<void>
     const ordered = p.shots.filter((s) => s.line.trim()).sort((a, b) => a.order - b.order);
     if (ordered.length === 0) throw new Error("Write at least one beat before rendering the presenter.");
 
-    // Hold = the ACTUAL spoken length + a small breath, clamped — NOT the (often inflated)
-    // draft word-count estimate. Using the estimate left the picture holding in silence after
-    // the voice stopped ("pauses between the animations"). This is authoritative for both the
-    // presenter audio track AND the per-beat clip durations in the composite.
-    const audioHold = (ms: number) => Math.min(MAX_HOLD_SEC, Math.max(MIN_HOLD_SEC, Math.round((ms / 1000 + 0.2) * 10) / 10));
+    // Hold = EXACTLY the spoken length (no pad, no min floor beyond a sub-frame guard) so the
+    // beats butt up GAPLESSLY: the presenter talks continuously and the picture changes on the
+    // word, with no dead air. Any earlier pad/floor (0.2s + 1.2s min) was the "pauses between the
+    // animations". Authoritative for BOTH the presenter audio track and the composite clip lengths.
+    const audioHold = (ms: number) => Math.min(MAX_HOLD_SEC, Math.max(0.4, ms / 1000));
     const segments: { buf: Buffer; holdSec: number }[] = [];
     for (const s of ordered) {
       if (isUrl(s.audioUrl)) {
