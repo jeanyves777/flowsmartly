@@ -151,7 +151,20 @@ export function FocusedNarration() {
     try {
       const j = await fetch(`/api/ai/voice-studio/narration/${project.id}/generate-all`, { method: "POST" }).then((r) => r.json());
       if (j?.success) {
-        setProject(j.data.project);
+        const next = j.data.project as NarrationProject;
+        // The generate request returns in <1s, but the presenter + stitch then run in the
+        // BACKGROUND. When every beat is ALREADY done the presenter kicks immediately, yet the
+        // frontend would see "nothing rendering", re-enable the button and stop polling until a
+        // manual refresh. Optimistically mark the presenter rendering so the button stays disabled,
+        // a spinner shows, and the poller keeps running until the real status comes back. (When
+        // beats are still rendering, that state already drives the spinner/poll — leave it.)
+        const allBeatsReady = next?.shots?.length > 0 && next.shots.every((s) => s.status === "ready");
+        if (next?.mode === "oncam" && allBeatsReady
+          && !/^https?:\/\//i.test(next.presenterVideoUrl || "")
+          && !/^https?:\/\//i.test(next.finalVideoUrl || "")) {
+          next.presenterStatus = "rendering";
+        }
+        setProject(next);
         // Oncam re-kicks the presenter + assembles — don't surface the "shots already done" line.
         if (project?.mode === "oncam") toast({ title: "Rendering your video…" });
         else if (j.data.message) toast({ title: j.data.message });
