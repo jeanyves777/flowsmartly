@@ -664,7 +664,7 @@ export async function composeOnCam(id: string, userId: string): Promise<void> {
           // paced to this beat's hold so the picture moves with the narration. Fall back to a still
           // clip only if the animated render fails, so a beat never drops out of the film.
           try {
-            clip = await renderExplainerVideo(s.graphic, s.holdSec, { width: w, height: h, presenterPct, brand: gBrand });
+            clip = await renderExplainerVideo(s.graphic, s.holdSec, { width: w, height: h, presenterPct, brand: gBrand }, p.explainerStyle);
           } catch (e) {
             console.error(`[voice-studio] oncam animated beat ${s.id} fell back to still:`, e instanceof Error ? e.message : e);
             const png = isUrl(s.imageUrl) ? await toBuffer(s.imageUrl) : await renderExplainerGraphic(s.graphic, { width: w, height: h, presenterPct, brand: gBrand });
@@ -678,7 +678,7 @@ export async function composeOnCam(id: string, userId: string): Promise<void> {
           // No bottom asset — an animated branded title/caption frame so the beat still reads.
           const g = { kind: "title" as const, headline: p.title, caption: s.line };
           try {
-            clip = await renderExplainerVideo(g, s.holdSec, { width: w, height: h, presenterPct, brand: gBrand });
+            clip = await renderExplainerVideo(g, s.holdSec, { width: w, height: h, presenterPct, brand: gBrand }, p.explainerStyle);
           } catch {
             const png = await renderExplainerGraphic(g, { width: w, height: h, presenterPct, brand: gBrand });
             clip = await imageToClip(png, s.holdSec, w, h);
