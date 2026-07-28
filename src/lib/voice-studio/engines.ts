@@ -29,7 +29,6 @@ import { renderExplainerGraphic, renderExplainerVideo } from "./explainer-graphi
 import { getUserBrand } from "@/lib/brand/get-brand";
 import { overlayBrandLogoOnVideo } from "@/lib/video/overlay-brand-logo";
 import { isCreditExhaustion, creditExhaustionUserMessage, alertAdminsCreditExhaustion } from "@/lib/ops/provider-credit-alert";
-import sharp from "sharp";
 import { generateImageXaiFirst, editImagesXaiFirst } from "@/lib/ai/image-router";
 import { grokVideoClient } from "@/lib/ai/grok-video-client";
 import { heygenClient } from "@/lib/ai/heygen-client";
@@ -446,32 +445,13 @@ export async function renderPresenter(id: string, userId: string): Promise<void>
       charged = amount;
     }
 
-    // 3) Frame the clone photo like the Training presenter does — resize COVER + TOP so
-    //    the head is never cut off, at high quality, sized to the presenter band — then
-    //    drive audio-driven Avatar IV. [[training-presenter-talking-video]]
-    const { w: pw, h: ph } = narrationDims(p.aspect);
-    const bandH = Math.max(2, Math.round(ph * 0.44));
-    let presenterSrc = presenterImageUrl;
-    try {
-      // Smart-crop to the SUBJECT (face) rather than a fixed edge: a photo with headroom
-      // above the head would keep the empty space with position:"top" and shove the person to
-      // the bottom of the band (exactly the "space on top, missed the person" bug). rotate()
-      // honors EXIF orientation; failOn:"none" tolerates unusual/large source formats so the
-      // reframe never throws and silently sends the unframed original; flatten drops any alpha
-      // onto the studio navy so a transparent PNG can't composite see-through.
-      const framed = await sharp(await toBuffer(presenterImageUrl), { failOn: "none" })
-        .rotate()
-        .flatten({ background: "#0b1330" })
-        .resize(pw, bandH, { fit: "cover", position: sharp.strategy.attention })
-        .jpeg({ quality: 92 })
-        .toBuffer();
-      presenterSrc = await uploadToS3(`narration/${id}/presenter-src-${uid()}.jpg`, framed, "image/jpeg");
-    } catch (e) {
-      console.error("[voice-studio] presenter reframe skipped:", e instanceof Error ? e.message : e);
-    }
-
+    // 3) Send the clone/upload image to HeyGen AS-IS — full resolution, ORIGINAL framing.
+    //    Do NOT downscale/crop/re-compress it first: that degraded quality and re-positioned the
+    //    subject. The clone image is already well-framed; the final composite crops the presenter
+    //    VIDEO to the top band (overlayTopBand), so band framing is handled there, not by mangling
+    //    the source. [[voice-oncam-explainer-feature]]
     const heygen = await heygenClient.generateImageToVideo({
-      imageUrl: presenterSrc,
+      imageUrl: presenterImageUrl,
       audioUrl,
       title: p.title,
       estimatedSeconds: durationSec,
