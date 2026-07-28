@@ -41,6 +41,11 @@ export interface ExplainerGraphic {
    *  animated hero. Optional — falls back to a kind-appropriate default. */
   subject?: string;
 }
+
+/** Selectable LOOK for the on-camera explainer's animated graphics — a token set, not a hardcoded
+ *  theme. The user picks one per project; the Brand Kit tints it. [[hyperframes-oncam-graphics]] */
+export type ExplainerStyleId = "neon" | "editorial" | "minimal" | "bold";
+export const EXPLAINER_STYLE_IDS: ExplainerStyleId[] = ["neon", "editorial", "minimal", "bold"];
 /** AI-generated, or a file the user brought. Never stock. */
 export type ShotSource = "ai" | "upload";
 export type ShotStatus = "idle" | "queued" | "rendering" | "ready" | "failed";
@@ -125,6 +130,8 @@ export interface NarrationProject {
   takeCount: number;
   /** Target run time in SECONDS the drafter aims for (on-camera explainer: user picks 1-5 min). */
   targetSec?: number;
+  /** On-camera explainer: the user-selected animated-graphics LOOK (default "neon"). */
+  explainerStyle?: ExplainerStyleId;
   music?: string | null;
   musicVolume?: number;
   captionsOn?: boolean;
@@ -268,6 +275,7 @@ export function normalizeNarration(raw: Partial<NarrationProject> & { id: string
     takes: Array.isArray(raw.takes) ? raw.takes.filter(Boolean).slice(0, 6) : [],
     takeCount: Math.max(1, Math.min(4, raw.takeCount || 2)),
     targetSec: raw.targetSec != null ? Math.max(30, Math.min(300, Math.round(raw.targetSec))) : base.targetSec,
+    explainerStyle: EXPLAINER_STYLE_IDS.includes(raw.explainerStyle as ExplainerStyleId) ? (raw.explainerStyle as ExplainerStyleId) : base.explainerStyle,
     draftStatus: raw.draftStatus === "drafting" || raw.draftStatus === "ready" || raw.draftStatus === "failed" ? raw.draftStatus : null,
   };
 }
