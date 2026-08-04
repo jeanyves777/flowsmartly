@@ -1124,23 +1124,29 @@ export default function FlowShopPage() {
             return (
               <Reveal key={channel.key} style={styles.channelCell} distance={14} delay={index * 60}>
                 <View style={styles.channelCard}>
-                  <View style={styles.channelLogo}>
-                    <BrandLogo name={channel.brand} size={22} label={channel.name} />
+                  <View style={styles.channelHead}>
+                    <View style={styles.channelLogo}>
+                      <BrandLogo name={channel.brand} size={22} label={channel.name} />
+                    </View>
+                    <View style={styles.channelCopy}>
+                      <Text numberOfLines={1} style={styles.channelName}>
+                        {channel.name}
+                      </Text>
+                      <Text numberOfLines={1} style={styles.channelNote}>
+                        {channel.note}
+                      </Text>
+                    </View>
                   </View>
-                  <Text numberOfLines={1} style={styles.channelName}>
-                    {channel.name}
-                  </Text>
-                  <Text numberOfLines={1} style={styles.channelNote}>
-                    {channel.note}
-                  </Text>
-                  <View style={styles.track}>
-                    <View style={[styles.trackFill, { width, backgroundColor: accent }]} />
-                  </View>
-                  <View style={styles.channelState}>
-                    <FontAwesome6 name="circle-check" size={10} color={t.green} />
-                    <Text numberOfLines={1} style={styles.channelStateText}>
-                      {channel.state}
-                    </Text>
+                  <View style={styles.channelMeter}>
+                    <View style={styles.track}>
+                      <View style={[styles.trackFill, { width, backgroundColor: accent }]} />
+                    </View>
+                    <View style={styles.channelState}>
+                      <FontAwesome6 name="circle-check" size={10} color={t.green} />
+                      <Text numberOfLines={1} style={styles.channelStateText}>
+                        {channel.state}
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </Reveal>
@@ -1433,7 +1439,15 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
   const categoryColumns = l.isPhone ? 2 : 4;
   const dashColumns = l.isPhone ? 1 : 3;
-  const channelColumns = columns(1, 2, 3, 5);
+  /**
+   * Five channels is a prime count: only one and five columns divide it, so
+   * two or three leave a hole where a card should be. The five-up card needs
+   * the full desktop/laptop width; below 1024 the same card is laid out as a
+   * one-column row — logo and name on the left, the visibility meter on the
+   * right — rather than five full-width blocks.
+   */
+  const channelRow = l.isCompact;
+  const channelColumns = channelRow ? 1 : 5;
   const metricColumns = columns(1, 2, 4, 4);
   const themeColumns = columns(1, 2, 2, 4);
   const dataColumns = l.isPhone ? 1 : 2;
@@ -2041,7 +2055,38 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     /* -------------------------------------------------- 05 channels */
     channelGrid: { ...gridBase, marginTop: (l.isPhone ? 20 : 28) - half },
     channelCell: cellBase(channelColumns),
-    channelCard: { ...cardBase, gap: 8, flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
+    channelCard:
+      channelRow && !l.isPhone
+        ? {
+            ...cardBase,
+            gap: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            flexGrow: 1,
+            flexShrink: 1,
+            flexBasis: 'auto',
+          }
+        : { ...cardBase, gap: channelRow ? 12 : 8, flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
+    /** five-up: logo above the name. Row form: logo beside it. */
+    channelHead: channelRow
+      ? {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          flexGrow: 1,
+          flexShrink: 1,
+          flexBasis: 'auto',
+          minWidth: 0,
+        }
+      : { width: '100%', minWidth: 0, gap: 8 },
+    channelCopy: channelRow
+      ? { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 }
+      : { width: '100%', minWidth: 0, gap: 2 },
+    /** the level bar and its state read as one unit, wherever they sit */
+    channelMeter:
+      channelRow && !l.isPhone
+        ? { flexGrow: 0, flexShrink: 0, flexBasis: 190, gap: 8 }
+        : { width: '100%', minWidth: 0, gap: 8 },
     channelLogo: {
       width: 42,
       height: 42,
@@ -2054,7 +2099,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       borderWidth: 1,
       borderColor: t.border,
     },
-    channelName: { ...type.bodySm, color: t.text, fontWeight: '800', marginTop: 2 },
+    channelName: { ...type.bodySm, color: t.text, fontWeight: '800', marginTop: channelRow ? 0 : 2 },
     channelNote: { ...type.micro, color: t.textSubtle },
     channelState: { flexDirection: 'row', alignItems: 'center', gap: 7 },
     channelStateText: { ...type.micro, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },

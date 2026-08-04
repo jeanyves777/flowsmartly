@@ -939,8 +939,8 @@ export default function TrainingStudioPage() {
                       <FontAwesome6 name={moment.icon as never} size={16} color={accent} />
                     </View>
                     <Text style={styles.momentIndex}>{`0${index + 1}`}</Text>
+                    <Text style={[type.h4, styles.momentTitle]}>{moment.title}</Text>
                   </View>
-                  <Text style={[type.h4, styles.momentTitle]}>{moment.title}</Text>
                   <Text style={styles.momentBody}>{moment.body}</Text>
                 </View>
               </Reveal>
@@ -1600,9 +1600,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const columns = (phone: number, tablet: number, laptop: number, desktop: number) =>
     l.isPhone ? phone : l.isTablet ? tablet : l.isDesktop ? desktop : laptop;
 
-  // Seven moments is a prime count, so no column choice divides it — `flexGrow: 0`
-  // on the cell is what keeps the short last row at its natural card width.
-  const momentColumns = columns(1, 2, 3, 4);
+  // Seven moments is a prime count: nothing but 1 and 7 divides it, and seven
+  // cards abreast is unreadable at any width — three columns rendered 3 + 3 + 1
+  // with a card-and-a-half of nothing beside the last one. So the moments are
+  // one column of designed rows: icon and title on the left, the sentence beside
+  // them wide, stacked under them when there is no room.
+  const momentRow = !l.isCompact;
+  const momentColumns = 1;
   const activityColumns = columns(1, 2, 2, 4);
   const mediaColumns = columns(1, 2, 2, 4);
   const templateColumns = columns(1, 2, 3, 3);
@@ -2115,8 +2119,21 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     /* -------------------------------------------------- moments */
     momentGrid: gridBase,
     momentCell: cellBase(momentColumns),
-    momentCard: { ...cardBase, height: '100%', gap: 10 },
-    momentTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+    momentCard: momentRow
+      ? { ...cardBase, height: '100%', gap: 20, flexDirection: 'row', alignItems: 'center' }
+      : { ...cardBase, height: '100%', gap: 10 },
+    /** the identifying half of the row: number, icon, name of the moment */
+    momentTop: momentRow
+      ? {
+          flexGrow: 0,
+          flexShrink: 0,
+          flexBasis: 260,
+          minWidth: 0,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 13,
+        }
+      : { flexDirection: 'row', alignItems: 'center', gap: 12, width: '100%', minWidth: 0 },
     momentIcon: {
       width: 42,
       height: 42,
@@ -2126,9 +2143,11 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    momentIndex: { ...type.h4, color: t.textSubtle, fontWeight: '800' },
-    momentTitle: { marginTop: 2 },
-    momentBody: { ...type.bodySm, color: t.textMuted },
+    momentIndex: { ...type.h4, color: t.textSubtle, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
+    momentTitle: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
+    momentBody: momentRow
+      ? { ...type.bodySm, color: t.textMuted, flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 }
+      : { ...type.bodySm, color: t.textMuted },
 
     /* -------------------------------------------------- board */
     boardCard: {

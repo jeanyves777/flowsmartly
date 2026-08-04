@@ -27,7 +27,7 @@ import {
 } from '@/components/public/ui';
 import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
-import { BP, useLayout, type Layout } from '@/theme/use-responsive';
+import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
 /* ------------------------------------------------------------------ */
@@ -543,17 +543,27 @@ export default function FlowAiPage() {
           </Text>
         </Reveal>
 
-        <View style={styles.grid}>
+        {/*
+          Seven is prime, so there is no grid that ends flush — four across left
+          a three-card hole on the second row. These are row cards instead: the
+          agent's name holds its own column beside the description, so the width
+          a fourth card used to waste is carrying copy.
+        */}
+        <View style={styles.agentList}>
           {AGENTS.map((agent, index) => {
             const accent = accentOf(agent.accent);
             return (
-              <Reveal key={agent.title} style={styles.agentCell} distance={16} delay={index * 55}>
-                <View style={styles.agentCard}>
+              <Reveal key={agent.title} distance={16} delay={index * 55}>
+                <View style={styles.agentRow}>
                   <View style={[styles.agentIcon, { backgroundColor: softFill(accent, t) }]}>
                     <FontAwesome6 name={agent.icon as never} size={19} color={accent} />
                   </View>
-                  <Text style={[type.h4, styles.agentTitle]}>{agent.title}</Text>
-                  <Text style={styles.agentBody}>{agent.body}</Text>
+                  <View style={styles.agentCopy}>
+                    <Text style={[type.h4, styles.agentTitle, styles.agentTitleCol]}>
+                      {agent.title}
+                    </Text>
+                    <Text style={[styles.agentBody, styles.agentBodyCol]}>{agent.body}</Text>
+                  </View>
                 </View>
               </Reveal>
             );
@@ -612,8 +622,10 @@ export default function FlowAiPage() {
                   <View style={[styles.controlIcon, { backgroundColor: softFill(accent, t) }]}>
                     <FontAwesome6 name={control.icon as never} size={17} color={accent} />
                   </View>
-                  <Text style={[type.h4, styles.controlTitle]}>{control.title}</Text>
-                  <Text style={styles.controlBody}>{control.body}</Text>
+                  <View style={styles.controlCopy}>
+                    <Text style={[type.h4, styles.controlTitle]}>{control.title}</Text>
+                    <Text style={styles.controlBody}>{control.body}</Text>
+                  </View>
                 </View>
               </Reveal>
             );
@@ -716,6 +728,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
    * Percentage basis for one cell of an `n`-column wrapped grid, with the pixel
    * gaps discounted. Paired with `flexGrow: 0` so a short last row keeps its
    * natural column width rather than stretching an orphan across the section.
+   *
+   * Note the 20% floor: it makes this unusable at five columns, where the honest
+   * basis is ~18.8% and clamping to 20% overflows the row by four gaps. Five-up
+   * grids therefore use `cellBasis` + cell padding below instead.
    */
   const cellPct = (columns: number): DimensionValue => {
     if (columns <= 1) return '100%';
@@ -723,10 +739,19 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     return `${Math.max(20, Math.floor(((100 - gapPct - 0.5) / columns) * 100) / 100)}%` as DimensionValue;
   };
 
-  // Seven agents and five controls are both prime counts, so no column choice
-  // divides them evenly — the fixed basis above is what keeps the last row honest.
-  const agentColumns = l.isPhone ? 1 : l.isTablet ? 2 : l.isDesktop ? 4 : 3;
-  const controlColumns = l.isPhone ? 1 : l.isTablet ? 2 : l.isDesktop ? 5 : 3;
+  // Padding inside the cell rather than a gap between cells, so five columns of
+  // a flat 20% basis sum to exactly 100% and the fifth never wraps.
+  const cellPad = l.isPhone ? 5 : 9;
+
+  // Five controls is a prime count: only five columns or one divide it, and two,
+  // three or four all end the grid on a hole the width of a missing card. Five
+  // across while there is room, then the icon-left row card below 1024.
+  const controlColumns = l.isCompact ? 1 : 5;
+
+  // Seven agents divides by nothing usable at any width, so they are not a grid
+  // at all — one column of row cards, with the name in its own column beside the
+  // description so the full width is used rather than left blank.
+  const agentTitleWidth = l.isDesktop ? 260 : 224;
 
   // Between 1120 and 1440 the command card shares the hero with the copy, so the
   // fixed columns tighten to leave the opportunity itself two readable lines.
@@ -917,8 +942,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: gridGap,
-      marginTop: l.isPhone ? 20 : 28,
+      alignItems: 'stretch',
+      marginHorizontal: -cellPad,
+      marginTop: (l.isPhone ? 20 : 28) - cellPad,
     },
 
     /* -------------------------------------------------- questions */
@@ -992,13 +1018,28 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     stepBody: { ...type.bodySm, color: t.textMuted },
 
     /* -------------------------------------------------- agents */
-    agentCell: {
-      flexGrow: 0,
-      flexShrink: 1,
-      flexBasis: cellPct(agentColumns),
-      minWidth: 0,
+    agentList: { gap: gridGap, marginTop: l.isPhone ? 20 : 28 },
+    agentRow: {
+      ...cardBase,
+      flexDirection: 'row',
+      alignItems: l.isCompact ? 'flex-start' : 'center',
+      gap: l.isPhone ? 14 : 18,
     },
-    agentCard: { ...cardBase, minHeight: l.isPhone ? 0 : 218 },
+    agentCopy: l.isCompact
+      ? { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 6 }
+      : {
+          flexGrow: 1,
+          flexShrink: 1,
+          flexBasis: 'auto',
+          minWidth: 0,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 24,
+        },
+    agentTitleCol: l.isCompact
+      ? {}
+      : { width: agentTitleWidth, flexGrow: 0, flexShrink: 0 },
+    agentBodyCol: l.isCompact ? {} : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     agentIcon: {
       width: 46,
       height: 46,
@@ -1008,8 +1049,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    agentTitle: { marginTop: 2 },
-    agentBody: { ...type.bodySm, color: t.textMuted },
+    agentTitle: { marginTop: 0 },
+    agentBody: { ...type.bodySm, color: t.textMuted, minWidth: 0 },
 
     /* -------------------------------------------------- context */
     contextRow: {
@@ -1052,11 +1093,24 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     /* -------------------------------------------------- controls */
     controlCell: {
       flexGrow: 0,
-      flexShrink: 1,
-      flexBasis: cellPct(controlColumns),
+      flexShrink: 0,
+      flexBasis: cellBasis(controlColumns),
       minWidth: 0,
+      padding: cellPad,
     },
-    controlCard: { ...cardBase, minHeight: l.isPhone ? 0 : 206 },
+    controlCard: {
+      ...cardBase,
+      minHeight: l.isCompact ? 0 : 206,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      flexDirection: l.isCompact ? 'row' : 'column',
+      alignItems: l.isCompact ? 'flex-start' : 'stretch',
+      gap: l.isCompact ? 14 : 10,
+    },
+    controlCopy: l.isCompact
+      ? { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 6 }
+      : { width: '100%', minWidth: 0, gap: 10 },
     controlIcon: {
       width: 42,
       height: 42,
@@ -1066,7 +1120,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    controlTitle: { marginTop: 2 },
+    controlTitle: { marginTop: l.isCompact ? 0 : 2 },
     controlBody: { ...type.bodySm, color: t.textMuted },
 
     assuranceWrap: { marginTop: l.isPhone ? 14 : 18 },

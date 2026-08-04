@@ -306,8 +306,13 @@ function Topics() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
-  /** ten cards: 5 and 2 divide evenly, 4 leaves a pair rather than one orphan */
-  const columns = l.isPhone ? 1 : l.isTablet ? 2 : l.isDesktop ? 5 : 4;
+  /**
+   * Ten cards, so only 1, 2, 5 and 10 divide the count — four columns render
+   * 4 + 4 + 2 and leave most of the last row empty. Five is the widest count
+   * that fits a card with a title, a line of copy and a link, and it needs the
+   * full split width; below that the row falls back to two.
+   */
+  const columns = l.isPhone ? 1 : l.isStacked ? 2 : 5;
 
   return (
     <Section>

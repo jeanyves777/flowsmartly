@@ -1,6 +1,6 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import {
   Platform,
   Pressable,
@@ -35,7 +35,7 @@ import {
   type TypeScale,
 } from '@/components/public/ui';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
-import { BP, useLayout, type Layout } from '@/theme/use-responsive';
+import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
 /* ------------------------------------------------------------------ */
@@ -146,7 +146,9 @@ const STORY: { year: string; title: string; lines: [string, string]; icon: strin
   },
 ];
 
-const STATS: { value: number; decimals: number; prefix: string; suffix: string; label: string }[] = [
+type StatItem = { value: number; decimals: number; prefix: string; suffix: string; label: string };
+
+const STATS: StatItem[] = [
   { value: 25000, decimals: 0, prefix: '', suffix: '+', label: 'Teams empowered' },
   { value: 90, decimals: 0, prefix: '', suffix: '+', label: 'Countries served' },
   { value: 3.2, decimals: 1, prefix: '', suffix: 'M+', label: 'Campaigns launched' },
@@ -237,11 +239,19 @@ function FlowTile({
   );
 }
 
-function Stat({
+/**
+ * Five stats is a prime count, so no wrapped grid divides it — four across and a
+ * lone fifth was the hole the page shipped with. These are short figures with no
+ * paragraph, so they read best as one non-wrapping row separated by rules, and
+ * as a label/value list once the row no longer has the width for five.
+ */
+function StatFigure({
   item,
+  compact,
   styles,
 }: {
-  item: { value: number; decimals: number; prefix: string; suffix: string; label: string };
+  item: StatItem;
+  compact: boolean;
   styles: Styles;
 }) {
   const counter = useCountUp(item.value, { decimals: item.decimals });
@@ -249,14 +259,20 @@ function Stat({
     minimumFractionDigits: item.decimals,
     maximumFractionDigits: item.decimals,
   });
+
+  const value = (
+    <Text style={styles.statValue}>
+      {item.prefix}
+      {shown}
+      {item.suffix}
+    </Text>
+  );
+  const label = <Text style={styles.statLabel}>{item.label}</Text>;
+
   return (
-    <View ref={counter.ref as never} style={styles.statCard}>
-      <Text style={styles.statValue}>
-        {item.prefix}
-        {shown}
-        {item.suffix}
-      </Text>
-      <Text style={styles.statLabel}>{item.label}</Text>
+    <View ref={counter.ref as never} style={styles.statItem}>
+      {compact ? label : value}
+      {compact ? value : label}
     </View>
   );
 }
@@ -464,12 +480,15 @@ export default function AboutPage() {
           </Heading>
         </Reveal>
 
-        <View style={styles.statGrid}>
-          {STATS.map((item) => (
-            <View key={item.label} style={styles.statCell}>
-              <Stat item={item} styles={styles} />
-            </View>
-          ))}
+        <View style={styles.statBand}>
+          <View style={styles.statRow}>
+            {STATS.map((item, index) => (
+              <Fragment key={item.label}>
+                {index > 0 ? <View style={styles.statDivider} /> : null}
+                <StatFigure item={item} compact={l.isCompact} styles={styles} />
+              </Fragment>
+            ))}
+          </View>
         </View>
       </Section>
 
@@ -503,6 +522,9 @@ export default function AboutPage() {
                     {leader.role}
                   </Text>
                 </View>
+                {/* Wide: pushes every LinkedIn tile onto one baseline however
+                    long the role runs. Row: pushes it to the right edge. */}
+                <View style={styles.leaderSpacer} />
                 <View style={styles.leaderSocial}>
                   <BrandLogo name="linkedin" size={16} label={`${leader.name} on LinkedIn`} />
                 </View>
@@ -539,8 +561,10 @@ export default function AboutPage() {
                   <View style={[styles.valueIcon, { backgroundColor: softFill(accent, t) }]}>
                     <FontAwesome6 name={value.icon as never} size={17} color={accent} />
                   </View>
-                  <Text style={[type.h4, styles.valueTitle]}>{value.title}</Text>
-                  <Text style={styles.valueBody}>{value.body}</Text>
+                  <View style={styles.valueCopy}>
+                    <Text style={[type.h4, styles.valueTitle]}>{value.title}</Text>
+                    <Text style={styles.valueBody}>{value.body}</Text>
+                  </View>
                 </View>
               </Reveal>
             );
@@ -613,16 +637,27 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     Math.min(l.width, BP.maxContent) - l.gutter * 2 - l.sectionPad * 2,
   );
 
-  const cellPct = (columns: number): DimensionValue => {
-    if (columns <= 1) return '100%';
-    const gapPct = ((gridGap * (columns - 1)) / contentWidth) * 100;
-    return `${Math.max(20, Math.floor(((100 - gapPct - 0.5) / columns) * 100) / 100)}%` as DimensionValue;
-  };
+  /*
+    Five-up grids use cell padding rather than `gap`, because a percentage basis
+    plus a pixel gap cannot make five fit: five cells of the honest basis still
+    have to find four gaps somewhere, and the fifth wraps. Padding inside the
+    cell comes out of the 20% instead, so five columns sum to exactly 100%.
+  */
+  const cellPad = l.isPhone ? 5 : 9;
 
-  // Five leaders, five values and five stats are all prime counts: the explicit
-  // basis plus `flexGrow: 0` is what stops a short last row stretching an orphan.
-  const fiveColumns = l.isPhone ? 1 : l.isTablet ? 2 : l.isDesktop ? 5 : 3;
-  const statColumns = l.isPhone ? 1 : l.isTablet ? 2 : 5;
+  // Five leaders and five values are prime counts, so the only column choices
+  // that divide them are five and one — two, three and four all leave a hole at
+  // the end of the last row. Five across while there is room, and a designed
+  // icon-left row card below 1024 rather than a stack of five tall blocks.
+  const fiveColumns = l.isCompact ? 1 : 5;
+
+  // The stat band never wraps, so it needs its own measurement: five figures,
+  // four rules and eight gaps out of the content width. Below ~170px a figure
+  // like "25,000+" no longer fits on one line at h2, so it steps down to h3.
+  const bandPad = l.isPhone ? 18 : l.isDesktop ? 28 : 20;
+  const bandGap = l.isDesktop ? 24 : 16;
+  const statItemWidth = (contentWidth - bandPad * 2 - 4 - bandGap * 8) / STATS.length;
+  const statValueType = statItemWidth >= 170 ? type.h2 : type.h3;
 
   const hub = l.isPhone ? 84 : l.isTablet ? 100 : 116;
   // Below 1120 the six timeline steps reflow onto a vertical rail; six across a
@@ -642,7 +677,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     ...(elevation(t, 1) as object),
   };
 
-  const portrait: ImageStyle = { width: '100%', aspectRatio: 1 };
+  const portrait: ImageStyle = l.isCompact
+    ? { width: l.isPhone ? 76 : 88, height: l.isPhone ? 76 : 88, flexGrow: 0, flexShrink: 0 }
+    : { width: '100%', aspectRatio: 1 };
   const hubMark: ImageStyle = { width: hub * 0.5, height: hub * 0.5 };
 
   const sheet = StyleSheet.create({
@@ -813,64 +850,86 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
 
     /* -------------------------------------------------- stats */
-    statGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: gridGap,
+    statBand: {
       marginTop: l.isPhone ? 20 : 28,
-    },
-    statCell: {
-      flexGrow: 0,
-      flexShrink: 1,
-      flexBasis: cellPct(statColumns),
-      minWidth: 0,
-    },
-    statCard: {
       borderWidth: 1,
       borderColor: t.border,
-      borderRadius: 16,
-      backgroundColor: t.surfaceMuted,
-      paddingHorizontal: l.isPhone ? 16 : 18,
-      paddingVertical: l.isPhone ? 18 : 22,
-      alignItems: l.isPhone ? 'flex-start' : 'center',
-      gap: 6,
+      borderRadius: 18,
+      backgroundColor: t.surfaceInset,
+      paddingHorizontal: bandPad,
+      paddingVertical: l.isPhone ? 16 : l.isDesktop ? 30 : 24,
     },
-    statValue: { ...type.h2, color: t.brand },
+    statRow: {
+      flexDirection: l.isCompact ? 'column' : 'row',
+      alignItems: 'stretch',
+      gap: l.isCompact ? 14 : bandGap,
+    },
+    statItem: l.isCompact
+      ? {
+          width: '100%',
+          minWidth: 0,
+          flexDirection: 'row',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 14,
+        }
+      : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 6 },
+    statDivider: l.isCompact
+      ? { width: '100%', height: 1, backgroundColor: t.divider }
+      : { width: 1, alignSelf: 'stretch', flexGrow: 0, flexShrink: 0, backgroundColor: t.divider },
+    statValue: { ...statValueType, color: t.brand, flexGrow: 0, flexShrink: 0 },
     statLabel: {
       ...type.caption,
       color: t.textMuted,
       fontWeight: '600',
-      textAlign: l.isPhone ? 'left' : 'center',
+      flexShrink: 1,
+      minWidth: 0,
     },
 
     /* -------------------------------------------------- leadership */
     leaderGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: gridGap,
-      marginTop: l.isPhone ? 20 : 28,
+      alignItems: 'stretch',
+      marginHorizontal: -cellPad,
+      marginTop: (l.isPhone ? 20 : 28) - cellPad,
     },
     leaderCell: {
       flexGrow: 0,
-      flexShrink: 1,
-      flexBasis: cellPct(fiveColumns),
+      flexShrink: 0,
+      flexBasis: cellBasis(fiveColumns),
       minWidth: 0,
+      padding: cellPad,
     },
     leaderCard: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      flexDirection: l.isCompact ? 'row' : 'column',
+      alignItems: l.isCompact ? 'center' : 'stretch',
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: 16,
       backgroundColor: t.surfaceRaised,
       padding: 12,
-      gap: 12,
+      gap: l.isCompact ? 14 : 12,
       ...(elevation(t, 1) as object),
     },
-    leaderCopy: { gap: 3, minWidth: 0 },
+    leaderCopy: l.isCompact
+      ? { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 3 }
+      : { width: '100%', minWidth: 0, gap: 3 },
+    // Row form: the copy's own `flexGrow` already carries the tile to the right
+    // edge, so the spacer must contribute nothing or it steals that space back.
+    leaderSpacer: l.isCompact
+      ? { flexGrow: 0, flexShrink: 0, flexBasis: 0 }
+      : { flexGrow: 1, flexShrink: 0, flexBasis: 2 },
     leaderName: { ...type.bodySm, color: t.text, fontWeight: '800' },
     leaderRole: { ...type.caption, color: t.textMuted },
     leaderSocial: {
       width: 36,
       height: 36,
+      flexGrow: 0,
+      flexShrink: 0,
       borderRadius: 10,
       borderWidth: 1,
       borderColor: t.border,
@@ -899,16 +958,30 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     valueGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: gridGap,
-      marginTop: l.isPhone ? 20 : 28,
+      alignItems: 'stretch',
+      marginHorizontal: -cellPad,
+      marginTop: (l.isPhone ? 20 : 28) - cellPad,
     },
     valueCell: {
       flexGrow: 0,
-      flexShrink: 1,
-      flexBasis: cellPct(fiveColumns),
+      flexShrink: 0,
+      flexBasis: cellBasis(fiveColumns),
       minWidth: 0,
+      padding: cellPad,
     },
-    valueCard: { ...cardBase, minHeight: l.isPhone ? 0 : 196 },
+    valueCard: {
+      ...cardBase,
+      minHeight: l.isCompact ? 0 : 196,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      flexDirection: l.isCompact ? 'row' : 'column',
+      alignItems: l.isCompact ? 'flex-start' : 'stretch',
+      gap: l.isCompact ? 14 : 10,
+    },
+    valueCopy: l.isCompact
+      ? { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 6 }
+      : { width: '100%', minWidth: 0, gap: 10 },
     valueIcon: {
       width: 42,
       height: 42,
@@ -918,7 +991,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    valueTitle: { marginTop: 2 },
+    valueTitle: { marginTop: l.isCompact ? 0 : 2 },
     valueBody: { ...type.bodySm, color: t.textMuted },
 
     /* -------------------------------------------------- closing */
