@@ -1937,7 +1937,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       overflow: 'hidden',
     },
     tableScroll: { minWidth: '100%' },
-    sessionTable: { minWidth: 760, gap: 6 },
+    // Scrolls below 760 and grows above it. Pinned at the minimum it left 500px
+    // of the card empty at 1440; the session column is flexible, so the extra
+    // width goes to the title rather than to nothing.
+    sessionTable: { minWidth: 760, flexGrow: 1, flexShrink: 0, flexBasis: 'auto', gap: 6 },
     tableHeadRow: {
       flexDirection: 'row',
       alignItems: 'center',

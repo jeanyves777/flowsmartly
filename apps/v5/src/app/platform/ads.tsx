@@ -2365,7 +2365,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       overflow: 'hidden',
     },
     tableScroll: { minWidth: '100%' },
-    table: { minWidth: 720, gap: 6 },
+    // Scrolls below 720 and grows above it. Pinned at the minimum it left 495px
+    // of the card empty at 1440; the change column is flexible, so the extra
+    // width goes to the sentence that needs it.
+    table: { minWidth: 720, flexGrow: 1, flexShrink: 0, flexBasis: 'auto', gap: 6 },
     tableHeadRow: {
       flexDirection: 'row',
       alignItems: 'center',

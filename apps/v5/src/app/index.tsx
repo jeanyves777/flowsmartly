@@ -1244,6 +1244,12 @@ export default function HomeScreen() {
 
 function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
   const stacked = l.isStacked;
+  /**
+   * The hero visual has stacked below the copy but still has a full row to
+   * itself — so it must *use* it. Sized for the side-by-side layout it kept a
+   * 460px cap here and left 270px of the row empty at 1100.
+   */
+  const heroFill = stacked && !l.isPhone;
   const card = elevation(t, 1) as ViewStyle;
   const panelPad = l.isPhone ? 12 : 14;
   const gridGap = l.isPhone ? 10 : 12;
@@ -1292,7 +1298,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
           ...stackedItem,
           flexDirection: l.isPhone ? "column" : "row",
           alignItems: "center",
-          justifyContent: l.isPhone ? "center" : "flex-start",
+          justifyContent: "center",
           gap: l.isTablet ? 14 : 18,
         }
       : {
@@ -1308,10 +1314,13 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     aiCard: {
       flexGrow: 1,
       flexShrink: 1,
-      flexBasis: "auto",
-      width: "100%",
-      minWidth: 0,
-      maxWidth: l.isPhone ? 520 : 460,
+      // Stacked and wide, the card splits the row with the channel panel from a
+      // zero basis, so the pair always fills it. Side by side with the copy it
+      // sizes to content and holds the cap the column was designed around.
+      flexBasis: heroFill ? 0 : "auto",
+      width: heroFill ? undefined : "100%",
+      minWidth: heroFill ? 320 : 0,
+      maxWidth: heroFill ? undefined : 460,
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: 18,
@@ -1432,11 +1441,14 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     // The frame the map lives in. It carries the phone width, so the surface
     // inside keeps sizing itself exactly as before.
     channelPanel: {
-      flexGrow: 0,
-      flexShrink: 0,
-      flexBasis: "auto",
+      flexGrow: heroFill ? 1 : 0,
+      flexShrink: heroFill ? 1 : 0,
+      flexBasis: heroFill ? 0 : "auto",
       width: l.isPhone ? "100%" : undefined,
-      maxWidth: l.isPhone ? 420 : undefined,
+      // The panel takes what the map needs and the card absorbs the rest of the
+      // row — an uncapped 50/50 split would strand the map in its own middle.
+      maxWidth: l.isPhone ? 460 : heroFill ? 470 : undefined,
+      minWidth: heroFill ? 264 : undefined,
       alignSelf: "center",
       borderWidth: 1,
       borderColor: t.border,
@@ -1479,12 +1491,15 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       flexGrow: 0,
       flexShrink: 0,
       flexBasis: "auto",
-      width: l.isPhone ? "100%" : undefined,
+      width: l.isPhone || heroFill ? "100%" : undefined,
       maxWidth: l.isPhone ? 400 : undefined,
       alignSelf: "center",
       flexDirection: "row",
       alignItems: "center",
-      justifyContent: "center",
+      // When the panel widens to fill the stacked row the hub and its two
+      // columns spread into it, which gives every wire a longer visible run —
+      // rather than clustering in the middle of an empty card.
+      justifyContent: heroFill ? "space-evenly" : "center",
       // Wide enough for each wire to show a run of dots on its way out.
       gap: l.isTablet ? 16 : 26,
     },

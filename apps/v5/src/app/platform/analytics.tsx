@@ -2284,8 +2284,11 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       overflow: 'hidden',
     },
     tableScroll: { minWidth: '100%' },
-    campaignTable: { minWidth: 880, gap: 6 },
-    adsTable: { minWidth: 720, gap: 6 },
+    // Both scroll below their minimum and grow above it. Pinned at the minimum
+    // they left 540px of the card empty at 1440; the name column is already
+    // flexible, so the width lands where the copy is.
+    campaignTable: { minWidth: 880, flexGrow: 1, flexShrink: 0, flexBasis: 'auto', gap: 6 },
+    adsTable: { minWidth: 720, flexGrow: 1, flexShrink: 0, flexBasis: 'auto', gap: 6 },
     tableHeadRow: {
       flexDirection: 'row',
       alignItems: 'center',

@@ -174,11 +174,20 @@ export type MainNavItem = {
   label: string;
   href: string;
   /**
-   * Present → the item opens a mega menu: one wide panel under the whole
-   * header, split into labelled columns, rather than a dropdown hanging off
-   * the individual item.
+   * Present → the item opens a mega menu: a floating card under the nav, split
+   * into labelled columns, rather than a band across the whole page.
+   *
+   * Keep it to **three columns of roughly equal length**. Five columns pushed
+   * the Solutions card to 973px — three quarters of a 1280 viewport — and a
+   * one-link column left a 100px hole under a full-height divider.
    */
   columns?: NavGroup[];
+  /**
+   * The row that closes the card: the section landing page and any utility
+   * links that do not belong in a column. Without it a short column ends in
+   * dead space; with it the card has a bottom edge that looks deliberate.
+   */
+  overview?: NavLink[];
 };
 
 export const MAIN_NAV: MainNavItem[] = [
@@ -188,8 +197,12 @@ export const MAIN_NAV: MainNavItem[] = [
     columns: [
       { title: 'Create', links: [PLATFORM_GROUP.links[0], PLATFORM_GROUP.links[1]] },
       { title: 'Engage', links: [PLATFORM_GROUP.links[2], PLATFORM_GROUP.links[3]] },
-      { title: 'Understand', links: [PLATFORM_GROUP.links[4]] },
-      { title: 'Overview', links: [{ label: 'The platform', href: ROUTES.product, icon: 'table-cells-large' }, { label: 'Pricing', href: ROUTES.pricing, icon: 'tag' }] },
+      { title: 'Operate', links: [PLATFORM_GROUP.links[4], PLATFORM_GROUP.links[5]] },
+    ],
+    overview: [
+      { label: 'The platform', href: ROUTES.product, icon: 'table-cells-large' },
+      { label: 'Pricing', href: ROUTES.pricing, icon: 'tag' },
+      { label: 'Security', href: ROUTES.security, icon: 'lock' },
     ],
   },
   {
@@ -197,10 +210,12 @@ export const MAIN_NAV: MainNavItem[] = [
     href: ROUTES.solutions,
     columns: [
       { title: 'Sell & serve', links: [SOLUTIONS_GROUP.links[0], SOLUTIONS_GROUP.links[4]] },
-      { title: 'Get discovered', links: [SOLUTIONS_GROUP.links[1]] },
-      { title: 'Intelligence', links: [SOLUTIONS_GROUP.links[2], SOLUTIONS_GROUP.links[3]] },
-      { title: 'Learning', links: [FLOWLEARNER_GROUP.links[0], FLOWLEARNER_GROUP.links[1], FLOWLEARNER_GROUP.links[2]] },
-      { title: 'Overview', links: [{ label: 'All solutions', href: ROUTES.solutions, icon: 'table-cells-large' }] },
+      { title: 'Get discovered', links: [SOLUTIONS_GROUP.links[1], SOLUTIONS_GROUP.links[3]] },
+      { title: 'Learn & teach', links: [FLOWLEARNER_GROUP.links[0], FLOWLEARNER_GROUP.links[1], FLOWLEARNER_GROUP.links[2]] },
+    ],
+    overview: [
+      { label: 'All solutions', href: ROUTES.solutions, icon: 'table-cells-large' },
+      { label: 'Flow.AI', href: ROUTES.flowAi, icon: 'wand-magic-sparkles' },
     ],
   },
   { label: 'Flow.AI', href: ROUTES.flowAi },
@@ -209,9 +224,14 @@ export const MAIN_NAV: MainNavItem[] = [
     href: ROUTES.resources,
     columns: [
       { title: 'Learn', links: [RESOURCES_GROUP.links[0], RESOURCES_GROUP.links[2], RESOURCES_GROUP.links[1]] },
-      { title: 'Build', links: [RESOURCES_GROUP.links[3]] },
-      { title: 'Education', links: [EDUCATION_GROUP.links[0], EDUCATION_GROUP.links[1], EDUCATION_GROUP.links[2]] },
+      { title: 'Education', links: [EDUCATION_GROUP.links[0], EDUCATION_GROUP.links[1], EDUCATION_GROUP.links[3]] },
       { title: 'Company', links: [COMPANY_GROUP.links[0], COMPANY_GROUP.links[1], COMPANY_GROUP.links[2]] },
+    ],
+    overview: [
+      { label: 'All resources', href: ROUTES.resources, icon: 'table-cells-large' },
+      { label: 'API docs', href: ROUTES.apiDocs, icon: 'code' },
+      { label: 'Templates', href: ROUTES.templates, icon: 'file-lines' },
+      { label: 'Changelog', href: ROUTES.changelog, icon: 'code-branch' },
     ],
   },
   { label: 'Pricing', href: ROUTES.pricing },

@@ -2089,8 +2089,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       ...(elevation(t, 1) as ViewStyle),
     },
     matrixScroll: { minWidth: '100%' },
-    // label column + four role columns + the gaps and row padding
-    matrix: { minWidth: 660, gap: 5 },
+    // Label column + four role columns + the gaps and row padding. It scrolls
+    // below 660 and grows past it — pinned at its minimum it left 596px of the
+    // card empty at 1440, which read as a half-finished table.
+    matrix: { minWidth: 660, flexGrow: 1, flexShrink: 0, flexBasis: 'auto', gap: 5 },
     matrixHeadRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2105,11 +2107,14 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       letterSpacing: 0.6,
       textTransform: 'uppercase',
     },
-    matrixLabelCell: { width: 250, flexGrow: 0, flexShrink: 0 },
+    // Extra width goes to the capability column first — it carries the sentence —
+    // and the four role columns share the rest, so the table stays a table.
+    matrixLabelCell: { flexGrow: 2, flexShrink: 0, flexBasis: 250, minWidth: 250 },
     matrixRoleCell: {
-      width: 84,
-      flexGrow: 0,
+      flexGrow: 1,
       flexShrink: 0,
+      flexBasis: 84,
+      minWidth: 84,
       alignItems: 'center',
       justifyContent: 'center',
     },

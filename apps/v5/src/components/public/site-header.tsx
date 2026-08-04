@@ -132,11 +132,13 @@ function MegaLink({ link, onNavigate }: { link: NavLink; onNavigate: () => void 
 
 function MegaPanel({
   columns,
+  overview,
   onNavigate,
   triggerCentre,
   navWidth,
 }: {
   columns: NavGroup[];
+  overview?: NavLink[];
   onNavigate: () => void;
   triggerCentre: number;
   navWidth: number;
@@ -163,6 +165,39 @@ function MegaPanel({
           </View>
         ))}
       </View>
+      {overview?.length ? (
+        <View style={styles.megaFoot}>
+          {overview.map((link) => (
+            <MegaFootLink key={link.href} link={link} onNavigate={onNavigate} />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** The quieter links on the row that closes the card. */
+function MegaFootLink({ link, onNavigate }: { link: NavLink; onNavigate: () => void }) {
+  const styles = useHeaderStyles();
+  const t = useTokens();
+  const [hovered, setHovered] = useState(false);
+  return (
+    <View onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)}>
+      <Link
+        href={link.href as never}
+        onPress={onNavigate}
+        accessibilityRole="link"
+        style={[styles.megaFootLink, hovered && styles.megaLinkActive] as never}>
+        {link.icon ? (
+          <FontAwesome6
+            name={link.icon as never}
+            size={14}
+            color={hovered ? t.brand : t.textSubtle}
+            style={styles.megaFootIcon}
+          />
+        ) : null}
+        <Text style={[styles.megaFootText, hovered && { color: t.brand }]}>{link.label}</Text>
+      </Link>
     </View>
   );
 }
@@ -305,6 +340,7 @@ export function SiteHeader() {
                 {openItem?.columns ? (
                   <MegaPanel
                     columns={openItem.columns}
+                    overview={openItem.overview}
                     onNavigate={() => setOpenMenu(null)}
                     triggerCentre={centres[openItem.label] ?? 0}
                     navWidth={navWidth}
@@ -424,17 +460,47 @@ function createStyles(t: ThemeTokens, l: Layout, bodySize: number) {
       borderLeftColor: t.border,
       transform: [{ rotate: '45deg' }],
     },
-    megaInner: { flexDirection: 'row', alignItems: 'flex-start' },
+    // `stretch`, not `flex-start`: a divider is the left border of its own
+    // column, so top-aligned columns gave every divider a different length and
+    // the card looked torn. Equal-height columns make one clean rule.
+    megaInner: { flexDirection: 'row', alignItems: 'stretch' },
+    // One fixed width, not min/max. The panel is absolutely positioned, so it
+    // shrink-to-fits to its *min*-content while non-shrinking columns lay out at
+    // their *max*-content — with a range those two differ and the widest label
+    // ("Agent Marketplace") was clipped by the card's own right edge.
     megaColumn: {
       flexGrow: 0,
       flexShrink: 0,
       flexBasis: 'auto',
-      minWidth: 186,
-      maxWidth: 250,
+      width: 236,
       paddingHorizontal: 20,
       gap: 4,
     },
     megaColumnDivided: { borderLeftWidth: 1, borderLeftColor: t.border },
+    // The row that closes the card, so a shorter column ends in a bottom edge
+    // rather than in a hole.
+    megaFoot: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      rowGap: 2,
+      marginTop: 16,
+      paddingTop: 12,
+      // 20 + 10 lines the first icon up with the column titles above it.
+      marginHorizontal: 20,
+      borderTopWidth: 1,
+      borderTopColor: t.border,
+    },
+    megaFootLink: {
+      minHeight: 44,
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 10,
+      borderRadius: 10,
+    },
+    megaFootIcon: { width: 16, marginRight: 8, textAlign: 'center' },
+    megaFootText: { color: t.textMuted, fontSize: 13, fontWeight: '600' },
     megaColumnTitle: {
       color: t.textSubtle,
       fontSize: 12,
