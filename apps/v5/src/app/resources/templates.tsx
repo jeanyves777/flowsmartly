@@ -1,7 +1,8 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -13,8 +14,10 @@ import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -22,6 +25,8 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { trackCta } from '@/lib/analytics';
+import { EXTERNAL } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -285,10 +290,25 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
   return (
     <Reveal style={styles.head} distance={14}>
       {label ? <SectionLabel>{label}</SectionLabel> : null}
-      <Text style={styles.headTitle}>{title}</Text>
+      <Heading level={2} style={styles.headTitle}>
+        {title}
+      </Heading>
       {body ? <Text style={styles.headBody}>{body}</Text> : null}
     </Reveal>
   );
+}
+
+/**
+ * Opening a template means opening it in the product, which lives outside this
+ * app — so every "use this" CTA goes to signup rather than to a dead handler.
+ */
+function useOpenApp(): (trackId?: string) => void {
+  return useCallback((trackId?: string) => {
+    // PrimaryButton/SecondaryButton emit their own cta_click; only bare rows
+    // need one raised here.
+    if (trackId) trackCta(trackId, { variant: 'link', destination: 'signup' });
+    Linking.openURL(EXTERNAL.signup).catch(() => undefined);
+  }, []);
 }
 
 /* ------------------------------------------------------------------ */
@@ -299,22 +319,32 @@ function Hero() {
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
+  const openApp = useOpenApp();
 
   return (
     <Section style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>TEMPLATES</SectionLabel>
-        <Text style={styles.heroTitle}>Start from a template, not a blank page.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          Start from a template, not a blank page.
+        </Heading>
         <Text style={styles.heroBody}>
           Ready-made campaigns, journeys, lessons, and store layouts you can use as-is or make your own.
         </Text>
         <View style={styles.heroButtons}>
           <ButtonRow>
-            <PrimaryButton label="Browse templates" size="lg" full={l.isPhone} />
+            <PrimaryButton
+              label="Start free"
+              size="lg"
+              full={l.isPhone}
+              trackId="templates.hero.start-free"
+              onPress={() => openApp()}
+            />
             <SecondaryButton
               label="Open AI Studio"
               size="lg"
               full={l.isPhone}
+              trackId="templates.hero.ai-studio"
               onPress={() => router.push(ROUTES.aiStudio as never)}
             />
           </ButtonRow>
@@ -337,6 +367,7 @@ function Library() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const openApp = useOpenApp();
   const [filter, setFilter] = useState<Filter>(ALL);
 
   const visible = useMemo(
@@ -379,31 +410,44 @@ function Library() {
         }`}
       </Text>
 
-      <View style={styles.grid}>
-        {visible.map((item, index) => (
-          <Reveal
-            key={item.title}
-            delay={40 + Math.min(index, 11) * 50}
-            distance={12}
-            style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
-            <View style={styles.templateCard}>
-              <Media name={item.art} alt={item.alt} style={styles.templateImage} radius={13} />
-              <View style={styles.templateBody}>
-                <Chip label={item.type} tone={TYPE_TONE[item.type]} />
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardBody}>{item.body}</Text>
-                <View style={styles.cardSpacer} />
-                <View style={styles.linkRow}>
-                  <Text style={[styles.linkText, { color: accent(t, TYPE_TONE[item.type]) }]}>
-                    Use template
-                  </Text>
-                  <FontAwesome6 name="arrow-right" size={12} color={accent(t, TYPE_TONE[item.type])} />
+      {visible.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <FontAwesome6 name="file-lines" size={16} color={t.textSubtle} />
+          <Text style={styles.emptyText}>
+            {`No ${filter} template has been published yet. Pick another channel above, or start from a blank canvas in AI Studio.`}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.grid}>
+          {visible.map((item, index) => (
+            <Reveal
+              key={item.title}
+              delay={40 + Math.min(index, 11) * 50}
+              distance={12}
+              style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
+              <View style={styles.templateCard}>
+                <Media name={item.art} alt={item.alt} style={styles.templateImage} radius={13} />
+                <View style={styles.templateBody}>
+                  <Chip label={item.type} tone={TYPE_TONE[item.type]} />
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <Text style={styles.cardBody}>{item.body}</Text>
+                  <View style={styles.cardSpacer} />
+                  <Pressable
+                    accessibilityRole="link"
+                    accessibilityLabel={`Use the template: ${item.title}`}
+                    onPress={() => openApp(`templates.use.${item.type.toLowerCase()}`)}
+                    style={({ pressed }) => [styles.linkRow, pressed ? styles.pressed : null]}>
+                    <Text style={[styles.linkText, { color: accent(t, TYPE_TONE[item.type]) }]}>
+                      Use template
+                    </Text>
+                    <FontAwesome6 name="arrow-right" size={12} color={accent(t, TYPE_TONE[item.type])} />
+                  </Pressable>
                 </View>
               </View>
-            </View>
-          </Reveal>
-        ))}
-      </View>
+            </Reveal>
+          ))}
+        </View>
+      )}
     </Section>
   );
 }
@@ -412,6 +456,7 @@ function Bundles() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const openApp = useOpenApp();
   const columns = l.isCompact ? 1 : 3;
 
   return (
@@ -450,7 +495,12 @@ function Bundles() {
                 </View>
 
                 <View style={styles.cardSpacer} />
-                <SecondaryButton label="Use this bundle" full />
+                <SecondaryButton
+                  label="Use this bundle"
+                  full
+                  trackId={`templates.bundle.${bundle.title.toLowerCase().replace(/\s+/g, '-')}`}
+                  onPress={() => openApp()}
+                />
               </View>
             </Reveal>
           );
@@ -502,6 +552,7 @@ function BuiltToBeEdited() {
           icon="arrow-right"
           iconRight
           full={l.isPhone}
+          trackId="templates.edited.ai-studio"
           onPress={() => router.push(ROUTES.aiStudio as never)}
         />
       </View>
@@ -514,6 +565,7 @@ function Closing() {
   const t = useTokens();
   const l = useLayout();
   const router = useRouter();
+  const openApp = useOpenApp();
 
   return (
     <Section style={styles.closing}>
@@ -521,17 +573,26 @@ function Closing() {
         <View style={styles.closingIcon}>
           <FontAwesome6 name="wand-magic-sparkles" size={22} color={t.brand} />
         </View>
-        <Text style={styles.closingTitle}>Pick one and send something today.</Text>
+        <Heading level={2} style={styles.closingTitle}>
+          Pick one and send something today.
+        </Heading>
         <Text style={styles.closingBody}>
           Templates are free on every plan. Open one, point it at an audience, and let the platform
           adapt the rest to your brand.
         </Text>
         <ButtonRow>
-          <PrimaryButton label="Browse templates" size="lg" full={l.isPhone} />
+          <PrimaryButton
+            label="Start free"
+            size="lg"
+            full={l.isPhone}
+            trackId="templates.closing.start-free"
+            onPress={() => openApp()}
+          />
           <SecondaryButton
             label="Open AI Studio"
             size="lg"
             full={l.isPhone}
+            trackId="templates.closing.ai-studio"
             onPress={() => router.push(ROUTES.aiStudio as never)}
           />
         </ButtonRow>
@@ -548,7 +609,14 @@ export default function TemplatesPage() {
   return (
     <PageShell
       title="Templates"
-      description="Ready-made campaigns, journeys, lessons and store layouts you can use as-is or make your own — email, SMS, social, ads and storefronts.">
+      description="Ready-made campaigns, journeys, lessons and store layouts you can use as-is or make your own — email, SMS, social, ads and storefronts."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Resources', path: ROUTES.resources },
+          { name: 'Templates', path: ROUTES.templates },
+        ]),
+      ]}>
       <Hero />
       <Library />
       <Bundles />
@@ -642,6 +710,19 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     cardSpacer: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minHeight: 6 },
     linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 34 },
     linkText: { ...type.bodySm, fontWeight: '800', flexShrink: 1, minWidth: 0 },
+    pressed: { opacity: 0.86 },
+    emptyCard: {
+      marginTop: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 18,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceMuted,
+    },
+    emptyText: { ...type.bodySm, color: t.textMuted, flexShrink: 1, minWidth: 0 },
     chip: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
     chipText: { ...type.micro, fontWeight: '800' },
 

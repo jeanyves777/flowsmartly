@@ -2,7 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Pressable,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +11,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { BrandLogo } from '@/components/public/brand-logo';
 import {
   ArrowLink,
@@ -23,8 +24,10 @@ import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -562,15 +565,22 @@ export default function AdsPage() {
   return (
     <PageShell
       title="Ads"
-      description="Plan, launch and optimize ads across Meta, Google, LinkedIn, TikTok and YouTube from one place — with connected audiences, budget guardrails and human approval.">
+      description="Plan, launch and optimize ads across Meta, Google, LinkedIn, TikTok and YouTube from one place — with connected audiences, budget guardrails and human approval."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Product', path: ROUTES.product },
+          { name: 'Ads', path: ROUTES.ads },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={shell} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>ADS WITH CONNECTED INTELLIGENCE</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Turn your best ideas into campaigns that perform.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Build once and launch across every network you sell on. FlowSmartly writes the
               variants, assembles the audience from data you already own, and holds the spend until
@@ -584,9 +594,16 @@ export default function AdsPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="ads.hero.launch"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
-                <SecondaryButton label="See Ads Manager" size="lg" full={l.isPhone} />
+                <SecondaryButton
+                  label="See Ads Manager"
+                  size="lg"
+                  full={l.isPhone}
+                  trackId="ads.hero.demo"
+                  onPress={() => router.push(contactHref('demo') as never)}
+                />
               </ButtonRow>
             </View>
             <View style={styles.proofRow}>
@@ -722,13 +739,12 @@ export default function AdsPage() {
                 <Text numberOfLines={2} style={styles.approvalText}>
                   Waiting for Megan’s approval — no budget has been spent.
                 </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Approve the Spring Collection Launch campaign"
-                  style={({ pressed }) => [styles.approveButton, pressed ? styles.pressed : null]}>
+                {/* Illustration of the product, not a control — a fake button
+                    that silently does nothing is worse than a static mock. */}
+                <View style={styles.approveButton}>
                   <FontAwesome6 name="check" size={11} color={t.textOnBrand} />
                   <Text style={styles.approveText}>Approve</Text>
-                </Pressable>
+                </View>
               </View>
             </View>
           </View>
@@ -755,7 +771,7 @@ export default function AdsPage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>ONE BOARD, EVERY NETWORK</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>Run cross-channel ads in one place.</Text>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>Run cross-channel ads in one place.</Heading>
             <Text style={[type.body, styles.blockBody]}>
               Five ad managers, five logins and five ways of counting a conversion is how budget
               quietly leaks. FlowSmartly runs them as one campaign with one set of numbers.
@@ -817,9 +833,9 @@ export default function AdsPage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>PROVEN BEFORE IT PAYS</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>
               Turn your top organic posts into ad campaigns.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.blockBody]}>
               The post your audience already reacted to is the safest thing to put money behind.
               FlowSmartly finds it and promotes it without you rebuilding anything.
@@ -905,7 +921,7 @@ export default function AdsPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>CREATIVE THAT EARNS ITS PLACE</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>AI creative variants that convert.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>AI creative variants that convert.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Three angles from one brief, each written in your voice and sized for the placement.
             Spend follows whichever one the market picks.
@@ -979,7 +995,7 @@ export default function AdsPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>AUDIENCES FROM YOUR OWN DATA</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Build connected audiences.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Build connected audiences.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Every part of FlowSmartly contributes to who sees the ad — and the segment rebuilds
             itself as behaviour changes, so you never upload a stale list again.
@@ -1050,9 +1066,9 @@ export default function AdsPage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SPEND ON YOUR TERMS</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>
               Guard your budget and keep the final word.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.blockBody]}>
               Set the ceiling once. FlowSmartly optimizes inside it, stops at the line, and brings
               anything unusual back to a person before it spends.
@@ -1140,19 +1156,14 @@ export default function AdsPage() {
               </View>
 
               <View style={styles.approvalActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Approve and launch the campaign"
-                  style={({ pressed }) => [styles.approveWide, pressed ? styles.pressed : null]}>
+                {/* Part of the approval mock, not live controls. */}
+                <View style={styles.approveWide}>
                   <FontAwesome6 name="check" size={12} color={t.textOnBrand} />
                   <Text style={styles.approveText}>Approve & launch</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Request changes to the campaign"
-                  style={({ pressed }) => [styles.ghostButton, pressed ? styles.pressed : null]}>
+                </View>
+                <View style={styles.ghostButton}>
                   <Text style={styles.ghostButtonText}>Request changes</Text>
-                </Pressable>
+                </View>
               </View>
 
               <View style={styles.approvalFoot}>
@@ -1170,9 +1181,9 @@ export default function AdsPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>PERFORMANCE IN ONE VIEW</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
             Spend, conversions, ROAS and revenue on the same page.
-          </Text>
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             Not four exports and a spreadsheet. One board that tells you whether the money is
             working, and where it stopped working.
@@ -1233,9 +1244,9 @@ export default function AdsPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>OPTIMIZATION YOU CAN READ</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
             Recommendations with the reasoning attached.
-          </Text>
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             Each suggestion says what changed, why it matters and what it is worth. Apply it in one
             tap, or leave it.
@@ -1262,13 +1273,12 @@ export default function AdsPage() {
                   <Text numberOfLines={1} style={[styles.recImpact, { color: accent, backgroundColor: softFill(accent, t) }]}>
                     {rec.impact}
                   </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Apply: ${rec.title}`}
-                    style={({ pressed }) => [styles.applyButton, pressed ? styles.pressed : null]}>
+                  {/* The "Apply" affordance illustrates the product surface;
+                      it is not a control on a marketing page. */}
+                  <View style={styles.applyButton}>
                     <Text style={styles.applyText}>Apply</Text>
                     <FontAwesome6 name="arrow-right" size={10} color={t.brand} />
-                  </Pressable>
+                  </View>
                 </View>
               </Reveal>
             );
@@ -1281,9 +1291,9 @@ export default function AdsPage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>HONEST BY DEFAULT</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>
               Disclose AI-generated content with confidence.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.blockBody]}>
               Every network now asks whether creative was generated. FlowSmartly already knows, so
               the answer is filled in correctly instead of guessed at.
@@ -1356,7 +1366,7 @@ export default function AdsPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>NOTHING HAPPENS QUIETLY</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Audit history and change logs.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Audit history and change logs.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Every budget change, approval, pause and audience sync is recorded with a name and a
             timestamp — including the ones Flow.AI made.
@@ -1713,7 +1723,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.brand,
     },
     approveText: { ...type.caption, color: t.textOnBrand, fontWeight: '800' },
-    pressed: { opacity: 0.85 },
 
     networkStrip: {
       marginTop: l.isPhone ? 24 : 32,

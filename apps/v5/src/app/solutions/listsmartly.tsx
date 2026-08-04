@@ -1,8 +1,9 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useMemo } from 'react';
 import {
-  Pressable,
+  Linking,
   StyleSheet,
   Text,
   View,
@@ -17,8 +18,10 @@ import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -26,6 +29,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { EXTERNAL } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -369,6 +373,89 @@ function Stars({ count, size, color }: { count: number; size: number; color: str
   );
 }
 
+/**
+ * Button-shaped labels drawn inside a product mockup. They mirror
+ * `PrimaryButton` / `SecondaryButton` at `sm` pixel for pixel — a mock control
+ * that looks pressable and silently does nothing is worse than a static one, so
+ * the look stays and only the interactivity goes.
+ */
+function MockPrimarySm({
+  label,
+  icon,
+  full,
+  t,
+}: {
+  label: string;
+  icon: string;
+  full?: boolean;
+  t: ThemeTokens;
+}) {
+  return (
+    <View
+      style={[
+        {
+          minHeight: 40,
+          borderRadius: 9,
+          overflow: 'hidden',
+          alignSelf: full ? 'stretch' : 'flex-start',
+        },
+        full ? { width: '100%' as const } : null,
+        elevation(t, 1) as ViewStyle,
+      ]}>
+      <LinearGradient
+        colors={[t.gradient[0], t.gradient[1]]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          minHeight: 40,
+          paddingHorizontal: 16,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 9,
+        }}>
+        <FontAwesome6 name={icon as never} size={13} color={t.textOnBrand} />
+        <Text style={{ color: t.textOnBrand, fontSize: 13, fontWeight: '700' }}>{label}</Text>
+      </LinearGradient>
+    </View>
+  );
+}
+
+function MockSecondarySm({
+  label,
+  icon,
+  full,
+  t,
+}: {
+  label: string;
+  icon: string;
+  full?: boolean;
+  t: ThemeTokens;
+}) {
+  return (
+    <View
+      style={[
+        {
+          minHeight: 40,
+          borderRadius: 9,
+          borderWidth: 1,
+          borderColor: t.borderStrong,
+          backgroundColor: t.surfaceRaised,
+          paddingHorizontal: 16,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 9,
+          alignSelf: full ? 'stretch' : 'flex-start',
+        },
+        full ? { width: '100%' as const } : null,
+      ]}>
+      <FontAwesome6 name={icon as never} size={13} color={t.text} />
+      <Text style={{ color: t.text, fontSize: 13, fontWeight: '700' }}>{label}</Text>
+    </View>
+  );
+}
+
 function NumberedHead({
   index,
   eyebrow,
@@ -394,7 +481,9 @@ function NumberedHead({
         </View>
         <SectionLabel>{eyebrow}</SectionLabel>
       </View>
-      <Text style={[type.h2, centered ? styles.headTitleCentered : styles.headTitle]}>{title}</Text>
+      <Heading level={2} style={[type.h2, centered ? styles.headTitleCentered : styles.headTitle]}>
+        {title}
+      </Heading>
       <Text style={[type.body, centered ? styles.headBodyCentered : styles.headBody]}>{body}</Text>
     </View>
   );
@@ -470,15 +559,22 @@ export default function ListSmartlyPage() {
   return (
     <PageShell
       title="ListSmartly"
-      description="ListSmartly keeps every location accurate across publishers, turns reviews into a strength, and makes your business the one AI search recommends.">
+      description="ListSmartly keeps every location accurate across publishers, turns reviews into a strength, and makes your business the one AI search recommends."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Solutions', path: ROUTES.solutions },
+          { name: 'ListSmartly', path: ROUTES.listsmartly },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Section>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>LOCAL VISIBILITY FOR THE AI ERA</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Be accurate, trusted, and recommended everywhere.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               One profile for your business, published to every map, directory and assistant — with
               reviews, local pages and AI visibility managed in the same place.
@@ -491,12 +587,14 @@ export default function ListSmartlyPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="listsmartly.hero.check-listings"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 <SecondaryButton
                   label="Explore the platform"
                   size="lg"
                   full={l.isPhone}
+                  trackId="listsmartly.hero.explore-platform"
                   onPress={() => router.push(ROUTES.product as never)}
                 />
               </ButtonRow>
@@ -839,20 +937,16 @@ export default function ListSmartlyPage() {
                   ))}
                 </View>
 
+                {/* Controls drawn inside the product mockup — illustration, not
+                    buttons. They stay visually identical but are not pressable. */}
                 <View style={styles.duplicateActions}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Merge listings for ${duplicate.title}`}
-                    style={({ pressed }) => [styles.primaryAction, pressed ? styles.actionPressed : null]}>
+                  <View style={styles.primaryAction}>
                     <FontAwesome6 name="code-merge" size={11} color={t.textOnBrand} />
                     <Text style={styles.primaryActionText}>Merge</Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Dismiss the duplicate flag for ${duplicate.title}`}
-                    style={({ pressed }) => [styles.ghostAction, pressed ? styles.actionPressed : null]}>
+                  </View>
+                  <View style={styles.ghostAction}>
                     <Text style={styles.ghostActionText}>Not a duplicate</Text>
-                  </Pressable>
+                  </View>
                 </View>
               </View>
             </Reveal>
@@ -968,9 +1062,10 @@ export default function ListSmartlyPage() {
                   and we have added a buffer to colour appointments this month so it does not happen
                   again. See you at your next visit.
                 </Text>
+                {/* Inside the review mockup — illustration, not controls. */}
                 <View style={styles.replyActions}>
-                  <PrimaryButton label="Approve & reply" size="sm" icon="check" full={l.isPhone} />
-                  <SecondaryButton label="Edit" size="sm" icon="pen" full={l.isPhone} />
+                  <MockPrimarySm label="Approve & reply" icon="check" full={l.isPhone} t={t} />
+                  <MockSecondarySm label="Edit" icon="pen" full={l.isPhone} t={t} />
                 </View>
               </View>
             </View>
@@ -1043,21 +1138,17 @@ export default function ListSmartlyPage() {
                 ))}
               </View>
 
+              {/* The local page is a mockup of what a visitor sees — its buttons
+                  are illustration, not controls on this marketing page. */}
               <View style={styles.pageActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Get directions to the River North salon"
-                  style={({ pressed }) => [styles.primaryAction, styles.pageAction, pressed ? styles.actionPressed : null]}>
+                <View style={[styles.primaryAction, styles.pageAction]}>
                   <FontAwesome6 name="diamond-turn-right" size={12} color={t.textOnBrand} />
                   <Text style={styles.primaryActionText}>Directions</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Book an appointment at the River North salon"
-                  style={({ pressed }) => [styles.ghostAction, styles.pageAction, pressed ? styles.actionPressed : null]}>
+                </View>
+                <View style={[styles.ghostAction, styles.pageAction]}>
                   <FontAwesome6 name="calendar-check" size={12} color={t.brand} />
                   <Text style={styles.ghostActionText}>Book</Text>
-                </Pressable>
+                </View>
               </View>
             </View>
           </Reveal>
@@ -1378,17 +1469,11 @@ export default function ListSmartlyPage() {
                       {action.effort}
                     </Text>
                   </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Do it: ${action.title}`}
-                    style={({ pressed }) => [
-                      styles.doButton,
-                      l.isPhone ? styles.doButtonFull : null,
-                      pressed ? styles.actionPressed : null,
-                    ]}>
+                  {/* Row action drawn inside the product mockup — illustration. */}
+                  <View style={[styles.doButton, l.isPhone ? styles.doButtonFull : null]}>
                     <Text style={styles.doButtonText}>Do it</Text>
                     <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
-                  </Pressable>
+                  </View>
                 </View>
               </Reveal>
             );

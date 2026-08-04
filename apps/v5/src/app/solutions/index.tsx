@@ -7,8 +7,10 @@ import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -17,6 +19,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -382,27 +385,55 @@ export default function SolutionsPage() {
 
   const [selectedType, setSelectedType] = useState(BUSINESS_TYPES[0].key);
 
+  // The business-type picker genuinely filters the walkthrough below it, from
+  // this page's own data — no fake counts, and no corpus that isn't here.
+  const shownScenarios = useMemo(
+    () => SCENARIOS.filter((scenario) => scenario.key === selectedType),
+    [selectedType],
+  );
+  const selectedLabel =
+    BUSINESS_TYPES.find((item) => item.key === selectedType)?.label ?? 'your business';
+
   return (
     <PageShell
       title="Solutions"
-      description="Start with the workflow you need today. Connect the rest when your business is ready.">
+      description="Growth solutions for small businesses, ecommerce brands, agencies and multi-location teams. Start with the workflow you need today."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Solutions', path: ROUTES.solutions },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={shell} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>SOLUTIONS THAT MOVE WITH YOUR BUSINESS</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>A smarter growth system for every stage.</Text>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
+              A smarter growth system for every stage.
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Start with the workflow you need today. Connect the rest when your business is ready.
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>
-                <PrimaryButton label="Find your solution" size="lg" full={l.isPhone} icon="arrow-right" iconRight />
+                {/* There is no solution-finder wizard to open, so this goes to
+                    the people who do it — Contact, with sales preselected. */}
+                <PrimaryButton
+                  label="Find your solution"
+                  size="lg"
+                  full={l.isPhone}
+                  icon="arrow-right"
+                  iconRight
+                  trackId="solutions.hero.find-your-solution"
+                  onPress={() => router.push(contactHref('sales') as never)}
+                />
                 <SecondaryButton
                   label="Book a demo"
                   size="lg"
                   full={l.isPhone}
-                  onPress={() => router.push(ROUTES.contact as never)}
+                  trackId="solutions.hero.book-demo"
+                  onPress={() => router.push(contactHref('demo') as never)}
                 />
               </ButtonRow>
             </View>
@@ -418,10 +449,12 @@ export default function SolutionsPage() {
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>START HERE</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>Choose your business type</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Choose your business type
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
-            Pick the one that sounds like you. It changes where we suggest you start, not what you
-            get.
+            Pick the one that sounds like you — the walkthrough below changes to match. It changes
+            where we suggest you start, not what you get.
           </Text>
         </View>
 
@@ -474,7 +507,9 @@ export default function SolutionsPage() {
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>SOLUTIONS BY OUTCOME</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>Start from the result you want.</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Start from the result you want.
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
             Six places to begin. Each one is a full workflow, not a feature toggle.
           </Text>
@@ -505,8 +540,37 @@ export default function SolutionsPage() {
         </View>
       </Section>
 
-      {/* ------------------------------------------------ scenarios */}
-      {SCENARIOS.map((scenario, index) => {
+      {/* ------------------------------------------------ scenarios
+          The picker above is a real filter, not decoration: it chooses the
+          walkthrough shown here. One business type ("Creators & Coaches") has
+          no walkthrough written yet, so selecting it renders an honest empty
+          state instead of silently changing nothing. */}
+      {shownScenarios.length === 0 ? (
+        <Section>
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIcon}>
+              <FontAwesome6 name="pen-ruler" size={18} color={t.textSubtle} />
+            </View>
+            <Heading level={2} style={[type.h3, styles.emptyTitle]}>
+              We haven&apos;t written up {selectedLabel} yet.
+            </Heading>
+            <Text style={[type.body, styles.emptyBody]}>
+              Everything else on this page still applies — the walkthrough is the only piece
+              missing. Tell us how you work and we will show you where to start.
+            </Text>
+            {/* The button sets its own alignSelf, so it is wrapped rather than
+                centred directly — otherwise it pins to the left edge. */}
+            <View>
+              <SecondaryButton
+                label="Talk to us"
+                trackId="solutions.scenario.empty-contact"
+                onPress={() => router.push(contactHref('sales') as never)}
+              />
+            </View>
+          </View>
+        </Section>
+      ) : null}
+      {shownScenarios.map((scenario, index) => {
         const accent = accentOf(scenario.accent);
         const flip = index % 2 === 1;
         return (
@@ -514,7 +578,9 @@ export default function SolutionsPage() {
             <View style={[styles.scenarioRow, flip ? styles.scenarioRowFlip : null]}>
               <Reveal style={styles.scenarioCopy} distance={16}>
                 <Text style={[styles.scenarioEyebrow, { color: accent }]}>{scenario.eyebrow}</Text>
-                <Text style={[type.h2, styles.scenarioHeading]}>{scenario.heading}</Text>
+                <Heading level={2} style={[type.h2, styles.scenarioHeading]}>
+                  {scenario.heading}
+                </Heading>
                 <Text style={[type.body, styles.scenarioBody]}>{scenario.body}</Text>
                 <View style={styles.bulletList}>
                   {scenario.bullets.map((bullet) => (
@@ -564,7 +630,9 @@ export default function SolutionsPage() {
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>PRESETS</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>Industry presets to get you started</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Industry presets to get you started
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
             Templates, journeys and call scripts already written for the way your industry sells.
           </Text>
@@ -591,7 +659,9 @@ export default function SolutionsPage() {
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>WHY ONE PLATFORM</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>One platform. Every channel. Better results.</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            One platform. Every channel. Better results.
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
             The same work, done three ways. Only one of them keeps the customer record intact.
           </Text>
@@ -818,6 +888,23 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     sectionHead: { gap: 11, alignItems: l.isPhone ? 'flex-start' : 'center' },
     sectionTitle: { textAlign: l.isPhone ? 'left' : 'center' },
     sectionSub: { textAlign: l.isPhone ? 'left' : 'center', maxWidth: 660 },
+
+    /* -------------------------------------------------- empty walkthrough */
+    emptyState: { gap: 14, alignItems: l.isPhone ? 'flex-start' : 'center' },
+    emptyIcon: {
+      width: 44,
+      height: 44,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.surfaceMuted,
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    emptyTitle: { textAlign: l.isPhone ? 'left' : 'center' },
+    emptyBody: { textAlign: l.isPhone ? 'left' : 'center', maxWidth: 620 },
 
     /* -------------------------------------------------- business type picker */
     typeGrid: { ...gridBase, justifyContent: 'center', marginTop: (l.isPhone ? 20 : 28) - half },

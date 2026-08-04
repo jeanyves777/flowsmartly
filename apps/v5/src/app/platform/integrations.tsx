@@ -1,13 +1,16 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from 'react-native';
+import { Link, useRouter } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from 'react-native';
+import { contactHref } from '@/lib/destinations';
 import { BrandLogo } from '@/components/public/brand-logo';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -246,17 +249,34 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
   return (
     <Reveal style={styles.head} distance={14}>
       {label ? <SectionLabel>{label}</SectionLabel> : null}
-      <Text style={styles.headTitle}>{title}</Text>
+      <Heading level={2} style={styles.headTitle}>
+        {title}
+      </Heading>
       {body ? <Text style={styles.headBody}>{body}</Text> : null}
     </Reveal>
   );
+}
+
+/**
+ * "Browse integrations" points at the directory, and the directory lives on this
+ * page rather than on a route of its own — so the button scrolls to it. A real
+ * destination, not a button that fires nothing.
+ */
+function useDirectoryAnchor() {
+  const ref = useRef<View>(null);
+  const scrollToDirectory = useCallback(() => {
+    if (Platform.OS !== 'web') return;
+    const node = ref.current as unknown as { scrollIntoView?: (options?: object) => void } | null;
+    node?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }, []);
+  return { ref, scrollToDirectory };
 }
 
 /* ------------------------------------------------------------------ */
 /* sections                                                            */
 /* ------------------------------------------------------------------ */
 
-function Hero() {
+function Hero({ onBrowse }: { onBrowse: () => void }) {
   const styles = useStyles();
   const l = useLayout();
   const router = useRouter();
@@ -265,18 +285,27 @@ function Hero() {
     <Section style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>INTEGRATIONS</SectionLabel>
-        <Text style={styles.heroTitle}>Connect the tools you already use.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          Connect the tools you already use.
+        </Heading>
         <Text style={styles.heroBody}>
           FlowSmartly plugs into your stack so your customer data, campaigns, and conversations stay in
           sync.
         </Text>
         <View style={styles.heroButtons}>
           <ButtonRow>
-            <PrimaryButton label="Browse integrations" size="lg" full={l.isPhone} />
+            <PrimaryButton
+              label="Browse integrations"
+              size="lg"
+              full={l.isPhone}
+              trackId="integrations.hero.browse"
+              onPress={onBrowse}
+            />
             <SecondaryButton
               label="Build with our API"
               size="lg"
               full={l.isPhone}
+              trackId="integrations.hero.api-docs"
               onPress={() => router.push(ROUTES.apiDocs as never)}
             />
           </ButtonRow>
@@ -449,12 +478,17 @@ function FeaturedIntegrations() {
                 ))}
               </View>
               <View style={styles.cardSpacer} />
-              <View style={styles.linkRow}>
+              {/* There is no per-integration page yet, so this goes to the one
+                  place that can actually show it working: a booked demo. */}
+              <Link
+                href={contactHref('demo') as never}
+                accessibilityLabel={`See what ${item.name} unlocks — book a demo`}
+                style={styles.linkRow as never}>
                 <Text style={[styles.linkText, { color: accent(t, item.tone) }]}>
                   {`See what ${item.name} unlocks`}
                 </Text>
                 <FontAwesome6 name="arrow-right" size={12} color={accent(t, item.tone)} />
-              </View>
+              </Link>
             </View>
           </Reveal>
         ))}
@@ -463,7 +497,7 @@ function FeaturedIntegrations() {
   );
 }
 
-function TwoWays() {
+function TwoWays({ onBrowse }: { onBrowse: () => void }) {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
@@ -496,7 +530,12 @@ function TwoWays() {
               ))}
             </View>
             <View style={styles.cardSpacer} />
-            <PrimaryButton label="Browse integrations" full={l.isPhone} />
+            <PrimaryButton
+              label="Browse integrations"
+              full={l.isPhone}
+              trackId="integrations.two-ways.browse"
+              onPress={onBrowse}
+            />
           </View>
         </Reveal>
 
@@ -523,6 +562,7 @@ function TwoWays() {
               icon="arrow-right"
               iconRight
               full={l.isPhone}
+              trackId="integrations.two-ways.api-docs"
               onPress={() => router.push(ROUTES.apiDocs as never)}
             />
           </View>
@@ -536,7 +576,15 @@ function RequestPanel() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const router = useRouter();
   const [tool, setTool] = useState('');
+
+  /** No request backend exists, so the form hands off to Contact with the tool
+   *  the visitor typed carried across — never a faked success state. */
+  const submit = () => {
+    const named = tool.trim();
+    router.push(contactHref('sales', named ? { tool: named } : undefined) as never);
+  };
 
   return (
     <Section style={styles.request}>
@@ -544,7 +592,9 @@ function RequestPanel() {
         <View style={styles.requestIcon}>
           <FontAwesome6 name="wand-magic-sparkles" size={22} color={t.brand} />
         </View>
-        <Text style={styles.requestTitle}>Can&apos;t find your tool?</Text>
+        <Heading level={2} style={styles.requestTitle}>
+          Can&apos;t find your tool?
+        </Heading>
         <Text style={styles.requestBody}>
           Tell us what you run and we will tell you whether it is already possible through the API, on
           the roadmap, or worth building next. Requests genuinely decide the order.
@@ -560,10 +610,16 @@ function RequestPanel() {
               placeholderTextColor={t.textSubtle}
               accessibilityLabel="The tool you would like connected"
               returnKeyType="done"
+              onSubmitEditing={submit}
               style={styles.input}
             />
           </View>
-          <PrimaryButton label="Request it" full={l.isPhone} />
+          <PrimaryButton
+            label="Request it"
+            full={l.isPhone}
+            trackId="integrations.request.submit"
+            onPress={submit}
+          />
         </View>
 
         <Text style={styles.requestFine}>We reply to every request, usually the same week.</Text>
@@ -577,14 +633,25 @@ function RequestPanel() {
 /* ------------------------------------------------------------------ */
 
 export default function IntegrationsPage() {
+  const { ref, scrollToDirectory } = useDirectoryAnchor();
+
   return (
     <PageShell
       title="Integrations"
-      description="FlowSmartly plugs into your stack so your customer data, campaigns, and conversations stay in sync — commerce, CRM, messaging, social, analytics and productivity tools.">
-      <Hero />
-      <Directory />
+      description="FlowSmartly plugs into your stack so customer data, campaigns and conversations stay in sync — commerce, CRM, messaging, social, analytics and productivity tools."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Product', path: ROUTES.product },
+          { name: 'Integrations', path: ROUTES.integrations },
+        ]),
+      ]}>
+      <Hero onBrowse={scrollToDirectory} />
+      <View ref={ref}>
+        <Directory />
+      </View>
       <FeaturedIntegrations />
-      <TwoWays />
+      <TwoWays onBrowse={scrollToDirectory} />
       <RequestPanel />
     </PageShell>
   );
@@ -782,7 +849,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     tickText: { ...type.bodySm, color: t.textMuted, flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
 
-    linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 34 },
+    // A real link now, so it carries a full touch target.
+    linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
     linkText: { ...type.bodySm, fontWeight: '800', flexShrink: 1, minWidth: 0 },
 
     /* two ways ----------------------------------------------------- */

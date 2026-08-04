@@ -1,13 +1,15 @@
-import Head from 'expo-router/head';
-import { useMemo } from 'react';
+import { usePathname } from 'expo-router';
+import { useEffect, useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import type { ThemeTokens } from '@/theme/tokens';
 import { BP } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
+import { pageView } from '@/lib/analytics';
+import { Seo, type SeoProps } from './seo';
 import { SiteHeader } from './site-header';
 import { V5PublicFooter } from './v5-footer';
 
-export type PageShellProps = {
+export type PageShellProps = Omit<SeoProps, 'title' | 'description'> & {
   children: React.ReactNode;
   /** browser tab title; " — FlowSmartly" is appended */
   title: string;
@@ -26,16 +28,26 @@ export type PageShellProps = {
  * their own sections; the chrome, the max-width column and the page background
  * live here so all routes line up with each other.
  */
-export function PageShell({ children, title, description, cta = true, footer = 'compact' }: PageShellProps) {
+export function PageShell({
+  children,
+  title,
+  description,
+  cta = true,
+  footer = 'compact',
+  ...seo
+}: PageShellProps) {
   const t = useTokens();
+  const pathname = usePathname();
   const styles = useMemo(() => createStyles(t), [t]);
+
+  // One page_view per route, from the one place every route goes through.
+  useEffect(() => {
+    pageView(pathname, title);
+  }, [pathname, title]);
 
   return (
     <View style={styles.page}>
-      <Head>
-        <title>{`${title} — FlowSmartly`}</title>
-        {description ? <meta name="description" content={description} /> : null}
-      </Head>
+      <Seo title={title} description={description} {...seo} />
       <SiteHeader />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>

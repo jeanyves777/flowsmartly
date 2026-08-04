@@ -1,15 +1,18 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo } from 'react';
-import { StyleSheet, Text, View, type ImageStyle, type ViewStyle } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { Linking, Pressable, StyleSheet, Text, View, type ImageStyle, type ViewStyle } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { ArrowLink } from '@/components/public/connectors';
 import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -189,16 +192,6 @@ const VERSIONS: { label: string; note: string; person: string; media: string; cu
   { label: 'v1', note: 'First generation from the brief', person: 'Jordan Lee', media: 'people/jordan-lee' },
 ];
 
-const INDUSTRIES = [
-  'Retail & e-commerce',
-  'Restaurants',
-  'Salon & spa',
-  'Home services',
-  'Fitness',
-  'Real estate',
-  'Professional services',
-];
-
 const TEMPLATES: { title: string; industry: string; media: string; alt: string }[] = [
   {
     title: 'Spring lookbook',
@@ -236,6 +229,18 @@ const TEMPLATES: { title: string; industry: string; media: string; alt: string }
     media: 'scenes/category-living-room',
     alt: 'Home refresh guide template',
   },
+];
+
+const ALL_INDUSTRIES = 'All industries';
+
+/**
+ * The industry chips are a real filter over TEMPLATES, so the list is derived
+ * from the templates themselves — a chip can never lead to an empty grid, and
+ * adding a template adds its industry automatically.
+ */
+const INDUSTRIES: string[] = [
+  ALL_INDUSTRIES,
+  ...Array.from(new Set(TEMPLATES.map((template) => template.industry))),
 ];
 
 const TRUST: { icon: string; title: string; body: string; accent: Accent }[] = [
@@ -524,18 +529,35 @@ export default function AiStudioPage() {
   const accentOf = useAccent();
   const router = useRouter();
 
+  /** Industry chips genuinely filter the template grid below them. */
+  const [industry, setIndustry] = useState<string>(ALL_INDUSTRIES);
+  const templates = useMemo(
+    () =>
+      industry === ALL_INDUSTRIES
+        ? TEMPLATES
+        : TEMPLATES.filter((template) => template.industry === industry),
+    [industry],
+  );
+
   return (
     <PageShell
       title="AI Studio"
-      description="Generate images, videos, posts, emails, ads, product copy, presentations and branded assets from one intelligent creative workspace.">
+      description="Generate images, videos, posts, emails, ads, product copy, presentations and branded assets from one intelligent creative workspace."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Product', path: ROUTES.product },
+          { name: 'AI Studio', path: ROUTES.aiStudio },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={shell} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>CREATE WITH YOUR BRAND BUILT IN</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Turn any idea into campaign-ready content.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Generate images, videos, posts, emails, ads, product copy, presentations, and branded
               assets from one intelligent creative workspace.
@@ -546,9 +568,17 @@ export default function AiStudioPage() {
                   label="Open AI Studio"
                   size="lg"
                   full={l.isPhone}
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="ai-studio.hero.open-studio"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
-                <SecondaryButton label="Watch a demo" size="lg" icon="play" full={l.isPhone} />
+                <SecondaryButton
+                  label="Watch a demo"
+                  size="lg"
+                  icon="play"
+                  full={l.isPhone}
+                  trackId="ai-studio.hero.demo"
+                  onPress={() => router.push(contactHref('demo') as never)}
+                />
               </ButtonRow>
             </View>
             <View style={styles.proofRow}>
@@ -575,7 +605,9 @@ export default function AiStudioPage() {
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>EVERY FORMAT</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>Create anything, on brand.</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Create anything, on brand.
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
             One workspace covers the whole output of a marketing team — and every format starts from
             the same brand context.
@@ -605,7 +637,9 @@ export default function AiStudioPage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>BRAND CONTEXT</SectionLabel>
-            <Text style={[type.h2, styles.splitTitle]}>Brand context in every generation.</Text>
+            <Heading level={2} style={[type.h2, styles.splitTitle]}>
+              Brand context in every generation.
+            </Heading>
             <Text style={[type.body, styles.splitBody]}>
               Generic AI writes generic work. AI Studio is briefed on your brand before it writes a
               word or renders a pixel.
@@ -668,7 +702,9 @@ export default function AiStudioPage() {
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>ONE BRIEF</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>Multi-format content from one brief.</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Multi-format content from one brief.
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
             Describe the campaign once. Every channel gets the version it needs, at the size it
             needs, without a second round of work.
@@ -727,7 +763,9 @@ export default function AiStudioPage() {
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>EDIT AND EXTEND</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>Fix it, cut it, ship it.</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Fix it, cut it, ship it.
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
             Editing is part of the same workspace — no round trip to a separate design or video tool.
           </Text>
@@ -836,9 +874,9 @@ export default function AiStudioPage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>TEAMWORK</SectionLabel>
-            <Text style={[type.h2, styles.splitTitle]}>
+            <Heading level={2} style={[type.h2, styles.splitTitle]}>
               Collaborate, approve, and publish with confidence.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.splitBody]}>
               Generation is the easy part. The workspace is built around the review that follows it.
             </Text>
@@ -944,55 +982,81 @@ export default function AiStudioPage() {
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>START FROM SOMETHING</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>Templates by industry.</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Templates by industry.
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
             Openers written for your trade, already structured the way that industry actually sells.
           </Text>
         </View>
 
-        <View style={styles.industryWrap}>
-          {INDUSTRIES.map((industry, index) => (
-            <View
-              key={industry}
-              style={[styles.industryChip, index === 0 ? styles.industryChipActive : null]}>
-              <Text
-                numberOfLines={1}
-                style={[styles.industryText, index === 0 ? styles.industryTextActive : null]}>
-                {industry}
-              </Text>
-            </View>
-          ))}
+        <View style={styles.industryWrap} accessibilityRole="tablist">
+          {INDUSTRIES.map((item) => {
+            const active = item === industry;
+            return (
+              <Pressable
+                key={item}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`Show ${item} templates`}
+                onPress={() => setIndustry(item)}
+                style={[styles.industryChip, active ? styles.industryChipActive : null]}>
+                <Text
+                  numberOfLines={1}
+                  style={[styles.industryText, active ? styles.industryTextActive : null]}>
+                  {item}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
-        <View style={styles.templateGrid}>
-          {TEMPLATES.map((template, index) => (
-            <Reveal key={template.title} style={styles.templateCell} distance={16} delay={index * 60}>
-              <View style={styles.templateCard}>
-                <Media
-                  name={template.media}
-                  alt={template.alt}
-                  style={styles.templateImage}
-                  radius={12}
-                />
-                <View style={styles.templateCopy}>
-                  <Text numberOfLines={1} style={styles.templateTitle}>
-                    {template.title}
-                  </Text>
-                  <Text numberOfLines={1} style={styles.templateMeta}>
-                    {template.industry}
-                  </Text>
+        {templates.length === 0 ? (
+          <View style={styles.templateEmpty}>
+            <FontAwesome6 name="folder-open" size={18} color={t.textSubtle} />
+            <Text style={styles.templateEmptyTitle}>No templates for that industry yet</Text>
+            <Text style={styles.templateEmptyBody}>
+              Pick another industry, or start from a blank brief — the studio writes the opener from
+              your brand kit either way.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.templateGrid}>
+            {templates.map((template, index) => (
+              <Reveal
+                key={template.title}
+                style={styles.templateCell}
+                distance={16}
+                delay={index * 60}>
+                <View style={styles.templateCard}>
+                  <Media
+                    name={template.media}
+                    alt={template.alt}
+                    style={styles.templateImage}
+                    radius={12}
+                  />
+                  <View style={styles.templateCopy}>
+                    <Text numberOfLines={1} style={styles.templateTitle}>
+                      {template.title}
+                    </Text>
+                    <Text numberOfLines={1} style={styles.templateMeta}>
+                      {template.industry}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            </Reveal>
-          ))}
-        </View>
+              </Reveal>
+            ))}
+          </View>
+        )}
       </Section>
 
       {/* ------------------------------------------------ trust */}
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>ORIGINALITY AND RIGHTS</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>Content you can trust.</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Content you can trust.
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
             AI output is only useful if you can put your name on it. Every asset arrives with the
             checks already done.
@@ -1672,10 +1736,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       justifyContent: l.isPhone ? 'flex-start' : 'center',
       gap: 8,
     },
+    // A real control now, so it carries a 44px touch target.
     industryChip: {
       flexGrow: 0,
       flexShrink: 1,
       minWidth: 0,
+      minHeight: 44,
+      justifyContent: 'center',
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: 999,
@@ -1686,6 +1753,19 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     industryChipActive: { borderColor: hexToRgba(t.brand, 0.5), backgroundColor: t.brandSoft },
     industryText: { ...type.caption, color: t.textMuted, fontWeight: '700' },
     industryTextActive: { color: t.brand },
+
+    templateEmpty: {
+      marginTop: l.isPhone ? 16 : 22,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 16 : 20,
+      gap: 9,
+      alignItems: 'flex-start',
+    },
+    templateEmptyTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
+    templateEmptyBody: { ...type.caption, color: t.textMuted, maxWidth: 520 },
 
     templateGrid: { ...gridBase, marginTop: (l.isPhone ? 16 : 22) - half },
     templateCell: cellBase(templateColumns),

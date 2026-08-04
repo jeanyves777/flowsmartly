@@ -1,5 +1,5 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   Platform,
@@ -21,6 +21,12 @@ import { Animated, Reveal, useGrowIn } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import {
+  breadcrumbJsonLd,
+  organizationJsonLd,
+  webSiteJsonLd,
+} from '@/components/public/seo';
+import {
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -28,6 +34,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { elevation, palettes, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -97,7 +104,20 @@ const CATEGORIES: Category[] = [
   },
 ];
 
-type Article = { title: string; blurb: string; art: string; alt: string; chip: string; tone: Tone; read: string };
+type Article = {
+  title: string;
+  blurb: string;
+  art: string;
+  alt: string;
+  chip: string;
+  tone: Tone;
+  read: string;
+  /**
+   * Individual article pages do not exist yet, so each card opens the product
+   * surface it is about. That is a real destination rather than a dead card.
+   */
+  href: string;
+};
 
 const ARTICLES: Article[] = [
   {
@@ -108,6 +128,7 @@ const ARTICLES: Article[] = [
     chip: 'Getting started',
     tone: 'brand',
     read: '7 min read',
+    href: ROUTES.guides,
   },
   {
     title: 'Email deliverability, explained properly',
@@ -117,6 +138,7 @@ const ARTICLES: Article[] = [
     chip: 'Email + SMS',
     tone: 'violet',
     read: '9 min read',
+    href: ROUTES.emailSms,
   },
   {
     title: 'Make AI conversations sound like you',
@@ -126,6 +148,7 @@ const ARTICLES: Article[] = [
     chip: 'AI Studio',
     tone: 'orange',
     read: '6 min read',
+    href: ROUTES.aiStudio,
   },
   {
     title: 'Launch a FlowShop storefront in a weekend',
@@ -135,6 +158,7 @@ const ARTICLES: Article[] = [
     chip: 'FlowShop',
     tone: 'green',
     read: '11 min read',
+    href: ROUTES.flowshop,
   },
   {
     title: 'Show up in local search, everywhere',
@@ -144,6 +168,7 @@ const ARTICLES: Article[] = [
     chip: 'ListSmartly',
     tone: 'pink',
     read: '8 min read',
+    href: ROUTES.listsmartly,
   },
   {
     title: 'The automations worth building first',
@@ -153,16 +178,19 @@ const ARTICLES: Article[] = [
     chip: 'Automation',
     tone: 'brand',
     read: '10 min read',
+    href: ROUTES.emailSms,
   },
 ];
 
-const POPULAR_GUIDES = [
-  'Connect your first channel in under ten minutes',
-  'Build a segment that keeps itself up to date',
-  'Write a brand voice the AI actually follows',
-  'Set up abandoned-cart recovery end to end',
-  'Get your Google Business profile in order',
-  'Read the analytics dashboard like an operator',
+type PopularGuide = { title: string; href: string };
+
+const POPULAR_GUIDES: PopularGuide[] = [
+  { title: 'Connect your first channel in under ten minutes', href: ROUTES.integrations },
+  { title: 'Build a segment that keeps itself up to date', href: ROUTES.emailSms },
+  { title: 'Write a brand voice the AI actually follows', href: ROUTES.aiStudio },
+  { title: 'Set up abandoned-cart recovery end to end', href: ROUTES.flowshop },
+  { title: 'Get your Google Business profile in order', href: ROUTES.listsmartly },
+  { title: 'Read the analytics dashboard like an operator', href: ROUTES.analytics },
 ];
 
 type AcademyPath = { name: string; blurb: string; icon: string; tone: Tone; done: number; total: number; percent: number };
@@ -270,6 +298,88 @@ const CHANGELOG: Change[] = [
 ];
 
 /* ------------------------------------------------------------------ */
+/* search                                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The search box searches what this page actually holds — the categories, the
+ * featured articles, the popular guides, the Academy paths and the changelog —
+ * and nothing else. There is no corpus behind it to pretend about, and every
+ * result opens a destination that exists.
+ */
+type SearchEntry = { title: string; body: string; kind: string; icon: string; tone: Tone; href: string };
+
+const SEARCH_INDEX: SearchEntry[] = [
+  ...CATEGORIES.map((category) => ({
+    title: category.title,
+    body: category.body,
+    kind: 'Section',
+    icon: category.icon,
+    tone: category.tone,
+    href: category.href,
+  })),
+  ...ARTICLES.map((article) => ({
+    title: article.title,
+    body: article.blurb,
+    kind: article.chip,
+    icon: 'file-lines',
+    tone: article.tone,
+    href: article.href,
+  })),
+  ...POPULAR_GUIDES.map((guide) => ({
+    title: guide.title,
+    body: 'A short, specific guide you can finish in one sitting.',
+    kind: 'Guide',
+    icon: 'book-open',
+    tone: 'orange' as Tone,
+    href: guide.href,
+  })),
+  ...ACADEMY.map((path) => ({
+    title: path.name,
+    body: path.blurb,
+    kind: 'Academy path',
+    icon: path.icon,
+    tone: path.tone,
+    href: ROUTES.aiFluency,
+  })),
+  ...CHANGELOG.map((change) => ({
+    title: change.title,
+    body: change.body,
+    kind: `Changelog · ${change.date}`,
+    icon: 'code-branch',
+    tone: 'green' as Tone,
+    href: ROUTES.changelog,
+  })),
+  {
+    title: 'Templates',
+    body: 'Ready-made campaigns, journeys, lessons and store layouts.',
+    kind: 'Section',
+    icon: 'file-lines',
+    tone: 'violet',
+    href: ROUTES.templates,
+  },
+  {
+    title: 'Integrations',
+    body: 'Connect Shopify, WordPress, Zapier, Slack and the rest of your stack.',
+    kind: 'Section',
+    icon: 'plug',
+    tone: 'green',
+    href: ROUTES.integrations,
+  },
+];
+
+function searchResources(query: string): SearchEntry[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+  return SEARCH_INDEX.filter(
+    (entry) =>
+      entry.title.toLowerCase().includes(needle) ||
+      entry.body.toLowerCase().includes(needle) ||
+      entry.kind.toLowerCase().includes(needle),
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* the code panel's palette                                            */
 /* ------------------------------------------------------------------ */
 
@@ -346,7 +456,9 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
   return (
     <Reveal style={styles.head} distance={14}>
       {label ? <SectionLabel>{label}</SectionLabel> : null}
-      <Text style={styles.headTitle}>{title}</Text>
+      <Heading level={2} style={styles.headTitle}>
+        {title}
+      </Heading>
       {body ? <Text style={styles.headBody}>{body}</Text> : null}
     </Reveal>
   );
@@ -356,17 +468,19 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
 /* sections                                                            */
 /* ------------------------------------------------------------------ */
 
-function Hero() {
+function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => void }) {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
-  const [query, setQuery] = useState('');
+  const router = useRouter();
 
   return (
     <Section style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>LEARN. BUILD. GROW.</SectionLabel>
-        <Text style={styles.heroTitle}>Everything you need to get more from FlowSmartly.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          Everything you need to get more from FlowSmartly.
+        </Heading>
         <Text style={styles.heroBody}>
           Guides, articles, courses and developer references — in one place, written for the person doing
           the work rather than the person buying the software.
@@ -377,7 +491,8 @@ function Hero() {
             <FontAwesome6 name="magnifying-glass" size={15} color={t.textSubtle} />
             <TextInput
               value={query}
-              onChangeText={setQuery}
+              onChangeText={onQuery}
+              onSubmitEditing={() => onQuery(query.trim())}
               placeholder="Search guides, articles and docs…"
               placeholderTextColor={t.textSubtle}
               accessibilityLabel="Search FlowSmartly resources"
@@ -385,7 +500,13 @@ function Hero() {
               style={styles.input}
             />
           </View>
-          <PrimaryButton label="Search" icon="magnifying-glass" full={l.isPhone} />
+          <PrimaryButton
+            label="Search"
+            icon="magnifying-glass"
+            full={l.isPhone}
+            trackId="resources.hero.search"
+            onPress={() => onQuery(query.trim())}
+          />
         </View>
       </Reveal>
 
@@ -410,9 +531,82 @@ function Hero() {
             <FontAwesome6 name="file-lines" size={11} color={t.textSubtle} />
             <Text style={styles.metaText}>Includes templates</Text>
           </View>
-          <PrimaryButton label="Read the playbook" icon="arrow-right" iconRight full />
+          {/* The playbook is not a downloadable file on this site yet, so the
+              CTA goes to Contact with the request pre-selected rather than to a
+              404 or a dead button. */}
+          <PrimaryButton
+            label="Request the playbook"
+            icon="arrow-right"
+            iconRight
+            full
+            trackId="resources.hero.playbook"
+            onPress={() => router.push(contactHref('guide', { guide: 'connected-growth-playbook' }) as never)}
+          />
         </View>
       </Reveal>
+    </Section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* search results                                                      */
+/* ------------------------------------------------------------------ */
+
+function SearchResults({ query, results }: { query: string; results: SearchEntry[] }) {
+  const styles = useStyles();
+  const t = useTokens();
+  const router = useRouter();
+  const term = query.trim();
+
+  return (
+    <Section>
+      <Reveal style={styles.head} distance={14}>
+        <Heading level={2} style={styles.headTitle}>
+          {`Results for “${term}”`}
+        </Heading>
+        <Text style={styles.headBody}>
+          {results.length === 0
+            ? 'Nothing on this page matches that yet.'
+            : `${results.length} ${results.length === 1 ? 'match' : 'matches'} across resources, guides and releases.`}
+        </Text>
+      </Reveal>
+
+      {results.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <FontAwesome6 name="magnifying-glass" size={16} color={t.textSubtle} />
+          <Text style={styles.emptyText}>
+            {`No results for “${term}”. Try a shorter word, browse the categories below, or ask our support team and we will point you at the right place.`}
+          </Text>
+          <SecondaryButton
+            label="Contact support"
+            trackId="resources.search.support"
+            onPress={() => router.push(contactHref('support', { q: term }) as never)}
+          />
+        </View>
+      ) : (
+        <View style={styles.resultList}>
+          {results.map((entry) => (
+            <Link
+              key={`${entry.kind}-${entry.title}`}
+              href={entry.href as never}
+              accessibilityRole="link"
+              accessibilityLabel={`${entry.title} — ${entry.kind}`}
+              style={styles.resultRow as never}>
+              <IconTile icon={entry.icon} tone={entry.tone} size={38} />
+              <View style={styles.resultCopy}>
+                <Text style={styles.resultKind}>{entry.kind}</Text>
+                <Text style={styles.resultTitle} numberOfLines={2}>
+                  {entry.title}
+                </Text>
+                <Text style={styles.resultBody} numberOfLines={2}>
+                  {entry.body}
+                </Text>
+              </View>
+              <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
+            </Link>
+          ))}
+        </View>
+      )}
     </Section>
   );
 }
@@ -421,7 +615,6 @@ function Categories() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
-  const router = useRouter();
   const columns = l.isPhone ? 1 : l.isTablet ? 2 : 4;
 
   return (
@@ -438,11 +631,11 @@ function Categories() {
             delay={50 + index * 70}
             distance={12}
             style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
-            <Pressable
+            <Link
+              href={category.href as never}
               accessibilityRole="link"
               accessibilityLabel={`Open ${category.title}`}
-              onPress={() => router.push(category.href as never)}
-              style={({ pressed }) => [styles.categoryCard, pressed ? styles.pressed : null]}>
+              style={styles.categoryCard as never}>
               <IconTile icon={category.icon} tone={category.tone} />
               <Text style={styles.cardTitle}>{category.title}</Text>
               <Text style={styles.cardBody}>{category.body}</Text>
@@ -452,7 +645,7 @@ function Categories() {
                 <Text style={[styles.linkText, { color: accent(t, category.tone) }]}>Open</Text>
                 <FontAwesome6 name="arrow-right" size={12} color={accent(t, category.tone)} />
               </View>
-            </Pressable>
+            </Link>
           </Reveal>
         ))}
       </View>
@@ -481,7 +674,11 @@ function FeaturedArticles() {
             delay={50 + index * 60}
             distance={12}
             style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
-            <View style={styles.articleCard}>
+            <Link
+              href={article.href as never}
+              accessibilityRole="link"
+              accessibilityLabel={article.title}
+              style={styles.articleCard as never}>
               <Media name={article.art} alt={article.alt} style={styles.articleImage} radius={13} />
               <View style={styles.articleBody}>
                 <Chip label={article.chip} tone={article.tone} />
@@ -493,7 +690,7 @@ function FeaturedArticles() {
                   <Text style={styles.metaText}>{article.read}</Text>
                 </View>
               </View>
-            </View>
+            </Link>
           </Reveal>
         ))}
       </View>
@@ -514,22 +711,23 @@ function PopularGuides() {
       <View style={styles.grid}>
         {POPULAR_GUIDES.map((guide, index) => (
           <Reveal
-            key={guide}
+            key={guide.title}
             delay={40 + index * 50}
             distance={10}
             style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
-            <Pressable
+            <Link
+              href={guide.href as never}
               accessibilityRole="link"
-              accessibilityLabel={guide}
-              style={({ pressed }) => [styles.guideRow, pressed ? styles.pressed : null]}>
+              accessibilityLabel={guide.title}
+              style={styles.guideRow as never}>
               <View style={styles.guideIndex}>
                 <Text style={styles.guideIndexText}>{index + 1}</Text>
               </View>
               <Text style={styles.guideText} numberOfLines={2}>
-                {guide}
+                {guide.title}
               </Text>
               <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
-            </Pressable>
+            </Link>
           </Reveal>
         ))}
       </View>
@@ -578,10 +776,14 @@ function AcademyCard({ path, index }: { path: AcademyPath; index: number }) {
         />
       </View>
 
-      <View style={styles.linkRow}>
+      <Link
+        href={ROUTES.aiFluency as never}
+        accessibilityRole="link"
+        accessibilityLabel={`Continue the ${path.name} path`}
+        style={styles.linkRowLink as never}>
         <Text style={[styles.linkText, { color }]}>Continue path</Text>
         <FontAwesome6 name="arrow-right" size={12} color={color} />
-      </View>
+      </Link>
     </View>
   );
 }
@@ -605,6 +807,7 @@ function Academy() {
             label="Open the Academy"
             icon="graduation-cap"
             full={l.isPhone}
+            trackId="resources.academy.open"
             onPress={() => router.push(ROUTES.aiFluency as never)}
           />
         </View>
@@ -689,6 +892,7 @@ function Developers() {
                 label="Read the API docs"
                 icon="code"
                 full={l.isPhone}
+                trackId="resources.developers.api-docs"
                 onPress={() => router.push(ROUTES.apiDocs as never)}
               />
             </View>
@@ -721,10 +925,13 @@ function Developers() {
               ))}
             </View>
 
-            <View style={styles.linkRow}>
+            <Link
+              href={ROUTES.integrations as never}
+              accessibilityRole="link"
+              style={styles.linkRowLink as never}>
               <Text style={[styles.linkText, { color: t.brand }]}>View all integrations</Text>
               <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
-            </View>
+            </Link>
           </View>
         </View>
       </View>
@@ -773,13 +980,16 @@ function Newsletter() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const router = useRouter();
   const [email, setEmail] = useState('');
 
   return (
     <Section style={styles.newsletter}>
       <Reveal style={styles.newsletterInner} distance={14}>
         <IconTile icon="envelope-open-text" tone="brand" size={54} />
-        <Text style={styles.newsletterTitle}>New resources, once a month</Text>
+        <Heading level={2} style={styles.newsletterTitle}>
+          New resources, once a month
+        </Heading>
         <Text style={styles.newsletterBody}>
           The new guides, the notable changes and one thing worth trying — nothing else.
         </Text>
@@ -799,7 +1009,19 @@ function Newsletter() {
               style={styles.input}
             />
           </View>
-          <PrimaryButton label="Subscribe" full={l.isPhone} />
+          {/* There is no newsletter backend in this app, so Subscribe hands the
+              address to the Contact form with the topic already chosen rather
+              than faking a confirmation. */}
+          <PrimaryButton
+            label="Subscribe"
+            full={l.isPhone}
+            trackId="resources.newsletter.subscribe"
+            onPress={() =>
+              router.push(
+                contactHref('updates', email.trim() ? { email: email.trim() } : undefined) as never,
+              )
+            }
+          />
         </View>
 
         <Text style={styles.newsletterFine}>No spam. Unsubscribe anytime.</Text>
@@ -813,11 +1035,24 @@ function Newsletter() {
 /* ------------------------------------------------------------------ */
 
 export default function ResourcesPage() {
+  const [query, setQuery] = useState('');
+  const results = useMemo(() => searchResources(query), [query]);
+  const searching = query.trim().length > 0;
+
   return (
     <PageShell
       title="Resources"
-      description="Guides, articles, courses, developer docs and the changelog — everything you need to get more from FlowSmartly.">
-      <Hero />
+      description="Guides, articles, courses, developer docs and the changelog — everything you need to get more from FlowSmartly."
+      jsonLd={[
+        organizationJsonLd(),
+        webSiteJsonLd(),
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Resources', path: ROUTES.resources },
+        ]),
+      ]}>
+      <Hero query={query} onQuery={setQuery} />
+      {searching ? <SearchResults query={query} results={results} /> : null}
       <Categories />
       <FeaturedArticles />
       <PopularGuides />
@@ -923,7 +1158,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       marginTop: 20 - cellPad,
     },
     cell: { flexGrow: 0, flexShrink: 0, minWidth: 0, padding: cellPad },
-    pressed: { opacity: 0.86 },
 
     /* generic card copy -------------------------------------------- */
     cardTitle: { ...type.h4, color: t.text },
@@ -931,7 +1165,49 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     cardMeta: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
     cardSpacer: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minHeight: 4 },
     linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 34 },
+    /** the same row, rendered as a real anchor — RNW anchors are inline by
+     *  default, so the flex context has to be declared */
+    linkRowLink: {
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      minHeight: 34,
+      textDecorationLine: 'none',
+    },
     linkText: { ...type.bodySm, fontWeight: '800', flexShrink: 1, minWidth: 0 },
+
+    /* search results ------------------------------------------------ */
+    resultList: { gap: 10, marginTop: 20 },
+    resultRow: {
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 13,
+      minHeight: 60,
+      paddingHorizontal: 15,
+      paddingVertical: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceMuted,
+      textDecorationLine: 'none',
+    },
+    resultCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    resultKind: { ...type.micro, color: t.textSubtle, fontWeight: '800' },
+    resultTitle: { ...type.bodySm, color: t.text, fontWeight: '700' },
+    resultBody: { ...type.micro, color: t.textMuted },
+    emptyCard: {
+      marginTop: 20,
+      alignItems: 'flex-start',
+      gap: 12,
+      padding: 18,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceMuted,
+    },
+    emptyText: { ...type.bodySm, color: t.textMuted, flexShrink: 1, minWidth: 0 },
 
     chip: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
     chipText: { ...type.micro, fontWeight: '800' },
@@ -941,10 +1217,22 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     metaDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: t.borderStrong },
 
     /* categories --------------------------------------------------- */
-    categoryCard: { ...cardBase, gap: 10, flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
+    /** an anchor, so `display`/`flexDirection` are spelled out */
+    categoryCard: {
+      ...cardBase,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 10,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      textDecorationLine: 'none',
+    },
 
     /* articles ----------------------------------------------------- */
     articleCard: {
+      display: 'flex',
+      flexDirection: 'column',
       borderWidth: 1,
       borderColor: t.border,
       borderRadius: 16,
@@ -953,6 +1241,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexGrow: 1,
       flexShrink: 1,
       flexBasis: 'auto',
+      textDecorationLine: 'none',
       ...(elevation(t, 1) as ViewStyle),
     },
     articleBody: {
@@ -969,6 +1258,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexShrink: 1,
       flexBasis: 'auto',
       minHeight: 60,
+      display: 'flex',
+      textDecorationLine: 'none',
       flexDirection: 'row',
       alignItems: 'center',
       gap: 13,

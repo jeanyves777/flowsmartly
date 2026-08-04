@@ -1,7 +1,7 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,16 +11,20 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import { trackCta } from '@/lib/analytics';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd, faqJsonLd } from '@/components/public/seo';
 import {
+  Heading,
   PrimaryButton,
   Section,
   SectionLabel,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { EXTERNAL } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -279,7 +283,6 @@ export default function PricingPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const router = useRouter();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
 
   const [annual, setAnnual] = useState(false);
@@ -299,14 +302,24 @@ export default function PricingPage() {
   return (
     <PageShell
       title="Pricing"
-      description="Start lean and scale when growth demands it — simple plans, one credit balance, and usage-based pricing you can see before you spend.">
+      description="Start lean and scale when growth demands it — simple plans, one credit balance, and usage-based pricing you can see before you spend."
+      // Only the six questions the accordion actually shows, with the answer
+      // text as written — a rich result must never promise copy the page does
+      // not contain.
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Pricing', path: ROUTES.pricing },
+        ]),
+        faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
+      ]}>
       {/* ------------------------------------------------ hero + toggle */}
       <Section>
         <Reveal style={styles.hero} distance={16}>
           <SectionLabel>SIMPLE, FLEXIBLE PRICING</SectionLabel>
-          <Text style={[type.display, styles.heroTitle]}>
+          <Heading level={1} style={[type.display, styles.heroTitle]}>
             Start lean. Scale when growth demands it.
-          </Text>
+          </Heading>
           <Text style={[type.body, styles.heroBody]}>
             One plan covers the whole workspace — creation, publishing, messaging, commerce and
             insight. Add usage only for the work that genuinely costs us money to run.
@@ -391,17 +404,23 @@ export default function PricingPage() {
 
                   <View style={styles.planSpacer} />
 
+                  {/* Every plan is self-serve, so the CTA opens signup rather
+                      than a contact form — the plan is chosen there. */}
                   {plan.featured ? (
                     <PrimaryButton
                       label={plan.cta}
                       full
-                      onPress={() => router.push(ROUTES.contact as never)}
+                      trackId={`pricing.plan.${plan.id}`}
+                      onPress={() => Linking.openURL(EXTERNAL.signup)}
                     />
                   ) : (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={plan.cta}
-                      onPress={() => router.push(ROUTES.contact as never)}
+                      onPress={() => {
+                        trackCta(`pricing.plan.${plan.id}`, { variant: 'plan' });
+                        Linking.openURL(EXTERNAL.signup);
+                      }}
                       style={({ pressed }) => [
                         styles.planButton,
                         pressed ? styles.planButtonPressed : null,
@@ -420,7 +439,9 @@ export default function PricingPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>SIDE BY SIDE</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Compare plans.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
+            Compare plans.
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             Every line of the platform, and exactly what each plan includes.
           </Text>
@@ -509,7 +530,9 @@ export default function PricingPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>PAY FOR WHAT YOU RUN</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Usage-based pricing.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
+            Usage-based pricing.
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             A handful of things cost real money to produce. Those are priced at what they cost, shown
             up front, and never bundled into a bigger plan you did not need.
@@ -582,9 +605,9 @@ export default function PricingPage() {
 
           <Reveal style={styles.creditsCopy} distance={16} delay={80}>
             <SectionLabel>HOW CREDITS WORK</SectionLabel>
-            <Text style={[type.h2, styles.creditsTitle]}>
+            <Heading level={2} style={[type.h2, styles.creditsTitle]}>
               One balance across your creative workspace.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.creditsBody]}>
               There is no separate wallet for images, another for video and a third for messaging.
               Your plan tops up one balance each month, every surface draws from it, and each action
@@ -602,7 +625,9 @@ export default function PricingPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>BEFORE YOU DECIDE</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Pricing questions, answered.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
+            Pricing questions, answered.
+          </Heading>
         </Reveal>
 
         <View style={styles.faqList}>

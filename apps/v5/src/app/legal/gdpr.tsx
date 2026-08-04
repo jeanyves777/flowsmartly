@@ -1,4 +1,5 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import {
@@ -11,8 +12,11 @@ import {
   LegalText,
   type DocSection,
 } from '@/components/public/legal-page';
+import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import { PrimaryButton, SecondaryButton, useTypeScale, type TypeScale } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -74,11 +78,19 @@ function RightsGrid() {
 }
 
 export default function GdprPage() {
+  const router = useRouter();
+
   return (
     <PageShell
       title="GDPR & Data Protection"
-      description="How FlowSmartly protects personal data and supports our customers' GDPR compliance."
-      cta={false}>
+      description="How FlowSmartly protects personal data, the lawful bases we rely on, and how we support our customers' GDPR compliance."
+      cta={false}
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'GDPR & Data Protection', path: ROUTES.gdpr },
+        ]),
+      ]}>
       <LegalLayout
         title="GDPR & Data Protection"
         updated="August 3, 2026"
@@ -130,7 +142,13 @@ export default function GdprPage() {
             processor, your obligations as a controller, data security requirements, the use of
             subprocessors, and international transfer mechanisms.
           </LegalText>
-          <PrimaryButton label="Download DPA" icon="download" size="sm" />
+          <PrimaryButton
+            label="Download DPA"
+            icon="download"
+            size="sm"
+            trackId="gdpr.dpa.download"
+            onPress={() => router.push(contactHref('dpa') as never)}
+          />
         </LegalSection>
 
         <LegalSection number={5} title="Subprocessors">
@@ -139,11 +157,15 @@ export default function GdprPage() {
             one is contractually bound to protect personal data and to process it only on our behalf
             and on our documented instructions.
           </LegalText>
+          {/* The subprocessor list is published with the DPA rather than as its
+              own page, so both requests route to the same place. */}
           <SecondaryButton
             label="View subprocessors"
-            icon="arrow-up-right-from-square"
+            icon="arrow-right"
             iconRight
             size="sm"
+            trackId="gdpr.subprocessors.request"
+            onPress={() => router.push(contactHref('dpa') as never)}
           />
         </LegalSection>
 

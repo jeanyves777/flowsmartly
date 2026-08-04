@@ -2,6 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -22,8 +23,10 @@ import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd, organizationJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -196,6 +199,16 @@ const VALUES: { icon: string; title: string; body: string; accent: Accent }[] = 
 /* pieces                                                              */
 /* ------------------------------------------------------------------ */
 
+/**
+ * In-page navigation. `nativeID` becomes a real DOM id on web, so an anchor CTA
+ * moves the visitor to a section that genuinely exists rather than doing
+ * nothing. On native there is nothing to scroll to, so it is a no-op.
+ */
+function scrollToId(id: string) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 type Styles = ReturnType<typeof createStyles>;
 
 function FlowTile({
@@ -281,15 +294,22 @@ export default function AboutPage() {
   return (
     <PageShell
       title="About"
-      description="FlowSmartly brings playbooks, AI, automation and insight together so every business can attract customers, close more deals and scale with confidence.">
+      description="FlowSmartly brings playbooks, AI, automation and insight together so every business can attract customers, close more deals and scale with confidence."
+      jsonLd={[
+        organizationJsonLd(),
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'About', path: ROUTES.about },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Section>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>ABOUT FLOWSMARTLY</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Building the connected growth system for modern businesses.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               FlowSmartly brings powerful growth tools—playbooks, AI, automation, and insights—together
               in one platform so teams can attract customers, close more deals, and scale with
@@ -297,11 +317,18 @@ export default function AboutPage() {
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>
-                <PrimaryButton label="Our mission" size="lg" full={l.isPhone} />
+                <PrimaryButton
+                  label="Our mission"
+                  size="lg"
+                  full={l.isPhone}
+                  trackId="about.hero.our-mission"
+                  onPress={() => scrollToId('about-mission')}
+                />
                 <SecondaryButton
                   label="See our platform"
                   size="lg"
                   full={l.isPhone}
+                  trackId="about.hero.see-platform"
                   onPress={() => router.push(ROUTES.product as never)}
                 />
               </ButtonRow>
@@ -347,13 +374,14 @@ export default function AboutPage() {
       </Section>
 
       {/* ------------------------------------------------ mission */}
-      <Section>
+      <View nativeID="about-mission">
+        <Section>
         <View style={styles.missionRow}>
           <Reveal style={styles.missionCopy} distance={16}>
             <SectionLabel>OUR MISSION</SectionLabel>
-            <Text style={[type.h2, styles.missionTitle]}>
+            <Heading level={2} style={[type.h2, styles.missionTitle]}>
               Make powerful growth tools accessible to every business.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.missionBody]}>
               The tools that decide who wins have been priced and staffed for large companies for far
               too long. We build the same capability — creation, automation, intelligence and reach —
@@ -363,7 +391,9 @@ export default function AboutPage() {
           </Reveal>
 
           <Reveal style={styles.missionPanel} distance={16} delay={80}>
-            <Text style={[type.h3, styles.principlesTitle]}>Our operating principles</Text>
+            <Heading level={3} style={[type.h3, styles.principlesTitle]}>
+              Our operating principles
+            </Heading>
             <View style={styles.principleList}>
               {PRINCIPLES.map((principle) => {
                 const accent = accentOf(principle.accent);
@@ -383,13 +413,16 @@ export default function AboutPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+        </Section>
+      </View>
 
       {/* ------------------------------------------------ story */}
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>OUR STORY</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Six years of building in the open.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
+            Six years of building in the open.
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             Every step came from a customer problem we could not solve with the tools that existed.
           </Text>
@@ -426,7 +459,9 @@ export default function AboutPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>OUR PLATFORM IMPACT</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>What the platform has added up to.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
+            What the platform has added up to.
+          </Heading>
         </Reveal>
 
         <View style={styles.statGrid}>
@@ -442,7 +477,9 @@ export default function AboutPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>LEADERSHIP TEAM</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>The people accountable for it.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
+            The people accountable for it.
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             Operators, engineers and support leads who have run the same problems you are running now.
           </Text>
@@ -476,10 +513,10 @@ export default function AboutPage() {
 
         <Pressable
           accessibilityRole="link"
-          accessibilityLabel="See all team members"
-          onPress={() => router.push(ROUTES.contact as never)}
+          accessibilityLabel="Meet the wider team on our careers page"
+          onPress={() => router.push(ROUTES.careers as never)}
           style={({ pressed }) => [styles.teamLink, pressed ? styles.teamLinkPressed : null]}>
-          <Text style={styles.teamLinkText}>See all team members</Text>
+          <Text style={styles.teamLinkText}>Meet the wider team</Text>
           <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
         </Pressable>
       </Section>
@@ -488,7 +525,9 @@ export default function AboutPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>OUR VALUES</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>How we work, on the days it is hard.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
+            How we work, on the days it is hard.
+          </Heading>
         </Reveal>
 
         <View style={styles.valueGrid}>
@@ -517,7 +556,9 @@ export default function AboutPage() {
               <View style={[styles.closeIcon, { backgroundColor: softFill(t.brand, t) }]}>
                 <FontAwesome6 name="users" size={18} color={t.brand} />
               </View>
-              <Text style={[type.h3, styles.closeTitle]}>Join our mission</Text>
+              <Heading level={3} style={[type.h3, styles.closeTitle]}>
+                Join our mission
+              </Heading>
               <Text style={styles.closeBody}>
                 We hire people who would rather solve the customer&apos;s problem than defend their
                 function. Remote-first, deliberately small teams, and real ownership from week one.
@@ -526,7 +567,8 @@ export default function AboutPage() {
               <PrimaryButton
                 label="Explore careers"
                 full={l.isPhone}
-                onPress={() => router.push(ROUTES.contact as never)}
+                trackId="about.close.explore-careers"
+                onPress={() => router.push(ROUTES.careers as never)}
               />
             </View>
           </Reveal>
@@ -536,7 +578,9 @@ export default function AboutPage() {
               <View style={[styles.closeIcon, { backgroundColor: softFill(t.orange, t) }]}>
                 <FontAwesome6 name="handshake" size={18} color={t.orange} />
               </View>
-              <Text style={[type.h3, styles.closeTitle]}>Partner with FlowSmartly</Text>
+              <Heading level={3} style={[type.h3, styles.closeTitle]}>
+                Partner with FlowSmartly
+              </Heading>
               <Text style={styles.closeBody}>
                 Agencies, consultants and technology partners build on the platform and bring their
                 own playbooks to it. Shared revenue, shared roadmap, no gatekeeping.
@@ -545,6 +589,7 @@ export default function AboutPage() {
               <SecondaryButton
                 label="Become a partner"
                 full={l.isPhone}
+                trackId="about.close.become-partner"
                 onPress={() => router.push(ROUTES.partners as never)}
               />
             </View>

@@ -2,6 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -14,8 +15,10 @@ import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -23,6 +26,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -228,6 +232,16 @@ const HIRING: Step[] = [
 
 type Styles = ReturnType<typeof createStyles>;
 
+/**
+ * In-page navigation. `nativeID` becomes a real DOM id on web, so an anchor CTA
+ * moves the visitor to a section that genuinely exists rather than doing
+ * nothing. On native there is nothing to scroll to, so it is a no-op.
+ */
+function scrollToId(id: string) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function useStyles(): Styles {
   const t = useTokens();
   const l = useLayout();
@@ -264,7 +278,9 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
   return (
     <Reveal style={styles.head} distance={14}>
       {label ? <SectionLabel>{label}</SectionLabel> : null}
-      <Text style={styles.headTitle}>{title}</Text>
+      <Heading level={2} style={styles.headTitle}>
+        {title}
+      </Heading>
       {body ? <Text style={styles.headBody}>{body}</Text> : null}
     </Reveal>
   );
@@ -282,14 +298,30 @@ function Hero() {
     <Section style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CAREERS AT FLOWSMARTLY</SectionLabel>
-        <Text style={styles.heroTitle}>Build the growth system small businesses deserve.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          Build the growth system small businesses deserve.
+        </Heading>
         <Text style={styles.heroBody}>
           We&apos;re a small, senior team building software that thousands of businesses run on every
           day. If you like ownership, craft, and customers who talk back — you&apos;ll like it here.
         </Text>
         <ButtonRow>
-          <PrimaryButton label="See open roles" size="lg" icon="arrow-down" full={l.isPhone} />
-          <SecondaryButton label="How we hire" size="lg" icon="route" full={l.isPhone} />
+          <PrimaryButton
+            label="See open roles"
+            size="lg"
+            icon="arrow-down"
+            full={l.isPhone}
+            trackId="careers.hero.see-open-roles"
+            onPress={() => scrollToId('open-roles')}
+          />
+          <SecondaryButton
+            label="How we hire"
+            size="lg"
+            icon="route"
+            full={l.isPhone}
+            trackId="careers.hero.how-we-hire"
+            onPress={() => scrollToId('how-we-hire')}
+          />
         </ButtonRow>
       </Reveal>
 
@@ -406,17 +438,25 @@ function Benefits() {
   );
 }
 
-/** Wide: one row of facts. Compact: a stacked card — never a squeezed table row. */
+/**
+ * Wide: one row of facts. Compact: a stacked card — never a squeezed table row.
+ *
+ * There is no per-role page to link to, so the row opens Contact with the
+ * careers topic preselected: applying really is an email to the hiring team.
+ */
 function RoleItem({ role }: { role: Role }) {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const router = useRouter();
+  const open = () => router.push(contactHref('careers', { role: role.title }) as never);
 
   if (l.isCompact) {
     return (
       <Pressable
         accessibilityRole="link"
         accessibilityLabel={`${role.title} — ${role.department}, ${role.location}, ${role.type}`}
+        onPress={open}
         style={({ pressed }) => [styles.roleCard, pressed ? styles.pressed : null]}>
         <Text style={styles.roleTitle}>{role.title}</Text>
         <View style={styles.rolePills}>
@@ -433,7 +473,7 @@ function RoleItem({ role }: { role: Role }) {
           </View>
         </View>
         <View style={styles.roleLink}>
-          <Text style={styles.roleLinkText}>View role</Text>
+          <Text style={styles.roleLinkText}>Apply for this role</Text>
           <FontAwesome6 name="chevron-right" size={12} color={t.brand} />
         </View>
       </Pressable>
@@ -444,6 +484,7 @@ function RoleItem({ role }: { role: Role }) {
     <Pressable
       accessibilityRole="link"
       accessibilityLabel={`${role.title} — ${role.department}, ${role.location}, ${role.type}`}
+      onPress={open}
       style={({ pressed }) => [styles.roleRow, pressed ? styles.pressed : null]}>
       <View style={styles.roleRowTitle}>
         <Text numberOfLines={2} style={styles.roleTitle}>
@@ -476,6 +517,7 @@ function RoleItem({ role }: { role: Role }) {
 
 function OpenRoles() {
   const styles = useStyles();
+  const t = useTokens();
   const [department, setDepartment] = useState<Department>('All');
 
   const visible = useMemo(
@@ -516,6 +558,15 @@ function OpenRoles() {
           department === 'All' ? ' across the company' : ` in ${department}`
         }.`}
       </Text>
+
+      {visible.length === 0 ? (
+        <View style={styles.emptyState}>
+          <FontAwesome6 name="folder-open" size={18} color={t.textSubtle} />
+          <Text style={styles.emptyText}>
+            {`Nothing open in ${department} right now. Pick another team, or write to us anyway — we open roles as the work arrives.`}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.roleList}>
         {visible.map((role, index) => (
@@ -583,7 +634,9 @@ function NoRole() {
     <Section>
       <Reveal style={styles.closePanel} distance={14}>
         <IconTile icon="paper-plane" tone="brand" size={54} />
-        <Text style={styles.closeTitle}>Don&apos;t see your role?</Text>
+        <Heading level={2} style={styles.closeTitle}>
+          Don&apos;t see your role?
+        </Heading>
         <Text style={styles.closeBody}>
           We open roles as fast as the work arrives, and some of the best people here wrote to us
           before there was a posting. Tell us what you would want to own and we will tell you honestly
@@ -594,7 +647,8 @@ function NoRole() {
           icon="arrow-right"
           iconRight
           full={l.isPhone}
-          onPress={() => router.push(ROUTES.contact as never)}
+          trackId="careers.close.get-in-touch"
+          onPress={() => router.push(contactHref('careers') as never)}
         />
       </Reveal>
     </Section>
@@ -609,13 +663,23 @@ export default function CareersPage() {
   return (
     <PageShell
       title="Careers"
-      description="Join a small, senior team building the growth system thousands of businesses run on every day. Remote-first roles in engineering, design, product, growth and customer.">
+      description="Join a small, senior team building the growth system thousands of businesses run on every day. Remote-first roles across engineering, design, product and growth."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Careers', path: ROUTES.careers },
+        ]),
+      ]}>
       <Hero />
       <Values />
       <Life />
       <Benefits />
-      <OpenRoles />
-      <HowWeHire />
+      <View nativeID="open-roles">
+        <OpenRoles />
+      </View>
+      <View nativeID="how-we-hire">
+        <HowWeHire />
+      </View>
       <NoRole />
     </PageShell>
   );
@@ -755,6 +819,25 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     filterChipTextActive: { color: t.brand },
     roleCount: { ...type.caption, color: t.textSubtle, fontWeight: '700', marginTop: 16 },
     roleList: { gap: 10, marginTop: 12 },
+    emptyState: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      marginTop: 14,
+      padding: l.isPhone ? 15 : 18,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 14,
+      backgroundColor: t.surfaceMuted,
+    },
+    emptyText: {
+      ...type.bodySm,
+      color: t.textMuted,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minWidth: 0,
+    },
 
     /* one role — wide row */
     roleRow: {

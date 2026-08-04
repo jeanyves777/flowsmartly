@@ -2,6 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import {
+  Linking,
   StyleSheet,
   Text,
   View,
@@ -13,8 +14,10 @@ import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -22,6 +25,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -205,6 +209,9 @@ const REGIONS: { region: string; location: string; icon: string }[] = [
   { region: 'Australia', location: 'Sydney, available on request', icon: 'earth-oceania' },
 ];
 
+/** The one address on this page, used by every "email security" affordance. */
+const SECURITY_INBOX = 'security@flowsmartly.com';
+
 const DISCLOSURE: string[] = [
   'Write to security@flowsmartly.com with the steps to reproduce and any proof-of-concept you have.',
   'We acknowledge every report within one business day and give you a triage decision within five.',
@@ -254,7 +261,9 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
   return (
     <Reveal style={styles.head} distance={14}>
       {label ? <SectionLabel>{label}</SectionLabel> : null}
-      <Text style={styles.headTitle}>{title}</Text>
+      <Heading level={2} style={styles.headTitle}>
+        {title}
+      </Heading>
       {body ? <Text style={styles.headBody}>{body}</Text> : null}
     </Reveal>
   );
@@ -273,19 +282,29 @@ function Hero() {
     <Section style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>TRUST &amp; SECURITY</SectionLabel>
-        <Text style={styles.heroTitle}>Security you can hand to your compliance team.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          Security you can hand to your compliance team.
+        </Heading>
         <Text style={styles.heroBody}>
           FlowSmartly protects customer data with encryption, least-privilege access, continuous
           monitoring, and independent audits.
         </Text>
         <ButtonRow>
-          <PrimaryButton label="Download security overview" size="lg" icon="download" full={l.isPhone} />
+          <PrimaryButton
+            label="Download security overview"
+            size="lg"
+            icon="download"
+            full={l.isPhone}
+            trackId="security.hero.download-overview"
+            onPress={() => router.push(contactHref('security-overview') as never)}
+          />
           <SecondaryButton
             label="Contact security"
             size="lg"
             icon="envelope"
             full={l.isPhone}
-            onPress={() => router.push(ROUTES.contact as never)}
+            trackId="security.hero.contact"
+            onPress={() => Linking.openURL(`mailto:${SECURITY_INBOX}`)}
           />
         </ButtonRow>
       </Reveal>
@@ -524,6 +543,7 @@ function Residency() {
               iconRight
               size="sm"
               full={l.isPhone}
+              trackId="security.subprocessors.gdpr"
               onPress={() => router.push(ROUTES.gdpr as never)}
             />
           </View>
@@ -569,7 +589,9 @@ function Vulnerability() {
         <View style={styles.reportHead}>
           <IconTile icon="shield-virus" tone="pink" size={54} />
           <View style={styles.reportHeadCopy}>
-            <Text style={styles.reportTitle}>Report a vulnerability</Text>
+            <Heading level={2} style={styles.reportTitle}>
+              Report a vulnerability
+            </Heading>
             <Text style={styles.cardBody}>
               Found something? Tell us before you tell anyone else, and we will treat it as the favour it
               is. Reports go straight to the security team, not to a shared inbox.
@@ -583,7 +605,7 @@ function Vulnerability() {
           </View>
           <View style={styles.addressCopy}>
             <Text style={styles.addressLabel}>Dedicated address</Text>
-            <Text style={styles.addressValue}>security@flowsmartly.com</Text>
+            <Text style={styles.addressValue}>{SECURITY_INBOX}</Text>
           </View>
           <View style={styles.addressCopy}>
             <Text style={styles.addressLabel}>PGP key</Text>
@@ -604,7 +626,17 @@ function Vulnerability() {
         </View>
 
         <View style={styles.reportButtons}>
-          <PrimaryButton label="Email the security team" icon="paper-plane" full={l.isPhone} />
+          <PrimaryButton
+            label="Email the security team"
+            icon="paper-plane"
+            full={l.isPhone}
+            trackId="security.report.email-team"
+            onPress={() =>
+              Linking.openURL(
+                `mailto:${SECURITY_INBOX}?subject=${encodeURIComponent('Vulnerability report')}`,
+              )
+            }
+          />
         </View>
       </Reveal>
     </Section>
@@ -619,7 +651,13 @@ export default function SecurityPage() {
   return (
     <PageShell
       title="Security"
-      description="FlowSmartly protects customer data with encryption, least-privilege access, continuous monitoring, and independent audits.">
+      description="FlowSmartly protects customer data with encryption, least-privilege access, continuous monitoring, and independent audits."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Security', path: ROUTES.security },
+        ]),
+      ]}>
       <Hero />
       <Compliance />
       <Protections />

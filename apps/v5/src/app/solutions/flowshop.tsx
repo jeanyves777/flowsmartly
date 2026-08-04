@@ -2,8 +2,8 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { Fragment, useMemo } from 'react';
 import {
+  Linking,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -18,8 +18,10 @@ import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -27,6 +29,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { EXTERNAL } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -343,7 +346,9 @@ function NumberedHead({
         </View>
         <SectionLabel>{eyebrow}</SectionLabel>
       </View>
-      <Text style={[type.h2, centered ? styles.headTitleCentered : styles.headTitle]}>{title}</Text>
+      <Heading level={2} style={[type.h2, centered ? styles.headTitleCentered : styles.headTitle]}>
+        {title}
+      </Heading>
       <Text style={[type.body, centered ? styles.headBodyCentered : styles.headBody]}>{body}</Text>
     </View>
   );
@@ -433,15 +438,22 @@ export default function FlowShopPage() {
   return (
     <PageShell
       title="FlowShop"
-      description="FlowShop is a complete commerce system — storefront, catalog, checkout and orders — structured so people, search engines and AI assistants can all find and recommend what you sell.">
+      description="Storefront, catalog, checkout and orders in one system — with product data structured so search engines and AI assistants can recommend what you sell."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Solutions', path: ROUTES.solutions },
+          { name: 'FlowShop', path: ROUTES.flowshop },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Section>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>AI-READY COMMERCE</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Build a store that sells wherever customers discover you.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Storefront, catalog, checkout and orders in one system — and product data structured so
               search engines and AI assistants can recommend you with confidence.
@@ -454,12 +466,14 @@ export default function FlowShopPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="flowshop.hero.start-selling"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 <SecondaryButton
                   label="Explore the platform"
                   size="lg"
                   full={l.isPhone}
+                  trackId="flowshop.hero.explore-platform"
                   onPress={() => router.push(ROUTES.product as never)}
                 />
               </ButtonRow>
@@ -1248,13 +1262,11 @@ export default function FlowShopPage() {
                 A reminder sequence is drafted and waiting for your approval.
               </Text>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Recover abandoned carts"
-              style={({ pressed }) => [styles.recoverButton, pressed ? styles.recoverButtonPressed : null]}>
+            {/* Illustration of the product surface, not a control. */}
+            <View style={styles.recoverButton}>
               <Text style={styles.recoverButtonText}>Recover</Text>
               <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
-            </Pressable>
+            </View>
           </View>
 
           <View style={styles.toolStrip}>
@@ -1274,7 +1286,9 @@ export default function FlowShopPage() {
       <Section>
         <View style={styles.headCentered}>
           <SectionLabel>THEMES</SectionLabel>
-          <Text style={[type.h2, styles.headTitleCentered]}>Beautiful themes for every brand.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
+            Beautiful themes for every brand.
+          </Heading>
           <Text style={[type.body, styles.headBodyCentered]}>
             Start from a look that already fits your industry, then make it yours. Every theme is
             responsive, accessible and fast on a phone.

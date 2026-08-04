@@ -2,7 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Pressable,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,13 +11,16 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
+import { EXTERNAL } from '@/lib/destinations';
 import { ArrowLink } from '@/components/public/connectors';
 import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -751,7 +754,9 @@ function NumberedHead({
         </View>
         <SectionLabel>{eyebrow}</SectionLabel>
       </View>
-      <Text style={[type.h2, styles.numberedTitle]}>{title}</Text>
+      <Heading level={2} style={[type.h2, styles.numberedTitle]}>
+        {title}
+      </Heading>
       <Text style={[type.body, styles.numberedBody]}>{body}</Text>
     </View>
   );
@@ -792,15 +797,22 @@ export default function AnalyticsPage() {
   return (
     <PageShell
       title="Analytics"
-      description="One view of what moves growth: revenue attribution across channels, campaign and deliverability analytics, ad ROAS, call outcomes, commerce and AI visibility.">
+      description="One view of what moves growth: revenue attribution across channels, campaign and deliverability analytics, ad ROAS, call outcomes, commerce and AI visibility."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Product', path: ROUTES.product },
+          { name: 'Analytics', path: ROUTES.analytics },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={shell} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>ONE VIEW OF WHAT MOVES GROWTH</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               See what worked, why it worked, and what to do next.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Every channel reports into the same ledger, so a number here means the same thing as a
               number there — and each one comes with the action it implies.
@@ -813,12 +825,14 @@ export default function AnalyticsPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="analytics.hero.start-free"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 <SecondaryButton
                   label="Explore the platform"
                   size="lg"
                   full={l.isPhone}
+                  trackId="analytics.hero.explore-platform"
                   onPress={() => router.push(ROUTES.product as never)}
                 />
               </ButtonRow>
@@ -1713,18 +1727,16 @@ export default function AnalyticsPage() {
                 ))}
               </View>
               <Text style={styles.reportLabel}>Export as</Text>
+              {/* Export formats illustrate the report builder — nothing on a
+                  marketing page can actually produce the file. */}
               <View style={styles.chipWrap}>
                 {EXPORT_FORMATS.map((format) => (
-                  <Pressable
-                    key={format.label}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Export as ${format.label}`}
-                    style={({ pressed }) => [styles.exportChip, pressed ? styles.pressed : null]}>
+                  <View key={format.label} style={styles.exportChip}>
                     <FontAwesome6 name={format.icon as never} size={12} color={t.textMuted} />
                     <Text numberOfLines={1} style={styles.exportChipText}>
                       {format.label}
                     </Text>
-                  </Pressable>
+                  </View>
                 ))}
               </View>
               <View style={styles.scheduleRow}>
@@ -2404,7 +2416,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingHorizontal: 14,
     },
     exportChipText: { ...type.caption, color: t.text, fontWeight: '700' },
-    pressed: { opacity: 0.85 },
     scheduleRow: {
       flexDirection: 'row',
       alignItems: 'center',

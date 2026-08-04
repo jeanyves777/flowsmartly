@@ -1,11 +1,23 @@
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { contactHref } from '@/lib/destinations';
 import { elevation, type ThemeTokens } from '@/theme/tokens';
 import { type Layout, useLayout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { Reveal } from './motion';
-import { ButtonRow, PrimaryButton, SecondaryButton, Section, SectionLabel, type TypeScale, useTypeScale } from './ui';
+import { ROUTES } from './nav';
+import {
+  ButtonRow,
+  Heading,
+  PrimaryButton,
+  SecondaryButton,
+  Section,
+  SectionLabel,
+  type TypeScale,
+  useTypeScale,
+} from './ui';
 
 /**
  * The asset is a wide desktop composition (1536×1024). Squeezed into a phone
@@ -21,6 +33,7 @@ export function ListSmartlySection() {
   const l = useLayout();
   const type = useTypeScale();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
+  const router = useRouter();
 
   /** the same 1120 threshold every other copy + visual section uses */
   const stacked = l.isStacked;
@@ -31,14 +44,33 @@ export function ListSmartlySection() {
           inside a feature section it competed with the eyebrow + headline. */}
       <Reveal style={stacked ? styles.columnFull : styles.copyColumn}>
         <SectionLabel>LISTSMARTLY</SectionLabel>
-        <Text style={styles.title}>Be accurate, trusted, and recommended everywhere.</Text>
+        <Heading level={2} style={styles.title}>
+          Be accurate, trusted, and recommended everywhere.
+        </Heading>
         <Text style={styles.body}>
           Sync business information, strengthen review health, and see how your locations appear across traditional and
           AI-powered discovery.
         </Text>
         <ButtonRow>
-          <PrimaryButton label="Explore ListSmartly" icon="arrow-right" iconRight size="md" full={l.isPhone} />
-          <SecondaryButton label="Check local visibility" icon="play" size="md" full={l.isPhone} />
+          <PrimaryButton
+            label="Explore ListSmartly"
+            icon="arrow-right"
+            iconRight
+            size="md"
+            full={l.isPhone}
+            trackId="home.listsmartly.explore"
+            onPress={() => router.push(ROUTES.listsmartly as never)}
+          />
+          {/* A live visibility check is run with us — there is no self-serve
+              scanner to open, so this books the walkthrough. */}
+          <SecondaryButton
+            label="Check local visibility"
+            icon="magnifying-glass"
+            size="md"
+            full={l.isPhone}
+            trackId="home.listsmartly.visibility-check"
+            onPress={() => router.push(contactHref('demo') as never)}
+          />
         </ButtonRow>
       </Reveal>
 

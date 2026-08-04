@@ -1,6 +1,8 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import { Link, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -12,10 +14,13 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Reveal } from '@/components/public/motion';
+import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
   Card,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -23,6 +28,8 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { trackCta } from '@/lib/analytics';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { elevation, palettes, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -219,25 +226,57 @@ const SNIPPETS: Snippet[] = [
   },
 ];
 
-type Quickstart = { icon: string; title: string; body: string; tone: Tone };
+/**
+ * Each quickstart opens the surface it talks to. Per-endpoint reference pages
+ * do not exist in this app, so linking to the product page is the honest
+ * destination — `href: null` would leave a link that goes nowhere.
+ */
+type Quickstart = { icon: string; title: string; body: string; tone: Tone; href: string; external?: boolean };
 
 const QUICKSTARTS: Quickstart[] = [
-  { icon: 'lock', title: 'Authentication', body: 'Create a key and sign your first request.', tone: 'brand' },
+  {
+    icon: 'lock',
+    title: 'Authentication',
+    body: 'Create a key and sign your first request.',
+    tone: 'brand',
+    href: EXTERNAL.signup,
+    external: true,
+  },
   {
     icon: 'bullhorn',
     title: 'Campaigns',
     body: 'Create, schedule and monitor multi-channel sends.',
     tone: 'violet',
+    href: ROUTES.emailSms,
   },
-  { icon: 'user', title: 'Contacts', body: 'Sync contacts, segments and consent state.', tone: 'green' },
+  {
+    icon: 'user',
+    title: 'Contacts',
+    body: 'Sync contacts, segments and consent state.',
+    tone: 'green',
+    href: ROUTES.analytics,
+  },
   {
     icon: 'cart-shopping',
     title: 'Commerce',
     body: 'Products, orders and checkout events in FlowShop.',
     tone: 'orange',
+    href: ROUTES.flowshop,
   },
-  { icon: 'tag', title: 'Listings', body: 'Manage locations, hours and review replies.', tone: 'brand' },
-  { icon: 'phone', title: 'Call Agent', body: 'Place calls and read transcripts and outcomes.', tone: 'violet' },
+  {
+    icon: 'tag',
+    title: 'Listings',
+    body: 'Manage locations, hours and review replies.',
+    tone: 'brand',
+    href: ROUTES.listsmartly,
+  },
+  {
+    icon: 'phone',
+    title: 'Call Agent',
+    body: 'Place calls and read transcripts and outcomes.',
+    tone: 'violet',
+    href: ROUTES.callAgent,
+  },
 ];
 
 type Sdk = { monogram: string; title: string; install: string; tone: Tone; bullets: string[] };
@@ -267,16 +306,35 @@ const SDKS: Sdk[] = [
   },
 ];
 
-const RESPONSE_SAMPLE = [
-  '{',
-  '  "data": [',
-  '    { "id": "con_18fa2", "name": "Marcus Lee" },',
-  '    { "id": "con_18fb7", "name": "Dana Ruiz" }',
-  '  ],',
-  '  "page": 1,',
-  '  "has_more": true',
-  '}',
+const SAMPLE_RECORDS = [
+  '{ "id": "con_18fa2", "name": "Marcus Lee" }',
+  '{ "id": "con_18fb7", "name": "Dana Ruiz" }',
 ];
+
+/**
+ * The sample response is built from whatever the explorer's parameters say, so
+ * the two panels cannot disagree. It is a shape illustration — it does not call
+ * the API — and it stays honest by echoing the request rather than inventing a
+ * result count.
+ */
+function responseSample(limit: string, page: string): string[] {
+  const toInt = (value: string, fallback: number) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  };
+  const take = Math.min(toInt(limit, 0), SAMPLE_RECORDS.length);
+  const shown = SAMPLE_RECORDS.slice(0, take);
+  return [
+    '{',
+    shown.length === 0 ? '  "data": [],' : '  "data": [',
+    ...shown.map((record, index) => `    ${record}${index < shown.length - 1 ? ',' : ''}`),
+    ...(shown.length === 0 ? [] : ['  ],']),
+    `  "page": ${toInt(page, 1)},`,
+    `  "limit": ${toInt(limit, 0)},`,
+    '  "has_more": true',
+    '}',
+  ];
+}
 
 type Webhook = { event: string; body: string; tone: Tone };
 
@@ -344,7 +402,9 @@ function SectionHead({ label, title, body }: { label: string; title: string; bod
   return (
     <Reveal style={styles.head} distance={14}>
       <SectionLabel>{label}</SectionLabel>
-      <Text style={styles.headTitle}>{title}</Text>
+      <Heading level={2} style={styles.headTitle}>
+        {title}
+      </Heading>
       {body ? <Text style={styles.headBody}>{body}</Text> : null}
     </Reveal>
   );
@@ -363,14 +423,53 @@ function Bullet({ children, tone = 'brand' }: { children: string; tone?: Tone })
   );
 }
 
-function LinkRow({ label, tone = 'brand' }: { label: string; tone?: Tone }) {
+function LinkRow({
+  label,
+  tone = 'brand',
+  href,
+  external,
+  trackId,
+}: {
+  label: string;
+  tone?: Tone;
+  href: string;
+  /** the destination lives outside this app */
+  external?: boolean;
+  trackId: string;
+}) {
   const styles = useStyles();
   const t = useTokens();
+  const color = accent(t, tone);
+  const body = (
+    <>
+      <Text style={[styles.linkText, { color }]}>{label}</Text>
+      <FontAwesome6 name="arrow-right" size={12} color={color} />
+    </>
+  );
+
+  if (external) {
+    return (
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={label}
+        onPress={() => {
+          trackCta(trackId, { variant: 'link', destination: href });
+          Linking.openURL(href).catch(() => undefined);
+        }}
+        style={({ pressed }) => [styles.linkRow, pressed ? styles.pressed : null]}>
+        {body}
+      </Pressable>
+    );
+  }
+
   return (
-    <View style={styles.linkRow}>
-      <Text style={[styles.linkText, { color: accent(t, tone) }]}>{label}</Text>
-      <FontAwesome6 name="arrow-right" size={12} color={accent(t, tone)} />
-    </View>
+    <Link
+      href={href as never}
+      accessibilityRole="link"
+      accessibilityLabel={label}
+      style={styles.linkRowAnchor as never}>
+      {body}
+    </Link>
   );
 }
 
@@ -508,14 +607,34 @@ function Hero() {
     <Section style={[styles.heroSection, l.isStacked ? styles.stackColumn : styles.rowSection]}>
       <Reveal style={l.isStacked ? styles.fullColumn : styles.heroCopy} distance={16}>
         <SectionLabel>API DOCS</SectionLabel>
-        <Text style={styles.heroTitle}>Build on the FlowSmartly platform.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          Build on the FlowSmartly platform.
+        </Heading>
         <Text style={styles.heroBody}>
           Power conversations, campaigns, and commerce with our reliable, secure, and developer-friendly
           APIs.
         </Text>
         <ButtonRow>
-          <PrimaryButton label="Start building" icon="arrow-right" iconRight full={l.isPhone} />
-          <SecondaryButton label="API reference" icon="code" full={l.isPhone} />
+          <PrimaryButton
+            label="Start building"
+            icon="arrow-right"
+            iconRight
+            full={l.isPhone}
+            trackId="api.hero.start-building"
+            onPress={() => {
+              Linking.openURL(EXTERNAL.signup).catch(() => undefined);
+            }}
+          />
+          {/* The SDKs are the reference that actually exists today. */}
+          <SecondaryButton
+            label="SDKs on GitHub"
+            icon="code"
+            full={l.isPhone}
+            trackId="api.hero.github"
+            onPress={() => {
+              Linking.openURL(EXTERNAL.github).catch(() => undefined);
+            }}
+          />
         </ButtonRow>
 
         <View style={styles.featureGrid}>
@@ -568,7 +687,13 @@ function Quickstarts() {
               <Text style={styles.cardTitle}>{item.title}</Text>
               <Text style={styles.cardBody}>{item.body}</Text>
               <View style={styles.cardSpacer} />
-              <LinkRow label="Get started" tone={item.tone} />
+              <LinkRow
+                label="Get started"
+                tone={item.tone}
+                href={item.href}
+                external={item.external}
+                trackId={`api.quickstart.${item.title.toLowerCase().replace(/\s+/g, '-')}`}
+              />
             </Card>
           </Reveal>
         ))}
@@ -617,7 +742,13 @@ function Sdks() {
                 ))}
               </View>
               <View style={styles.cardSpacer} />
-              <LinkRow label="View on GitHub" tone={sdk.tone} />
+              <LinkRow
+                label="View on GitHub"
+                tone={sdk.tone}
+                href={EXTERNAL.github}
+                external
+                trackId={`api.sdk.${sdk.monogram.toLowerCase()}`}
+              />
             </Card>
           </Reveal>
         ))}
@@ -651,9 +782,12 @@ function ExplorerPanel() {
         <Text style={styles.requestPath} numberOfLines={1}>
           /v1/contacts
         </Text>
-        <Pressable accessibilityRole="button" style={styles.tryButton}>
+        {/* Illustration, not a control: nothing here calls the API, so this is
+            a View. A button that looks live and silently does nothing is worse
+            than a static mock. */}
+        <View style={styles.tryButton}>
           <Text style={styles.tryButtonText}>Try it</Text>
-        </Pressable>
+        </View>
       </View>
 
       <View style={styles.tabRow}>
@@ -695,7 +829,7 @@ function ExplorerPanel() {
         </View>
       ) : (
         <View style={[styles.responseBlock, { backgroundColor: ink.bg, borderColor: ink.border }]}>
-          <CodeLines lines={RESPONSE_SAMPLE} />
+          <CodeLines lines={responseSample(limit, page)} />
         </View>
       )}
     </Card>
@@ -819,6 +953,7 @@ function SecurityAndLimits() {
 function Closing() {
   const styles = useStyles();
   const l = useLayout();
+  const router = useRouter();
 
   return (
     <Section style={styles.closing}>
@@ -828,14 +963,33 @@ function Closing() {
         <View style={styles.centerSelf}>
           <SectionLabel>GET STARTED</SectionLabel>
         </View>
-        <Text style={styles.closingTitle}>Ready to build?</Text>
+        <Heading level={2} style={styles.closingTitle}>
+          Ready to build?
+        </Heading>
         <Text style={styles.closingBody}>
           Create a key, send your first request, and ship the integration your customers have been asking
           for.
         </Text>
         <ButtonRow>
-          <PrimaryButton label="Start building" icon="arrow-right" iconRight size="lg" full={l.isPhone} />
-          <SecondaryButton label="View API reference" icon="code" size="lg" full={l.isPhone} />
+          <PrimaryButton
+            label="Start building"
+            icon="arrow-right"
+            iconRight
+            size="lg"
+            full={l.isPhone}
+            trackId="api.closing.start-building"
+            onPress={() => {
+              Linking.openURL(EXTERNAL.signup).catch(() => undefined);
+            }}
+          />
+          <SecondaryButton
+            label="Talk to our team"
+            icon="headset"
+            size="lg"
+            full={l.isPhone}
+            trackId="api.closing.support"
+            onPress={() => router.push(contactHref('support', { about: 'api' }) as never)}
+          />
         </ButtonRow>
       </Reveal>
     </Section>
@@ -851,7 +1005,14 @@ export default function ApiDocsPage() {
     <PageShell
       title="API Docs"
       description="Build on the FlowSmartly platform — REST APIs, SDKs and webhooks for conversations, campaigns and commerce."
-      cta={false}>
+      cta={false}
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Resources', path: ROUTES.resources },
+          { name: 'API Docs', path: ROUTES.apiDocs },
+        ]),
+      ]}>
       <Hero />
       <Quickstarts />
       <Sdks />
@@ -1018,7 +1179,17 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     cardSpacer: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minHeight: 4 },
 
     linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 26 },
+    /** the same row as an anchor — RNW anchors are inline unless told otherwise */
+    linkRowAnchor: {
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      minHeight: 26,
+      textDecorationLine: 'none',
+    },
     linkText: { ...type.bodySm, fontWeight: '700' },
+    pressed: { opacity: 0.86 },
 
     bullets: { gap: 9 },
     bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },

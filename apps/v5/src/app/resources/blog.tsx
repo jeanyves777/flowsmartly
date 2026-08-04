@@ -1,4 +1,5 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import { Link, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   Pressable,
@@ -11,14 +12,18 @@ import {
 } from 'react-native';
 import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
+import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
+  Heading,
   PrimaryButton,
   Section,
   SectionLabel,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -59,6 +64,20 @@ const TOPICS = [
 ] as const;
 
 type Topic = (typeof TOPICS)[number];
+
+/**
+ * Individual post pages do not exist in this app, so a post opens the product
+ * surface it is written about. That is a destination that exists — the
+ * alternative is a card that looks like a link and goes nowhere.
+ */
+const TOPIC_HREF: Record<Exclude<Topic, typeof ALL>, string> = {
+  'AI & Automation': ROUTES.flowAi,
+  Social: ROUTES.social,
+  Messaging: ROUTES.emailSms,
+  Commerce: ROUTES.flowshop,
+  'Local Growth': ROUTES.listsmartly,
+  Analytics: ROUTES.analytics,
+};
 
 type Post = {
   title: string;
@@ -141,6 +160,7 @@ const POSTS: Post[] = [
 ];
 
 const FEATURED = {
+  topic: 'Messaging' as Exclude<Topic, typeof ALL>,
   title: 'From conversations to customers: The modern playbook for growth',
   blurb:
     'Every channel now starts a conversation, and almost none of them finish one. This is how the teams that grow fastest carry a single thread from first message to repeat purchase — and what they automate along the way.',
@@ -210,7 +230,9 @@ function Hero({ topic, onTopic }: { topic: Topic; onTopic: (next: Topic) => void
     <Section style={styles.hero}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>BLOG</SectionLabel>
-        <Text style={styles.heroTitle}>Ideas and insights for smarter growth.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          Ideas and insights for smarter growth.
+        </Heading>
         <Text style={styles.heroBody}>
           Practical thinking on AI, messaging, commerce and local visibility — written by the team that
           builds FlowSmartly and the operators who use it every day.
@@ -242,6 +264,7 @@ function Hero({ topic, onTopic }: { topic: Topic; onTopic: (next: Topic) => void
 function Featured() {
   const styles = useStyles();
   const l = useLayout();
+  const router = useRouter();
 
   return (
     <Section>
@@ -252,7 +275,9 @@ function Featured() {
 
         <View style={styles.featuredCopy}>
           <TopicChip label="Featured" tone="orange" />
-          <Text style={styles.featuredTitle}>{FEATURED.title}</Text>
+          <Heading level={2} style={styles.featuredTitle}>
+            {FEATURED.title}
+          </Heading>
           <Text style={styles.featuredBlurb}>{FEATURED.blurb}</Text>
 
           <View style={styles.authorRow}>
@@ -275,7 +300,16 @@ function Featured() {
           <MetaRow date={FEATURED.date} read={FEATURED.read} />
 
           <View style={styles.featuredButton}>
-            <PrimaryButton label="Read the article" icon="arrow-right" iconRight full={l.isPhone} />
+            {/* No per-post page exists, so the CTA says where it really goes:
+                the messaging surface this piece is about. */}
+            <PrimaryButton
+              label={`Explore ${FEATURED.topic.toLowerCase()}`}
+              icon="arrow-right"
+              iconRight
+              full={l.isPhone}
+              trackId="blog.featured.explore"
+              onPress={() => router.push(TOPIC_HREF[FEATURED.topic] as never)}
+            />
           </View>
         </View>
       </Reveal>
@@ -302,7 +336,9 @@ function Archive({ topic }: { topic: Topic }) {
   return (
     <Section>
       <Reveal style={styles.head} distance={14}>
-        <Text style={styles.headTitle}>Latest articles</Text>
+        <Heading level={2} style={styles.headTitle}>
+          Latest articles
+        </Heading>
         <Text style={styles.headBody}>
           {`${visible.length} ${visible.length === 1 ? 'article' : 'articles'}${
             topic === ALL ? ' across every topic' : ` in ${topic}`
@@ -310,30 +346,45 @@ function Archive({ topic }: { topic: Topic }) {
         </Text>
       </Reveal>
 
-      <View style={styles.grid}>
-        {visible.map((post, index) => (
-          <Reveal
-            key={post.title}
-            delay={50 + index * 60}
-            distance={12}
-            style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
-            <View style={styles.postCard}>
-              <Media name={post.art} alt={post.alt} style={styles.postImage} radius={13} />
-              <View style={styles.postBody}>
-                <TopicChip label={post.topic} tone={post.tone} />
-                <Text style={styles.postTitle}>{post.title}</Text>
-                <Text style={styles.postBlurb}>{post.blurb}</Text>
-                <View style={styles.cardSpacer} />
-                <MetaRow date={post.date} read={post.read} />
-                <View style={styles.linkRow}>
-                  <Text style={[styles.linkText, { color: accent(t, post.tone) }]}>Read article</Text>
-                  <FontAwesome6 name="arrow-right" size={12} color={accent(t, post.tone)} />
+      {visible.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <FontAwesome6 name="newspaper" size={16} color={t.textSubtle} />
+          <Text style={styles.emptyText}>
+            {`Nothing published in ${topic} yet. Pick another topic above — new pieces land every week.`}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.grid}>
+          {visible.map((post, index) => (
+            <Reveal
+              key={post.title}
+              delay={50 + index * 60}
+              distance={12}
+              style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
+              <Link
+                href={TOPIC_HREF[post.topic] as never}
+                accessibilityRole="link"
+                accessibilityLabel={`${post.title} — more on ${post.topic}`}
+                style={styles.postCard as never}>
+                <Media name={post.art} alt={post.alt} style={styles.postImage} radius={13} />
+                <View style={styles.postBody}>
+                  <TopicChip label={post.topic} tone={post.tone} />
+                  <Text style={styles.postTitle}>{post.title}</Text>
+                  <Text style={styles.postBlurb}>{post.blurb}</Text>
+                  <View style={styles.cardSpacer} />
+                  <MetaRow date={post.date} read={post.read} />
+                  <View style={styles.linkRow}>
+                    <Text style={[styles.linkText, { color: accent(t, post.tone) }]}>
+                      {`More on ${post.topic}`}
+                    </Text>
+                    <FontAwesome6 name="arrow-right" size={12} color={accent(t, post.tone)} />
+                  </View>
                 </View>
-              </View>
-            </View>
-          </Reveal>
-        ))}
-      </View>
+              </Link>
+            </Reveal>
+          ))}
+        </View>
+      )}
     </Section>
   );
 }
@@ -342,6 +393,7 @@ function Newsletter() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const router = useRouter();
   const [email, setEmail] = useState('');
 
   return (
@@ -350,7 +402,9 @@ function Newsletter() {
         <View style={styles.newsletterIcon}>
           <FontAwesome6 name="envelope-open-text" size={22} color={t.brand} />
         </View>
-        <Text style={styles.newsletterTitle}>Stay ahead with smarter insights</Text>
+        <Heading level={2} style={styles.newsletterTitle}>
+          Stay ahead with smarter insights
+        </Heading>
         <Text style={styles.newsletterBody}>
           One email a month: the article worth reading, the tactic worth copying and the change worth
           knowing about.
@@ -371,7 +425,19 @@ function Newsletter() {
               style={styles.input}
             />
           </View>
-          <PrimaryButton label="Subscribe" full={l.isPhone} />
+          {/* No newsletter backend exists here, so Subscribe hands the address
+              to Contact with the topic pre-selected instead of faking a
+              confirmation. */}
+          <PrimaryButton
+            label="Subscribe"
+            full={l.isPhone}
+            trackId="blog.newsletter.subscribe"
+            onPress={() =>
+              router.push(
+                contactHref('updates', email.trim() ? { email: email.trim() } : undefined) as never,
+              )
+            }
+          />
         </View>
 
         <Text style={styles.newsletterProof}>Join 8,000+ growth-minded teams</Text>
@@ -391,7 +457,14 @@ export default function BlogPage() {
   return (
     <PageShell
       title="Blog"
-      description="Ideas and insights for smarter growth — AI, messaging, social, commerce, local visibility and analytics, from the team behind FlowSmartly.">
+      description="Ideas and insights for smarter growth — AI, messaging, social, commerce, local visibility and analytics, from the team behind FlowSmartly."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Resources', path: ROUTES.resources },
+          { name: 'Blog', path: ROUTES.blog },
+        ]),
+      ]}>
       <Hero topic={topic} onTopic={setTopic} />
       <Featured />
       <Archive topic={topic} />
@@ -491,7 +564,28 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     cell: { flexGrow: 0, flexShrink: 0, minWidth: 0, padding: cellPad },
 
     /* post cards --------------------------------------------------- */
-    postCard: { ...cardBase, flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
+    /** an anchor, so the flex context is spelled out — RNW anchors are inline */
+    postCard: {
+      ...cardBase,
+      display: 'flex',
+      flexDirection: 'column',
+      textDecorationLine: 'none',
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+    },
+    emptyCard: {
+      marginTop: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 18,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceMuted,
+    },
+    emptyText: { ...type.bodySm, color: t.textMuted, flexShrink: 1, minWidth: 0 },
     postBody: { padding: l.isPhone ? 15 : 17, gap: 9, flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },
     postTitle: { ...type.h4, color: t.text },
     postBlurb: { ...type.bodySm, color: t.textMuted },
@@ -510,7 +604,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     metaDot: { width: 3, height: 3, borderRadius: 2, backgroundColor: t.borderStrong },
 
     linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 32 },
-    linkText: { ...type.bodySm, fontWeight: '800' },
+    linkText: { ...type.bodySm, fontWeight: '800', flexShrink: 1, minWidth: 0 },
 
     /* newsletter --------------------------------------------------- */
     newsletter: { alignItems: 'center' },

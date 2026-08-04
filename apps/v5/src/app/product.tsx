@@ -1,14 +1,16 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { Link, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef } from 'react';
-import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Linking, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { ArrowLink, Connectors, ConnectorSurface, useConnectorField, type Link as Wire } from '@/components/public/connectors';
 import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -17,6 +19,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { EXTERNAL } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -410,15 +413,21 @@ export default function ProductPage() {
   return (
     <PageShell
       title="Product"
-      description="FlowSmartly brings content, campaigns, customer conversations, commerce, local visibility and analytics into one intelligent workspace.">
+      description="FlowSmartly brings content, campaigns, customer conversations, commerce, local visibility and analytics into one intelligent workspace."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Product', path: ROUTES.product },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={shell} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>THE CONNECTED GROWTH PLATFORM</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Everything you need to create, connect, sell, and grow.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               FlowSmartly brings content, campaigns, customer conversations, commerce, local
               visibility, and analytics into one intelligent workspace.
@@ -431,9 +440,19 @@ export default function ProductPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
+                  trackId="product.hero.start-free"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
+                />
+                {/* Was "Explore the platform", which had no destination other
+                    than the page it sits on. Pricing is the question a visitor
+                    reading this page actually has next. */}
+                <SecondaryButton
+                  label="See pricing"
+                  size="lg"
+                  full={l.isPhone}
+                  trackId="product.hero.see-pricing"
                   onPress={() => router.push(ROUTES.pricing as never)}
                 />
-                <SecondaryButton label="Explore the platform" size="lg" full={l.isPhone} />
               </ButtonRow>
             </View>
             <View style={styles.proofRow}>
@@ -460,7 +479,9 @@ export default function ProductPage() {
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>ONE WORKFLOW</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>One campaign. Every channel.</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            One campaign. Every channel.
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
             Write the brief once. FlowSmartly generates it, resizes it for every channel, waits for
             your approval, then reports on what it earned.
@@ -502,7 +523,9 @@ export default function ProductPage() {
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>THE PLATFORM</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>Six modules. One system of record.</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Six modules. One system of record.
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
             Use the one you need today. Every other module already knows about it.
           </Text>
@@ -538,7 +561,9 @@ export default function ProductPage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>CUSTOMER INTELLIGENCE</SectionLabel>
-            <Text style={[type.h2, styles.sectionTitle]}>Know every customer, not just every click.</Text>
+            <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+              Know every customer, not just every click.
+            </Heading>
             <Text style={[type.body, styles.splitBody]}>
               Channels report on themselves. FlowSmartly reports on the person — one record, one
               history, one recommended next move.
@@ -636,7 +661,9 @@ export default function ProductPage() {
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>SELL AND GET FOUND</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>Two ways customers reach you.</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Two ways customers reach you.
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
             One place to sell, one place to be discovered — both feeding the same customer record.
           </Text>
@@ -675,7 +702,9 @@ export default function ProductPage() {
       <Section>
         <View style={styles.sectionHead}>
           <SectionLabel>HOW WE OPERATE</SectionLabel>
-          <Text style={[type.h2, styles.sectionTitle]}>Built on trust.</Text>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            Built on trust.
+          </Heading>
           <Text style={[type.body, styles.sectionSub]}>
             Automation only helps if the people on the other end still want to hear from you.
           </Text>

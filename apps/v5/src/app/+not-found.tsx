@@ -5,8 +5,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -97,16 +99,19 @@ export default function NotFoundScreen() {
 
   return (
     <PageShell
+      noIndex
       title="Page not found"
-      description="That page moved, or never existed. Here is the way back into FlowSmartly."
-      cta={false}>
+      description="That page moved, or never existed. Here is the way back into FlowSmartly — product, pricing, Flow.AI, FlowLearner, the help center and contact."
+      cta={false}
+      jsonLd={[breadcrumbJsonLd([{ name: 'Home', path: ROUTES.home }])]}>
       <Section style={styles.hero}>
         <Reveal style={styles.heroInner} distance={16}>
           <SectionLabel>PAGE NOT FOUND</SectionLabel>
-          <Text style={styles.code} accessibilityRole="header">
-            404
-          </Text>
-          <Text style={styles.title}>This page moved, or never existed.</Text>
+          {/* decorative figure — the sentence below it is the page's heading */}
+          <Text style={styles.code}>404</Text>
+          <Heading level={1} style={styles.title}>
+            This page moved, or never existed.
+          </Heading>
           <Text style={styles.body}>
             The link may be out of date, or the address may have a typo in it. Nothing is broken on your
             side — here is the way back in.
@@ -118,6 +123,7 @@ export default function NotFoundScreen() {
                 size="lg"
                 icon="house"
                 full={l.isPhone}
+                trackId="404.hero.home"
                 onPress={() => router.push(ROUTES.home as never)}
               />
               <SecondaryButton
@@ -125,6 +131,7 @@ export default function NotFoundScreen() {
                 size="lg"
                 icon="magnifying-glass"
                 full={l.isPhone}
+                trackId="404.hero.help-center"
                 onPress={() => router.push(ROUTES.helpCenter as never)}
               />
             </ButtonRow>
@@ -134,7 +141,9 @@ export default function NotFoundScreen() {
 
       <Section>
         <Reveal style={styles.head} distance={14}>
-          <Text style={styles.headTitle}>Popular destinations</Text>
+          <Heading level={2} style={styles.headTitle}>
+            Popular destinations
+          </Heading>
           <Text style={styles.headBody}>Six places most people were looking for when they landed here.</Text>
         </Reveal>
 

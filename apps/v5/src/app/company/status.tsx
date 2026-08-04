@@ -1,10 +1,14 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, TextInput, View, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, Text, TextInput, View, type ViewStyle } from 'react-native';
 import { Reveal } from '@/components/public/motion';
+import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -12,6 +16,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -197,6 +202,16 @@ const MAINTENANCE = {
 
 type Styles = ReturnType<typeof createStyles>;
 
+/**
+ * In-page navigation. `nativeID` becomes a real DOM id on web, so an anchor CTA
+ * moves the visitor to a section that genuinely exists rather than doing
+ * nothing. On native there is nothing to scroll to, so it is a no-op.
+ */
+function scrollToId(id: string) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function useStyles(): Styles {
   const t = useTokens();
   const l = useLayout();
@@ -213,7 +228,9 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
   return (
     <Reveal style={styles.head} distance={14}>
       {label ? <SectionLabel>{label}</SectionLabel> : null}
-      <Text style={styles.headTitle}>{title}</Text>
+      <Heading level={2} style={styles.headTitle}>
+        {title}
+      </Heading>
       {body ? <Text style={styles.headBody}>{body}</Text> : null}
     </Reveal>
   );
@@ -275,12 +292,15 @@ function Hero() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const router = useRouter();
 
   return (
     <Section style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>SYSTEM STATUS</SectionLabel>
-        <Text style={styles.heroTitle}>Platform status.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          Platform status.
+        </Heading>
         <Text style={styles.heroBody}>
           Every FlowSmartly service, the last 90 days of availability, and every incident we have opened
           and closed — written out in full rather than summarised into a single green dot.
@@ -293,13 +313,27 @@ function Hero() {
             <View style={styles.bannerDot} />
           </View>
           <View style={styles.bannerCopy}>
-            <Text style={styles.bannerTitle}>All systems operational</Text>
+            <Heading level={2} style={styles.bannerTitle}>
+              All systems operational
+            </Heading>
             <Text style={styles.bannerMeta}>Last checked {LAST_CHECKED}</Text>
           </View>
           <View style={styles.bannerButtons}>
             <ButtonRow>
-              <PrimaryButton label="Subscribe to updates" icon="bell" full={l.isPhone} />
-              <SecondaryButton label="View incident history" icon="clock-rotate-left" full={l.isPhone} />
+              <PrimaryButton
+                label="Subscribe to updates"
+                icon="bell"
+                full={l.isPhone}
+                trackId="status.banner.subscribe"
+                onPress={() => router.push(contactHref('updates') as never)}
+              />
+              <SecondaryButton
+                label="View incident history"
+                icon="clock-rotate-left"
+                full={l.isPhone}
+                trackId="status.banner.incident-history"
+                onPress={() => scrollToId('incident-history')}
+              />
             </ButtonRow>
           </View>
         </View>
@@ -523,7 +557,18 @@ function Subscribe() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const router = useRouter();
   const [email, setEmail] = useState('');
+
+  /**
+   * There is no notification backend yet, so "Subscribe" carries the address the
+   * visitor typed through to Contact with the updates topic preselected — a real
+   * destination, rather than a success state we cannot honour.
+   */
+  const subscribe = () => {
+    const trimmed = email.trim();
+    router.push(contactHref('updates', trimmed ? { email: trimmed } : undefined) as never);
+  };
 
   return (
     <Section style={styles.subscribe}>
@@ -531,7 +576,9 @@ function Subscribe() {
         <View style={styles.subscribeIcon}>
           <FontAwesome6 name="bell" size={22} color={t.brand} />
         </View>
-        <Text style={styles.subscribeTitle}>Get told before your customers do</Text>
+        <Heading level={2} style={styles.subscribeTitle}>
+          Get told before your customers do
+        </Heading>
         <Text style={styles.subscribeBody}>
           One email when an incident opens, one when it closes, and one a week before any planned
           maintenance. Nothing else.
@@ -549,10 +596,16 @@ function Subscribe() {
               inputMode="email"
               autoCapitalize="none"
               returnKeyType="done"
+              onSubmitEditing={subscribe}
               style={styles.input}
             />
           </View>
-          <PrimaryButton label="Subscribe" full={l.isPhone} />
+          <PrimaryButton
+            label="Subscribe"
+            full={l.isPhone}
+            trackId="status.subscribe.submit"
+            onPress={subscribe}
+          />
         </View>
 
         <Text style={styles.subscribeFine}>
@@ -571,11 +624,19 @@ export default function StatusPage() {
   return (
     <PageShell
       title="Status"
-      description="Platform status for every FlowSmartly service, with 90 days of availability history, recent incidents and scheduled maintenance.">
+      description="Platform status for every FlowSmartly service, with 90 days of availability history, recent incidents and scheduled maintenance."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Status', path: ROUTES.status },
+        ]),
+      ]}>
       <Hero />
       <Components />
       <UptimeTiles />
-      <Incidents />
+      <View nativeID="incident-history">
+        <Incidents />
+      </View>
       <Maintenance />
       <Subscribe />
     </PageShell>

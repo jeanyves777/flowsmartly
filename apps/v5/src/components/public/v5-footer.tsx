@@ -1,21 +1,23 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { Fragment, useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { ArrowLink } from '@/components/public/connectors';
 import { FOOTER_GROUPS, LEGAL_LINKS, ROUTES } from '@/components/public/nav';
 import { Animated, Reveal, Stagger, useCountUp, useGrowIn } from '@/components/public/motion';
 import {
+  Heading,
   PrimaryButton,
   SecondaryButton,
   SectionLabel,
   useSectionShell,
   useTypeScale,
 } from '@/components/public/ui';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { brandColor, elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -51,6 +53,18 @@ const integrations = [
   ['stripe', 'Stripe', '#635bff'],
   ['shopify', 'Shopify', '#72a942'],
   ['wordpress', 'WordPress', '#21759b'],
+] as const;
+
+/**
+ * The social profiles we actually publish — the same list the Organization
+ * JSON-LD claims as `sameAs`. The integration shelf above is a list of channels
+ * the product connects to, not places FlowSmartly posts, so it is not reused
+ * here: a tile that opens nothing is worse than one fewer tile.
+ */
+const socialProfiles = [
+  ['instagram', 'FlowSmartly on Instagram', '#e1306c', 'https://www.instagram.com/flowsmartly'],
+  ['linkedin-in', 'FlowSmartly on LinkedIn', '#0a66c2', 'https://www.linkedin.com/company/flowsmartly'],
+  ['youtube', 'FlowSmartly on YouTube', '#ff0000', 'https://www.youtube.com/@flowsmartly'],
 ] as const;
 
 const metrics = [
@@ -125,6 +139,10 @@ function useFooterStyles() {
  * A brand glyph on an explicit tile. Official logo colours only stay correct on
  * a surface we control, and near-black marks (TikTok) are swapped for the
  * foreground colour on dark themes.
+ *
+ * Without an `onPress` it renders as a plain View: the integration shelf's
+ * tiles are illustration, and a tile that looks tappable but does nothing is
+ * worse than one that plainly does not.
  */
 function BrandTile({
   icon,
@@ -141,13 +159,25 @@ function BrandTile({
 }) {
   const t = useTokens();
   const styles = useFooterStyles();
+  const glyph = (
+    <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={brandColor(color, t)} />
+  );
+
+  if (!onPress) {
+    return (
+      <View accessibilityLabel={label} style={[styles.brandTile, { width: size, height: size }]}>
+        {glyph}
+      </View>
+    );
+  }
+
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole="link"
       accessibilityLabel={label}
       onPress={onPress}
       style={({ pressed }) => [styles.brandTile, { width: size, height: size, opacity: pressed ? 0.7 : 1 }]}>
-      <FontAwesome6 name={icon as never} size={Math.round(size * 0.42)} color={brandColor(color, t)} />
+      {glyph}
     </Pressable>
   );
 }
@@ -263,6 +293,7 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
   const type = useTypeScale();
   const shell = useSectionShell();
   const styles = useFooterStyles();
+  const router = useRouter();
 
   // On phone the 34px arrow cell + its gaps ate ~42px of a ~294px table, which
   // pushed "One customer view" past two lines and made that row taller than the
@@ -281,9 +312,9 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
         <View style={styles.labelCenter}>
           <SectionLabel>OUTCOMES THAT MATTER</SectionLabel>
         </View>
-        <Text style={[type.display, styles.outcomesHeadingText]}>
+        <Heading level={2} style={[type.display, styles.outcomesHeadingText]}>
           One connected growth stack. Real business outcomes.
-        </Text>
+        </Heading>
         <Text style={[type.body, styles.outcomesSub]}>
           See how connected signals, approved actions, and consistent follow-through compound into
           measurable growth.
@@ -377,6 +408,8 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
             iconRight
             size="md"
             full={l.isPhone}
+            trackId="footer.outcomes.customer-stories"
+            onPress={() => router.push(ROUTES.customers as never)}
           />
         </View>
       </Reveal>
@@ -392,17 +425,25 @@ export function IntegrationShelf() {
   const type = useTypeScale();
   const shell = useSectionShell();
   const styles = useFooterStyles();
+  const router = useRouter();
   return (
     <View style={shell}>
       <View style={styles.shelfHeader}>
         <View style={styles.shelfHeaderCopy}>
           <SectionLabel>INTEGRATIONS</SectionLabel>
-          <Text style={[type.h1, styles.shelfHeading]}>Connect the channels you already use.</Text>
+          <Heading level={2} style={[type.h1, styles.shelfHeading]}>
+            Connect the channels you already use.
+          </Heading>
           <Text style={[type.body, styles.shelfSub]}>
             Your data stays connected. Your workflow stays in one place.
           </Text>
         </View>
-        <SecondaryButton label="View integrations" size="md" />
+        <SecondaryButton
+          label="View integrations"
+          size="md"
+          trackId="footer.shelf.view-integrations"
+          onPress={() => router.push(ROUTES.integrations as never)}
+        />
       </View>
       <View style={styles.integrationRow}>
         {integrations.map(([icon, label, color]) => (
@@ -427,11 +468,16 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
   const type = useTypeScale();
   const shell = useSectionShell();
   const styles = useFooterStyles();
+  // The product lives outside this app, so signup is the honest default for
+  // every plan CTA unless the host page overrides it.
+  const startFree = onStartFree ?? (() => Linking.openURL(EXTERNAL.signup));
   return (
     <View style={shell}>
       <Reveal>
         <SectionLabel>PRICING</SectionLabel>
-        <Text style={[type.h1, styles.shelfHeading]}>Start lean. Scale when growth demands it.</Text>
+        <Heading level={2} style={[type.h1, styles.shelfHeading]}>
+          Start lean. Scale when growth demands it.
+        </Heading>
       </Reveal>
       <View style={styles.planRow}>
         {/* Not <Stagger>: the featured card carries its own style and its own
@@ -471,7 +517,8 @@ export function PricingShelf({ onStartFree }: Pick<V5PublicFooterProps, 'onStart
               label={plan.price === 'Free' ? 'Start free' : `Choose ${plan.name}`}
               size="sm"
               full
-              onPress={onStartFree}
+              trackId={`footer.pricing.${plan.name.toLowerCase()}`}
+              onPress={startFree}
             />
           </Reveal>
         ))}
@@ -529,6 +576,12 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
   const l = useLayout();
   const type = useTypeScale();
   const styles = useFooterStyles();
+  const router = useRouter();
+  // Defaults, so the site-wide CTA works on every page rather than only on the
+  // ones that remember to pass handlers. There is no demo video: a demo is a
+  // conversation, so it goes to Contact with the topic preselected.
+  const startFree = onStartFree ?? (() => Linking.openURL(EXTERNAL.signup));
+  const bookDemo = onBookDemo ?? (() => router.push(contactHref('demo') as never));
   // Sized to clear the action panel that sits over the banner's right side, so
   // the signature still reads as a corner mark rather than a sliver.
   const signature = l.isPhone
@@ -555,14 +608,28 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
           <View style={styles.ctaSpark}>
             <FontAwesome6 name="wand-magic-sparkles" size={l.isPhone ? 22 : 26} color={t.textOnBrand} />
           </View>
-          <Text style={[type.h2, styles.ctaTitle]}>Ready to turn every signal into growth?</Text>
+          <Heading level={2} style={[type.h2, styles.ctaTitle]}>
+            Ready to turn every signal into growth?
+          </Heading>
           <Text style={[type.body, styles.ctaBody]}>
             Start with one campaign. FlowSmartly connects what happens next.
           </Text>
         </View>
         <View style={styles.ctaPanel}>
-          <PrimaryButton label="Start growing free" size="md" full onPress={onStartFree} />
-          <SecondaryButton label="Book a demo" size="md" full onPress={onBookDemo} />
+          <PrimaryButton
+            label="Start growing free"
+            size="md"
+            full
+            trackId="footer.cta.start-free"
+            onPress={startFree}
+          />
+          <SecondaryButton
+            label="Book a demo"
+            size="md"
+            full
+            trackId="footer.cta.book-demo"
+            onPress={bookDemo}
+          />
           <Text style={[type.caption, styles.ctaProof]}>
             No credit card • Human-approved AI • Upgrade anytime
           </Text>
@@ -580,7 +647,6 @@ export function FooterNavigation() {
   const type = useTypeScale();
   const shell = useSectionShell();
   const styles = useFooterStyles();
-  const socials = integrations.slice(0, 6);
   return (
     <View style={[shell, styles.navigation]}>
       <View style={styles.brandColumn}>
@@ -592,8 +658,15 @@ export function FooterNavigation() {
         />
         <Text style={[type.bodySm, styles.tagline]}>Create, sell, and grow with AI.</Text>
         <View style={styles.socials}>
-          {socials.map(([icon, label, color]) => (
-            <BrandTile key={label} icon={icon} color={color} size={44} label={label} />
+          {socialProfiles.map(([icon, label, color, url]) => (
+            <BrandTile
+              key={label}
+              icon={icon}
+              color={color}
+              size={44}
+              label={label}
+              onPress={() => Linking.openURL(url)}
+            />
           ))}
         </View>
       </View>

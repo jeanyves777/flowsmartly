@@ -1,4 +1,5 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import { Link, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   Pressable,
@@ -10,9 +11,12 @@ import {
 } from 'react-native';
 import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
+import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -20,6 +24,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -246,15 +251,24 @@ function TopicChip({ label, tone }: { label: string; tone: Tone }) {
   );
 }
 
-function DownloadLink({ tone }: { tone: Tone }) {
+/**
+ * The guides are not downloadable files on this site yet, so "Download" opens
+ * Contact with the request — and the guide — already filled in. A real
+ * destination beats a button that quietly does nothing.
+ */
+function DownloadLink({ tone, guide }: { tone: Tone; guide: string }) {
   const styles = useStyles();
   const t = useTokens();
   const color = accent(t, tone);
   return (
-    <View style={styles.linkRow}>
+    <Link
+      href={contactHref('guide', { guide }) as never}
+      accessibilityRole="link"
+      accessibilityLabel={`Request the guide: ${guide}`}
+      style={styles.linkRow as never}>
       <FontAwesome6 name="download" size={12} color={color} />
       <Text style={[styles.linkText, { color }]}>Download</Text>
-    </View>
+    </Link>
   );
 }
 
@@ -265,6 +279,7 @@ function DownloadLink({ tone }: { tone: Tone }) {
 function Hero() {
   const styles = useStyles();
   const l = useLayout();
+  const router = useRouter();
 
   return (
     <Section style={styles.heroSection}>
@@ -273,14 +288,31 @@ function Hero() {
           <SectionLabel>GUIDES</SectionLabel>
           <Text style={styles.eyebrowNote}>Actionable playbooks from growth experts</Text>
         </View>
-        <Text style={styles.heroTitle}>Practical playbooks for every growth stage.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          Practical playbooks for every growth stage.
+        </Heading>
         <Text style={styles.heroBody}>
           Step-by-step guides written by operators who have done the work — positioning, demand,
           conversion, retention and the systems that hold it all together.
         </Text>
         <ButtonRow>
-          <PrimaryButton label="Explore all guides" size="lg" icon="arrow-right" iconRight full={l.isPhone} />
-          <SecondaryButton label="Subscribe for updates" size="lg" icon="envelope" full={l.isPhone} />
+          <PrimaryButton
+            label="Request the Growth Playbook"
+            size="lg"
+            icon="arrow-right"
+            iconRight
+            full={l.isPhone}
+            trackId="guides.hero.playbook"
+            onPress={() => router.push(contactHref('guide', { guide: 'growth-playbook' }) as never)}
+          />
+          <SecondaryButton
+            label="Subscribe for updates"
+            size="lg"
+            icon="envelope"
+            full={l.isPhone}
+            trackId="guides.hero.updates"
+            onPress={() => router.push(contactHref('updates') as never)}
+          />
         </ButtonRow>
       </Reveal>
 
@@ -300,15 +332,16 @@ function FeaturedGuide() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const router = useRouter();
 
   return (
     <Section>
       <Reveal style={styles.featuredRow} distance={16}>
         <View style={styles.featuredCopy}>
           <TopicChip label="Featured guide" tone="orange" />
-          <Text style={styles.featuredTitle}>
+          <Heading level={2} style={styles.featuredTitle}>
             The Growth Playbook: From First Customers to Predictable Revenue
-          </Text>
+          </Heading>
           <Text style={styles.featuredBlurb}>
             The whole arc in one place — how the first hundred customers become a repeatable motion, and
             what to automate at each step so the team never outgrows the process.
@@ -332,8 +365,23 @@ function FeaturedGuide() {
 
           <View style={styles.featuredButtons}>
             <ButtonRow>
-              <PrimaryButton label="Download guide" icon="download" full={l.isPhone} />
-              <SecondaryButton label="Preview guide" icon="play" full={l.isPhone} />
+              <PrimaryButton
+                label="Download guide"
+                icon="download"
+                full={l.isPhone}
+                trackId="guides.featured.download"
+                onPress={() => router.push(contactHref('guide', { guide: 'growth-playbook' }) as never)}
+              />
+              {/* The playbook "includes templates", and those do have a page —
+                  so the second CTA points at something real instead of opening
+                  a preview that does not exist. */}
+              <SecondaryButton
+                label="See the templates"
+                icon="file-lines"
+                full={l.isPhone}
+                trackId="guides.featured.templates"
+                onPress={() => router.push(ROUTES.templates as never)}
+              />
             </ButtonRow>
           </View>
         </View>
@@ -374,7 +422,9 @@ function Library() {
   return (
     <Section>
       <Reveal style={styles.head} distance={14}>
-        <Text style={styles.headTitle}>Browse the library</Text>
+        <Heading level={2} style={styles.headTitle}>
+          Browse the library
+        </Heading>
         <Text style={styles.headBody}>
           Every guide is self-contained: read it once, keep the templates, run it with your own numbers.
         </Text>
@@ -435,7 +485,7 @@ function Library() {
                   <Text style={styles.guideBlurb}>{guide.blurb}</Text>
                   <View style={styles.cardSpacer} />
                   <Text style={styles.guideRead}>{guide.read}</Text>
-                  <DownloadLink tone={guide.tone} />
+                  <DownloadLink tone={guide.tone} guide={guide.title} />
                 </View>
               </View>
             </Reveal>
@@ -456,7 +506,9 @@ function Paths() {
     <Section>
       <Reveal style={styles.head} distance={14}>
         <SectionLabel>LEARNING PATHS</SectionLabel>
-        <Text style={styles.headTitle}>Follow a path. Reach your next milestone.</Text>
+        <Heading level={2} style={styles.headTitle}>
+          Follow a path. Reach your next milestone.
+        </Heading>
         <Text style={styles.headBody}>
           Each path stacks four guides in the order they actually pay off, so you are never reading the
           retention chapter before you have demand.
@@ -486,12 +538,16 @@ function Paths() {
               </View>
 
               <View style={styles.cardSpacer} />
-              <View style={styles.linkRow}>
+              <Link
+                href={contactHref('guide', { path: path.name }) as never}
+                accessibilityRole="link"
+                accessibilityLabel={`Explore the ${path.name} path`}
+                style={styles.linkRow as never}>
                 <Text style={[styles.linkText, { color: accent(t, path.tone) }]}>
                   {`Explore the ${path.name} path`}
                 </Text>
                 <FontAwesome6 name="arrow-right" size={12} color={accent(t, path.tone)} />
-              </View>
+              </Link>
             </View>
           </Reveal>
         ))}
@@ -503,12 +559,15 @@ function Paths() {
 function Closing() {
   const styles = useStyles();
   const l = useLayout();
+  const router = useRouter();
 
   return (
     <Section style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <IconTile icon="compass" tone="brand" size={54} />
-        <Text style={styles.closingTitle}>Need something more specific?</Text>
+        <Heading level={2} style={styles.closingTitle}>
+          Need something more specific?
+        </Heading>
         <Text style={styles.closingBody}>
           We are here to help. Tell us what you are working on and we will point you at the playbook that
           fits — or write the one that does not exist yet.
@@ -519,6 +578,8 @@ function Closing() {
           icon="arrow-right"
           iconRight
           full={l.isPhone}
+          trackId="guides.closing.recommendations"
+          onPress={() => router.push(contactHref('guide') as never)}
         />
       </Reveal>
     </Section>
@@ -533,7 +594,14 @@ export default function GuidesPage() {
   return (
     <PageShell
       title="Guides"
-      description="Practical playbooks for every growth stage — positioning, demand, conversion, retention and the systems that hold them together.">
+      description="Practical playbooks for every growth stage — positioning, demand, conversion, retention and the systems that hold them together."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Resources', path: ROUTES.resources },
+          { name: 'Guides', path: ROUTES.guides },
+        ]),
+      ]}>
       <Hero />
       <FeaturedGuide />
       <Library />
@@ -706,7 +774,15 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     topicChip: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
     topicChipText: { ...type.micro, fontWeight: '800' },
 
-    linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 32 },
+    /** rendered as an anchor: RNW anchors are inline unless told otherwise */
+    linkRow: {
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      minHeight: 32,
+      textDecorationLine: 'none',
+    },
     linkText: { ...type.bodySm, fontWeight: '800', flexShrink: 1, minWidth: 0 },
 
     emptyCard: {

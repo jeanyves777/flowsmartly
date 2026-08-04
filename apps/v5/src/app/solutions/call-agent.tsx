@@ -2,6 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo } from 'react';
 import {
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -23,8 +24,10 @@ import { Media } from '@/components/public/media';
 import { Animated, Reveal, useCountUp, useReducedMotion } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -33,6 +36,8 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { trackCta } from '@/lib/analytics';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -489,15 +494,22 @@ export default function CallAgentPage() {
   return (
     <PageShell
       title="Call Agent"
-      description="An AI voice agent that answers every call, books appointments, qualifies leads, takes orders and hands over to a human the moment it should.">
+      description="An AI voice agent that answers every call, books appointments, qualifies leads, takes orders and hands over to a human the moment it should."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Solutions', path: ROUTES.solutions },
+          { name: 'Call Agent', path: ROUTES.callAgent },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={shell} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>AI VOICE THAT WORKS FOR YOUR BUSINESS</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Never miss a call—or the opportunity behind it.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               A voice agent that picks up on the first ring, understands what the caller wants, does
               it, and writes the whole thing back into your customer record.
@@ -510,9 +522,17 @@ export default function CallAgentPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="call-agent.hero.build"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
-                <SecondaryButton label="Hear a demo" size="lg" icon="play" full={l.isPhone} />
+                <SecondaryButton
+                  label="Hear a demo"
+                  size="lg"
+                  icon="play"
+                  full={l.isPhone}
+                  trackId="call-agent.hero.hear-demo"
+                  onPress={() => router.push(contactHref('demo') as never)}
+                />
               </ButtonRow>
             </View>
             <View style={styles.proofRow}>
@@ -609,23 +629,20 @@ export default function CallAgentPage() {
                 </View>
               </View>
 
+              {/* The console's control bar is part of the mockup — it illustrates
+                  the live-call surface and is deliberately not interactive. */}
               <View style={styles.controlRow}>
                 {CALL_CONTROLS.map((control) => (
-                  <Pressable
+                  <View
                     key={control.key}
-                    accessibilityRole="button"
                     accessibilityLabel={control.label}
-                    style={({ pressed }) => [
-                      styles.controlButton,
-                      control.danger ? styles.controlDanger : null,
-                      pressed ? styles.pressed : null,
-                    ]}>
+                    style={[styles.controlButton, control.danger ? styles.controlDanger : null]}>
                     <FontAwesome6
                       name={control.icon as never}
                       size={14}
                       color={control.danger ? t.textOnBrand : t.textMuted}
                     />
-                  </Pressable>
+                  </View>
                 ))}
               </View>
             </View>
@@ -637,7 +654,7 @@ export default function CallAgentPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>ONE AGENT, MANY JOBS</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>One AI call agent. Many ways to help.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>One AI call agent. Many ways to help.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Start with the job that hurts most today. The same agent can take on the next one without
             being rebuilt.
@@ -667,7 +684,7 @@ export default function CallAgentPage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SET IT UP IN AN AFTERNOON</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>Configure your agent. Your way.</Text>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>Configure your agent. Your way.</Heading>
             <Text style={[type.body, styles.blockBody]}>
               Five decisions and it is working. Change any of them later and the change is live on the
               next call.
@@ -737,7 +754,7 @@ export default function CallAgentPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>IT SHOULD SOUND LIKE YOU</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Natural voices. Real conversations.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Natural voices. Real conversations.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Voices that pause, breathe and let a caller interrupt — because the fastest way to lose
             someone is to sound like a menu.
@@ -770,9 +787,15 @@ export default function CallAgentPage() {
                     ) : null}
                   </View>
                   <Text style={styles.voiceBody}>{voice.description}</Text>
+                  {/* No voice samples are hosted here, so this asks for a demo
+                      rather than faking a player. */}
                   <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Play a sample of the ${voice.name} voice`}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Hear a sample of the ${voice.name} voice`}
+                    onPress={() => {
+                      trackCta(`call-agent.voices.${voice.key}.hear-sample`);
+                      router.push(contactHref('demo') as never);
+                    }}
                     style={({ pressed }) => [styles.voiceButton, pressed ? styles.pressed : null]}>
                     <FontAwesome6 name="play" size={10} color={t.brand} />
                     <Text style={styles.voiceButtonText}>Hear a sample</Text>
@@ -796,8 +819,12 @@ export default function CallAgentPage() {
               </Text>
             </View>
             <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Clone your voice"
+              accessibilityRole="link"
+              accessibilityLabel="Clone your voice — start free"
+              onPress={() => {
+                trackCta('call-agent.voices.clone-your-voice');
+                Linking.openURL(EXTERNAL.signup);
+              }}
               style={({ pressed }) => [styles.cloneButton, pressed ? styles.pressed : null]}>
               <Text style={styles.cloneButtonText}>Clone your voice</Text>
               <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
@@ -810,7 +837,7 @@ export default function CallAgentPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>BOTH DIRECTIONS</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Inbound and outbound, same agent.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Inbound and outbound, same agent.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Answering is half the job. The other half is calling back before the lead has moved on.
           </Text>
@@ -846,7 +873,7 @@ export default function CallAgentPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHAT IT ACTUALLY DOES</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Four things it does on every shift.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Four things it does on every shift.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Not a chatbot reading a script — an agent with access to your calendar, your CRM, your
             catalogue and your policies.
@@ -1018,9 +1045,9 @@ export default function CallAgentPage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>AFTER THE CALL</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>
               Real-time transcript, summary and the actions to take.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.blockBody]}>
               Nobody listens back to recordings. The agent writes the call up while it is still
               happening, and turns what it heard into fields you can act on.
@@ -1082,7 +1109,7 @@ export default function CallAgentPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>IT PLUGS INTO YOUR STACK</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Works seamlessly with your tools.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Works seamlessly with your tools.</Heading>
           <Text style={[type.body, styles.headSub]}>
             The agent reads and writes where your team already works, so a call never becomes a note
             somebody has to retype.
@@ -1107,7 +1134,7 @@ export default function CallAgentPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE PARTS THAT MATTER</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>A person is always one sentence away.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>A person is always one sentence away.</Heading>
           <Text style={[type.body, styles.headSub]}>
             An agent that answers your phone represents you. These are the controls that keep it
             trustworthy.
@@ -1136,7 +1163,7 @@ export default function CallAgentPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>MEASURED LIKE ANY CHANNEL</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Performance at a glance.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Performance at a glance.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Twelve months of a single agent at a busy studio — answered, booked, qualified and handed
             over.
@@ -1192,7 +1219,7 @@ export default function CallAgentPage() {
         <View style={styles.priceRow}>
           <Reveal style={styles.priceCopy} distance={16}>
             <SectionLabel>TRANSPARENT PRICING</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>Fifteen cents a minute. That is the price.</Text>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>Fifteen cents a minute. That is the price.</Heading>
             <Text style={[type.body, styles.blockBody]}>
               No seat fees, no setup fee, no premium tier to unlock the useful parts. You pay for the
               time the agent spends talking to your customers.
@@ -1251,7 +1278,8 @@ export default function CallAgentPage() {
                   full
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="call-agent.pricing.build"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
               </View>
             </View>

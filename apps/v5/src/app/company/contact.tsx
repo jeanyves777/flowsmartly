@@ -1,6 +1,9 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { useMemo, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -9,18 +12,32 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { Reveal } from '@/components/public/motion';
+import { breadcrumbJsonLd, faqJsonLd } from '@/components/public/seo';
 import {
+  Heading,
   PrimaryButton,
   Section,
   SectionLabel,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { CONTACT_TOPIC_LABEL, isContactTopic, type ContactTopic } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
+
+/**
+ * Where the form actually goes.
+ *
+ * There is no form backend in this app, and a button that pretends to submit —
+ * or silently does nothing — is worse than one that hands the message to the
+ * visitor's own mail client with everything already filled in. One constant, so
+ * pointing it at a real endpoint later is a single edit.
+ */
+const CONTACT_INBOX = 'hello@flowsmartly.com';
 
 /* ------------------------------------------------------------------ */
 /* content                                                             */
@@ -34,13 +51,21 @@ const PROMISES = [
 
 type Accent = 'brand' | 'violet' | 'orange';
 
-const HELP_CARDS: { icon: string; title: string; body: string; action: string; accent: Accent }[] = [
+const HELP_CARDS: {
+  icon: string;
+  title: string;
+  body: string;
+  action: string;
+  accent: Accent;
+  topic: ContactTopic;
+}[] = [
   {
     icon: 'chart-simple',
     title: 'Talk to Sales',
     body: 'Explore how FlowSmartly can drive growth for your team. Get a personalized demo and pricing details.',
     action: 'Contact Sales',
     accent: 'brand',
+    topic: 'sales',
   },
   {
     icon: 'headset',
@@ -48,6 +73,7 @@ const HELP_CARDS: { icon: string; title: string; body: string; action: string; a
     body: 'Need help with your account or have a technical question? Our support team is here for you.',
     action: 'Contact Support',
     accent: 'violet',
+    topic: 'support',
   },
   {
     icon: 'handshake',
@@ -55,6 +81,7 @@ const HELP_CARDS: { icon: string; title: string; body: string; action: string; a
     body: "Interested in partnering with FlowSmartly? Let's build something great together.",
     action: 'Contact Partnerships',
     accent: 'orange',
+    topic: 'partnership',
   },
 ];
 
@@ -144,16 +171,19 @@ function AccentButton({
   color,
   styles,
   t,
+  onPress,
 }: {
   label: string;
   color: string;
   styles: Styles;
   t: ThemeTokens;
+  onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      onPress={onPress}
       style={({ pressed }) => [styles.accentButton, { backgroundColor: color, opacity: pressed ? 0.88 : 1 }]}>
       <Text style={[styles.accentButtonLabel, { color: t.textOnBrand }]} numberOfLines={1}>
         {label}
@@ -212,29 +242,87 @@ export default function ContactPage() {
   const type = useTypeScale();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
 
+  /**
+   * Contact is the destination for every CTA the site cannot yet deliver on —
+   * a demo, a download, a newsletter signup. Reading the topic back out is what
+   * makes those honest destinations rather than dead ends: the visitor lands
+   * with the reason they clicked already written into the form.
+   */
+  const params = useLocalSearchParams<{ topic?: string; email?: string }>();
+  const requestedTopic = Array.isArray(params.topic) ? params.topic[0] : params.topic;
+  const requestedEmail = Array.isArray(params.email) ? params.email[0] : params.email;
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
   const [teamSize, setTeamSize] = useState('');
-  const [topic, setTopic] = useState('');
+  const [topic, setTopic] = useState(
+    isContactTopic(requestedTopic) ? CONTACT_TOPIC_LABEL[requestedTopic] : '',
+  );
   const [message, setMessage] = useState('');
   const [consent, setConsent] = useState(false);
   const [openFaq, setOpenFaq] = useState<string | null>(FAQ[0].q);
 
+  // The initial state above covers the first render (including the static one);
+  // this catches a client-side navigation that changes the query on the page
+  // the visitor is already looking at.
+  useEffect(() => {
+    if (isContactTopic(requestedTopic)) setTopic(CONTACT_TOPIC_LABEL[requestedTopic]);
+  }, [requestedTopic]);
+
+  useEffect(() => {
+    if (requestedEmail) setEmail(requestedEmail);
+  }, [requestedEmail]);
+
   const accentOf = (accent: Accent) =>
     accent === 'violet' ? t.violet : accent === 'orange' ? t.orange : t.brand;
+
+  /** Hands the finished message to the visitor's own mail client. */
+  const sendMessage = () => {
+    const subject = topic.trim() || 'Website enquiry';
+    const body = [
+      message.trim(),
+      '',
+      '—',
+      name.trim() ? `Name: ${name.trim()}` : null,
+      email.trim() ? `Email: ${email.trim()}` : null,
+      company.trim() ? `Company: ${company.trim()}` : null,
+      teamSize.trim() ? `Team size: ${teamSize.trim()}` : null,
+      consent ? 'Happy to be contacted about this enquiry.' : null,
+    ]
+      .filter((line) => line !== null)
+      .join('\n');
+    Linking.openURL(
+      `mailto:${CONTACT_INBOX}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`,
+    );
+  };
+
+  const focusForm = (nextTopic: ContactTopic) => {
+    setTopic(CONTACT_TOPIC_LABEL[nextTopic]);
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.getElementById('contact-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
   return (
     <PageShell
       title="Contact"
-      description="Talk to FlowSmartly about sales, support or partnerships — real people, fast answers."
-      cta={false}>
+      description="Talk to FlowSmartly about sales, support or partnerships — real people, real answers, published response times and no sales pressure."
+      cta={false}
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Contact', path: ROUTES.contact },
+        ]),
+        faqJsonLd(FAQ.map((item) => ({ question: item.q, answer: item.a }))),
+      ]}>
       {/* ------------------------------------------------ hero + form */}
       <Section>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>CONTACT US</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>Let&apos;s talk about your growth.</Text>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
+              Let&apos;s talk about your growth.
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Whether you have a question, need a demo, or want to explore how FlowSmartly can help
               your team scale—we&apos;re here and ready to help.
@@ -252,8 +340,10 @@ export default function ContactPage() {
           </Reveal>
 
           <Reveal style={styles.formColumn} distance={16} delay={80}>
-            <View style={styles.formCard}>
-              <Text style={[type.h3, styles.formTitle]}>Send us a message</Text>
+            <View nativeID="contact-form" style={styles.formCard}>
+              <Heading level={2} style={[type.h3, styles.formTitle]}>
+                Send us a message
+              </Heading>
               <Text style={styles.formSub}>
                 Tell us what you need and the right person will pick it up.
               </Text>
@@ -333,10 +423,18 @@ export default function ContactPage() {
                 </Text>
               </Pressable>
 
-              <PrimaryButton label="Send message" icon="arrow-right" iconRight full />
+              <PrimaryButton
+                label="Send message"
+                icon="arrow-right"
+                iconRight
+                full
+                trackId="contact.form.send"
+                onPress={sendMessage}
+              />
 
               <Text style={styles.privacyNote}>
-                We only use what you send here to answer your question. No lists, no resale.
+                Sending opens your email app with this message ready to go to {CONTACT_INBOX}. We only
+                use what you send to answer your question — no lists, no resale.
               </Text>
             </View>
           </Reveal>
@@ -347,7 +445,9 @@ export default function ContactPage() {
       <Section>
         <View style={styles.helpHead}>
           <SectionLabel>WHERE TO START</SectionLabel>
-          <Text style={[type.h2, styles.helpTitle]}>How can we help?</Text>
+          <Heading level={2} style={[type.h2, styles.helpTitle]}>
+            How can we help?
+          </Heading>
           <Text style={[type.body, styles.helpSub]}>
             Three ways in. Pick the one that matches your question and you will land with the right
             team first time.
@@ -363,10 +463,18 @@ export default function ContactPage() {
                   <View style={[styles.helpIcon, { backgroundColor: softFill(accent, t) }]}>
                     <FontAwesome6 name={card.icon as never} size={19} color={accent} />
                   </View>
-                  <Text style={[type.h4, styles.helpCardTitle]}>{card.title}</Text>
+                  <Heading level={3} style={[type.h4, styles.helpCardTitle]}>
+                    {card.title}
+                  </Heading>
                   <Text style={styles.helpCardBody}>{card.body}</Text>
                   <View style={styles.helpCardSpacer} />
-                  <AccentButton label={card.action} color={accent} styles={styles} t={t} />
+                  <AccentButton
+                    label={card.action}
+                    color={accent}
+                    styles={styles}
+                    t={t}
+                    onPress={() => focusForm(card.topic)}
+                  />
                 </View>
               </Reveal>
             );
@@ -378,7 +486,9 @@ export default function ContactPage() {
       <Section>
         <View style={styles.closerRow}>
           <Reveal style={styles.closerColumn} distance={16}>
-            <Text style={[type.h2, styles.closerTitle]}>We&apos;re here—and we respond fast.</Text>
+            <Heading level={2} style={[type.h2, styles.closerTitle]}>
+              We&apos;re here—and we respond fast.
+            </Heading>
             <Text style={[type.body, styles.closerSub]}>
               Every message is read by a person. These are the windows we hold ourselves to on a
               normal business week.
@@ -417,7 +527,9 @@ export default function ContactPage() {
           </Reveal>
 
           <Reveal style={styles.closerColumn} distance={16} delay={80}>
-            <Text style={[type.h2, styles.closerTitle]}>Quick answers to common questions.</Text>
+            <Heading level={2} style={[type.h2, styles.closerTitle]}>
+              Quick answers to common questions.
+            </Heading>
             <Text style={[type.body, styles.closerSub]}>
               The things people ask before they write in.
             </Text>

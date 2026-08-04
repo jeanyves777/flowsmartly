@@ -1,7 +1,9 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useMemo } from 'react';
 import {
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,8 +17,10 @@ import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -25,6 +29,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -344,6 +349,36 @@ function BoardStroke({ width, color }: { width: number; color: string }) {
   );
 }
 
+/**
+ * The room-setup panel's "Go live" bar. It is part of the mockup — identical to
+ * the product's primary button, and deliberately without press behaviour.
+ */
+function MockGoLive({ label, icon, t }: { label: string; icon: string; t: ThemeTokens }) {
+  return (
+    <View
+      style={[
+        { width: '100%', minHeight: 48, borderRadius: 10, overflow: 'hidden' },
+        elevation(t, 1) as ViewStyle,
+      ]}>
+      <LinearGradient
+        colors={[t.gradient[0], t.gradient[1]]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          minHeight: 48,
+          paddingHorizontal: 22,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 9,
+        }}>
+        <FontAwesome6 name={icon as never} size={15} color={t.textOnBrand} />
+        <Text style={{ color: t.textOnBrand, fontSize: 15, fontWeight: '700' }}>{label}</Text>
+      </LinearGradient>
+    </View>
+  );
+}
+
 function StatTile({
   label,
   target,
@@ -390,15 +425,23 @@ export default function LiveRoomPage() {
   return (
     <PageShell
       title="Live Room"
-      description="Teach with video, whiteboard, co-hosts and audience participation — live drawing, polls, chat, Q&A, breakouts and recording, all in one room.">
+      description="Teach with video, whiteboard, co-hosts and audience participation — live drawing, polls, chat, Q&A, breakouts and recording, all in one room."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Solutions', path: ROUTES.solutions },
+          { name: 'FlowLearner', path: ROUTES.flowLearner },
+          { name: 'Live Room', path: ROUTES.liveRoom },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={shell} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>FLOWLEARNER · LIVE ROOM</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Teach with video, whiteboard, co-hosts, and audience participation.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Run interactive sessions where people actually take part — live drawing, polls, chat,
               Q&amp;A, breakouts, and recording.
@@ -411,9 +454,17 @@ export default function LiveRoomPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="live-room.hero.start-room"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
-                <SecondaryButton label="See a session" size="lg" icon="play" full={l.isPhone} />
+                <SecondaryButton
+                  label="See a session"
+                  size="lg"
+                  icon="play"
+                  full={l.isPhone}
+                  trackId="live-room.hero.see-a-session"
+                  onPress={() => router.push(contactHref('demo') as never)}
+                />
               </ButtonRow>
             </View>
             <View style={styles.proofRow}>
@@ -597,24 +648,24 @@ export default function LiveRoomPage() {
                 </View>
               </View>
 
+              {/* The room's control bar illustrates the live surface — it keeps
+                  the exact look but is not interactive on a marketing page. */}
               <View style={styles.controlBar}>
                 {CONTROLS.map((control) => (
-                  <Pressable
+                  <View
                     key={control.key}
-                    accessibilityRole="button"
                     accessibilityLabel={control.label}
-                    style={({ pressed }) => [
+                    style={[
                       styles.controlButton,
                       control.on ? styles.controlOn : null,
                       control.danger ? styles.controlDanger : null,
-                      pressed ? styles.pressed : null,
                     ]}>
                     <FontAwesome6
                       name={control.icon as never}
                       size={14}
                       color={control.danger ? t.textOnBrand : control.on ? t.brand : t.textMuted}
                     />
-                  </Pressable>
+                  </View>
                 ))}
               </View>
             </View>
@@ -626,7 +677,7 @@ export default function LiveRoomPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>PARTICIPATION, NOT ATTENDANCE</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Everyone participates, not just watches.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Everyone participates, not just watches.</Heading>
           <Text style={[type.body, styles.headSub]}>
             A session where only one person talks is a video. These are the four things that turn a
             room of viewers back into a class.
@@ -799,7 +850,7 @@ export default function LiveRoomPage() {
 
           <Reveal style={styles.splitCopy} distance={16} delay={90}>
             <SectionLabel>ONE SURFACE, SHARED</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>One whiteboard, many hands.</Text>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>One whiteboard, many hands.</Heading>
             <Text style={[type.body, styles.blockBody]}>
               The board is the room’s, not just yours — until you decide otherwise. Whatever the class
               builds together goes back into the lesson.
@@ -828,7 +879,7 @@ export default function LiveRoomPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHO CAN DO WHAT</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Co-hosts and moderation.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Co-hosts and moderation.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Teaching and running the room are two jobs. Hand the second one to someone else and set
             exactly how far it goes.
@@ -901,7 +952,7 @@ export default function LiveRoomPage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SMALL GROUPS, SAME SESSION</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>Breakout rooms.</Text>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>Breakout rooms.</Heading>
             <Text style={[type.body, styles.blockBody]}>
               Thirty people will not all speak in one room. Four groups of eight will — and you can be
               in any of them.
@@ -974,20 +1025,15 @@ export default function LiveRoomPage() {
                 })}
               </View>
 
+              {/* Breakout controls inside the mockup — illustration only. */}
               <View style={styles.breakoutFoot}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Auto-assign everyone to a room"
-                  style={({ pressed }) => [styles.ghostButton, pressed ? styles.pressed : null]}>
+                <View style={styles.ghostButton}>
                   <FontAwesome6 name="shuffle" size={11} color={t.brand} />
                   <Text style={styles.ghostButtonText}>Auto-assign</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Bring everyone back to the main room"
-                  style={({ pressed }) => [styles.solidButton, pressed ? styles.pressed : null]}>
+                </View>
+                <View style={styles.solidButton}>
                   <Text style={styles.solidButtonText}>Bring everyone back</Text>
-                </Pressable>
+                </View>
               </View>
             </View>
           </Reveal>
@@ -998,7 +1044,7 @@ export default function LiveRoomPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE SESSION OUTLIVES THE HOUR</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Recording and replay.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Recording and replay.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Whoever could not make it should still learn it. The recording arrives written up,
             chaptered and ready to reuse.
@@ -1074,13 +1120,10 @@ export default function LiveRoomPage() {
                       </Text>
                     </View>
                   )}
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Clip “${chapter.label}” into a lesson`}
-                    style={({ pressed }) => [styles.clipButton, pressed ? styles.pressed : null]}>
+                  <View style={styles.clipButton}>
                     <FontAwesome6 name="scissors" size={10} color={t.brand} />
                     <Text style={styles.clipButtonText}>Clip</Text>
-                  </Pressable>
+                  </View>
                 </View>
               ))}
             </View>
@@ -1093,7 +1136,7 @@ export default function LiveRoomPage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>DECIDED BEFORE ANYONE JOINS</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>Room setup you control.</Text>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>Room setup you control.</Heading>
             <Text style={[type.body, styles.blockBody]}>
               Every session starts from a setup you can see at a glance — and change mid-session
               without dropping a single person.
@@ -1149,13 +1192,9 @@ export default function LiveRoomPage() {
                 ))}
               </View>
 
+              {/* Part of the room-setup mockup, not a control. */}
               <View style={styles.goLiveButton}>
-                <PrimaryButton
-                  label="Go live"
-                  full
-                  icon="tower-broadcast"
-                  onPress={() => router.push(ROUTES.pricing as never)}
-                />
+                <MockGoLive label="Go live" icon="tower-broadcast" t={t} />
               </View>
             </View>
           </Reveal>
@@ -1166,9 +1205,9 @@ export default function LiveRoomPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>MEASURED WITHOUT ASKING</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
             Attendance and engagement captured automatically.
-          </Text>
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             No register, no follow-up survey. The room already knows who came, who took part and what
             they struggled with.
@@ -1235,7 +1274,7 @@ export default function LiveRoomPage() {
         <View style={styles.closeRow}>
           <Reveal style={styles.closeCopy} distance={16}>
             <SectionLabel>FLOWLEARNER · LIVE ROOM</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>Host your first session.</Text>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>Host your first session.</Heading>
             <Text style={[type.body, styles.blockBody]}>
               Open a room, send one link, and teach. Everything the session produces — the drawing,
               the answers, the recording — is waiting for you when it ends.
@@ -1248,12 +1287,14 @@ export default function LiveRoomPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="live-room.close.start-room"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 <SecondaryButton
                   label="Explore FlowLearner"
                   size="lg"
                   full={l.isPhone}
+                  trackId="live-room.close.explore-flowlearner"
                   onPress={() => router.push(ROUTES.flowLearner as never)}
                 />
               </ButtonRow>

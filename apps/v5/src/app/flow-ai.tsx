@@ -2,7 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { Fragment, useMemo } from 'react';
 import {
-  Pressable,
+  Linking,
   StyleSheet,
   Text,
   View,
@@ -14,8 +14,10 @@ import { ArrowLink } from '@/components/public/connectors';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -23,6 +25,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -285,17 +288,16 @@ function OpportunityRow({
         </View>
       )}
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Review: ${item.title}`}
-        style={({ pressed }) => [
-          styles.reviewButton,
-          wide ? null : styles.reviewButtonFull,
-          pressed ? styles.reviewButtonPressed : null,
-        ]}>
+      {/*
+        Mockup chrome. This card is a picture of the Flow.AI command centre —
+        there is no opportunity behind the row to review, so the control is a
+        View that merely looks like the real one. A button that invites a click
+        and does nothing is worse than a static illustration of one.
+      */}
+      <View style={[styles.reviewButton, wide ? null : styles.reviewButtonFull]}>
         <Text style={styles.reviewLabel}>Review</Text>
         <FontAwesome6 name="arrow-right" size={11} color={t.brand} />
-      </Pressable>
+      </View>
     </View>
   );
 }
@@ -355,15 +357,21 @@ export default function FlowAiPage() {
   return (
     <PageShell
       title="Flow.AI"
-      description="Flow.AI finds the opportunity and prepares the work. You stay in control — nothing launches without your approval.">
+      description="Flow.AI finds the opportunity and prepares the work across content, campaigns, calls and commerce. Nothing launches without your approval."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Flow.AI', path: ROUTES.flowAi },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Section>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>YOUR AI GROWTH OPERATOR</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Flow.AI finds the opportunity. You stay in control.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               One intelligent assistant that understands your content, customers, campaigns, calls,
               store, listings, and performance—then prepares the next best actions for approval.
@@ -374,9 +382,19 @@ export default function FlowAiPage() {
                   label="Try Flow.AI"
                   size="lg"
                   full={l.isPhone}
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="flow-ai.hero.try"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
-                <SecondaryButton label="Watch how it works" size="lg" icon="play" full={l.isPhone} />
+                {/* No walkthrough video exists — this books a real demo rather
+                    than opening a player with nothing behind it. */}
+                <SecondaryButton
+                  label="Watch how it works"
+                  size="lg"
+                  icon="play"
+                  full={l.isPhone}
+                  trackId="flow-ai.hero.watch-demo"
+                  onPress={() => router.push(contactHref('demo') as never)}
+                />
               </ButtonRow>
             </View>
             <View style={styles.proofRow}>
@@ -442,9 +460,9 @@ export default function FlowAiPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>ASK ANYTHING</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
             One conversation across your whole business.
-          </Text>
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             No dashboard hopping and no exports. Ask in your own words and Flow.AI answers from the
             same data it acts on.
@@ -469,9 +487,9 @@ export default function FlowAiPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
             From insight to impact—built for human control.
-          </Text>
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             Four steps, every time. The last one is always yours.
           </Text>
@@ -516,7 +534,9 @@ export default function FlowAiPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE TEAM</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Specialized agents. One intelligent team.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
+            Specialized agents. One intelligent team.
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             Each agent is expert in one part of your business. They share the same context, so their
             recommendations never contradict each other.
@@ -546,7 +566,9 @@ export default function FlowAiPage() {
         <View style={styles.contextRow}>
           <Reveal style={styles.contextCopy} distance={16}>
             <SectionLabel>GROUNDED IN YOUR DATA</SectionLabel>
-            <Text style={[type.h2, styles.contextTitle]}>AI that understands your business.</Text>
+            <Heading level={2} style={[type.h2, styles.contextTitle]}>
+              AI that understands your business.
+            </Heading>
             <Text style={[type.body, styles.contextBody]}>
               Generic AI writes generic work. Flow.AI is briefed on everything your account already
               knows — so what it prepares sounds like you and respects what your customers agreed to.
@@ -572,7 +594,9 @@ export default function FlowAiPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>GUARDRAILS</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>You&apos;re in control—always.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
+            You&apos;re in control—always.
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             Autonomy is a dial, not a switch. Every one of these settings is yours before a single
             agent runs.
@@ -639,9 +663,9 @@ export default function FlowAiPage() {
 
           <Reveal style={styles.briefCopy} distance={16} delay={80}>
             <SectionLabel>WHAT YOU GET</SectionLabel>
-            <Text style={[type.h2, styles.briefCopyTitle]}>
+            <Heading level={2} style={[type.h2, styles.briefCopyTitle]}>
               A growth operator that reports to you.
-            </Text>
+            </Heading>
             <View style={styles.benefitList}>
               {BENEFITS.map((benefit) => (
                 <View key={benefit} style={styles.benefitRow}>
@@ -657,11 +681,13 @@ export default function FlowAiPage() {
                 <PrimaryButton
                   label="Try Flow.AI"
                   full={l.isPhone}
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="flow-ai.briefing.try"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 <SecondaryButton
                   label="See the platform"
                   full={l.isPhone}
+                  trackId="flow-ai.briefing.see-platform"
                   onPress={() => router.push(ROUTES.product as never)}
                 />
               </ButtonRow>

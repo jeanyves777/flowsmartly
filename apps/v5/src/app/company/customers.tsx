@@ -2,6 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { Fragment, useMemo, useState } from 'react';
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -15,8 +16,10 @@ import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -24,6 +27,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -189,6 +193,16 @@ const OUTCOMES: Outcome[] = [
 
 type Styles = ReturnType<typeof createStyles>;
 
+/**
+ * In-page navigation. `nativeID` becomes a real DOM id on web, so an anchor CTA
+ * moves the visitor to a section that genuinely exists rather than doing
+ * nothing. On native there is nothing to scroll to, so it is a no-op.
+ */
+function scrollToId(id: string) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function useStyles(): Styles {
   const t = useTokens();
   const l = useLayout();
@@ -236,7 +250,9 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
   return (
     <Reveal style={styles.head} distance={14}>
       {label ? <SectionLabel>{label}</SectionLabel> : null}
-      <Text style={styles.headTitle}>{title}</Text>
+      <Heading level={2} style={styles.headTitle}>
+        {title}
+      </Heading>
       {body ? <Text style={styles.headBody}>{body}</Text> : null}
     </Reveal>
   );
@@ -296,19 +312,29 @@ function Hero() {
     <Section style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CUSTOMER STORIES</SectionLabel>
-        <Text style={styles.heroTitle}>Growth teams that run on FlowSmartly.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          Growth teams that run on FlowSmartly.
+        </Heading>
         <Text style={styles.heroBody}>
           Real businesses, real numbers. See how teams use FlowSmartly to attract customers, close
           more deals, and grow without adding headcount.
         </Text>
         <ButtonRow>
-          <PrimaryButton label="Read the stories" size="lg" icon="arrow-down" full={l.isPhone} />
+          <PrimaryButton
+            label="Read the stories"
+            size="lg"
+            icon="arrow-down"
+            full={l.isPhone}
+            trackId="customers.hero.read-stories"
+            onPress={() => scrollToId('customer-stories')}
+          />
           <SecondaryButton
             label="Talk to sales"
             size="lg"
             icon="headset"
             full={l.isPhone}
-            onPress={() => router.push(ROUTES.contact as never)}
+            trackId="customers.hero.talk-to-sales"
+            onPress={() => router.push(contactHref('sales') as never)}
           />
         </ButtonRow>
       </Reveal>
@@ -392,6 +418,21 @@ function Stories() {
           );
         })}
       </View>
+
+      <Text style={styles.resultCount}>
+        {`${visible.length} ${visible.length === 1 ? 'story' : 'stories'}${
+          industry === 'All' ? '' : ` in ${industry}`
+        }.`}
+      </Text>
+
+      {visible.length === 0 ? (
+        <View style={styles.emptyState}>
+          <FontAwesome6 name="folder-open" size={18} color={t.textSubtle} />
+          <Text style={styles.emptyText}>
+            {`No published stories in ${industry} yet. Pick another industry, or tell us about yours.`}
+          </Text>
+        </View>
+      ) : null}
 
       <View style={styles.grid}>
         {visible.map((story, index) => (
@@ -554,7 +595,9 @@ function AddYourStory() {
     <Section>
       <Reveal style={styles.closePanel} distance={14}>
         <IconTile icon="star" tone="orange" size={54} />
-        <Text style={styles.closeTitle}>Add your story</Text>
+        <Heading level={2} style={styles.closeTitle}>
+          Add your story
+        </Heading>
         <Text style={styles.closeBody}>
           If FlowSmartly moved a number you care about, we would like to write it up properly — with
           your team&apos;s words, your figures, and your approval before anything is published.
@@ -565,13 +608,15 @@ function AddYourStory() {
             icon="arrow-right"
             iconRight
             full={l.isPhone}
-            onPress={() => router.push(ROUTES.contact as never)}
+            trackId="customers.close.share-results"
+            onPress={() => router.push(contactHref('sales') as never)}
           />
           <SecondaryButton
             label="Talk to sales"
             icon="headset"
             full={l.isPhone}
-            onPress={() => router.push(ROUTES.contact as never)}
+            trackId="customers.close.talk-to-sales"
+            onPress={() => router.push(contactHref('sales') as never)}
           />
         </ButtonRow>
       </Reveal>
@@ -587,10 +632,18 @@ export default function CustomersPage() {
   return (
     <PageShell
       title="Customers"
-      description="Real businesses, real numbers. See how growth teams use FlowSmartly to attract customers, close more deals and grow without adding headcount.">
+      description="Real businesses, real numbers. See how growth teams use FlowSmartly to attract customers, close more deals and grow without adding headcount."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Customers', path: ROUTES.customers },
+        ]),
+      ]}>
       <Hero />
       <StatStrip />
-      <Stories />
+      <View nativeID="customer-stories">
+        <Stories />
+      </View>
       <PullQuote />
       <Outcomes />
       <ByTheNumbers />
@@ -711,6 +764,26 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     filterChipActive: { borderColor: t.brand, backgroundColor: t.brandSoft },
     filterChipText: { ...type.bodySm, color: t.textMuted, fontWeight: '700' },
     filterChipTextActive: { color: t.brand },
+    resultCount: { ...type.caption, color: t.textSubtle, fontWeight: '700', marginTop: 16 },
+    emptyState: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+      marginTop: 14,
+      padding: l.isPhone ? 15 : 18,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 14,
+      backgroundColor: t.surfaceMuted,
+    },
+    emptyText: {
+      ...type.bodySm,
+      color: t.textMuted,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minWidth: 0,
+    },
 
     storyCard: {
       borderWidth: 1,

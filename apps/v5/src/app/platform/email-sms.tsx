@@ -1,14 +1,17 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
-import { StyleSheet, Text, View, type ImageStyle, type ViewStyle } from 'react-native';
+import { Linking, StyleSheet, Text, View, type ImageStyle, type ViewStyle } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -338,7 +341,9 @@ function StepHead({
         </View>
         <SectionLabel>{eyebrow}</SectionLabel>
       </View>
-      <Text style={[type.h2, center ? styles.headTitleCentered : null]}>{title}</Text>
+      <Heading level={2} style={center ? [type.h2, styles.headTitleCentered] : type.h2}>
+        {title}
+      </Heading>
       <Text style={[type.body, center ? styles.headSubCentered : styles.headSub]}>{body}</Text>
     </View>
   );
@@ -531,15 +536,22 @@ export default function EmailSmsPage() {
   return (
     <PageShell
       title="Email + SMS"
-      description="Build campaigns and automated journeys for email, SMS and MMS — with segmentation, deliverability and consent handled for you.">
+      description="Build campaigns and automated journeys for email, SMS and MMS — with segmentation, deliverability and consent handled for you."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Product', path: ROUTES.product },
+          { name: 'Email + SMS', path: ROUTES.emailSms },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={shell} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>MESSAGING THAT REACHES PEOPLE</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Create smarter messages—and deliver them with confidence.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Design email and SMS campaigns, automate the journeys behind them, and know that what
               you send actually lands — with consent, quiet hours and deliverability built in.
@@ -550,9 +562,17 @@ export default function EmailSmsPage() {
                   label="Start free"
                   size="lg"
                   full={l.isPhone}
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="email-sms.hero.start-free"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
-                <SecondaryButton label="Watch a demo" size="lg" icon="play" full={l.isPhone} />
+                <SecondaryButton
+                  label="Watch a demo"
+                  size="lg"
+                  icon="play"
+                  full={l.isPhone}
+                  trackId="email-sms.hero.demo"
+                  onPress={() => router.push(contactHref('demo') as never)}
+                />
               </ButtonRow>
             </View>
             <View style={styles.proofRow}>

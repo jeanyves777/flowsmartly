@@ -2,6 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { Fragment, useMemo } from 'react';
 import {
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -16,8 +17,10 @@ import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -25,6 +28,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -504,15 +508,22 @@ export default function AgentMarketplacePage() {
   return (
     <PageShell
       title="Agent Marketplace"
-      description="Hire vetted growth experts inside FlowSmartly — matched to your account, working in your workspace, paid by milestone.">
+      description="Hire vetted growth experts inside FlowSmartly — matched to your account, working in your workspace, paid by milestone."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Solutions', path: ROUTES.solutions },
+          { name: 'Agent Marketplace', path: ROUTES.agentMarketplace },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Section>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>EXPERT HELP INSIDE YOUR WORKSPACE</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Hire trusted growth experts without leaving FlowSmartly.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Find a specialist who already knows the tools you use, agree the scope and milestones,
               and watch the work happen in the same workspace as everything else.
@@ -525,12 +536,14 @@ export default function AgentMarketplacePage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="agent-marketplace.hero.browse-agents"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 <SecondaryButton
                   label="Become an agent"
                   size="lg"
                   full={l.isPhone}
+                  trackId="agent-marketplace.hero.become-an-agent"
                   onPress={() => router.push(ROUTES.partners as never)}
                 />
               </ButtonRow>
@@ -587,7 +600,7 @@ export default function AgentMarketplacePage() {
       <Section>
         <View style={styles.headCentered}>
           <SectionLabel>BROWSE BY SERVICE</SectionLabel>
-          <Text style={[type.h2, styles.headTitleCentered]}>Start with the job to be done.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitleCentered]}>Start with the job to be done.</Heading>
           <Text style={[type.body, styles.headBodyCentered]}>
             Every expert is listed under the work they actually deliver, with the count of specialists
             available right now.
@@ -620,7 +633,7 @@ export default function AgentMarketplacePage() {
       <Section>
         <View style={styles.headCentered}>
           <SectionLabel>FEATURED GROWTH EXPERTS</SectionLabel>
-          <Text style={[type.h2, styles.headTitleCentered]}>People who have done this before.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitleCentered]}>People who have done this before.</Heading>
           <Text style={[type.body, styles.headBodyCentered]}>
             Ratings come only from completed engagements inside FlowSmartly, so what you read is what
             actually happened.
@@ -641,7 +654,7 @@ export default function AgentMarketplacePage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SMART MATCHING</SectionLabel>
-            <Text style={[type.h2, styles.headTitle]}>Smart matching for better outcomes.</Text>
+            <Heading level={2} style={[type.h2, styles.headTitle]}>Smart matching for better outcomes.</Heading>
             <Text style={[type.body, styles.headBody]}>
               A directory makes you do the work. Matching starts from your account and your goal, then
               puts the four or five people who fit in front of you.
@@ -730,7 +743,7 @@ export default function AgentMarketplacePage() {
       <Section>
         <View style={styles.headCentered}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
-          <Text style={[type.h2, styles.headTitleCentered]}>A better way to hire and collaborate.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitleCentered]}>A better way to hire and collaborate.</Heading>
           <Text style={[type.body, styles.headBodyCentered]}>
             Five steps from a vague need to a measured result — with no contracts to draft and no
             tools to buy.
@@ -775,7 +788,7 @@ export default function AgentMarketplacePage() {
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>SHARED WORKSPACE</SectionLabel>
-            <Text style={[type.h2, styles.headTitle]}>Work together in a shared workspace.</Text>
+            <Heading level={2} style={[type.h2, styles.headTitle]}>Work together in a shared workspace.</Heading>
             <Text style={[type.body, styles.headBody]}>
               No file-sharing links, no separate project tool, no logins handed out over email. The
               expert works next to you, on the account itself.
@@ -846,7 +859,7 @@ export default function AgentMarketplacePage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>PAYMENTS & SCOPE</SectionLabel>
-            <Text style={[type.h2, styles.headTitle]}>Milestone payments and transparent scope.</Text>
+            <Heading level={2} style={[type.h2, styles.headTitle]}>Milestone payments and transparent scope.</Heading>
             <Text style={[type.body, styles.headBody]}>
               You know the price before the work starts, and you pay for each piece as you accept it —
               not for an open-ended retainer nobody can measure.
@@ -932,9 +945,9 @@ export default function AgentMarketplacePage() {
       <Section>
         <View style={styles.headCentered}>
           <SectionLabel>PERFORMANCE REPORTING</SectionLabel>
-          <Text style={[type.h2, styles.headTitleCentered]}>
+          <Heading level={2} style={[type.h2, styles.headTitleCentered]}>
             Reporting tied to business results.
-          </Text>
+          </Heading>
           <Text style={[type.body, styles.headBodyCentered]}>
             Not a slide deck of impressions. The same numbers you use to run the business, before and
             after the engagement.
@@ -966,7 +979,7 @@ export default function AgentMarketplacePage() {
         <View style={styles.splitRowReverse}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>TRUST & SAFETY</SectionLabel>
-            <Text style={[type.h2, styles.headTitle]}>Trust, safety, and quality you can rely on.</Text>
+            <Heading level={2} style={[type.h2, styles.headTitle]}>Trust, safety, and quality you can rely on.</Heading>
             <Text style={[type.body, styles.headBody]}>
               Handing someone access to your marketing is a real decision. These are the guarantees
               that make it a reasonable one.
@@ -1054,7 +1067,7 @@ export default function AgentMarketplacePage() {
 
           <Reveal style={styles.joinCopy} distance={16} delay={80}>
             <SectionLabel>FOR EXPERTS</SectionLabel>
-            <Text style={[type.h2, styles.headTitle]}>Join our network of growth experts.</Text>
+            <Heading level={2} style={[type.h2, styles.headTitle]}>Join our network of growth experts.</Heading>
             <Text style={[type.body, styles.headBody]}>
               Spend your time on the work instead of chasing leads, writing proposals and following up
               on invoices. We bring the clients and handle the admin.
@@ -1074,12 +1087,14 @@ export default function AgentMarketplacePage() {
                 <PrimaryButton
                   label="Become an agent"
                   full={l.isPhone}
+                  trackId="agent-marketplace.experts.become-an-agent"
                   onPress={() => router.push(ROUTES.partners as never)}
                 />
                 <SecondaryButton
                   label="Talk to us"
                   full={l.isPhone}
-                  onPress={() => router.push(ROUTES.contact as never)}
+                  trackId="agent-marketplace.experts.talk-to-us"
+                  onPress={() => router.push(contactHref('partnership') as never)}
                 />
               </ButtonRow>
             </View>

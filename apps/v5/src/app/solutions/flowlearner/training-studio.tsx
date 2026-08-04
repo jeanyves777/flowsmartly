@@ -2,6 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 import {
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -15,8 +16,10 @@ import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -25,6 +28,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -516,15 +520,23 @@ export default function TrainingStudioPage() {
   return (
     <PageShell
       title="Training Studio"
-      description="Build presentations, lessons, activities and quizzes. Describe your topic and Flow.AI drafts the agenda, slides, teaching moments and assessments — then you shape every detail.">
+      description="Describe your topic and Flow.AI drafts the agenda, slides, teaching moments and quizzes for a lesson you can teach live, send to your team, or sell."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Solutions', path: ROUTES.solutions },
+          { name: 'FlowLearner', path: ROUTES.flowLearner },
+          { name: 'Training Studio', path: ROUTES.trainingStudio },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={shell} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
             <SectionLabel>FLOWLEARNER · TRAINING STUDIO</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Build presentations, lessons, activities, and quizzes.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Describe your topic and Flow.AI drafts the agenda, slides, teaching moments, and
               assessments — then you shape every detail.
@@ -537,9 +549,17 @@ export default function TrainingStudioPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="training-studio.hero.open-studio"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
-                <SecondaryButton label="Watch a build" size="lg" icon="play" full={l.isPhone} />
+                <SecondaryButton
+                  label="Watch a build"
+                  size="lg"
+                  icon="play"
+                  full={l.isPhone}
+                  trackId="training-studio.hero.watch-a-build"
+                  onPress={() => router.push(contactHref('demo') as never)}
+                />
               </ButtonRow>
             </View>
             <View style={styles.proofRow}>
@@ -761,7 +781,7 @@ export default function TrainingStudioPage() {
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>DRAFTED, NOT DECIDED</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>Plan with AI, keep control.</Text>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>Plan with AI, keep control.</Heading>
             <Text style={[type.body, styles.blockBody]}>
               The blank page is the hard part. Flow.AI writes a first plan you can argue with — and
               every line of it is yours to change.
@@ -819,20 +839,16 @@ export default function TrainingStudioPage() {
                 })}
               </View>
 
+              {/* Controls drawn inside the studio mockup — illustration, not
+                  working buttons on a marketing page. */}
               <View style={styles.planFoot}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Regenerate the plan"
-                  style={({ pressed }) => [styles.ghostButton, pressed ? styles.pressed : null]}>
+                <View style={styles.ghostButton}>
                   <FontAwesome6 name="rotate" size={11} color={t.brand} />
                   <Text style={styles.ghostButtonText}>Regenerate</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Keep this plan and start editing"
-                  style={({ pressed }) => [styles.solidButton, pressed ? styles.pressed : null]}>
+                </View>
+                <View style={styles.solidButton}>
                   <Text style={styles.solidButtonText}>Keep and edit</Text>
-                </Pressable>
+                </View>
               </View>
             </View>
           </Reveal>
@@ -843,7 +859,7 @@ export default function TrainingStudioPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>THE SHAPE OF A GOOD LESSON</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Seven teaching moments, every lesson.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Seven teaching moments, every lesson.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Slides alone do not teach. Every lesson is built from the seven moments that make
             something stick — and the studio drafts all seven for you.
@@ -972,7 +988,7 @@ export default function TrainingStudioPage() {
 
           <Reveal style={styles.splitCopy} distance={16} delay={90}>
             <SectionLabel>A BOARD, NOT A DECK</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>Draw live, not just slides.</Text>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>Draw live, not just slides.</Heading>
             <Text style={[type.body, styles.blockBody]}>
               The moment an idea gets drawn instead of listed, people follow it. Every slide is also a
               board you can draw on — before, during and after the session.
@@ -1001,9 +1017,9 @@ export default function TrainingStudioPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>PROVE IT LANDED</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
             Activities and quizzes that prove understanding.
-          </Text>
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             Attendance is not learning. Every lesson can ask the room to do something, and score what
             comes back.
@@ -1148,7 +1164,7 @@ export default function TrainingStudioPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>SHOW, DO NOT TELL</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Bring in media that lands.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Bring in media that lands.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Four ways to put the real thing in front of people, all handled inside the lesson rather
             than in a folder somewhere.
@@ -1223,7 +1239,7 @@ export default function TrainingStudioPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>START FROM SOMETHING</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Templates for every training type.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Templates for every training type.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Each one arrives with the moments already placed and the quiz already written — for your
             business, not a generic sample.
@@ -1262,7 +1278,7 @@ export default function TrainingStudioPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>BUILT BY MORE THAN ONE PERSON</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>Version history and collaboration.</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>Version history and collaboration.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Write it together, comment where the wording matters, and go back to any earlier draft
             without asking who has the latest file.
@@ -1361,13 +1377,10 @@ export default function TrainingStudioPage() {
                         <Text style={styles.currentChipText}>Current</Text>
                       </View>
                     ) : (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={`Restore version: ${version.label}`}
-                        style={({ pressed }) => [styles.restoreButton, pressed ? styles.pressed : null]}>
+                      <View style={styles.restoreButton}>
                         <FontAwesome6 name="clock-rotate-left" size={10} color={t.brand} />
                         <Text style={styles.restoreText}>Restore</Text>
-                      </Pressable>
+                      </View>
                     )}
                   </View>
                 ))}
@@ -1389,7 +1402,7 @@ export default function TrainingStudioPage() {
         <View style={styles.closeRow}>
           <Reveal style={styles.closeCopy} distance={16}>
             <SectionLabel>FLOWLEARNER · TRAINING STUDIO</SectionLabel>
-            <Text style={[type.h2, styles.blockTitle]}>Ready to build your first lesson?</Text>
+            <Heading level={2} style={[type.h2, styles.blockTitle]}>Ready to build your first lesson?</Heading>
             <Text style={[type.body, styles.blockBody]}>
               Bring a topic and forty minutes. You will leave with a lesson you can teach live, send
               to your team, or sell as a course.
@@ -1402,12 +1415,14 @@ export default function TrainingStudioPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="training-studio.close.open-studio"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 <SecondaryButton
                   label="Explore FlowLearner"
                   size="lg"
                   full={l.isPhone}
+                  trackId="training-studio.close.explore-flowlearner"
                   onPress={() => router.push(ROUTES.flowLearner as never)}
                 />
               </ButtonRow>

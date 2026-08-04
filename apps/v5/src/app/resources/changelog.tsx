@@ -1,15 +1,20 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import { Link, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from 'react-native';
 import { Reveal } from '@/components/public/motion';
+import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
+  Heading,
   PrimaryButton,
   Section,
   SectionLabel,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -42,8 +47,12 @@ type Entry = {
   kind: Kind;
   title: string;
   lines: [string, string];
-  /** the change has a write-up worth linking to */
-  more?: boolean;
+  /**
+   * Where "Read more" goes. There is no per-release write-up in this app, so
+   * it points at the surface the change landed on — a real page rather than a
+   * link that does nothing.
+   */
+  more?: string;
 };
 
 const ENTRIES: Entry[] = [
@@ -56,7 +65,7 @@ const ENTRIES: Entry[] = [
       'Every Monday, Flow.AI writes up what moved last week and what it plans to do about it.',
       'Approve the plan, edit a step, or ignore it entirely — nothing runs without you.',
     ],
-    more: true,
+    more: ROUTES.flowAi,
   },
   {
     month: 'June 2024',
@@ -88,7 +97,7 @@ const ENTRIES: Entry[] = [
       'Every live session is captured with the whiteboard, the slides and the chat intact.',
       'The recording lands in the Learning Center as a lesson, ready to assign.',
     ],
-    more: true,
+    more: ROUTES.liveRoom,
   },
   {
     month: 'May 2024',
@@ -109,7 +118,7 @@ const ENTRIES: Entry[] = [
       'Drag every step of a journey into place and preview the whole thing before it sends.',
       'Conditions, waits and channel switches are all visible on one board.',
     ],
-    more: true,
+    more: ROUTES.emailSms,
   },
   {
     month: 'May 2024',
@@ -151,7 +160,7 @@ const ENTRIES: Entry[] = [
       'Set the click and view windows per channel instead of accepting one platform default.',
       'Every report states the window it used, so two dashboards can no longer disagree.',
     ],
-    more: true,
+    more: ROUTES.analytics,
   },
 
   {
@@ -196,15 +205,25 @@ function useStyles(): Styles {
 function Hero({ filter, onFilter }: { filter: Filter; onFilter: (next: Filter) => void }) {
   const styles = useStyles();
   const l = useLayout();
+  const router = useRouter();
 
   return (
     <Section style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>CHANGELOG</SectionLabel>
-        <Text style={styles.heroTitle}>What&apos;s new in FlowSmartly.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          What&apos;s new in FlowSmartly.
+        </Heading>
         <Text style={styles.heroBody}>Every meaningful change we ship, in plain language.</Text>
         <View style={styles.heroButtons}>
-          <PrimaryButton label="Subscribe to updates" size="lg" icon="bell" full={l.isPhone} />
+          <PrimaryButton
+            label="Subscribe to updates"
+            size="lg"
+            icon="bell"
+            full={l.isPhone}
+            trackId="changelog.hero.subscribe"
+            onPress={() => router.push(contactHref('updates') as never)}
+          />
         </View>
       </Reveal>
 
@@ -256,20 +275,32 @@ function Timeline({ filter }: { filter: Filter }) {
   return (
     <Section>
       <Reveal style={styles.head} distance={14}>
-        <Text style={styles.headTitle}>Release history</Text>
+        <Heading level={2} style={styles.headTitle}>
+          Release history
+        </Heading>
         <Text style={styles.headBody}>
-          {`${total} ${total === 1 ? 'change' : 'changes'}${
-            filter === ALL ? ' across the last four months' : ` tagged ${filter}`
-          }.`}
+          {total === 0
+            ? `Nothing tagged ${filter} in this window — try another tag.`
+            : `${total} ${total === 1 ? 'change' : 'changes'}${
+                filter === ALL ? ' across the last four months' : ` tagged ${filter}`
+              }.`}
         </Text>
       </Reveal>
 
-      {/*
+      {total === 0 ? (
+        <View style={styles.emptyCard}>
+          <FontAwesome6 name="code-branch" size={16} color={t.textSubtle} />
+          <Text style={styles.emptyText}>
+            {`No ${filter} entries in the releases shown here. Switch the tag above to see the rest of the history.`}
+          </Text>
+        </View>
+      ) : (
+      /*
         One rail, drawn once behind every marker, rather than a border per card
         — so it stays attached when the row reflows to the phone layout. It ends
         on the closing cap row, which is a fixed height, so the line never
         trails past the last entry.
-      */}
+      */
       <View style={styles.timeline}>
         <View style={styles.rail} />
 
@@ -312,13 +343,14 @@ function Timeline({ filter }: { filter: Filter }) {
                     <Text style={styles.entryLine}>{entry.lines[1]}</Text>
 
                     {entry.more ? (
-                      <Pressable
+                      <Link
+                        href={entry.more as never}
                         accessibilityRole="link"
                         accessibilityLabel={`Read more about ${entry.title}`}
-                        style={({ pressed }) => [styles.moreRow, pressed ? styles.pressed : null]}>
+                        style={styles.moreRow as never}>
                         <Text style={[styles.moreText, { color }]}>Read more</Text>
                         <FontAwesome6 name="arrow-right" size={12} color={color} />
-                      </Pressable>
+                      </Link>
                     ) : null}
                   </View>
                 </Reveal>
@@ -337,6 +369,7 @@ function Timeline({ filter }: { filter: Filter }) {
           </Text>
         </View>
       </View>
+      )}
     </Section>
   );
 }
@@ -345,6 +378,7 @@ function Subscribe() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const router = useRouter();
   const [email, setEmail] = useState('');
 
   return (
@@ -353,7 +387,9 @@ function Subscribe() {
         <View style={styles.subscribeIcon}>
           <FontAwesome6 name="bell" size={22} color={t.brand} />
         </View>
-        <Text style={styles.subscribeTitle}>Get the changelog by email</Text>
+        <Heading level={2} style={styles.subscribeTitle}>
+          Get the changelog by email
+        </Heading>
         <Text style={styles.subscribeBody}>
           One short note whenever something meaningful ships — what changed, why, and what you may want
           to turn on. Nothing else.
@@ -374,7 +410,18 @@ function Subscribe() {
               style={styles.input}
             />
           </View>
-          <PrimaryButton label="Subscribe" full={l.isPhone} />
+          {/* No mailing-list backend exists here, so Subscribe carries the
+              address to Contact with the topic pre-selected. */}
+          <PrimaryButton
+            label="Subscribe"
+            full={l.isPhone}
+            trackId="changelog.subscribe"
+            onPress={() =>
+              router.push(
+                contactHref('updates', email.trim() ? { email: email.trim() } : undefined) as never,
+              )
+            }
+          />
         </View>
 
         <Text style={styles.subscribeFine}>No spam. Unsubscribe anytime.</Text>
@@ -393,7 +440,14 @@ export default function ChangelogPage() {
   return (
     <PageShell
       title="Changelog"
-      description="Every meaningful change we ship to FlowSmartly, in plain language — new features, improvements and fixes across Flow.AI, Call Agent, FlowShop, ListSmartly, AI Studio, FlowLearner and Analytics.">
+      description="Every meaningful change we ship to FlowSmartly, in plain language — the new features, improvements and fixes of the last four months."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Resources', path: ROUTES.resources },
+          { name: 'Changelog', path: ROUTES.changelog },
+        ]),
+      ]}>
       <Hero filter={filter} onFilter={setFilter} />
       <Timeline filter={filter} />
       <Subscribe />
@@ -536,9 +590,30 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     entryDateInline: { ...type.micro, color: t.textSubtle, fontWeight: '800' },
     entryTitle: { ...type.h4, color: t.text },
     entryLine: { ...type.bodySm, color: t.textMuted },
-    moreRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, marginTop: 2 },
+    /** rendered as an anchor: RNW anchors are inline unless told otherwise */
+    moreRow: {
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      minHeight: 44,
+      marginTop: 2,
+      textDecorationLine: 'none',
+    },
     moreText: { ...type.bodySm, fontWeight: '800', flexShrink: 1, minWidth: 0 },
-    pressed: { opacity: 0.86 },
+
+    emptyCard: {
+      marginTop: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 18,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceMuted,
+    },
+    emptyText: { ...type.bodySm, color: t.textMuted, flexShrink: 1, minWidth: 0 },
 
     /* The cap row is a fixed height, which is what lets the absolute rail end
        exactly on its centre no matter how the label sizes. */

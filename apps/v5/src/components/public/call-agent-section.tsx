@@ -1,4 +1,5 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native';
 import {
@@ -9,11 +10,22 @@ import {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
+import { contactHref } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, type Layout, useLayout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { Animated, Reveal, useCountUp, useInView, useReducedMotion } from './motion';
-import { ButtonRow, PrimaryButton, SecondaryButton, Section, SectionLabel, type TypeScale, useTypeScale } from './ui';
+import { ROUTES } from './nav';
+import {
+  ButtonRow,
+  Heading,
+  PrimaryButton,
+  SecondaryButton,
+  Section,
+  SectionLabel,
+  type TypeScale,
+  useTypeScale,
+} from './ui';
 
 /* ------------------------------------------------------------------ */
 /* data                                                                */
@@ -145,6 +157,7 @@ export function CallAgentSection() {
   const type = useTypeScale();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const reduced = useReducedMotion();
+  const router = useRouter();
 
   /** copy above console below — the same 1120 threshold every feature section uses */
   const stacked = l.isStacked;
@@ -192,14 +205,33 @@ export function CallAgentSection() {
       {/* ---------------------------------------------------------- copy */}
       <Reveal style={stacked ? styles.columnFull : styles.copyColumn}>
         <SectionLabel>FLOWSMARTLY CALL AGENT</SectionLabel>
-        <Text style={styles.title}>Never miss a call—or the opportunity behind it.</Text>
+        <Heading level={2} style={styles.title}>
+          Never miss a call—or the opportunity behind it.
+        </Heading>
         <Text style={styles.body}>
           Deploy an AI voice agent that answers naturally, books appointments, qualifies leads, supports customers,
           takes orders, and follows up around the clock.
         </Text>
         <ButtonRow>
-          <PrimaryButton label="Build a call agent" icon="arrow-right" iconRight size="md" full={l.isPhone} />
-          <SecondaryButton label="Hear a demo" icon="play" size="md" full={l.isPhone} />
+          <PrimaryButton
+            label="Build a call agent"
+            icon="arrow-right"
+            iconRight
+            size="md"
+            full={l.isPhone}
+            trackId="home.call-agent.build"
+            onPress={() => router.push(ROUTES.callAgent as never)}
+          />
+          {/* No recording exists to play, so the demo is a real conversation with
+              us rather than a fake player. */}
+          <SecondaryButton
+            label="Hear a demo"
+            icon="headset"
+            size="md"
+            full={l.isPhone}
+            trackId="home.call-agent.hear-demo"
+            onPress={() => router.push(contactHref('demo') as never)}
+          />
         </ButtonRow>
         <Text style={styles.proof}>Human handoff • Call recording controls • Complete call logs</Text>
       </Reveal>

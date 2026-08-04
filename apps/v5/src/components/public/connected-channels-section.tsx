@@ -1,5 +1,6 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
@@ -15,7 +16,16 @@ import { useTokens } from '@/theme/v5-theme-provider';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { Connectors, ConnectorSurface, useConnectorField, type ConnectorField, type Link } from './connectors';
 import { Reveal } from './motion';
-import { ButtonRow, PrimaryButton, SecondaryButton, SectionLabel, useSectionShell, useTypeScale } from './ui';
+import { ROUTES } from './nav';
+import {
+  ButtonRow,
+  Heading,
+  PrimaryButton,
+  SecondaryButton,
+  SectionLabel,
+  useSectionShell,
+  useTypeScale,
+} from './ui';
 
 type Channel = { key: string; icon: string; label: string; color: string };
 type Group = { key: string; name: string; accent: 'brand' | 'orange'; items: Channel[] };
@@ -174,6 +184,7 @@ export function ConnectedChannelsSection() {
   const type = useTypeScale();
   const shell = useSectionShell();
   const field = useConnectorField();
+  const router = useRouter();
   const styles = useMemo(() => createStyles(t, l), [t, l]);
   const links = useMemo(() => buildLinks(t), [t]);
 
@@ -192,13 +203,25 @@ export function ConnectedChannelsSection() {
       <View style={styles.main}>
         <View style={styles.copy}>
           <SectionLabel>CONNECTED BY DESIGN</SectionLabel>
-          <Text style={[type.h1, styles.title]}>Connect the channels you already use.</Text>
+          <Heading level={2} style={[type.h1, styles.title]}>
+            Connect the channels you already use.
+          </Heading>
           <Text style={[type.body, styles.body]}>
             Your customer data stays connected. Your workflow stays in one intelligent place.
           </Text>
           <ButtonRow>
-            <PrimaryButton label="View integrations" full={l.isPhone} />
-            <SecondaryButton label="Explore API" full={l.isPhone} />
+            <PrimaryButton
+              label="View integrations"
+              full={l.isPhone}
+              trackId="home.channels.view-integrations"
+              onPress={() => router.push(ROUTES.integrations as never)}
+            />
+            <SecondaryButton
+              label="Explore API"
+              full={l.isPhone}
+              trackId="home.channels.explore-api"
+              onPress={() => router.push(ROUTES.apiDocs as never)}
+            />
           </ButtonRow>
         </View>
 

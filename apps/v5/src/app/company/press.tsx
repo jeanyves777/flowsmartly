@@ -13,8 +13,10 @@ import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd, organizationJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -22,6 +24,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -212,7 +215,9 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
   return (
     <Reveal style={styles.head} distance={14}>
       {label ? <SectionLabel>{label}</SectionLabel> : null}
-      <Text style={styles.headTitle}>{title}</Text>
+      <Heading level={2} style={styles.headTitle}>
+        {title}
+      </Heading>
       {body ? <Text style={styles.headBody}>{body}</Text> : null}
     </Reveal>
   );
@@ -231,17 +236,27 @@ function Hero() {
     <Section style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>PRESS</SectionLabel>
-        <Text style={styles.heroTitle}>Press and brand resources.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          Press and brand resources.
+        </Heading>
         <Text style={styles.heroBody}>
           News, media resources, and everything you need to write about FlowSmartly.
         </Text>
         <ButtonRow>
-          <PrimaryButton label="Download brand kit" size="lg" icon="download" full={l.isPhone} />
+          <PrimaryButton
+            label="Download brand kit"
+            size="lg"
+            icon="download"
+            full={l.isPhone}
+            trackId="press.hero.download-brand-kit"
+            onPress={() => router.push(contactHref('press-kit') as never)}
+          />
           <SecondaryButton
             label="Media enquiries"
             size="lg"
             icon="envelope"
             full={l.isPhone}
+            trackId="press.hero.media-enquiries"
             onPress={() => router.push(ROUTES.contact as never)}
           />
         </ButtonRow>
@@ -250,38 +265,32 @@ function Hero() {
   );
 }
 
-/** Wide: publication, headline, date on one line. Compact: a stacked card. */
+/**
+ * Wide: publication, headline, date on one line. Compact: a stacked card.
+ *
+ * Deliberately not pressable, and deliberately without a "Read →" affordance:
+ * we do not host these articles and have no URL to send anyone to. A row that
+ * looks like a link and goes nowhere is worse than an honest citation, so this
+ * is a printed press log — the press desk below is the live destination.
+ */
 function NewsItem({ article }: { article: Article }) {
   const styles = useStyles();
-  const t = useTokens();
   const l = useLayout();
 
   if (l.isCompact) {
     return (
-      <Pressable
-        accessibilityRole="link"
-        accessibilityLabel={`${article.headline} — ${article.publication}, ${article.date}`}
-        style={({ pressed }) => [styles.newsCard, pressed ? styles.pressed : null]}>
+      <View style={styles.newsCard}>
         <View style={styles.newsPill}>
           <Text style={styles.newsPillText}>{article.publication}</Text>
         </View>
         <Text style={styles.newsHeadline}>{article.headline}</Text>
-        <View style={styles.newsFooter}>
-          <Text style={styles.newsDate}>{article.date}</Text>
-          <View style={styles.newsLink}>
-            <Text style={styles.newsLinkText}>Read</Text>
-            <FontAwesome6 name="arrow-up-right-from-square" size={12} color={t.brand} />
-          </View>
-        </View>
-      </Pressable>
+        <Text style={styles.newsDate}>{article.date}</Text>
+      </View>
     );
   }
 
   return (
-    <Pressable
-      accessibilityRole="link"
-      accessibilityLabel={`${article.headline} — ${article.publication}, ${article.date}`}
-      style={({ pressed }) => [styles.newsRow, pressed ? styles.pressed : null]}>
+    <View style={styles.newsRow}>
       <View style={styles.newsRowPublication}>
         <View style={styles.newsPill}>
           <Text numberOfLines={1} style={styles.newsPillText}>
@@ -299,8 +308,7 @@ function NewsItem({ article }: { article: Article }) {
           {article.date}
         </Text>
       </View>
-      <FontAwesome6 name="arrow-up-right-from-square" size={13} color={t.textSubtle} />
-    </Pressable>
+    </View>
   );
 }
 
@@ -355,6 +363,7 @@ function CompanyFacts() {
 function BrandAssets() {
   const styles = useStyles();
   const t = useTokens();
+  const router = useRouter();
 
   return (
     <Section>
@@ -379,7 +388,13 @@ function BrandAssets() {
                 Logos, product screenshots, headshots and the guidelines in a single archive, updated
                 whenever the brand changes.
               </Text>
-              <PrimaryButton label="Download brand kit" icon="download" full />
+              <PrimaryButton
+                label="Download brand kit"
+                icon="download"
+                full
+                trackId="press.assets.download-brand-kit"
+                onPress={() => router.push(contactHref('press-kit') as never)}
+              />
             </View>
           </View>
         </Reveal>
@@ -389,7 +404,8 @@ function BrandAssets() {
             <Pressable
               key={asset.name}
               accessibilityRole="link"
-              accessibilityLabel={`Download ${asset.name}, ${asset.kind}, ${asset.size}`}
+              accessibilityLabel={`Request ${asset.name}, ${asset.kind}, ${asset.size}`}
+              onPress={() => router.push(contactHref('press-kit') as never)}
               style={({ pressed }) => [styles.assetItem, pressed ? styles.pressed : null]}>
               <IconTile icon={asset.icon} tone={asset.tone} size={42} />
               <View style={styles.assetCopy}>
@@ -532,7 +548,9 @@ function MediaContact() {
       <Reveal style={styles.contactCard} distance={14}>
         <IconTile icon="newspaper" tone="brand" size={54} />
         <View style={styles.contactCopy}>
-          <Text style={styles.contactTitle}>Media enquiries</Text>
+          <Heading level={2} style={styles.contactTitle}>
+            Media enquiries
+          </Heading>
           <Text style={styles.contactBody}>
             Working on a story? The press desk answers within one business day, and can arrange
             interviews, product walkthroughs or customer introductions.
@@ -554,6 +572,7 @@ function MediaContact() {
             icon="arrow-right"
             iconRight
             full={l.isCompact}
+            trackId="press.contact.press-desk"
             onPress={() => router.push(ROUTES.contact as never)}
           />
         </View>
@@ -570,7 +589,14 @@ export default function PressPage() {
   return (
     <PageShell
       title="Press"
-      description="News, media resources, brand assets and company facts — everything you need to write about FlowSmartly.">
+      description="News, media resources, brand assets and company facts — everything you need to write about FlowSmartly."
+      jsonLd={[
+        organizationJsonLd(),
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Press', path: ROUTES.press },
+        ]),
+      ]}>
       <Hero />
       <InTheNews />
       <CompanyFacts />

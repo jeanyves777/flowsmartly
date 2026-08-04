@@ -1,10 +1,10 @@
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import { Image } from "expo-image";
-import Head from "expo-router/head";
-import { Fragment, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import { Fragment, useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import {
-  Pressable,
-  ScrollView,
+  Linking,
   StyleSheet,
   Text,
   View,
@@ -20,7 +20,6 @@ import {
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { CallAgentSection } from "@/components/public/call-agent-section";
 import { ConnectedChannelsSection } from "@/components/public/connected-channels-section";
 import {
@@ -41,6 +40,7 @@ import {
 } from "@/components/public/motion";
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   SectionLabel,
@@ -48,10 +48,13 @@ import {
   useTypeScale,
   type TypeScale,
 } from "@/components/public/ui";
+import { ROUTES } from "@/components/public/nav";
 import { PageShell } from "@/components/public/page-shell";
+import { breadcrumbJsonLd, organizationJsonLd, webSiteJsonLd } from "@/components/public/seo";
+import { contactHref, EXTERNAL } from "@/lib/destinations";
 import { brandColor, elevation, hexToRgba, type ThemeTokens } from "@/theme/tokens";
-import { BP, useLayout, type Layout } from "@/theme/use-responsive";
-import { useTokens, useV5Theme } from "@/theme/v5-theme-provider";
+import { useLayout, type Layout } from "@/theme/use-responsive";
+import { useTokens } from "@/theme/v5-theme-provider";
 
 /* ------------------------------------------------------------------ */
 /* styles                                                              */
@@ -79,11 +82,15 @@ function useStyles(): Styles {
 }
 
 /* ------------------------------------------------------------------ */
-/* header                                                              */
+/* brand mark                                                          */
 /* ------------------------------------------------------------------ */
 
-const NAV_ITEMS = ["Product", "Solutions", "Flow.AI", "Resources", "Pricing"];
-
+/**
+ * The page used to carry a second, unrendered copy of the site header — five
+ * nav items, a "Sign in" and a "Start free" that went nowhere. `PageShell`
+ * supplies the real, wired header, so the duplicate is gone rather than
+ * lingering as a source of dead CTAs.
+ */
 function Brand({ compact = false }: { compact?: boolean }) {
   const styles = useStyles();
   return compact ? (
@@ -102,97 +109,32 @@ function Brand({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function ThemeToggle() {
+/* ------------------------------------------------------------------ */
+/* mockup chrome                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A button *drawn inside a product mockup*.
+ *
+ * The Flow.AI card, the approval queue and the recommendation card are
+ * pictures of the app, not the app — so their controls are `View`s that merely
+ * look like the real `PrimaryButton`. A control that invites a click and then
+ * silently does nothing is worse than a static illustration of one.
+ */
+function MockButton({ label }: { label: string }) {
   const styles = useStyles();
   const t = useTokens();
-  const { mode, cycleMode } = useV5Theme();
   return (
-    <Pressable
-      onPress={cycleMode}
-      accessibilityRole="button"
-      accessibilityLabel={`Theme: ${mode}. Change theme`}
-      style={styles.iconButton}
-    >
-      <FontAwesome6
-        name={mode === "dark" ? "moon" : mode === "grey" ? "circle-half-stroke" : "sun"}
-        size={16}
-        color={t.text}
-      />
-    </Pressable>
-  );
-}
-
-function NavItem({ label, block = false }: { label: string; block?: boolean }) {
-  const styles = useStyles();
-  const t = useTokens();
-  const [active, setActive] = useState(false);
-  return (
-    <Pressable
-      accessibilityRole="link"
-      onHoverIn={() => setActive(true)}
-      onHoverOut={() => setActive(false)}
-      onFocus={() => setActive(true)}
-      onBlur={() => setActive(false)}
-      style={[styles.navButton, block && styles.navButtonBlock, active && styles.navButtonActive]}
-    >
-      <Text style={[styles.navItem, active && { color: t.chipText }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function Header() {
-  const styles = useStyles();
-  const t = useTokens();
-  const l = useLayout();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const compact = l.isCompact;
-
-  return (
-    <SafeAreaView edges={["top"]} style={styles.headerSafe}>
-      <View style={styles.header}>
-        <Brand />
-        {compact ? (
-          <View style={styles.headerActions}>
-            <ThemeToggle />
-            <Pressable
-              onPress={() => setMenuOpen((open) => !open)}
-              accessibilityRole="button"
-              accessibilityLabel={menuOpen ? "Close navigation" : "Open navigation"}
-              accessibilityState={{ expanded: menuOpen }}
-              style={styles.iconButton}
-            >
-              <FontAwesome6 name={menuOpen ? "xmark" : "bars"} size={18} color={t.text} />
-            </Pressable>
-          </View>
-        ) : (
-          <>
-            <View style={styles.nav}>
-              {NAV_ITEMS.map((item) => (
-                <NavItem key={item} label={item} />
-              ))}
-            </View>
-            <View style={styles.headerActions}>
-              <ThemeToggle />
-              <Pressable accessibilityRole="link" style={styles.signInButton}>
-                <Text style={styles.signIn}>Sign in</Text>
-              </Pressable>
-              <PrimaryButton label="Start free" size="sm" />
-            </View>
-          </>
-        )}
-      </View>
-      {compact && menuOpen ? (
-        <View style={styles.mobileMenu}>
-          {NAV_ITEMS.map((item) => (
-            <NavItem key={item} label={item} block />
-          ))}
-          <Pressable accessibilityRole="link" style={styles.navButtonBlock}>
-            <Text style={styles.signIn}>Sign in</Text>
-          </Pressable>
-          <PrimaryButton label="Start free" size="md" full />
-        </View>
-      ) : null}
-    </SafeAreaView>
+    <View style={styles.mockButton}>
+      <LinearGradient
+        colors={[t.gradient[0], t.gradient[1]]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.mockButtonFill}
+      >
+        <Text style={styles.mockButtonLabel}>{label}</Text>
+      </LinearGradient>
+    </View>
   );
 }
 
@@ -334,7 +276,8 @@ function FlowAiCard() {
           ))}
         </View>
         <View style={styles.aiFooter}>
-          <PrimaryButton label="Review actions" size="sm" />
+          {/* mockup chrome — see MockButton */}
+          <MockButton label="Review actions" />
           <View style={styles.approval}>
             <View style={styles.approvalFaces}>
               <Image
@@ -484,6 +427,7 @@ function ChannelMap() {
 function Hero() {
   const styles = useStyles();
   const l = useLayout();
+  const router = useRouter();
   return (
     <View style={styles.hero}>
       <View style={styles.heroTop}>
@@ -493,9 +437,11 @@ function Hero() {
           <Stagger mode="enter" step={75} distance={16}>
             {[
               <SectionLabel key="eyebrow">THE AI GROWTH OPERATING SYSTEM</SectionLabel>,
-              <Text key="title" style={styles.heroTitle}>
+              // The one h1 on the site root. react-native-web renders every
+              // Text as a div, so without this the page ships no heading at all.
+              <Heading key="title" level={1} style={styles.heroTitle}>
                 Turn every customer signal into your next growth action.
-              </Text>,
+              </Heading>,
               <Text key="body" style={styles.heroBody}>
                 Create, connect, sell, and grow with one intelligent workspace across social, email, SMS, ads,
                 commerce, local discovery, and analytics.
@@ -503,8 +449,23 @@ function Hero() {
               <View key="cta" style={styles.heroActions}>
                 <ButtonRow>
                   {/* full-width on phone so every CTA down the page shares one edge */}
-                  <PrimaryButton label="Start growing free" size="lg" full={l.isPhone} />
-                  <SecondaryButton label="See Flow.AI in action" size="lg" icon="play" full={l.isPhone} />
+                  <PrimaryButton
+                    label="Start growing free"
+                    size="lg"
+                    full={l.isPhone}
+                    trackId="home.hero.start-free"
+                    onPress={() => Linking.openURL(EXTERNAL.signup)}
+                  />
+                  {/* No demo video exists, so this books a real one rather than
+                      opening a player that has nothing to play. */}
+                  <SecondaryButton
+                    label="See Flow.AI in action"
+                    size="lg"
+                    icon="play"
+                    full={l.isPhone}
+                    trackId="home.hero.see-in-action"
+                    onPress={() => router.push(contactHref("demo") as never)}
+                  />
                 </ButtonRow>
               </View>,
               <Text key="proof" style={styles.proof}>
@@ -703,9 +664,10 @@ function NextBestActions({ number }: PanelProps) {
             {label}
           </Text>
           <Text style={styles.miniAmount}>{amount}</Text>
-          <Pressable accessibilityRole="button" style={styles.reviewButton}>
+          {/* mockup chrome — a picture of the dashboard, not a control */}
+          <View style={styles.reviewButton}>
             <Text style={styles.reviewText}>Review</Text>
-          </Pressable>
+          </View>
         </Reveal>
       ))}
     </Panel>
@@ -914,12 +876,13 @@ function ApprovalQueuePanel({ number }: PanelProps) {
           <Text numberOfLines={2} style={styles.queueLabel}>
             {row}
           </Text>
-          <Pressable accessibilityRole="button" style={styles.queueApprove}>
+          {/* mockup chrome — the queue is an illustration, not a live queue */}
+          <View style={styles.queueApprove}>
             <Text style={styles.queueApproveText}>Approve</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" style={styles.queueEdit}>
+          </View>
+          <View style={styles.queueEdit}>
             <Text style={styles.queueEditText}>Edit</Text>
-          </Pressable>
+          </View>
         </View>
       ))}
     </Panel>
@@ -962,7 +925,9 @@ function Dashboard() {
   return (
     <Reveal distance={22} style={styles.dashboardOuter}>
       <View style={styles.dashboardTitleRow}>
-        <Text style={styles.dashboardTitle}>Growth Command Center</Text>
+        <Heading level={2} style={styles.dashboardTitle}>
+          Growth Command Center
+        </Heading>
         <Text style={styles.dashboardFilter}>Last 30 days ⌄</Text>
       </View>
       <MetricCards />
@@ -1029,17 +994,28 @@ function FlowShopSection() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const router = useRouter();
   const shell = useSectionShell();
   return (
     <Reveal style={[shell, styles.featureSection]}>
       <View style={styles.featureCopy}>
         <SectionLabel>FLOWSHOP</SectionLabel>
-        <Text style={styles.featureTitle}>Build once. Sell everywhere customers and AI agents shop.</Text>
+        <Heading level={2} style={styles.featureTitle}>
+          Build once. Sell everywhere customers and AI agents shop.
+        </Heading>
         <Text style={styles.featureBody}>
           Launch a polished storefront, keep product data AI-ready, and turn every campaign into a direct path to
           purchase.
         </Text>
-        <PrimaryButton label="Explore FlowShop" size="lg" icon="arrow-right" iconRight full={l.isPhone} />
+        <PrimaryButton
+          label="Explore FlowShop"
+          size="lg"
+          icon="arrow-right"
+          iconRight
+          full={l.isPhone}
+          trackId="home.flowshop.explore"
+          onPress={() => router.push(ROUTES.flowshop as never)}
+        />
       </View>
       <View style={styles.storePanel}>
         <View style={styles.readinessBar}>
@@ -1105,6 +1081,7 @@ function CustomerIntelligence() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const router = useRouter();
   const shell = useSectionShell();
   const signals: [string, string, string, string][] = [
     ["instagram", t.pink, "Instagram comment", "Love this collection!"],
@@ -1124,11 +1101,19 @@ function CustomerIntelligence() {
     <Reveal style={[shell, styles.featureSection]}>
       <View style={styles.featureCopy}>
         <SectionLabel>UNIFIED CUSTOMER INTELLIGENCE</SectionLabel>
-        <Text style={styles.featureTitle}>Every interaction makes the next action smarter.</Text>
+        <Heading level={2} style={styles.featureTitle}>
+          Every interaction makes the next action smarter.
+        </Heading>
         <Text style={styles.featureBody}>
           Flow.AI learns from every signal to recommend the right next step for every customer.
         </Text>
-        <PrimaryButton label="View customer journeys" size="lg" full={l.isPhone} />
+        <PrimaryButton
+          label="View customer journeys"
+          size="lg"
+          full={l.isPhone}
+          trackId="home.intelligence.customer-journeys"
+          onPress={() => router.push(ROUTES.analytics as never)}
+        />
       </View>
       <View style={styles.intelligenceVisual}>
         <View style={styles.signalColumn}>
@@ -1191,7 +1176,8 @@ function CustomerIntelligence() {
               <Text style={styles.reasonText}>✓ {reason}</Text>
             </View>
           ))}
-          <PrimaryButton label="Review recommendation" size="sm" />
+          {/* mockup chrome — this card illustrates Flow.AI's output */}
+          <MockButton label="Review recommendation" />
         </View>
       </View>
     </Reveal>
@@ -1208,8 +1194,15 @@ export default function HomeScreen() {
   return (
     <PageShell
       title="The AI Growth Operating System"
-      description="Turn every customer signal into your next growth action with FlowSmartly."
-      footer="full">
+      description="Turn every customer signal into your next growth action — one workspace for social, email, SMS, ads, commerce, local discovery and analytics."
+      footer="full"
+      // The site root, so it carries the Organization and WebSite records as
+      // well as its own breadcrumb.
+      jsonLd={[
+        organizationJsonLd(),
+        webSiteJsonLd(),
+        breadcrumbJsonLd([{ name: "Home", path: ROUTES.home }]),
+      ]}>
       <Hero />
       <Dashboard />
       <FlowShopSection />
@@ -1248,68 +1241,9 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
   });
 
   return StyleSheet.create({
-    /* ---------- page ---------- */
-    page: { flexGrow: 1, flexShrink: 1, flexBasis: "auto", backgroundColor: t.background },
-    scrollContent: { alignItems: "stretch" },
-    content: {
-      width: "100%",
-      maxWidth: BP.maxContent,
-      alignSelf: "center",
-      backgroundColor: t.background,
-      paddingBottom: 48,
-    },
-
-    /* ---------- header ---------- */
-    headerSafe: {
-      backgroundColor: t.surface,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: t.border,
-    },
-    header: {
-      minHeight: 68,
-      paddingHorizontal: l.gutter,
-      paddingVertical: 8,
-      maxWidth: BP.maxContent,
-      width: "100%",
-      alignSelf: "center",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 16,
-    },
+    /* ---------- brand mark ---------- */
     brandLogo: { width: l.isPhone ? 148 : 176, height: 40 },
     brandLogoCompact: { width: 30, height: 30 },
-    nav: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1, minWidth: 0 },
-    navButton: {
-      minHeight: 44,
-      paddingHorizontal: 12,
-      justifyContent: "center",
-      borderRadius: 10,
-    },
-    navButtonBlock: { minHeight: 48, alignSelf: "stretch", paddingHorizontal: 12, justifyContent: "center" },
-    navButtonActive: { backgroundColor: t.chipBg },
-    navItem: { color: t.text, fontSize: 14, fontWeight: "600" },
-    iconButton: {
-      width: 44,
-      height: 44,
-      borderWidth: 1,
-      borderColor: t.border,
-      backgroundColor: t.surfaceMuted,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    headerActions: { flexDirection: "row", alignItems: "center", gap: 12, flexShrink: 0 },
-    signInButton: { minHeight: 44, paddingHorizontal: 6, justifyContent: "center" },
-    signIn: { color: t.text, fontSize: 14, fontWeight: "600" },
-    mobileMenu: {
-      borderTopWidth: 1,
-      borderTopColor: t.border,
-      backgroundColor: t.surface,
-      paddingHorizontal: l.gutter,
-      paddingVertical: 12,
-      gap: 4,
-    },
 
     /* ---------- hero ---------- */
     hero: {
@@ -1431,6 +1365,23 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       borderRadius: 8,
     },
     readyText: { ...ty.micro, color: t.successText },
+    // Mirrors PrimaryButton at size "sm" — the mock has to look identical to
+    // the real control, it just isn't one.
+    mockButton: {
+      minHeight: 40,
+      borderRadius: 9,
+      overflow: "hidden",
+      alignSelf: "flex-start",
+      ...card,
+    },
+    mockButtonFill: {
+      minHeight: 40,
+      paddingHorizontal: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    mockButtonLabel: { color: t.textOnBrand, fontSize: 13, fontWeight: "700" },
     aiFooter: {
       marginTop: 2,
       flexDirection: "row",

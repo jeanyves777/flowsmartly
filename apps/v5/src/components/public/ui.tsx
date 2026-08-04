@@ -2,6 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, type TextStyle, View, type ViewStyle } from 'react-native';
+import { trackCta } from '@/lib/analytics';
 import { elevation, type ThemeTokens } from '@/theme/tokens';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { BP, useLayout, type Layout } from '@/theme/use-responsive';
@@ -61,6 +62,37 @@ export function useTypeScale(): TypeScale {
   const l = useLayout();
   const t = useTokens();
   return useMemo(() => buildTypeScale(l, t), [l, t]);
+}
+
+/* ------------------------------------------------------------------ */
+/* semantic headings                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * react-native-web renders every `Text` as a `<div>`, so a page built from the
+ * type scale alone ships with **no heading structure at all** — which is a real
+ * gap for crawlers and answer engines, not a cosmetic one.
+ *
+ * `role="heading"` + `aria-level` is the accessible-and-crawlable equivalent,
+ * and it is what RNW can actually emit. Use `level={1}` exactly once per page,
+ * on the page's main title.
+ */
+export function Heading({
+  level,
+  style,
+  children,
+  numberOfLines,
+}: {
+  level: 1 | 2 | 3 | 4;
+  style?: TextStyle | TextStyle[];
+  children: React.ReactNode;
+  numberOfLines?: number;
+}) {
+  return (
+    <Text role="heading" aria-level={level} style={style} numberOfLines={numberOfLines}>
+      {children}
+    </Text>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -131,6 +163,11 @@ const SIZES: Record<ButtonSize, { height: number; padding: number; font: number;
 type ButtonProps = {
   label: string;
   onPress?: () => void;
+  /**
+   * Stable id for the analytics event. Set it on anything a visitor can click
+   * that matters — it is what makes conversion reporting possible later.
+   */
+  trackId?: string;
   size?: ButtonSize;
   /** stretch to the container width — used on phone where buttons stack */
   full?: boolean;
@@ -153,12 +190,17 @@ export function PrimaryButton({
   icon,
   iconRight,
   accessibilityLabel,
+  trackId,
 }: ButtonProps) {
   const t = useTokens();
   const s = SIZES[size];
+  const handlePress = () => {
+    trackCta(trackId ?? label, { variant: 'primary' });
+    onPress?.();
+  };
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       style={({ pressed }) => [
@@ -200,12 +242,17 @@ export function SecondaryButton({
   icon,
   iconRight,
   accessibilityLabel,
+  trackId,
 }: ButtonProps) {
   const t = useTokens();
   const s = SIZES[size];
+  const handlePress = () => {
+    trackCta(trackId ?? label, { variant: 'secondary' });
+    onPress?.();
+  };
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       style={({ pressed }) => [

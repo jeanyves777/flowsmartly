@@ -2,6 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo } from 'react';
 import {
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -14,8 +15,10 @@ import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -24,6 +27,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -407,7 +411,9 @@ function SectionHead({
   return (
     <View style={styles.head}>
       <SectionLabel>{eyebrow}</SectionLabel>
-      <Text style={[type.h2, styles.headTitle]}>{title}</Text>
+      <Heading level={2} style={[type.h2, styles.headTitle]}>
+        {title}
+      </Heading>
       <Text style={[type.body, styles.headBody]}>{body}</Text>
     </View>
   );
@@ -584,7 +590,15 @@ export default function LearningCenterPage() {
   return (
     <PageShell
       title="Learning Center"
-      description="A student portal with courses, progress, quizzes, and certificates — published under your own brand and finished at each learner's own pace.">
+      description="A student portal with courses, progress, quizzes, and certificates — published under your own brand and finished at each learner's own pace."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Solutions', path: ROUTES.solutions },
+          { name: 'FlowLearner', path: ROUTES.flowLearner },
+          { name: 'Learning Center', path: ROUTES.learningCenter },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={shell} distance={22}>
         <View style={styles.heroRow}>
@@ -603,9 +617,9 @@ export default function LearningCenterPage() {
               </Pressable>
             </View>
 
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               A student portal with courses, progress, quizzes, and certificates.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Publish your training as a branded portal your team, customers, or students can work
               through at their own pace — on any device.
@@ -619,14 +633,16 @@ export default function LearningCenterPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="learning-center.hero.open"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 <SecondaryButton
                   label="See a learner view"
                   size="lg"
                   icon="play"
                   full={l.isPhone}
-                  onPress={() => router.push(ROUTES.trainingStudio as never)}
+                  trackId="learning-center.hero.see-learner-view"
+                  onPress={() => router.push(contactHref('demo') as never)}
                 />
               </ButtonRow>
             </View>
@@ -1379,9 +1395,9 @@ export default function LearningCenterPage() {
         <Reveal style={styles.closePanel} distance={16}>
           <View style={styles.closeCopy}>
             <SectionLabel>PUBLISH YOUR FIRST COURSE</SectionLabel>
-            <Text style={[type.h2, styles.closeTitle]}>
+            <Heading level={2} style={[type.h2, styles.closeTitle]}>
               Your first course can be live this afternoon.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.closeBody]}>
               Bring the training you already run, add a quiz and a certificate, and send one link.
               The portal, the progress and the payments are already built.
@@ -1394,12 +1410,14 @@ export default function LearningCenterPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="learning-center.close.publish-course"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 <SecondaryButton
                   label="Explore FlowLearner"
                   size="lg"
                   full={l.isPhone}
+                  trackId="learning-center.close.explore-flowlearner"
                   onPress={() => router.push(ROUTES.flowLearner as never)}
                 />
               </ButtonRow>

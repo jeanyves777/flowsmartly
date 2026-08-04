@@ -1,18 +1,22 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   Card,
+  Heading,
   PrimaryButton,
+  SecondaryButton,
   Section,
   SectionLabel,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -31,42 +35,115 @@ function accent(t: ThemeTokens, tone: Tone): string {
 /* content                                                             */
 /* ------------------------------------------------------------------ */
 
-type Topic = { icon: string; title: string; body: string; tone: Tone };
+type Topic = { icon: string; title: string; body: string; tone: Tone; href: string };
 
 /**
  * Ten topics, and the tint cycles through four accents so the grid reads as a
  * set of products rather than one wall of blue.
+ *
+ * Each topic opens the surface it documents — there is no per-topic article
+ * archive in this app, and a card that goes nowhere is worse than one that
+ * takes you to the thing itself.
  */
 const TOPICS: Topic[] = [
-  { icon: 'rocket', title: 'Getting Started', body: 'Set up your workspace and connect your first channel.', tone: 'brand' },
-  { icon: 'user', title: 'Account & Billing', body: 'Plans, credits, invoices and team access.', tone: 'violet' },
-  { icon: 'wand-magic-sparkles', title: 'AI Studio', body: 'Generate on-brand copy, images and video.', tone: 'orange' },
-  { icon: 'hashtag', title: 'Social', body: 'Plan, schedule and publish across every network.', tone: 'green' },
-  { icon: 'envelope', title: 'Email + SMS', body: 'Build campaigns, journeys and opt-in flows.', tone: 'brand' },
-  { icon: 'bullhorn', title: 'Ads', body: 'Launch and manage cross-channel ad campaigns.', tone: 'violet' },
-  { icon: 'chart-column', title: 'Analytics', body: 'Track performance and attribute revenue.', tone: 'orange' },
-  { icon: 'bag-shopping', title: 'FlowShop', body: 'Products, checkout, orders and fulfilment.', tone: 'green' },
-  { icon: 'location-dot', title: 'ListSmartly', body: 'Local listings, reviews and AI visibility.', tone: 'brand' },
-  { icon: 'phone', title: 'Call Agent', body: 'Configure, test and monitor your voice agent.', tone: 'violet' },
+  { icon: 'rocket', title: 'Getting Started', body: 'Set up your workspace and connect your first channel.', tone: 'brand', href: ROUTES.guides },
+  { icon: 'user', title: 'Account & Billing', body: 'Plans, credits, invoices and team access.', tone: 'violet', href: ROUTES.pricing },
+  { icon: 'wand-magic-sparkles', title: 'AI Studio', body: 'Generate on-brand copy, images and video.', tone: 'orange', href: ROUTES.aiStudio },
+  { icon: 'hashtag', title: 'Social', body: 'Plan, schedule and publish across every network.', tone: 'green', href: ROUTES.social },
+  { icon: 'envelope', title: 'Email + SMS', body: 'Build campaigns, journeys and opt-in flows.', tone: 'brand', href: ROUTES.emailSms },
+  { icon: 'bullhorn', title: 'Ads', body: 'Launch and manage cross-channel ad campaigns.', tone: 'violet', href: ROUTES.ads },
+  { icon: 'chart-column', title: 'Analytics', body: 'Track performance and attribute revenue.', tone: 'orange', href: ROUTES.analytics },
+  { icon: 'bag-shopping', title: 'FlowShop', body: 'Products, checkout, orders and fulfilment.', tone: 'green', href: ROUTES.flowshop },
+  { icon: 'location-dot', title: 'ListSmartly', body: 'Local listings, reviews and AI visibility.', tone: 'brand', href: ROUTES.listsmartly },
+  { icon: 'phone', title: 'Call Agent', body: 'Configure, test and monitor your voice agent.', tone: 'violet', href: ROUTES.callAgent },
 ];
 
-const POPULAR = [
-  'How to connect your first channel',
-  'Setting up your Call Agent in 10 minutes',
-  'Importing contacts and building segments',
-  'Launching an email + SMS campaign',
-  'Understanding credits and usage',
+type Popular = { title: string; body: string; href: string };
+
+const POPULAR: Popular[] = [
+  {
+    title: 'How to connect your first channel',
+    body: 'Authorise an account and start publishing from FlowSmartly.',
+    href: ROUTES.integrations,
+  },
+  {
+    title: 'Setting up your Call Agent in 10 minutes',
+    body: 'Give the voice agent a number, a script and an escalation rule.',
+    href: ROUTES.callAgent,
+  },
+  {
+    title: 'Importing contacts and building segments',
+    body: 'Bring your list in and split it by behaviour, not job title.',
+    href: ROUTES.emailSms,
+  },
+  {
+    title: 'Launching an email + SMS campaign',
+    body: 'Write it once, adapt it per channel and schedule the send.',
+    href: ROUTES.emailSms,
+  },
+  {
+    title: 'Understanding credits and usage',
+    body: 'What each action costs and how usage is metered.',
+    href: ROUTES.pricing,
+  },
 ];
 
 const STATUS = ['Website', 'App', 'Email + SMS', 'AI Studio (Flow.AI)', 'Call Agent', 'Integrations'];
 
-type HelpRoute = { icon: string; title: string; body: string; tone: Tone };
+type HelpRoute = { icon: string; title: string; body: string; tone: Tone; href: string };
 
 const HELP_ROUTES: HelpRoute[] = [
-  { icon: 'envelope', title: 'Contact support', body: 'Send us the details and we will take it from there.', tone: 'brand' },
-  { icon: 'comments', title: 'Live chat', body: 'Talk to a person during business hours.', tone: 'violet' },
-  { icon: 'code', title: 'Developer resources', body: 'API references, SDKs and webhook guides.', tone: 'orange' },
+  { icon: 'envelope', title: 'Contact support', body: 'Send us the details and we will take it from there.', tone: 'brand', href: contactHref('support') },
+  { icon: 'comments', title: 'Live chat', body: 'Talk to a person during business hours.', tone: 'violet', href: contactHref('support', { channel: 'chat' }) },
+  { icon: 'code', title: 'Developer resources', body: 'API references, SDKs and webhook guides.', tone: 'orange', href: ROUTES.apiDocs },
 ];
+
+/* ------------------------------------------------------------------ */
+/* search                                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The search box searches the topics and articles this page already lists —
+ * that is the whole corpus, and pretending otherwise would be a lie. Matching
+ * is case-insensitive across the title and the description.
+ */
+type SearchEntry = { title: string; body: string; kind: string; icon: string; tone: Tone; href: string };
+
+const SEARCH_INDEX: SearchEntry[] = [
+  ...TOPICS.map((topic) => ({
+    title: topic.title,
+    body: topic.body,
+    kind: 'Topic',
+    icon: topic.icon,
+    tone: topic.tone,
+    href: topic.href,
+  })),
+  ...POPULAR.map((article) => ({
+    title: article.title,
+    body: article.body,
+    kind: 'Popular article',
+    icon: 'star',
+    tone: 'orange' as Tone,
+    href: article.href,
+  })),
+  ...HELP_ROUTES.map((route) => ({
+    title: route.title,
+    body: route.body,
+    kind: 'Get help',
+    icon: route.icon,
+    tone: route.tone,
+    href: route.href,
+  })),
+];
+
+function searchHelp(query: string): SearchEntry[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+  return SEARCH_INDEX.filter(
+    (entry) =>
+      entry.title.toLowerCase().includes(needle) || entry.body.toLowerCase().includes(needle),
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* shared style hook                                                   */
@@ -119,11 +196,10 @@ function PanelHead({ icon, title, tone }: { icon: string; title: string; tone: T
 /* sections                                                            */
 /* ------------------------------------------------------------------ */
 
-function Hero() {
+function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => void }) {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
-  const [query, setQuery] = useState('');
 
   return (
     <Section style={styles.hero}>
@@ -133,7 +209,9 @@ function Hero() {
         <View style={styles.centerSelf}>
           <SectionLabel>HELP CENTER</SectionLabel>
         </View>
-        <Text style={styles.heroTitle}>How can we help?</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          How can we help?
+        </Heading>
         <Text style={styles.heroBody}>
           Search our help center for guides, tutorials, and answers to your questions.
         </Text>
@@ -143,7 +221,8 @@ function Hero() {
             <FontAwesome6 name="magnifying-glass" size={15} color={t.textSubtle} />
             <TextInput
               value={query}
-              onChangeText={setQuery}
+              onChangeText={onQuery}
+              onSubmitEditing={() => onQuery(query.trim())}
               placeholder="Search for articles, topics, or keywords…"
               placeholderTextColor={t.textSubtle}
               accessibilityLabel="Search the help center"
@@ -151,9 +230,74 @@ function Hero() {
               style={styles.searchInput}
             />
           </View>
-          <PrimaryButton label="Search" icon="magnifying-glass" full={l.isPhone} />
+          <PrimaryButton
+            label="Search"
+            icon="magnifying-glass"
+            full={l.isPhone}
+            trackId="help.hero.search"
+            onPress={() => onQuery(query.trim())}
+          />
         </View>
       </Reveal>
+    </Section>
+  );
+}
+
+function SearchResults({ query, results }: { query: string; results: SearchEntry[] }) {
+  const styles = useStyles();
+  const t = useTokens();
+  const router = useRouter();
+  const term = query.trim();
+
+  return (
+    <Section>
+      <Reveal style={styles.head} distance={14}>
+        <Heading level={2} style={styles.headTitle}>
+          {`Results for “${term}”`}
+        </Heading>
+        <Text style={styles.headBody}>
+          {results.length === 0
+            ? 'Nothing in the help center matches that yet.'
+            : `${results.length} ${results.length === 1 ? 'match' : 'matches'} in topics, popular articles and support options.`}
+        </Text>
+      </Reveal>
+
+      {results.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <FontAwesome6 name="magnifying-glass" size={16} color={t.textSubtle} />
+          <Text style={styles.emptyText}>
+            {`No results for “${term}”. Try a single keyword, browse the product topics below, or send it to our support team and we will answer it directly.`}
+          </Text>
+          <SecondaryButton
+            label="Contact support"
+            trackId="help.search.support"
+            onPress={() => router.push(contactHref('support', { q: term }) as never)}
+          />
+        </View>
+      ) : (
+        <View style={styles.resultList}>
+          {results.map((entry) => (
+            <Link
+              key={`${entry.kind}-${entry.title}`}
+              href={entry.href as never}
+              accessibilityRole="link"
+              accessibilityLabel={`${entry.title} — ${entry.kind}`}
+              style={styles.resultRow as never}>
+              <IconTile icon={entry.icon} tone={entry.tone} size={38} />
+              <View style={styles.resultCopy}>
+                <Text style={styles.resultKind}>{entry.kind}</Text>
+                <Text style={styles.resultTitle} numberOfLines={2}>
+                  {entry.title}
+                </Text>
+                <Text style={styles.resultBody} numberOfLines={2}>
+                  {entry.body}
+                </Text>
+              </View>
+              <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
+            </Link>
+          ))}
+        </View>
+      )}
     </Section>
   );
 }
@@ -168,7 +312,9 @@ function Topics() {
   return (
     <Section>
       <Reveal style={styles.head} distance={14}>
-        <Text style={styles.headTitle}>Browse help by product</Text>
+        <Heading level={2} style={styles.headTitle}>
+          Browse help by product
+        </Heading>
         <Text style={styles.headBody}>
           Every part of FlowSmartly has its own guides, walkthroughs and troubleshooting steps.
         </Text>
@@ -186,10 +332,14 @@ function Topics() {
               <Text style={styles.cardTitle}>{topic.title}</Text>
               <Text style={styles.cardBody}>{topic.body}</Text>
               <View style={styles.cardSpacer} />
-              <View style={styles.linkRow}>
+              <Link
+                href={topic.href as never}
+                accessibilityRole="link"
+                accessibilityLabel={`Open ${topic.title} help`}
+                style={styles.linkRow as never}>
                 <Text style={[styles.linkText, { color: accent(t, topic.tone) }]}>Browse articles</Text>
                 <FontAwesome6 name="arrow-right" size={12} color={accent(t, topic.tone)} />
-              </View>
+              </Link>
             </Card>
           </Reveal>
         ))}
@@ -206,13 +356,17 @@ function PopularPanel() {
       <PanelHead icon="star" title="Popular articles" tone="orange" />
       <View style={styles.rowList}>
         {POPULAR.map((article, index) => (
-          <Pressable
-            key={article}
+          <Link
+            key={article.title}
+            href={article.href as never}
             accessibilityRole="link"
-            style={[styles.articleRow, index === POPULAR.length - 1 ? styles.lastRow : null]}>
-            <Text style={styles.articleText}>{article}</Text>
+            accessibilityLabel={article.title}
+            style={
+              [styles.articleRow, index === POPULAR.length - 1 ? styles.lastRow : null] as never
+            }>
+            <Text style={styles.articleText}>{article.title}</Text>
             <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
-          </Pressable>
+          </Link>
         ))}
       </View>
     </Card>
@@ -239,10 +393,10 @@ function StatusPanel() {
         ))}
       </View>
       <View style={styles.cardSpacer} />
-      <View style={styles.linkRow}>
+      <Link href={ROUTES.status as never} accessibilityRole="link" style={styles.linkRow as never}>
         <Text style={[styles.linkText, { color: t.brand }]}>View status page</Text>
         <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
-      </View>
+      </Link>
     </Card>
   );
 }
@@ -255,17 +409,21 @@ function ContactPanel() {
       <PanelHead icon="headset" title="Still need help?" tone="brand" />
       <View style={styles.rowList}>
         {HELP_ROUTES.map((route, index) => (
-          <Pressable
+          <Link
             key={route.title}
+            href={route.href as never}
             accessibilityRole="link"
-            style={[styles.helpRow, index === HELP_ROUTES.length - 1 ? styles.lastRow : null]}>
+            accessibilityLabel={route.title}
+            style={
+              [styles.helpRow, index === HELP_ROUTES.length - 1 ? styles.lastRow : null] as never
+            }>
             <IconTile icon={route.icon} tone={route.tone} size={36} />
             <View style={styles.helpCopy}>
               <Text style={styles.helpTitle}>{route.title}</Text>
               <Text style={styles.helpBody}>{route.body}</Text>
             </View>
             <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
-          </Pressable>
+          </Link>
         ))}
       </View>
       <Text style={styles.footnote}>We typically reply within a few hours.</Text>
@@ -305,7 +463,9 @@ function Closing() {
     <Section style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <IconTile icon="life-ring" tone="brand" size={52} />
-        <Text style={styles.closingTitle}>Can’t find what you’re looking for?</Text>
+        <Heading level={2} style={styles.closingTitle}>
+          Can’t find what you’re looking for?
+        </Heading>
         <Text style={styles.closingBody}>
           Our support team knows the platform inside out. Tell us what you are trying to do and we will
           walk you through it.
@@ -316,7 +476,8 @@ function Closing() {
           iconRight
           size="lg"
           full={l.isPhone}
-          onPress={() => router.push(ROUTES.contact as never)}
+          trackId="help.closing.support"
+          onPress={() => router.push(contactHref('support') as never)}
         />
       </Reveal>
     </Section>
@@ -328,12 +489,40 @@ function Closing() {
 /* ------------------------------------------------------------------ */
 
 export default function HelpCenterPage() {
+  const params = useLocalSearchParams<{ q?: string }>();
+  const [query, setQuery] = useState('');
+  const seeded = useRef(false);
+
+  /**
+   * `?q=` is what the WebSite SearchAction points at, so a deep link has to
+   * land on real results. It is adopted after mount rather than used as the
+   * initial state: static rendering has no query string, and disagreeing with
+   * the server tree on the first client render throws the whole page away.
+   */
+  useEffect(() => {
+    if (seeded.current) return;
+    seeded.current = true;
+    const incoming = typeof params.q === 'string' ? params.q : '';
+    if (incoming) setQuery(incoming);
+  }, [params.q]);
+
+  const results = useMemo(() => searchHelp(query), [query]);
+  const searching = query.trim().length > 0;
+
   return (
     <PageShell
       title="Help Center"
       description="Guides, tutorials and answers for every part of FlowSmartly — from getting started to the Call Agent."
-      cta={false}>
-      <Hero />
+      cta={false}
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Resources', path: ROUTES.resources },
+          { name: 'Help Center', path: ROUTES.helpCenter },
+        ]),
+      ]}>
+      <Hero query={query} onQuery={setQuery} />
+      {searching ? <SearchResults query={query} results={results} /> : null}
       <Topics />
       <SupportRow />
       <Closing />
@@ -416,8 +605,48 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     cardTitle: { ...type.h4, color: t.text },
     cardBody: { ...type.bodySm, color: t.textMuted },
     cardSpacer: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minHeight: 4 },
-    linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 26 },
+    /** rendered as an anchor: RNW anchors are inline unless told otherwise */
+    linkRow: {
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      minHeight: 26,
+      textDecorationLine: 'none',
+    },
     linkText: { ...type.bodySm, fontWeight: '700' },
+
+    /* search results ------------------------------------------------ */
+    resultList: { gap: 10, marginTop: 20 },
+    resultRow: {
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 13,
+      minHeight: 60,
+      paddingHorizontal: 15,
+      paddingVertical: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceMuted,
+      textDecorationLine: 'none',
+    },
+    resultCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    resultKind: { ...type.micro, color: t.textSubtle, fontWeight: '800' },
+    resultTitle: { ...type.bodySm, color: t.text, fontWeight: '700' },
+    resultBody: { ...type.micro, color: t.textMuted },
+    emptyCard: {
+      marginTop: 20,
+      alignItems: 'flex-start',
+      gap: 12,
+      padding: 18,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceMuted,
+    },
+    emptyText: { ...type.bodySm, color: t.textMuted, flexShrink: 1, minWidth: 0 },
 
     /* panels ------------------------------------------------------- */
     panelCard: {
@@ -437,6 +666,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
     articleRow: {
       minHeight: 44,
+      display: 'flex',
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
@@ -444,6 +674,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 8,
       borderBottomWidth: 1,
       borderBottomColor: t.divider,
+      textDecorationLine: 'none',
     },
     articleText: {
       ...type.bodySm,
@@ -476,12 +707,14 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
     helpRow: {
       minHeight: 44,
+      display: 'flex',
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
       paddingVertical: 9,
       borderBottomWidth: 1,
       borderBottomColor: t.divider,
+      textDecorationLine: 'none',
     },
     helpCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
     helpTitle: { ...type.bodySm, color: t.text, fontWeight: '700' },

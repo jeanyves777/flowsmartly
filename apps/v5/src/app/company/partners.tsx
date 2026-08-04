@@ -1,7 +1,7 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { BrandLogo } from '@/components/public/brand-logo';
 import {
   ArrowLink,
@@ -15,8 +15,10 @@ import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -24,6 +26,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -214,6 +217,16 @@ const STATS: Stat[] = [
 
 type Styles = ReturnType<typeof createStyles>;
 
+/**
+ * In-page navigation. `nativeID` becomes a real DOM id on web, so an anchor CTA
+ * moves the visitor to a section that genuinely exists rather than doing
+ * nothing. On native there is nothing to scroll to, so it is a no-op.
+ */
+function scrollToId(id: string) {
+  if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function useStyles(): Styles {
   const t = useTokens();
   const l = useLayout();
@@ -263,7 +276,9 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
   return (
     <Reveal style={styles.head} distance={14}>
       {label ? <SectionLabel>{label}</SectionLabel> : null}
-      <Text style={styles.headTitle}>{title}</Text>
+      <Heading level={2} style={styles.headTitle}>
+        {title}
+      </Heading>
       {body ? <Text style={styles.headBody}>{body}</Text> : null}
     </Reveal>
   );
@@ -315,6 +330,7 @@ function Hero() {
   const styles = useStyles();
   const t = useTokens();
   const l = useLayout();
+  const router = useRouter();
   const field = useConnectorField();
 
   const links = useMemo<Wire[]>(
@@ -328,14 +344,31 @@ function Hero() {
     <Section style={styles.heroSection}>
       <Reveal style={styles.heroCopy} distance={16}>
         <SectionLabel>PARTNER PROGRAM</SectionLabel>
-        <Text style={styles.heroTitle}>Build, sell, and grow with FlowSmartly.</Text>
+        <Heading level={1} style={styles.heroTitle}>
+          Build, sell, and grow with FlowSmartly.
+        </Heading>
         <Text style={styles.heroBody}>
           Agencies, platforms, creators and independent experts all grow on FlowSmartly — with recurring
           revenue, real enablement and a product their customers keep using.
         </Text>
         <ButtonRow>
-          <PrimaryButton label="Apply to partner" size="lg" icon="arrow-right" iconRight full={l.isPhone} />
-          <SecondaryButton label="Partner benefits" size="lg" icon="arrow-down" full={l.isPhone} />
+          <PrimaryButton
+            label="Apply to partner"
+            size="lg"
+            icon="arrow-right"
+            iconRight
+            full={l.isPhone}
+            trackId="partners.hero.apply"
+            onPress={() => router.push(contactHref('partnership') as never)}
+          />
+          <SecondaryButton
+            label="Partner benefits"
+            size="lg"
+            icon="arrow-down"
+            full={l.isPhone}
+            trackId="partners.hero.benefits"
+            onPress={() => scrollToId('partner-benefits')}
+          />
         </ButtonRow>
       </Reveal>
 
@@ -425,7 +458,9 @@ function ValueAndRevenue() {
       <View style={styles.twoUp}>
         <Reveal style={styles.twoUpCol} distance={16}>
           <View style={styles.panel}>
-            <Text style={styles.panelTitle}>More value for you and your customers</Text>
+            <Heading level={2} style={styles.panelTitle}>
+              More value for you and your customers
+            </Heading>
             <Text style={styles.panelBody}>
               Partnership here is a working relationship, not a badge on a directory page.
             </Text>
@@ -439,7 +474,9 @@ function ValueAndRevenue() {
 
         <Reveal style={styles.twoUpCol} distance={16} delay={90}>
           <View style={styles.panel}>
-            <Text style={styles.panelTitle}>Multiple ways to grow your recurring revenue</Text>
+            <Heading level={2} style={styles.panelTitle}>
+              Multiple ways to grow your recurring revenue
+            </Heading>
             <Text style={styles.panelBody}>
               Refer, resell or sell alongside us — most partners end up doing all three.
             </Text>
@@ -465,6 +502,7 @@ function ValueAndRevenue() {
 function Integrations() {
   const styles = useStyles();
   const t = useTokens();
+  const router = useRouter();
 
   return (
     <Section>
@@ -488,10 +526,14 @@ function Integrations() {
         ))}
       </View>
 
-      <View style={styles.linkRow}>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel="View all integrations"
+        onPress={() => router.push(ROUTES.integrations as never)}
+        style={({ pressed }) => [styles.linkRow, styles.linkRowTap, pressed ? styles.pressed : null]}>
         <Text style={[styles.linkText, { color: t.brand }]}>View all integrations</Text>
         <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
-      </View>
+      </Pressable>
     </Section>
   );
 }
@@ -578,7 +620,9 @@ function Closing() {
     <Section style={styles.closing}>
       <Reveal style={styles.closingInner} distance={14}>
         <IconTile icon="handshake" tone="brand" size={54} />
-        <Text style={styles.closingTitle}>Ready to build what’s next?</Text>
+        <Heading level={2} style={styles.closingTitle}>
+          Ready to build what’s next?
+        </Heading>
         <Text style={styles.closingBody}>
           Tell us about your business and the customers you serve. We will come back with the path that
           fits and the numbers behind it.
@@ -590,13 +634,16 @@ function Closing() {
             icon="arrow-right"
             iconRight
             full={l.isPhone}
+            trackId="partners.close.apply"
+            onPress={() => router.push(contactHref('partnership') as never)}
           />
           <SecondaryButton
             label="Contact partner sales"
             size="lg"
             icon="envelope"
             full={l.isPhone}
-            onPress={() => router.push(ROUTES.contact as never)}
+            trackId="partners.close.contact-sales"
+            onPress={() => router.push(contactHref('sales') as never)}
           />
         </ButtonRow>
       </Reveal>
@@ -612,10 +659,18 @@ export default function PartnersPage() {
   return (
     <PageShell
       title="Partners"
-      description="Build, sell and grow with FlowSmartly — recurring revenue, real enablement and a partner team for agencies, platforms, affiliates and certified experts.">
+      description="Build, sell and grow with FlowSmartly — recurring revenue, real enablement and a partner team for agencies, platforms, affiliates and certified experts."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Partners', path: ROUTES.partners },
+        ]),
+      ]}>
       <Hero />
       <Paths />
-      <ValueAndRevenue />
+      <View nativeID="partner-benefits">
+        <ValueAndRevenue />
+      </View>
       <Integrations />
       <Journey />
       <Proof />
@@ -730,7 +785,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     cardMeta: { ...type.micro, color: t.textSubtle, fontWeight: '700' },
     cardSpacer: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minHeight: 4 },
     linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 34 },
+    /** a real link needs a real target: 44px tall, self-aligned so it is not full-bleed */
+    linkRowTap: { minHeight: 44, alignSelf: 'flex-start' },
     linkText: { ...type.bodySm, fontWeight: '800', flexShrink: 1, minWidth: 0 },
+    pressed: { opacity: 0.86 },
 
     /* partner paths ------------------------------------------------ */
     pathCard: { ...cardBase, gap: 10, flexGrow: 1, flexShrink: 1, flexBasis: 'auto' },

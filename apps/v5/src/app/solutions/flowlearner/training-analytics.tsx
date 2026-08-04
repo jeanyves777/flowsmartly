@@ -2,6 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,8 +16,10 @@ import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -25,6 +28,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -369,7 +373,9 @@ function NumberedHead({
         </View>
         <SectionLabel>{eyebrow}</SectionLabel>
       </View>
-      <Text style={[type.h2, styles.numberedTitle]}>{title}</Text>
+      <Heading level={2} style={[type.h2, styles.numberedTitle]}>
+        {title}
+      </Heading>
       <Text style={[type.body, styles.numberedBody]}>{body}</Text>
     </View>
   );
@@ -694,7 +700,15 @@ export default function TrainingAnalyticsPage() {
   return (
     <PageShell
       title="Training Analytics"
-      description="Attendance, completion, engagement, and revenue for every course, cohort and live session — in one live view.">
+      description="Attendance, completion, engagement, and revenue for every course, cohort and live session — in one live view."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Solutions', path: ROUTES.solutions },
+          { name: 'FlowLearner', path: ROUTES.flowLearner },
+          { name: 'Training Analytics', path: ROUTES.trainingAnalytics },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Reveal style={shell} distance={22}>
         <View style={styles.heroRow}>
@@ -713,9 +727,9 @@ export default function TrainingAnalyticsPage() {
               </Pressable>
             </View>
 
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Attendance, completion, engagement, and revenue.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               See who showed up, who finished, what landed, and what it earned — in one live view.
             </Text>
@@ -728,13 +742,15 @@ export default function TrainingAnalyticsPage() {
                   full={l.isPhone}
                   icon="arrow-right"
                   iconRight
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  trackId="training-analytics.hero.explore"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 <SecondaryButton
                   label="View a sample report"
                   size="lg"
                   full={l.isPhone}
-                  onPress={() => router.push(ROUTES.flowLearner as never)}
+                  trackId="training-analytics.hero.sample-report"
+                  onPress={() => router.push(contactHref('demo') as never)}
                 />
               </ButtonRow>
             </View>
@@ -1414,17 +1430,15 @@ export default function TrainingAnalyticsPage() {
 
               <Text style={styles.reportLabel}>EXPORT AS</Text>
               <View style={styles.chipWrap}>
+                {/* Export chips inside the report mockup — illustration, not
+                    controls. */}
                 {EXPORT_FORMATS.map((format) => (
-                  <Pressable
-                    key={format.label}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Export as ${format.label}`}
-                    style={({ pressed }) => [styles.exportChip, pressed ? styles.pressed : null]}>
+                  <View key={format.label} style={styles.exportChip}>
                     <FontAwesome6 name={format.icon as never} size={12} color={t.textMuted} />
                     <Text numberOfLines={1} style={styles.exportChipText}>
                       {format.label}
                     </Text>
-                  </Pressable>
+                  </View>
                 ))}
               </View>
             </View>

@@ -2,6 +2,7 @@ import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRouter } from 'expo-router';
 import { Fragment, useCallback, useMemo, useState } from 'react';
 import {
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -15,8 +16,10 @@ import { Media } from '@/components/public/media';
 import { Reveal, useCountUp } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -24,6 +27,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { EXTERNAL } from '@/lib/destinations';
 import { elevation, hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { BP, cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -866,15 +870,22 @@ export default function FlowLearnerPage() {
   return (
     <PageShell
       title="FlowLearner"
-      description="Train your team, sell courses, and engage students — build AI-powered lessons, run interactive live rooms, publish to your learning center, and issue certificates from one connected workspace.">
+      description="Train your team, sell courses and engage students: AI-built lessons, interactive live rooms, a branded learning center and certificates in one workspace."
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'Solutions', path: ROUTES.solutions },
+          { name: 'FlowLearner', path: ROUTES.flowLearner },
+        ]),
+      ]}>
       {/* ------------------------------------------------ hero */}
       <Section>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>FLOWLEARNER BY FLOWSMARTLY</SectionLabel>
-            <Text style={[type.display, styles.heroTitle]}>
+            <Heading level={1} style={[type.display, styles.heroTitle]}>
               Build live training that teaches, engages, and scales.
-            </Text>
+            </Heading>
             <Text style={[type.body, styles.heroBody]}>
               Create AI-powered lessons, run interactive live rooms, publish to your learning center,
               and issue certificates — from one connected workspace.
@@ -885,13 +896,16 @@ export default function FlowLearnerPage() {
                   label="Start free"
                   size="lg"
                   full={l.isPhone}
-                  onPress={() => router.push(ROUTES.pricing as never)}
+                  icon="arrow-right"
+                  iconRight
+                  trackId="flowlearner.hero.start-free"
+                  onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 <SecondaryButton
-                  label="See FlowLearner"
+                  label="Explore Training Studio"
                   size="lg"
-                  icon="play"
                   full={l.isPhone}
+                  trackId="flowlearner.hero.explore-training-studio"
                   onPress={() => router.push(ROUTES.trainingStudio as never)}
                 />
               </ButtonRow>
@@ -1127,9 +1141,9 @@ export default function FlowLearnerPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>FOUR CONNECTED AREAS</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
             Everything you need to create and deliver training
-          </Text>
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             Build it, teach it, publish it, measure it. Each area is a full product, and they share
             the same content, learners and results.
@@ -1181,7 +1195,7 @@ export default function FlowLearnerPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>HOW IT WORKS</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>From idea to impact — in four simple steps</Text>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>From idea to impact — in four simple steps</Heading>
           <Text style={[type.body, styles.headSub]}>
             You bring the expertise. FlowLearner does the production work in between.
           </Text>
@@ -1226,9 +1240,9 @@ export default function FlowLearnerPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>CONNECTED BY DESIGN</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
             Training that connects to the FlowSmartly growth stack
-          </Text>
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             One platform. Every channel. Measurable outcomes.
           </Text>
@@ -1277,9 +1291,9 @@ export default function FlowLearnerPage() {
       <Section>
         <Reveal style={styles.head} distance={16}>
           <SectionLabel>WHO IT&apos;S FOR</SectionLabel>
-          <Text style={[type.h2, styles.headTitle]}>
+          <Heading level={2} style={[type.h2, styles.headTitle]}>
             Built for teams, creators and educators
-          </Text>
+          </Heading>
           <Text style={[type.body, styles.headSub]}>
             The same workspace, pointed at whichever room you are teaching.
           </Text>

@@ -5,7 +5,7 @@ import { elevation, type ThemeTokens } from '@/theme/tokens';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { Reveal } from './motion';
-import { SectionLabel, useSectionShell, useTypeScale, type TypeScale } from './ui';
+import { Heading, SectionLabel, useSectionShell, useTypeScale, type TypeScale } from './ui';
 
 export type DocSection = { id: string; title: string };
 
@@ -59,7 +59,9 @@ export function LegalLayout({
 
         <View style={styles.body}>
           <SectionLabel>LEGAL</SectionLabel>
-          <Text style={[type.display, styles.title]}>{title}</Text>
+          <Heading level={1} style={[type.display, styles.title]}>
+            {title}
+          </Heading>
           <Text style={[type.caption, styles.updated]}>Last updated {updated}</Text>
           <Text style={[type.body, styles.intro]}>{intro}</Text>
           <View style={styles.divider} />
@@ -96,7 +98,9 @@ export function LegalSection({
         <View style={styles.sectionNumber}>
           <Text style={styles.sectionNumberText}>{number}</Text>
         </View>
-        <Text style={[type.h3, styles.sectionTitle]}>{title}</Text>
+        <Heading level={2} style={[type.h3, styles.sectionTitle]}>
+          {title}
+        </Heading>
       </View>
       <View style={styles.sectionBody}>{children}</View>
     </Reveal>

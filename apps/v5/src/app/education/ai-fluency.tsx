@@ -1,7 +1,9 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { useRouter } from 'expo-router';
+// `Link` is already the connector-overlay type in this file, so the router's
+// anchor comes in under its own name.
+import { Link as RouterLink, useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View, type DimensionValue } from 'react-native';
+import { Linking, StyleSheet, Text, View, type DimensionValue } from 'react-native';
 import { useAnimatedStyle } from 'react-native-reanimated';
 import {
   ArrowLink,
@@ -14,9 +16,11 @@ import { Media } from '@/components/public/media';
 import { Animated, Reveal, useCountUp, useGrowIn } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
+import { breadcrumbJsonLd } from '@/components/public/seo';
 import {
   ButtonRow,
   Card,
+  Heading,
   PrimaryButton,
   SecondaryButton,
   Section,
@@ -24,6 +28,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { contactHref, EXTERNAL } from '@/lib/destinations';
 import { hexToRgba, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
@@ -119,6 +124,10 @@ const SUPPORT: { icon: string; label: string; tone: Tone }[] = [
   { icon: 'wand-magic-sparkles', label: 'In-product coaching', tone: 'brand' },
 ];
 
+/**
+ * These four documents are not downloadable files on this site yet, so each row
+ * opens Contact with the request — and the document — already selected.
+ */
 const GOVERNANCE = [
   'AI acceptable-use policy template',
   'Risk assessment checklist',
@@ -183,14 +192,18 @@ function Tick({ children }: { children: string }) {
   );
 }
 
-function TextLink({ label, onPress }: { label: string; onPress?: () => void }) {
+function TextLink({ label, href }: { label: string; href: string }) {
   const styles = useStyles();
   const t = useTokens();
   return (
-    <Pressable accessibilityRole="link" onPress={onPress} style={styles.linkRow}>
+    <RouterLink
+      href={href as never}
+      accessibilityRole="link"
+      accessibilityLabel={label}
+      style={styles.linkRow as never}>
       <Text style={styles.linkText}>{label}</Text>
       <FontAwesome6 name="arrow-right" size={12} color={t.brand} />
-    </Pressable>
+    </RouterLink>
   );
 }
 
@@ -203,7 +216,9 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
           <SectionLabel>{label}</SectionLabel>
         </View>
       ) : null}
-      <Text style={styles.headTitleCentered}>{title}</Text>
+      <Heading level={2} style={styles.headTitleCentered}>
+        {title}
+      </Heading>
       <Text style={styles.headBodyCentered}>{body}</Text>
     </Reveal>
   );
@@ -319,6 +334,7 @@ function JourneyDiagram() {
 function Hero() {
   const styles = useStyles();
   const l = useLayout();
+  const router = useRouter();
 
   return (
     <Section style={styles.hero}>
@@ -328,14 +344,28 @@ function Hero() {
       <Reveal style={styles.heroInner} distance={18}>
         <View style={styles.heroCopy}>
           <SectionLabel>AI FLUENCY</SectionLabel>
-          <Text style={styles.heroTitle}>AI fluency for small businesses.</Text>
+          <Heading level={1} style={styles.heroTitle}>
+            AI fluency for small businesses.
+          </Heading>
           <Text style={styles.heroBody}>
             Build the knowledge, judgment, and practical skills to use AI confidently—without losing
             control of your business.
           </Text>
           <ButtonRow>
-            <PrimaryButton label="Explore learning paths" size="lg" full={l.isPhone} />
-            <SecondaryButton label="Assess your AI readiness" size="lg" full={l.isPhone} />
+            <PrimaryButton
+              label="Explore learning paths"
+              size="lg"
+              full={l.isPhone}
+              trackId="ai-fluency.hero.paths"
+              onPress={() => router.push(ROUTES.guides as never)}
+            />
+            <SecondaryButton
+              label="Assess your AI readiness"
+              size="lg"
+              full={l.isPhone}
+              trackId="ai-fluency.hero.assessment"
+              onPress={() => router.push(contactHref('assessment') as never)}
+            />
           </ButtonRow>
         </View>
 
@@ -360,7 +390,9 @@ function Philosophy() {
       <Reveal style={styles.philosophyInner} distance={14}>
         <IconTile icon="book-open" tone="brand" size={l.isPhone ? 60 : 84} />
         <View style={styles.philosophyCopy}>
-          <Text style={styles.philosophyTitle}>AI education is growth infrastructure.</Text>
+          <Heading level={2} style={styles.philosophyTitle}>
+            AI education is growth infrastructure.
+          </Heading>
           <Text style={styles.philosophyBody}>
             FlowSmartly does more than provide AI tools. We help owners and teams understand when, why,
             and how to use them responsibly—so AI becomes a trusted advantage, not an uncontrolled risk.
@@ -424,7 +456,9 @@ function LearningPaths() {
   return (
     <Card style={styles.panelCard}>
       <View style={styles.headLeft}>
-        <Text style={styles.headTitle}>Learning built for real business decisions</Text>
+        <Heading level={2} style={styles.headTitle}>
+          Learning built for real business decisions
+        </Heading>
         <Text style={styles.headBody}>Role-based learning paths that connect education to outcomes.</Text>
       </View>
 
@@ -450,7 +484,7 @@ function LearningPaths() {
         ))}
       </View>
 
-      <TextLink label="View all learning paths" />
+      <TextLink label="View all learning paths" href={ROUTES.guides} />
     </Card>
   );
 }
@@ -497,13 +531,16 @@ function ScoreRow({ item, index }: { item: Readiness; index: number }) {
 function ReadinessCard() {
   const styles = useStyles();
   const t = useTokens();
+  const router = useRouter();
 
   return (
     <Card style={styles.panelCard}>
       <View style={styles.assessHead}>
         <IconTile icon="gauge-high" tone="brand" size={40} />
         <View style={styles.assessHeadCopy}>
-          <Text style={styles.headTitleSm}>AI Readiness Assessment</Text>
+          <Heading level={3} style={styles.headTitleSm}>
+            AI Readiness Assessment
+          </Heading>
           <Text style={styles.headBody}>Get your score and see where to focus first.</Text>
         </View>
       </View>
@@ -515,7 +552,14 @@ function ReadinessCard() {
       </View>
 
       <View style={styles.assessFoot}>
-        <PrimaryButton label="Take the assessment" icon="arrow-right" iconRight full />
+        <PrimaryButton
+          label="Take the assessment"
+          icon="arrow-right"
+          iconRight
+          full
+          trackId="ai-fluency.readiness.assessment"
+          onPress={() => router.push(contactHref('assessment') as never)}
+        />
         <View style={styles.assessNote}>
           <FontAwesome6 name="clock" size={11} color={t.textSubtle} />
           <Text style={styles.footnote}>Takes about 5 minutes. No account needed.</Text>
@@ -637,31 +681,36 @@ function SupportStrip() {
 function GovernanceCard() {
   const styles = useStyles();
   const t = useTokens();
-  const router = useRouter();
 
   return (
     <Card style={styles.panelCard}>
       <View style={styles.headLeft}>
-        <Text style={styles.headTitleSm}>Governance resources you can use today</Text>
+        <Heading level={3} style={styles.headTitleSm}>
+          Governance resources you can use today
+        </Heading>
         <Text style={styles.headBody}>Practical tools to help you lead AI responsibly.</Text>
       </View>
 
       <View style={styles.rowList}>
         {GOVERNANCE.map((resource, index) => (
-          <Pressable
+          <RouterLink
             key={resource}
+            href={contactHref('guide', { resource }) as never}
             accessibilityRole="link"
-            style={[styles.resourceRow, index === GOVERNANCE.length - 1 ? styles.lastRow : null]}>
+            accessibilityLabel={`Request the ${resource}`}
+            style={
+              [styles.resourceRow, index === GOVERNANCE.length - 1 ? styles.lastRow : null] as never
+            }>
             <IconTile icon="file-lines" tone="brand" size={32} />
             <Text style={styles.resourceText} numberOfLines={2}>
               {resource}
             </Text>
             <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
-          </Pressable>
+          </RouterLink>
         ))}
       </View>
 
-      <TextLink label="Browse all governance resources" onPress={() => router.push(ROUTES.guides as never)} />
+      <TextLink label="Browse all governance resources" href={ROUTES.guides} />
     </Card>
   );
 }
@@ -698,10 +747,12 @@ function AssistantMock() {
         <Text style={styles.safetyBody}>
           Avoid unverified claims and ensure compliance with messaging policy.
         </Text>
-        <Pressable accessibilityRole="link" style={styles.safetyLink}>
+        {/* Illustration, not a control — this is a picture of the in-product
+            assistant, so nothing inside it is pressable. */}
+        <View style={styles.safetyLink}>
           <Text style={styles.safetyLinkText}>Learn more</Text>
           <FontAwesome6 name="arrow-right" size={10} color={t.warnText} />
-        </Pressable>
+        </View>
       </View>
 
       <View style={styles.askRow} pointerEvents="none">
@@ -720,7 +771,9 @@ function AssistantCard() {
   return (
     <Card style={styles.panelCard}>
       <View style={styles.headLeft}>
-        <Text style={styles.headTitleSm}>Flow.AI education inside your workflows</Text>
+        <Heading level={3} style={styles.headTitleSm}>
+          Flow.AI education inside your workflows
+        </Heading>
         <Text style={styles.headBody}>Contextual lessons and safety guidance—right where you work.</Text>
       </View>
 
@@ -773,14 +826,25 @@ function Closing() {
           radius={0}
           style={styles.closingMark}
         />
-        <Text style={styles.closingTitle}>Help your team move forward with AI—confidently.</Text>
+        <Heading level={2} style={styles.closingTitle}>
+          Help your team move forward with AI—confidently.
+        </Heading>
         <ButtonRow>
-          <PrimaryButton label="Start your learning journey" size="lg" full={l.isPhone} />
+          <PrimaryButton
+            label="Start free"
+            size="lg"
+            full={l.isPhone}
+            trackId="ai-fluency.closing.start-free"
+            onPress={() => {
+              Linking.openURL(EXTERNAL.signup).catch(() => undefined);
+            }}
+          />
           <SecondaryButton
             label="Talk to an AI advisor"
             size="lg"
             full={l.isPhone}
-            onPress={() => router.push(ROUTES.contact as never)}
+            trackId="ai-fluency.closing.advisor"
+            onPress={() => router.push(contactHref('sales', { about: 'ai-fluency' }) as never)}
           />
         </ButtonRow>
       </Reveal>
@@ -796,8 +860,14 @@ export default function AiFluencyPage() {
   return (
     <PageShell
       title="AI Fluency for Small Businesses"
-      description="Build the knowledge, judgment, and practical skills to use AI confidently — learning paths, governance resources and an AI readiness assessment from FlowSmartly."
-      cta={false}>
+      description="Build the knowledge, judgment and practical skills to use AI confidently — learning paths, governance resources and an AI readiness assessment."
+      cta={false}
+      jsonLd={[
+        breadcrumbJsonLd([
+          { name: 'Home', path: ROUTES.home },
+          { name: 'AI Fluency', path: ROUTES.aiFluency },
+        ]),
+      ]}>
       <Hero />
       <Philosophy />
       <Pillars />
@@ -1013,7 +1083,15 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     tickText: { ...type.caption, color: t.textMuted, flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0 },
 
-    linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+    /** rendered as an anchor: RNW anchors are inline unless told otherwise */
+    linkRow: {
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      minHeight: 44,
+      textDecorationLine: 'none',
+    },
     linkText: { ...type.bodySm, fontWeight: '700', color: t.brand },
 
     /* readiness ----------------------------------------------------- */
@@ -1111,12 +1189,14 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     lastRow: { borderBottomWidth: 0 },
     resourceRow: {
       minHeight: 52,
+      display: 'flex',
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
       paddingVertical: 8,
       borderBottomWidth: 1,
       borderBottomColor: t.divider,
+      textDecorationLine: 'none',
     },
     resourceText: {
       ...type.bodySm,
