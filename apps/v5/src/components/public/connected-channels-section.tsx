@@ -110,6 +110,20 @@ function buildLinks(t: ThemeTokens): Link[] {
   ];
 }
 
+/**
+ * What each cluster in the diagram actually carries. The copy column ran 167px
+ * shorter than the map beside it, and the map can only show logos — this says
+ * what arrives once a logo is connected. It is the legend for the diagram, not
+ * a restatement of the security strip below it.
+ */
+const CARRIES: [string, string][] = [
+  ['Social', 'comments, DMs and how each post performed'],
+  ['Messaging', 'every thread on one contact, whichever app it came from'],
+  ['Commerce', 'orders, carts and refunds against the customer who made them'],
+  ['Local', 'listings, reviews and the questions people ask about you'],
+  ['Analytics', 'what each channel actually returned, side by side'],
+];
+
 const securityItems = [
   ['shield-halved', 'Secure OAuth', 'Enterprise-grade authorization'],
   ['rotate', 'Real-time sync', 'Always up-to-date, everywhere'],
@@ -223,6 +237,19 @@ export function ConnectedChannelsSection() {
               onPress={() => router.push(ROUTES.apiDocs as never)}
             />
           </ButtonRow>
+
+          <View style={styles.carries}>
+            <Text style={[type.caption, styles.carriesTitle]}>What comes across</Text>
+            {CARRIES.map(([group, detail]) => (
+              <View key={group} style={styles.carriesRow}>
+                <View style={styles.carriesDot} />
+                <Text style={[type.bodySm, styles.carriesText]}>
+                  <Text style={styles.carriesGroup}>{group}</Text>
+                  {` — ${detail}`}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         <ConnectorSurface field={field} style={styles.map}>
@@ -304,6 +331,34 @@ function createStyles(t: ThemeTokens, l: Layout) {
       : { flexGrow: 1, flexShrink: 1, flexBasis: 380, minWidth: 300, gap: 20 },
     title: { marginTop: 4 },
     body: { maxWidth: 480 },
+    /** the diagram's legend — what each cluster brings back once connected */
+    carries: {
+      marginTop: 4,
+      paddingTop: 18,
+      borderTopWidth: 1,
+      borderTopColor: t.divider,
+      gap: 10,
+      maxWidth: 520,
+    },
+    carriesTitle: { color: t.textSubtle, fontWeight: '700' },
+    carriesRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    carriesDot: {
+      width: 6,
+      height: 6,
+      marginTop: 9,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 3,
+      backgroundColor: t.brand,
+    },
+    carriesText: {
+      color: t.textMuted,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minWidth: 0,
+    },
+    carriesGroup: { color: t.text, fontWeight: '800' },
     map: l.isStacked
       ? {
           flexGrow: 0,

@@ -41,6 +41,33 @@ type Accent = 'brand' | 'violet' | 'orange' | 'green' | 'pink';
 
 const PROOF = ['Vetted and reviewed', 'Milestone payments', 'Work inside your workspace'];
 
+/**
+ * What the marketplace takes off your desk.
+ *
+ * The three expert cards beside the hero copy left ~350px of void, and nothing
+ * on the page named the old way of doing this — only the new one.
+ */
+const INSTEAD_OF: { key: string; icon: string; before: string; after: string }[] = [
+  {
+    key: 'find',
+    icon: 'magnifying-glass',
+    before: 'Job posts, cold DMs and a folder of portfolios',
+    after: 'A ranked shortlist read from your own account',
+  },
+  {
+    key: 'paper',
+    icon: 'file-signature',
+    before: 'Contracts, NDAs and a scope argument later',
+    after: 'Scope and milestones agreed before work starts',
+  },
+  {
+    key: 'pay',
+    icon: 'file-invoice-dollar',
+    before: 'Invoices to chase and bank details to verify',
+    after: 'One bill, released when you accept the work',
+  },
+];
+
 const FILTERS: { key: string; label: string; value: string }[] = [
   { key: 'service', label: 'Service', value: 'Paid ads' },
   { key: 'platform', label: 'Platform', value: 'Any' },
@@ -557,6 +584,23 @@ export default function AgentMarketplacePage() {
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
                   </Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Three expert cards stack tall beside this column; naming what the
+                marketplace replaces is the thing worth saying next to them. */}
+            <View style={styles.insteadCard}>
+              <Text style={styles.insteadHead}>INSTEAD OF</Text>
+              {INSTEAD_OF.map((row) => (
+                <View key={row.key} style={styles.insteadRow}>
+                  <View style={styles.insteadIcon}>
+                    <FontAwesome6 name={row.icon as never} size={13} color={t.textSubtle} />
+                  </View>
+                  <View style={styles.insteadCopy}>
+                    <Text style={styles.insteadBefore}>{row.before}</Text>
+                    <Text style={styles.insteadAfter}>{row.after}</Text>
+                  </View>
                 </View>
               ))}
             </View>
@@ -1225,6 +1269,35 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     proofText: { ...type.caption, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
+
+    insteadCard: {
+      marginTop: 26,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 15 : 17,
+      gap: 13,
+      /* Stacked, this column spans the page — cap it so three short pairs stay
+         a strip rather than a block of prose. */
+      maxWidth: 620,
+    },
+    insteadHead: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 1.1 },
+    insteadRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    insteadIcon: {
+      width: 30,
+      height: 30,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.surfaceInset,
+    },
+    insteadCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 3 },
+    insteadBefore: { ...type.micro, color: t.textSubtle, textDecorationLine: 'line-through' },
+    insteadAfter: { ...type.caption, color: t.text, fontWeight: '700' },
+
     heroVisual: stacked
       ? { width: '100%', minWidth: 0, gap }
       : { flexGrow: 1.3, flexShrink: 1, flexBasis: 560, minWidth: 0, gap },

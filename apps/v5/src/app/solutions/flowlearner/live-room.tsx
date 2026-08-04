@@ -282,6 +282,50 @@ const CHAPTERS: { key: string; time: string; label: string; moment: string }[] =
   { key: 'ch6', time: '38:18', label: 'Check understanding', moment: 'Check' },
 ];
 
+/**
+ * The setup card lists what is switched on. This says what happens before any
+ * of it matters — the part of a session that is over before the room opens, and
+ * the only reason that column is not half the height of the card beside it.
+ */
+const BEFORE_DOORS: { key: string; icon: string; title: string; body: string; accent: Accent }[] = [
+  {
+    key: 'schedule',
+    icon: 'calendar-plus',
+    title: 'Scheduled and invited',
+    body: 'The invite carries the calendar entry and the join link.',
+    accent: 'brand',
+  },
+  {
+    key: 'remind',
+    icon: 'bell',
+    title: 'Reminders sent for you',
+    body: 'The day before, and again ten minutes before it starts.',
+    accent: 'violet',
+  },
+  {
+    key: 'greenroom',
+    icon: 'microphone-lines',
+    title: 'A green room first',
+    body: 'Camera, microphone and slides checked before anyone is admitted.',
+    accent: 'green',
+  },
+];
+
+/** The three boxes the room has drawn on the shared board. */
+const SHARED_SHAPES: { key: string; label: string; accent: Accent }[] = [
+  { key: 's1', label: 'Ask', accent: 'brand' },
+  { key: 's2', label: 'Listen', accent: 'violet' },
+  { key: 's3', label: 'Offer', accent: 'green' },
+];
+
+/** Who currently holds a pen on the shared board — matches the cursors on it. */
+const BOARD_PENS: { key: string; name: string; accent: Accent }[] = [
+  { key: 'you', name: 'You', accent: 'brand' },
+  { key: 'arjun', name: 'Arjun', accent: 'violet' },
+  { key: 'lena', name: 'Lena', accent: 'orange' },
+  { key: 'david', name: 'David', accent: 'green' },
+];
+
 const SETUP_ROWS: { key: string; icon: string; label: string; value: string; on: boolean }[] = [
   { key: 'seats', icon: 'chair', label: 'Seats', value: '250 of 500', on: true },
   { key: 'waiting', icon: 'door-closed', label: 'Waiting room', value: 'On — you admit', on: true },
@@ -819,11 +863,39 @@ export default function LiveRoomPage() {
                   <Text style={styles.lockChipText}>Unlocked</Text>
                 </View>
               </View>
+
+              {/* Who holds a pen — drawn into the mockup, not a control. */}
+              <View style={styles.penRoster}>
+                <Text numberOfLines={1} style={styles.penRosterLabel}>
+                  Pens
+                </Text>
+                {BOARD_PENS.map((pen) => {
+                  const accent = accentOf(pen.accent);
+                  return (
+                    <View key={pen.key} style={styles.penChip}>
+                      <View style={[styles.penDot, { backgroundColor: accent }]} />
+                      <Text numberOfLines={1} style={styles.penName}>
+                        {pen.name}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+
               <View style={styles.sharedBoard}>
                 <View style={styles.sharedShapes}>
-                  <View style={[styles.sharedShape, { borderColor: hexToRgba(t.brand, 0.5) }]} />
-                  <View style={[styles.sharedShape, { borderColor: hexToRgba(t.violet, 0.5) }]} />
-                  <View style={[styles.sharedShape, { borderColor: hexToRgba(t.green, 0.5) }]} />
+                  {SHARED_SHAPES.map((shape) => {
+                    const accent = accentOf(shape.accent);
+                    return (
+                      <View
+                        key={shape.key}
+                        style={[styles.sharedShape, { borderColor: hexToRgba(accent, 0.5) }]}>
+                        <Text numberOfLines={1} style={styles.sharedShapeText}>
+                          {shape.label}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
                 <BoardStroke width={l.isPhone ? 220 : 340} color={t.brand} />
                 {BOARD_CURSORS.map((cursor) => {
@@ -842,9 +914,17 @@ export default function LiveRoomPage() {
                   );
                 })}
               </View>
-              <Text numberOfLines={1} style={styles.sharedBoardFoot}>
-                Saved to “Selling without a script” · step 4
-              </Text>
+              <View style={styles.sharedBoardFootRow}>
+                <FontAwesome6 name="floppy-disk" size={12} color={t.successText} />
+                <Text numberOfLines={1} style={styles.sharedBoardFoot}>
+                  Saved to “Selling without a script” · step 4
+                </Text>
+                <View style={styles.lockChip}>
+                  <Text numberOfLines={1} style={styles.lockChipText}>
+                    4 drawing
+                  </Text>
+                </View>
+              </View>
             </View>
           </Reveal>
 
@@ -1146,6 +1226,24 @@ export default function LiveRoomPage() {
               <Text style={styles.setupNoteText}>
                 Recording, chat and Q&amp;A are announced to everyone in the room when they are on.
               </Text>
+            </View>
+
+            <View style={styles.factCard}>
+              <Text style={styles.factLabel}>BEFORE THE DOORS OPEN</Text>
+              {BEFORE_DOORS.map((item) => {
+                const accent = accentOf(item.accent);
+                return (
+                  <View key={item.key} style={styles.factRow}>
+                    <View style={[styles.factIcon, { backgroundColor: softFill(accent, t) }]}>
+                      <FontAwesome6 name={item.icon as never} size={14} color={accent} />
+                    </View>
+                    <View style={styles.factCopy}>
+                      <Text style={styles.factTitle}>{item.title}</Text>
+                      <Text style={styles.factBody}>{item.body}</Text>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           </Reveal>
 
@@ -1691,6 +1789,39 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     blockTitle: { marginTop: 14 },
     blockBody: { marginTop: 14, maxWidth: 540 },
 
+    /* The "fact card" is the shared FlowLearner device for a short column: an
+       eyebrow and three icon rows, identical in shape on every page in the set. */
+    factCard: {
+      marginTop: 22,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 14,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 14 : 16,
+      gap: 12,
+      maxWidth: 540,
+    },
+    factLabel: {
+      fontSize: 11,
+      lineHeight: 15,
+      letterSpacing: 1.1,
+      fontWeight: '800',
+      color: t.chipText,
+    },
+    factRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    factIcon: {
+      width: 30,
+      height: 30,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    factCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    factTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
+    factBody: { ...type.caption, color: t.textMuted },
+
     pointList: { marginTop: 20, gap: 13 },
     pointRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
     pointTick: {
@@ -1882,6 +2013,33 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.chipBg,
     },
     lockChipText: { fontSize: 11, lineHeight: 15, fontWeight: '800', color: t.chipText },
+
+    penRoster: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+    penRosterLabel: {
+      ...type.micro,
+      color: t.textSubtle,
+      fontWeight: '800',
+      letterSpacing: 0.6,
+      flexGrow: 0,
+      flexShrink: 0,
+    },
+    penChip: {
+      flexGrow: 0,
+      flexShrink: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 999,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      backgroundColor: t.surfaceRaised,
+    },
+    penDot: { width: 8, height: 8, flexGrow: 0, flexShrink: 0, borderRadius: 4 },
+    penName: { ...type.micro, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+
     sharedBoard: {
       minHeight: 210,
       borderWidth: 1,
@@ -1899,14 +2057,25 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       flexBasis: 0,
       minWidth: 0,
       height: 46,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 8,
       borderWidth: 2,
       borderRadius: 12,
       backgroundColor: t.surfaceMuted,
     },
+    sharedShapeText: { ...type.micro, color: t.text, fontWeight: '800' },
     cursor: { position: 'absolute', flexDirection: 'row', alignItems: 'flex-start', gap: 3 },
     cursorTag: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
     cursorName: { fontSize: 11, lineHeight: 14, fontWeight: '800', color: t.textOnBrand },
-    sharedBoardFoot: { ...type.micro, color: t.textSubtle },
+    sharedBoardFootRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+    sharedBoardFoot: {
+      ...type.micro,
+      color: t.textSubtle,
+      flexGrow: 1,
+      flexShrink: 1,
+      minWidth: 0,
+    },
 
     /* -------------------------------------------------- permissions matrix */
     matrixWrap: { marginTop: l.isPhone ? 20 : 28 },

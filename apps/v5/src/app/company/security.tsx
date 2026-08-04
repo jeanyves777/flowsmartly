@@ -212,6 +212,19 @@ const REGIONS: { region: string; location: string; icon: string }[] = [
 /** The one address on this page, used by every "email security" affordance. */
 const SECURITY_INBOX = 'security@flowsmartly.com';
 
+/**
+ * What is actually inside the document the hero's primary CTA asks for. The
+ * copy column was 213px shorter than the art beside it, and a reviewer deciding
+ * whether to request the overview is exactly the person who wants its contents
+ * listed. It describes the document, so it does not restate the sections below.
+ */
+const OVERVIEW_CONTENTS: string[] = [
+  'Architecture, data flow, and where each system runs',
+  'The control matrix, mapped framework by framework',
+  'Our subprocessor list and the residency options',
+  'A completed security questionnaire your reviewers can lift from',
+];
+
 const DISCLOSURE: string[] = [
   'Write to security@flowsmartly.com with the steps to reproduce and any proof-of-concept you have.',
   'We acknowledge every report within one business day and give you a triage decision within five.',
@@ -275,6 +288,7 @@ function SectionHead({ label, title, body }: { label?: string; title: string; bo
 
 function Hero() {
   const styles = useStyles();
+  const t = useTokens();
   const l = useLayout();
   const router = useRouter();
 
@@ -307,6 +321,18 @@ function Hero() {
             onPress={() => Linking.openURL(`mailto:${SECURITY_INBOX}`)}
           />
         </ButtonRow>
+
+        <View style={styles.overview}>
+          <Text style={styles.overviewTitle}>In the security overview</Text>
+          {OVERVIEW_CONTENTS.map((line) => (
+            <View key={line} style={styles.overviewRow}>
+              <View style={styles.overviewDot}>
+                <FontAwesome6 name="check" size={9} color={t.green} />
+              </View>
+              <Text style={styles.overviewText}>{line}</Text>
+            </View>
+          ))}
+        </View>
       </Reveal>
 
       <Reveal style={styles.heroPanel} distance={18} delay={90}>
@@ -718,6 +744,37 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     heroTitle: type.display,
     heroBody: { ...type.body, maxWidth: 600 },
+    /** what the "Download security overview" CTA actually delivers */
+    overview: {
+      marginTop: 6,
+      paddingTop: 18,
+      borderTopWidth: 1,
+      borderTopColor: t.divider,
+      gap: 11,
+      maxWidth: 560,
+    },
+    overviewTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
+    overviewRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    overviewDot: {
+      width: 18,
+      height: 18,
+      marginTop: 2,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: softFill(t.green, t),
+    },
+    overviewText: {
+      ...type.bodySm,
+      color: t.textMuted,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minWidth: 0,
+    },
+
     heroArtFrame: {
       borderWidth: 1,
       borderColor: t.border,

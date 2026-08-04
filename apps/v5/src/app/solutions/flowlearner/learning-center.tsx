@@ -40,6 +40,35 @@ type Accent = 'brand' | 'violet' | 'green' | 'orange' | 'pink';
 
 const PROOF = ['Your branding', 'Any device', 'Certificates included'];
 
+/**
+ * The hero copy is far shorter than the portal mock beside it. It carries the
+ * arc of the product — the three moves between a finished course and a
+ * certificate — which nothing else on the page states end to end.
+ */
+const ARC: { key: string; icon: string; title: string; body: string; accent: Accent }[] = [
+  {
+    key: 'publish',
+    icon: 'cloud-arrow-up',
+    title: 'Publish',
+    body: 'A finished course becomes a portal page in one move.',
+    accent: 'brand',
+  },
+  {
+    key: 'enrol',
+    icon: 'user-plus',
+    title: 'Enrol',
+    body: 'Send it to a team, a client list, or the whole internet.',
+    accent: 'violet',
+  },
+  {
+    key: 'certify',
+    icon: 'certificate',
+    title: 'Certify',
+    body: 'The proof arrives on its own the moment they finish.',
+    accent: 'green',
+  },
+];
+
 /** The three courses in the hero portal grid. */
 const COURSES: {
   key: string;
@@ -658,6 +687,24 @@ export default function LearningCenterPage() {
                   </Text>
                 </View>
               ))}
+            </View>
+
+            <View style={styles.factCard}>
+              <Text style={styles.factLabel}>FROM PUBLISH TO CERTIFICATE</Text>
+              {ARC.map((item) => {
+                const accent = accentOf(item.accent);
+                return (
+                  <View key={item.key} style={styles.factRow}>
+                    <View style={[styles.factIcon, { backgroundColor: softFill(accent, t) }]}>
+                      <FontAwesome6 name={item.icon as never} size={14} color={accent} />
+                    </View>
+                    <View style={styles.factCopy}>
+                      <Text style={styles.factTitle}>{item.title}</Text>
+                      <Text style={styles.factBody}>{item.body}</Text>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           </View>
 
@@ -1530,6 +1577,40 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     proofText: { ...type.caption, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
+
+    /* The "fact card" is the shared FlowLearner device for a short column: an
+       eyebrow and three icon rows, identical in shape on every page in the set. */
+    factCard: {
+      marginTop: 22,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 14,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 14 : 16,
+      gap: 12,
+      maxWidth: 560,
+    },
+    factLabel: {
+      fontSize: 11,
+      lineHeight: 15,
+      letterSpacing: 1.1,
+      fontWeight: '800',
+      color: t.chipText,
+    },
+    factRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    factIcon: {
+      width: 30,
+      height: 30,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    factCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    factTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
+    factBody: { ...type.caption, color: t.textMuted },
+
     heroVisual: stacked
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
       : { flexGrow: 1.5, flexShrink: 1, flexBasis: 580, minWidth: 0 },

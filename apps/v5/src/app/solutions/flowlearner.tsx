@@ -40,6 +40,35 @@ type Accent = 'brand' | 'violet' | 'green' | 'orange' | 'pink';
 
 const PROOF = ['Human-guided AI creation', 'Live rooms', 'Learning center', 'Certificates'];
 
+/**
+ * The hero copy column is much shorter than the workspace mock beside it. Rather
+ * than pad it, it carries the one thing the rest of the page never says: the
+ * stack of tools this one workspace stands in for.
+ */
+const REPLACES: { key: string; icon: string; title: string; body: string; accent: Accent }[] = [
+  {
+    key: 'deck',
+    icon: 'chalkboard',
+    title: 'A slide tool and a course builder',
+    body: 'One file becomes the deck, the board and the quiz.',
+    accent: 'brand',
+  },
+  {
+    key: 'webinar',
+    icon: 'video',
+    title: 'A separate webinar platform',
+    body: 'The room, the whiteboard and the replay come with it.',
+    accent: 'violet',
+  },
+  {
+    key: 'lms',
+    icon: 'graduation-cap',
+    title: 'An LMS and a certificate service',
+    body: 'A branded portal that issues the certificate itself.',
+    accent: 'green',
+  },
+];
+
 /** The four stages of the workspace rail in the hero mock. */
 const RAIL: { key: string; label: string; state: 'done' | 'current' | 'next' }[] = [
   { key: 'brief', label: 'Brief', state: 'done' },
@@ -922,6 +951,24 @@ export default function FlowLearnerPage() {
                 </View>
               ))}
             </View>
+
+            <View style={styles.factCard}>
+              <Text style={styles.factLabel}>WHAT IT REPLACES</Text>
+              {REPLACES.map((item) => {
+                const accent = accentOf(item.accent);
+                return (
+                  <View key={item.key} style={styles.factRow}>
+                    <View style={[styles.factIcon, { backgroundColor: softFill(accent, t) }]}>
+                      <FontAwesome6 name={item.icon as never} size={14} color={accent} />
+                    </View>
+                    <View style={styles.factCopy}>
+                      <Text style={styles.factTitle}>{item.title}</Text>
+                      <Text style={styles.factBody}>{item.body}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           </Reveal>
 
           <Reveal style={styles.heroPanel} distance={16} delay={90}>
@@ -1433,6 +1480,40 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     proofText: { ...type.caption, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
+
+    /* The "fact card" is the shared FlowLearner device for a short column: an
+       eyebrow and three icon rows, identical in shape on every page in the set. */
+    factCard: {
+      marginTop: 22,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 14,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 14 : 16,
+      gap: 12,
+      maxWidth: 540,
+    },
+    factLabel: {
+      fontSize: 11,
+      lineHeight: 15,
+      letterSpacing: 1.1,
+      fontWeight: '800',
+      color: t.chipText,
+    },
+    factRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    factIcon: {
+      width: 30,
+      height: 30,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    factCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    factTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
+    factBody: { ...type.caption, color: t.textMuted },
+
     heroPanel: stacked
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
       : { flexGrow: 1.35, flexShrink: 1, flexBasis: 560, minWidth: 0 },

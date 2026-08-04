@@ -547,6 +547,33 @@ export default function CallAgentPage() {
                 </View>
               ))}
             </View>
+
+            {/* The console beside this is ~230px taller than the copy. A single
+                attributed line is the honest way to fill it — the page has no
+                other customer voice on it. */}
+            <View style={styles.heroQuote}>
+              <View style={styles.heroQuoteStars}>
+                {[0, 1, 2, 3, 4].map((star) => (
+                  <FontAwesome6 key={star} name="star" size={12} color={t.orange} solid />
+                ))}
+              </View>
+              <Text style={styles.heroQuoteText}>
+                “It picks up on the first ring at nine at night. We stopped losing the bookings we
+                never knew we were missing.”
+              </Text>
+              {/* No portrait: every registered face is already a named person
+                  somewhere else on the site, and reusing one here would give the
+                  same face three different identities. A short attribution
+                  carries the quote on its own. */}
+              <View style={styles.heroQuoteAuthorCopy}>
+                <Text numberOfLines={1} style={styles.heroQuoteName}>
+                  Elena Moreau
+                </Text>
+                <Text numberOfLines={1} style={styles.heroQuoteRole}>
+                  Owner, Northside Studio
+                </Text>
+              </View>
+            </View>
           </View>
 
           <View style={styles.heroVisual}>
@@ -1366,6 +1393,27 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     proofText: { ...type.caption, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
+
+    heroQuote: {
+      marginTop: 26,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.brandSoft,
+      padding: l.isPhone ? 16 : 18,
+      gap: 12,
+      /* Stacked, this column is the whole page width — keep the quote a card
+         rather than a full-bleed paragraph. */
+      maxWidth: 620,
+    },
+    heroQuoteStars: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    heroQuoteText: { ...type.bodySm, color: t.text, fontWeight: '600' },
+    heroQuoteAuthor: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+    heroQuoteAvatar: { width: 42, height: 42, flexGrow: 0, flexShrink: 0 },
+    heroQuoteAuthorCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    heroQuoteName: { ...type.caption, color: t.text, fontWeight: '800' },
+    heroQuoteRole: { ...type.micro, color: t.textMuted },
+
     heroVisual: stacked
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
       : { flexGrow: 1.4, flexShrink: 1, flexBasis: 560, minWidth: 0 },

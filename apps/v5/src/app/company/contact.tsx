@@ -1,5 +1,5 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Linking,
@@ -24,6 +24,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { trackCta } from '@/lib/analytics';
 import { CONTACT_TOPIC_LABEL, isContactTopic, type ContactTopic } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
@@ -47,6 +48,34 @@ const PROMISES = [
   'Real people, real answers',
   'Fast, friendly, and helpful',
   'No pressure, just solutions',
+];
+
+/**
+ * What the message actually does once it leaves the form. The hero column was
+ * three ticks tall next to a 700px form card, and "what happens next" is the
+ * one thing a visitor wants to know before writing — response *windows* are a
+ * different promise and stay in the closer section, so nothing is repeated.
+ */
+const NEXT_STEPS: { title: string; body: string }[] = [
+  {
+    title: 'It reaches a person',
+    body: 'No ticket robot in the middle. Your message goes to the team that can actually answer it.',
+  },
+  {
+    title: 'We read the context',
+    body: 'Your company, your channels and what you want to improve shape the reply — it is not a template.',
+  },
+  {
+    title: 'You get a next step',
+    body: 'An answer, a walkthrough, or an introduction to the right person. Whatever the message needs.',
+  },
+];
+
+/** Places that answer a question faster than we can. Real routes, no dead ends. */
+const SELF_SERVE: { label: string; icon: string; href: string; track: string }[] = [
+  { label: 'Help Center', icon: 'circle-question', href: ROUTES.helpCenter, track: 'contact.hero.help-center' },
+  { label: 'Guides & resources', icon: 'book-open', href: ROUTES.resources, track: 'contact.hero.resources' },
+  { label: 'System status', icon: 'signal', href: ROUTES.status, track: 'contact.hero.status' },
 ];
 
 type Accent = 'brand' | 'violet' | 'orange';
@@ -262,6 +291,7 @@ export default function ContactPage() {
   const [message, setMessage] = useState('');
   const [consent, setConsent] = useState(false);
   const [openFaq, setOpenFaq] = useState<string | null>(FAQ[0].q);
+  const router = useRouter();
 
   // The initial state above covers the first render (including the static one);
   // this catches a client-side navigation that changes the query on the page
@@ -336,6 +366,43 @@ export default function ContactPage() {
                   <Text style={styles.promiseText}>{promise}</Text>
                 </View>
               ))}
+            </View>
+
+            <View style={styles.nextSteps}>
+              <Text style={styles.nextStepsTitle}>What happens after you press send</Text>
+              {NEXT_STEPS.map((step, index) => (
+                <View key={step.title} style={styles.stepRow}>
+                  <View style={styles.stepNumber}>
+                    <Text style={styles.stepNumberText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.stepCopy}>
+                    <Text style={styles.stepTitle}>{step.title}</Text>
+                    <Text style={styles.stepBody}>{step.body}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.selfServe}>
+              <Text style={styles.selfServeTitle}>Or look it up yourself</Text>
+              <View style={styles.selfServeRow}>
+                {SELF_SERVE.map((item) => (
+                  <Pressable
+                    key={item.label}
+                    accessibilityRole="link"
+                    accessibilityLabel={item.label}
+                    onPress={() => {
+                      trackCta(item.track, { variant: 'link', destination: item.href });
+                      router.push(item.href as never);
+                    }}
+                    style={({ pressed }) => [styles.selfServeLink, pressed ? styles.pressed : null]}>
+                    <FontAwesome6 name={item.icon as never} size={12} color={t.brand} />
+                    <Text style={styles.selfServeLabel} numberOfLines={1}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
           </Reveal>
 
@@ -595,6 +662,51 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.brand, t),
     },
     promiseText: { ...type.bodySm, color: t.text, fontWeight: '600', flexShrink: 1, minWidth: 0 },
+
+    /* -------------------------------------------------- what happens next */
+    nextSteps: {
+      marginTop: 26,
+      gap: 14,
+      paddingTop: 20,
+      borderTopWidth: 1,
+      borderTopColor: t.divider,
+      maxWidth: 520,
+    },
+    nextStepsTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
+    stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 13 },
+    stepNumber: {
+      width: 26,
+      height: 26,
+      marginTop: 1,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 13,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: softFill(t.brand, t),
+    },
+    stepNumberText: { ...type.micro, color: t.brand, fontWeight: '800' },
+    stepCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 3 },
+    stepTitle: { ...type.bodySm, color: t.text, fontWeight: '700' },
+    stepBody: { ...type.caption, color: t.textMuted },
+
+    /* -------------------------------------------------- self-serve links */
+    selfServe: { marginTop: 22, gap: 11 },
+    selfServeTitle: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
+    selfServeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+    selfServeLink: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 14,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceMuted,
+    },
+    selfServeLabel: { ...type.bodySm, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    pressed: { opacity: 0.85 },
 
     /* -------------------------------------------------- form */
     formColumn: stacked ? { width: '100%', minWidth: 0 } : twoUp,

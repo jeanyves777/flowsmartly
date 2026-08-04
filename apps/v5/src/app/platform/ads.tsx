@@ -48,6 +48,20 @@ type Accent = 'brand' | 'violet' | 'green' | 'orange' | 'pink';
 
 const PROOF = ['No credit card', 'Approval before spend', 'Pause anytime'];
 
+/** Hero figures — the same claims the customer stories are built on. */
+const HERO_FIGURES: { value: string; label: string; accent: Accent }[] = [
+  { value: '2.4×', label: 'Average ROAS on managed spend', accent: 'green' },
+  { value: '5', label: 'Ad networks, one campaign', accent: 'brand' },
+  { value: '$0', label: 'Spent before you approve it', accent: 'violet' },
+];
+
+/** The three things that stop being five things once every network shares a board. */
+const CROSS_CHANNEL_FIGURES: { value: string; label: string; accent: Accent }[] = [
+  { value: '5', label: 'Networks on one board', accent: 'brand' },
+  { value: '1', label: 'Budget, split how you like', accent: 'violet' },
+  { value: '1', label: 'Definition of a conversion', accent: 'green' },
+];
+
 /** The networks the hero strip names, in the fixed order used everywhere. */
 const NETWORKS: { key: string; brand: string; name: string }[] = [
   { key: 'meta', brand: 'facebook', name: 'Meta' },
@@ -348,6 +362,36 @@ function useMeasuredWidth(fallback: number) {
   return { width, onLayout };
 }
 
+/**
+ * Three short figures under a claim. Used in the hero and beside the
+ * cross-channel points, where the copy column would otherwise end long before
+ * the panel next to it does.
+ */
+function FigureStrip({
+  figures,
+  styles,
+  accentOf,
+}: {
+  figures: { value: string; label: string; accent: Accent }[];
+  styles: Styles;
+  accentOf: (accent: Accent) => string;
+}) {
+  return (
+    <View style={styles.figureRow}>
+      {figures.map((figure) => (
+        <View key={figure.label} style={styles.figureCell}>
+          <View style={styles.figureTile}>
+            <Text numberOfLines={1} style={[styles.figureValue, { color: accentOf(figure.accent) }]}>
+              {figure.value}
+            </Text>
+            <Text style={styles.figureLabel}>{figure.label}</Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /** Smooth cubic through the points, bending only on the x axis. */
 function smoothPath(points: { x: number; y: number }[]): string {
   if (points.length < 2) return '';
@@ -618,6 +662,32 @@ export default function AdsPage() {
                 </View>
               ))}
             </View>
+
+            <FigureStrip figures={HERO_FIGURES} styles={styles} accentOf={accentOf} />
+
+            <View style={styles.quoteCard}>
+              <FontAwesome6 name="quote-left" size={15} color={t.brand} />
+              <Text style={styles.quoteText}>
+                We moved budget between networks in one afternoon and stopped paying twice for the
+                same conversion.
+              </Text>
+              <View style={styles.quoteWho}>
+                <Media
+                  name="people/priya-shah"
+                  alt="Priya Shah, Demand Generation Lead at Vantage Analytics"
+                  style={styles.quoteAvatar}
+                  radius={16}
+                />
+                <View style={styles.quoteWhoCopy}>
+                  <Text numberOfLines={1} style={styles.quoteName}>
+                    Priya Shah
+                  </Text>
+                  <Text numberOfLines={1} style={styles.quoteRole}>
+                    Demand Generation Lead, Vantage Analytics
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
 
           <View style={styles.heroVisual}>
@@ -786,6 +856,8 @@ export default function AdsPage() {
                 </View>
               ))}
             </View>
+
+            <FigureStrip figures={CROSS_CHANNEL_FIGURES} styles={styles} accentOf={accentOf} />
           </Reveal>
 
           <Reveal style={styles.splitVisual} distance={16} delay={90}>
@@ -1461,6 +1533,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const columns = (phone: number, tablet: number, laptop: number, desktop: number) =>
     l.isPhone ? phone : l.isTablet ? tablet : l.isDesktop ? desktop : laptop;
 
+  const figureColumns = columns(1, 3, 3, 3); // 3 figures
   const variantColumns = columns(1, 3, 3, 3);
   const sourceColumns = columns(1, 5, 5, 5);
   const perfTileColumns = columns(2, 2, 4, 4);
@@ -1772,6 +1845,41 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     pointText: { ...type.bodySm, color: t.textMuted, flexShrink: 1, minWidth: 0 },
+
+    /* -------------------------------------------------- figures + quote */
+    figureRow: { ...gridBase, marginTop: 22 - half },
+    figureCell: cellBase(figureColumns),
+    figureTile: {
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 14,
+      backgroundColor: t.surfaceMuted,
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      gap: 4,
+    },
+    figureValue: { fontSize: l.isPhone ? 24 : 27, lineHeight: l.isPhone ? 30 : 33, fontWeight: '800' },
+    figureLabel: { ...type.micro, color: t.textMuted, fontWeight: '600' },
+
+    quoteCard: {
+      marginTop: 18,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceRaised,
+      padding: l.isPhone ? 14 : 18,
+      gap: 10,
+      alignItems: 'flex-start',
+    },
+    quoteText: { ...type.bodySm, color: t.text, fontWeight: '700' },
+    quoteWho: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
+    quoteAvatar: { width: 32, height: 32, flexGrow: 0, flexShrink: 0 },
+    quoteWhoCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    quoteName: { ...type.micro, color: t.text, fontWeight: '800' },
+    quoteRole: { ...type.micro, color: t.textSubtle },
 
     /* -------------------------------------------------- channel split */
     panelCard: { ...cardBase, backgroundColor: t.surfaceMuted, gap: 12 },

@@ -48,3 +48,6 @@ example
 /qa*.png
 /v5-*.png
 /replica.png
+
+# stray build outputs from verification runs
+/dist-*/

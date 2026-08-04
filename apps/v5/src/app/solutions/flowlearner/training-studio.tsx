@@ -95,6 +95,50 @@ const PLAN_POINTS = [
   'Your wording, your examples and your product names carry through every step.',
 ];
 
+/**
+ * The plan points argue that nothing is locked. This says what actually lands
+ * in that first draft — the copy column is otherwise half the height of the
+ * plan card beside it.
+ */
+const DRAFT_INCLUDES: { key: string; icon: string; title: string; body: string; accent: Accent }[] = [
+  {
+    key: 'agenda',
+    icon: 'clock',
+    title: 'A timed agenda',
+    body: 'Steps that add up to the minutes you actually have.',
+    accent: 'brand',
+  },
+  {
+    key: 'slides',
+    icon: 'chalkboard',
+    title: 'Slides and boards',
+    body: 'The diagram is already drawn, not left as a bullet list.',
+    accent: 'violet',
+  },
+  {
+    key: 'check',
+    icon: 'clipboard-list',
+    title: 'Something to do, and a score',
+    body: 'An activity for the room and a check on what stuck.',
+    accent: 'green',
+  },
+];
+
+/** The presenter's ink: pen colours and stroke weights on the board mock. */
+const BOARD_INKS: { key: string; accent: Accent; active?: boolean }[] = [
+  { key: 'i1', accent: 'brand' },
+  { key: 'i2', accent: 'violet' },
+  { key: 'i3', accent: 'orange', active: true },
+  { key: 'i4', accent: 'green' },
+  { key: 'i5', accent: 'pink' },
+];
+
+const BOARD_WEIGHTS: { key: string; size: number; active?: boolean }[] = [
+  { key: 'w1', size: 3 },
+  { key: 'w2', size: 6, active: true },
+  { key: 'w3', size: 10 },
+];
+
 const PLAN_ROWS: { key: string; title: string; moment: string; minutes: string; accent: Accent }[] = [
   { key: 'p1', title: 'Why this matters', moment: 'Hook', minutes: '4 min', accent: 'pink' },
   { key: 'p2', title: 'The buying journey', moment: 'Explain', minutes: '8 min', accent: 'brand' },
@@ -796,6 +840,24 @@ export default function TrainingStudioPage() {
                 </View>
               ))}
             </View>
+
+            <View style={styles.factCard}>
+              <Text style={styles.factLabel}>WHAT THE FIRST DRAFT INCLUDES</Text>
+              {DRAFT_INCLUDES.map((item) => {
+                const accent = accentOf(item.accent);
+                return (
+                  <View key={item.key} style={styles.factRow}>
+                    <View style={[styles.factIcon, { backgroundColor: softFill(accent, t) }]}>
+                      <FontAwesome6 name={item.icon as never} size={14} color={accent} />
+                    </View>
+                    <View style={styles.factCopy}>
+                      <Text style={styles.factTitle}>{item.title}</Text>
+                      <Text style={styles.factBody}>{item.body}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           </Reveal>
 
           <Reveal style={styles.splitVisual} distance={16} delay={90}>
@@ -912,6 +974,44 @@ export default function TrainingStudioPage() {
                 </View>
               </View>
 
+              {/* The presenter's ink — part of the mockup, never a control. */}
+              <View style={styles.inkBar}>
+                <View style={styles.inkSwatches}>
+                  {BOARD_INKS.map((ink) => {
+                    const accent = accentOf(ink.accent);
+                    return (
+                      <View
+                        key={ink.key}
+                        style={[
+                          styles.inkSwatch,
+                          { backgroundColor: accent },
+                          ink.active ? styles.inkSwatchActive : null,
+                        ]}
+                      />
+                    );
+                  })}
+                </View>
+                <View style={styles.inkDivider} />
+                <View style={styles.inkWeights}>
+                  {BOARD_WEIGHTS.map((weight) => (
+                    <View
+                      key={weight.key}
+                      style={[
+                        styles.inkWeight,
+                        {
+                          height: weight.size,
+                          borderRadius: weight.size / 2,
+                          backgroundColor: weight.active ? t.orange : t.borderStrong,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+                <Text numberOfLines={1} style={styles.inkLabel}>
+                  Pen · medium
+                </Text>
+              </View>
+
               <View style={styles.board}>
                 <View style={styles.boardShapes}>
                   <View style={[styles.boardShape, { borderColor: hexToRgba(t.brand, 0.5) }]}>
@@ -967,6 +1067,13 @@ export default function TrainingStudioPage() {
                   <InkUnderline width={l.isPhone ? 180 : 240} color={t.orange} />
                 </View>
 
+                <View style={styles.boardNote}>
+                  <FontAwesome6 name="note-sticky" size={12} color={t.orange} />
+                  <Text style={styles.boardNoteText}>
+                    Written on the board mid-session: “this is where the deal actually stalls”.
+                  </Text>
+                </View>
+
                 <View style={styles.replayRow}>
                   <View style={styles.replayButton}>
                     <FontAwesome6 name="play" size={10} color={t.brand} />
@@ -982,6 +1089,18 @@ export default function TrainingStudioPage() {
                 <Text numberOfLines={1} style={styles.replayCaption}>
                   Replaying 24 strokes, in the order they were drawn
                 </Text>
+              </View>
+
+              <View style={styles.boardFoot}>
+                <FontAwesome6 name="floppy-disk" size={12} color={t.successText} />
+                <Text numberOfLines={1} style={styles.boardFootText}>
+                  Saved to step 04 · Draw the funnel
+                </Text>
+                <View style={styles.boardFootChip}>
+                  <Text numberOfLines={1} style={styles.boardFootChipText}>
+                    Strokes kept
+                  </Text>
+                </View>
               </View>
             </View>
           </Reveal>
@@ -1856,6 +1975,39 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     blockTitle: { marginTop: 14 },
     blockBody: { marginTop: 14, maxWidth: 540 },
 
+    /* The "fact card" is the shared FlowLearner device for a short column: an
+       eyebrow and three icon rows, identical in shape on every page in the set. */
+    factCard: {
+      marginTop: 22,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 14,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 14 : 16,
+      gap: 12,
+      maxWidth: 540,
+    },
+    factLabel: {
+      fontSize: 11,
+      lineHeight: 15,
+      letterSpacing: 1.1,
+      fontWeight: '800',
+      color: t.chipText,
+    },
+    factRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    factIcon: {
+      width: 30,
+      height: 30,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    factCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    factTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
+    factBody: { ...type.caption, color: t.textMuted },
+
     pointList: { marginTop: 20, gap: 13 },
     pointRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
     pointTick: {
@@ -2011,6 +2163,56 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     boardDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: t.orange },
     boardChipText: { fontSize: 11, fontWeight: '800', color: t.orange },
+
+    inkBar: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
+    inkSwatches: { flexDirection: 'row', alignItems: 'center', gap: 7, flexGrow: 0, flexShrink: 0 },
+    inkSwatch: {
+      width: 18,
+      height: 18,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 9,
+      borderWidth: 2,
+      borderColor: 'transparent',
+    },
+    inkSwatchActive: { borderColor: t.text },
+    inkDivider: { width: 1, height: 18, flexGrow: 0, flexShrink: 0, backgroundColor: t.border },
+    inkWeights: { flexDirection: 'row', alignItems: 'center', gap: 7, flexGrow: 0, flexShrink: 0 },
+    inkWeight: { width: 22, flexGrow: 0, flexShrink: 0 },
+    inkLabel: { ...type.micro, color: t.textSubtle, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+
+    boardNote: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 9,
+      borderWidth: 1,
+      borderColor: hexToRgba(t.orange, 0.34),
+      borderRadius: 10,
+      backgroundColor: softFill(t.orange, t),
+      paddingHorizontal: 11,
+      paddingVertical: 9,
+    },
+    boardNoteText: { ...type.micro, color: t.text, flexShrink: 1, minWidth: 0 },
+
+    boardFoot: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+    boardFootText: {
+      ...type.micro,
+      color: t.textMuted,
+      fontWeight: '700',
+      flexGrow: 1,
+      flexShrink: 1,
+      minWidth: 0,
+    },
+    boardFootChip: {
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      backgroundColor: t.chipBg,
+    },
+    boardFootChipText: { fontSize: 11, lineHeight: 14, fontWeight: '800', color: t.chipText },
+
     board: {
       borderWidth: 1,
       borderColor: t.border,

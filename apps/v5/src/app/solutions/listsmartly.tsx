@@ -42,6 +42,33 @@ type Accent = 'brand' | 'violet' | 'orange' | 'green' | 'pink';
 
 const PROOF = ['Every listing in one place', 'Reviews answered in minutes', 'Built for AI answers'];
 
+/**
+ * What "Check my listings" actually returns.
+ *
+ * The hero CTA was an unexplained promise, and the copy column sat ~190px
+ * shorter than the dashboard mock beside it.
+ */
+const CHECK_FINDS: { key: string; icon: string; label: string; note: string }[] = [
+  {
+    key: 'mismatch',
+    icon: 'triangle-exclamation',
+    label: 'Listings that disagree',
+    note: 'Hours, phone number or address different from one map to the next.',
+  },
+  {
+    key: 'duplicate',
+    icon: 'clone',
+    label: 'Duplicates competing with you',
+    note: 'Old or auto-created profiles splitting your reviews and traffic.',
+  },
+  {
+    key: 'ai',
+    icon: 'robot',
+    label: 'Where an assistant loses you',
+    note: 'The questions it cannot answer about your business yet.',
+  },
+];
+
 const RAIL: { key: string; icon: string; label: string }[] = [
   { key: 'overview', icon: 'gauge-high', label: 'Overview' },
   { key: 'locations', icon: 'map-location-dot', label: 'Locations' },
@@ -608,6 +635,25 @@ export default function ListSmartlyPage() {
                   <Text numberOfLines={1} style={styles.proofText}>
                     {item}
                   </Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Makes the primary CTA concrete, and stops the copy column
+                stranding a void beside the dashboard. */}
+            <View style={styles.checkCard}>
+              <Text style={styles.checkHead}>WHAT THE CHECK FINDS</Text>
+              {CHECK_FINDS.map((row) => (
+                <View key={row.key} style={styles.checkRow}>
+                  <View style={styles.checkIcon}>
+                    <FontAwesome6 name={row.icon as never} size={13} color={t.brand} />
+                  </View>
+                  <View style={styles.checkCopy}>
+                    <Text numberOfLines={1} style={styles.checkLabel}>
+                      {row.label}
+                    </Text>
+                    <Text style={styles.checkNote}>{row.note}</Text>
+                  </View>
                 </View>
               ))}
             </View>
@@ -1614,6 +1660,34 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     proofText: { ...type.caption, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
+
+    checkCard: {
+      marginTop: 26,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 15 : 17,
+      gap: 12,
+      /* Full width when stacked — capped so it stays a strip, not a wall. */
+      maxWidth: 620,
+    },
+    checkHead: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 1.1 },
+    checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    checkIcon: {
+      width: 30,
+      height: 30,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.brandSoft,
+    },
+    checkCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    checkLabel: { ...type.caption, color: t.text, fontWeight: '800' },
+    checkNote: { ...type.micro, color: t.textMuted },
+
     heroVisual: stacked
       ? { width: '100%', minWidth: 0 }
       : { flexGrow: 1.45, flexShrink: 1, flexBasis: 600, minWidth: 0 },

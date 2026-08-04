@@ -57,6 +57,25 @@ const BUILDER_TICKS = [
   'Save any layout as a reusable template your whole team can start from.',
 ];
 
+/** Everything the builder does for you before a send — the short "what's included" list. */
+const BUILDER_INCLUDED: { icon: string; title: string; note: string }[] = [
+  {
+    icon: 'mobile-screen',
+    title: 'Previews before you send',
+    note: 'Desktop, mobile and dark mode, from the same layout.',
+  },
+  {
+    icon: 'palette',
+    title: 'Your brand, applied',
+    note: 'Fonts, colours and button styles come from the brand kit.',
+  },
+  {
+    icon: 'universal-access',
+    title: 'Accessible by default',
+    note: 'Alt text, readable contrast and a plain-text version generated for you.',
+  },
+];
+
 const SMS_TICKS = [
   'MMS attaches a product image without leaving the thread.',
   'Character and segment counts are live, so the cost never surprises you.',
@@ -610,6 +629,21 @@ export default function EmailSmsPage() {
             <View style={styles.tickList}>
               {BUILDER_TICKS.map((item) => (
                 <Tick key={item} text={item} styles={styles} t={t} />
+              ))}
+            </View>
+
+            <View style={styles.includeCard}>
+              <Text style={styles.includeLabel}>INCLUDED IN EVERY BUILD</Text>
+              {BUILDER_INCLUDED.map((item) => (
+                <View key={item.title} style={styles.includeRow}>
+                  <View style={styles.includeIcon}>
+                    <FontAwesome6 name={item.icon as never} size={12} color={t.brand} />
+                  </View>
+                  <View style={styles.includeCopy}>
+                    <Text style={styles.includeTitle}>{item.title}</Text>
+                    <Text style={styles.includeNote}>{item.note}</Text>
+                  </View>
+                </View>
               ))}
             </View>
           </Reveal>
@@ -1598,6 +1632,32 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     tickText: { ...type.bodySm, color: t.textMuted, flexShrink: 1, minWidth: 0 },
+
+    /* -------------------------------------------------- what's included */
+    includeCard: {
+      marginTop: 22,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 14 : 18,
+      gap: 12,
+    },
+    includeLabel: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.9 },
+    includeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+    includeIcon: {
+      width: 30,
+      height: 30,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.brandSoft,
+    },
+    includeCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    includeTitle: { ...type.caption, color: t.text, fontWeight: '800' },
+    includeNote: { ...type.caption, color: t.textMuted },
 
     /* -------------------------------------------------- generic panel */
     panel: {

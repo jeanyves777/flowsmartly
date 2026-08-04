@@ -49,6 +49,10 @@ const REGISTRY: Record<string, number> = {
 
   /* scenes */
   'scenes/campaign-spring-model': require('../../../assets/images/v5/scenes/campaign-spring-model.png'),
+  'scenes/careers-culture-1': require('../../../assets/images/v5/scenes/careers-culture-1.png'),
+  'scenes/careers-culture-2': require('../../../assets/images/v5/scenes/careers-culture-2.png'),
+  'scenes/careers-culture-3': require('../../../assets/images/v5/scenes/careers-culture-3.png'),
+  'scenes/careers-team': require('../../../assets/images/v5/scenes/careers-team.png'),
   'scenes/campaign-spring-product': require('../../../assets/images/v5/scenes/campaign-spring-product.png'),
   'scenes/category-bedroom': require('../../../assets/images/v5/scenes/category-bedroom.png'),
   'scenes/category-decor': require('../../../assets/images/v5/scenes/category-decor.png'),
@@ -77,6 +81,12 @@ const REGISTRY: Record<string, number> = {
   'editorial/blog-cart-recovery': require('../../../assets/images/v5/editorial/blog-cart-recovery.png'),
   'editorial/blog-local-growth': require('../../../assets/images/v5/editorial/blog-local-growth.png'),
   'editorial/blog-social-dms': require('../../../assets/images/v5/editorial/blog-social-dms.png'),
+  'editorial/customer-story-1': require('../../../assets/images/v5/editorial/customer-story-1.png'),
+  'editorial/customer-story-2': require('../../../assets/images/v5/editorial/customer-story-2.png'),
+  'editorial/customer-story-3': require('../../../assets/images/v5/editorial/customer-story-3.png'),
+  'editorial/press-kit': require('../../../assets/images/v5/editorial/press-kit.png'),
+  'editorial/security-shield': require('../../../assets/images/v5/editorial/security-shield.png'),
+  'editorial/template-library': require('../../../assets/images/v5/editorial/template-library.png'),
 };
 
 export type MediaName = string;

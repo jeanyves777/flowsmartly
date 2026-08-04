@@ -49,6 +49,40 @@ const CATEGORIES: { key: string; media: string; label: string; count: string }[]
   { key: 'decor', media: 'scenes/category-decor', label: 'Decor', count: '74 items' },
 ];
 
+/**
+ * The first question a shop owner asks, answered in the hero.
+ *
+ * Nothing else on the page says what happens to a catalog you already have, and
+ * the copy column had 300px of nothing beside the storefront mock.
+ */
+const MIGRATION: { key: string; brand?: string; icon?: string; label: string; note: string }[] = [
+  {
+    key: 'shopify',
+    brand: 'shopify',
+    label: 'Bring your Shopify catalog',
+    note: 'Products, orders and customers stay in sync both ways.',
+  },
+  {
+    key: 'csv',
+    icon: 'file-csv',
+    label: 'Import a spreadsheet',
+    note: 'Map your columns once — variants and images come with it.',
+  },
+  {
+    key: 'fresh',
+    icon: 'wand-magic-sparkles',
+    label: 'Or start with nothing',
+    note: 'Describe what you sell and the catalog gets written for you.',
+  },
+];
+
+/** What the builder still lets you change once the store exists. */
+const EDITABLE: { key: string; icon: string; label: string; value: string }[] = [
+  { key: 'blocks', icon: 'table-cells-large', label: 'Blocks', value: 'Hero, product grid, collections, testimonials, FAQ, newsletter' },
+  { key: 'brand', icon: 'palette', label: 'Brand', value: 'Logo, colours, typography, buttons and corner radius' },
+  { key: 'pages', icon: 'file-lines', label: 'Pages', value: 'Add, reorder, hide or redirect any page in the store' },
+];
+
 const READINESS: string[] = [
   'Structured product markup published',
   'Complete attributes on every listing',
@@ -221,6 +255,7 @@ const ASSOCIATE_POINTS = [
   'Recommends the product that actually fits the question',
   'Hands the conversation to a human whenever you say so',
   'Every chat is saved to the shopper’s customer record',
+  'Suggests what genuinely goes with it, never a random upsell',
 ];
 
 /* 08 — analytics */
@@ -490,6 +525,30 @@ export default function FlowShopPage() {
                 </View>
               ))}
             </View>
+
+            {/* The storefront mock is nearly twice the height of this copy, so
+                the column answers the question the mock cannot: what happens to
+                the catalog you already have. */}
+            <View style={styles.migrationCard}>
+              <Text style={styles.migrationHead}>ALREADY SELLING SOMEWHERE?</Text>
+              {MIGRATION.map((row) => (
+                <View key={row.key} style={styles.migrationRow}>
+                  <View style={styles.migrationIcon}>
+                    {row.brand ? (
+                      <BrandLogo name={row.brand} size={16} />
+                    ) : (
+                      <FontAwesome6 name={row.icon as never} size={14} color={t.brand} />
+                    )}
+                  </View>
+                  <View style={styles.migrationCopy}>
+                    <Text numberOfLines={1} style={styles.migrationLabel}>
+                      {row.label}
+                    </Text>
+                    <Text style={styles.migrationNote}>{row.note}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
           </Reveal>
 
           <Reveal style={styles.heroVisual} distance={16} delay={90}>
@@ -635,6 +694,26 @@ export default function FlowShopPage() {
             <View style={styles.pointList}>
               {BUILDER_POINTS.map((point) => (
                 <Tick key={point} text={point} styles={styles} t={t} />
+              ))}
+            </View>
+
+            {/* "Change anything you like" is the claim above — this is the list
+                of what that actually covers, and it evens out a 330px void
+                beside the theme picker. */}
+            <View style={styles.editableCard}>
+              <Text style={styles.editableHead}>WHAT YOU CAN CHANGE, WITHOUT CODE</Text>
+              {EDITABLE.map((row) => (
+                <View key={row.key} style={styles.editableRow}>
+                  <View style={styles.editableIcon}>
+                    <FontAwesome6 name={row.icon as never} size={13} color={t.brand} />
+                  </View>
+                  <View style={styles.editableCopy}>
+                    <Text numberOfLines={1} style={styles.editableLabel}>
+                      {row.label}
+                    </Text>
+                    <Text style={styles.editableValue}>{row.value}</Text>
+                  </View>
+                </View>
               ))}
             </View>
           </Reveal>
@@ -1434,6 +1513,37 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     proofText: { ...type.caption, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
+
+    migrationCard: {
+      marginTop: 26,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 15 : 17,
+      gap: 12,
+      /* Stacked this column is the full page width — cap it so three short
+         lines never read as a paragraph block. */
+      maxWidth: 620,
+    },
+    migrationHead: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 1.1 },
+    migrationRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    migrationIcon: {
+      width: 32,
+      height: 32,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.surfaceRaised,
+      borderWidth: 1,
+      borderColor: t.border,
+    },
+    migrationCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    migrationLabel: { ...type.caption, color: t.text, fontWeight: '800' },
+    migrationNote: { ...type.micro, color: t.textMuted },
+
     heroVisual: stacked
       ? { width: '100%', minWidth: 0, gap: gap }
       : { flexGrow: 1.35, flexShrink: 1, flexBasis: 560, minWidth: 0, gap },
@@ -1604,6 +1714,32 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
 
     pointList: { marginTop: 22, gap: 11 },
     rowList: { marginTop: 22, gap: 10 },
+
+    editableCard: {
+      marginTop: 24,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 15 : 17,
+      gap: 12,
+      maxWidth: 620,
+    },
+    editableHead: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 1.1 },
+    editableRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    editableIcon: {
+      width: 30,
+      height: 30,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.brandSoft,
+    },
+    editableCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    editableLabel: { ...type.caption, color: t.text, fontWeight: '800' },
+    editableValue: { ...type.micro, color: t.textMuted },
 
     panel: panelBase,
     panelHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },

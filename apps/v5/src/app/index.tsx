@@ -415,9 +415,33 @@ function ChannelCluster() {
   );
 }
 
+/**
+ * The map is a picture of the integrations surface, so it gets that surface's
+ * chrome: a titled header and a sync footer. Bare tiles left a 158px void
+ * beside the Flow.AI card next to it, and a panel with no header read as a
+ * loose cluster rather than a screen. Everything here is illustration — `View`
+ * and `Text` only, never a control.
+ */
 function ChannelMap() {
+  const styles = useStyles();
   const l = useLayout();
-  return l.isPhone ? <ChannelCluster /> : <ChannelWeb />;
+  return (
+    <View style={styles.channelPanel}>
+      <View style={styles.channelPanelHead}>
+        <Text numberOfLines={1} style={styles.channelPanelTitle}>
+          Connected channels
+        </Text>
+        <Text style={styles.channelPanelPill}>Live</Text>
+      </View>
+      {l.isPhone ? <ChannelCluster /> : <ChannelWeb />}
+      <View style={styles.channelPanelFoot}>
+        <View style={styles.channelPanelDot} />
+        <Text numberOfLines={1} style={styles.channelPanelFootText}>
+          All channels connected • synced 2 min ago
+        </Text>
+      </View>
+    </View>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -1405,6 +1429,50 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     approvalText: { ...ty.micro, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
 
     /* ---------- channel map ---------- */
+    // The frame the map lives in. It carries the phone width, so the surface
+    // inside keeps sizing itself exactly as before.
+    channelPanel: {
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: "auto",
+      width: l.isPhone ? "100%" : undefined,
+      maxWidth: l.isPhone ? 420 : undefined,
+      alignSelf: "center",
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 18,
+      backgroundColor: t.surface,
+      padding: l.isPhone ? 12 : 14,
+      gap: 12,
+      ...card,
+    },
+    channelPanelHead: {
+      minHeight: 26,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+    },
+    channelPanelTitle: { ...ty.micro, color: t.text, fontWeight: "800", flexShrink: 1, minWidth: 0 },
+    channelPanelPill: chip(t.successBg, t.successText),
+    channelPanelFoot: {
+      minHeight: 26,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: t.divider,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    channelPanelDot: {
+      width: 7,
+      height: 7,
+      flexShrink: 0,
+      borderRadius: 4,
+      backgroundColor: t.successText,
+    },
+    channelPanelFootText: { ...ty.micro, color: t.textSubtle, flexShrink: 1, minWidth: 0 },
+
     // Holds its size so the proof card beside it absorbs the squeeze instead of
     // the wires collapsing; tightened on tablet, where the pair has least room.
     channelMap: {

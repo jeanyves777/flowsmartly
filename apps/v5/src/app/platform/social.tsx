@@ -33,34 +33,71 @@ type Accent = 'brand' | 'violet' | 'green' | 'orange' | 'pink';
 
 const PROOF = ['Every network in one place', 'Approvals before anything posts', 'No extra scheduling tool'];
 
-type Slot = { channel: string; time: string; media?: string; alt?: string };
+type Slot = { channel: string; time: string; media?: string; alt?: string; draft?: boolean };
 
-const WEEK: { day: string; date: string; slots: Slot[] }[] = [
+/**
+ * A real week, not a frame around an empty grid: fourteen posts spread over
+ * seven days — twelve scheduled and two still in draft, which is what the
+ * header chip counts.
+ */
+const WEEK: { day: string; date: string; today?: boolean; slots: Slot[] }[] = [
   {
     day: 'Mon',
     date: '06',
     slots: [
       { channel: 'instagram', time: '09:00', media: 'scenes/post-sneakers-white', alt: 'Sneaker studio post' },
+      { channel: 'x', time: '18:00' },
     ],
   },
-  { day: 'Tue', date: '07', slots: [{ channel: 'linkedin', time: '11:30' }] },
+  {
+    day: 'Tue',
+    date: '07',
+    slots: [
+      { channel: 'linkedin', time: '11:30' },
+      { channel: 'facebook', time: '16:00' },
+    ],
+  },
   {
     day: 'Wed',
     date: '08',
     slots: [
       { channel: 'tiktok', time: '17:00', media: 'scenes/post-sneakers-lifestyle', alt: 'Sneaker lifestyle post' },
+      { channel: 'youtube', time: '12:00' },
     ],
   },
-  { day: 'Thu', date: '09', slots: [{ channel: 'facebook', time: '08:15' }] },
+  {
+    day: 'Thu',
+    date: '09',
+    slots: [
+      { channel: 'facebook', time: '08:15' },
+      { channel: 'instagram', time: '19:00', draft: true },
+    ],
+  },
   {
     day: 'Fri',
     date: '10',
+    today: true,
     slots: [
       { channel: 'instagram', time: '10:00', media: 'scenes/post-apparel-flatlay', alt: 'Apparel flatlay post' },
+      { channel: 'tiktok', time: '19:30' },
     ],
   },
-  { day: 'Sat', date: '11', slots: [{ channel: 'youtube', time: '14:00' }] },
-  { day: 'Sun', date: '12', slots: [{ channel: 'x', time: '19:30' }] },
+  {
+    day: 'Sat',
+    date: '11',
+    slots: [
+      { channel: 'youtube', time: '14:00' },
+      { channel: 'linkedin', time: '09:30', draft: true },
+    ],
+  },
+  {
+    day: 'Sun',
+    date: '12',
+    slots: [
+      { channel: 'facebook', time: '11:00' },
+      { channel: 'x', time: '19:30' },
+    ],
+  },
 ];
 
 const CHANNEL_PREVIEWS: {
@@ -97,6 +134,13 @@ const QUEUE: { time: string; channel: string; title: string; status: string; med
     alt: 'Sneaker lifestyle post',
   },
   { time: '19:30', channel: 'x', title: 'Launch thread', status: 'Draft' },
+];
+
+/** Who is allowed to do what, once the approval chain is set. */
+const PUBLISH_RIGHTS: { role: string; note: string }[] = [
+  { role: 'Owner', note: 'Publishes to every connected channel.' },
+  { role: 'Manager', note: 'Approves anything; publishes only where you allow it.' },
+  { role: 'Contributor', note: 'Drafts and comments, never publishes.' },
 ];
 
 const ADAPT_TABS = ['instagram', 'facebook', 'tiktok', 'linkedin', 'x'];
@@ -380,8 +424,6 @@ export default function SocialPage() {
   const accentOf = useAccent();
   const router = useRouter();
 
-  const weekWide = !l.isPhone;
-
   return (
     <PageShell
       title="Social"
@@ -451,44 +493,47 @@ export default function SocialPage() {
                 </View>
                 <View style={styles.plannerChip}>
                   <FontAwesome6 name="calendar-check" size={11} color={t.chipText} />
-                  <Text style={styles.plannerChipText}>12 scheduled</Text>
+                  <Text style={styles.plannerChipText}>12 scheduled · 2 drafts</Text>
                 </View>
               </View>
 
               <View style={styles.plannerBody}>
                 <View style={styles.calendar}>
-                  <View style={styles.weekGrid}>
+                  <View style={styles.weekList}>
                     {WEEK.map((day) => (
-                      <View key={day.day} style={styles.dayCell}>
-                        <View style={styles.dayInner}>
-                          <View style={weekWide ? styles.dayHead : styles.dayHeadRow}>
-                            <Text numberOfLines={1} style={styles.dayName}>
-                              {day.day}
-                            </Text>
-                            <Text numberOfLines={1} style={styles.dayDate}>
-                              {day.date}
-                            </Text>
-                          </View>
-                          <View style={styles.slotList}>
-                            {day.slots.map((slot) => (
-                              <View key={`${day.day}-${slot.time}`} style={styles.slot}>
-                                {slot.media ? (
-                                  <Media
-                                    name={slot.media}
-                                    alt={slot.alt ?? 'Scheduled post'}
-                                    style={styles.slotImage}
-                                    radius={8}
-                                  />
-                                ) : null}
-                                <View style={styles.slotMeta}>
-                                  <BrandLogo name={slot.channel} size={12} />
-                                  <Text numberOfLines={1} style={styles.slotTime}>
-                                    {slot.time}
-                                  </Text>
-                                </View>
-                              </View>
-                            ))}
-                          </View>
+                      <View key={day.day} style={day.today ? styles.dayRowToday : styles.dayRow}>
+                        <View style={styles.dayStamp}>
+                          <Text numberOfLines={1} style={styles.dayName}>
+                            {day.day}
+                          </Text>
+                          <Text numberOfLines={1} style={styles.dayDate}>
+                            {day.date}
+                          </Text>
+                        </View>
+                        <View style={styles.slotList}>
+                          {day.slots.map((slot) => (
+                            <View
+                              key={`${day.day}-${slot.time}`}
+                              style={slot.draft ? styles.slotDraft : styles.slot}>
+                              {slot.media ? (
+                                <Media
+                                  name={slot.media}
+                                  alt={slot.alt ?? 'Scheduled post'}
+                                  style={styles.slotImage}
+                                  radius={6}
+                                />
+                              ) : null}
+                              <BrandLogo name={slot.channel} size={12} />
+                              <Text numberOfLines={1} style={styles.slotTime}>
+                                {slot.time}
+                              </Text>
+                              {slot.draft ? (
+                                <Text numberOfLines={1} style={styles.slotDraftTag}>
+                                  Draft
+                                </Text>
+                              ) : null}
+                            </View>
+                          ))}
                         </View>
                       </View>
                     ))}
@@ -547,6 +592,20 @@ export default function SocialPage() {
               <Tick text="Drag between days and time slots, or duplicate a post to another channel." styles={styles} t={t} />
               <Tick text="Queue slots hold your recurring posting times so gaps are obvious." styles={styles} t={t} />
               <Tick text="Conflicts, blackout dates and campaign windows are enforced automatically." styles={styles} t={t} />
+            </View>
+
+            <View style={styles.coverCard}>
+              <Text style={styles.coverLabel}>ALL ON THE SAME GRID</Text>
+              <View style={styles.coverRow}>
+                {CHANNEL_PREVIEWS.map((preview) => (
+                  <View key={preview.channel} style={styles.coverChip}>
+                    <BrandLogo name={preview.channel} size={13} />
+                    <Text numberOfLines={1} style={styles.coverChipText}>
+                      {preview.name}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </View>
           </Reveal>
 
@@ -968,6 +1027,20 @@ export default function SocialPage() {
                 })}
               </View>
 
+              <View style={styles.rightsCard}>
+                <Text style={styles.rightsLabel}>WHO CAN DO WHAT</Text>
+                {PUBLISH_RIGHTS.map((right) => (
+                  <View key={right.role} style={styles.rightsRow}>
+                    <Text numberOfLines={1} style={styles.rightsRole}>
+                      {right.role}
+                    </Text>
+                    <Text numberOfLines={2} style={styles.rightsNote}>
+                      {right.note}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
               <View style={styles.hintRow}>
                 <FontAwesome6 name="lock" size={11} color={t.chipText} />
                 <Text style={styles.hintTextBrand}>
@@ -1044,7 +1117,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const columns = (phone: number, tablet: number, laptop: number, desktop: number) =>
     l.isPhone ? phone : l.isTablet ? tablet : l.isDesktop ? desktop : laptop;
 
-  const weekColumns = l.isPhone ? 1 : 7; // 7 days
   const statColumns = columns(1, 3, 3, 3); // 3 tiles
   const ugcColumns = columns(2, 3, 3, 6); // 6 tiles
   const safetyColumns = columns(1, 2, 2, 2); // 4 cards
@@ -1086,7 +1158,39 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     minWidth: 0,
   };
 
-  const slotImage: ImageStyle = { width: '100%', height: l.isPhone ? 54 : 44 };
+  const slotImage: ImageStyle = { width: 22, height: 22, flexGrow: 0, flexShrink: 0 };
+
+  /** A day in the week rail; `today` repeats it with the brand tint. */
+  const dayRowBase: ViewStyle = {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    borderWidth: 1,
+    borderColor: t.border,
+    borderRadius: 10,
+    backgroundColor: t.surfaceRaised,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+  };
+
+  const slotBase: ViewStyle = {
+    flexGrow: 0,
+    flexShrink: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    borderRadius: 8,
+    backgroundColor: t.surfaceMuted,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+  };
+
   const queueThumb: ImageStyle = { width: 38, height: 38, flexGrow: 0, flexShrink: 0 };
   const adaptImage: ImageStyle = { width: '100%', aspectRatio: 4 / 5 };
   const inboxAvatar: ImageStyle = { width: 34, height: 34, flexGrow: 0, flexShrink: 0 };
@@ -1154,33 +1258,44 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     calendar: l.isCompact
       ? { width: '100%', minWidth: 0 }
       : { flexGrow: 1.6, flexShrink: 1, flexBasis: 0, minWidth: 0 },
-    weekGrid: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', marginHorizontal: -3 },
-    dayCell: { flexGrow: 0, flexShrink: 1, flexBasis: cellBasis(weekColumns), minWidth: 0, padding: 3 },
-    dayInner: {
-      borderWidth: 1,
-      borderColor: t.border,
-      borderRadius: 11,
-      backgroundColor: t.surfaceRaised,
-      padding: 7,
-      gap: 6,
+    /* One row per day: seven days, fourteen posts, no empty body. */
+    weekList: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', gap: 5 },
+    dayRow: { ...dayRowBase },
+    dayRowToday: {
+      ...dayRowBase,
+      borderColor: hexToRgba(t.brand, 0.45),
+      backgroundColor: t.brandSoft,
+    },
+    dayStamp: {
+      width: 42,
+      flexGrow: 0,
+      flexShrink: 0,
+      flexDirection: 'row',
+      alignItems: 'baseline',
+      gap: 5,
+    },
+    dayName: { ...type.micro, color: t.textSubtle, fontWeight: '800' },
+    dayDate: { ...type.micro, color: t.text, fontWeight: '800' },
+    slotList: {
       flexGrow: 1,
       flexShrink: 1,
       flexBasis: 'auto',
+      minWidth: 0,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'center',
+      gap: 5,
     },
-    dayHead: { alignItems: 'center', gap: 1 },
-    dayHeadRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
-    dayName: { ...type.micro, color: t.textSubtle, fontWeight: '800' },
-    dayDate: { ...type.micro, color: t.text, fontWeight: '800' },
-    slotList: { gap: 5 },
-    slot: {
-      borderRadius: 9,
-      backgroundColor: t.surfaceMuted,
-      padding: 4,
-      gap: 4,
+    slot: { ...slotBase },
+    slotDraft: {
+      ...slotBase,
+      backgroundColor: 'transparent',
+      borderColor: t.borderStrong,
+      borderStyle: 'dashed',
     },
     slotImage,
-    slotMeta: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 2 },
-    slotTime: { ...type.micro, color: t.textSubtle, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    slotTime: { ...type.micro, color: t.textMuted, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    slotDraftTag: { ...type.micro, color: t.textSubtle, fontWeight: '800', flexGrow: 0, flexShrink: 0 },
 
     previewColumn: l.isCompact
       ? { width: '100%', minWidth: 0, gap: 7 }
@@ -1267,6 +1382,48 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     tickText: { ...type.bodySm, color: t.textMuted, flexShrink: 1, minWidth: 0 },
+
+    /* -------------------------------------------------- channel coverage */
+    coverCard: {
+      marginTop: 22,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 14 : 18,
+      gap: 11,
+    },
+    coverLabel: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.9 },
+    coverRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+    coverChip: {
+      flexGrow: 0,
+      flexShrink: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 999,
+      backgroundColor: t.surfaceRaised,
+      paddingHorizontal: 11,
+      paddingVertical: 7,
+    },
+    coverChipText: { ...type.micro, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+
+    /* -------------------------------------------------- publishing rights */
+    rightsCard: {
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 14,
+      backgroundColor: t.surfaceRaised,
+      padding: l.isPhone ? 13 : 15,
+      gap: 10,
+    },
+    rightsLabel: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.9 },
+    rightsRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+    rightsRole: { ...type.micro, color: t.text, fontWeight: '800', width: 78, flexGrow: 0, flexShrink: 0 },
+    rightsNote: { ...type.micro, color: t.textMuted, flexGrow: 1, flexShrink: 1, minWidth: 0 },
 
     /* -------------------------------------------------- generic panel */
     panel: {

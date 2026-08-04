@@ -41,6 +41,35 @@ type Accent = 'brand' | 'violet' | 'green' | 'orange' | 'pink';
 
 const PROOF = ['Live, not a nightly export', 'Every session counted', 'Revenue included'];
 
+/**
+ * The hero copy is far shorter than the dashboard beside it. It carries the one
+ * thing the dashboard cannot show: where every figure on it came from. Nothing
+ * is imported or tagged — the other three FlowLearner areas report themselves.
+ */
+const SOURCES: { key: string; icon: string; title: string; body: string; accent: Accent }[] = [
+  {
+    key: 'studio',
+    icon: 'pen-ruler',
+    title: 'Training Studio',
+    body: 'Every lesson, activity and quiz reports its own results.',
+    accent: 'brand',
+  },
+  {
+    key: 'live',
+    icon: 'tower-broadcast',
+    title: 'Live Rooms',
+    body: 'Attendance and participation, without passing a register round.',
+    accent: 'violet',
+  },
+  {
+    key: 'center',
+    icon: 'graduation-cap',
+    title: 'Learning Center',
+    body: 'Enrolments, progress, certificates and course sales.',
+    accent: 'green',
+  },
+];
+
 const KPIS: {
   key: string;
   label: string;
@@ -766,6 +795,24 @@ export default function TrainingAnalyticsPage() {
                   </Text>
                 </View>
               ))}
+            </View>
+
+            <View style={styles.factCard}>
+              <Text style={styles.factLabel}>WHERE THE NUMBERS COME FROM</Text>
+              {SOURCES.map((item) => {
+                const accent = accentOf(item.accent);
+                return (
+                  <View key={item.key} style={styles.factRow}>
+                    <View style={[styles.factIcon, { backgroundColor: softFill(accent, t) }]}>
+                      <FontAwesome6 name={item.icon as never} size={14} color={accent} />
+                    </View>
+                    <View style={styles.factCopy}>
+                      <Text style={styles.factTitle}>{item.title}</Text>
+                      <Text style={styles.factBody}>{item.body}</Text>
+                    </View>
+                  </View>
+                );
+              })}
             </View>
           </View>
 
@@ -1572,6 +1619,40 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     proofText: { ...type.caption, color: t.textMuted, fontWeight: '600', flexShrink: 1, minWidth: 0 },
+
+    /* The "fact card" is the shared FlowLearner device for a short column: an
+       eyebrow and three icon rows, identical in shape on every page in the set. */
+    factCard: {
+      marginTop: 22,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 14,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 14 : 16,
+      gap: 12,
+      maxWidth: 540,
+    },
+    factLabel: {
+      fontSize: 11,
+      lineHeight: 15,
+      letterSpacing: 1.1,
+      fontWeight: '800',
+      color: t.chipText,
+    },
+    factRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    factIcon: {
+      width: 30,
+      height: 30,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    factCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    factTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
+    factBody: { ...type.caption, color: t.textMuted },
+
     heroVisual: stacked
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
       : { flexGrow: 1.5, flexShrink: 1, flexBasis: 600, minWidth: 0 },

@@ -66,6 +66,19 @@ const MODES: { icon: string; label: string; accent?: 'brand' | 'orange' }[] = [
 /** `value` is the number that counts up; `suffix` keeps the unit intact. */
 type Stat = { icon: string; label: string; value: number; suffix?: string; decimals?: number };
 
+/**
+ * What the agent takes off the table. The copy column ran 199px shorter than
+ * the console beside it, and this is the part of the pitch the console cannot
+ * show: the console proves what the agent *does*, this says what stops
+ * happening. Deliberately not more numbers — the stat strip below already
+ * carries those.
+ */
+const REPLACES: { icon: string; text: string }[] = [
+  { icon: 'phone-slash', text: 'Voicemail that nobody calls back' },
+  { icon: 'file-lines', text: 'An answering service reading from a script' },
+  { icon: 'moon', text: 'Calls that go unanswered after hours and at weekends' },
+];
+
 const STATS: Stat[] = [
   { icon: 'phone', label: 'Calls answered', value: 96, suffix: '%' },
   { icon: 'calendar-days', label: 'Appointments', value: 42 },
@@ -234,6 +247,18 @@ export function CallAgentSection() {
           />
         </ButtonRow>
         <Text style={styles.proof}>Human handoff • Call recording controls • Complete call logs</Text>
+
+        <View style={styles.replaces}>
+          <Text style={styles.replacesTitle}>What it replaces</Text>
+          {REPLACES.map((item) => (
+            <View key={item.text} style={styles.replacesRow}>
+              <View style={styles.replacesIcon}>
+                <FontAwesome6 name={item.icon as never} size={13} color={t.textSubtle} />
+              </View>
+              <Text style={styles.replacesText}>{item.text}</Text>
+            </View>
+          ))}
+        </View>
       </Reveal>
 
       {/* ------------------------------------------------------- console */}
@@ -421,6 +446,37 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     title: type.display,
     body: { ...type.body, maxWidth: 560 },
     proof: { ...type.caption, color: t.textSubtle },
+    replaces: {
+      marginTop: 4,
+      paddingTop: 18,
+      borderTopWidth: 1,
+      borderTopColor: t.divider,
+      gap: 11,
+      maxWidth: 560,
+    },
+    replacesTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
+    replacesRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    replacesIcon: {
+      width: 26,
+      height: 26,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceMuted,
+    },
+    replacesText: {
+      ...type.bodySm,
+      color: t.textMuted,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: 'auto',
+      minWidth: 0,
+      paddingTop: 3,
+    },
 
     /* console ----------------------------------------------------- */
     console: {

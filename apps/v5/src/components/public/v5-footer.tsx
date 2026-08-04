@@ -644,9 +644,11 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
 /* ------------------------------------------------------------------ */
 
 export function FooterNavigation() {
+  const t = useTokens();
   const type = useTypeScale();
   const shell = useSectionShell();
   const styles = useFooterStyles();
+  const router = useRouter();
   return (
     <View style={[shell, styles.navigation]}>
       <View style={styles.brandColumn}>
@@ -668,6 +670,41 @@ export function FooterNavigation() {
               onPress={() => Linking.openURL(url)}
             />
           ))}
+        </View>
+
+        {/*
+          The brand rail used to end at the social tiles, leaving ~244px of void
+          beside the six link columns on every page. These two rows are the two
+          things a visitor plausibly wants from a footer that the link columns do
+          not already give them: a way to hear about releases, and the live state
+          of the platform. Not a second newsletter form — the field lives on
+          Resources; this is a link to the same honest destination.
+        */}
+        <View style={styles.brandExtras}>
+          <Text style={[type.bodySm, styles.extraTitle]}>Product updates</Text>
+          <Text style={[type.caption, styles.extraNote]}>
+            One email a month: what shipped, what changed, and one thing worth trying.
+          </Text>
+          <SecondaryButton
+            label="Get product updates"
+            icon="envelope-open-text"
+            size="md"
+            full
+            trackId="footer.nav.product-updates"
+            onPress={() => router.push(contactHref('updates') as never)}
+          />
+          <Link href={ROUTES.status as never} asChild>
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel="All systems operational — open the status page"
+              style={({ pressed }) => [styles.statusPill, pressed ? styles.statusPillPressed : null]}>
+              <View style={styles.statusDot} />
+              <Text style={[type.caption, styles.statusText]} numberOfLines={1}>
+                All systems operational
+              </Text>
+              <FontAwesome6 name="arrow-right" size={11} color={t.successText} />
+            </Pressable>
+          </Link>
         </View>
       </View>
       <View style={styles.linkGroups}>
@@ -1075,6 +1112,34 @@ function createStyles(t: ThemeTokens, l: Layout) {
     logo: { width: 170, height: 42 },
     tagline: { color: t.textMuted },
     socials: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+    /** the updates + status block that keeps the brand rail from ending short */
+    brandExtras: {
+      marginTop: 4,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: t.divider,
+      gap: 10,
+      // On a stacked footer the rail is full width; the block reads better held
+      // to the same measure it has beside the link columns.
+      maxWidth: stacked ? 420 : undefined,
+    },
+    extraTitle: { color: t.text, fontWeight: '800' },
+    extraNote: { color: t.textMuted },
+    statusPill: {
+      minHeight: 44,
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+      paddingHorizontal: 13,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.successBg,
+    },
+    statusPillPressed: { opacity: 0.85 },
+    statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.successText },
+    statusText: { color: t.successText, fontWeight: '700', flexShrink: 1, minWidth: 0 },
     linkGroups: {
       flexGrow: 1,
       flexShrink: 1,

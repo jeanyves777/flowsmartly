@@ -120,6 +120,18 @@ const PATHS: Path[] = [
   },
 ];
 
+/**
+ * The terms of joining — the question a prospective partner asks first and the
+ * one thing this page never answered. It sits in the hero because the copy
+ * column was 147px shorter than the diagram beside it, and because "what does
+ * this cost me" belongs next to "Apply to partner", not six sections later.
+ */
+const TERMS: string[] = [
+  'Free to join — no fee and no minimum commitment',
+  'Non-exclusive — keep every other partnership you have',
+  'Every application is read by a person, not scored by a form',
+];
+
 const BENEFITS = [
   'A partner manager who knows your book of business',
   'Free sandbox workspaces for building and demos',
@@ -370,6 +382,15 @@ function Hero() {
             onPress={() => scrollToId('partner-benefits')}
           />
         </ButtonRow>
+
+        <View style={styles.terms}>
+          <Text style={styles.termsTitle}>Program terms, up front</Text>
+          <View style={styles.tickList}>
+            {TERMS.map((term) => (
+              <Ticked key={term}>{term}</Ticked>
+            ))}
+          </View>
+        </View>
       </Reveal>
 
       {/*
@@ -715,6 +736,15 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       : { flexGrow: 1.1, flexShrink: 1, flexBasis: 460, minWidth: 0 },
     heroTitle: type.display,
     heroBody: { ...type.body, maxWidth: 580 },
+    terms: {
+      marginTop: 6,
+      paddingTop: 18,
+      borderTopWidth: 1,
+      borderTopColor: t.divider,
+      gap: 12,
+      maxWidth: 560,
+    },
+    termsTitle: { ...type.bodySm, color: t.text, fontWeight: '800' },
 
     /* hero diagram ------------------------------------------------- */
     promiseField: { alignItems: 'center', gap: l.isPhone ? 18 : 26, paddingVertical: 8 },

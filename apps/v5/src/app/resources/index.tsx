@@ -34,6 +34,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { trackCta } from '@/lib/analytics';
 import { contactHref } from '@/lib/destinations';
 import { elevation, palettes, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
@@ -368,6 +369,14 @@ const SEARCH_INDEX: SearchEntry[] = [
   },
 ];
 
+/**
+ * Starting points for the search box, and the reason the hero column is no
+ * longer 205px shorter than the featured card beside it. Every term is checked
+ * against `SEARCH_INDEX` above — a chip that returned nothing would be worse
+ * than no chip at all.
+ */
+const POPULAR_SEARCHES = ['Getting started', 'Deliverability', 'Automation', 'FlowShop', 'API'];
+
 function searchResources(query: string): SearchEntry[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
@@ -507,6 +516,44 @@ function Hero({ query, onQuery }: { query: string; onQuery: (next: string) => vo
             trackId="resources.hero.search"
             onPress={() => onQuery(query.trim())}
           />
+        </View>
+
+        <View style={styles.popular}>
+          <Text style={styles.popularTitle}>Popular searches</Text>
+          <View style={styles.popularRow}>
+            {POPULAR_SEARCHES.map((term) => {
+              const active = query.trim().toLowerCase() === term.toLowerCase();
+              return (
+                <Pressable
+                  key={term}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Search for ${term}`}
+                  accessibilityState={{ selected: active }}
+                  onPress={() => {
+                    trackCta(`resources.hero.popular.${term.toLowerCase().replace(/\s+/g, '-')}`, {
+                      variant: 'chip',
+                    });
+                    onQuery(term);
+                  }}
+                  style={({ pressed }) => [
+                    styles.popularChip,
+                    active ? styles.popularChipActive : null,
+                    pressed ? styles.popularChipPressed : null,
+                  ]}>
+                  <FontAwesome6
+                    name="magnifying-glass"
+                    size={11}
+                    color={active ? t.chipText : t.textSubtle}
+                  />
+                  <Text
+                    style={[styles.popularChipText, active ? styles.popularChipTextActive : null]}
+                    numberOfLines={1}>
+                    {term}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       </Reveal>
 
@@ -1138,6 +1185,26 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       minWidth: 0,
       minHeight: 46,
     },
+
+    /* popular searches ---------------------------------------------- */
+    popular: { gap: 10, marginTop: 4 },
+    popularTitle: { ...type.caption, color: t.textSubtle, fontWeight: '700' },
+    popularRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    popularChip: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 14,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: t.border,
+      backgroundColor: t.surfaceMuted,
+    },
+    popularChipActive: { borderColor: t.chipText, backgroundColor: t.chipBg },
+    popularChipPressed: { opacity: 0.85 },
+    popularChipText: { ...type.bodySm, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    popularChipTextActive: { color: t.chipText },
 
     featuredCard: { ...cardBase, gap: 12, borderRadius: 18 },
     featuredTitle: { ...type.h3, color: t.text },

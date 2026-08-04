@@ -102,6 +102,13 @@ const BRAND_BULLETS = [
   'Anything that drifts off-brand is flagged for review instead of quietly shipping.',
 ];
 
+/** How the brand brief is assembled — the three steps behind the Brand Kit. */
+const BRAND_SETUP: { title: string; note: string }[] = [
+  { title: 'Import', note: 'Your site, logo files and last year’s campaigns are read once, on setup.' },
+  { title: 'Confirm', note: 'You approve the palette, the type and the tone rules before anything ships.' },
+  { title: 'Applied', note: 'Every generation starts from that brief instead of a blank prompt.' },
+];
+
 const REFERENCES: { name: string; alt: string }[] = [
   { name: 'scenes/campaign-spring-product', alt: 'Spring campaign product still' },
   { name: 'product/commuter-backpack', alt: 'Commuter backpack product shot' },
@@ -649,6 +656,44 @@ export default function AiStudioPage() {
                 <Tick key={bullet} text={bullet} styles={styles} t={t} />
               ))}
             </View>
+
+            <View style={styles.setupCard}>
+              <Text style={styles.setupLabel}>HOW THE BRIEF IS BUILT</Text>
+              {BRAND_SETUP.map((step, index) => (
+                <View key={step.title} style={styles.setupRow}>
+                  <View style={styles.setupIndex}>
+                    <Text style={styles.setupIndexText}>{`0${index + 1}`}</Text>
+                  </View>
+                  <View style={styles.setupCopy}>
+                    <Text style={styles.setupTitle}>{step.title}</Text>
+                    <Text style={styles.setupNote}>{step.note}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.quoteCard}>
+              <FontAwesome6 name="quote-left" size={15} color={t.brand} />
+              <Text style={styles.quoteText}>
+                Every draft already looks like us. The team edits words now, not brand mistakes.
+              </Text>
+              <View style={styles.quoteWho}>
+                <Media
+                  name="people/amanda-rodriguez"
+                  alt="Amanda Rodriguez, Marketing Director at Harbor &amp; Co."
+                  style={styles.quoteAvatar}
+                  radius={16}
+                />
+                <View style={styles.quoteWhoCopy}>
+                  <Text numberOfLines={1} style={styles.quoteName}>
+                    Amanda Rodriguez
+                  </Text>
+                  <Text numberOfLines={1} style={styles.quoteRole}>
+                    Marketing Director, Harbor &amp; Co.
+                  </Text>
+                </View>
+              </View>
+            </View>
           </Reveal>
 
           <Reveal style={styles.splitVisual} distance={16} delay={90}>
@@ -1174,6 +1219,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const stageImage: ImageStyle = { width: '100%', aspectRatio: 16 / 10 };
   const templateImage: ImageStyle = { width: '100%', aspectRatio: 16 / 10 };
   const versionAvatar: ImageStyle = { width: 32, height: 32, flexGrow: 0, flexShrink: 0 };
+  const quoteAvatar: ImageStyle = { width: 32, height: 32, flexGrow: 0, flexShrink: 0 };
   const commentAvatar: ImageStyle = { width: 28, height: 28, flexGrow: 0, flexShrink: 0 };
 
   const railWide = !l.isCompact;
@@ -1430,6 +1476,50 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: softFill(t.green, t),
     },
     tickText: { ...type.bodySm, color: t.textMuted, flexShrink: 1, minWidth: 0 },
+
+    /* -------------------------------------------------- brand setup + quote */
+    setupCard: {
+      marginTop: 22,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 14 : 18,
+      gap: 12,
+    },
+    setupLabel: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.9 },
+    setupRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+    setupIndex: {
+      width: 28,
+      height: 28,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.brandSoft,
+    },
+    setupIndexText: { ...type.micro, color: t.brand, fontWeight: '800' },
+    setupCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    setupTitle: { ...type.caption, color: t.text, fontWeight: '800' },
+    setupNote: { ...type.caption, color: t.textMuted },
+
+    quoteCard: {
+      marginTop: 14,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceRaised,
+      padding: l.isPhone ? 14 : 18,
+      gap: 10,
+      alignItems: 'flex-start',
+    },
+    quoteText: { ...type.bodySm, color: t.text, fontWeight: '700' },
+    quoteWho: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
+    quoteAvatar,
+    quoteWhoCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    quoteName: { ...type.micro, color: t.text, fontWeight: '800' },
+    quoteRole: { ...type.micro, color: t.textSubtle },
 
     /* -------------------------------------------------- generic panel */
     panel: {

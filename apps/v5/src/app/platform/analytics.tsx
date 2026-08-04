@@ -849,6 +849,52 @@ export default function AnalyticsPage() {
                 </View>
               ))}
             </View>
+
+            <View style={styles.ledgerCard}>
+              <Text style={styles.ledgerLabel}>EVERYTHING IN THE SAME LEDGER</Text>
+              <View style={styles.ledgerRow}>
+                {CHANNELS.map((channel) => (
+                  <View key={channel.key} style={styles.ledgerChip}>
+                    <FontAwesome6
+                      name={channel.icon as never}
+                      size={11}
+                      color={accentOf(channel.accent)}
+                    />
+                    <Text numberOfLines={1} style={styles.ledgerChipText}>
+                      {channel.name}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.ledgerNote}>
+                One definition of a conversion, one currency and one attribution window across all
+                six.
+              </Text>
+            </View>
+
+            <View style={styles.quoteCard}>
+              <FontAwesome6 name="quote-left" size={15} color={t.brand} />
+              <Text style={styles.quoteText}>
+                The weekly report used to be three spreadsheets that disagreed. Now it is one number
+                nobody argues with.
+              </Text>
+              <View style={styles.quoteWho}>
+                <Media
+                  name="people/megan-roberts"
+                  alt="Megan Roberts, Head of Growth at Northwind Supply Co."
+                  style={styles.quoteAvatar}
+                  radius={16}
+                />
+                <View style={styles.quoteWhoCopy}>
+                  <Text numberOfLines={1} style={styles.quoteName}>
+                    Megan Roberts
+                  </Text>
+                  <Text numberOfLines={1} style={styles.quoteRole}>
+                    Head of Growth, Northwind Supply Co.
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
 
           <View style={styles.heroVisual}>
@@ -1862,6 +1908,52 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     heroVisual: stacked
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
       : { flexGrow: 1.5, flexShrink: 1, flexBasis: 600, minWidth: 0 },
+
+    /* -------------------------------------------------- hero ledger + quote */
+    ledgerCard: {
+      marginTop: 22,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 14 : 18,
+      gap: 11,
+    },
+    ledgerLabel: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 0.9 },
+    ledgerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+    ledgerChip: {
+      flexGrow: 0,
+      flexShrink: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 7,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 999,
+      backgroundColor: t.surfaceRaised,
+      paddingHorizontal: 11,
+      paddingVertical: 7,
+    },
+    ledgerChipText: { ...type.micro, color: t.text, fontWeight: '700', flexShrink: 1, minWidth: 0 },
+    ledgerNote: { ...type.caption, color: t.textMuted },
+
+    quoteCard: {
+      marginTop: 14,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceRaised,
+      padding: l.isPhone ? 14 : 18,
+      gap: 10,
+      alignItems: 'flex-start',
+    },
+    quoteText: { ...type.bodySm, color: t.text, fontWeight: '700' },
+    quoteWho: { flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 },
+    quoteAvatar: { width: 32, height: 32, flexGrow: 0, flexShrink: 0 },
+    quoteWhoCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    quoteName: { ...type.micro, color: t.text, fontWeight: '800' },
+    quoteRole: { ...type.micro, color: t.textSubtle },
 
     /* -------------------------------------------------- dashboard */
     dashboard: {

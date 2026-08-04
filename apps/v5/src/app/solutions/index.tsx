@@ -19,6 +19,7 @@ import {
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
+import { trackCta } from '@/lib/analytics';
 import { contactHref } from '@/lib/destinations';
 import { elevation, softFill, type ThemeTokens } from '@/theme/tokens';
 import { cellBasis, useLayout, type Layout } from '@/theme/use-responsive';
@@ -36,6 +37,68 @@ const AUDIENCES: { key: string; icon: string; label: string; note: string; accen
   { key: 'ecommerce', icon: 'cart-shopping', label: 'Ecommerce Brands', note: 'Catalog and repeat sales', accent: 'orange' },
   { key: 'agencies', icon: 'briefcase', label: 'Agencies', note: 'Many clients, one system', accent: 'violet' },
   { key: 'multi', icon: 'map-location-dot', label: 'Multi-location Teams', note: 'Every branch aligned', accent: 'green' },
+];
+
+/**
+ * How you actually begin, in three lines.
+ *
+ * The hero promise ("start with the workflow you need today, connect the rest
+ * later") is the one thing no section below explains, so it lives here — and it
+ * gives the short copy column something to say beside the tall dashboard mock.
+ */
+const START_STEPS: { key: string; icon: string; title: string; note: string; accent: Accent }[] = [
+  {
+    key: 'pick',
+    icon: 'hand-pointer',
+    title: 'Pick one workflow',
+    note: 'The one costing you the most time this week.',
+    accent: 'brand',
+  },
+  {
+    key: 'bring',
+    icon: 'plug',
+    title: 'Bring your own data',
+    note: 'Customers, calendar, catalog and channels come with you.',
+    accent: 'violet',
+  },
+  {
+    key: 'add',
+    icon: 'layer-group',
+    title: 'Add the next piece later',
+    note: 'Nothing to migrate — it is the same workspace.',
+    accent: 'green',
+  },
+];
+
+/**
+ * The three solutions this page never links to anywhere else.
+ *
+ * The outcome cards cover AI Studio, Social, Email + SMS, Ads, FlowShop and
+ * ListSmartly; Call Agent, the marketplace and FlowLearner had no route in from
+ * here at all.
+ */
+const DEEPER: { key: string; icon: string; label: string; note: string; href: string }[] = [
+  {
+    key: 'call-agent',
+    icon: 'comment-dots',
+    label: 'Call Agent',
+    note: 'Answers every call and books the work',
+    href: ROUTES.callAgent,
+  },
+  {
+    key: 'agent-marketplace',
+    icon: 'store',
+    label: 'Agent Marketplace',
+    note: 'Hire a vetted expert inside your workspace',
+    href: ROUTES.agentMarketplace,
+  },
+  {
+    key: 'flowlearner',
+    icon: 'graduation-cap',
+    label: 'FlowLearner',
+    note: 'Train your team and sell what you teach',
+    href: ROUTES.flowLearner,
+  },
 ];
 
 const BUSINESS_TYPES: { key: string; icon: string; label: string; blurb: string; accent: Accent }[] = [
@@ -437,6 +500,28 @@ export default function SolutionsPage() {
                 />
               </ButtonRow>
             </View>
+
+            {/* Three lines under the CTAs, so the copy column carries its own
+                weight beside the dashboard mock instead of leaving a void. */}
+            <View style={styles.startCard}>
+              <Text style={styles.startHead}>HOW STARTING ACTUALLY WORKS</Text>
+              {START_STEPS.map((step) => {
+                const accent = accentOf(step.accent);
+                return (
+                  <View key={step.key} style={styles.startRow}>
+                    <View style={[styles.startIcon, { backgroundColor: softFill(accent, t) }]}>
+                      <FontAwesome6 name={step.icon as never} size={13} color={accent} />
+                    </View>
+                    <View style={styles.startCopy}>
+                      <Text numberOfLines={1} style={styles.startTitle}>
+                        {step.title}
+                      </Text>
+                      <Text style={styles.startNote}>{step.note}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           </View>
 
           <View style={styles.heroVisual}>
@@ -743,6 +828,36 @@ export default function SolutionsPage() {
                 </View>
               </View>
             </View>
+
+            {/* The quote alone left ~260px of nothing beside the table. These
+                are the three solutions the page never otherwise links to. */}
+            <View style={styles.deeperCard}>
+              <Text style={styles.deeperHead}>GO DEEPER</Text>
+              {DEEPER.map((item) => (
+                <Pressable
+                  key={item.key}
+                  accessibilityRole="link"
+                  accessibilityLabel={`${item.label} — ${item.note}`}
+                  onPress={() => {
+                    trackCta(`solutions.go-deeper.${item.key}`);
+                    router.push(item.href as never);
+                  }}
+                  style={({ pressed }) => [styles.deeperRow, pressed ? styles.deeperRowPressed : null]}>
+                  <View style={styles.deeperIcon}>
+                    <FontAwesome6 name={item.icon as never} size={13} color={t.brand} />
+                  </View>
+                  <View style={styles.deeperCopy}>
+                    <Text numberOfLines={1} style={styles.deeperLabel}>
+                      {item.label}
+                    </Text>
+                    <Text numberOfLines={2} style={styles.deeperNote}>
+                      {item.note}
+                    </Text>
+                  </View>
+                  <FontAwesome6 name="arrow-right" size={12} color={t.textSubtle} />
+                </Pressable>
+              ))}
+            </View>
           </Reveal>
         </View>
       </Section>
@@ -804,6 +919,34 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     heroTitle: { marginTop: 14 },
     heroBody: { marginTop: 14, maxWidth: 520 },
     heroButtons: { marginTop: 22 },
+
+    startCard: {
+      marginTop: 26,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 15 : 17,
+      gap: 12,
+      /* Stacked, the copy column is the full page width — cap it so the three
+         lines stay a strip and never become a wall of text. */
+      maxWidth: 620,
+    },
+    startHead: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 1.1 },
+    startRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    startIcon: {
+      width: 32,
+      height: 32,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    startCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    startTitle: { ...type.caption, color: t.text, fontWeight: '800' },
+    startNote: { ...type.micro, color: t.textMuted },
+
     heroVisual: stacked
       ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
       : { flexGrow: 1.2, flexShrink: 1, flexBasis: 500, minWidth: 0 },
@@ -1080,8 +1223,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       ? { width: '100%', minWidth: 0 }
       : { flexGrow: 1.7, flexShrink: 1, flexBasis: 0, minWidth: 0 },
     testimonialColumn: stacked
-      ? { width: '100%', minWidth: 0 }
-      : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+      ? { width: '100%', minWidth: 0, gap: 18 }
+      : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 18 },
 
     table: {
       borderWidth: 1,
@@ -1166,5 +1309,41 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     quoteAuthorCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 3 },
     quoteName: { ...type.bodySm, color: t.text, fontWeight: '800' },
     quoteRole: { ...type.micro, color: t.textMuted },
+
+    deeperCard: {
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 18,
+      backgroundColor: t.surfaceMuted,
+      padding: l.isPhone ? 15 : 17,
+      gap: 10,
+    },
+    deeperHead: { ...type.micro, color: t.textSubtle, fontWeight: '800', letterSpacing: 1.1 },
+    deeperRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      minHeight: 52,
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 13,
+      backgroundColor: t.surfaceRaised,
+      paddingHorizontal: 13,
+      paddingVertical: 10,
+    },
+    deeperRowPressed: { opacity: 0.86 },
+    deeperIcon: {
+      width: 30,
+      height: 30,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.brandSoft,
+    },
+    deeperCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, gap: 2 },
+    deeperLabel: { ...type.caption, color: t.text, fontWeight: '800' },
+    deeperNote: { ...type.micro, color: t.textMuted },
   });
 }
