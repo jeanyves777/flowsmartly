@@ -9,11 +9,8 @@
  * rectangles — glaring light blocks in the grey and dark themes.
  */
 export const CUTOUTS: ReadonlySet<string> = new Set([
-  'editorial/blog-ai-conversations',
-  'editorial/blog-analytics',
   'editorial/blog-cart-recovery',
   'editorial/blog-local-growth',
-  'editorial/blog-omnichannel',
   'editorial/blog-social-dms',
   'editorial/customer-story-1',
   'editorial/customer-story-2',
@@ -35,4 +32,21 @@ export const CUTOUTS: ReadonlySet<string> = new Set([
 
 export function isCutout(name: string): boolean {
   return CUTOUTS.has(name);
+}
+
+/**
+ * Illustrations that were deliberately NOT cut out, because their art is
+ * painted into the backdrop — a motion trail, a pane of glass, a wisp of smoke.
+ * Lifted off the lavender they became grey smears, so they keep it and get an
+ * artboard instead: a light plate in every theme, which reads as a deliberate
+ * frame rather than as a backdrop that leaked.
+ */
+export const ARTBOARDS: ReadonlySet<string> = new Set([
+  'editorial/blog-ai-conversations',
+  'editorial/blog-analytics',
+  'editorial/blog-omnichannel',
+]);
+
+export function isArtboard(name: string): boolean {
+  return ARTBOARDS.has(name);
 }

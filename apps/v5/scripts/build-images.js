@@ -61,7 +61,11 @@ function widthFor(rel) {
  * know which is which. Generating the list means it can never drift from what
  * the pipeline actually produced.
  */
-function writeManifest(names) {
+function writeManifest(names, artboards) {
+  const artboardBody = artboards
+    .sort()
+    .map((name) => `  '${name}',`)
+    .join('\n');
   const body = names
     .sort()
     .map((name) => `  '${name}',`)
@@ -82,6 +86,21 @@ ${body}
 
 export function isCutout(name: string): boolean {
   return CUTOUTS.has(name);
+}
+
+/**
+ * Illustrations that were deliberately NOT cut out, because their art is
+ * painted into the backdrop — a motion trail, a pane of glass, a wisp of smoke.
+ * Lifted off the lavender they became grey smears, so they keep it and get an
+ * artboard instead: a light plate in every theme, which reads as a deliberate
+ * frame rather than as a backdrop that leaked.
+ */
+export const ARTBOARDS: ReadonlySet<string> = new Set([
+${artboardBody}
+]);
+
+export function isArtboard(name: string): boolean {
+  return ARTBOARDS.has(name);
 }
 `;
   fs.mkdirSync(path.dirname(MANIFEST), { recursive: true });
@@ -151,7 +170,11 @@ export function isCutout(name: string): boolean {
     return;
   }
 
-  writeManifest(cutouts);
+  const artboardFile = path.join(OUT, '.artboards.json');
+  const artboards = fs.existsSync(artboardFile)
+    ? JSON.parse(fs.readFileSync(artboardFile, 'utf8'))
+    : [];
+  writeManifest(cutouts, artboards);
 
   const mb = (n) => `${(n / 1048576).toFixed(1)}MB`;
   console.log(`${files.length} source image(s): ${written} written, ${skipped} already current`);

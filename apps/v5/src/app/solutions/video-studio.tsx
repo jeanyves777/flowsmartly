@@ -4,7 +4,8 @@ import { useMemo } from 'react';
 import { Linking, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { Connectors, ConnectorSurface, useConnectorField, type Link as Wire } from '@/components/public/connectors';
 import { Media } from '@/components/public/media';
-import { Reveal, useCountUp, useGrowIn } from '@/components/public/motion';
+import { Animated, Reveal, useCountUp, useGrowIn } from '@/components/public/motion';
+import { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
 import { breadcrumbJsonLd, faqJsonLd } from '@/components/public/seo';
@@ -302,12 +303,17 @@ function TrendBar({
   height: number;
   index: number;
   color: string;
-  progress: { value: number };
+  progress: SharedValue<number>;
   styles: Styles;
 }) {
-  // Reads the shared progress with a per-bar offset so the row sweeps.
-  const local = Math.min(1, Math.max(0, (progress.value - index * 0.05) / 0.7));
-  return <View style={[styles.trendBar, { height: Math.max(2, height * local), backgroundColor: color }]} />;
+  // `progress` is a Reanimated shared value: reading `.value` during render
+  // samples it once and never re-renders, which left every bar at its 2px floor
+  // and drew the sparkline as a dotted line. It has to be read on the UI thread.
+  const animated = useAnimatedStyle(() => {
+    const local = Math.min(1, Math.max(0, (progress.value - index * 0.05) / 0.7));
+    return { height: Math.max(2, height * local) };
+  }, [height, index]);
+  return <Animated.View style={[styles.trendBar, { backgroundColor: color }, animated]} />;
 }
 
 /** The four designed card mocks, for the crafts with no photograph. */
@@ -781,7 +787,10 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     playerCard: {
       flexGrow: 1,
       flexShrink: 1,
-      flexBasis: 0,
+      // `flexBasis: 0` is a WIDTH here only while the hero visual is a row. On
+      // phone it becomes a column, where a zero basis is zero HEIGHT — the card
+      // collapsed and the trust bar drew straight through the player.
+      flexBasis: l.isPhone ? 'auto' : 0,
       minWidth: 0,
       borderWidth: 1,
       borderColor: t.border,
@@ -831,11 +840,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     playerFill: { width: '18%', height: 3, borderRadius: 2, backgroundColor: t.textOnScrim },
 
-    statRow: { flexDirection: 'row', alignItems: 'stretch', gap: 8 },
+    // Four cells across a 390px card gave "Engagement" 60px and broke it
+    // mid-word. On phone it becomes a 2x2 block instead.
+    statRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', gap: 8 },
     statCell: {
       flexGrow: 1,
       flexShrink: 1,
-      flexBasis: 0,
+      flexBasis: l.isPhone ? '46%' : 0,
       minWidth: 0,
       borderWidth: 1,
       borderColor: t.border,
@@ -848,7 +859,7 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     statCellWide: {
       flexGrow: 1,
       flexShrink: 1,
-      flexBasis: 0,
+      flexBasis: l.isPhone ? '46%' : 0,
       minWidth: 0,
       borderWidth: 1,
       borderColor: t.border,
@@ -1013,7 +1024,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceMuted,
       padding: l.isPhone ? 18 : 26,
     },
-    aiCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 10 },
+    // Same trap: the band stacks into a column below 1024.
+    aiCopy: { flexGrow: 1, flexShrink: 1, flexBasis: l.isCompact ? 'auto' : 0, minWidth: 0, gap: 10 },
     aiTitle: { marginTop: 4 },
     aiBody: { color: t.textMuted, maxWidth: 520 },
     aiList: { flexGrow: 1, flexShrink: 1, flexBasis: l.isCompact ? 'auto' : 0, minWidth: 0, gap: 8 },

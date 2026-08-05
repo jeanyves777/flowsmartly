@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { hexToRgba, type ThemeTokens } from '@/theme/tokens';
 import { useTokens } from '@/theme/v5-theme-provider';
-import { isCutout } from './media-cutouts';
+import { isArtboard, isCutout } from './media-cutouts';
 import { Media } from './media';
 
 /**
@@ -43,7 +43,28 @@ export function Artwork({
   const styles = useMemo(() => createStyles(t), [t]);
   const cutout = isCutout(name);
 
-  // A photograph, or art we have not cut out yet: fill the frame as before.
+  /*
+   * An illustration that could not be cut out, because its art is painted into
+   * the backdrop. Rather than leak a lavender rectangle into a dark page, it is
+   * framed as an artboard: the same light plate in every theme, inset from the
+   * card edge, so it reads as a deliberately mounted picture. A frame you can
+   * see is honest; a backdrop pretending not to be one is not.
+   */
+  if (isArtboard(name)) {
+    return (
+      <View
+        style={[
+          styles.artboard,
+          { borderRadius: radius, padding: Math.round(inset * 0.55) },
+          height ? { height } : null,
+          style,
+        ]}>
+        <Media name={name} alt={alt} radius={Math.max(0, radius - 6)} style={styles.art as never} />
+      </View>
+    );
+  }
+
+  // A photograph: it should fill its frame, so nothing is added around it.
   if (!cutout) {
     return (
       <Media
@@ -77,6 +98,17 @@ function createStyles(t: ThemeTokens) {
       borderWidth: 1,
       borderColor: t.border,
       backgroundColor: t.surfaceMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    // Deliberately theme-invariant: the mount is part of the picture, and a
+    // light artboard is what makes the illustration's own pale backdrop read as
+    // intended rather than as a leak.
+    artboard: {
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: t.mode === 'light' ? t.border : hexToRgba('#ffffff', 0.14),
+      backgroundColor: '#ece7fb',
       alignItems: 'center',
       justifyContent: 'center',
     },

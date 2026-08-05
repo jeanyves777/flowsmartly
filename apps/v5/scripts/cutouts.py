@@ -16,6 +16,7 @@ room is not an improvement, it is a mistake — so the backdrop is detected rath
 than assumed, and anything that is not a flat backdrop is skipped.
 """
 
+import json
 import os
 import sys
 from statistics import median
@@ -27,6 +28,9 @@ from scipy import ndimage
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "assets", "images", "v5")
 OUT = os.path.join(ROOT, "assets", "images", "v5cut")
+# Written into the COMMITTED derived tree, because the UI needs it and the
+# intermediate `v5cut/` is not committed.
+ARTBOARDS = os.path.join(ROOT, "assets", "images", "v5w", ".artboards.json")
 
 # How uniform the border ring has to be before we believe it is a backdrop
 # rather than part of the picture. A photograph never passes this.
@@ -38,6 +42,17 @@ FLAT_TOLERANCE = 26
 # Photographs. Even a product shot on a near-black studio sweep must keep
 # its backdrop — the lighting IS the shot.
 NEVER_CUT = ("people/", "scenes/", "video/")
+
+# Illustrations whose art is painted INTO the backdrop, so there is no clean
+# subject to lift: the paper plane's motion trail, the analytics panel's glass,
+# and the smoke behind the chat bubbles are all soft gradients that only read
+# against lavender. Cut out they become grey smears. These keep their backdrop
+# and are presented on a deliberate artboard instead — see `Artwork`.
+SKIP_CUTOUT = {
+    "editorial/blog-omnichannel.png",
+    "editorial/blog-analytics.png",
+    "editorial/blog-ai-conversations.png",
+}
 
 
 def border_pixels(im, step=4):
@@ -158,6 +173,52 @@ def key_backdrop(im, colour, tolerance=52, shadow_reach=132):
     return out, float((alpha > 127).mean())
 
 
+def drop_shadow_islands(im, colour, max_area=0.02, colour_reach=150):
+    """Delete the leftover smudges a matte leaves behind.
+
+    Neither method removes the soft drop shadow cleanly: the colour key cannot
+    (a shadow IS the backdrop, darkened) and the matting model often leaves a
+    torn fragment of it. What survives is a small island floating clear of the
+    subject — the grey smear under the chart, the smudge trailing the paper
+    plane — and on a dark plate it is the first thing you see.
+
+    A size test alone would also eat the art, because these illustrations are
+    full of deliberate small floating pieces (stray cubes, separate speech
+    bubbles). So size is only the trigger; the decision is COLOUR. A leftover
+    shadow is still the backdrop hue, while a real floating element is saturated
+    or white — far from the lavender it was rendered on.
+    """
+    rgb = np.asarray(im.convert("RGB")).astype(np.int16)
+    alpha = np.asarray(im.getchannel("A")).copy()
+    solid = alpha > 127
+    if not solid.any():
+        return im
+
+    labels, count = ndimage.label(solid)
+    if count <= 1:
+        return im
+
+    sizes = ndimage.sum(solid, labels, range(1, count + 1))
+    largest = sizes.max()
+    base = np.array(colour, dtype=np.int16)
+    removed = 0
+
+    for index in range(1, count + 1):
+        if sizes[index - 1] >= largest * max_area:
+            continue
+        piece = labels == index
+        mean = rgb[piece].mean(axis=0)
+        if np.abs(mean - base).sum() < colour_reach:
+            alpha[piece] = 0
+            removed += 1
+
+    if removed:
+        out = im.copy()
+        out.putalpha(Image.fromarray(alpha, mode="L"))
+        return out
+    return im
+
+
 def trim_transparent(im, pad_ratio=0.02):
     """Crop the empty margin the backdrop used to occupy.
 
@@ -201,11 +262,18 @@ def main():
         remove = rembg_remove
 
     cut = kept = 0
+    artboards = []
     for full, rel in walk(SRC):
         if rel.startswith(NEVER_CUT):
             kept += 1
             if listing:
                 print(f"  skip  {rel:52} photograph")
+            continue
+
+        if rel in SKIP_CUTOUT:
+            kept += 1
+            artboards.append(os.path.splitext(rel)[0])
+            print(f"  keep  {rel:52} art depends on its backdrop")
             continue
 
         im = Image.open(full)
@@ -277,6 +345,7 @@ def main():
             print(f"  SKIP  {rel} — retained {retained:.0%}, refusing to ship it")
             continue
 
+        result = drop_shadow_islands(result, colour)
         result = trim_transparent(result)
         target = os.path.join(OUT, os.path.splitext(rel)[0] + ".png")
         os.makedirs(os.path.dirname(target), exist_ok=True)
@@ -284,7 +353,12 @@ def main():
         cut += 1
         print(f"  cut   {rel:52} kept {retained:.0%}  -> {result.size[0]}x{result.size[1]}")
 
-    print(f"\n{cut} cut out, {kept} left as-is")
+    if not listing:
+        os.makedirs(os.path.dirname(ARTBOARDS), exist_ok=True)
+        with open(ARTBOARDS, "w", encoding="utf-8") as handle:
+            json.dump(sorted(artboards), handle, indent=2)
+
+    print(f"\n{cut} cut out, {kept} left as-is, {len(artboards)} kept as artboards")
     return 0
 
 
