@@ -89,15 +89,18 @@ stated — those are the rewrites with teeth.
 > No message leaves to an address without permission on that channel, and every message carries an
 > opt-out **that actually works**.
 >
-> **Fails today, and it is a legal exposure:** `{{unsubscribeLink}}` always renders empty because
-> nothing supplies `unsubscribeUrl` and **no unsubscribe route exists anywhere in the codebase.**
+> **Fails today:** `{{unsubscribeLink}}` always renders empty because nothing supplies
+> `unsubscribeUrl`, and **no unsubscribe route exists anywhere in the codebase.** The defect is
+> verified; whether it is a live exposure depends on production sending volume — see
+> [06 §7](./06-greenfield.md).
 
 **10 · Advertising**
 > Reported ad state must equal provider ad state.
 >
-> *Test:* fetch any campaign from its provider and diff status, budget and spend. **Fails today** —
+> *Test:* fetch any campaign from its provider and diff status, budget and spend. **Would fail** —
 > pausing never propagates (`pauseOnAllChannels` is defined and called from nowhere), budget PATCH
-> changes nothing upstream, and all three `syncStats` functions only `console.log`.
+> changes nothing upstream, and all three `syncStats` functions only `console.log`. The test cannot
+> be run today because no ad credential is configured and no campaign exists to fetch.
 
 **11 · Commerce**
 > Money and stock move together or not at all. No charge without an order line, no order line
@@ -163,12 +166,15 @@ Two rules:
 
 Ranked by what they cost us, not by how many there are.
 
-1. **No working unsubscribe** (Messaging). The merge field renders empty and no route exists. This
-   is a legal exposure on every campaign already sent, and it blocks `create_email_campaign` from
-   ever exceeding autonomy 1.
-2. **Ad control is fiction** (Advertising). Pause is unreachable code; budget changes are local
-   only; spend never reconciles. The portal shows numbers no provider agrees with, and
-   `adjust_ad_budget` at autonomy 2 would approve a change that does not happen.
+1. **No working unsubscribe** (Messaging). The merge field renders empty and no route exists. It
+   blocks `create_email_campaign` from ever exceeding autonomy 1, and if production is sending
+   marketing mail at any volume it is also a legal exposure — a question about sending volume, not
+   about the code.
+2. **Advertising has never run** (Advertising). Pause is unreachable code, budget changes are
+   local only, and spend never reconciles — but **no ad provider credential is configured**, and
+   both clients gate on that, so nothing can be created, launched or charged. The defects are
+   latent, not live. This makes Advertising an *unfinished* domain rather than a broken one:
+   `Rebuild`, and lower priority, because no user depends on behaviour it does not have.
 3. **Three authorisation systems that disagree** (Identity). `getSession()` resolves an actor five
    ways and *mints cookies as a side effect of a read* — a read that mutates auth cannot be audited.
    Admin preview **creates a real billable user with a PRO plan and 10,000 credits.** Delegation

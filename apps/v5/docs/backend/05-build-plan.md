@@ -207,8 +207,8 @@ acceptance test is demonstrable and takes 30 seconds to run — replay a call, g
 execution.
 
 **The legacy keeps running.** Two systems, one team. *Mitigation:* no new features in the legacy
-backend from the day Phase 1 starts; only the unsubscribe and ad-pause fixes, because those are
-live exposures that cannot wait for V5.
+backend from the day Phase 1 starts; and see 06 §7 for which of those
+exposures is real.
 
 **Provider single points of failure survive the rewrite.** One key covers the agent loop, web
 search, every builder and compliance copy; another covers images, editing, video *and* music
@@ -222,16 +222,13 @@ finish them speculatively — repair priority is demand-driven, per D9.
 
 ---
 
-## 6. Two live exposures that should not wait
+## 6. Exposures — see [06 §7](./06-greenfield.md)
 
-Independent of V5, and both currently shipping:
+The ad-spend claim that stood here is **withdrawn**: no ad provider credential is configured, so
+nothing can be created, launched or charged. The defect is latent, not live.
 
-1. **No working unsubscribe.** The merge field renders empty; no route exists. Every campaign sent
-   is exposed. This is days of work in the legacy backend and should be done now.
-2. **Ad pause does not propagate.** `pauseOnAllChannels` is called from nowhere; budget changes are
-   local; spend never reconciles. A customer who pauses a campaign is still spending.
-
----
+The unsubscribe defect is verified in code; whether it is a live exposure depends on production
+sending volume, which the repository cannot show.
 
 ## 7. Open — needs your decision
 

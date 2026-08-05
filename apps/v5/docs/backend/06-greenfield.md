@@ -174,18 +174,47 @@ that cannot be called done.
 
 ---
 
-## 7. The two live exposures still stand
+## 7. Exposures — corrected
 
-Freezing legacy features does **not** mean leaving these. Real people are receiving email from the
-beta right now.
+An earlier draft of this document listed **two live exposures**. One of them was wrong, and the
+correction matters more than the claim did.
 
-1. **No working unsubscribe exists.** The merge field renders empty; no route exists anywhere in the
-   codebase. Every campaign already sent is exposed. "It is only a beta" is not a defence a
-   regulator accepts, and the recipients did not consent to being test subjects.
-2. **Ad pause does not propagate.** A customer who pauses a campaign is still spending real money.
+### Advertising — withdrawn. There is no live ad spend.
 
-Both are days of work. They should be fixed in the frozen legacy and then never thought about
-again, because V5's Messaging invariant and Advertising invariant make them structurally impossible.
+No ad provider credential is set: `META_ADS_ACCESS_TOKEN`, `META_ADS_AD_ACCOUNT_ID`,
+`TIKTOK_ADS_ACCESS_TOKEN`, `TIKTOK_ADS_ADVERTISER_ID`, `GOOGLE_ADS_DEVELOPER_TOKEN` and
+`GOOGLE_ADS_CUSTOMER_ID` are all absent, and both clients gate every call on
+`isMetaAdsConfigured()` / `isTikTokAdsConfigured()`, which return false without them. **No campaign
+can be created, launched or charged.** Nobody is spending money they cannot stop.
+
+The pause-does-not-propagate defect is real *in the code* and stays on the record — but it is
+**latent**, not live. It becomes real on the day a credential is added, which under greenfield will
+never happen in the legacy system.
+
+This changes Advertising's classification: it is not a broken production system, it is an
+**unfinished** one. Under §3 that makes it **Rebuild**, and it drops in priority, because no user
+depends on behaviour it does not have.
+
+### Messaging — the defect is verified; whether it is live is not mine to assert.
+
+`{{unsubscribeLink}}` resolves to `context?.unsubscribeUrl || ""` in
+`src/lib/email/marketing-sender.ts:284`, nothing ever supplies `unsubscribeUrl`, and there is no
+unsubscribe route anywhere in `src/app`. That is a genuine code defect, confirmed.
+
+Whether it is *exposure* depends on whether production is sending marketing email to real
+recipients at any volume — which this working tree cannot show, because dev has no SMTP credentials
+and production's live on the VPS. **If real marketing email is going out, fix it before the freeze;
+if it is not, it dies with the legacy system.** That is a question about your sending volume, not
+about the code.
+
+### The lesson, which applies to the rest of the survey
+
+The capability survey read code and inferred impact. **Code shows what is possible; configuration
+and usage decide what is actual.** Several other survey findings were phrased as live problems on
+the same reasoning — the shared ad account, the ElevenLabs quota, the Telnyx A2P campaign. Each
+should be re-checked against real configuration before it is treated as urgent, and none of them
+should change the V5 design, because V5's invariants make all of them structurally impossible
+regardless of whether they ever fired.
 
 ---
 
