@@ -5,30 +5,46 @@ these by number.
 
 ---
 
-## D0 — The system is called **FlowAgent** · **LOCKED**
+## D0 — The system is called **FlowAgent**, publicly and internally · **LOCKED**
 
-The assistant and its execution core are **FlowAgent**. "Flow.AI" is retired.
+"Flow.AI" is retired everywhere. Aligning now is cheaper than maintaining two names before either
+has accumulated recognition.
 
-| | name |
+```
+Public brand      FlowAgent by FlowSmartly
+Canonical route   /flowagent
+Legacy route      /flow-ai  →  permanent redirect
+```
+
+| Name | What it is |
 | --- | --- |
-| The system, and what a user talks to | **FlowAgent** |
-| Orchestration hub | Flow Kernel |
-| Capability catalogue | Flow Registry |
-| Scoped business context | Flow Context |
-| Execution engine | Flow Runtime |
-| Authority and autonomy | Flow Policy |
-| Structured memory | Flow Memory |
-| Events and triggers | Flow Events |
-| Limits and loop prevention | Flow Guard |
-| Traces, logs, evaluations | Flow Observe |
+| **FlowAgent** | the public AI product |
+| **FlowAgent Assistant** | the chat interface — sidebar, floating, full page, dock |
+| **FlowAgent Runtime** | the execution runtime |
+| **Flow Kernel** | planner and execution controller |
+| **Flow Registry** | capability catalogue |
+| **Flow Ledger** | facts, effects and evidence |
+| **Flow Policy** | permissions and autonomy |
+| **Flow Guard** | provenance, safety and loop controls |
+| **Flow Context** | scoped business context |
+| **Flow Events** | events and triggers |
+| **Flow Observe** | traces, logs, evaluations |
 
-The internal components keep the `Flow *` family because they are a system, not a product — a
-person never types "Flow Kernel". Only **FlowAgent** is user-facing.
+Only **FlowAgent** is user-facing. The `Flow *` components are a system, not a product — nobody
+types "Flow Kernel".
 
-**Open:** the public marketing site still sells the assistant as "Flow.AI" across 16 files,
-including a `/flow-ai` route, the mega menu, JSON-LD and the sitemap. Renaming it is a separate,
-mechanical sweep with SEO consequences (the route changes, so it needs a redirect). Not done —
-see the note at the end of [05 — Build plan](./05-build-plan.md).
+**Shipped.** The public site is renamed: route, nav labels, page metadata, canonical, Open Graph,
+JSON-LD, sitemap, llms.txt, internal links, footer, product cards, portal labels and analytics
+event ids (`flow-ai.*` → `flowagent.*`).
+
+> **The 301 needs a web-server rule.** A static export cannot issue one. `scripts/agent-assets.js`
+> emits a `/flow-ai` stub that is `noindex`, canonical to `/flowagent`, and moves a human instantly
+> while preserving query string and hash. That covers bookmarks and shared previews. To consolidate
+> ranking signals properly, add to nginx:
+>
+> ```nginx
+> location = /flow-ai { return 301 /flowagent; }
+> ```
 
 ---
 

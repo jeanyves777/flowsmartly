@@ -72,7 +72,7 @@ type Topic = (typeof TOPICS)[number];
  * alternative is a card that looks like a link and goes nowhere.
  */
 const TOPIC_HREF: Record<Exclude<Topic, typeof ALL>, string> = {
-  'AI & Automation': ROUTES.flowAi,
+  'AI & Automation': ROUTES.flowAgent,
   Social: ROUTES.social,
   Messaging: ROUTES.emailSms,
   Commerce: ROUTES.flowshop,

@@ -60,12 +60,12 @@ const ENTRIES: Entry[] = [
     month: 'June 2024',
     date: 'Jun 24',
     kind: 'New',
-    title: 'Flow.AI weekly growth briefing',
+    title: 'FlowAgent weekly growth briefing',
     lines: [
-      'Every Monday, Flow.AI writes up what moved last week and what it plans to do about it.',
+      'Every Monday, FlowAgent writes up what moved last week and what it plans to do about it.',
       'Approve the plan, edit a step, or ignore it entirely — nothing runs without you.',
     ],
-    more: ROUTES.flowAi,
+    more: ROUTES.flowAgent,
   },
   {
     month: 'June 2024',

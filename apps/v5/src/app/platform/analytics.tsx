@@ -330,7 +330,7 @@ const ANOMALIES: { key: string; icon: string; title: string; note: string; tone:
     key: 'bounce',
     icon: 'triangle-exclamation',
     title: 'Email bounce rate up 3.1pp',
-    note: 'One imported list is responsible. Flow.AI has quarantined it.',
+    note: 'One imported list is responsible. FlowAgent has quarantined it.',
     tone: 'warn',
   },
   {

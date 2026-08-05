@@ -1039,8 +1039,8 @@ export default function ListSmartlyPage() {
             <NumberedHead
               index={4}
               eyebrow="REVIEWS"
-              title="Monitor reviews and respond faster with Flow.AI."
-              body="Every review from every source arrives in one queue. Flow.AI drafts a reply in your voice, referencing what the customer actually said — you read it, adjust it, and send."
+              title="Monitor reviews and respond faster with FlowAgent."
+              body="Every review from every source arrives in one queue. FlowAgent drafts a reply in your voice, referencing what the customer actually said — you read it, adjust it, and send."
               styles={styles}
               type={type}
             />
@@ -1097,7 +1097,7 @@ export default function ListSmartlyPage() {
                     <FontAwesome6 name="wand-magic-sparkles" size={12} color={t.violet} />
                   </View>
                   <Text numberOfLines={l.isPhone ? 2 : 1} style={styles.replyTitle}>
-                    Flow.AI suggested reply
+                    FlowAgent suggested reply
                   </Text>
                   <View style={styles.replyChip}>
                     <Text style={styles.replyChipText}>Your voice</Text>

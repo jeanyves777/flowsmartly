@@ -317,7 +317,7 @@ const AUDIT_ROWS: { time: string; change: string; who: string; scope: string }[]
   { time: 'Today 09:12', change: 'Budget raised $12,000 → $15,000', who: 'Megan Roberts', scope: 'Spring Collection' },
   { time: 'Today 08:47', change: 'Creative variant C approved', who: 'Daniel Kim', scope: 'Spring Collection' },
   { time: 'Yesterday 17:30', change: 'ROAS floor set to 3.0x', who: 'Megan Roberts', scope: 'Account' },
-  { time: 'Yesterday 11:04', change: 'Audience “High value” resynced from CRM', who: 'Flow.AI', scope: 'Audiences' },
+  { time: 'Yesterday 11:04', change: 'Audience “High value” resynced from CRM', who: 'FlowAgent', scope: 'Audiences' },
   { time: 'Mon 08:02', change: 'Campaign launched on Meta and Google', who: 'Megan Roberts', scope: 'Always-on retargeting' },
 ];
 
@@ -1441,7 +1441,7 @@ export default function AdsPage() {
           <Heading level={2} style={[type.h2, styles.headTitle]}>Audit history and change logs.</Heading>
           <Text style={[type.body, styles.headSub]}>
             Every budget change, approval, pause and audience sync is recorded with a name and a
-            timestamp — including the ones Flow.AI made.
+            timestamp — including the ones FlowAgent made.
           </Text>
         </Reveal>
 

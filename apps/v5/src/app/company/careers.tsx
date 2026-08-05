@@ -183,7 +183,7 @@ const ROLES: Role[] = [
   { title: 'Infrastructure Engineer', department: 'Engineering', location: 'Remote — Global', type: 'Full-time' },
   { title: 'Product Designer', department: 'Design', location: 'Remote — US / EU', type: 'Full-time' },
   { title: 'Brand Designer', department: 'Design', location: 'Remote — Global', type: 'Contract' },
-  { title: 'Product Manager, Flow.AI', department: 'Product', location: 'Remote — US', type: 'Full-time' },
+  { title: 'Product Manager, FlowAgent', department: 'Product', location: 'Remote — US', type: 'Full-time' },
   { title: 'Product Manager, Commerce', department: 'Product', location: 'Remote — EU', type: 'Full-time' },
   { title: 'Lifecycle Marketing Lead', department: 'Growth', location: 'Remote — US / EU', type: 'Full-time' },
   { title: 'Growth Analyst', department: 'Growth', location: 'Remote — Global', type: 'Full-time' },

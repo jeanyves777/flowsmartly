@@ -262,7 +262,7 @@ const STEPS: { key: string; icon: string; title: string; body: string; accent: A
   {
     key: 'plan',
     icon: 'wand-magic-sparkles',
-    title: 'Flow.AI builds the plan',
+    title: 'FlowAgent builds the plan',
     body: 'AI creates the agenda, teaching moments, slides, and activities — tailored to your audience.',
     accent: 'violet',
   },
@@ -289,7 +289,7 @@ const CHANNELS: { key: string; icon: string; label: string; accent: Accent }[] =
   { key: 'ads', icon: 'bullhorn', label: 'Ads', accent: 'orange' },
   { key: 'shop', icon: 'bag-shopping', label: 'FlowShop', accent: 'pink' },
   { key: 'analytics', icon: 'chart-column', label: 'Analytics', accent: 'brand' },
-  { key: 'flowai', icon: 'wand-magic-sparkles', label: 'Flow.AI', accent: 'violet' },
+  { key: 'flowai', icon: 'wand-magic-sparkles', label: 'FlowAgent', accent: 'violet' },
 ];
 
 const AUDIENCES: {

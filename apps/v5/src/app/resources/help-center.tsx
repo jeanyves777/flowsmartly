@@ -88,7 +88,7 @@ const POPULAR: Popular[] = [
   },
 ];
 
-const STATUS = ['Website', 'App', 'Email + SMS', 'AI Studio (Flow.AI)', 'Call Agent', 'Integrations'];
+const STATUS = ['Website', 'App', 'Email + SMS', 'AI Studio (FlowAgent)', 'Call Agent', 'Integrations'];
 
 type HelpRoute = { icon: string; title: string; body: string; tone: Tone; href: string };
 

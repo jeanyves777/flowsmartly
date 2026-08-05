@@ -675,7 +675,7 @@ function SupportStrip() {
 }
 
 /* ------------------------------------------------------------------ */
-/* 7 — governance resources + Flow.AI education                        */
+/* 7 — governance resources + FlowAgent education                        */
 /* ------------------------------------------------------------------ */
 
 function GovernanceCard() {
@@ -726,7 +726,7 @@ function AssistantMock() {
           <FontAwesome6 name="wand-magic-sparkles" size={13} color={t.textOnBrand} />
         </View>
         <Text style={styles.assistantName} numberOfLines={1}>
-          Flow.AI Assistant
+          FlowAgent Assistant
         </Text>
         <View style={styles.betaChip}>
           <Text style={styles.betaText}>BETA</Text>
@@ -772,7 +772,7 @@ function AssistantCard() {
     <Card style={styles.panelCard}>
       <View style={styles.headLeft}>
         <Heading level={3} style={styles.headTitleSm}>
-          Flow.AI education inside your workflows
+          FlowAgent education inside your workflows
         </Heading>
         <Text style={styles.headBody}>Contextual lessons and safety guidance—right where you work.</Text>
       </View>

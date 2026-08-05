@@ -86,7 +86,7 @@ Build in this order; each is a hard dependency of the next.
 3. **Platform: credits, providers, audit (16)** — reserve → commit/release. Provider adapters with
    health. **Nothing spends before this exists.**
 4. **Flow Registry** — the descriptor, the build-time gate (all ten rules), the shortlist selector.
-5. **Flow Runtime** — Goal, Plan, Step, Attempt, **Ledger**; the state machine; `callHash` blocking;
+5. **FlowAgent Runtime** — Goal, Plan, Step, Attempt, **Ledger**; the state machine; `callHash` blocking;
    the semantic-vs-transport retry split (A5).
 6. **Flow Policy** — autonomy resolution, approval tokens (single-use, expiring), per-domain
    ceilings.
@@ -94,7 +94,7 @@ Build in this order; each is a hard dependency of the next.
    tracing is a projection rather than new instrumentation.
 
 **Done when:** a trivial capability (`identify_actor`) executes end to end through Kernel → Registry
-→ Runtime → Ledger, with a span, an audit row, and a reserved-then-released credit — and replaying
+→ Runtime → Flow Ledger, with a span, an audit row, and a reserved-then-released credit — and replaying
 it with the same idempotency key produces exactly one execution.
 
 > That last clause is the real acceptance test. It is defect 6 and defect 7, provably closed, before
@@ -230,11 +230,10 @@ Independent of V5, and both currently shipping:
 
 ## 7. Open — needs your decision
 
-**B1 — The public site still says "Flow.AI".** [D0](./00-decisions.md) renamed the system to
-FlowAgent, and the portal mockup is updated. The public marketing site has 16 files, a `/flow-ai`
-route, mega-menu entries, JSON-LD and a sitemap entry. Renaming means a route change and a 301.
-**Do you want the public site renamed to FlowAgent as well, or does the marketing product keep the
-Flow.AI name while the system core is FlowAgent?** I have not touched it either way.
+**B1 — Public rename · RESOLVED.** FlowAgent everywhere, `/flowagent` canonical, `/flow-ai` 301.
+Shipped; see [D0](./00-decisions.md). One action left for whoever owns the VPS: add
+`location = /flow-ai { return 301 /flowagent; }` to nginx — the static stub covers humans, but only
+a server 301 consolidates ranking signals.
 
 **B2 — Phase 1 has no user-visible output.** Are you comfortable with that, or should Phase 2's
 vertical be sliced thinner so something is demonstrable sooner? I would not recommend it — the

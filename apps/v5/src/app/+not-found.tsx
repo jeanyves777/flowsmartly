@@ -74,11 +74,11 @@ const DESTINATIONS: { label: string; body: string; icon: string; tone: Tone; hre
     href: ROUTES.pricing,
   },
   {
-    label: 'Flow.AI',
+    label: 'FlowAgent',
     body: 'The AI operator that runs your growth work',
     icon: 'wand-magic-sparkles',
     tone: 'violet',
-    href: ROUTES.flowAi,
+    href: ROUTES.flowAgent,
   },
   {
     label: 'FlowLearner',
@@ -120,7 +120,7 @@ export default function NotFoundScreen() {
     <PageShell
       noIndex
       title="Page not found"
-      description="That page moved, or never existed. Here is the way back into FlowSmartly — product, pricing, Flow.AI, FlowLearner, the help center and contact."
+      description="That page moved, or never existed. Here is the way back into FlowSmartly — product, pricing, FlowAgent, FlowLearner, the help center and contact."
       cta={false}
       jsonLd={[breadcrumbJsonLd([{ name: 'Home', path: ROUTES.home }])]}>
       <Section style={styles.hero}>

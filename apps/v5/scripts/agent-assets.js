@@ -64,7 +64,7 @@ function routes(dir = DIST, prefix = '') {
 /** Landing pages deserve a higher weight than a policy document. */
 function priorityFor(route) {
   if (route === '/') return '1.0';
-  if (/^\/(product|pricing|solutions|flow-ai)$/.test(route)) return '0.9';
+  if (/^\/(product|pricing|solutions|flowagent)$/.test(route)) return '0.9';
   if (/^\/legal\//.test(route)) return '0.3';
   if (/^\/company\/(status|press)$/.test(route)) return '0.4';
   const depth = route.split('/').filter(Boolean).length;
@@ -99,7 +99,7 @@ function writeSitemap(list) {
 
 const SECTIONS = [
   ['Platform', /^\/(product|platform\/)/],
-  ['Solutions', /^\/(solutions|flow-ai)/],
+  ['Solutions', /^\/(solutions|flowagent)/],
   ['Learning', /^\/(education\/|solutions\/flowlearner)/],
   ['Pricing', /^\/pricing$/],
   ['Resources', /^\/resources/],
@@ -110,6 +110,9 @@ const SECTIONS = [
 function titleFor(route) {
   if (route === '/') return 'Home';
   const leaf = route.split('/').filter(Boolean).pop() || '';
+  // Product names are not title-cased slugs. `flowagent` must not become
+  // "Flowagent", so the shared LABELS map wins before any transformation.
+  if (LABELS[leaf]) return LABELS[leaf];
   return leaf
     .split('-')
     .map((w) => (w === 'ai' ? 'AI' : w === 'sms' ? 'SMS' : w === 'api' ? 'API' : w[0].toUpperCase() + w.slice(1)))
@@ -133,7 +136,7 @@ function writeLlms(list) {
 
 > The AI growth operating system for small businesses. FlowSmartly brings
 > content, campaigns, customer conversations, commerce, local visibility and
-> analytics into one workspace, with an AI assistant (Flow.AI) that finds
+> analytics into one workspace, with an AI assistant (FlowAgent) that finds
 > opportunities and prepares the next best action for human approval.
 
 FlowSmartly is a single platform rather than a bundle of point tools. Its
@@ -151,7 +154,7 @@ the AI proposes, a person approves, and the result is measured.
 - **ListSmartly** — local listings, reviews and AI-search visibility.
 - **Call Agent** — an AI voice agent that answers, books and qualifies.
 - **FlowLearner** — build training, teach live, and sell courses.
-- **Flow.AI** — the assistant that ties all of it together.
+- **FlowAgent** — the AI business operator that ties all of it together.
 
 ## Pricing
 
@@ -185,7 +188,7 @@ ${blocks.join('\n\n')}
  */
 const LABELS = {
   '': 'Home',
-  'flow-ai': 'Flow.AI',
+  flowagent: 'FlowAgent',
   'ai-fluency': 'AI Fluency',
   'ai-studio': 'AI Studio',
   'email-sms': 'Email + SMS',
@@ -280,6 +283,50 @@ function injectJsonLd(list) {
   return touched;
 }
 
+/* ---------- redirects ---------- */
+
+/**
+ * Routes that moved. A static export cannot issue a 301 by itself, so this
+ * emits a stub that (a) tells crawlers the canonical location via
+ * `rel=canonical` and a robots `noindex`, and (b) moves a human immediately.
+ *
+ * **The real 301 belongs in the web server** — the stub is the belt, not the
+ * braces. For nginx:
+ *
+ *     location = /flow-ai { return 301 /flowagent; }
+ *
+ * Without the server rule the old URL still resolves, which is fine for
+ * bookmarks and shared previews but does not consolidate ranking signals.
+ */
+const MOVED = [{ from: '/flow-ai', to: '/flowagent', why: 'Flow.AI renamed to FlowAgent' }];
+
+function writeRedirects() {
+  for (const { from, to, why } of MOVED) {
+    const dir = path.join(DIST, from.slice(1));
+    fs.mkdirSync(dir, { recursive: true });
+    const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Moved to ${to}</title>
+<link rel="canonical" href="${ORIGIN}${to}">
+<meta name="robots" content="noindex, follow">
+<meta http-equiv="refresh" content="0; url=${to}">
+<script>location.replace(${JSON.stringify(to)} + location.search + location.hash);</script>
+</head>
+<body><p>This page moved to <a href="${to}">${ORIGIN}${to}</a>. ${why}.</p></body>
+</html>
+`;
+    fs.writeFileSync(path.join(dir, 'index.html'), html);
+  }
+  return MOVED.length;
+}
+
+/** A moved route must never appear in the sitemap or llms.txt. */
+function isMoved(route) {
+  return MOVED.some((m) => m.from === route);
+}
+
 /* ---------- run ---------- */
 
 if (!fs.existsSync(DIST)) {
@@ -287,11 +334,15 @@ if (!fs.existsSync(DIST)) {
   process.exit(1);
 }
 const pruned = prune();
-const list = routes().sort();
+// Redirect stubs are written first, then excluded from every generated index —
+// a moved URL must not be advertised in the sitemap it redirects away from.
+const redirects = writeRedirects();
+const list = routes().sort().filter((route) => !isMoved(route));
 const urls = writeSitemap(list);
 const groups = writeLlms(list);
 const injected = injectJsonLd(list);
 console.log(`pruned: ${pruned.length ? pruned.join(', ') : 'nothing'}`);
+console.log(`redirects: ${redirects}`);
 console.log(`sitemap.xml: ${urls} urls`);
 console.log(`llms.txt: ${groups} sections`);
 console.log(`json-ld: ${injected} pages`);

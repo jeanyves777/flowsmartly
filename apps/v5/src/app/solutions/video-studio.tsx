@@ -37,7 +37,7 @@ const PROOF = ['No credit card required', 'Built for small teams', 'Publishes wh
 const TRUST = [
   { key: 'trial', icon: 'gift', label: 'Free to start' },
   { key: 'stack', icon: 'layer-group', label: 'One growth workspace' },
-  { key: 'ai', icon: 'wand-magic-sparkles', label: 'Flow.AI automation' },
+  { key: 'ai', icon: 'wand-magic-sparkles', label: 'FlowAgent automation' },
   { key: 'card', icon: 'credit-card', label: 'No card to begin' },
   { key: 'cancel', icon: 'circle-check', label: 'Cancel anytime' },
 ];
@@ -170,7 +170,7 @@ const CRAFT: Craft[] = [
   },
 ];
 
-/** What Flow.AI does with a video brief. Three, divides at 1 and 3. */
+/** What FlowAgent does with a video brief. Three, divides at 1 and 3. */
 const AI_STEPS = [
   { key: 'plan', icon: 'list-check', label: 'Writes the script, the shot list and the storyboard' },
   { key: 'edit', icon: 'scissors', label: 'Cuts, dubs and captions without a round trip' },
@@ -616,16 +616,16 @@ export default function VideoStudioPage() {
           <View style={styles.aiCopy}>
             <SectionLabel>FLOW.AI</SectionLabel>
             <Heading level={2} style={[type.h3, styles.aiTitle]}>
-              Flow.AI plans, generates and publishes the campaign.
+              FlowAgent plans, generates and publishes the campaign.
             </Heading>
             <Text style={[type.body, styles.aiBody]}>
               From script and storyboard through auto-editing, dubbing and distribution — it does the
               heavy lifting and stops for your approval before anything goes out.
             </Text>
             <TextLink
-              label="Explore Flow.AI"
+              label="Explore FlowAgent"
               trackId="video-studio.ai.explore"
-              onPress={() => router.push(ROUTES.flowAi as never)}
+              onPress={() => router.push(ROUTES.flowAgent as never)}
             />
           </View>
           <View style={styles.aiList}>

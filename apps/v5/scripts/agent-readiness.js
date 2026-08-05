@@ -60,7 +60,18 @@ const jsonLdBlocks = (html) =>
 /* checks                                                              */
 /* ------------------------------------------------------------------ */
 
-const pages = htmlFiles().filter((p) => !p.isNotFound);
+/**
+ * A redirect stub is not a page.
+ *
+ * `/flow-ai` exists only to move a visitor to `/flowagent`. It is deliberately
+ * `noindex` and deliberately has no content, so scoring it drags every metric
+ * down and trips the "accidentally noindex" guard on a page that is
+ * intentionally so. Detected by the meta refresh, which nothing else emits.
+ */
+const isRedirectStub = (file) => /<meta http-equiv="refresh"/i.test(read(file) || '');
+
+const pages = htmlFiles().filter((p) => !p.isNotFound && !isRedirectStub(p.file));
+const redirects = htmlFiles().filter((p) => isRedirectStub(p.file));
 const notFound = htmlFiles().filter((p) => p.isNotFound);
 
 if (!pages.length) {
@@ -130,6 +141,13 @@ const score = Math.round(metrics.reduce((n, m) => n + (m.value / 100) * m.weight
 
 const guards = [];
 const guard = (name, ok, detail) => guards.push({ name, ok, detail });
+
+guard('Redirect stubs are noindex and canonical to their target',
+  redirects.every((p) => {
+    const html = read(p.file) || '';
+    return /noindex/.test(html) && /rel="canonical"/.test(html);
+  }),
+  'a moved URL must not compete with the page it points at');
 
 guard('404 is noindex', notFound.every((p) => /noindex/.test(read(p.file) || '')),
   'the not-found page must never be indexed');

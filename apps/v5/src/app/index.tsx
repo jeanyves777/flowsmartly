@@ -95,7 +95,7 @@ function useStyles(): Styles {
  * `alt` is required, and deliberately has no default.
  *
  * The compact mark renders three times on this page with three different
- * meanings — it is the hub of the channel map, the avatar in the Flow.AI card,
+ * meanings — it is the hub of the channel map, the avatar in the FlowAgent card,
  * and a tile in the dashboard — so a single baked-in alt would be wrong in at
  * least two of them. Every caller has to say what its instance means, or say
  * `alt=""` and mark it decorative.
@@ -131,7 +131,7 @@ function Brand({ compact = false, alt }: { compact?: boolean; alt: string }) {
 /**
  * A button *drawn inside a product mockup*.
  *
- * The Flow.AI card, the approval queue and the recommendation card are
+ * The FlowAgent card, the approval queue and the recommendation card are
  * pictures of the app, not the app — so their controls are `View`s that merely
  * look like the real `PrimaryButton`. A control that invites a click and then
  * silently does nothing is worse than a static illustration of one.
@@ -154,7 +154,7 @@ function MockButton({ label }: { label: string }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* hero — Flow.AI card                                                 */
+/* hero — FlowAgent card                                                 */
 /* ------------------------------------------------------------------ */
 
 function aiActions(t: ThemeTokens) {
@@ -198,7 +198,7 @@ const AI_RAIL_ICONS = [
 
 /**
  * One-off settle on the "Ready ✓" pill: it lands a beat after its row, so the
- * card reads as Flow.AI finishing its thinking. Deliberately not a loop.
+ * card reads as FlowAgent finishing its thinking. Deliberately not a loop.
  *
  * Like every primitive in `motion`, it renders *settled* and is only pushed
  * back in a client layout effect, so the no-JS render shows the finished pill.
@@ -252,7 +252,7 @@ function FlowAiCard() {
       <View style={styles.aiContent}>
         <View style={styles.aiTitleRow}>
           <Text style={styles.aiTitle}>
-            Flow.AI <Text style={styles.aiTitleLight}>Command Center</Text>
+            FlowAgent <Text style={styles.aiTitleLight}>Command Center</Text>
           </Text>
           <Text style={styles.beta}>Beta</Text>
         </View>
@@ -435,7 +435,7 @@ function ChannelCluster() {
 /**
  * The map is a picture of the integrations surface, so it gets that surface's
  * chrome: a titled header and a sync footer. Bare tiles left a 158px void
- * beside the Flow.AI card next to it, and a panel with no header read as a
+ * beside the FlowAgent card next to it, and a panel with no header read as a
  * loose cluster rather than a screen. Everything here is illustration — `View`
  * and `Text` only, never a control.
  */
@@ -500,7 +500,7 @@ function Hero() {
                   {/* No demo video exists, so this books a real one rather than
                       opening a player that has nothing to play. */}
                   <SecondaryButton
-                    label="See Flow.AI in action"
+                    label="See FlowAgent in action"
                     size="lg"
                     icon="play"
                     full={l.isPhone}
@@ -1148,7 +1148,7 @@ function CustomerIntelligence() {
           Every interaction makes the next action smarter.
         </Heading>
         <Text style={styles.featureBody}>
-          Flow.AI learns from every signal to recommend the right next step for every customer.
+          FlowAgent learns from every signal to recommend the right next step for every customer.
         </Text>
         <PrimaryButton
           label="View customer journeys"
@@ -1201,7 +1201,7 @@ function CustomerIntelligence() {
         </View>
         <View style={styles.recommendationCard}>
           <Text style={styles.recommendationBrand}>
-            ✦ Flow.AI <Text style={styles.aiTitleLight}>recommendation</Text>
+            ✦ FlowAgent <Text style={styles.aiTitleLight}>recommendation</Text>
           </Text>
           <Text style={styles.recommendationTitle}>Send a personalized replenishment offer</Text>
           <View style={styles.recommendationMetrics}>
@@ -1219,7 +1219,7 @@ function CustomerIntelligence() {
               <Text style={styles.reasonText}>✓ {reason}</Text>
             </View>
           ))}
-          {/* mockup chrome — this card illustrates Flow.AI's output */}
+          {/* mockup chrome — this card illustrates FlowAgent's output */}
           <MockButton label="Review recommendation" />
         </View>
       </View>
@@ -1329,7 +1329,7 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
           gap: 18,
         },
 
-    /* ---------- Flow.AI card ---------- */
+    /* ---------- FlowAgent card ---------- */
     aiCard: {
       flexGrow: 1,
       flexShrink: 1,

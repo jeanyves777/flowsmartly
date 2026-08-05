@@ -25,7 +25,7 @@ export const ROUTES = {
   home: '/',
   product: '/product',
   pricing: '/pricing',
-  flowAi: '/flow-ai',
+  flowAgent: '/flowagent',
 
   solutions: '/solutions',
   flowshop: '/solutions/flowshop',
@@ -98,7 +98,7 @@ export const SOLUTIONS_GROUP: NavGroup = {
   links: [
     { label: 'FlowShop', href: ROUTES.flowshop, icon: 'bag-shopping', description: 'Sell wherever customers discover you' },
     { label: 'ListSmartly', href: ROUTES.listsmartly, icon: 'magnifying-glass', description: 'Local listings, reviews and AI visibility' },
-    { label: 'Flow.AI', href: ROUTES.flowAi, icon: 'wand-magic-sparkles', description: 'Your AI growth operator' },
+    { label: 'FlowAgent', href: ROUTES.flowAgent, icon: 'wand-magic-sparkles', description: 'Your AI growth operator' },
     { label: 'Agent Marketplace', href: ROUTES.agentMarketplace, icon: 'store', description: 'Hire vetted growth experts' },
     { label: 'Call Agent', href: ROUTES.callAgent, icon: 'comment-dots', description: 'An AI voice agent that answers 24/7' },
     { label: 'Website Builder', href: ROUTES.websiteBuilder, icon: 'window-maximize', description: 'Describe your business, get the site' },
@@ -221,11 +221,11 @@ export const MAIN_NAV: MainNavItem[] = [
     ],
     overview: [
       { label: 'All solutions', href: ROUTES.solutions, icon: 'table-cells-large' },
-      { label: 'Flow.AI', href: ROUTES.flowAi, icon: 'wand-magic-sparkles' },
+      { label: 'FlowAgent', href: ROUTES.flowAgent, icon: 'wand-magic-sparkles' },
       { label: 'Agent Marketplace', href: ROUTES.agentMarketplace, icon: 'store' },
     ],
   },
-  { label: 'Flow.AI', href: ROUTES.flowAi },
+  { label: 'FlowAgent', href: ROUTES.flowAgent },
   {
     label: 'Resources',
     href: ROUTES.resources,

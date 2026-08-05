@@ -179,7 +179,7 @@ const OUTCOMES: Outcome[] = [
     tone: 'pink',
   },
   {
-    product: 'Flow.AI',
+    product: 'FlowAgent',
     metric: '12 approved actions a week',
     body: 'The next best move, proposed with its reasoning and run only once you approve.',
     icon: 'wand-magic-sparkles',

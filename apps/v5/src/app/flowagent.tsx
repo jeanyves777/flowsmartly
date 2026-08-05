@@ -103,7 +103,7 @@ const STEPS: { icon: string; title: string; body: string; accent: Accent }[] = [
   {
     icon: 'magnifying-glass-chart',
     title: 'Detect',
-    body: 'Flow.AI reads every channel continuously and notices the change before you would.',
+    body: 'FlowAgent reads every channel continuously and notices the change before you would.',
     accent: 'brand',
   },
   {
@@ -191,7 +191,7 @@ const CONTROLS: { icon: string; title: string; body: string; accent: Accent }[] 
   {
     icon: 'sack-dollar',
     title: 'Budget caps',
-    body: 'Set a ceiling per campaign, per channel and per month. Flow.AI stops at the line.',
+    body: 'Set a ceiling per campaign, per channel and per month. FlowAgent stops at the line.',
     accent: 'green',
   },
   {
@@ -289,7 +289,7 @@ function OpportunityRow({
       )}
 
       {/*
-        Mockup chrome. This card is a picture of the Flow.AI command centre —
+        Mockup chrome. This card is a picture of the FlowAgent command centre —
         there is no opportunity behind the row to review, so the control is a
         View that merely looks like the real one. A button that invites a click
         and does nothing is worse than a static illustration of one.
@@ -356,12 +356,12 @@ export default function FlowAiPage() {
 
   return (
     <PageShell
-      title="Flow.AI"
-      description="Flow.AI finds the opportunity and prepares the work across content, campaigns, calls and commerce. Nothing launches without your approval."
+      title="FlowAgent"
+      description="FlowAgent finds the opportunity and prepares the work across content, campaigns, calls and commerce. Nothing launches without your approval."
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },
-          { name: 'Flow.AI', path: ROUTES.flowAi },
+          { name: 'FlowAgent', path: ROUTES.flowAgent },
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
@@ -370,7 +370,7 @@ export default function FlowAiPage() {
           <Reveal style={styles.heroCopy} distance={16}>
             <SectionLabel>YOUR AI GROWTH OPERATOR</SectionLabel>
             <Heading level={1} style={[type.display, styles.heroTitle]}>
-              Flow.AI finds the opportunity. You stay in control.
+              FlowAgent finds the opportunity. You stay in control.
             </Heading>
             <Text style={[type.body, styles.heroBody]}>
               One intelligent assistant that understands your content, customers, campaigns, calls,
@@ -379,10 +379,10 @@ export default function FlowAiPage() {
             <View style={styles.heroButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Try Flow.AI"
+                  label="Try FlowAgent"
                   size="lg"
                   full={l.isPhone}
-                  trackId="flow-ai.hero.try"
+                  trackId="flowagent.hero.try"
                   onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 {/* No walkthrough video exists — this books a real demo rather
@@ -392,7 +392,7 @@ export default function FlowAiPage() {
                   size="lg"
                   icon="play"
                   full={l.isPhone}
-                  trackId="flow-ai.hero.watch-demo"
+                  trackId="flowagent.hero.watch-demo"
                   onPress={() => router.push(contactHref('demo') as never)}
                 />
               </ButtonRow>
@@ -413,7 +413,7 @@ export default function FlowAiPage() {
             <View style={styles.commandCard}>
               <View style={styles.commandHead}>
                 <View style={styles.commandHeadCopy}>
-                  <Text style={styles.commandTitle}>Flow.AI Command Center</Text>
+                  <Text style={styles.commandTitle}>FlowAgent Command Center</Text>
                   <Text style={styles.commandSub}>5 opportunities found this week</Text>
                 </View>
                 <View style={styles.commandChip}>
@@ -464,7 +464,7 @@ export default function FlowAiPage() {
             One conversation across your whole business.
           </Heading>
           <Text style={[type.body, styles.headSub]}>
-            No dashboard hopping and no exports. Ask in your own words and Flow.AI answers from the
+            No dashboard hopping and no exports. Ask in your own words and FlowAgent answers from the
             same data it acts on.
           </Text>
         </Reveal>
@@ -580,7 +580,7 @@ export default function FlowAiPage() {
               AI that understands your business.
             </Heading>
             <Text style={[type.body, styles.contextBody]}>
-              Generic AI writes generic work. Flow.AI is briefed on everything your account already
+              Generic AI writes generic work. FlowAgent is briefed on everything your account already
               knows — so what it prepares sounds like you and respects what your customers agreed to.
             </Text>
           </Reveal>
@@ -638,7 +638,7 @@ export default function FlowAiPage() {
               <FontAwesome6 name="shield-halved" size={16} color={t.successText} />
             </View>
             <Text style={styles.assuranceText}>
-              Human-approved by default. Flow.AI never launches anything without your approval.
+              Human-approved by default. FlowAgent never launches anything without your approval.
             </Text>
           </View>
         </Reveal>
@@ -691,15 +691,15 @@ export default function FlowAiPage() {
             <View style={styles.briefButtons}>
               <ButtonRow>
                 <PrimaryButton
-                  label="Try Flow.AI"
+                  label="Try FlowAgent"
                   full={l.isPhone}
-                  trackId="flow-ai.briefing.try"
+                  trackId="flowagent.briefing.try"
                   onPress={() => Linking.openURL(EXTERNAL.signup)}
                 />
                 <SecondaryButton
                   label="See the platform"
                   full={l.isPhone}
-                  trackId="flow-ai.briefing.see-platform"
+                  trackId="flowagent.briefing.see-platform"
                   onPress={() => router.push(ROUTES.product as never)}
                 />
               </ButtonRow>

@@ -408,7 +408,7 @@ const VERSIONS: { key: string; label: string; who: string; when: string; current
   { key: 'v1', label: 'Current draft', who: 'Maya Thompson', when: 'Just now', current: true },
   { key: 'v2', label: 'Added the qualifying activity', who: 'Arjun Patel', when: '2 hours ago' },
   { key: 'v3', label: 'AI plan accepted', who: 'Maya Thompson', when: 'Yesterday · 4:12pm' },
-  { key: 'v4', label: 'First draft', who: 'Flow.AI', when: 'Yesterday · 3:58pm' },
+  { key: 'v4', label: 'First draft', who: 'FlowAgent', when: 'Yesterday · 3:58pm' },
 ];
 
 const CLOSE_STEPS: { key: string; icon: string; label: string; note: string }[] = [
@@ -564,7 +564,7 @@ export default function TrainingStudioPage() {
   return (
     <PageShell
       title="Training Studio"
-      description="Describe your topic and Flow.AI drafts the agenda, slides, teaching moments and quizzes for a lesson you can teach live, send to your team, or sell."
+      description="Describe your topic and FlowAgent drafts the agenda, slides, teaching moments and quizzes for a lesson you can teach live, send to your team, or sell."
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },
@@ -582,7 +582,7 @@ export default function TrainingStudioPage() {
               Build presentations, lessons, activities, and quizzes.
             </Heading>
             <Text style={[type.body, styles.heroBody]}>
-              Describe your topic and Flow.AI drafts the agenda, slides, teaching moments, and
+              Describe your topic and FlowAgent drafts the agenda, slides, teaching moments, and
               assessments — then you shape every detail.
             </Text>
             <View style={styles.heroButtons}>
@@ -827,7 +827,7 @@ export default function TrainingStudioPage() {
             <SectionLabel>DRAFTED, NOT DECIDED</SectionLabel>
             <Heading level={2} style={[type.h2, styles.blockTitle]}>Plan with AI, keep control.</Heading>
             <Text style={[type.body, styles.blockBody]}>
-              The blank page is the hard part. Flow.AI writes a first plan you can argue with — and
+              The blank page is the hard part. FlowAgent writes a first plan you can argue with — and
               every line of it is yours to change.
             </Text>
             <View style={styles.pointList}>

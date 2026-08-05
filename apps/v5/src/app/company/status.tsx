@@ -71,7 +71,7 @@ const COMPONENTS: Component[] = [
   { name: 'API', note: 'REST endpoints and webhooks', uptime: '99.99%', degraded: [60], outage: [] },
   { name: 'Email delivery', note: 'Campaign and transactional sending', uptime: '99.94%', degraded: [12, 41], outage: [] },
   { name: 'SMS delivery', note: 'Outbound SMS and MMS', uptime: '99.91%', degraded: [77], outage: [78] },
-  { name: 'AI Studio / Flow.AI', note: 'Generation, agents and renders', uptime: '99.89%', degraded: [48, 49], outage: [] },
+  { name: 'AI Studio / FlowAgent', note: 'Generation, agents and renders', uptime: '99.89%', degraded: [48, 49], outage: [] },
   { name: 'Call Agent', note: 'Inbound and outbound voice', uptime: '99.93%', degraded: [30], outage: [] },
   { name: 'FlowShop', note: 'Storefronts, checkout and orders', uptime: '99.97%', degraded: [66], outage: [] },
   { name: 'ListSmartly', note: 'Listings, reviews and local sync', uptime: '99.95%', degraded: [21, 84], outage: [] },
@@ -162,7 +162,7 @@ const INCIDENTS: Incident[] = [
     severity: 'Minor',
     date: 'June 11, 2026',
     duration: '2 hr 05 min',
-    components: ['AI Studio / Flow.AI'],
+    components: ['AI Studio / FlowAgent'],
     updates: [
       {
         stage: 'Investigating',
