@@ -5,6 +5,7 @@ import type { ThemeTokens } from '@/theme/tokens';
 import { BP } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 import { pageView } from '@/lib/analytics';
+import { ConsentNotice } from './consent';
 import { Seo, type SeoProps } from './seo';
 import { SiteHeader } from './site-header';
 import { V5PublicFooter } from './v5-footer';
@@ -60,6 +61,9 @@ export function PageShell({
           />
         </View>
       </ScrollView>
+      {/* Outside the ScrollView so the notice pins to the viewport rather than
+          to the bottom of a 6,000px page. */}
+      <ConsentNotice />
     </View>
   );
 }

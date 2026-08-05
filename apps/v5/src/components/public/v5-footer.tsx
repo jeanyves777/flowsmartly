@@ -7,6 +7,7 @@ import { Linking, Pressable, StyleSheet, Text, View, type ViewStyle } from 'reac
 import { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { ArrowLink } from '@/components/public/connectors';
+import { ConsentFooterLink } from '@/components/public/consent';
 import { FOOTER_GROUPS, LEGAL_LINKS, ROUTES } from '@/components/public/nav';
 import { Animated, Reveal, Stagger, useCountUp, useGrowIn } from '@/components/public/motion';
 import {
@@ -768,6 +769,10 @@ export function V5PublicFooter({
               </Link>
             </Fragment>
           ))}
+          {/* Withdrawing consent has to be as reachable as giving it, so the
+              entry point sits in the legal bar on every page. */}
+          <View style={styles.legalDivider} />
+          <ConsentFooterLink />
         </View>
       </View>
     </View>

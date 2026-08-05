@@ -279,6 +279,50 @@ export function SecondaryButton({
   );
 }
 
+/**
+ * The quiet "read more" link that closes a card or a copy column.
+ *
+ * Pages used to roll their own `Pressable accessibilityRole="link"` for this,
+ * which meant each one had its own hit area, its own arrow and — the part that
+ * mattered — no tracking. This one emits a `cta_click` like every other button,
+ * so a link out of a card is as measurable as the button beside it.
+ */
+export function TextLink({
+  label,
+  onPress,
+  icon = 'arrow-right',
+  trackId,
+  accessibilityLabel,
+}: {
+  label: string;
+  onPress?: () => void;
+  icon?: string;
+  trackId?: string;
+  accessibilityLabel?: string;
+}) {
+  const t = useTokens();
+  return (
+    <Pressable
+      onPress={() => {
+        trackCta(trackId ?? label, { variant: 'text-link' });
+        onPress?.();
+      }}
+      accessibilityRole="link"
+      accessibilityLabel={accessibilityLabel ?? label}
+      style={({ pressed }) => ({
+        minHeight: 44,
+        alignSelf: 'flex-start',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        opacity: pressed ? 0.7 : 1,
+      })}>
+      <Text style={{ color: t.brand, fontSize: 14, fontWeight: '700' }}>{label}</Text>
+      <FontAwesome6 name={icon as never} size={12} color={t.brand} />
+    </Pressable>
+  );
+}
+
 /** Row of buttons that stacks and stretches on phone. */
 export function ButtonRow({ children }: { children: React.ReactNode }) {
   const l = useLayout();

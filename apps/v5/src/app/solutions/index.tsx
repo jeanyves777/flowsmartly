@@ -73,9 +73,9 @@ const START_STEPS: { key: string; icon: string; title: string; note: string; acc
 /**
  * The three solutions this page never links to anywhere else.
  *
- * The outcome cards cover AI Studio, Social, Email + SMS, Ads, FlowShop and
- * ListSmartly; Call Agent, the marketplace and FlowLearner had no route in from
- * here at all.
+ * The outcome cards cover Website Builder, AI Studio, Social, Email + SMS, Ads,
+ * FlowShop, ListSmartly and Domains; Call Agent, the marketplace and FlowLearner
+ * had no route in from here at all.
  */
 const DEEPER: { key: string; icon: string; label: string; note: string; href: string }[] = [
   {
@@ -141,6 +141,14 @@ const BUSINESS_TYPES: { key: string; icon: string; label: string; blurb: string;
 
 const OUTCOMES: { key: string; icon: string; title: string; line: string; href: string; accent: Accent }[] = [
   {
+    key: 'site',
+    icon: 'window-maximize',
+    title: 'Launch a website',
+    line: 'Describe the business and publish a site that sells it.',
+    href: ROUTES.websiteBuilder,
+    accent: 'brand',
+  },
+  {
     key: 'create',
     icon: 'wand-magic-sparkles',
     title: 'Create content faster',
@@ -187,6 +195,14 @@ const OUTCOMES: { key: string; icon: string; title: string; line: string; href: 
     line: 'Listings, reviews and local pages that put you in the answer.',
     href: ROUTES.listsmartly,
     accent: 'green',
+  },
+  {
+    key: 'domain',
+    icon: 'globe',
+    title: 'Own your name',
+    line: 'Search, register and connect a domain without a second account.',
+    href: ROUTES.domains,
+    accent: 'violet',
   },
 ];
 
@@ -879,7 +895,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     l.isPhone ? phone : l.isTablet ? tablet : l.isDesktop ? desktop : laptop;
 
   const typeColumns = columns(1, 2, 5, 5);
-  const outcomeColumns = columns(1, 2, 3, 3);
+  // Eight outcomes, so the count has to divide by 8 — 1, 2 and 4 do; 3 would
+  // leave a stretched orphan on the last row.
+  const outcomeColumns = columns(1, 2, 4, 4);
   const audienceColumns = 2;
 
   const gridBase: ViewStyle = {
