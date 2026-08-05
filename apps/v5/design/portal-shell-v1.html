@@ -112,20 +112,77 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
 /* ---------------- topbar ---------------- */
 .main { flex:1; min-width:0; display:flex; flex-direction:column; }
 .topbar { height:var(--topbar); flex:none; display:flex; align-items:center; gap:11px; padding:0 16px; border-bottom:1px solid var(--border); background:var(--surface); }
-.search { flex:1; max-width:700px; margin:0 auto; min-height:38px; display:flex; align-items:center; gap:9px; padding:0 14px; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--text-subtle); font-size:13.5px; }
+.search { flex:1; max-width:430px; margin-right:auto; min-height:38px; display:flex; align-items:center; gap:9px; padding:0 14px; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--text-subtle); font-size:13.5px; }
 .search kbd { margin-left:auto; font:inherit; font-size:10.5px; font-weight:700; padding:1px 6px; border:1px solid var(--border); border-radius:5px; color:var(--text-subtle); }
 .qcreate { display:flex; align-items:center; gap:7px; min-height:38px; padding:0 15px; border:1px solid var(--border); border-radius:10px; font-size:13px; font-weight:700; }
 .icon-btn { width:34px; height:34px; flex:none; border-radius:9px; display:grid; place-items:center; color:var(--text-muted); font-size:14px; position:relative; }
 .icon-btn:hover { background:var(--muted); color:var(--text); }
 .icon-btn .badge { position:absolute; top:-2px; right:-2px; min-width:15px; height:15px; padding:0 4px; border-radius:8px; background:var(--pink); color:#fff; font-size:9px; font-weight:800; display:grid; place-items:center; }
-.theme-switch { display:flex; gap:2px; padding:3px; border:1px solid var(--border); border-radius:9px; background:var(--inset); }
-.theme-switch button { min-height:26px; padding:0 9px; border-radius:6px; font-size:11px; font-weight:700; color:var(--text-subtle); }
-.theme-switch button[aria-pressed="true"] { background:var(--surface); color:var(--text); box-shadow:0 1px 3px var(--shadow); }
-.who { display:flex; align-items:center; gap:8px; }
+.who { display:flex; align-items:center; gap:8px; padding:0 4px 0 0; }
 .avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,var(--violet),var(--brand)); color:#fff; display:grid; place-items:center; font-size:11px; font-weight:800; }
 .who-n { font-size:12.5px; font-weight:700; line-height:1.2; }
 .who-r { font-size:10.5px; color:var(--text-subtle); line-height:1.2; }
-@media (max-width:1280px){ .who-n,.who-r,.qcreate span.lbl { display:none; } }
+
+/* ------------------------------------------------------------------ *
+ * The system cluster: where the account actually stands, in the place
+ * people already look for their account. Four separate readings rather
+ * than one badge, because they fail independently — you can be on the
+ * top plan with an unfinished brand kit and no credits left.
+ * ------------------------------------------------------------------ */
+.sys { display:flex; align-items:center; gap:6px; padding-right:6px; margin-right:2px; border-right:1px solid var(--divider); }
+.sys-chip {
+  display:flex; align-items:center; gap:8px; min-height:38px; padding:0 10px;
+  border:1px solid var(--border); border-radius:10px; background:var(--surface); text-align:left;
+}
+.sys-chip:hover { border-color:var(--border-strong); background:var(--muted); }
+.sys-chip[aria-expanded="true"] { border-color:var(--violet); background:var(--violet-soft); }
+.sys-k { display:block; font-size:9.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--text-subtle); line-height:1.25; }
+.sys-v { display:block; font-size:12.5px; font-weight:800; line-height:1.25; font-variant-numeric:tabular-nums; }
+.sys-chip .caret { font-size:9px; opacity:.5; }
+
+/* brand identity — the palette is the fastest way to show a kit exists */
+.brand-dots { display:flex; gap:3px; flex:none; }
+.brand-dots i { width:9px; height:9px; border-radius:3px; display:block; }
+/* marketing score — a ring, because a bare number has no scale */
+.ring { width:26px; height:26px; flex:none; transform:rotate(-90deg); }
+.ring circle { fill:none; stroke-width:4; }
+.ring .track { stroke:var(--inset); }
+.ring .val { stroke:var(--green); stroke-linecap:round; }
+.score-badge { font-size:9.5px; font-weight:800; color:var(--green); }
+/* credits — the meter reads before the number does */
+/* `display:block` matters: this is a span, and a width on an inline box is
+   ignored — the meter simply did not render. */
+.cred-meter { display:block; width:52px; height:4px; border-radius:2px; background:var(--inset); overflow:hidden; margin-top:4px; }
+.cred-meter i { display:block; height:100%; border-radius:2px; background:linear-gradient(90deg,var(--violet),var(--brand)); }
+.plan-tag { font-size:9.5px; font-weight:800; padding:2px 7px; border-radius:var(--r-pill); background:var(--violet); color:#fff; letter-spacing:.03em; }
+.plan-tag.free { background:var(--inset); color:var(--text-muted); }
+
+/* one popover mechanism, shared by every dropdown in the shell */
+.menu-wrap { position:relative; }
+.menu {
+  display:none; position:absolute; right:0; top:calc(100% + 7px); z-index:70; min-width:170px;
+  border:1px solid var(--border); border-radius:12px; background:var(--surface);
+  box-shadow:0 16px 38px var(--shadow-2); padding:6px;
+}
+.menu.open { display:block; }
+.menu.wide { min-width:268px; padding:14px; }
+.menu button.item { width:100%; display:flex; align-items:center; gap:9px; min-height:34px; padding:0 10px; border-radius:8px; font-size:12.5px; font-weight:600; color:var(--text-muted); }
+.menu button.item:hover { background:var(--muted); color:var(--text); }
+.menu button.item[aria-checked="true"] { color:var(--text); font-weight:700; }
+.menu .tick { width:14px; flex:none; font-size:11px; color:var(--violet); }
+.menu-k { font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--text-subtle); margin:0 0 8px; }
+.menu-row { display:flex; align-items:center; gap:9px; padding:6px 0; font-size:12.5px; }
+.menu-row + .menu-row { border-top:1px solid var(--divider); }
+.menu-row .n { flex:1; color:var(--text-muted); }
+.menu-row .v { font-weight:800; font-variant-numeric:tabular-nums; }
+.menu-cta { margin-top:11px; width:100%; min-height:34px; border-radius:9px; background:var(--violet); color:#fff; font-size:12px; font-weight:800; }
+.menu-cta.ghost { background:var(--surface); color:var(--text); border:1px solid var(--border-strong); margin-top:7px; }
+.swatch-row { display:flex; gap:6px; margin:9px 0 4px; }
+.swatch-row i { width:30px; height:30px; border-radius:8px; display:block; border:1px solid var(--border); }
+
+@media (max-width:1560px){ .sys-chip .sys-text.wide-only { display:none; } }
+@media (max-width:1400px){ .who-n,.who-r,.qcreate span.lbl { display:none; } }
+@media (max-width:1200px){ .sys { display:none; } }
 
 /* ---------------- body: canvas + chat ---------------- */
 .body { flex:1; display:flex; min-height:0; position:relative; }
@@ -420,16 +477,88 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
         <div class="topbar">
           <div class="search"><span aria-hidden="true">⌕</span> Search for orders, customers, products, reports… <kbd>⌘K</kbd></div>
           <button class="qcreate"><span aria-hidden="true">+</span> <span class="lbl">Quick create</span></button>
-          <div class="theme-switch" role="group" aria-label="Theme">
-            <button data-theme-set="light" aria-pressed="true">Light</button>
-            <button data-theme-set="grey" aria-pressed="false">Grey</button>
-            <button data-theme-set="dark" aria-pressed="false">Dark</button>
+
+          <div class="sys">
+            <!-- brand identity -->
+            <div class="menu-wrap">
+              <button class="sys-chip" data-menu="brandMenu" aria-haspopup="true" aria-expanded="false">
+                <span class="brand-dots" aria-hidden="true"><i style="background:#6c2cff;"></i><i style="background:#0a63d6;"></i><i style="background:#ad5100;"></i></span>
+                <span class="sys-text wide-only"><span class="sys-k">Brand</span><span class="sys-v">Bright Smile</span></span>
+                <span class="caret" aria-hidden="true">▾</span>
+              </button>
+              <div class="menu wide" id="brandMenu">
+                <p class="menu-k">Brand identity</p>
+                <div class="menu-row"><span class="n">Logo</span><span class="v" style="color:var(--green);">Set</span></div>
+                <div class="menu-row"><span class="n">Palette</span><span class="v" style="color:var(--green);">Set</span></div>
+                <div class="menu-row"><span class="n">Typeface</span><span class="v" style="color:var(--green);">Set</span></div>
+                <div class="menu-row"><span class="n">Tone of voice</span><span class="v" style="color:var(--warn-text);">Not set</span></div>
+                <div class="swatch-row" aria-hidden="true"><i style="background:#6c2cff;"></i><i style="background:#0a63d6;"></i><i style="background:#ad5100;"></i><i style="background:#0e7b3a;"></i></div>
+                <p style="font-size:11.5px; color:var(--text-subtle);">Everything Flow.AI makes uses these. Tone is the one still missing.</p>
+                <button class="menu-cta">Finish the brand kit</button>
+              </div>
+            </div>
+
+            <!-- marketing score -->
+            <div class="menu-wrap">
+              <button class="sys-chip" data-menu="scoreMenu" aria-haspopup="true" aria-expanded="false">
+                <svg class="ring" viewBox="0 0 36 36" aria-hidden="true">
+                  <circle class="track" cx="18" cy="18" r="15"></circle>
+                  <circle class="val" cx="18" cy="18" r="15" stroke-dasharray="73 94"></circle>
+                </svg>
+                <span class="sys-text wide-only"><span class="sys-k">Marketing</span><span class="sys-v">78 <span class="score-badge">Good</span></span></span>
+                <span class="caret" aria-hidden="true">▾</span>
+              </button>
+              <div class="menu wide" id="scoreMenu">
+                <p class="menu-k">Marketing score · 78 / 100</p>
+                <div class="menu-row"><span class="n">Reach</span><span class="v">84</span></div>
+                <div class="menu-row"><span class="n">Conversion</span><span class="v">71</span></div>
+                <div class="menu-row"><span class="n">Retention</span><span class="v">62</span></div>
+                <div class="menu-row"><span class="n">Local &amp; AI visibility</span><span class="v">91</span></div>
+                <p style="font-size:11.5px; color:var(--text-subtle); margin-top:9px;">Retention is holding the score down — no win-back has run in 60 days.</p>
+                <button class="menu-cta">Fix retention</button>
+                <button class="menu-cta ghost">See how this is scored</button>
+              </div>
+            </div>
+
+            <!-- credits + plan -->
+            <div class="menu-wrap">
+              <button class="sys-chip" data-menu="planMenu" aria-haspopup="true" aria-expanded="false">
+                <span class="sys-text"><span class="sys-k">Credits</span><span class="sys-v">1,284</span><span class="cred-meter" aria-hidden="true"><i style="width:32%;"></i></span></span>
+                <span class="plan-tag">Pro</span>
+                <span class="caret" aria-hidden="true">▾</span>
+              </button>
+              <div class="menu wide" id="planMenu">
+                <p class="menu-k">Plan &amp; credits</p>
+                <div class="menu-row"><span class="n">Plan</span><span class="v">Pro · $20/mo</span></div>
+                <div class="menu-row"><span class="n">Credits left</span><span class="v">1,284 / 4,000</span></div>
+                <div class="menu-row"><span class="n">Renews</span><span class="v">In 12 days</span></div>
+                <div class="menu-row"><span class="n">Spent this week</span><span class="v">612</span></div>
+                <p style="font-size:11.5px; color:var(--text-subtle); margin-top:9px;">At this rate you run out four days early. A video runs about 40.</p>
+                <button class="menu-cta">Top up credits</button>
+                <button class="menu-cta ghost">Compare plans</button>
+              </div>
+            </div>
           </div>
+
+          <!-- theme, now a dropdown -->
+          <div class="menu-wrap">
+            <button class="sys-chip" id="themeBtn" data-menu="themeMenu" aria-haspopup="true" aria-expanded="false">
+              <span aria-hidden="true">◐</span>
+              <span class="sys-text wide-only"><span class="sys-k">Theme</span><span class="sys-v" id="themeNow">Light</span></span>
+              <span class="caret" aria-hidden="true">▾</span>
+            </button>
+            <div class="menu" id="themeMenu" role="menu">
+              <button class="item" role="menuitemradio" data-theme-set="light" aria-checked="true"><span class="tick" aria-hidden="true">✓</span>Light</button>
+              <button class="item" role="menuitemradio" data-theme-set="grey" aria-checked="false"><span class="tick" aria-hidden="true"></span>Grey</button>
+              <button class="item" role="menuitemradio" data-theme-set="dark" aria-checked="false"><span class="tick" aria-hidden="true"></span>Dark</button>
+            </div>
+          </div>
+
           <button class="icon-btn" aria-label="Notifications, 3 unread">◔<span class="badge">3</span></button>
           <button class="icon-btn" aria-label="Help">?</button>
           <div class="who">
             <span class="avatar">JY</span>
-            <span><span class="who-n">Jean-Yves</span><br><span class="who-r">Owner</span></span>
+            <span><span class="who-n">Jean-Yves</span><br><span class="who-r">Owner · FlowSmartly Store</span></span>
           </div>
         </div>
 
@@ -788,12 +917,47 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
   var app = document.getElementById('app');
   var root = document.documentElement;
 
-  var themeButtons = [].slice.call(document.querySelectorAll('[data-theme-set]'));
+  /* one popover controller for every dropdown in the shell */
+  // Closes every popover except `except`, and resets every trigger. The caller
+  // marks the one it just opened, so expanded state can never go stale.
+  function closeAllMenus(except) {
+    [].slice.call(document.querySelectorAll('.menu, .mode-menu')).forEach(function (m) {
+      if (m !== except) m.classList.remove('open');
+    });
+    [].slice.call(document.querySelectorAll('[aria-haspopup="true"]')).forEach(function (b) {
+      b.setAttribute('aria-expanded', 'false');
+    });
+  }
+  [].slice.call(document.querySelectorAll('[data-menu]')).forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var m = document.getElementById(btn.getAttribute('data-menu'));
+      var willOpen = !m.classList.contains('open');
+      closeAllMenus(willOpen ? m : null);
+      m.classList.toggle('open', willOpen);
+      btn.setAttribute('aria-expanded', String(willOpen));
+    });
+  });
+
+  /* theme — a dropdown now, and it names the theme you are in */
+  var themeLabel = { light: 'Light', grey: 'Grey', dark: 'Dark' };
+  var themeItems = [].slice.call(document.querySelectorAll('[data-theme-set]'));
   function paint(name) {
     root.setAttribute('data-theme', name);
-    themeButtons.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-theme-set') === name)); });
+    document.getElementById('themeNow').textContent = themeLabel[name];
+    themeItems.forEach(function (b) {
+      var on = b.getAttribute('data-theme-set') === name;
+      b.setAttribute('aria-checked', String(on));
+      b.querySelector('.tick').textContent = on ? '✓' : '';
+    });
   }
-  themeButtons.forEach(function (b) { b.addEventListener('click', function () { paint(b.getAttribute('data-theme-set')); }); });
+  themeItems.forEach(function (b) {
+    b.addEventListener('click', function (e) {
+      e.stopPropagation();
+      paint(b.getAttribute('data-theme-set'));
+      closeAllMenus(null);
+    });
+  });
   paint(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
   var menu = document.getElementById('modeMenu');
@@ -819,13 +983,13 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
 
   menuBtn.addEventListener('click', function (e) {
     e.stopPropagation();
-    var open = menu.classList.toggle('open');
+    var open = !menu.classList.contains('open');
+    closeAllMenus(open ? menu : null);
+    menu.classList.toggle('open', open);
     menuBtn.setAttribute('aria-expanded', String(open));
   });
-  document.addEventListener('click', function () {
-    menu.classList.remove('open');
-    menuBtn.setAttribute('aria-expanded', 'false');
-  });
+  document.addEventListener('click', function () { closeAllMenus(null); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAllMenus(null); });
 
   document.getElementById('askForm').addEventListener('submit', function (e) { e.preventDefault(); });
 })();
