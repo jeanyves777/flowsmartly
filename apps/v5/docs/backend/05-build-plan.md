@@ -1,6 +1,11 @@
 # V5 — FlowAgent build plan
 
-**Status:** for approval · **Depends on:** docs [00](./00-decisions.md)–[04](./04-domain-boundaries.md)
+**Status:** partially superseded by [06 — Greenfield](./06-greenfield.md) ·
+**Depends on:** docs [00](./00-decisions.md)–[04](./04-domain-boundaries.md)
+
+> **§4 and §5 are withdrawn.** They assumed the legacy backend would keep running while V5
+> replaced it domain by domain. V5 is a greenfield build; the legacy system is frozen, archived
+> and retired. The phases, sequencing principle and acceptance gates below still stand.
 
 The plan to build FlowAgent. Ordered so that **every phase ends with something demonstrable**, and
 so that the parts which make autonomy safe exist before anything is allowed to be autonomous.
