@@ -195,7 +195,10 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
 .page-head .spacer { flex:1; }
 .ctrl { display:flex; align-items:center; gap:8px; min-height:36px; padding:0 13px; border:1px solid var(--border); border-radius:9px; background:var(--surface); font-size:12.5px; font-weight:600; color:var(--text-muted); }
 
-.card { border:1px solid var(--border); border-radius:var(--r-card); background:var(--surface); padding:15px; }
+/* Every card in a row is one height, and whatever closes it sits on a shared
+   baseline. Sizing cards to their own content is what left the ragged gaps. */
+.card { border:1px solid var(--border); border-radius:var(--r-card); background:var(--surface); padding:15px; display:flex; flex-direction:column; }
+.card-foot { margin-top:auto; padding-top:11px; }
 .card-head { display:flex; align-items:center; gap:9px; margin-bottom:12px; }
 .card-head h3 { font-size:14px; font-weight:800; }
 .card-head .spacer { flex:1; }
@@ -206,23 +209,37 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
 .pill.violet { background:var(--violet-soft); color:var(--violet); }
 
 /* KPIs */
-.kpis { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:11px; margin-bottom:13px; }
-@media (max-width:1500px){ .kpis { grid-template-columns:repeat(3,minmax(0,1fr)); } }
-@media (max-width:940px){ .kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-.kpi { border:1px solid var(--border); border-radius:var(--r-card); background:var(--surface); padding:14px; }
+.kpis { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:11px; margin-bottom:13px; align-items:stretch; }
+/* Five cards never divide by three or two, so wrapping them always strands
+   one. Below the width that fits five, the strip scrolls instead — five equal
+   cards on one line beats four equal cards and a gap. */
+@media (max-width:1500px){
+  .kpis { display:flex; overflow-x:auto; scroll-snap-type:x proximity; padding-bottom:5px; }
+  .kpi { flex:0 0 206px; scroll-snap-align:start; }
+}
+.kpi { border:1px solid var(--border); border-radius:var(--r-card); background:var(--surface); padding:14px; display:flex; flex-direction:column; }
 .kpi-top { display:flex; align-items:flex-start; gap:9px; }
 .kpi-k { font-size:12px; color:var(--text-muted); font-weight:600; flex:1; }
 .kpi-ico { width:30px; height:30px; flex:none; border-radius:9px; display:grid; place-items:center; font-size:12px; background:var(--violet-soft); color:var(--violet); }
 .kpi-v { font-size:23px; font-weight:800; letter-spacing:-.035em; font-variant-numeric:tabular-nums; margin-top:5px; }
 .kpi-d { font-size:11.5px; font-weight:700; color:var(--green); font-variant-numeric:tabular-nums; }
-.kpi svg { display:block; margin-top:8px; width:100%; height:38px; }
+.kpi svg { display:block; margin-top:auto; padding-top:8px; width:100%; height:38px; }
 
 /* dashboard grid */
-.grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:11px; align-items:start; }
-@media (max-width:1180px){ .grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+/* `stretch`, not `start`: start sizes each card to its own content, which is
+   exactly what left one card short beside a tall neighbour. */
+.grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:11px; align-items:stretch; }
+/* At two columns the seven single cards would leave one alone on the last
+   row, so the wide card gives up its span and the eight divide evenly. */
+@media (max-width:1180px){
+  .grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .span2 { grid-column:auto; }
+}
 @media (max-width:820px){ .grid { grid-template-columns:minmax(0,1fr); } }
 .span2 { grid-column:span 2; }
-@media (max-width:820px){ .span2 { grid-column:auto; } }
+.span3 { grid-column:1 / -1; }
+@media (max-width:1180px){ .span3 { grid-column:1 / -1; } }
+@media (max-width:820px){ .span2, .span3 { grid-column:auto; } }
 
 .rec { display:flex; gap:10px; align-items:center; padding:9px 0; }
 .rec + .rec { border-top:1px solid var(--divider); }
@@ -268,6 +285,11 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
 .row-bar i { display:block; height:100%; border-radius:2px; }
 .row-d { font-size:10.5px; font-weight:700; color:var(--green); width:44px; text-align:right; flex:none; font-variant-numeric:tabular-nums; }
 .thumb { width:26px; height:26px; border-radius:7px; background:var(--inset); flex:none; display:grid; place-items:center; font-size:11px; }
+
+/* training strip — three across, one on phone */
+.res-row { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:11px; }
+@media (max-width:820px){ .res-row { grid-template-columns:minmax(0,1fr); } }
+.res { display:flex; align-items:center; gap:10px; border:1px solid var(--border); border-radius:var(--r-tile); background:var(--muted); padding:11px; }
 
 /* store health */
 .health { display:flex; align-items:center; gap:9px; padding:7px 0; font-size:12.5px; }
@@ -349,7 +371,7 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
 
 /* full-page suggestion cards */
 .fp-wrap { max-width:900px; margin:0 auto; }
-.fp-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.fp-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; align-items:stretch; }
 @media (max-width:1000px){ .fp-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:700px){ .fp-cards { grid-template-columns:minmax(0,1fr); } }
 .fp-card { display:flex; align-items:flex-start; gap:12px; text-align:left; border:1px solid var(--border); border-radius:var(--r-card); background:var(--surface); padding:15px; transition:border-color .13s ease, transform .13s ease, box-shadow .13s ease; }
@@ -705,7 +727,7 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
                   <div class="appr-body"><p class="appr-t">Influencer Partnership — May</p><p class="appr-b">Partnership · $600 committed</p></div>
                   <button class="appr-btn">Review</button>
                 </div>
-                <p style="margin-top:10px;"><span class="card-link">View all approvals</span></p>
+                <p class="card-foot"><span class="card-link">View all approvals</span></p>
               </div>
 
               <!-- quick create -->
@@ -741,7 +763,7 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
                 <div class="pipe"><span class="pipe-k">Qualified</span><span class="pipe-v">842</span><span class="pipe-bar"><i style="width:56%; background:var(--brand);"></i></span><span class="pipe-d">↑9%</span></div>
                 <div class="pipe"><span class="pipe-k">Proposals</span><span class="pipe-v">256</span><span class="pipe-bar"><i style="width:30%; background:#22a3d6;"></i></span><span class="pipe-d">↑4%</span></div>
                 <div class="pipe"><span class="pipe-k">Won</span><span class="pipe-v">112</span><span class="pipe-bar"><i style="width:14%; background:var(--green);"></i></span><span class="pipe-d">↑7%</span></div>
-                <p style="margin-top:10px;"><span class="card-link">View full pipeline</span></p>
+                <p class="card-foot"><span class="card-link">View full pipeline</span></p>
               </div>
 
               <!-- channel performance -->
@@ -751,7 +773,7 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
                 <div class="row"><span class="row-ico" aria-hidden="true">◉</span><span class="row-n">Facebook Ads</span><span class="row-v">$4,231</span><span class="row-bar"><i style="width:44%; background:var(--brand);"></i></span><span class="row-d">↑11.8%</span></div>
                 <div class="row"><span class="row-ico" aria-hidden="true">◎</span><span class="row-n">Google Ads</span><span class="row-v">$2,104</span><span class="row-bar"><i style="width:22%; background:#22a3d6;"></i></span><span class="row-d">↑6.2%</span></div>
                 <div class="row"><span class="row-ico" aria-hidden="true">✉</span><span class="row-n">Email Marketing</span><span class="row-v">$1,342</span><span class="row-bar"><i style="width:14%; background:var(--green);"></i></span><span class="row-d">↑9.1%</span></div>
-                <p style="margin-top:10px;"><span class="card-link">View full report</span></p>
+                <p class="card-foot"><span class="card-link">View full report</span></p>
               </div>
 
               <!-- top products -->
@@ -761,7 +783,7 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
                 <div class="row"><span class="thumb" aria-hidden="true">◫</span><span class="row-n">Flow T-Shirt</span><span class="row-d" style="color:var(--text-subtle);">389 sold</span><span class="row-v">$5,674</span></div>
                 <div class="row"><span class="thumb" aria-hidden="true">◫</span><span class="row-n">Flow Cap</span><span class="row-d" style="color:var(--text-subtle);">256 sold</span><span class="row-v">$2,304</span></div>
                 <div class="row"><span class="thumb" aria-hidden="true">◫</span><span class="row-n">Flow Mug</span><span class="row-d" style="color:var(--text-subtle);">198 sold</span><span class="row-v">$1,118</span></div>
-                <p style="margin-top:10px;"><span class="card-link">View all products</span></p>
+                <p class="card-foot"><span class="card-link">View all products</span></p>
               </div>
 
               <!-- store health + training -->
@@ -771,12 +793,25 @@ code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.92em;
                 <div class="health"><span aria-hidden="true">⌕</span><span class="health-n">SEO</span><span class="health-v">Good</span></div>
                 <div class="health"><span aria-hidden="true">🔒</span><span class="health-n">Security</span><span class="health-v">Good</span></div>
                 <div class="health"><span aria-hidden="true">◔</span><span class="health-n">Uptime</span><span class="health-v">99.9%</span></div>
-                <p style="margin-top:10px;"><span class="card-link">View full report</span></p>
-                <div style="margin-top:13px; padding-top:13px; border-top:1px solid var(--divider);">
-                  <div class="card-head" style="margin-bottom:9px;"><h3>Training &amp; resources</h3><span class="spacer"></span><span class="card-link">Visit academy</span></div>
-                  <div class="rec" style="padding:0;">
+                <p class="card-foot"><span class="card-link">View full report</span></p>
+              </div>
+
+              <!-- Training was inside Store health, which made that card tower
+                   over the two beside it. Its own full-width row instead. -->
+              <div class="card span3">
+                <div class="card-head"><h3>Training &amp; resources</h3><span class="spacer"></span><span class="card-link">Visit academy</span></div>
+                <div class="res-row">
+                  <div class="res">
                     <span class="rec-ico" style="background:var(--violet-soft); color:var(--violet);" aria-hidden="true">✑</span>
-                    <div class="rec-body"><p class="rec-t">New: Automations 101</p><p class="rec-b">Learn how to save time with flows</p></div>
+                    <div class="rec-body"><p class="rec-t">New: Automations 101</p><p class="rec-b">Save time with flows · 12 min</p></div>
+                  </div>
+                  <div class="res">
+                    <span class="rec-ico" style="background:var(--ok-bg); color:var(--ok-text);" aria-hidden="true">◈</span>
+                    <div class="rec-body"><p class="rec-t">Win back a lapsed customer</p><p class="rec-b">The sequence that works · 8 min</p></div>
+                  </div>
+                  <div class="res">
+                    <span class="rec-ico" style="background:var(--warn-bg); color:var(--warn-text);" aria-hidden="true">▶</span>
+                    <div class="rec-body"><p class="rec-t">Shoot a product ad on a phone</p><p class="rec-b">Video walkthrough · 15 min</p></div>
                   </div>
                 </div>
               </div>
