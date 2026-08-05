@@ -306,7 +306,9 @@ These seven are the ones the first vertical executes, given in full.
   blocking_facts: [prospect.no_public_presence]
   default_autonomy: 1
   approval: { required_when: [], preview: null }
-  verifier: leads.verify.profile_has_cited_sources     # A4 — every claim carries a source
+  verifier: leads.verify.every_claim_has_source_url    # A4 — every claim carries a source
+  # NOTE: native citations and constrained structured output are mutually exclusive, so the
+  # source travels as a `source_url` FIELD in the schema rather than as a citation block.
   cost_class: standard
   irreversibility: none
   owner: leads

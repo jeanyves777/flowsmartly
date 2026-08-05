@@ -5,6 +5,33 @@ these by number.
 
 ---
 
+## D0 — The system is called **FlowAgent** · **LOCKED**
+
+The assistant and its execution core are **FlowAgent**. "Flow.AI" is retired.
+
+| | name |
+| --- | --- |
+| The system, and what a user talks to | **FlowAgent** |
+| Orchestration hub | Flow Kernel |
+| Capability catalogue | Flow Registry |
+| Scoped business context | Flow Context |
+| Execution engine | Flow Runtime |
+| Authority and autonomy | Flow Policy |
+| Structured memory | Flow Memory |
+| Events and triggers | Flow Events |
+| Limits and loop prevention | Flow Guard |
+| Traces, logs, evaluations | Flow Observe |
+
+The internal components keep the `Flow *` family because they are a system, not a product — a
+person never types "Flow Kernel". Only **FlowAgent** is user-facing.
+
+**Open:** the public marketing site still sells the assistant as "Flow.AI" across 16 files,
+including a `/flow-ai` route, the mega menu, JSON-LD and the sitemap. Renaming it is a separate,
+mechanical sweep with SEO consequences (the route changes, so it needs a redirect). Not done —
+see the note at the end of [05 — Build plan](./05-build-plan.md).
+
+---
+
 ## D1 — Intent vocabulary: closed, with semantic routing · **LOCKED**
 
 A closed canonical vocabulary of ~70 intents. Embeddings and language models may only **map natural
@@ -82,8 +109,15 @@ version: 1
 ### A2 — Every mutation is idempotent
 
 ```
-idempotency_key = hash(workspace + workflow_run + plan_step + capability_version + normalised_input)
+idempotency_key = hash(workspace + workflow_run + effect_key + capability_version + normalised_input)
 ```
+
+> **Correction (found in review).** The key originally included `plan_step`. A re-plan mints new
+> step ids ([02 §3](./02-execution-model.md)), so the same mutating call under plan v2 would hash
+> differently from plan v1 — and re-send outreach that had already gone. `effect_key` is declared by
+> the *caller* and is **stable across re-plans**: for `send_outreach` it is
+> `sequence:{id}/step:{n}/contact:{id}`, which identifies the effect in the world rather than the
+> attempt in our plan.
 
 Required for: send email · charge credits · publish post · change ad budget · send proposal ·
 create order — and everything else with `effect ≥ write`.
@@ -112,6 +146,47 @@ Beyond "autonomy > 1 requires a verifier that can fail":
 ```
 
 Where no independent source exists, the capability is capped at autonomy 1 and says so.
+
+### A4b — An **external** agent counts as an agent · **LOCKED**
+
+R1 ("an agent may never call an agent") is worthless if delegation over HTTP is exempt — a
+marketplace agent would bypass it and "acyclic by construction" would be gone.
+
+> **A third-party marketplace agent is not an agent in this taxonomy. It is a capability whose
+> implementation happens to be someone else's model.**
+
+It therefore registers as a capability and must satisfy the descriptor like any other. Because it
+cannot supply six of those fields honestly, the runtime supplies them:
+
+| Field | Who declares it | Value |
+| --- | --- | --- |
+| `origin` | us | `third_party` |
+| `effect`, `cost`, `timeoutMs` | **us**, never self-reported | capped by per-origin policy |
+| `idempotency` | us | `none` ⇒ `maxAttempts: 1` |
+| `verify` | **us**, locally written | a third party may never verify anything, including itself |
+| outputs | us | graded `trust: untrusted` (A6) |
+| autonomy | us | **≤ 2**, always |
+
+Workspace credentials are injected at egress and never visible to the third party.
+
+### A6 — Provenance and taint · **LOCKED**
+
+*This was the one real gap: nothing in 00–03 mentioned untrusted input, yet the first vertical
+ingests it on the critical path.* A prospect's scraped web page, a Google review, an inbound
+customer email and any third-party capability output are **attacker-controlled text arriving in a
+context that also holds `send_outreach`, `purchase_credits` and `launch_ad_campaign`.**
+
+Every existing control governs whether a capability *may* run. None ask **who chose it**. An
+injected instruction produces a plan that passes every precondition and carries a genuine verifier.
+
+1. Every `LedgerEntry.source` and `evidence` carries `trust: 'trusted' | 'untrusted'`.
+   Anything derived from untrusted input is untrusted — taint propagates.
+2. New precondition kind: `{ kind: 'provenance'; requires: 'trusted' }`.
+3. **Compiler rule:** a plan may not combine *untrusted input* + *private data read* +
+   *external effect* without human approval. Any two are fine; all three is the exfiltration
+   shape, and it is refused at plan time rather than argued about in a prompt.
+4. Untrusted text is never concatenated into instructions. It is passed as data, in a labelled
+   block, with its source.
 
 ### A5 — Non-progress is measured on semantic steps only
 
