@@ -273,8 +273,10 @@ export function CallAgentSection() {
                 Reception Agent — <Text style={styles.live}>{'Live '}</Text>
                 <LiveDot pulse={livePulse} style={styles.live} />
               </Text>
+              {/* 555-0100..0199 is the range reserved for fiction. The old
+                  (555) 123-4567 sits outside it and can be a real line. */}
               <Text style={styles.consoleSub} numberOfLines={1}>
-                (555) 123-4567 • 24/7
+                (415) 555-0118 • 24/7
               </Text>
             </View>
           </View>
@@ -297,7 +299,7 @@ export function CallAgentSection() {
                   Marcus Lee
                 </Text>
                 <Text style={styles.consoleSub} numberOfLines={1}>
-                  (555) 987-6543
+                  (415) 555-0177
                 </Text>
               </View>
               <Reveal style={styles.timerWrap} delay={180} distance={10}>

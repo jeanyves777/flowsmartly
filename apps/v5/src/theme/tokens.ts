@@ -112,20 +112,33 @@ const light: ThemeTokens = {
   borderStrong: '#c4cee4',
   divider: '#e9eef8',
 
-  brand: '#0878f9',
-  brandStrong: '#0a63d6',
+  // In LIGHT, unlike the dark palettes, an accent is used both as text and as a
+  // fill, and both roles pull the same way — so the hue itself is deepened
+  // rather than the ink on it. Each value below is the LIGHTEST one that clears
+  // 4.5:1 both as text on surfaceInset (#eef3fb, the darkest light surface) and
+  // under white on a solid fill, so the palette stays as close to its original
+  // brightness as AA allows.
+  //   before -> after   as-text / white-on-fill
+  //   brand   #0878f9 -> #0a63d6   3.72 -> 5.00 / 4.15 -> 5.57
+  //   green   #13a94f -> #0e7b3a   2.77 -> 4.82 / 3.08 -> 5.37
+  //   orange  #ed6f00 -> #ad5100   2.74 -> 4.77 / 3.05 -> 5.31
+  //   pink    #e0075f -> #d70459   4.32 -> 4.66 / 4.81 -> 5.18
+  brand: '#0a63d6',
+  brandStrong: '#0a56b8',
   brandSoft: '#edf3ff',
   violet: '#6c2cff',
-  green: '#13a94f',
-  orange: '#ed6f00',
-  pink: '#e0075f',
+  green: '#0e7b3a',
+  orange: '#ad5100',
+  pink: '#d70459',
 
   chipBg: '#edf1ff',
   chipText: '#1740db',
   successBg: '#e8f8ee',
-  successText: '#0a8f43',
+  // 4.61:1 on successBg; #0a8f43 was 3.80.
+  successText: '#008034',
   warnBg: '#fff1e6',
-  warnText: '#c9560a',
+  // 4.58:1 on warnBg; #c9560a was 3.94.
+  warnText: '#bd4a00',
 
   // Blue stop deepened from #0b7bfa: white on it was 4.02:1, which the 13px
   // `sm` button label cannot spend. 4.80:1 now, across the whole ramp.

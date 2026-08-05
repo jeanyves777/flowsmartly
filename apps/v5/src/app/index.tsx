@@ -91,20 +91,35 @@ function useStyles(): Styles {
  * supplies the real, wired header, so the duplicate is gone rather than
  * lingering as a source of dead CTAs.
  */
-function Brand({ compact = false }: { compact?: boolean }) {
+/**
+ * `alt` is required, and deliberately has no default.
+ *
+ * The compact mark renders three times on this page with three different
+ * meanings — it is the hub of the channel map, the avatar in the Flow.AI card,
+ * and a tile in the dashboard — so a single baked-in alt would be wrong in at
+ * least two of them. Every caller has to say what its instance means, or say
+ * `alt=""` and mark it decorative.
+ */
+function Brand({ compact = false, alt }: { compact?: boolean; alt: string }) {
   const styles = useStyles();
+  const decorative = alt.trim() === '';
+  const shared = {
+    alt: decorative ? undefined : alt,
+    'aria-hidden': decorative || undefined,
+    contentFit: 'contain' as const,
+  };
   return compact ? (
     <Image
-      source={require("../../assets/images/v5/flowsmartly-mark.png")}
+      source={require("../../assets/images/v5w/flowsmartly-mark.png")}
       style={styles.brandLogoCompact}
-      contentFit="contain"
+      {...shared}
     />
   ) : (
     <Image
-      source={require("../../assets/images/v5/flowsmartly-logo.png")}
+      source={require("../../assets/images/v5w/flowsmartly-logo.png")}
       style={styles.brandLogo}
-      contentFit="contain"
       contentPosition="left"
+      {...shared}
     />
   );
 }
@@ -220,7 +235,9 @@ function FlowAiCard() {
     <View style={styles.aiCard}>
       {l.isPhone ? null : (
         <View style={styles.aiSidebar}>
-          <Brand compact />
+          {/* Chrome inside a mock, beside a rail of unlabelled icons — naming it
+              would announce "FlowSmartly" in the middle of an illustration. */}
+          <Brand compact alt="" />
           {AI_RAIL_ICONS.map((icon, index) => (
             <View key={icon} style={[styles.sideIcon, index === 0 && styles.sideIconActive]}>
               <FontAwesome6
@@ -381,7 +398,7 @@ function ChannelWeb() {
         ))}
       </View>
       <View {...field.node("hub")} style={styles.channelHub}>
-        <Brand compact />
+        <Brand compact alt="FlowSmartly, at the centre of every connected channel" />
       </View>
       <View style={styles.channelColumn}>
         {shown.slice(3).map((item) => (
@@ -404,7 +421,7 @@ function ChannelCluster() {
   return (
     <View style={styles.channelCluster}>
       <View style={styles.channelHub}>
-        <Brand compact />
+        <Brand compact alt="FlowSmartly, at the centre of every connected channel" />
       </View>
       <View style={styles.channelClusterGrid}>
         {channels.map((item) => (
@@ -1116,7 +1133,9 @@ function CustomerIntelligence() {
   // mojibake beside the FontAwesome glyphs in the signal cards next to them.
   const profileMeta: [string, string][] = [
     ["envelope", "sarah.johnson@email.com"],
-    ["phone", "+1 (555) 123-4567"],
+    // No published phone line exists, and a 555 number on a contact block is a
+    // dead end dressed up as a channel. The contact route is the real one.
+    ["comment-dots", "Message us and we answer the same day"],
     ["location-dot", "San Francisco, CA"],
     ["calendar", "Customer since Apr 2024"],
     ["bag-shopping", "Total orders 8 • $1,286 spent"],

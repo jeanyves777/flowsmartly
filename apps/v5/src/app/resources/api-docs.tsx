@@ -627,7 +627,7 @@ function Hero() {
           />
           {/* The SDKs are the reference that actually exists today. */}
           <SecondaryButton
-            label="SDKs on GitHub"
+            label="Request SDK access"
             icon="code"
             full={l.isPhone}
             trackId="api.hero.github"
@@ -743,7 +743,7 @@ function Sdks() {
               </View>
               <View style={styles.cardSpacer} />
               <LinkRow
-                label="View on GitHub"
+                label="Request SDK access"
                 tone={sdk.tone}
                 href={EXTERNAL.github}
                 external

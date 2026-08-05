@@ -27,7 +27,6 @@ export const EXTERNAL = {
   /** Unused today. `status.flowsmartly.com` does not resolve — the shipping
    *  status page is the in-site route `ROUTES.status`, not this host. Do not
    *  wire a CTA to this without checking that the subdomain exists. */
-  statusFeed: 'https://status.flowsmartly.com',
   /** No public repo exists yet, so this is the honest fallback. */
   github: `${ROUTES.contact}?topic=sdk-access`,
 } as const;
