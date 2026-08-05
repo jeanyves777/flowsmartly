@@ -1,0 +1,982 @@
+<title>FlowSmartly Portal — shell proposal v1</title>
+
+<style>
+/* ------------------------------------------------------------------ *
+ * Tokens are lifted verbatim from apps/v5/src/theme/tokens.ts so that
+ * anything approved here is buildable without a translation step. The
+ * app ships THREE themes, so this mock carries all three rather than
+ * the two a web page normally gets.
+ * ------------------------------------------------------------------ */
+:root {
+  --bg:#f3f6fc; --surface:#ffffff; --raised:#ffffff; --muted:#f7f9fe; --inset:#eef3fb;
+  --text:#071449; --text-muted:#42527a; --text-subtle:#606c8a; --on-brand:#ffffff;
+  --border:#dfe5f2; --border-strong:#c4cee4; --divider:#e9eef8;
+  --brand:#0a63d6; --brand-strong:#0a56b8; --brand-soft:#edf3ff;
+  --violet:#6c2cff; --green:#0e7b3a; --orange:#ad5100; --pink:#d70459;
+  --chip-bg:#edf1ff; --chip-text:#1740db;
+  --ok-bg:#e8f8ee; --ok-text:#008034; --warn-bg:#fff1e6; --warn-text:#bd4a00;
+  --shadow:rgba(31,45,98,.10); --shadow-2:rgba(31,45,98,.14);
+
+  --r-card:20px; --r-tile:14px; --r-pill:999px;
+  --rail:248px; --rail-collapsed:72px; --topbar:60px;
+  --ff:"Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+}
+:root[data-theme="grey"] {
+  --bg:#15181d; --surface:#1d2127; --raised:#242931; --muted:#20242b; --inset:#282d35;
+  --text:#f1f4f8; --text-muted:#b2bac7; --text-subtle:#8c96a6; --on-brand:#101317;
+  --border:#333941; --border-strong:#48505c; --divider:#2b3038;
+  --brand:#4f9dff; --brand-strong:#7cb6ff; --brand-soft:#1f2a37;
+  --violet:#a98cff; --green:#3fd07c; --orange:#ffa34d; --pink:#ff5f96;
+  --chip-bg:#242e3c; --chip-text:#89b9ff;
+  --ok-bg:#17301f; --ok-text:#4ed67f; --warn-bg:#332512; --warn-text:#f5b040;
+  --shadow:rgba(0,0,0,.45); --shadow-2:rgba(0,0,0,.55);
+}
+:root[data-theme="dark"] {
+  --bg:#070b16; --surface:#0e1424; --raised:#141c30; --muted:#101728; --inset:#182034;
+  --text:#f5f8ff; --text-muted:#a9b6d2; --text-subtle:#7e8bab; --on-brand:#0b1220;
+  --border:#26304a; --border-strong:#3a4763; --divider:#1c2540;
+  --brand:#4f9dff; --brand-strong:#7cb6ff; --brand-soft:#132441;
+  --violet:#a98cff; --green:#3fd07c; --orange:#ffa34d; --pink:#ff5f96;
+  --chip-bg:#17264a; --chip-text:#8ab8ff;
+  --ok-bg:#0d2b1c; --ok-text:#4ed67f; --warn-bg:#2e2110; --warn-text:#f5b040;
+  --shadow:rgba(0,0,0,.5); --shadow-2:rgba(0,0,0,.6);
+}
+/* The viewer's own preference decides the opening theme; their toggle then
+   stamps data-theme, which is why these live behind :not([data-theme]). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --bg:#070b16; --surface:#0e1424; --raised:#141c30; --muted:#101728; --inset:#182034;
+    --text:#f5f8ff; --text-muted:#a9b6d2; --text-subtle:#7e8bab; --on-brand:#0b1220;
+    --border:#26304a; --border-strong:#3a4763; --divider:#1c2540;
+    --brand:#4f9dff; --brand-strong:#7cb6ff; --brand-soft:#132441;
+    --violet:#a98cff; --green:#3fd07c; --orange:#ffa34d; --pink:#ff5f96;
+    --chip-bg:#17264a; --chip-text:#8ab8ff;
+    --ok-bg:#0d2b1c; --ok-text:#4ed67f; --warn-bg:#2e2110; --warn-text:#f5b040;
+    --shadow:rgba(0,0,0,.5); --shadow-2:rgba(0,0,0,.6);
+  }
+}
+
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:var(--ff); font-size:15px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4 { margin:0; text-wrap:balance; letter-spacing:-.02em; }
+p { margin:0; }
+button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; }
+:focus-visible { outline:2px solid var(--brand); outline-offset:2px; border-radius:6px; }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation:none !important; transition:none !important; } }
+
+.wrap { max-width:1560px; margin:0 auto; padding:28px 20px 72px; }
+
+/* ---------------- brief header ---------------- */
+.brief { display:flex; flex-wrap:wrap; align-items:flex-end; gap:20px 32px; margin-bottom:22px; }
+.brief-main { flex:1 1 460px; min-width:0; }
+.eyebrow {
+  font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--chip-text); background:var(--chip-bg);
+  padding:6px 12px; border-radius:var(--r-pill); display:inline-block;
+}
+.brief h1 { font-size:clamp(26px,3.2vw,38px); font-weight:800; margin:14px 0 8px; }
+.brief p { color:var(--text-muted); max-width:62ch; }
+.brief-meta { display:flex; gap:26px; flex-wrap:wrap; }
+.meta-item { display:flex; flex-direction:column; gap:2px; }
+.meta-k { font-size:11px; font-weight:800; letter-spacing:.09em; text-transform:uppercase; color:var(--text-subtle); }
+.meta-v { font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; }
+
+/* ---------------- app frame ---------------- */
+.frame {
+  border:1px solid var(--border-strong); border-radius:var(--r-card);
+  background:var(--bg); overflow:hidden; box-shadow:0 18px 44px var(--shadow);
+}
+.frame-bar {
+  height:38px; display:flex; align-items:center; gap:8px; padding:0 14px;
+  background:var(--muted); border-bottom:1px solid var(--border);
+}
+.dot { width:10px; height:10px; border-radius:50%; background:var(--border-strong); }
+.frame-url {
+  margin-left:10px; font-size:12px; color:var(--text-subtle);
+  background:var(--inset); border:1px solid var(--border);
+  padding:3px 12px; border-radius:var(--r-pill);
+}
+.frame-note { margin-left:auto; font-size:11px; color:var(--text-subtle); }
+
+.app { display:flex; min-height:760px; background:var(--bg); }
+
+/* ---------------- rail ---------------- */
+.rail {
+  width:var(--rail); flex:0 0 var(--rail); border-right:1px solid var(--border);
+  background:var(--surface); display:flex; flex-direction:column;
+  transition:width .18s ease, flex-basis .18s ease;
+}
+.app.narrow .rail { width:var(--rail-collapsed); flex-basis:var(--rail-collapsed); }
+.rail-head { height:var(--topbar); display:flex; align-items:center; gap:10px; padding:0 16px; border-bottom:1px solid var(--divider); }
+.mark {
+  width:30px; height:30px; flex:none; border-radius:9px; display:grid; place-items:center;
+  background:linear-gradient(135deg,var(--brand),var(--violet)); color:var(--on-brand); font-weight:800; font-size:14px;
+}
+.wordmark { font-weight:800; letter-spacing:-.03em; font-size:16px; }
+.app.narrow .wordmark, .app.narrow .rail-group-label, .app.narrow .nav span, .app.narrow .credits-body { display:none; }
+
+.rail-scroll { flex:1; overflow-y:auto; padding:12px 10px 8px; }
+.rail-group { margin-bottom:14px; }
+.rail-group-label {
+  font-size:10.5px; font-weight:800; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--text-subtle); padding:0 10px; margin:0 0 6px;
+}
+.nav {
+  width:100%; display:flex; align-items:center; gap:11px; min-height:40px;
+  padding:0 10px; border-radius:10px; color:var(--text-muted); font-size:14px; font-weight:600;
+  transition:background .12s ease, color .12s ease;
+}
+.app.narrow .nav { justify-content:center; padding:0; }
+.nav:hover { background:var(--muted); color:var(--text); }
+.nav .ico { width:20px; flex:none; text-align:center; font-size:15px; line-height:1; }
+.nav[aria-current="page"] { background:var(--brand-soft); color:var(--brand); font-weight:700; }
+.nav .tag {
+  margin-left:auto; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:var(--r-pill);
+  background:var(--warn-bg); color:var(--warn-text);
+}
+.app.narrow .nav .tag { display:none; }
+
+.credits { margin:8px 10px 12px; padding:12px; border:1px solid var(--border); border-radius:var(--r-tile); background:var(--muted); }
+.app.narrow .credits { padding:8px; text-align:center; }
+.credits-top { display:flex; align-items:baseline; gap:6px; }
+.credits-n { font-size:18px; font-weight:800; font-variant-numeric:tabular-nums; }
+.credits-of { font-size:12px; color:var(--text-subtle); font-variant-numeric:tabular-nums; }
+.meter { height:6px; border-radius:3px; background:var(--inset); overflow:hidden; margin:9px 0 8px; }
+.meter i { display:block; height:100%; width:62%; border-radius:3px; background:linear-gradient(90deg,var(--brand),var(--violet)); }
+.credits-body p { font-size:11.5px; color:var(--text-subtle); }
+.credits-cta { margin-top:8px; width:100%; min-height:34px; border-radius:9px; background:var(--brand); color:var(--on-brand); font-size:12.5px; font-weight:800; }
+
+/* ---------------- topbar ---------------- */
+.main { flex:1; min-width:0; display:flex; flex-direction:column; }
+.topbar {
+  height:var(--topbar); flex:none; display:flex; align-items:center; gap:12px;
+  padding:0 18px; border-bottom:1px solid var(--border); background:var(--surface);
+}
+.icon-btn {
+  width:36px; height:36px; flex:none; border-radius:10px; display:grid; place-items:center;
+  border:1px solid var(--border); background:var(--surface); color:var(--text-muted); font-size:14px;
+}
+.icon-btn:hover { background:var(--muted); color:var(--text); }
+.workspace {
+  display:flex; align-items:center; gap:9px; min-height:36px; padding:0 12px;
+  border:1px solid var(--border); border-radius:10px; background:var(--surface); font-size:13.5px; font-weight:700;
+}
+.ws-badge { width:20px; height:20px; border-radius:6px; background:var(--orange); color:#fff; display:grid; place-items:center; font-size:10px; font-weight:800; }
+.search {
+  flex:1; max-width:420px; min-height:36px; display:flex; align-items:center; gap:9px;
+  padding:0 13px; border:1px solid var(--border); border-radius:10px; background:var(--inset);
+  color:var(--text-subtle); font-size:13.5px;
+}
+.search kbd {
+  margin-left:auto; font:inherit; font-size:11px; font-weight:700; padding:1px 6px;
+  border:1px solid var(--border-strong); border-radius:5px; color:var(--text-subtle);
+}
+.top-right { margin-left:auto; display:flex; align-items:center; gap:9px; }
+.theme-switch { display:flex; gap:2px; padding:3px; border:1px solid var(--border); border-radius:10px; background:var(--inset); }
+.theme-switch button { min-height:28px; padding:0 10px; border-radius:7px; font-size:11.5px; font-weight:700; color:var(--text-subtle); }
+.theme-switch button[aria-pressed="true"] { background:var(--surface); color:var(--text); box-shadow:0 1px 3px var(--shadow); }
+.avatar { width:32px; height:32px; border-radius:50%; background:var(--violet); color:#fff; display:grid; place-items:center; font-size:12px; font-weight:800; }
+
+/* ---------------- canvas ---------------- */
+.canvas-row { flex:1; display:flex; min-height:0; }
+.canvas { flex:1; min-width:0; overflow-y:auto; padding:22px; scroll-behavior:smooth; }
+.screen { display:none; }
+.screen.on { display:block; animation:rise .22s ease both; }
+@keyframes rise { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+.screen-head { display:flex; align-items:flex-end; gap:18px; flex-wrap:wrap; margin-bottom:18px; }
+.screen-head h2 { font-size:24px; font-weight:800; }
+.screen-head p { color:var(--text-muted); font-size:14px; margin-top:3px; }
+.screen-head .spacer { flex:1; }
+.btn {
+  min-height:38px; padding:0 16px; border-radius:10px; font-size:13.5px; font-weight:700;
+  background:var(--brand); color:var(--on-brand);
+}
+.btn.ghost { background:var(--surface); color:var(--text); border:1px solid var(--border-strong); }
+
+.card {
+  border:1px solid var(--border); border-radius:var(--r-card); background:var(--surface);
+  padding:18px; box-shadow:0 1px 2px var(--shadow);
+}
+.card + .card { margin-top:16px; }
+.card-head { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+.card-head h3 { font-size:15px; font-weight:800; }
+.card-head .spacer { flex:1; }
+.pill {
+  font-size:11px; font-weight:800; padding:3px 10px; border-radius:var(--r-pill);
+  background:var(--chip-bg); color:var(--chip-text);
+}
+.pill.warn { background:var(--warn-bg); color:var(--warn-text); }
+.pill.ok { background:var(--ok-bg); color:var(--ok-text); }
+
+/* metric tiles */
+.metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
+@media (max-width:1180px){ .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.metric { border:1px solid var(--border); border-radius:var(--r-tile); background:var(--surface); padding:14px; }
+.metric-k { font-size:12px; color:var(--text-subtle); }
+.metric-row { display:flex; align-items:flex-end; gap:10px; margin-top:4px; }
+.metric-v { font-size:24px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-.03em; }
+.metric svg { margin-left:auto; }
+.metric-d { font-size:11.5px; font-weight:700; color:var(--green); font-variant-numeric:tabular-nums; }
+
+/* approval queue — the heart of the proposal */
+.approval { display:flex; gap:14px; padding:14px; border:1px solid var(--border); border-radius:var(--r-tile); background:var(--muted); }
+.approval + .approval { margin-top:10px; }
+.approval-ico { width:38px; height:38px; flex:none; border-radius:11px; display:grid; place-items:center; font-size:16px; }
+.approval-body { flex:1; min-width:0; }
+.approval-title { font-size:14px; font-weight:800; }
+.approval-why { font-size:13px; color:var(--text-muted); margin-top:3px; }
+.approval-facts { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+.fact { font-size:11px; font-weight:700; padding:3px 9px; border-radius:var(--r-pill); background:var(--surface); border:1px solid var(--border); color:var(--text-muted); }
+.fact strong { color:var(--text); font-variant-numeric:tabular-nums; }
+.approval-act { display:flex; flex-direction:column; gap:6px; flex:none; justify-content:center; }
+.approval-act button { min-height:34px; padding:0 14px; border-radius:9px; font-size:12.5px; font-weight:700; white-space:nowrap; }
+.act-yes { background:var(--brand); color:var(--on-brand); }
+.act-edit { border:1px solid var(--border-strong); color:var(--text); }
+.act-no { color:var(--text-subtle); }
+
+/* create hub */
+.studios { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+@media (max-width:1180px){ .studios { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.studio {
+  text-align:left; border:1px solid var(--border); border-radius:var(--r-tile);
+  background:var(--surface); padding:15px; display:flex; flex-direction:column; gap:7px; min-height:132px;
+  transition:transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+}
+.studio:hover { transform:translateY(-2px); box-shadow:0 10px 22px var(--shadow); border-color:var(--border-strong); }
+.studio-ico { width:34px; height:34px; border-radius:10px; display:grid; place-items:center; font-size:15px; }
+.studio-t { font-size:13.5px; font-weight:800; }
+.studio-b { font-size:12px; color:var(--text-subtle); line-height:1.45; }
+.studio-cost { margin-top:auto; font-size:11px; font-weight:700; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+
+/* table */
+.tablewrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; min-width:560px; }
+th {
+  text-align:left; font-size:10.5px; font-weight:800; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--text-subtle); padding:0 12px 8px;
+}
+td { padding:11px 12px; border-top:1px solid var(--divider); font-variant-numeric:tabular-nums; }
+td.name { font-weight:700; font-variant-numeric:normal; }
+
+/* composer */
+.composer-dock { padding:14px 22px 18px; border-top:1px solid var(--border); background:var(--surface); }
+.composer {
+  display:flex; align-items:center; gap:11px; min-height:50px; padding:0 8px 0 15px;
+  border:1px solid var(--border-strong); border-radius:14px; background:var(--inset);
+  box-shadow:0 2px 10px var(--shadow);
+}
+.composer-spark { width:26px; height:26px; flex:none; border-radius:8px; display:grid; place-items:center; background:linear-gradient(135deg,var(--brand),var(--violet)); color:var(--on-brand); font-size:12px; }
+.composer input { flex:1; min-width:0; border:0; background:none; color:var(--text); font:inherit; font-size:14px; outline:none; }
+.composer input::placeholder { color:var(--text-subtle); }
+.composer-send { width:36px; height:36px; flex:none; border-radius:10px; background:var(--brand); color:var(--on-brand); display:grid; place-items:center; }
+.composer-hint { margin-top:8px; font-size:11.5px; color:var(--text-subtle); display:flex; gap:14px; flex-wrap:wrap; }
+
+/* right workspace */
+.workpanel {
+  width:0; flex:0 0 0; border-left:1px solid var(--border); background:var(--surface);
+  overflow:hidden; transition:width .2s ease, flex-basis .2s ease;
+}
+.app.working .workpanel { width:400px; flex-basis:400px; }
+@media (max-width:1240px){ .app.working .workpanel { width:330px; flex-basis:330px; } }
+.wp-inner { width:400px; padding:18px; display:flex; flex-direction:column; gap:14px; height:100%; overflow-y:auto; }
+.wp-head { display:flex; align-items:center; gap:10px; }
+.wp-head h3 { font-size:14px; font-weight:800; flex:1; }
+.step { display:flex; gap:11px; align-items:flex-start; }
+.step-dot { width:20px; height:20px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:10px; font-weight:800; background:var(--ok-bg); color:var(--ok-text); }
+.step-dot.run { background:var(--chip-bg); color:var(--chip-text); }
+.step-dot.wait { background:var(--inset); color:var(--text-subtle); }
+.step-t { font-size:13px; font-weight:700; }
+.step-b { font-size:12px; color:var(--text-subtle); }
+.wp-out { border:1px solid var(--border); border-radius:var(--r-tile); background:var(--muted); padding:13px; }
+.wp-out h4 { font-size:12px; font-weight:800; margin-bottom:7px; }
+.wp-out p { font-size:12.5px; color:var(--text-muted); }
+.wp-foot { margin-top:auto; display:flex; gap:8px; }
+.wp-foot button { flex:1; min-height:38px; border-radius:10px; font-size:13px; font-weight:700; }
+
+/* ---------------- phone ---------------- */
+.shapes { display:grid; grid-template-columns:1fr 320px; gap:22px; margin-top:22px; align-items:start; }
+@media (max-width:1080px){ .shapes { grid-template-columns:1fr; } }
+.phone { border:1px solid var(--border-strong); border-radius:26px; background:var(--surface); overflow:hidden; box-shadow:0 14px 34px var(--shadow); }
+.phone-top { height:34px; display:flex; align-items:center; justify-content:center; background:var(--muted); border-bottom:1px solid var(--divider); font-size:10.5px; color:var(--text-subtle); }
+.phone-body { padding:14px; display:flex; flex-direction:column; gap:11px; }
+.phone-tabs { display:flex; gap:4px; border-top:1px solid var(--divider); padding:9px 8px 12px; }
+.phone-tab { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; font-size:10px; color:var(--text-subtle); font-weight:700; }
+.phone-tab.on { color:var(--brand); }
+
+/* ---------------- decisions ---------------- */
+.decisions { margin-top:34px; }
+.decisions > h2 { font-size:22px; font-weight:800; margin-bottom:6px; }
+.decisions > p.lede { color:var(--text-muted); max-width:70ch; margin-bottom:18px; }
+.decision { border:1px solid var(--border); border-left:3px solid var(--brand); border-radius:var(--r-tile); background:var(--surface); padding:17px 19px; }
+.decision + .decision { margin-top:12px; }
+.decision-top { display:flex; align-items:baseline; gap:11px; flex-wrap:wrap; }
+.decision-q { font-size:15.5px; font-weight:800; flex:1; min-width:240px; }
+.decision-why { font-size:13.5px; color:var(--text-muted); margin-top:7px; max-width:78ch; }
+.options { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:10px; margin-top:13px; }
+.option { border:1px solid var(--border); border-radius:11px; background:var(--muted); padding:12px 13px; }
+.option.rec { border-color:var(--brand); background:var(--brand-soft); }
+.option-t { font-size:12.5px; font-weight:800; display:flex; align-items:center; gap:7px; }
+.option-t .rec-tag { font-size:10px; font-weight:800; padding:1px 7px; border-radius:var(--r-pill); background:var(--brand); color:var(--on-brand); }
+.option-b { font-size:12.5px; color:var(--text-muted); margin-top:5px; }
+
+.foot { margin-top:30px; padding-top:18px; border-top:1px solid var(--border); font-size:12.5px; color:var(--text-subtle); }
+</style>
+
+<div class="wrap">
+
+  <header class="brief">
+    <div class="brief-main">
+      <span class="eyebrow">For review</span>
+      <h1>The FlowSmartly portal, once you are signed in</h1>
+      <p>
+        The public site now sells fourteen products. This is a proposal for the shell that has to hold
+        them without a small-business owner getting lost in it. Everything below is interactive — switch
+        screens from the rail, collapse it, change theme, and ask Flow.AI for something.
+      </p>
+    </div>
+    <div class="brief-meta">
+      <div class="meta-item"><span class="meta-k">Version</span><span class="meta-v">Shell v1</span></div>
+      <div class="meta-item"><span class="meta-k">Themes</span><span class="meta-v">3 of 3</span></div>
+      <div class="meta-item"><span class="meta-k">Decisions</span><span class="meta-v">5 open</span></div>
+    </div>
+  </header>
+
+  <div class="frame">
+    <div class="frame-bar">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="frame-url">app.flowsmartly.com</span>
+      <span class="frame-note">Mockup — figures are illustrative</span>
+    </div>
+
+    <div class="app" id="app">
+
+      <!-- ---------------- rail ---------------- -->
+      <nav class="rail" aria-label="Main">
+        <div class="rail-head">
+          <span class="mark" aria-hidden="true">F</span>
+          <span class="wordmark">FlowSmartly</span>
+        </div>
+
+        <div class="rail-scroll">
+          <div class="rail-group">
+            <button class="nav" data-screen="today" aria-current="page">
+              <span class="ico" aria-hidden="true">◈</span><span>Today</span><span class="tag">3</span>
+            </button>
+            <button class="nav" data-screen="customers">
+              <span class="ico" aria-hidden="true">☺</span><span>Customers</span>
+            </button>
+          </div>
+
+          <div class="rail-group">
+            <p class="rail-group-label">Create</p>
+            <button class="nav" data-screen="create"><span class="ico" aria-hidden="true">✧</span><span>All studios</span></button>
+            <button class="nav" data-screen="video"><span class="ico" aria-hidden="true">▶</span><span>Video &amp; Voice</span></button>
+            <button class="nav" data-screen="create"><span class="ico" aria-hidden="true">▤</span><span>Website</span></button>
+          </div>
+
+          <div class="rail-group">
+            <p class="rail-group-label">Reach</p>
+            <button class="nav" data-screen="create"><span class="ico" aria-hidden="true">◎</span><span>Social</span></button>
+            <button class="nav" data-screen="create"><span class="ico" aria-hidden="true">✉</span><span>Email &amp; SMS</span></button>
+            <button class="nav" data-screen="create"><span class="ico" aria-hidden="true">◇</span><span>Ads</span></button>
+            <button class="nav" data-screen="create"><span class="ico" aria-hidden="true">☎</span><span>Call agent</span></button>
+          </div>
+
+          <div class="rail-group">
+            <p class="rail-group-label">Sell &amp; be found</p>
+            <button class="nav" data-screen="create"><span class="ico" aria-hidden="true">▣</span><span>Storefront</span></button>
+            <button class="nav" data-screen="create"><span class="ico" aria-hidden="true">✦</span><span>Local listings</span></button>
+            <button class="nav" data-screen="create"><span class="ico" aria-hidden="true">◐</span><span>Domains</span></button>
+          </div>
+
+          <div class="rail-group">
+            <p class="rail-group-label">Understand</p>
+            <button class="nav" data-screen="create"><span class="ico" aria-hidden="true">▥</span><span>Analytics</span></button>
+            <button class="nav" data-screen="create"><span class="ico" aria-hidden="true">✎</span><span>Training</span></button>
+          </div>
+        </div>
+
+        <div class="credits">
+          <div class="credits-top">
+            <span class="credits-n">1,284</span><span class="credits-of">/ 4,000</span>
+          </div>
+          <div class="meter"><i></i></div>
+          <div class="credits-body">
+            <p>Renews in 12 days. A video costs about 40.</p>
+            <button class="credits-cta">Top up</button>
+          </div>
+        </div>
+      </nav>
+
+      <!-- ---------------- main ---------------- -->
+      <div class="main">
+        <div class="topbar">
+          <button class="icon-btn" id="railToggle" title="Collapse the rail" aria-label="Collapse the rail">☰</button>
+          <div class="workspace"><span class="ws-badge">BS</span> Bright Smile Dental ▾</div>
+          <div class="search"><span aria-hidden="true">⌕</span> Search anything <kbd>/</kbd></div>
+          <div class="top-right">
+            <div class="theme-switch" role="group" aria-label="Theme">
+              <button data-theme-set="light" aria-pressed="true">Light</button>
+              <button data-theme-set="grey" aria-pressed="false">Grey</button>
+              <button data-theme-set="dark" aria-pressed="false">Dark</button>
+            </div>
+            <button class="icon-btn" aria-label="Notifications">◔</button>
+            <span class="avatar">MR</span>
+          </div>
+        </div>
+
+        <div class="canvas-row">
+          <div class="canvas">
+
+            <!-- ===== TODAY ===== -->
+            <section class="screen on" id="s-today">
+              <div class="screen-head">
+                <div>
+                  <h2>Good morning, Megan</h2>
+                  <p>Three things are waiting on you. Everything else ran on its own.</p>
+                </div>
+                <span class="spacer"></span>
+                <button class="btn ghost">Last 30 days ▾</button>
+              </div>
+
+              <div class="metrics">
+                <div class="metric">
+                  <p class="metric-k">Revenue influenced</p>
+                  <div class="metric-row">
+                    <span class="metric-v">$48,290</span>
+                    <svg width="66" height="26" viewBox="0 0 66 26" aria-hidden="true">
+                      <path d="M1 21 L12 18 L23 19 L34 12 L45 14 L56 6 L65 3" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      <circle cx="65" cy="3" r="2.6" fill="var(--brand)"/>
+                    </svg>
+                  </div>
+                  <span class="metric-d">↑ 18.4%</span>
+                </div>
+                <div class="metric">
+                  <p class="metric-k">New patients</p>
+                  <div class="metric-row">
+                    <span class="metric-v">128</span>
+                    <svg width="66" height="26" viewBox="0 0 66 26" aria-hidden="true">
+                      <path d="M1 20 L12 16 L23 17 L34 11 L45 9 L56 7 L65 4" fill="none" stroke="var(--violet)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      <circle cx="65" cy="4" r="2.6" fill="var(--violet)"/>
+                    </svg>
+                  </div>
+                  <span class="metric-d">↑ 22%</span>
+                </div>
+                <div class="metric">
+                  <p class="metric-k">Calls answered</p>
+                  <div class="metric-row">
+                    <span class="metric-v">98.7%</span>
+                    <svg width="66" height="26" viewBox="0 0 66 26" aria-hidden="true">
+                      <path d="M1 12 L12 10 L23 11 L34 7 L45 8 L56 5 L65 5" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      <circle cx="65" cy="5" r="2.6" fill="var(--green)"/>
+                    </svg>
+                  </div>
+                  <span class="metric-d">↑ 4%</span>
+                </div>
+                <div class="metric">
+                  <p class="metric-k">Found in AI search</p>
+                  <div class="metric-row">
+                    <span class="metric-v">74%</span>
+                    <svg width="66" height="26" viewBox="0 0 66 26" aria-hidden="true">
+                      <path d="M1 22 L12 19 L23 15 L34 16 L45 11 L56 9 L65 6" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                      <circle cx="65" cy="6" r="2.6" fill="var(--orange)"/>
+                    </svg>
+                  </div>
+                  <span class="metric-d">↑ 11%</span>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <h3>Needs you</h3>
+                  <span class="pill warn">3 waiting</span>
+                  <span class="spacer"></span>
+                  <span class="pill">Flow.AI drafted these</span>
+                </div>
+
+                <div class="approval">
+                  <span class="approval-ico" style="background:var(--brand-soft); color:var(--brand);" aria-hidden="true">✉</span>
+                  <div class="approval-body">
+                    <p class="approval-title">Send the six-month recall to 84 patients</p>
+                    <p class="approval-why">Last recall ran in February and 84 people are now overdue. The draft uses the wording that booked best last time.</p>
+                    <div class="approval-facts">
+                      <span class="fact">Reaches <strong>84</strong></span>
+                      <span class="fact">Costs <strong>12 credits</strong></span>
+                      <span class="fact">Booked <strong>19</strong> last time</span>
+                    </div>
+                  </div>
+                  <div class="approval-act">
+                    <button class="act-yes">Approve &amp; send</button>
+                    <button class="act-edit">Read it first</button>
+                    <button class="act-no">Not now</button>
+                  </div>
+                </div>
+
+                <div class="approval">
+                  <span class="approval-ico" style="background:var(--warn-bg); color:var(--warn-text);" aria-hidden="true">★</span>
+                  <div class="approval-body">
+                    <p class="approval-title">Reply to two reviews left over the weekend</p>
+                    <p class="approval-why">One is a four-star that mentions waiting time. Replies are written and read as you, not as a template.</p>
+                    <div class="approval-facts">
+                      <span class="fact">Google, <strong>4★</strong> and <strong>5★</strong></span>
+                      <span class="fact">Costs <strong>2 credits</strong></span>
+                      <span class="fact">Free to edit</span>
+                    </div>
+                  </div>
+                  <div class="approval-act">
+                    <button class="act-yes">Approve both</button>
+                    <button class="act-edit">Read them</button>
+                    <button class="act-no">Not now</button>
+                  </div>
+                </div>
+
+                <div class="approval">
+                  <span class="approval-ico" style="background:var(--brand-soft); color:var(--violet);" aria-hidden="true">▶</span>
+                  <div class="approval-body">
+                    <p class="approval-title">Cut the whitening explainer for Instagram and TikTok</p>
+                    <p class="approval-why">The clip you filmed on Tuesday is 4:12. Two vertical cuts with captions are ready to look at.</p>
+                    <div class="approval-facts">
+                      <span class="fact">Two cuts, <strong>0:38</strong> and <strong>0:22</strong></span>
+                      <span class="fact">Costs <strong>40 credits</strong></span>
+                    </div>
+                  </div>
+                  <div class="approval-act">
+                    <button class="act-yes">Watch &amp; publish</button>
+                    <button class="act-edit">Open in studio</button>
+                    <button class="act-no">Not now</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <h3>Ran without you</h3>
+                  <span class="spacer"></span>
+                  <span class="pill ok">All within your rules</span>
+                </div>
+                <div class="tablewrap">
+                  <table>
+                    <thead>
+                      <tr><th>What</th><th>When</th><th>Result</th><th>Cost</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr><td class="name">Answered 14 calls, booked 6</td><td>Overnight</td><td>6 appointments</td><td>18 cr</td></tr>
+                      <tr><td class="name">Posted the before-and-after set</td><td>Sat 09:00</td><td>2,140 reached</td><td>4 cr</td></tr>
+                      <tr><td class="name">Chased 9 unpaid balances</td><td>Fri 17:00</td><td>$1,860 recovered</td><td>3 cr</td></tr>
+                      <tr><td class="name">Refreshed opening hours everywhere</td><td>Fri 08:12</td><td>11 listings</td><td>Free</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== CREATE ===== -->
+            <section class="screen" id="s-create">
+              <div class="screen-head">
+                <div>
+                  <h2>Studios</h2>
+                  <p>Every place you can make something. Costs are what a typical piece runs.</p>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-head"><h3>Make something</h3><span class="spacer"></span><span class="pill">1,284 credits left</span></div>
+                <div class="studios">
+                  <button class="studio">
+                    <span class="studio-ico" style="background:var(--brand-soft); color:var(--brand);" aria-hidden="true">✧</span>
+                    <span class="studio-t">AI Studio</span>
+                    <span class="studio-b">Posts, images and copy, on brand.</span>
+                    <span class="studio-cost">~3 credits</span>
+                  </button>
+                  <button class="studio">
+                    <span class="studio-ico" style="background:var(--brand-soft); color:var(--violet);" aria-hidden="true">▶</span>
+                    <span class="studio-t">Video &amp; Voice</span>
+                    <span class="studio-b">Films, UGC, product ads, voiceover.</span>
+                    <span class="studio-cost">~40 credits</span>
+                  </button>
+                  <button class="studio">
+                    <span class="studio-ico" style="background:var(--ok-bg); color:var(--ok-text);" aria-hidden="true">▤</span>
+                    <span class="studio-t">Website</span>
+                    <span class="studio-b">Describe the practice, get the site.</span>
+                    <span class="studio-cost">~60 credits</span>
+                  </button>
+                  <button class="studio">
+                    <span class="studio-ico" style="background:var(--warn-bg); color:var(--warn-text);" aria-hidden="true">▣</span>
+                    <span class="studio-t">Storefront</span>
+                    <span class="studio-b">Sell products and prepaid plans.</span>
+                    <span class="studio-cost">Free to set up</span>
+                  </button>
+                  <button class="studio">
+                    <span class="studio-ico" style="background:var(--chip-bg); color:var(--chip-text);" aria-hidden="true">✉</span>
+                    <span class="studio-t">Email &amp; SMS</span>
+                    <span class="studio-b">Recalls, reminders, follow-ups.</span>
+                    <span class="studio-cost">~1 credit each</span>
+                  </button>
+                  <button class="studio">
+                    <span class="studio-ico" style="background:var(--brand-soft); color:var(--brand);" aria-hidden="true">☎</span>
+                    <span class="studio-t">Call agent</span>
+                    <span class="studio-b">Answers, books, takes messages.</span>
+                    <span class="studio-cost">~3 cr / call</span>
+                  </button>
+                  <button class="studio">
+                    <span class="studio-ico" style="background:var(--warn-bg); color:var(--warn-text);" aria-hidden="true">✦</span>
+                    <span class="studio-t">Local listings</span>
+                    <span class="studio-b">Hours, photos, reviews, AI search.</span>
+                    <span class="studio-cost">Free</span>
+                  </button>
+                  <button class="studio">
+                    <span class="studio-ico" style="background:var(--ok-bg); color:var(--ok-text);" aria-hidden="true">✎</span>
+                    <span class="studio-t">Training</span>
+                    <span class="studio-b">Teach the team, sell what you teach.</span>
+                    <span class="studio-cost">~20 credits</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== VIDEO STUDIO ===== -->
+            <section class="screen" id="s-video">
+              <div class="screen-head">
+                <div>
+                  <h2>Video &amp; Voice Studio</h2>
+                  <p>Whitening explainer — filmed Tuesday, 4:12.</p>
+                </div>
+                <span class="spacer"></span>
+                <button class="btn ghost">Save draft</button>
+                <button class="btn">Publish 2 cuts</button>
+              </div>
+              <div class="card">
+                <div class="card-head"><h3>Cuts ready to review</h3><span class="spacer"></span><span class="pill warn">Uses 40 credits</span></div>
+                <div class="studios" style="grid-template-columns:repeat(3,minmax(0,1fr));">
+                  <div class="studio" style="min-height:auto;">
+                    <span class="studio-ico" style="background:var(--brand-soft); color:var(--brand);" aria-hidden="true">▶</span>
+                    <span class="studio-t">Instagram Reel · 0:38</span>
+                    <span class="studio-b">Opens on the result, captions burned in.</span>
+                    <span class="studio-cost">Vertical 1080×1920</span>
+                  </div>
+                  <div class="studio" style="min-height:auto;">
+                    <span class="studio-ico" style="background:var(--brand-soft); color:var(--violet);" aria-hidden="true">▶</span>
+                    <span class="studio-t">TikTok · 0:22</span>
+                    <span class="studio-b">Faster open, same voiceover.</span>
+                    <span class="studio-cost">Vertical 1080×1920</span>
+                  </div>
+                  <div class="studio" style="min-height:auto;">
+                    <span class="studio-ico" style="background:var(--inset); color:var(--text-subtle);" aria-hidden="true">＋</span>
+                    <span class="studio-t">Add a cut</span>
+                    <span class="studio-b">YouTube Short, or a 16:9 for the site.</span>
+                    <span class="studio-cost">From 12 credits</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-head"><h3>Voiceover</h3><span class="spacer"></span><span class="pill ok">Your cloned voice</span></div>
+                <p style="font-size:13.5px; color:var(--text-muted);">
+                  English is done. Spanish is queued — same script, same delivery, 6 credits.
+                </p>
+              </div>
+            </section>
+
+            <!-- ===== CUSTOMERS ===== -->
+            <section class="screen" id="s-customers">
+              <div class="screen-head">
+                <div>
+                  <h2>Customers</h2>
+                  <p>Everyone who has called, booked, bought or messaged.</p>
+                </div>
+                <span class="spacer"></span>
+                <button class="btn ghost">Import</button>
+                <button class="btn">Add customer</button>
+              </div>
+              <div class="card">
+                <div class="card-head"><h3>Needs a follow-up</h3><span class="spacer"></span><span class="pill warn">12 people</span></div>
+                <div class="tablewrap">
+                  <table>
+                    <thead><tr><th>Name</th><th>Last seen</th><th>Why</th><th>Value</th></tr></thead>
+                    <tbody>
+                      <tr><td class="name">Daniel Osei</td><td>14 months</td><td>Overdue recall</td><td>$1,240</td></tr>
+                      <tr><td class="name">Priya Raman</td><td>3 days</td><td>Quote not accepted</td><td>$3,800</td></tr>
+                      <tr><td class="name">Tom Whitfield</td><td>8 months</td><td>Asked about whitening</td><td>$450</td></tr>
+                      <tr><td class="name">Ana Lopes</td><td>2 weeks</td><td>Missed appointment</td><td>$180</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+          </div>
+
+          <!-- ---------------- right workspace ---------------- -->
+          <aside class="workpanel" aria-label="Flow.AI workspace">
+            <div class="wp-inner">
+              <div class="wp-head">
+                <span class="composer-spark" aria-hidden="true">✦</span>
+                <h3>Flow.AI is working</h3>
+                <button class="icon-btn" id="wpClose" aria-label="Close the workspace">✕</button>
+              </div>
+
+              <div class="step">
+                <span class="step-dot" aria-hidden="true">✓</span>
+                <div><p class="step-t">Read your calendar</p><p class="step-b">Fridays are quiet — 6 open slots.</p></div>
+              </div>
+              <div class="step">
+                <span class="step-dot" aria-hidden="true">✓</span>
+                <div><p class="step-t">Found who to ask</p><p class="step-b">84 patients overdue a recall.</p></div>
+              </div>
+              <div class="step">
+                <span class="step-dot run" aria-hidden="true">●</span>
+                <div><p class="step-t">Writing the message</p><p class="step-b">Using the wording that booked best.</p></div>
+              </div>
+              <div class="step">
+                <span class="step-dot wait" aria-hidden="true">○</span>
+                <div><p class="step-t">Waiting for you</p><p class="step-b">Nothing sends until you approve it.</p></div>
+              </div>
+
+              <div class="wp-out">
+                <h4>Draft</h4>
+                <p>“Hi Daniel — it has been a while since your last check-up. We have space this Friday
+                   afternoon if you would like to get it done before the holidays. Reply YES and we will book it.”</p>
+              </div>
+
+              <div class="wp-foot">
+                <button class="act-edit" style="border:1px solid var(--border-strong);">Edit</button>
+                <button class="act-yes">Approve &amp; send</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <!-- ---------------- composer ---------------- -->
+        <div class="composer-dock">
+          <form class="composer" id="composer">
+            <span class="composer-spark" aria-hidden="true">✦</span>
+            <label for="ask" class="visually-hidden" style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);">Ask Flow.AI</label>
+            <input id="ask" placeholder="Ask Flow.AI to do something — “fill Friday afternoon”" autocomplete="off">
+            <button class="composer-send" type="submit" aria-label="Send">→</button>
+          </form>
+          <div class="composer-hint">
+            <span>Try: fill Friday afternoon</span>
+            <span>Nothing goes out without your approval</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------------- phone ---------------- -->
+  <div class="shapes">
+    <div class="card">
+      <div class="card-head"><h3>Why the shell is shaped this way</h3></div>
+      <p style="font-size:14px; color:var(--text-muted); max-width:70ch;">
+        Fourteen products is too many to put in a flat list, and a small-business owner does not think in
+        products — they think in “what needs me today”. So <strong style="color:var(--text)">Today</strong> is
+        the home screen and everything else is filed under what it is <em>for</em>. Flow.AI is not a page you
+        visit; it sits at the bottom of every screen and opens a workspace on the right when you ask it for
+        something, so you never lose the thing you were looking at.
+      </p>
+      <p style="font-size:14px; color:var(--text-muted); max-width:70ch; margin-top:12px;">
+        Credits are on screen permanently, because the product is metered and a surprise bill is the fastest
+        way to lose a small business. Every action Flow.AI proposes carries what it costs before you approve it.
+      </p>
+    </div>
+
+    <div class="phone">
+      <div class="phone-top">Phone — 390pt</div>
+      <div class="phone-body">
+        <p style="font-size:11px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:var(--text-subtle);">Today</p>
+        <h3 style="font-size:18px;">3 things need you</h3>
+        <div class="approval" style="flex-direction:column; gap:10px; padding:12px;">
+          <div style="display:flex; gap:10px; align-items:center;">
+            <span class="approval-ico" style="width:30px; height:30px; background:var(--brand-soft); color:var(--brand); font-size:13px;" aria-hidden="true">✉</span>
+            <p class="approval-title" style="font-size:13px;">Recall 84 patients</p>
+          </div>
+          <div class="approval-facts" style="margin:0;">
+            <span class="fact">12 credits</span><span class="fact">Booked <strong>19</strong> last time</span>
+          </div>
+          <button class="act-yes" style="min-height:38px; border-radius:9px; font-size:13px; font-weight:700; width:100%;">Approve &amp; send</button>
+        </div>
+        <div class="metric">
+          <p class="metric-k">Revenue influenced</p>
+          <div class="metric-row"><span class="metric-v" style="font-size:20px;">$48,290</span></div>
+          <span class="metric-d">↑ 18.4%</span>
+        </div>
+        <div class="composer" style="min-height:44px;">
+          <span class="composer-spark" style="width:22px; height:22px;" aria-hidden="true">✦</span>
+          <span style="flex:1; font-size:13px; color:var(--text-subtle);">Ask Flow.AI…</span>
+        </div>
+      </div>
+      <div class="phone-tabs">
+        <span class="phone-tab on"><span aria-hidden="true">◈</span>Today</span>
+        <span class="phone-tab"><span aria-hidden="true">✧</span>Make</span>
+        <span class="phone-tab"><span aria-hidden="true">☺</span>People</span>
+        <span class="phone-tab"><span aria-hidden="true">▥</span>Numbers</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------------- decisions ---------------- -->
+  <section class="decisions">
+    <h2>Five decisions before this gets built</h2>
+    <p class="lede">
+      Each of these changes what the shell is, not how it looks. The recommendation is marked, but the
+      call is yours.
+    </p>
+
+    <div class="decision">
+      <div class="decision-top">
+        <p class="decision-q">Does the rail show everything, or hide the studios behind a hub?</p>
+      </div>
+      <p class="decision-why">
+        The mock shows every product, grouped. It is honest about how much you get, but it is fifteen items
+        and it will only grow.
+      </p>
+      <div class="options">
+        <div class="option rec">
+          <p class="option-t">Grouped rail <span class="rec-tag">Built above</span></p>
+          <p class="option-b">Everything reachable in one click. Costs vertical space and gets long.</p>
+        </div>
+        <div class="option">
+          <p class="option-t">Four items plus a hub</p>
+          <p class="option-b">Today, Make, People, Numbers. “Make” opens the studio grid. Calmer, one click deeper.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <div class="decision-top">
+        <p class="decision-q">How much is Flow.AI allowed to do without asking?</p>
+      </div>
+      <p class="decision-why">
+        The public site promises “human-approved by default”. The mock honours that literally — but the
+        “Ran without you” card already shows four things that went out on their own, under rules set once.
+        Those two ideas need a boundary drawn between them.
+      </p>
+      <div class="options">
+        <div class="option rec">
+          <p class="option-t">Rules once, then it runs <span class="rec-tag">Recommended</span></p>
+          <p class="option-b">You approve a <em>kind</em> of action once (“always answer the phone”), and anything outside it waits. Matches how the marketing reads.</p>
+        </div>
+        <div class="option">
+          <p class="option-t">Every action, every time</p>
+          <p class="option-b">Safest, and unusable by week two — nobody approves 40 items a day.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <div class="decision-top">
+        <p class="decision-q">Is Today a dashboard or a queue?</p>
+      </div>
+      <p class="decision-why">
+        The mock leads with what needs you and puts the numbers above it. The alternative leads with the
+        numbers, which is what most tools do — and what most owners ignore.
+      </p>
+      <div class="options">
+        <div class="option rec">
+          <p class="option-t">A queue with numbers on top <span class="rec-tag">Built above</span></p>
+          <p class="option-b">You arrive, clear three things, leave. The metrics are context, not the job.</p>
+        </div>
+        <div class="option">
+          <p class="option-t">A dashboard you read</p>
+          <p class="option-b">Familiar, and it makes the product feel like a report rather than an operator.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <div class="decision-top">
+        <p class="decision-q">Do credits stay on screen?</p>
+      </div>
+      <p class="decision-why">
+        The rail carries a live balance and every proposed action carries its cost. That is honest, and it
+        also puts a price tag in the corner of your eye all day.
+      </p>
+      <div class="options">
+        <div class="option rec">
+          <p class="option-t">Always visible <span class="rec-tag">Built above</span></p>
+          <p class="option-b">No surprise bills, and the cost of a choice is next to the choice.</p>
+        </div>
+        <div class="option">
+          <p class="option-t">Only when it matters</p>
+          <p class="option-b">Show it at the point of spend and when the balance runs low. Less noise, more risk of a shock.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="decision">
+      <div class="decision-top">
+        <p class="decision-q">On a phone, is it the same product or a smaller one?</p>
+      </div>
+      <p class="decision-why">
+        The phone frame shows four tabs and the approval queue — no studios. Building a whole video editor
+        for a 390pt screen is a large amount of work for something few people will do standing up.
+      </p>
+      <div class="options">
+        <div class="option rec">
+          <p class="option-t">Approve and ask, not make <span class="rec-tag">Recommended</span></p>
+          <p class="option-b">Phone handles the queue, the numbers and Flow.AI. Studios are desktop.</p>
+        </div>
+        <div class="option">
+          <p class="option-t">Everything, everywhere</p>
+          <p class="option-b">Full parity. Roughly doubles the build and most studios will be cramped.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="foot">
+    Tokens, radii, type sizes and the three themes are taken from <code>apps/v5/src/theme/tokens.ts</code>,
+    so what is approved here is buildable without redrawing it. Names, figures and the practice are
+    illustrative.
+  </p>
+</div>
+
+<script>
+(function () {
+  var app = document.getElementById('app');
+  var root = document.documentElement;
+
+  /* theme — three of them, because the app ships three */
+  var themeButtons = Array.prototype.slice.call(document.querySelectorAll('[data-theme-set]'));
+  function paint(name) {
+    root.setAttribute('data-theme', name);
+    themeButtons.forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-theme-set') === name));
+    });
+  }
+  themeButtons.forEach(function (b) {
+    b.addEventListener('click', function () { paint(b.getAttribute('data-theme-set')); });
+  });
+  // Open in whatever the viewer already prefers, then let the switch take over.
+  paint(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+  /* rail */
+  document.getElementById('railToggle').addEventListener('click', function () {
+    app.classList.toggle('narrow');
+  });
+
+  var navs = Array.prototype.slice.call(document.querySelectorAll('.nav'));
+  var screens = Array.prototype.slice.call(document.querySelectorAll('.screen'));
+  navs.forEach(function (n) {
+    n.addEventListener('click', function () {
+      var target = n.getAttribute('data-screen');
+      navs.forEach(function (o) { o.removeAttribute('aria-current'); });
+      n.setAttribute('aria-current', 'page');
+      screens.forEach(function (s) { s.classList.toggle('on', s.id === 's-' + target); });
+      document.querySelector('.canvas').scrollTop = 0;
+    });
+  });
+
+  /* composer opens the right-hand workspace */
+  document.getElementById('composer').addEventListener('submit', function (e) {
+    e.preventDefault();
+    app.classList.add('working');
+  });
+  document.getElementById('wpClose').addEventListener('click', function () {
+    app.classList.remove('working');
+  });
+})();
+</script>
