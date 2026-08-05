@@ -1,4 +1,4 @@
-import { Image, type ImageContentFit } from 'expo-image';
+import { Image, type ImageContentFit, type ImageProps } from 'expo-image';
 import { useMemo } from 'react';
 import { StyleSheet, View, type ImageStyle, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,74 +19,99 @@ import { useTokens } from '@/theme/v5-theme-provider';
  */
 const REGISTRY: Record<string, number> = {
   /* brand */
-  'flowsmartly-logo': require('../../../assets/images/v5/flowsmartly-logo.png'),
-  'flowsmartly-mark': require('../../../assets/images/v5/flowsmartly-mark.png'),
-  'listsmartly-local-listings': require('../../../assets/images/v5/listsmartly-local-listings.png'),
+  'flowsmartly-logo': require('../../../assets/images/v5w/flowsmartly-logo.png'),
+  'flowsmartly-mark': require('../../../assets/images/v5w/flowsmartly-mark.png'),
+  'listsmartly-local-listings': require('../../../assets/images/v5w/listsmartly-local-listings.webp'),
 
   /* people */
-  'people/aisha-williams': require('../../../assets/images/v5/people/aisha-williams.png'),
-  'people/alex-marshall': require('../../../assets/images/v5/people/alex-marshall.png'),
-  'people/amanda-rodriguez': require('../../../assets/images/v5/people/amanda-rodriguez.png'),
-  'people/arjun-patel': require('../../../assets/images/v5/people/arjun-patel.png'),
-  'people/carlos-ramirez': require('../../../assets/images/v5/people/carlos-ramirez.png'),
-  'people/daniel-kim': require('../../../assets/images/v5/people/daniel-kim.png'),
-  'people/david-chen': require('../../../assets/images/v5/people/david-chen.png'),
-  'people/jordan-lee': require('../../../assets/images/v5/people/jordan-lee.png'),
-  'people/lena-park': require('../../../assets/images/v5/people/lena-park.png'),
-  'people/maya-chen': require('../../../assets/images/v5/people/maya-chen.png'),
-  'people/maya-patel': require('../../../assets/images/v5/people/maya-patel.png'),
-  'people/maya-thompson': require('../../../assets/images/v5/people/maya-thompson.png'),
-  'people/megan-roberts': require('../../../assets/images/v5/people/megan-roberts.png'),
-  'people/michael-reyes': require('../../../assets/images/v5/people/michael-reyes.png'),
-  'people/priya-shah': require('../../../assets/images/v5/people/priya-shah.png'),
-  'people/sarah-johnson': require('../../../assets/images/v5/customer-sarah-johnson.png'),
+  'people/aisha-williams': require('../../../assets/images/v5w/people/aisha-williams.webp'),
+  'people/alex-marshall': require('../../../assets/images/v5w/people/alex-marshall.webp'),
+  'people/amanda-rodriguez': require('../../../assets/images/v5w/people/amanda-rodriguez.webp'),
+  'people/arjun-patel': require('../../../assets/images/v5w/people/arjun-patel.webp'),
+  'people/carlos-ramirez': require('../../../assets/images/v5w/people/carlos-ramirez.webp'),
+  'people/daniel-kim': require('../../../assets/images/v5w/people/daniel-kim.webp'),
+  'people/david-chen': require('../../../assets/images/v5w/people/david-chen.webp'),
+  'people/jordan-lee': require('../../../assets/images/v5w/people/jordan-lee.webp'),
+  'people/lena-park': require('../../../assets/images/v5w/people/lena-park.webp'),
+  'people/maya-chen': require('../../../assets/images/v5w/people/maya-chen.webp'),
+  'people/maya-patel': require('../../../assets/images/v5w/people/maya-patel.webp'),
+  'people/maya-thompson': require('../../../assets/images/v5w/people/maya-thompson.webp'),
+  'people/megan-roberts': require('../../../assets/images/v5w/people/megan-roberts.webp'),
+  'people/michael-reyes': require('../../../assets/images/v5w/people/michael-reyes.webp'),
+  'people/priya-shah': require('../../../assets/images/v5w/people/priya-shah.webp'),
+  'people/sarah-johnson': require('../../../assets/images/v5w/customer-sarah-johnson.webp'),
 
   /* products */
-  'product/black-sneakers': require('../../../assets/images/v5/product-black-sneakers.png'),
-  'product/canvas-tote': require('../../../assets/images/v5/product-canvas-tote.png'),
-  'product/commuter-backpack': require('../../../assets/images/v5/product-commuter-backpack.png'),
-  'product/navy-bottle': require('../../../assets/images/v5/product-navy-bottle.png'),
+  'product/black-sneakers': require('../../../assets/images/v5w/product-black-sneakers.webp'),
+  'product/canvas-tote': require('../../../assets/images/v5w/product-canvas-tote.webp'),
+  'product/commuter-backpack': require('../../../assets/images/v5w/product-commuter-backpack.webp'),
+  'product/navy-bottle': require('../../../assets/images/v5w/product-navy-bottle.webp'),
 
   /* scenes */
-  'scenes/campaign-spring-model': require('../../../assets/images/v5/scenes/campaign-spring-model.png'),
-  'scenes/careers-culture-1': require('../../../assets/images/v5/scenes/careers-culture-1.png'),
-  'scenes/careers-culture-2': require('../../../assets/images/v5/scenes/careers-culture-2.png'),
-  'scenes/careers-culture-3': require('../../../assets/images/v5/scenes/careers-culture-3.png'),
-  'scenes/careers-team': require('../../../assets/images/v5/scenes/careers-team.png'),
-  'scenes/campaign-spring-product': require('../../../assets/images/v5/scenes/campaign-spring-product.png'),
-  'scenes/category-bedroom': require('../../../assets/images/v5/scenes/category-bedroom.png'),
-  'scenes/category-decor': require('../../../assets/images/v5/scenes/category-decor.png'),
-  'scenes/category-kitchen': require('../../../assets/images/v5/scenes/category-kitchen.png'),
-  'scenes/category-living-room': require('../../../assets/images/v5/scenes/category-living-room.png'),
-  'scenes/marketplace-collaboration': require('../../../assets/images/v5/scenes/marketplace-collaboration.png'),
-  'scenes/post-apparel-flatlay': require('../../../assets/images/v5/scenes/post-apparel-flatlay.png'),
-  'scenes/post-sneakers-lifestyle': require('../../../assets/images/v5/scenes/post-sneakers-lifestyle.png'),
-  'scenes/post-sneakers-white': require('../../../assets/images/v5/scenes/post-sneakers-white.png'),
-  'scenes/salon-interior': require('../../../assets/images/v5/scenes/salon-interior.png'),
-  'scenes/storefront-hero': require('../../../assets/images/v5/scenes/storefront-hero.png'),
-  'scenes/ugc-creator-1': require('../../../assets/images/v5/scenes/ugc-creator-1.png'),
-  'scenes/ugc-creator-2': require('../../../assets/images/v5/scenes/ugc-creator-2.png'),
-  'scenes/ugc-creator-3': require('../../../assets/images/v5/scenes/ugc-creator-3.png'),
+  'scenes/campaign-spring-model': require('../../../assets/images/v5w/scenes/campaign-spring-model.webp'),
+  'scenes/careers-culture-1': require('../../../assets/images/v5w/scenes/careers-culture-1.webp'),
+  'scenes/careers-culture-2': require('../../../assets/images/v5w/scenes/careers-culture-2.webp'),
+  'scenes/careers-culture-3': require('../../../assets/images/v5w/scenes/careers-culture-3.webp'),
+  'scenes/careers-team': require('../../../assets/images/v5w/scenes/careers-team.webp'),
+  'scenes/campaign-spring-product': require('../../../assets/images/v5w/scenes/campaign-spring-product.webp'),
+  'scenes/category-bedroom': require('../../../assets/images/v5w/scenes/category-bedroom.webp'),
+  'scenes/category-decor': require('../../../assets/images/v5w/scenes/category-decor.webp'),
+  'scenes/category-kitchen': require('../../../assets/images/v5w/scenes/category-kitchen.webp'),
+  'scenes/category-living-room': require('../../../assets/images/v5w/scenes/category-living-room.webp'),
+  'scenes/marketplace-collaboration': require('../../../assets/images/v5w/scenes/marketplace-collaboration.webp'),
+  'scenes/post-apparel-flatlay': require('../../../assets/images/v5w/scenes/post-apparel-flatlay.webp'),
+  'scenes/post-sneakers-lifestyle': require('../../../assets/images/v5w/scenes/post-sneakers-lifestyle.webp'),
+  'scenes/post-sneakers-white': require('../../../assets/images/v5w/scenes/post-sneakers-white.webp'),
+  'scenes/salon-interior': require('../../../assets/images/v5w/scenes/salon-interior.webp'),
+  'scenes/storefront-hero': require('../../../assets/images/v5w/scenes/storefront-hero.webp'),
+  'scenes/ugc-creator-1': require('../../../assets/images/v5w/scenes/ugc-creator-1.webp'),
+  'scenes/ugc-creator-2': require('../../../assets/images/v5w/scenes/ugc-creator-2.webp'),
+  'scenes/ugc-creator-3': require('../../../assets/images/v5w/scenes/ugc-creator-3.webp'),
 
   /* editorial — complete */
-  'editorial/blog-ai-conversations': require('../../../assets/images/v5/editorial/blog-ai-conversations.png'),
-  'editorial/blog-analytics': require('../../../assets/images/v5/editorial/blog-analytics.png'),
-  'editorial/blog-omnichannel': require('../../../assets/images/v5/editorial/blog-omnichannel.png'),
-  'editorial/guide-playbook-cover': require('../../../assets/images/v5/editorial/guide-playbook-cover.png'),
-  'editorial/guide-playbook-spread': require('../../../assets/images/v5/editorial/guide-playbook-spread.png'),
-  'editorial/resource-automation': require('../../../assets/images/v5/editorial/resource-automation.png'),
-  'editorial/resource-deliverability': require('../../../assets/images/v5/editorial/resource-deliverability.png'),
-  'editorial/resource-getting-started': require('../../../assets/images/v5/editorial/resource-getting-started.png'),
-  'editorial/resource-storefront': require('../../../assets/images/v5/editorial/resource-storefront.png'),
-  'editorial/blog-cart-recovery': require('../../../assets/images/v5/editorial/blog-cart-recovery.png'),
-  'editorial/blog-local-growth': require('../../../assets/images/v5/editorial/blog-local-growth.png'),
-  'editorial/blog-social-dms': require('../../../assets/images/v5/editorial/blog-social-dms.png'),
-  'editorial/customer-story-1': require('../../../assets/images/v5/editorial/customer-story-1.png'),
-  'editorial/customer-story-2': require('../../../assets/images/v5/editorial/customer-story-2.png'),
-  'editorial/customer-story-3': require('../../../assets/images/v5/editorial/customer-story-3.png'),
-  'editorial/press-kit': require('../../../assets/images/v5/editorial/press-kit.png'),
-  'editorial/security-shield': require('../../../assets/images/v5/editorial/security-shield.png'),
-  'editorial/template-library': require('../../../assets/images/v5/editorial/template-library.png'),
+  'editorial/blog-ai-conversations': require('../../../assets/images/v5w/editorial/blog-ai-conversations.webp'),
+  'editorial/blog-analytics': require('../../../assets/images/v5w/editorial/blog-analytics.webp'),
+  'editorial/blog-omnichannel': require('../../../assets/images/v5w/editorial/blog-omnichannel.webp'),
+  'editorial/guide-playbook-cover': require('../../../assets/images/v5w/editorial/guide-playbook-cover.webp'),
+  'editorial/guide-playbook-spread': require('../../../assets/images/v5w/editorial/guide-playbook-spread.webp'),
+  'editorial/resource-automation': require('../../../assets/images/v5w/editorial/resource-automation.webp'),
+  'editorial/resource-deliverability': require('../../../assets/images/v5w/editorial/resource-deliverability.webp'),
+  'editorial/resource-getting-started': require('../../../assets/images/v5w/editorial/resource-getting-started.webp'),
+  'editorial/resource-storefront': require('../../../assets/images/v5w/editorial/resource-storefront.webp'),
+  'editorial/blog-cart-recovery': require('../../../assets/images/v5w/editorial/blog-cart-recovery.webp'),
+  'editorial/blog-local-growth': require('../../../assets/images/v5w/editorial/blog-local-growth.webp'),
+  'editorial/blog-social-dms': require('../../../assets/images/v5w/editorial/blog-social-dms.webp'),
+  'editorial/customer-story-1': require('../../../assets/images/v5w/editorial/customer-story-1.webp'),
+  'editorial/customer-story-2': require('../../../assets/images/v5w/editorial/customer-story-2.webp'),
+  'editorial/customer-story-3': require('../../../assets/images/v5w/editorial/customer-story-3.webp'),
+  'editorial/press-kit': require('../../../assets/images/v5w/editorial/press-kit.webp'),
+  'editorial/security-shield': require('../../../assets/images/v5w/editorial/security-shield.webp'),
+  'editorial/template-library': require('../../../assets/images/v5w/editorial/template-library.webp'),
+
+  /* video & voice studio — product ads, UGC, virtual try-on, voiceover */
+  'video/ad-automotive': require('../../../assets/images/v5w/video/ad-automotive.webp'),
+  'video/ad-fragrance': require('../../../assets/images/v5w/video/ad-fragrance.webp'),
+  'video/ad-lifestyle': require('../../../assets/images/v5w/video/ad-lifestyle.webp'),
+  'video/ad-sneaker': require('../../../assets/images/v5w/video/ad-sneaker.webp'),
+  'video/ad-watch': require('../../../assets/images/v5w/video/ad-watch.webp'),
+  'video/tryon-mirror': require('../../../assets/images/v5w/video/tryon-mirror.webp'),
+  'video/tryon-runway': require('../../../assets/images/v5w/video/tryon-runway.webp'),
+  'video/tryon-street': require('../../../assets/images/v5w/video/tryon-street.webp'),
+  'video/tryon-wardrobe': require('../../../assets/images/v5w/video/tryon-wardrobe.webp'),
+  'video/ugc-beauty': require('../../../assets/images/v5w/video/ugc-beauty.webp'),
+  'video/ugc-review': require('../../../assets/images/v5w/video/ugc-review.webp'),
+  'video/ugc-ringlight': require('../../../assets/images/v5w/video/ugc-ringlight.webp'),
+  'video/ugc-testimonial': require('../../../assets/images/v5w/video/ugc-testimonial.webp'),
+  'video/ugc-unboxing': require('../../../assets/images/v5w/video/ugc-unboxing.webp'),
+  'video/voice-anchor': require('../../../assets/images/v5w/video/voice-anchor.webp'),
+  'video/voice-audiobook': require('../../../assets/images/v5w/video/voice-audiobook.webp'),
+  'video/voice-documentary': require('../../../assets/images/v5w/video/voice-documentary.webp'),
+  'video/voice-explainer': require('../../../assets/images/v5w/video/voice-explainer.webp'),
+  'video/voice-headphones': require('../../../assets/images/v5w/video/voice-headphones.webp'),
+  'video/voice-meditation': require('../../../assets/images/v5w/video/voice-meditation.webp'),
+  'video/voice-product-spot': require('../../../assets/images/v5w/video/voice-product-spot.webp'),
+  'video/voice-studio': require('../../../assets/images/v5w/video/voice-studio.webp'),
+
 };
 
 export type MediaName = string;
@@ -95,13 +120,68 @@ export function hasMedia(name: MediaName): boolean {
   return REGISTRY[name] !== undefined;
 }
 
-export type MediaProps = {
+/**
+ * `alt` is the whole point of this module, so it is worth stating exactly what
+ * "no alt" costs and why the plumbing below looks the way it does.
+ *
+ * **expo-image does not forward `alt`.** Its web renderer destructures both
+ * `alt` and `accessibilityLabel`, then hands *only* `accessibilityLabel` to the
+ * node that becomes the real `<img>` (`ExpoImage.web.tsx` — the `alt` alias
+ * survives on the placeholder branch alone), and `ImageWrapper` renders
+ * `alt={accessibilityLabel}`. So `<Image alt="…">` ships an `<img>` with **no
+ * alt attribute at all**: invisible to a screen reader, unindexable, and
+ * invalid HTML. Every image in this app therefore goes out through
+ * `accessibilityLabel`, and that is what `ImageAsset` exists to guarantee.
+ *
+ * A missing attribute and an empty one are not the same thing. `alt=""` is a
+ * statement — "skip me, the surrounding copy already says this" — and a screen
+ * reader honours it. A missing `alt` leaves the reader to guess, and most read
+ * the file name. Decorative art must therefore say `alt=""` out loud.
+ */
+type AltProp = {
+  /**
+   * Required. Describes the image for screen readers, crawlers and anyone with
+   * images turned off.
+   *
+   * Pass `''` **only** for art that carries nothing the adjacent copy does not
+   * already say — an avatar beside the person's printed name, a texture, a
+   * glyph echoing a visible label. That renders an explicit empty `alt` plus
+   * `aria-hidden`, which is how a decorative image is meant to be skipped.
+   */
+  alt: string;
+};
+
+/**
+ * A `require()`d asset with an alt that cannot be forgotten.
+ *
+ * Use this instead of importing `Image` from `expo-image` directly. The type
+ * makes `alt` mandatory, and the component routes it through the one prop
+ * expo-image actually renders — which is the part that is easy to get wrong by
+ * hand, because passing `alt` looks correct and silently does nothing.
+ */
+export type ImageAssetProps = Omit<ImageProps, 'alt' | 'accessibilityLabel' | 'aria-label'> &
+  AltProp;
+
+export function ImageAsset({ alt, ...rest }: ImageAssetProps) {
+  const decorative = alt.trim() === '';
+  return (
+    <Image
+      {...rest}
+      // the only prop that reaches the DOM as `alt` — see the note above
+      accessibilityLabel={alt}
+      // `aria-hidden` lands on expo-image's wrapper view, which takes the
+      // `<img>` out of the accessibility tree with it. Only ever set alongside
+      // an empty alt, so the image is skipped rather than silently unlabelled.
+      aria-hidden={decorative || undefined}
+    />
+  );
+}
+
+export type MediaProps = AltProp & {
   name: MediaName;
   /** sizing/spacing only — it is applied to both the image and the placeholder */
   style?: ImageStyle | ImageStyle[];
   contentFit?: ImageContentFit;
-  /** describes the image for screen readers */
-  alt: string;
   /** rounded corners on both the image and the placeholder */
   radius?: number;
 };
@@ -115,10 +195,19 @@ export function Media({ name, style, contentFit = 'cover', alt, radius = 14 }: M
   const t = useTokens();
   const styles = useMemo(() => createStyles(t), [t]);
   const source = REGISTRY[name];
+  const decorative = alt.trim() === '';
 
   if (source === undefined) {
     return (
-      <View style={[styles.placeholder, { borderRadius: radius }, style as ViewStyle]} accessibilityLabel={alt}>
+      <View
+        style={[styles.placeholder, { borderRadius: radius }, style as ViewStyle]}
+        // The placeholder stands in for the missing art, so it inherits its
+        // description — and its silence, when the art was decorative. The role
+        // is what makes the label count: an `aria-label` on a plain div has no
+        // element to name, and screen readers drop it.
+        accessibilityRole={decorative ? undefined : 'image'}
+        accessibilityLabel={decorative ? undefined : alt}
+        aria-hidden={decorative || undefined}>
         <LinearGradient
           colors={[hexToRgba(t.brand, 0.16), hexToRgba(t.violet, 0.14)]}
           start={{ x: 0, y: 0 }}
@@ -130,12 +219,12 @@ export function Media({ name, style, contentFit = 'cover', alt, radius = 14 }: M
   }
 
   return (
-    <Image
+    <ImageAsset
       source={source}
       style={[{ borderRadius: radius }, style]}
       contentFit={contentFit}
       transition={180}
-      accessibilityLabel={alt}
+      alt={alt}
     />
   );
 }

@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
@@ -6,6 +5,7 @@ import { contactHref } from '@/lib/destinations';
 import { elevation, type ThemeTokens } from '@/theme/tokens';
 import { type Layout, useLayout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
+import { ImageAsset } from './media';
 import { Reveal } from './motion';
 import { ROUTES } from './nav';
 import {
@@ -80,7 +80,7 @@ export function ListSmartlySection() {
       <Reveal style={stacked ? styles.columnFull : styles.visualColumn} delay={110} distance={24}>
         <View style={styles.frame}>
           <View style={styles.plate}>
-            <Image
+            <ImageAsset
               source={require('../../../assets/images/v5/listsmartly-local-listings.png')}
               style={styles.visualImage}
               contentFit="contain"
@@ -88,7 +88,7 @@ export function ListSmartlySection() {
               cachePolicy="memory-disk"
               priority="high"
               recyclingKey="listsmartly-local-listings"
-              accessibilityLabel="ListSmartly local listing and review health overview"
+              alt="ListSmartly local listing and review health overview"
             />
           </View>
         </View>

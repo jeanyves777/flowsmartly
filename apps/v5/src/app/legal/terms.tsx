@@ -8,6 +8,14 @@ import {
 } from '@/components/public/legal-page';
 import { PageShell } from '@/components/public/page-shell';
 
+/**
+ * One authoritative postal address for the entity, printed identically on every
+ * legal page. Delaware is where FlowSmartly, Inc. is incorporated — which is why
+ * section 12 chooses Delaware law — but the company's address is the one below;
+ * printing a registered-agent address here read as a second company.
+ */
+const REGISTERED_ADDRESS = '548 Market St, PMB 72224, San Francisco, CA 94104, USA';
+
 const SECTIONS: DocSection[] = [
   { id: 'agreement', title: 'Agreement' },
   { id: 'accounts', title: 'Accounts' },
@@ -45,10 +53,16 @@ export default function TermsOfServicePage() {
         }>
         <LegalSection number={1} title="Agreement">
           <LegalText>
-            These Terms form a binding agreement between you and FlowSmartly, Inc. If you use the
+            These Terms form a binding agreement between you and FlowSmartly, Inc., a Delaware
+            corporation with its principal place of business at {REGISTERED_ADDRESS}. If you use the
             Services on behalf of a company, you confirm that you have the authority to bind that
             company, and &ldquo;you&rdquo; refers to that company. If you do not agree to these Terms,
             do not use the Services.
+          </LegalText>
+          <LegalText>
+            How we handle personal data is governed by our Privacy Policy, and — where we process
+            personal data on your behalf — by the Data Processing Agreement referenced on our GDPR
+            &amp; Data Protection page.
           </LegalText>
         </LegalSection>
 
@@ -124,7 +138,8 @@ export default function TermsOfServicePage() {
             You may stop using the Services and cancel your subscription at any time from your account.
             We may suspend or terminate access if you breach these Terms, if your payment fails, or if
             required by law or a provider. On termination, your right to use the Services ends and we
-            may delete your data after a reasonable retention period.
+            delete your data on the schedule published in our Privacy Policy — account data within 90
+            days of closure, with the exceptions listed there for billing, tax and legal-hold records.
           </LegalText>
         </LegalSection>
 
@@ -161,7 +176,7 @@ export default function TermsOfServicePage() {
           <LegalContactCard
             name="FlowSmartly, Inc."
             email="legal@flowsmartly.com"
-            detail="1007 N. Orange Street, Wilmington, DE 19801, USA"
+            detail={REGISTERED_ADDRESS}
           />
         </LegalSection>
       </LegalLayout>

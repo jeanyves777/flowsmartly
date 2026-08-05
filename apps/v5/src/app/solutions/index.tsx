@@ -31,6 +31,36 @@ import { useTokens } from '@/theme/v5-theme-provider';
 
 type Accent = 'brand' | 'violet' | 'orange' | 'green' | 'pink';
 
+/**
+ * Largest column count no greater than `desired` that divides `items` exactly.
+ *
+ * A wrapped grid whose column count does not divide its item count leaves the
+ * last row short — one lone card beside empty space. Deriving the count from
+ * the data rather than hardcoding it per breakpoint means adding or removing a
+ * card can never silently re-introduce that orphan.
+ */
+function fitColumns(items: number, desired: number): number {
+  for (let n = Math.max(1, Math.min(desired, items)); n > 1; n -= 1) {
+    if (items % n === 0) return n;
+  }
+  return 1;
+}
+
+/**
+ * Spelled-out count for body copy.
+ *
+ * "Six places to begin." sat above eight cards for a whole release because the
+ * sentence and the array had no connection. Now the sentence reads the array.
+ */
+const COUNT_WORDS = [
+  'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six',
+  'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
+];
+
+function countWord(n: number): string {
+  return COUNT_WORDS[n] ?? String(n);
+}
+
 /** The four audience cards wired to the dashboard mock in the hero. */
 const AUDIENCES: { key: string; icon: string; label: string; note: string; accent: Accent }[] = [
   { key: 'small', icon: 'store', label: 'Small Businesses', note: 'One owner, many hats', accent: 'brand' },
@@ -71,7 +101,7 @@ const START_STEPS: { key: string; icon: string; title: string; note: string; acc
 ];
 
 /**
- * The three solutions this page never links to anywhere else.
+ * The solutions this page never links to anywhere else.
  *
  * The outcome cards cover Website Builder, AI Studio, Social, Email + SMS, Ads,
  * FlowShop, ListSmartly and Domains; Call Agent, the marketplace and FlowLearner
@@ -98,6 +128,13 @@ const DEEPER: { key: string; icon: string; label: string; note: string; href: st
     label: 'FlowLearner',
     note: 'Train your team and sell what you teach',
     href: ROUTES.flowLearner,
+  },
+  {
+    key: 'video-studio',
+    icon: 'clapperboard',
+    label: 'Video & Voice Studio',
+    note: 'Films, UGC, product ads, voiceover and social cuts',
+    href: ROUTES.videoStudio,
   },
 ];
 
@@ -612,7 +649,7 @@ export default function SolutionsPage() {
             Start from the result you want.
           </Heading>
           <Text style={[type.body, styles.sectionSub]}>
-            Six places to begin. Each one is a full workflow, not a feature toggle.
+            {`${countWord(OUTCOMES.length)} places to begin. Each one is a full workflow, not a feature toggle.`}
           </Text>
         </View>
 
@@ -846,7 +883,7 @@ export default function SolutionsPage() {
             </View>
 
             {/* The quote alone left ~260px of nothing beside the table. These
-                are the three solutions the page never otherwise links to. */}
+                are the solutions the page never otherwise links to. */}
             <View style={styles.deeperCard}>
               <Text style={styles.deeperHead}>GO DEEPER</Text>
               {DEEPER.map((item) => (
@@ -894,11 +931,13 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
   const columns = (phone: number, tablet: number, laptop: number, desktop: number) =>
     l.isPhone ? phone : l.isTablet ? tablet : l.isDesktop ? desktop : laptop;
 
-  const typeColumns = columns(1, 2, 5, 5);
-  // Eight outcomes, so the count has to divide by 8 — 1, 2 and 4 do; 3 would
-  // leave a stretched orphan on the last row.
-  const outcomeColumns = columns(1, 2, 4, 4);
-  const audienceColumns = 2;
+  /* Each grid asks for the count it *wants* per breakpoint; `fitColumns` hands
+     back the nearest one that divides the list, so no row is ever left with a
+     single stranded card. Five business types have no two-column form, for
+     instance, so 640–1023px gets one full-width column rather than 2 + 2 + 1. */
+  const typeColumns = fitColumns(BUSINESS_TYPES.length, columns(1, 2, 5, 5));
+  const outcomeColumns = fitColumns(OUTCOMES.length, columns(1, 2, 4, 4));
+  const audienceColumns = fitColumns(AUDIENCES.length, 2);
 
   const gridBase: ViewStyle = {
     flexDirection: 'row',

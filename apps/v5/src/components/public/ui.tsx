@@ -155,7 +155,10 @@ export function SectionLabel({ children }: { children: string }) {
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const SIZES: Record<ButtonSize, { height: number; padding: number; font: number; radius: number }> = {
-  sm: { height: 40, padding: 16, font: 13, radius: 9 },
+  // 44, not 40: `sm` is the header's "Start free" and the inline CTAs in the
+  // legal pages, and the touch floor has no small variant. It also lines the
+  // header button up with the 44px "Log in" hit area beside it.
+  sm: { height: 44, padding: 16, font: 13, radius: 9 },
   md: { height: 48, padding: 22, font: 15, radius: 10 },
   lg: { height: 54, padding: 26, font: 16, radius: 11 },
 };
@@ -181,6 +184,10 @@ type ButtonProps = {
  * The old primary button faked a highlight with an absolutely-positioned
  * violet circle, which rendered as a hard purple rectangle covering the right
  * third of every CTA. A real gradient fill replaces it.
+ *
+ * The label's contrast contract lives in the tokens, not here: `t.gradient` is
+ * a background-only token that must clear 4.5:1 against `t.textOnBrand` at the
+ * 13px `sm` label. It used to score 3.29:1 in grey/dark and 4.02:1 in light.
  */
 export function PrimaryButton({
   label,

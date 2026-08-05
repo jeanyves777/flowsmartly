@@ -1,5 +1,4 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -15,6 +14,7 @@ import { brandColor, elevation, softFill, type ThemeTokens } from '@/theme/token
 import { useTokens } from '@/theme/v5-theme-provider';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { Connectors, ConnectorSurface, useConnectorField, type ConnectorField, type Link } from './connectors';
+import { ImageAsset } from './media';
 import { Reveal } from './motion';
 import { ROUTES } from './nav';
 import {
@@ -187,7 +187,14 @@ function Hub({ field, styles, t }: { field: ConnectorField; styles: Styles; t: T
   return (
     <View {...field.node('hub')} style={styles.hub}>
       <Animated.View pointerEvents="none" style={[styles.hubPulse, { borderColor: t.brand }, ring]} />
-      <Image source={require('../../../assets/images/v5/flowsmartly-mark.png')} style={styles.hubMark} contentFit="contain" />
+      {/* The mark is the only thing naming the centre node — every other node in
+          this diagram carries a visible text label, so this one cannot be silent. */}
+      <ImageAsset
+        source={require('../../../assets/images/v5/flowsmartly-mark.png')}
+        style={styles.hubMark}
+        contentFit="contain"
+        alt="FlowSmartly"
+      />
     </View>
   );
 }

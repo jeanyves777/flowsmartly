@@ -27,8 +27,30 @@ export type ThemeTokens = {
   text: string;
   textMuted: string;
   textSubtle: string;
-  /** text on brand / gradient fills */
+  /**
+   * Ink for anything painted **on** a brand / accent / gradient fill.
+   *
+   * It is not "white": it is whatever clears 4.5:1 on the fills *this* palette
+   * uses. Light keeps white, because its accents are deep. The two dark themes
+   * raise their accents to light tones (`brand` is `#4f9dff` there, not
+   * `#0878f9`) so they read against a dark page — which means white on top of
+   * them scored 2.0–2.9:1, i.e. below even the 3:1 large-text floor, on every
+   * "Approve" / "Accept all" / "Pay" / step-number fill on the site. Dark ink
+   * on a light fill is the correct inversion, and it fixes all ~44 call sites
+   * at once without any of them knowing.
+   *
+   * The consequence, and it is deliberate: `gradient` and `ctaGradient` must
+   * stay light enough in grey/dark for this ink. They are background-only
+   * tokens, so that is a free trade — see the notes on them below.
+   */
   textOnBrand: string;
+  /**
+   * Ink for text painted on a **dark scrim over imagery** (a duration chip on a
+   * thumbnail, a presenter name over a video tile). That surface is dark in
+   * every theme, so this stays light in every theme — it is the one case
+   * `textOnBrand` must not be used for now that it inverts.
+   */
+  textOnScrim: string;
 
   border: string;
   borderStrong: string;
@@ -50,9 +72,17 @@ export type ThemeTokens = {
   warnBg: string;
   warnText: string;
 
-  /** primary button + hero accents */
+  /**
+   * Primary button + hero accents. Background-only: every consumer paints
+   * `textOnBrand` on it, so both stops must clear 4.5:1 against that ink at the
+   * smallest button label (13px).
+   */
   gradient: readonly [string, string];
-  /** the wide CTA banner */
+  /**
+   * The wide CTA banner. Background-only, and the banner paints a 22%
+   * `shadowColor` scrim over it before the copy lands — so the contrast budget
+   * is measured on `stop × 0.78`, not on the raw stop.
+   */
   ctaGradient: readonly [string, string, string];
 
   shadowColor: string;
@@ -71,8 +101,12 @@ const light: ThemeTokens = {
 
   text: '#071449',
   textMuted: '#42527a',
-  textSubtle: '#6b7899',
+  // 4.70:1 on surfaceInset (the darkest light surface) and 5.24:1 on white.
+  // #6b7899 scored 3.95–4.40 and carries 400+ small nodes; textMuted is 7.72:1
+  // on white, so this stays unmistakably the quietest of the three tiers.
+  textSubtle: '#606c8a',
   textOnBrand: '#ffffff',
+  textOnScrim: '#ffffff',
 
   border: '#dfe5f2',
   borderStrong: '#c4cee4',
@@ -93,7 +127,9 @@ const light: ThemeTokens = {
   warnBg: '#fff1e6',
   warnText: '#c9560a',
 
-  gradient: ['#0b7bfa', '#5b2ef5'],
+  // Blue stop deepened from #0b7bfa: white on it was 4.02:1, which the 13px
+  // `sm` button label cannot spend. 4.80:1 now, across the whole ramp.
+  gradient: ['#0a6fe1', '#5b2ef5'],
   ctaGradient: ['#008cf8', '#174ff0', '#6b2df8'],
 
   shadowColor: '#1f2d62',
@@ -113,8 +149,12 @@ const grey: ThemeTokens = {
 
   text: '#f1f4f8',
   textMuted: '#b2bac7',
+  // already 4.63:1 on surfaceInset, the tightest of the five surfaces
   textSubtle: '#8c96a6',
-  textOnBrand: '#ffffff',
+  // Neutral near-black, to match the charcoal palette: 6.74:1 on brand,
+  // 8.86 brandStrong, 6.99 violet, 9.33 green, 9.40 orange, 6.50 pink.
+  textOnBrand: '#101317',
+  textOnScrim: '#ffffff',
 
   border: '#333941',
   borderStrong: '#48505c',
@@ -135,8 +175,13 @@ const grey: ThemeTokens = {
   warnBg: '#332512',
   warnText: '#f5b040',
 
-  gradient: ['#2f8dff', '#7d4dff'],
-  ctaGradient: ['#1a7fe8', '#3a5cf0', '#7b45f6'],
+  // The palette's own brand → violet accents, so a gradient fill and a solid
+  // `t.brand` fill sit at the same tone and take the same ink. 6.66:1.
+  gradient: ['#4f9dff', '#a98cff'],
+  // Same arc, lifted 16% so it still clears 4.5:1 (4.81) after the banner's own
+  // 22% black scrim. Keeping the old deep-royal stops would have put the copy
+  // at 2.40:1 against this ink — the scrim spends a third of the budget.
+  ctaGradient: ['#6badff', '#939fff', '#b79eff'],
 
   shadowColor: '#000000',
   shadowStrength: 0.45,
@@ -155,8 +200,12 @@ const dark: ThemeTokens = {
 
   text: '#f5f8ff',
   textMuted: '#a9b6d2',
+  // already 4.76:1 on surfaceInset, the tightest of the five surfaces
   textSubtle: '#7e8bab',
-  textOnBrand: '#ffffff',
+  // Navy near-black, to match the near-black-navy palette: 6.78:1 on brand,
+  // 8.91 brandStrong, 7.03 violet, 9.38 green, 9.45 orange, 6.53 pink.
+  textOnBrand: '#0b1220',
+  textOnScrim: '#ffffff',
 
   border: '#26304a',
   borderStrong: '#3a4763',
@@ -177,8 +226,12 @@ const dark: ThemeTokens = {
   warnBg: '#2e2110',
   warnText: '#f5b040',
 
-  gradient: ['#2f8dff', '#7d4dff'],
-  ctaGradient: ['#0f6fe0', '#2f52ec', '#7440f5'],
+  // as in grey — brand → violet at accent tone, 6.69:1 against this ink
+  gradient: ['#4f9dff', '#a98cff'],
+  // lifted 14%: 4.72:1 after the banner's 22% black scrim (the old stops would
+  // have scored 2.22:1), and a shade deeper than grey's banner, which is the
+  // relationship the two themes had before
+  ctaGradient: ['#68abff', '#919dff', '#b59cff'],
 
   shadowColor: '#000000',
   shadowStrength: 0.55,

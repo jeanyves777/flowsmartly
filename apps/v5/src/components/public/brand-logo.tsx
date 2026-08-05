@@ -121,21 +121,35 @@ export function BrandLogo({ name, size = 24, color, monochrome, label }: BrandLo
   // Unknown brand: a legible monogram, never an invented mark. A blank tile
   // reads as a broken image, which is worse than an honest placeholder.
   const initials = MONOGRAMS[key] ?? (label ?? name).slice(0, 2).toUpperCase();
+  // A monogram is the brand's name, so it is text and obeys the 11px floor —
+  // at the sizes this component is called with (11–30) the old ratio produced
+  // 5–12px, and the tiles measured on the built site rendered 9px and 10px.
+  //
+  // The tile grows to fit rather than the type shrinking to fit: `minWidth` /
+  // `minHeight` hold it at `size`, so the common cases are pixel-identical
+  // (one or two letters measure 9–17px at 11px/800, which every tile from ~21
+  // up already has room for) and only a genuinely tiny tile expands. That is
+  // the honest trade: the old 14px tile "contained" GPT only because the 9px
+  // text was already spilling 4px out of it.
+  const fontSize = Math.max(11, Math.round(size * (initials.length > 2 ? 0.3 : 0.4)));
   return (
     <View
       accessibilityLabel={label ?? name}
       style={{
-        width: size,
-        height: size,
+        minWidth: size,
+        minHeight: size,
+        paddingHorizontal: 2,
         borderRadius: Math.round(size * 0.24),
         backgroundColor: hexToRgba(color ?? t.text, 0.1),
         alignItems: 'center',
         justifyContent: 'center',
       }}>
       <Text
+        numberOfLines={1}
         style={{
           color: color ?? t.textMuted,
-          fontSize: Math.max(9, Math.round(size * (initials.length > 2 ? 0.3 : 0.4))),
+          fontSize,
+          lineHeight: Math.round(fontSize * 1.25),
           fontWeight: '800',
         }}>
         {initials}

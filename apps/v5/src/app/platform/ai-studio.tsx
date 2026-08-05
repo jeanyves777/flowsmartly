@@ -1708,7 +1708,9 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       paddingVertical: 4,
       backgroundColor: hexToRgba(t.shadowColor, 0.62),
     },
-    durationText: { ...type.micro, color: t.textOnBrand, fontWeight: '800' },
+    // On a black scrim over imagery, not on a brand fill — so it needs the
+    // always-white scrim ink, not the on-brand ink (which is dark in grey/dark).
+    durationText: { ...type.micro, color: t.textOnScrim, fontWeight: '800' },
 
     timelineRow: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 },
     timelineCell: { flexGrow: 0, flexShrink: 1, flexBasis: cellBasis(4), minWidth: 0, padding: 4 },

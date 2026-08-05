@@ -1881,7 +1881,8 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: hexToRgba(t.shadowColor, 0.55),
       maxWidth: '86%' as DimensionValue,
     },
-    presenterNameText: { fontSize: 11, lineHeight: 15, fontWeight: '700', color: t.textOnBrand },
+    // Sits on a dark scrim over the presenter's video, not on a brand fill.
+    presenterNameText: { fontSize: 11, lineHeight: 15, fontWeight: '700', color: t.textOnScrim },
 
     participantRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
     participant: { alignItems: 'center', gap: 4, flexGrow: 0, flexShrink: 0, width: 46 },

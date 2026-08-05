@@ -34,6 +34,7 @@ export const ROUTES = {
   callAgent: '/solutions/call-agent',
   websiteBuilder: '/solutions/website-builder',
   domains: '/solutions/domains',
+  videoStudio: '/solutions/video-studio',
 
   aiStudio: '/platform/ai-studio',
   social: '/platform/social',
@@ -102,6 +103,7 @@ export const SOLUTIONS_GROUP: NavGroup = {
     { label: 'Call Agent', href: ROUTES.callAgent, icon: 'comment-dots', description: 'An AI voice agent that answers 24/7' },
     { label: 'Website Builder', href: ROUTES.websiteBuilder, icon: 'window-maximize', description: 'Describe your business, get the site' },
     { label: 'Domains', href: ROUTES.domains, icon: 'globe', description: 'Search, register and connect a name' },
+    { label: 'Video & Voice Studio', href: ROUTES.videoStudio, icon: 'clapperboard', description: 'Films, UGC, product ads and voiceover' },
   ],
 };
 
@@ -214,12 +216,13 @@ export const MAIN_NAV: MainNavItem[] = [
     href: ROUTES.solutions,
     columns: [
       { title: 'Build & sell', links: [SOLUTIONS_GROUP.links[5], SOLUTIONS_GROUP.links[6], SOLUTIONS_GROUP.links[0]] },
-      { title: 'Reach & serve', links: [SOLUTIONS_GROUP.links[1], SOLUTIONS_GROUP.links[4], SOLUTIONS_GROUP.links[3]] },
+      { title: 'Create & reach', links: [SOLUTIONS_GROUP.links[7], SOLUTIONS_GROUP.links[1], SOLUTIONS_GROUP.links[4]] },
       { title: 'Learn & teach', links: [FLOWLEARNER_GROUP.links[0], FLOWLEARNER_GROUP.links[1], FLOWLEARNER_GROUP.links[2]] },
     ],
     overview: [
       { label: 'All solutions', href: ROUTES.solutions, icon: 'table-cells-large' },
       { label: 'Flow.AI', href: ROUTES.flowAi, icon: 'wand-magic-sparkles' },
+      { label: 'Agent Marketplace', href: ROUTES.agentMarketplace, icon: 'store' },
     ],
   },
   { label: 'Flow.AI', href: ROUTES.flowAi },

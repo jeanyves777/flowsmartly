@@ -1,7 +1,7 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
@@ -38,7 +38,26 @@ function accent(t: ThemeTokens, tone: Tone): string {
           : t.brand;
 }
 
-/** Six destinations — a count that divides into one, two and three columns. */
+/**
+ * Largest column count no greater than `desired` that divides `items` exactly,
+ * so the last row of the wrapped grid is never left with one stranded card.
+ * Kept local: `src/lib` has no layout module and this is five lines.
+ */
+function fitColumns(items: number, desired: number): number {
+  for (let n = Math.max(1, Math.min(desired, items)); n > 1; n -= 1) {
+    if (items % n === 0) return n;
+  }
+  return 1;
+}
+
+/** Spelled-out count, so the sentence below can never drift from the list. */
+const COUNT_WORDS = [
+  'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six',
+  'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
+];
+
+/** The way back in. The grid column count and the sentence above it are both
+ *  derived from this list, so it is safe to add or remove an entry. */
 const DESTINATIONS: { label: string; body: string; icon: string; tone: Tone; href: string }[] = [
   {
     label: 'Product',
@@ -95,7 +114,7 @@ export default function NotFoundScreen() {
   const router = useRouter();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
 
-  const columns = l.isPhone ? 1 : l.isTablet ? 2 : 3;
+  const columns = fitColumns(DESTINATIONS.length, l.isPhone ? 1 : l.isTablet ? 2 : 3);
 
   return (
     <PageShell
@@ -144,7 +163,9 @@ export default function NotFoundScreen() {
           <Heading level={2} style={styles.headTitle}>
             Popular destinations
           </Heading>
-          <Text style={styles.headBody}>Six places most people were looking for when they landed here.</Text>
+          <Text style={styles.headBody}>
+            {`${COUNT_WORDS[DESTINATIONS.length] ?? DESTINATIONS.length} places most people were looking for when they landed here.`}
+          </Text>
         </Reveal>
 
         <View style={styles.grid}>
@@ -156,11 +177,14 @@ export default function NotFoundScreen() {
                 delay={40 + index * 55}
                 distance={12}
                 style={[styles.cell, { flexBasis: cellBasis(columns) }]}>
-                <Pressable
+                {/* A real anchor, not a Pressable wearing role="link": these are
+                    navigations, so they must be focusable, activatable from the
+                    keyboard, openable in a new tab and crawlable. */}
+                <Link
+                  href={item.href as never}
                   accessibilityRole="link"
                   accessibilityLabel={`Go to ${item.label}`}
-                  onPress={() => router.push(item.href as never)}
-                  style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}>
+                  style={styles.row as never}>
                   <View style={[styles.rowIcon, { backgroundColor: softFill(color, t) }]}>
                     <FontAwesome6 name={item.icon as never} size={16} color={color} />
                   </View>
@@ -173,7 +197,7 @@ export default function NotFoundScreen() {
                     </Text>
                   </View>
                   <FontAwesome6 name="chevron-right" size={12} color={t.textSubtle} />
-                </Pressable>
+                </Link>
               </Reveal>
             );
           })}
@@ -241,7 +265,6 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
       backgroundColor: t.surfaceMuted,
       ...(elevation(t, 1) as object),
     },
-    pressed: { opacity: 0.86 },
     rowIcon: {
       width: 42,
       height: 42,

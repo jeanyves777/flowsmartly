@@ -1,5 +1,5 @@
-import { usePathname } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useNavigation, usePathname } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import type { ThemeTokens } from '@/theme/tokens';
 import { BP } from '@/theme/use-responsive';
@@ -38,13 +38,8 @@ export function PageShell({
   ...seo
 }: PageShellProps) {
   const t = useTokens();
-  const pathname = usePathname();
   const styles = useMemo(() => createStyles(t), [t]);
-
-  // One page_view per route, from the one place every route goes through.
-  useEffect(() => {
-    pageView(pathname, title);
-  }, [pathname, title]);
+  useRoutePageView(title);
 
   return (
     <View style={styles.page}>
@@ -66,6 +61,65 @@ export function PageShell({
       <ConsentNotice />
     </View>
   );
+}
+
+/**
+ * The route that has been reported, shared by every screen.
+ *
+ * It is module state on purpose. Exactly one route is focused at a time, so
+ * "which route did we last report" is a property of the app, not of a screen —
+ * and a screen-local ref would be reset by a remount (React's dev double-mount,
+ * or a recovered concurrent render), which is what made the first attempt at
+ * this fire twice on the initial load.
+ */
+let reportedPath: string | null = null;
+
+/**
+ * Exactly one `page_view` per route change.
+ *
+ * The trap this replaces: expo-router keeps a visited screen mounted, and
+ * `usePathname()` is global. A plain `useEffect(…, [pathname, title])` therefore
+ * re-fired on *every* still-mounted screen each time the route changed — each
+ * one reporting the new path under its own, now wrong, title, so the Nth
+ * navigation emitted N page views.
+ *
+ * Three things make this one event:
+ *
+ *  - **Focus, not pathname, is the trigger.** `navigation.isFocused()` reads the
+ *    live navigation state, unlike `useIsFocused()`, whose boolean lags a blur
+ *    by an event tick — long enough for a backgrounded screen to report the
+ *    route that is replacing it.
+ *  - **The path is captured at mount**, which is the one moment the global
+ *    pathname is certainly this screen's own: the screen is being created *for*
+ *    that route. Reading the live pathname when a blurred screen is re-focused
+ *    gives the path it was blurred at, because the focus event beats the
+ *    re-render. (A screen instance therefore means one URL. True for every
+ *    route here; a future dynamic route that changes params while staying
+ *    mounted would need its own signal, since no focus change happens at all.)
+ *  - **`reportedPath` collapses repeats**, so a remount, an extra focus event or
+ *    a click on the link for the page you are already on cannot double count,
+ *    while A → B → A reports A twice, which is what it is.
+ */
+function useRoutePageView(title: string) {
+  const navigation = useNavigation();
+  const pathname = usePathname();
+  // Frozen at mount — see above. `useState`'s initialiser runs exactly once.
+  const [ownPath] = useState(pathname);
+
+  useEffect(() => {
+    if (!navigation) return;
+    const report = () => {
+      // A blurred screen never reports, whatever it is re-subscribed by.
+      if (!navigation.isFocused()) return;
+      if (reportedPath === ownPath) return;
+      reportedPath = ownPath;
+      pageView(ownPath, title);
+    };
+    // Focused already: either the first load or this effect re-running after a
+    // route change, both of which happen after the 'focus' event has passed.
+    report();
+    return navigation.addListener('focus', report);
+  }, [navigation, ownPath, title]);
 }
 
 function createStyles(t: ThemeTokens) {

@@ -9,13 +9,27 @@ import { ROUTES } from '@/components/public/nav';
  * than being scattered as literals across forty pages.
  */
 
-/** The product lives outside this app. Point these at the real endpoints. */
+/**
+ * The product lives outside this app. Point these at the real endpoints.
+ *
+ * Every value here is a URL that was checked against production. `/signup` was
+ * a guess and returned 404 on every "Start free" button on the site — the real
+ * account-creation route is `/register` ("Create Account | FlowSmartly").
+ * `github.com/flowsmartly` is likewise a 404: there is no public organisation,
+ * so the SDK links route to Contact instead of a dead page.
+ *
+ * Verify before changing one of these; do not invent a path.
+ */
 export const EXTERNAL = {
-  signup: 'https://flowsmartly.com/signup',
+  signup: 'https://flowsmartly.com/register',
   login: 'https://flowsmartly.com/login',
   app: 'https://flowsmartly.com/home',
+  /** Unused today. `status.flowsmartly.com` does not resolve — the shipping
+   *  status page is the in-site route `ROUTES.status`, not this host. Do not
+   *  wire a CTA to this without checking that the subdomain exists. */
   statusFeed: 'https://status.flowsmartly.com',
-  github: 'https://github.com/flowsmartly',
+  /** No public repo exists yet, so this is the honest fallback. */
+  github: `${ROUTES.contact}?topic=sdk-access`,
 } as const;
 
 /**
@@ -35,6 +49,7 @@ export type ContactTopic =
   | 'dpa'
   | 'guide'
   | 'assessment'
+  | 'sdk-access'
   | 'careers';
 
 export function contactHref(topic: ContactTopic, extra?: Record<string, string>): string {
@@ -54,6 +69,7 @@ export const CONTACT_TOPIC_LABEL: Record<ContactTopic, string> = {
   dpa: 'Request the Data Processing Agreement',
   guide: 'Request a guide',
   assessment: 'Request an AI readiness assessment',
+  'sdk-access': 'Request SDK and API access',
   careers: 'Careers enquiry',
 };
 

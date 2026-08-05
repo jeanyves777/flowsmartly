@@ -9,7 +9,7 @@ import {
   type ImageStyle,
   type ViewStyle,
 } from 'react-native';
-import { Media } from '@/components/public/media';
+import { Artwork } from '@/components/public/artwork';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
 import { PageShell } from '@/components/public/page-shell';
@@ -317,7 +317,7 @@ function Hero() {
       </Reveal>
 
       <Reveal style={styles.heroArt} distance={18} delay={90}>
-        <Media
+        <Artwork
           name="editorial/guide-playbook-cover"
           alt="The cover of the FlowSmartly Growth Playbook"
           style={styles.heroImage}
@@ -387,7 +387,7 @@ function FeaturedGuide() {
         </View>
 
         <View style={styles.featuredArt}>
-          <Media
+          <Artwork
             name="editorial/guide-playbook-spread"
             alt="An open spread from the Growth Playbook"
             style={styles.featuredImage}

@@ -8,12 +8,38 @@
  *
  * Both are generated rather than hand-maintained so they cannot drift from the
  * routes that actually shipped.
+ *
+ * It also prunes the dev-only artefacts expo-router emits into the export.
  */
 const fs = require('fs');
 const path = require('path');
 
 const DIST = path.join(__dirname, '..', 'dist');
 const ORIGIN = 'https://flowsmartly.com';
+
+/* ---------- prune dev-only artefacts ---------- */
+
+/*
+ * expo-router always exports its development route index at `/_sitemap`. It is
+ * a real, crawlable HTML page with no <title>, no description and no link into
+ * it from anywhere on the site — an orphaned, indexable dev screen shipped to
+ * production. It is not the XML sitemap (that is written below) and nothing
+ * links to it, so it is deleted on every export rather than left to be
+ * re-discovered by a crawler each time the site is rebuilt.
+ */
+const DEV_ONLY = ['_sitemap.html'];
+
+function prune() {
+  const removed = [];
+  for (const name of DEV_ONLY) {
+    const file = path.join(DIST, name);
+    if (fs.existsSync(file)) {
+      fs.rmSync(file, { force: true });
+      removed.push(name);
+    }
+  }
+  return removed;
+}
 
 /* ---------- route discovery ---------- */
 
@@ -25,7 +51,10 @@ function routes(dir = DIST, prefix = '') {
       if (['_expo', 'assets', 'node_modules', '.well-known'].includes(entry.name)) continue;
       out.push(...routes(full, `${prefix}/${entry.name}`));
     } else if (entry.name.endsWith('.html')) {
-      if (entry.name.startsWith('+') || entry.name === '_sitemap.html') continue;
+      // `+not-found` is a fallback, not a page; a leading `_` is expo-router's
+      // reserved prefix for internal screens and never a public route.
+      if (entry.name.startsWith('+') || entry.name.startsWith('_') || DEV_ONLY.includes(entry.name))
+        continue;
       out.push(entry.name === 'index.html' ? prefix || '/' : `${prefix}/${entry.name.replace(/\.html$/, '')}`);
     }
   }
@@ -257,10 +286,12 @@ if (!fs.existsSync(DIST)) {
   console.error('dist/ not found — run `npx expo export -p web` first');
   process.exit(1);
 }
+const pruned = prune();
 const list = routes().sort();
 const urls = writeSitemap(list);
 const groups = writeLlms(list);
 const injected = injectJsonLd(list);
+console.log(`pruned: ${pruned.length ? pruned.join(', ') : 'nothing'}`);
 console.log(`sitemap.xml: ${urls} urls`);
 console.log(`llms.txt: ${groups} sections`);
 console.log(`json-ld: ${injected} pages`);

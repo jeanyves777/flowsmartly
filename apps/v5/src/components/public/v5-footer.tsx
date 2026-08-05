@@ -1,13 +1,13 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useRouter } from 'expo-router';
-import { Fragment, useMemo } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { ArrowLink } from '@/components/public/connectors';
 import { ConsentFooterLink } from '@/components/public/consent';
+import { ImageAsset } from '@/components/public/media';
 import { FOOTER_GROUPS, LEGAL_LINKS, ROUTES } from '@/components/public/nav';
 import { Animated, Reveal, Stagger, useCountUp, useGrowIn } from '@/components/public/motion';
 import {
@@ -343,10 +343,15 @@ export function OutcomesProof({ testimonial }: Pick<V5PublicFooterProps, 'testim
         <View style={styles.storyTop}>
           <View style={styles.storyCol}>
             <View style={styles.storyPerson}>
-              <Image
+              {/* Genuinely decorative: the name and the role sit right beside
+                  it as text, so a description here would only make a screen
+                  reader say the same thing twice. Empty alt + aria-hidden is
+                  the explicit "skip me" — not a missing attribute. */}
+              <ImageAsset
                 source={require('../../../assets/images/v5/customer-sarah-johnson.png')}
                 style={styles.storyPhoto}
                 contentFit="cover"
+                alt=""
               />
               <View style={styles.storyPersonCopy}>
                 <Text style={[type.h4, styles.storyName]} numberOfLines={1}>
@@ -644,8 +649,50 @@ export function GrowthCta({ onStartFree, onBookDemo }: Pick<V5PublicFooterProps,
 /* navigation                                                          */
 /* ------------------------------------------------------------------ */
 
-export function FooterNavigation() {
+/**
+ * The live-status pill.
+ *
+ * It used to be a styled `Pressable` inside `<Link asChild>`, and it shipped
+ * with **no stylesheet at all** — a 39px-tall, transparent, borderless column
+ * with the dot stacked above the label. `asChild` merges the child's props into
+ * the anchor by *spreading* them (expo-router's Slot → Radix `mergeProps`), and
+ * a Pressable `style` written as a function — `({ pressed }) => …` — spreads to
+ * nothing, because a function has no own enumerable properties. The two sibling
+ * `asChild` links in this footer survive purely because their styles are plain
+ * objects.
+ *
+ * So the layout lives on the `Link` itself, the way the header's nav buttons
+ * do, and the press feedback becomes hover on a wrapper — the same pattern as
+ * `MegaLink`. A `Link` renders a `Text`, which react-native-web lays out as
+ * `display: inline` until told otherwise, hence the explicit `display: 'flex'`
+ * in `statusPill`.
+ */
+function StatusPill() {
   const t = useTokens();
+  const type = useTypeScale();
+  const styles = useFooterStyles();
+  const [hovered, setHovered] = useState(false);
+  return (
+    <View
+      style={styles.statusPillWrap}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}>
+      <Link
+        href={ROUTES.status as never}
+        accessibilityRole="link"
+        accessibilityLabel="All systems operational — open the status page"
+        style={[styles.statusPill, hovered && styles.statusPillHover] as never}>
+        <View style={styles.statusDot} />
+        <Text style={[type.caption, styles.statusText]} numberOfLines={1}>
+          All systems operational
+        </Text>
+        <FontAwesome6 name="arrow-right" size={11} color={t.successText} />
+      </Link>
+    </View>
+  );
+}
+
+export function FooterNavigation() {
   const type = useTypeScale();
   const shell = useSectionShell();
   const styles = useFooterStyles();
@@ -653,11 +700,14 @@ export function FooterNavigation() {
   return (
     <View style={[shell, styles.navigation]}>
       <View style={styles.brandColumn}>
-        <Image
+        {/* Not decorative and not inside a labelled link: this wordmark is the
+            only thing naming the site at the foot of every page. */}
+        <ImageAsset
           source={require('../../../assets/images/v5/flowsmartly-logo.png')}
           style={styles.logo}
           contentFit="contain"
           contentPosition="left"
+          alt="FlowSmartly"
         />
         <Text style={[type.bodySm, styles.tagline]}>Create, sell, and grow with AI.</Text>
         <View style={styles.socials}>
@@ -694,18 +744,7 @@ export function FooterNavigation() {
             trackId="footer.nav.product-updates"
             onPress={() => router.push(contactHref('updates') as never)}
           />
-          <Link href={ROUTES.status as never} asChild>
-            <Pressable
-              accessibilityRole="link"
-              accessibilityLabel="All systems operational — open the status page"
-              style={({ pressed }) => [styles.statusPill, pressed ? styles.statusPillPressed : null]}>
-              <View style={styles.statusDot} />
-              <Text style={[type.caption, styles.statusText]} numberOfLines={1}>
-                All systems operational
-              </Text>
-              <FontAwesome6 name="arrow-right" size={11} color={t.successText} />
-            </Pressable>
-          </Link>
+          <StatusPill />
         </View>
       </View>
       <View style={styles.linkGroups}>
@@ -1130,9 +1169,14 @@ function createStyles(t: ThemeTokens, l: Layout) {
     },
     extraTitle: { color: t.text, fontWeight: '800' },
     extraNote: { color: t.textMuted },
+    // the hover region has to be the pill, not the rail it sits in, so the
+    // wrapper shrinks to the link rather than stretching across the column
+    statusPillWrap: { alignSelf: 'flex-start', maxWidth: '100%' },
     statusPill: {
       minHeight: 44,
-      alignSelf: 'flex-start',
+      // a Link is a Text: react-native-web leaves it inline unless this says
+      // otherwise, and the row below would never take effect
+      display: 'flex',
       flexDirection: 'row',
       alignItems: 'center',
       gap: 9,
@@ -1142,7 +1186,7 @@ function createStyles(t: ThemeTokens, l: Layout) {
       borderColor: t.border,
       backgroundColor: t.successBg,
     },
-    statusPillPressed: { opacity: 0.85 },
+    statusPillHover: { opacity: 0.85 },
     statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.successText },
     statusText: { color: t.successText, fontWeight: '700', flexShrink: 1, minWidth: 0 },
     linkGroups: {

@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import {
   AsideCard,
   AsideChecklist,
@@ -8,6 +9,14 @@ import {
   type DocSection,
 } from '@/components/public/legal-page';
 import { PageShell } from '@/components/public/page-shell';
+import { SecondaryButton } from '@/components/public/ui';
+import { contactHref } from '@/lib/destinations';
+
+/**
+ * One authoritative postal address for the entity, printed identically on every
+ * legal page. See the note in privacy.tsx.
+ */
+const REGISTERED_ADDRESS = '548 Market St, PMB 72224, San Francisco, CA 94104, USA';
 
 const SECTIONS: DocSection[] = [
   { id: 'consent', title: 'Consent and Enrollment' },
@@ -42,6 +51,8 @@ const CHECKLIST = [
  * reveal animation runs, which is what a viewport-overflow scan picks up here.
  */
 export default function SmsTermsPage() {
+  const router = useRouter();
+
   return (
     <PageShell
       title="SMS Messaging Terms"
@@ -156,11 +167,28 @@ export default function SmsTermsPage() {
         </LegalSection>
 
         <LegalSection number={11} title="Contact">
-          <LegalText>For questions about these Terms or our SMS practices, reach out to us:</LegalText>
+          <LegalText>
+            If you received a message and want it to stop, reply STOP to that message. Reply HELP to
+            it for the sender&apos;s name and contact details — the business that messaged you is
+            responsible for its own campaign, and it can answer far faster than we can.
+          </LegalText>
+          <LegalText>
+            For questions about these Terms, our SMS practices, or to report a message you believe
+            breaks them, reach out to us. We have no inbound phone line for compliance: email and the
+            contact form are the two channels we monitor, and both reach the same team.
+          </LegalText>
           <LegalContactCard
             name="FlowSmartly Compliance Team"
             email="compliance@flowsmartly.com"
-            detail="(800) 555-FLOW (3569)"
+            detail={`FlowSmartly, Inc., ${REGISTERED_ADDRESS} — we reply within 2 business days.`}
+          />
+          <SecondaryButton
+            label="Contact the compliance team"
+            icon="arrow-right"
+            iconRight
+            size="sm"
+            trackId="sms-terms.contact.compliance"
+            onPress={() => router.push(contactHref('support') as never)}
           />
         </LegalSection>
       </LegalLayout>

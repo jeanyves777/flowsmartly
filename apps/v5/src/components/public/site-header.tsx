@@ -1,5 +1,4 @@
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { Image } from 'expo-image';
 import { Link, usePathname } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -9,6 +8,7 @@ import { BP, useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens, useV5Theme } from '@/theme/v5-theme-provider';
 import { trackCta } from '@/lib/analytics';
 import { EXTERNAL } from '@/lib/destinations';
+import { ImageAsset } from './media';
 import { MAIN_NAV, ROUTES, type MainNavItem, type NavGroup, type NavLink } from './nav';
 import { PrimaryButton, useTypeScale } from './ui';
 
@@ -27,11 +27,16 @@ function Brand() {
   const styles = useHeaderStyles();
   return (
     <Link href={ROUTES.home as never} accessibilityLabel="FlowSmartly home" style={styles.brandLink as never}>
-      <Image
+      {/* The anchor's aria-label is what a screen reader announces, so the alt
+          is not read twice — it is here for crawlers, for a failed image and
+          for anyone browsing with images off, where an unlabelled wordmark is
+          the only thing naming the site. */}
+      <ImageAsset
         source={require('../../../assets/images/v5/flowsmartly-logo.png')}
         style={styles.logo}
         contentFit="contain"
         contentPosition="left"
+        alt="FlowSmartly"
       />
     </Link>
   );

@@ -36,7 +36,9 @@ const CATEGORIES: {
     icon: 'lock',
     title: 'Strictly necessary',
     body: 'Needed for the site to work at all. It cannot be switched off, and it is never used to profile you.',
-    stored: 'Your theme choice, and the record of this decision.',
+    // Only the decision itself. The appearance you pick is held in memory for
+    // the visit and is not written down — so this must not claim otherwise.
+    stored: 'The record of this decision, and nothing else.',
     locked: true,
   },
   {
@@ -44,14 +46,16 @@ const CATEGORIES: {
     icon: 'chart-simple',
     title: 'Analytics',
     body: 'How pages are found and used, so we know which ones are worth improving. Aggregated, never sold.',
-    stored: 'Pages viewed, buttons clicked, and the campaign you first arrived from.',
+    stored:
+      'Pages viewed, buttons clicked, and the channel your first visit came from — search, social, a link, or direct.',
   },
   {
     key: 'marketing',
     icon: 'bullhorn',
     title: 'Marketing',
     body: 'Lets us measure which campaign earned a signup and avoid showing you the same ad repeatedly.',
-    stored: 'Ad click identifiers, and the referring campaign.',
+    stored:
+      'Ad click identifiers (Google, Meta) and the campaign name on the link you arrived from. Off, and they are dropped rather than hidden.',
   },
 ];
 
@@ -90,11 +94,12 @@ export function useConsentPreferences(): ConsentCategories | null {
  *
  * Rules this is built to:
  *  - Nothing non-essential is stored or sent until a choice is made. The
- *    analytics module already buffers, so this is the piece that was missing:
- *    without it `getConsent()` never left 'unknown' and every event was held
- *    forever and discarded.
+ *    analytics module holds pre-decision events in memory and writes the
+ *    first-touch attribution only once analytics consent exists, so this is the
+ *    control that decides which of those two things happens.
  *  - Rejecting is exactly as easy as accepting — same prominence, same number
- *    of clicks, no dark pattern.
+ *    of clicks, no dark pattern. That includes the panel: the optional
+ *    categories start off, so "Save choices" is never a disguised "Accept all".
  *  - The panel says what is stored, not just that "we value your privacy".
  *  - It renders nothing on the server, and nothing once a choice exists.
  */
@@ -109,7 +114,10 @@ export function ConsentNotice() {
   const [ready, setReady] = useState(false);
   const [decided, setDecided] = useState(true);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [draft, setDraft] = useState({ analytics: true, marketing: true });
+  // Off is the only honest starting point: an undecided visitor who presses
+  // "Save choices" without touching a switch must not be counted as an accept.
+  // A visitor who has already decided sees their real saved state, set below.
+  const [draft, setDraft] = useState({ analytics: false, marketing: false });
   const [gpc, setGpc] = useState(false);
 
   useEffect(() => {
@@ -129,7 +137,7 @@ export function ConsentNotice() {
       const current = getConsentPreferences();
       return current
         ? { analytics: current.analytics, marketing: current.marketing }
-        : { analytics: true, marketing: true };
+        : { analytics: false, marketing: false };
     });
     setPanelOpen(true);
   }, []);
@@ -155,7 +163,8 @@ export function ConsentNotice() {
   const decide = (analytics: boolean, marketing: boolean, how: string) => {
     setConsentPreferences({ analytics, marketing });
     setPanelOpen(false);
-    // Logged after the decision, so it is only ever sent when it is allowed.
+    // Logged after the decision, so the decision governs it: on an acceptance
+    // it is recorded, and on a refusal `track` drops it rather than holding it.
     track('consent_decision', { analytics, marketing, how });
   };
 
@@ -355,7 +364,13 @@ function Toggle({
     <Pressable
       accessibilityRole="switch"
       accessibilityLabel={label}
+      // Both: `accessibilityState` is the native path, and `aria-checked` is
+      // the only one react-native-web maps to the DOM. Without the second, the
+      // switch announces no state at all on the web — a visitor using a screen
+      // reader could not tell whether the category was on or off, which is the
+      // same defect as a misleading default, just less visible.
       accessibilityState={{ checked: value }}
+      aria-checked={value}
       onPress={() => onChange(!value)}
       style={styles.toggleHit}>
       <View style={[styles.toggleTrack, value ? styles.toggleTrackOn : null]}>

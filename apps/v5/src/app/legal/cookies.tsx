@@ -17,6 +17,12 @@ import type { ThemeTokens } from '@/theme/tokens';
 import { useLayout, type Layout } from '@/theme/use-responsive';
 import { useTokens } from '@/theme/v5-theme-provider';
 
+/**
+ * One authoritative postal address for the entity, printed identically on every
+ * legal page. See the note in privacy.tsx.
+ */
+const REGISTERED_ADDRESS = '548 Market St, PMB 72224, San Francisco, CA 94104, USA';
+
 const SECTIONS: DocSection[] = [
   { id: 'what', title: 'What Cookies Are' },
   { id: 'how', title: 'How We Use Cookies' },
@@ -87,17 +93,11 @@ const SITE_STORAGE: StoreRow[] = [
     life: '12 months, then we ask again',
   },
   {
-    key: 'fs.theme.v1',
-    category: 'Strictly necessary',
-    purpose: 'Remembers whether you chose the light, grey or dark appearance.',
-    life: 'Until you clear your browser',
-  },
-  {
     key: 'fs.attribution.v1',
     category: 'Analytics',
     purpose:
-      'The campaign, referrer and first page of your first visit, so we can tell which marketing actually works. First touch only — a later visit never overwrites it.',
-    life: 'Until you clear your browser',
+      'The channel, referrer and first page of your first visit, so we can tell which marketing actually works. First touch only — a later visit never overwrites it. The campaign and ad-click fields are kept only if you also allow Marketing.',
+    life: 'Written only once you allow Analytics; removed the moment you withdraw',
   },
 ];
 
@@ -280,9 +280,16 @@ export default function CookiesPage() {
           </LegalText>
           <SiteStorageTable />
           <LegalText>
-            Until you make a choice, only the strictly necessary rows exist. Anything measured before
+            Until you make a choice, only the strictly necessary row exists. Anything measured before
             that point is held in memory and discarded if you decline — it is never written down and
-            never sent.
+            never sent. Withdrawing later removes the analytics row again, immediately.
+          </LegalText>
+          <LegalText>
+            Two things are deliberately absent from that list. The light, grey or dark appearance you
+            pick on this site is not stored at all — it is held in memory for as long as the page is
+            open and resets when you reload, so there is nothing on your device to clear. And
+            fs.analytics.debug, which you may see if you have used our developer console, is only ever
+            read by us and never written: it is a switch you set yourself to watch what would be sent.
           </LegalText>
         </LegalSection>
 
@@ -295,6 +302,11 @@ export default function CookiesPage() {
             what it does and where it operates.
           </LegalText>
           <LegalText>
+            None of them run on this public website. These pages load no third-party script of any
+            kind, so the list in section 4 really is everything — the third parties above appear once
+            you are inside the platform.
+          </LegalText>
+          <LegalText>
             If you switch off the Analytics or Marketing categories, the third-party cookies in those
             categories are not set at all — they are not merely ignored.
           </LegalText>
@@ -304,8 +316,16 @@ export default function CookiesPage() {
           <LegalText>
             Session cookies are deleted the moment you close your browser. Persistent cookies stay until
             they expire or you delete them; we set each one to the shortest life that still does its
-            job, and no optional category exceeds 24 months. The table above lists the maximum life of
-            each category.
+            job, and no optional category exceeds 24 months. The table in section 3 lists the maximum
+            life of each category.
+          </LegalText>
+          <LegalText>
+            Local storage works differently and it is worth being exact about it: a local storage entry
+            carries no expiry date, so the two entries in section 4 last until something removes them.
+            The consent record carries its own date and we treat it as expired after 12 months. The
+            attribution record is removed the instant you withdraw consent, and otherwise when you clear
+            site data for this domain. The 24-month figure above is how long we keep analytics data in
+            our own systems, which is a separate promise from what sits on your device.
           </LegalText>
           <LegalText>
             Deleting cookies in your browser removes ours immediately. You will be signed out, and any
@@ -376,7 +396,7 @@ export default function CookiesPage() {
           <LegalContactCard
             name="FlowSmartly Privacy Team"
             email="privacy@flowsmartly.com"
-            detail="We typically respond within 2 business days."
+            detail={`FlowSmartly, Inc., ${REGISTERED_ADDRESS} — we typically respond within 2 business days.`}
           />
         </LegalSection>
       </LegalLayout>

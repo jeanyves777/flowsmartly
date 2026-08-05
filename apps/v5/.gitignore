@@ -51,3 +51,12 @@ example
 
 # stray build outputs from verification runs
 /dist-*/
+
+# Derived image trees.
+#
+# `v5w/` IS committed — it is what the app bundles, and committing it means a
+# build needs neither sharp nor Python.
+#
+# `v5cut/` is the intermediate between the two: regenerate it from the originals
+# with `python scripts/cutouts.py`, then `node scripts/build-images.js`.
+assets/images/v5cut/

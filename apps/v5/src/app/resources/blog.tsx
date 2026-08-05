@@ -10,6 +10,7 @@ import {
   type ImageStyle,
   type ViewStyle,
 } from 'react-native';
+import { Artwork } from '@/components/public/artwork';
 import { Media } from '@/components/public/media';
 import { Reveal } from '@/components/public/motion';
 import { ROUTES } from '@/components/public/nav';
@@ -270,7 +271,7 @@ function Featured() {
     <Section>
       <Reveal style={styles.featuredRow} distance={16}>
         <View style={styles.featuredArt}>
-          <Media name={FEATURED.art} alt={FEATURED.alt} style={styles.featuredImage} radius={16} />
+          <Artwork name={FEATURED.art} alt={FEATURED.alt} style={styles.featuredImage} radius={16} />
         </View>
 
         <View style={styles.featuredCopy}>
@@ -366,7 +367,7 @@ function Archive({ topic }: { topic: Topic }) {
                 accessibilityRole="link"
                 accessibilityLabel={`${post.title} — more on ${post.topic}`}
                 style={styles.postCard as never}>
-                <Media name={post.art} alt={post.alt} style={styles.postImage} radius={13} />
+                <Artwork name={post.art} alt={post.alt} style={styles.postImage} radius={13} inset={12} />
                 <View style={styles.postBody}>
                   <TopicChip label={post.topic} tone={post.tone} />
                   <Text style={styles.postTitle}>{post.title}</Text>
