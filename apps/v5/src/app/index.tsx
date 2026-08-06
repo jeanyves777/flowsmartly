@@ -734,12 +734,18 @@ function MetricCards() {
   const l = useLayout();
 
   // Formatting is unchanged — the count-up only supplies the number, so the
-  // separators, the decimal and the % suffix all still come from here, and the
+  // separators, the decimal and the suffix all still come from here, and the
   // no-JS render prints the final figure.
+  //
+  // Six figures spanning the whole organisation, not four marketing ones. The
+  // old row read revenue / qualified leads / deliverability / AI visibility,
+  // which is a campaign scorecard however the heading above it is worded.
   const revenue = useCountUp(48290);
-  const leads = useCountUp(1284);
-  const deliverability = useCountUp(98.7, { decimals: 1 });
-  const visibility = useCountUp(74);
+  const customers = useCountUp(1284);
+  const work = useCountUp(326);
+  const approvals = useCountUp(7);
+  const saved = useCountUp(84);
+  const systems = useCountUp(12);
 
   const metrics = [
     {
@@ -748,15 +754,24 @@ function MetricCards() {
       delta: "↑ 18.4%",
       color: t.brand,
     },
-    { label: "Qualified leads", value: leads.value.toLocaleString("en-US"), delta: "↑ 22%", color: t.violet },
-    { label: "Deliverability", value: `${deliverability.value.toFixed(1)}%`, delta: "Excellent", color: t.brand },
-    { label: "AI visibility", value: `${visibility.value}%`, delta: "↑ 11%", color: t.brand },
+    {
+      label: "Customers served",
+      value: customers.value.toLocaleString("en-US"),
+      delta: "↑ 22%",
+      color: t.violet,
+    },
+    { label: "Work completed", value: work.value.toLocaleString("en-US"), delta: "This week", color: t.green },
+    // Not a win, so not in success green — an approval queue that reads as a
+    // congratulation is the wrong signal on a page selling human oversight.
+    { label: "Open approvals", value: `${approvals.value}`, delta: "Needs review", color: t.orange, quiet: true },
+    { label: "Time saved", value: `${saved.value} hours`, delta: "This month", color: t.pink },
+    { label: "Connected systems", value: `${systems.value}`, delta: "All healthy", color: t.brand },
   ];
 
-  // All four counters hang off the *row container*, not off their own cards:
-  // on phone the cards stack, and four separate thresholds would run the
+  // All six counters hang off the *row container*, not off their own cards:
+  // on phone the cards stack, and six separate thresholds would run the
   // figures one at a time as the visitor scrolled past each one.
-  const counters = [revenue, leads, deliverability, visibility];
+  const counters = [revenue, customers, work, approvals, saved, systems];
   const countersRef = useRef(counters);
   countersRef.current = counters;
   const attachCounters = useCallback((node: View | null) => {
@@ -765,7 +780,9 @@ function MetricCards() {
     });
   }, []);
 
-  const columns = l.isPhone ? 1 : l.isCompact ? 2 : 4;
+  // Three, not six across: a metric card carries a label, a figure, a note and
+  // a sparkline, and six of them on one line leaves each about 230px.
+  const columns = l.isPhone ? 1 : l.isCompact ? 2 : 3;
   return (
     <View ref={attachCounters} style={styles.gridStack}>
       {chunk(metrics, columns).map((row, index) => (
@@ -779,7 +796,7 @@ function MetricCards() {
                 <Text numberOfLines={1} style={styles.metricValue}>
                   {item.value}
                 </Text>
-                <Text numberOfLines={1} style={styles.metricDelta}>
+                <Text numberOfLines={1} style={item.quiet ? styles.metricNote : styles.metricDelta}>
                   {item.delta}
                 </Text>
               </View>
@@ -795,31 +812,40 @@ function MetricCards() {
 /** Every dashboard panel is numbered by the Dashboard, never by itself. */
 type PanelProps = { number: string };
 
-function NextBestActions({ number }: PanelProps) {
+/**
+ * Six different organisations, one queue.
+ *
+ * This panel used to be "Next best actions": SMS to cart abandoners, Instagram
+ * comments, a win-back sequence, an ad set and a product recommendation, each
+ * with a dollar figure. Five marketing tactics in the lead panel of the lead
+ * dashboard is the whole "marketing suite" impression in one card.
+ */
+function AcrossOrganization({ number }: PanelProps) {
   const styles = useStyles();
   const t = useTokens();
   const rows: [string, string, string, string][] = [
-    ["comment-dots", t.green, "Send SMS to cart abandoners", "+$2,840"],
-    ["instagram", t.pink, "Turn IG comments into leads", "+$1,920"],
-    ["envelope", t.brand, "Launch win-back email sequence", "+$1,250"],
-    ["chart-simple", t.violet, "Boost top-performing ad set", "+$1,140"],
-    ["bag-shopping", t.orange, "Recommend products in FlowShop", "+$980"],
+    ["file-invoice-dollar", t.violet, "Tax service", "12 clients missing required documents"],
+    ["hand-holding-heart", t.pink, "Elder-care provider", "3 visits still need caregiver coverage"],
+    ["cart-shopping", t.green, "Shopify store", "37 abandoned carts ready for recovery"],
+    ["chart-pie", t.brand, "NGO", "Monthly donor impact report prepared"],
+    ["briefcase", t.orange, "Professional service", "5 proposals awaiting approval"],
+    ["location-dot", t.brand, "Local business", "8 listings need updated holiday hours"],
   ];
   return (
-    <Panel number={number} title="Next best actions">
-      {rows.map(([icon, color, label, amount], index) => (
-        <Reveal key={label} delay={index * 70} distance={10} style={styles.miniAction}>
+    <Panel number={number} title="Across your organization">
+      {rows.map(([icon, color, org, detail], index) => (
+        <Reveal key={org} delay={index * 70} distance={10} style={styles.orgRow}>
           <View style={[styles.miniIcon, { backgroundColor: color }]}>
             <FontAwesome6 name={icon as never} size={10} color={t.textOnBrand} />
           </View>
-          {/* two lines: at three columns these labels are wider than the cell */}
-          <Text numberOfLines={2} style={styles.miniActionLabel}>
-            {label}
-          </Text>
-          <Text style={styles.miniAmount}>{amount}</Text>
-          {/* mockup chrome — a picture of the dashboard, not a control */}
-          <View style={styles.reviewButton}>
-            <Text style={styles.reviewText}>Review</Text>
+          <View style={styles.orgCopy}>
+            <Text numberOfLines={1} style={styles.orgName}>
+              {org}
+            </Text>
+            {/* two lines: at three columns these details are wider than the cell */}
+            <Text numberOfLines={2} style={styles.orgDetail}>
+              {detail}
+            </Text>
           </View>
         </Reveal>
       ))}
@@ -1023,8 +1049,14 @@ function ApprovalQueuePanel({ number }: PanelProps) {
   const styles = useStyles();
   return (
     <Panel number={number} title="Approval queue">
-      <Text style={styles.queueBadge}>4 actions awaiting approval</Text>
-      {["SMS to cart abandoners", "Email win-back sequence", "Boost ad set: Spring Collection"].map((row) => (
+      {/* Matches the "Open approvals 7" figure in the metric row above — two
+          numbers for the same thing on one screen must agree. */}
+      <Text style={styles.queueBadge}>7 actions awaiting approval</Text>
+      {[
+        "Document reminders to 12 tax clients",
+        "Caregiver coverage for 3 open visits",
+        "Holiday hours across 8 listings",
+      ].map((row) => (
         <View key={row} style={styles.queueRow}>
           <Text numberOfLines={2} style={styles.queueLabel}>
             {row}
@@ -1045,13 +1077,13 @@ function ApprovalQueuePanel({ number }: PanelProps) {
 type PanelDef = { key: string; Component: (props: PanelProps) => React.ReactElement };
 
 const PHONE_PANELS: PanelDef[] = [
-  { key: "actions", Component: NextBestActions },
+  { key: "actions", Component: AcrossOrganization },
   { key: "journey", Component: JourneyPanel },
   { key: "queue", Component: ApprovalQueuePanel },
 ];
 
 const FULL_PANELS: PanelDef[] = [
-  { key: "actions", Component: NextBestActions },
+  { key: "actions", Component: AcrossOrganization },
   { key: "journey", Component: JourneyPanel },
   { key: "customer", Component: CustomerPanel },
   { key: "trust", Component: TrustPanel },
@@ -1083,9 +1115,14 @@ function Dashboard() {
     <OpenSection>
       <Reveal distance={22} style={styles.dashboardOuter}>
         <View style={styles.dashboardTitleRow}>
-          <Heading level={2} style={styles.dashboardTitle}>
-            Growth Command Center
-          </Heading>
+          <View style={styles.dashboardTitleCopy}>
+            <Heading level={2} style={styles.dashboardTitle}>
+              Business Command Center
+            </Heading>
+            <Text style={styles.dashboardSub}>
+              See what needs attention, what FlowAgent completed, and how your organization is performing.
+            </Text>
+          </View>
           <Text style={styles.dashboardFilter}>Last 30 days ⌄</Text>
         </View>
         <MetricCards />
@@ -1761,7 +1798,9 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       gap: 12,
       flexWrap: "wrap",
     },
-    dashboardTitle: { ...ty.h4, color: t.text, flexShrink: 1, minWidth: 0 },
+    dashboardTitleCopy: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 240, gap: 4 },
+    dashboardTitle: { ...ty.h4, color: t.text },
+    dashboardSub: { ...ty.micro, color: t.textSubtle, maxWidth: 560 },
     dashboardFilter: {
       ...ty.micro,
       color: t.textMuted,
@@ -1794,6 +1833,8 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     metricLabel: { ...ty.micro, color: t.textMuted },
     metricValue: { ...ty.h3, color: t.text, marginTop: 2 },
     metricDelta: { ...ty.micro, color: t.successText, marginTop: 2 },
+    /** for a figure that is a queue rather than a gain — see `quiet` above */
+    metricNote: { ...ty.micro, color: t.textSubtle, marginTop: 2 },
     sparkline: { height: 36, flexShrink: 0, flexDirection: "row", alignItems: "flex-end", gap: 2 },
     sparkBar: { width: 7, minHeight: 2, borderRadius: 3 },
 
@@ -1835,7 +1876,12 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     dataLabel: { ...ty.micro, color: t.textMuted, flexShrink: 1, minWidth: 0 },
     dataValue: { ...ty.micro, color: t.text, fontWeight: "700", textAlign: "right", flexShrink: 0 },
 
-    miniAction: { minHeight: 30, flexDirection: "row", alignItems: "center", gap: 8 },
+    // Two lines per row (organisation, then what is waiting there), so the icon
+    // sits against the top rather than floating beside a wrapped detail.
+    orgRow: { minHeight: 34, flexDirection: "row", alignItems: "flex-start", gap: 8, paddingVertical: 3 },
+    orgCopy: { ...fluid },
+    orgName: { ...ty.micro, color: t.text, fontWeight: "700" },
+    orgDetail: { ...ty.micro, color: t.textSubtle, marginTop: 1 },
     miniIcon: {
       width: 20,
       height: 20,
@@ -1844,17 +1890,6 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       alignItems: "center",
       justifyContent: "center",
     },
-    miniActionLabel: { ...ty.micro, color: t.textMuted, flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
-    miniAmount: { ...ty.micro, color: t.text, fontWeight: "700", flexShrink: 0 },
-    reviewButton: {
-      flexShrink: 0,
-      borderWidth: 1,
-      borderColor: t.brand,
-      borderRadius: 6,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-    },
-    reviewText: { ...ty.micro, color: t.brand, fontWeight: "700" },
 
     journeySteps: { flexDirection: "row", alignItems: "flex-start", marginTop: 6 },
     journeyItem: { ...fluid, alignItems: "center" },
