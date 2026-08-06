@@ -13,9 +13,10 @@ import {
   Heading,
   PrimaryButton,
   SecondaryButton,
-  Section,
+  Band,
+  OpenSection,
   SectionLabel,
-  useSectionShell,
+  useOpenSection,
   useTypeScale,
   type TypeScale,
 } from '@/components/public/ui';
@@ -51,19 +52,30 @@ const HERO_BOTTOM: HeroModule[] = [
 
 const HERO_MODULES = [...HERO_TOP, ...HERO_BOTTOM];
 
+/**
+ * The four figures in the hero command centre. Reach / engagement /
+ * conversions / revenue described a campaign, on a page that now opens by
+ * saying the platform runs an organization.
+ */
 const STATS: { key: string; label: string; target: number; prefix: string; suffix: string; delta: string; accent: Accent }[] = [
-  { key: 'reach', label: 'Reach', target: 125.6, prefix: '', suffix: 'K', delta: '+26.8%', accent: 'brand' },
-  { key: 'engagement', label: 'Engagement', target: 18.9, prefix: '', suffix: 'K', delta: '+31.3%', accent: 'violet' },
-  { key: 'conversions', label: 'Conversions', target: 2.6, prefix: '', suffix: 'K', delta: '+24.7%', accent: 'green' },
-  { key: 'revenue', label: 'Revenue', target: 96.4, prefix: '$', suffix: 'K', delta: '+31.9%', accent: 'orange' },
+  { key: 'work', label: 'Work completed', target: 326, prefix: '', suffix: '', delta: '+18.4%', accent: 'brand' },
+  { key: 'customers', label: 'Customers served', target: 1.3, prefix: '', suffix: 'K', delta: '+22.0%', accent: 'violet' },
+  { key: 'saved', label: 'Hours saved', target: 84, prefix: '', suffix: '', delta: '+31.3%', accent: 'green' },
+  { key: 'revenue', label: 'Revenue influenced', target: 48.3, prefix: '$', suffix: 'K', delta: '+31.9%', accent: 'orange' },
 ];
 
+/**
+ * How work actually happens here — the operating loop, not a content pipeline.
+ *
+ * This used to read Brief -> Generate -> Adapt -> Approve -> Measure, which
+ * describes publishing a campaign and nothing else the platform does.
+ */
 const FLOW_STEPS: { key: string; icon: string; label: string; note: string; accent: Accent }[] = [
-  { key: 'brief', icon: 'pen-nib', label: 'Brief', note: 'Say what you want', accent: 'brand' },
-  { key: 'generate', icon: 'wand-magic-sparkles', label: 'Generate', note: 'On-brand drafts', accent: 'violet' },
-  { key: 'adapt', icon: 'arrows-rotate', label: 'Adapt', note: 'Sized per channel', accent: 'pink' },
+  { key: 'notice', icon: 'magnifying-glass-chart', label: 'Notice', note: 'What needs attention', accent: 'brand' },
+  { key: 'prepare', icon: 'wand-magic-sparkles', label: 'Prepare', note: 'The work, done ready', accent: 'violet' },
   { key: 'approve', icon: 'circle-check', label: 'Approve', note: 'You have the last word', accent: 'green' },
-  { key: 'measure', icon: 'chart-line', label: 'Measure', note: 'Revenue, not vanity', accent: 'orange' },
+  { key: 'execute', icon: 'bolt', label: 'Execute', note: 'Across your systems', accent: 'pink' },
+  { key: 'verify', icon: 'clipboard-check', label: 'Verify', note: 'Confirm it landed', accent: 'orange' },
 ];
 
 const MODULE_CARDS: {
@@ -217,6 +229,184 @@ const SUITES: { key: string; icon: string; name: string; blurb: string; bullets:
   },
 ];
 
+/**
+ * The six pillars, each with a picture of the surface it names.
+ *
+ * The page used to explain itself as eight marketing modules around a content
+ * workflow. The pillars are the shape of the product now, so they are the
+ * editorial spine of the page — one open split each, alternating side, rather
+ * than six cards inside a seventh container.
+ *
+ * `href` is only set where a real page exists. A pillar with no destination
+ * gets no link rather than a button into nothing.
+ */
+type MockRow = { label: string; value: string; kind?: 'status' | 'meter'; fill?: number };
+
+type Pillar = {
+  key: string;
+  icon: string;
+  name: string;
+  headline: string;
+  body: string;
+  bullets: [string, string, string];
+  href: string;
+  accent: Accent;
+  mock: { title: string; chip: string; rows: MockRow[]; footer: string };
+};
+
+const PILLARS: Pillar[] = [
+  {
+    key: 'operate',
+    icon: 'list-check',
+    name: 'Operate',
+    headline: 'Run the day without chasing it.',
+    body: 'Tasks, customers, documents, approvals, appointments and team workload sit in one place, and FlowAgent has usually prepared the next step before you open it.',
+    bullets: [
+      'Tasks, documents and customer records together',
+      'Appointments, coverage and team assignment',
+      'Approvals with a complete activity history',
+    ],
+    href: ROUTES.flowAgent,
+    accent: 'brand',
+    mock: {
+      title: "Today's work",
+      chip: '6 open',
+      rows: [
+        { label: 'Client documents', value: '12 waiting', kind: 'status' },
+        { label: 'Appointments', value: '3 unassigned', kind: 'status' },
+        { label: 'Approvals', value: '7 to review', kind: 'status' },
+        { label: 'Team workload', value: '68%', kind: 'meter', fill: 68 },
+      ],
+      footer: 'FlowAgent prepared four of these overnight',
+    },
+  },
+  {
+    key: 'create',
+    icon: 'wand-magic-sparkles',
+    name: 'Create',
+    headline: 'One brief, every format you need.',
+    body: 'Branded content, video, presentations, proposals, training material, websites and product assets — generated from your voice and your past work, never a generic template.',
+    bullets: [
+      'Copy, images and video from a single brief',
+      'Presentations, proposals and training decks',
+      'Websites and product assets that stay on brand',
+    ],
+    href: ROUTES.aiStudio,
+    accent: 'violet',
+    mock: {
+      title: 'AI Studio',
+      chip: 'Draft',
+      rows: [
+        { label: 'Brand voice', value: 'Locked', kind: 'status' },
+        { label: 'Launch announcement', value: '5 variants', kind: 'status' },
+        { label: 'Onboarding deck', value: '82%', kind: 'meter', fill: 82 },
+        { label: 'Proposal PDF', value: 'Ready', kind: 'status' },
+      ],
+      footer: 'Nothing publishes before you approve it',
+    },
+  },
+  {
+    key: 'connect',
+    icon: 'plug',
+    name: 'Connect',
+    headline: 'Your systems, finally talking to each other.',
+    body: 'Website, email, SMS, social, store, calendar, payments, CRM, documents and the other applications you already run — connected once, then kept in sync.',
+    bullets: [
+      'Secure authorization, no shared passwords',
+      'One customer record across every system',
+      'Per-workspace permissions on each connection',
+    ],
+    href: ROUTES.integrations,
+    accent: 'green',
+    mock: {
+      title: 'Connected systems',
+      chip: '12 live',
+      rows: [
+        { label: 'Website & store', value: 'Synced', kind: 'status' },
+        { label: 'Email & SMS', value: 'Synced', kind: 'status' },
+        { label: 'Calendar & CRM', value: 'Synced', kind: 'status' },
+        { label: 'Documents & payments', value: 'Synced', kind: 'status' },
+      ],
+      footer: 'Last sync 2 minutes ago',
+    },
+  },
+  {
+    key: 'serve',
+    icon: 'headset',
+    name: 'Serve',
+    headline: 'Answer everyone, on whichever channel they chose.',
+    body: 'Calls, messages, reminders and scheduling run against one contact record, so a customer never has to explain themselves twice.',
+    bullets: [
+      'A voice agent that answers around the clock',
+      'Every thread on one contact, whatever the app',
+      'Reminders and rescheduling handled for you',
+    ],
+    href: ROUTES.callAgent,
+    accent: 'orange',
+    mock: {
+      title: 'Conversations',
+      chip: '2 waiting',
+      rows: [
+        { label: 'Call agent', value: 'Answering', kind: 'status' },
+        { label: 'WhatsApp thread', value: 'Replied', kind: 'status' },
+        { label: 'Appointment reminder', value: 'Scheduled', kind: 'status' },
+        { label: 'Answered first time', value: '91%', kind: 'meter', fill: 91 },
+      ],
+      footer: 'Handed to a human the moment it should be',
+    },
+  },
+  {
+    key: 'sell',
+    icon: 'arrow-trend-up',
+    name: 'Sell',
+    headline: 'From first contact to paid, in one workspace.',
+    body: 'Find the lead, run the outreach, send the proposal, take the payment and keep the relationship — without exporting anything to get from one step to the next.',
+    bullets: [
+      'Lead research and multi-channel outreach',
+      'Proposals, quotes and e-signature',
+      'An online store and promotions that convert',
+    ],
+    href: ROUTES.flowshop,
+    accent: 'pink',
+    mock: {
+      title: 'Pipeline',
+      chip: '$18.4K',
+      rows: [
+        { label: 'New leads', value: '24', kind: 'status' },
+        { label: 'Outreach sent', value: '112', kind: 'status' },
+        { label: 'Proposals out', value: '5', kind: 'status' },
+        { label: 'Closed this month', value: '74%', kind: 'meter', fill: 74 },
+      ],
+      footer: 'Every step against the same customer record',
+    },
+  },
+  {
+    key: 'understand',
+    icon: 'chart-column',
+    name: 'Understand',
+    headline: 'Know what moved, and what to do next.',
+    body: 'Performance, operations and opportunities in plain language — with the reasoning attached, so a recommendation is something you can check rather than take on faith.',
+    bullets: [
+      'Operations and performance side by side',
+      'Plain-language explanations, not a chart dump',
+      'Recommendations you can trace and verify',
+    ],
+    href: ROUTES.analytics,
+    accent: 'brand',
+    mock: {
+      title: 'What changed',
+      chip: 'This week',
+      rows: [
+        { label: 'Work completed', value: '326', kind: 'status' },
+        { label: 'Time saved', value: '84 hrs', kind: 'status' },
+        { label: 'Customers retained', value: '88%', kind: 'meter', fill: 88 },
+        { label: 'Recommendation', value: 'Ready', kind: 'status' },
+      ],
+      footer: 'FlowAgent explains what moved and why',
+    },
+  },
+];
+
 const TRUST: { icon: string; title: string; body: string; accent: Accent }[] = [
   {
     icon: 'paper-plane',
@@ -293,6 +483,119 @@ function ExploreLink({ href, label, styles, t }: { href: string; label: string; 
 }
 
 /**
+ * A picture of the surface a pillar names.
+ *
+ * Deliberately built from `View` and `Text` rather than a screenshot: this repo
+ * never fabricates an image, and a hand-built mock stays correct in all three
+ * themes and at every width, which a flat PNG of a light-mode UI would not.
+ *
+ * It is an illustration, so nothing in here is pressable — a control that
+ * invites a click and does nothing is worse than a static picture of one.
+ */
+function PillarMock({
+  mock,
+  accent,
+  styles,
+  t,
+}: {
+  mock: Pillar['mock'];
+  accent: string;
+  styles: Styles;
+  t: ThemeTokens;
+}) {
+  return (
+    <View style={styles.mockCard}>
+      <View style={styles.mockHead}>
+        <Text numberOfLines={1} style={styles.mockTitle}>
+          {mock.title}
+        </Text>
+        <Text style={[styles.mockChip, { backgroundColor: softFill(accent, t), color: accent }]}>{mock.chip}</Text>
+      </View>
+      {mock.rows.map((row) => (
+        <View key={row.label} style={styles.mockRow}>
+          <Text numberOfLines={1} style={styles.mockLabel}>
+            {row.label}
+          </Text>
+          {row.kind === 'meter' ? (
+            <View style={styles.mockMeter}>
+              <View style={styles.mockTrack}>
+                <View style={[styles.mockFill, { width: `${row.fill ?? 0}%`, backgroundColor: accent }]} />
+              </View>
+              <Text style={styles.mockMeterValue}>{row.value}</Text>
+            </View>
+          ) : (
+            <Text numberOfLines={1} style={styles.mockValue}>
+              {row.value}
+            </Text>
+          )}
+        </View>
+      ))}
+      <View style={styles.mockFoot}>
+        <View style={[styles.mockDot, { backgroundColor: accent }]} />
+        <Text numberOfLines={2} style={styles.mockFootText}>
+          {mock.footer}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * One pillar: copy on one side, a picture of the surface on the other.
+ *
+ * The sides alternate down the run so six consecutive splits read as an
+ * editorial series rather than six repetitions of the same layout, and each is
+ * separated by a rule instead of being boxed.
+ */
+function PillarSection({
+  pillar,
+  flip,
+  first,
+  accent,
+  styles,
+  t,
+}: {
+  pillar: Pillar;
+  flip: boolean;
+  first: boolean;
+  accent: string;
+  styles: Styles;
+  t: ThemeTokens;
+}) {
+  // Built up rather than inlined with ternaries: `Reveal`'s style prop takes a
+  // ViewStyle array, and a `cond ? style : null` entry types as nullable.
+  const row: ViewStyle[] = [styles.pillarRow];
+  if (flip) row.push(styles.pillarRowFlip);
+  if (!first) row.push(styles.pillarRuled);
+
+  return (
+    <Reveal style={row} distance={18}>
+      <View style={styles.pillarCopy}>
+        <View style={styles.pillarBadge}>
+          <View style={[styles.pillarIcon, { backgroundColor: softFill(accent, t) }]}>
+            <FontAwesome6 name={pillar.icon as never} size={17} color={accent} />
+          </View>
+          <Text style={[styles.pillarName, { color: accent }]}>{pillar.name}</Text>
+        </View>
+        <Heading level={3} style={styles.pillarHeadline}>
+          {pillar.headline}
+        </Heading>
+        <Text style={styles.pillarBody}>{pillar.body}</Text>
+        <View style={styles.bulletList}>
+          {pillar.bullets.map((bullet) => (
+            <Bullet key={bullet} text={bullet} styles={styles} t={t} />
+          ))}
+        </View>
+        <ExploreLink href={pillar.href} label={`Explore ${pillar.name}`} styles={styles} t={t} />
+      </View>
+      <View style={styles.pillarVisual}>
+        <PillarMock mock={pillar.mock} accent={accent} styles={styles} t={t} />
+      </View>
+    </Reveal>
+  );
+}
+
+/**
  * The command centre and its eight modules.
  *
  * Every tile is a measured connector node, so nothing between the
@@ -357,7 +660,7 @@ function CommandCentre({ styles, t, l }: { styles: Styles; t: ThemeTokens; l: La
               Command Center
             </Text>
             <Text numberOfLines={1} style={styles.hubSub}>
-              Last 30 days • all channels
+              Last 30 days • every connected system
             </Text>
           </View>
           <View style={styles.hubLive}>
@@ -404,7 +707,7 @@ export default function ProductPage() {
   const t = useTokens();
   const l = useLayout();
   const type = useTypeScale();
-  const shell = useSectionShell();
+  const open = useOpenSection();
   const styles = useMemo(() => createStyles(t, l, type), [t, l, type]);
   const accentOf = useAccent();
   const arrowWidth = arrowWidthFor(l);
@@ -421,16 +724,17 @@ export default function ProductPage() {
         ]),
       ]}>
       {/* ------------------------------------------------ hero */}
-      <Reveal style={shell} distance={22}>
+      <Reveal style={open} distance={22}>
         <View style={styles.heroRow}>
           <View style={styles.heroCopy}>
-            <SectionLabel>THE CONNECTED GROWTH PLATFORM</SectionLabel>
+            <SectionLabel>THE AI BUSINESS OPERATING SYSTEM</SectionLabel>
             <Heading level={1} style={[type.display, styles.heroTitle]}>
-              Everything you need to create, connect, sell, and grow.
+              One platform to operate, create, connect, serve, sell, and understand.
             </Heading>
             <Text style={[type.body, styles.heroBody]}>
-              FlowSmartly brings content, campaigns, customer conversations, commerce, local
-              visibility, and analytics into one intelligent workspace.
+              Six pillars over the systems your organization already runs — the daily work, the
+              content, the conversations, the sales and the numbers, in one place, with a secure AI
+              partner working alongside your team.
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>
@@ -475,16 +779,44 @@ export default function ProductPage() {
         </View>
       </Reveal>
 
-      {/* ------------------------------------------------ one campaign, every channel */}
-      <Section>
+      {/* ------------------------------------------------ the six pillars */}
+      <OpenSection>
         <View style={styles.sectionHead}>
-          <SectionLabel>ONE WORKFLOW</SectionLabel>
+          <SectionLabel>THE SIX PILLARS</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
-            One campaign. Every channel.
+            What the operating system actually does.
           </Heading>
           <Text style={[type.body, styles.sectionSub]}>
-            Write the brief once. FlowSmartly generates it, resizes it for every channel, waits for
-            your approval, then reports on what it earned.
+            Six pillars over one system of record. Start with the one you need today — the other
+            five already know about it.
+          </Text>
+        </View>
+
+        <View style={styles.pillarRun}>
+          {PILLARS.map((pillar, index) => (
+            <PillarSection
+              key={pillar.key}
+              pillar={pillar}
+              flip={index % 2 === 1}
+              first={index === 0}
+              accent={accentOf(pillar.accent)}
+              styles={styles}
+              t={t}
+            />
+          ))}
+        </View>
+      </OpenSection>
+
+      {/* ------------------------------------------------ how work happens */}
+      <OpenSection>
+        <View style={styles.sectionHead}>
+          <SectionLabel>HOW WORK HAPPENS</SectionLabel>
+          <Heading level={2} style={[type.h2, styles.sectionTitle]}>
+            The same five steps, whatever the work is.
+          </Heading>
+          <Text style={[type.body, styles.sectionSub]}>
+            A document chase, a caregiver roster, a product launch or a donor report all move
+            through the same loop — and stop at the same place, waiting for you.
           </Text>
         </View>
 
@@ -517,17 +849,17 @@ export default function ProductPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ modules */}
-      <Section>
+      <Band tone="surface">
         <View style={styles.sectionHead}>
-          <SectionLabel>THE PLATFORM</SectionLabel>
+          <SectionLabel>EVERY MODULE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
-            Six modules. One system of record.
+            One system of record underneath all of it.
           </Heading>
           <Text style={[type.body, styles.sectionSub]}>
-            Use the one you need today. Every other module already knows about it.
+            Open the one you need today. Every other module already knows about it.
           </Text>
         </View>
 
@@ -554,10 +886,10 @@ export default function ProductPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
 
       {/* ------------------------------------------------ customer intelligence */}
-      <Section>
+      <OpenSection>
         <View style={styles.splitRow}>
           <Reveal style={styles.splitCopy} distance={16}>
             <SectionLabel>CUSTOMER INTELLIGENCE</SectionLabel>
@@ -655,10 +987,10 @@ export default function ProductPage() {
             </View>
           </Reveal>
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ flowshop + listsmartly */}
-      <Section>
+      <OpenSection>
         <View style={styles.sectionHead}>
           <SectionLabel>SELL AND GET FOUND</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -696,10 +1028,10 @@ export default function ProductPage() {
             );
           })}
         </View>
-      </Section>
+      </OpenSection>
 
       {/* ------------------------------------------------ trust */}
-      <Section>
+      <Band tone="brand">
         <View style={styles.sectionHead}>
           <SectionLabel>HOW WE OPERATE</SectionLabel>
           <Heading level={2} style={[type.h2, styles.sectionTitle]}>
@@ -726,7 +1058,7 @@ export default function ProductPage() {
             );
           })}
         </View>
-      </Section>
+      </Band>
     </PageShell>
   );
 }
@@ -897,6 +1229,96 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     sectionTitle: { textAlign: l.isPhone ? 'left' : 'center' },
     sectionSub: { textAlign: l.isPhone ? 'left' : 'center', maxWidth: 660 },
 
+    /* -------------------------------------------------- the six pillars */
+    pillarRun: { marginTop: l.isPhone ? 8 : 16 },
+    // A rule between entries rather than a box around each: six bordered cards
+    // in a row is the shape this page was rebuilt to get away from.
+    pillarRow: {
+      paddingVertical: l.isPhone ? 28 : 40,
+      flexDirection: stacked ? 'column' : 'row',
+      alignItems: stacked ? 'stretch' : 'center',
+      gap: stacked ? 24 : 48,
+    },
+    // Sides alternate down the run. Only above the stack point — once the
+    // layout is a single column, "flipped" would just put the picture first.
+    pillarRowFlip: { flexDirection: stacked ? 'column' : 'row-reverse' },
+    pillarRuled: { borderTopWidth: 1, borderTopColor: t.border },
+    pillarCopy: stacked
+      ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0, gap: 14 }
+      : { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: 14 },
+    pillarVisual: stacked
+      ? { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', width: '100%', minWidth: 0 }
+      : { flexGrow: 0.92, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+    pillarBadge: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    pillarIcon: {
+      width: 38,
+      height: 38,
+      flexGrow: 0,
+      flexShrink: 0,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pillarName: { ...type.h4, letterSpacing: 0.4 },
+    pillarHeadline: { ...type.h2, color: t.text },
+    pillarBody: { ...type.body, color: t.textMuted, maxWidth: 560 },
+
+    /* -------------------------------------------------- pillar mock */
+    // A card, and correctly so: it is a picture of a product surface.
+    mockCard: {
+      borderWidth: 1,
+      borderColor: t.border,
+      borderRadius: 16,
+      backgroundColor: t.surfaceRaised,
+      padding: l.isPhone ? 14 : 18,
+      gap: 10,
+      ...(elevation(t, 1) as ViewStyle),
+    },
+    mockHead: {
+      minHeight: 28,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: t.divider,
+    },
+    mockTitle: { ...type.caption, color: t.text, fontWeight: '800', flexShrink: 1, minWidth: 0 },
+    mockChip: {
+      ...type.micro,
+      fontWeight: '700',
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      overflow: 'hidden',
+      flexShrink: 0,
+    },
+    mockRow: {
+      minHeight: 26,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    mockLabel: { ...type.micro, color: t.textMuted, flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+    mockValue: { ...type.micro, color: t.text, fontWeight: '700', flexShrink: 0, textAlign: 'right' },
+    mockMeter: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0 },
+    mockTrack: { width: 74, height: 6, borderRadius: 3, backgroundColor: t.surfaceInset },
+    mockFill: { height: 6, borderRadius: 3 },
+    mockMeterValue: { ...type.micro, color: t.text, fontWeight: '700' },
+    mockFoot: {
+      marginTop: 2,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: t.divider,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    mockDot: { width: 7, height: 7, flexGrow: 0, flexShrink: 0, borderRadius: 4 },
+    mockFootText: { ...type.micro, color: t.textSubtle, flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 },
+
     /* -------------------------------------------------- campaign flow */
     flowStrip: {
       marginTop: l.isPhone ? 20 : 30,
@@ -971,7 +1393,12 @@ function createStyles(t: ThemeTokens, l: Layout, type: TypeScale) {
     },
     bulletText: { ...type.caption, color: t.textMuted, flexShrink: 1, minWidth: 0 },
     cardSpacer: { flexGrow: 1, flexShrink: 0, flexBasis: 'auto', minHeight: 6 },
+    // `display: 'flex'` is load-bearing. `Link` renders a plain `<a>` on web
+    // rather than a View, so it is inline by default and the flexDirection and
+    // gap below were being ignored — the arrow sat flush against the label
+    // ("Explore Create→") everywhere this link is used.
     exploreLink: {
+      display: 'flex',
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
