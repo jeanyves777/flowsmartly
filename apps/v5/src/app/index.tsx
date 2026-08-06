@@ -20,6 +20,12 @@ import {
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
+import {
+  ControlSection,
+  FlowAgentAlongsideSection,
+  IndustriesSection,
+  PillarsSection,
+} from "@/components/public/business-os-sections";
 import { CallAgentSection } from "@/components/public/call-agent-section";
 import { ConnectedChannelsSection } from "@/components/public/connected-channels-section";
 import {
@@ -157,53 +163,79 @@ function MockButton({ label }: { label: string }) {
 /* hero — FlowAgent card                                                 */
 /* ------------------------------------------------------------------ */
 
+/**
+ * What the command centre has prepared.
+ *
+ * Four different organisations on purpose — a tax practice, an elder-care
+ * provider, a shop and an NGO. A card that listed four e-commerce tasks would
+ * say "marketing suite" however the headline above it is worded.
+ */
+type AgentStatus = "ready" | "approval" | "draft";
+
 function aiActions(t: ThemeTokens) {
   return [
     {
+      icon: "file-invoice-dollar",
+      color: t.violet,
+      title: "Prepare five tax-client follow-ups",
+      note: "12 clients are missing required documents",
+      status: "Ready for review",
+      tone: "ready" as AgentStatus,
+    },
+    {
+      icon: "hand-holding-heart",
+      color: t.pink,
+      title: "Fill three open elder-care appointments",
+      note: "Matched available caregivers to open visits",
+      status: "Approval required",
+      tone: "approval" as AgentStatus,
+    },
+    {
       icon: "cart-shopping",
       color: t.green,
-      title: "Recover abandoned carts",
-      value: "+$2,840 potential",
-      note: "37 carts abandoned in the last 7 days",
+      title: "Recover abandoned Shopify carts",
+      note: "37 customers left before checkout",
+      status: "Ready to send",
+      tone: "ready" as AgentStatus,
     },
     {
-      icon: "instagram",
-      color: t.pink,
-      title: "Turn Instagram comments into leads",
-      value: "126 contacts",
-      note: "High-intent comments detected on 8 posts",
-    },
-    {
-      icon: "location-dot",
+      icon: "chart-pie",
       color: t.brand,
-      title: "Improve AI search visibility",
-      value: "8 locations",
-      note: "Your business shows up in only 42% of AI results",
+      title: "Prepare the monthly NGO donor report",
+      note: "Campaign, donation, and outreach data compiled",
+      status: "Draft ready",
+      tone: "draft" as AgentStatus,
     },
   ];
 }
 
 /**
  * The rail used literal Unicode dingbats as icons, which render as mojibake
- * next to the FontAwesome glyphs used everywhere else on the page.
+ * next to the FontAwesome glyphs used everywhere else on the page. The set
+ * spans the whole workspace — work, calendar, messages, store — rather than
+ * the marketing corner of it.
  */
 const AI_RAIL_ICONS = [
   "wand-magic-sparkles",
-  "chart-simple",
-  "bullhorn",
+  "list-check",
+  "calendar-days",
   "envelope",
-  "cart-shopping",
+  "bag-shopping",
   "gear",
 ] as const;
 
 /**
- * One-off settle on the "Ready ✓" pill: it lands a beat after its row, so the
+ * One-off settle on the status pill: it lands a beat after its row, so the
  * card reads as FlowAgent finishing its thinking. Deliberately not a loop.
  *
  * Like every primitive in `motion`, it renders *settled* and is only pushed
  * back in a client layout effect, so the no-JS render shows the finished pill.
+ *
+ * The tone is load-bearing, not decoration: "Approval required" must not look
+ * like "Ready to send", because the whole promise of the card is that the
+ * sensitive one stops and waits.
  */
-function ReadyPill({ label, delay }: { label: string; delay: number }) {
+function StatusPill({ label, tone, delay }: { label: string; tone: AgentStatus; delay: number }) {
   const styles = useStyles();
   const reduced = useReducedMotion();
   const settle = useSharedValue(1);
@@ -220,9 +252,14 @@ function ReadyPill({ label, delay }: { label: string; delay: number }) {
     transform: [{ scale: 0.84 + settle.value * 0.16 }],
   }));
 
+  const shell = tone === "approval" ? styles.pillWarn : tone === "draft" ? styles.pillInfo : styles.pillReady;
+  const text = tone === "approval" ? styles.pillWarnText : tone === "draft" ? styles.pillInfoText : styles.pillReadyText;
+
   return (
-    <Animated.View style={[styles.ready, animated]}>
-      <Text style={styles.readyText}>{label}</Text>
+    <Animated.View style={[shell, animated]}>
+      <Text numberOfLines={1} style={text}>
+        {label}
+      </Text>
     </Animated.View>
   );
 }
@@ -261,7 +298,7 @@ function FlowAiCard() {
             <Text style={styles.spark}>✦</Text>
           </View>
           <View style={styles.messageBubble}>
-            <Text style={styles.messageText}>I found 5 growth opportunities this week.</Text>
+            <Text style={styles.messageText}>I prepared four things across your business this week.</Text>
           </View>
         </View>
         <View style={styles.actionList}>
@@ -278,17 +315,22 @@ function FlowAiCard() {
               <View style={[styles.actionRealIcon, { backgroundColor: action.color }]}>
                 <FontAwesome6 name={action.icon as never} size={14} color={t.textOnBrand} />
               </View>
+              {/* Title on its own line, then note and status share the next
+                  one. As a third column the pill left the title ~160px and
+                  every row ellipsized to "Prepare the…" — and the status is
+                  the whole point of the card, so it cannot be the thing that
+                  gets dropped either. */}
               <View style={styles.actionCopy}>
                 <Text numberOfLines={2} style={styles.actionTitle}>
-                  {action.title} <Text style={styles.actionValue}>— {action.value}</Text>
+                  {action.title}
                 </Text>
-                {/* two lines: at laptop widths the card is narrower than the
-                    note, and a clipped number is worse than a taller row */}
-                <Text numberOfLines={2} style={styles.actionNote}>
-                  {action.note}
-                </Text>
+                <View style={styles.actionMeta}>
+                  <Text numberOfLines={2} style={styles.actionNote}>
+                    {action.note}
+                  </Text>
+                  <StatusPill label={action.status} tone={action.tone} delay={520 + index * 50} />
+                </View>
               </View>
-              {l.isPhone ? null : <ReadyPill label="Ready ✓" delay={520 + index * 50} />}
             </Reveal>
           ))}
         </View>
@@ -322,6 +364,11 @@ function FlowAiCard() {
 /* hero — channel map                                                  */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Social brand marks. Still real logos, still `brandColor`-corrected — they are
+ * only used by the dashboard's integrations strip now, where naming the actual
+ * networks is the point.
+ */
 const channels = [
   { brand: "instagram", label: "Instagram", color: "#f20b6a" },
   { brand: "facebook-f", label: "Facebook", color: "#1877f2" },
@@ -333,27 +380,71 @@ const channels = [
   { brand: "wordpress", label: "WordPress", color: "#21759b" },
 ];
 
-function BrandTile({
-  name,
+/**
+ * What the hub connects — systems, not social networks.
+ *
+ * The panel used to show eight logos, all of them marketing channels, which
+ * told a visitor that FlowSmartly plugs into their posting tools. These are
+ * capabilities rather than brands, so they carry theme tokens and need no
+ * `brandColor` correction, and no third-party mark is ever drawn by hand.
+ *
+ * The first six are wired to the hub; the rest are named underneath, because
+ * twelve wires from one node is a knot, not a diagram.
+ */
+type SystemAccent = "brand" | "violet" | "green" | "orange" | "pink";
+
+const SYSTEMS: { icon: string; label: string; accent: SystemAccent }[] = [
+  { icon: "globe", label: "Website", accent: "brand" },
+  { icon: "envelope", label: "Email", accent: "violet" },
+  { icon: "comment-dots", label: "SMS", accent: "green" },
+  { icon: "bag-shopping", label: "Store", accent: "orange" },
+  { icon: "calendar-days", label: "Calendar", accent: "pink" },
+  { icon: "credit-card", label: "Payments", accent: "green" },
+  { icon: "hashtag", label: "Social", accent: "pink" },
+  { icon: "address-book", label: "CRM", accent: "brand" },
+  { icon: "folder-open", label: "Documents", accent: "orange" },
+  { icon: "chart-column", label: "Analytics", accent: "violet" },
+  { icon: "location-dot", label: "Business listings", accent: "brand" },
+  { icon: "plug", label: "Connected applications", accent: "brand" },
+];
+
+/** How many of `SYSTEMS` the hub visibly wires up. */
+const WIRED = 6;
+
+function systemColor(t: ThemeTokens, accent: SystemAccent): string {
+  return accent === "violet"
+    ? t.violet
+    : accent === "green"
+      ? t.green
+      : accent === "orange"
+        ? t.orange
+        : accent === "pink"
+          ? t.pink
+          : t.brand;
+}
+
+function SystemTile({
+  icon,
   label,
   color,
   nodeProps,
   cluster = false,
 }: {
-  name: string;
+  icon: string;
   label: string;
   color: string;
   nodeProps?: { ref: (node: unknown) => void; onLayout: () => void };
   cluster?: boolean;
 }) {
   const styles = useStyles();
-  const t = useTokens();
   return (
     // Icon and label share one card, and the card is the measured node —
     // otherwise a wire stops at the icon and runs through the label below it.
     <View {...(nodeProps as object)} style={[styles.brandTile, cluster ? styles.brandTileCluster : null]}>
-      <FontAwesome6 name={name as never} size={22} color={brandColor(color, t)} />
-      <Text numberOfLines={1} style={styles.channelLabel}>
+      <FontAwesome6 name={icon as never} size={22} color={color} />
+      {/* Two lines in the cluster only: the six wired labels are single words,
+          but "Connected applications" has to wrap rather than ellipsize. */}
+      <Text numberOfLines={cluster ? 2 : 1} style={styles.channelLabel}>
         {label}
       </Text>
     </View>
@@ -368,12 +459,12 @@ function ChannelWeb() {
   const styles = useStyles();
   const t = useTokens();
   const field = useConnectorField();
-  // Six, not eight: with four cards per column the hub's neighbours sit flush
+  // Six, not twelve: with four cards per column the hub's neighbours sit flush
   // against it and their wires have no visible run at all.
-  const shown = useMemo(() => channels.slice(0, 6), []);
+  const shown = useMemo(() => SYSTEMS.slice(0, WIRED), []);
   const links = useMemo<Link[]>(() => shown.map((item) => ["hub", item.label] as const), [shown]);
 
-  // The hub sits between two columns rather than beside a block of eight, so a
+  // The hub sits between two columns rather than beside a block of twelve, so a
   // wire only ever travels outward — nothing has to cross another tile.
   return (
     <ConnectorSurface field={field} style={styles.channelMap}>
@@ -388,25 +479,25 @@ function ChannelWeb() {
       />
       <View style={styles.channelColumn}>
         {shown.slice(0, 3).map((item) => (
-          <BrandTile
+          <SystemTile
             key={item.label}
-            name={item.brand}
+            icon={item.icon}
             label={item.label}
-            color={item.color}
+            color={systemColor(t, item.accent)}
             nodeProps={field.node(item.label)}
           />
         ))}
       </View>
       <View {...field.node("hub")} style={styles.channelHub}>
-        <Brand compact alt="FlowSmartly, at the centre of every connected channel" />
+        <Brand compact alt="FlowSmartly, at the centre of every connected system" />
       </View>
       <View style={styles.channelColumn}>
         {shown.slice(3).map((item) => (
-          <BrandTile
+          <SystemTile
             key={item.label}
-            name={item.brand}
+            icon={item.icon}
             label={item.label}
-            color={item.color}
+            color={systemColor(t, item.accent)}
             nodeProps={field.node(item.label)}
           />
         ))}
@@ -415,17 +506,24 @@ function ChannelWeb() {
   );
 }
 
-/** Phone: a centred cluster reads far better than eight crossing wires. */
+/** Phone: a centred cluster reads far better than twelve crossing wires. */
 function ChannelCluster() {
   const styles = useStyles();
+  const t = useTokens();
   return (
     <View style={styles.channelCluster}>
       <View style={styles.channelHub}>
-        <Brand compact alt="FlowSmartly, at the centre of every connected channel" />
+        <Brand compact alt="FlowSmartly, at the centre of every connected system" />
       </View>
       <View style={styles.channelClusterGrid}>
-        {channels.map((item) => (
-          <BrandTile key={item.label} name={item.brand} label={item.label} color={item.color} cluster />
+        {SYSTEMS.map((item) => (
+          <SystemTile
+            key={item.label}
+            icon={item.icon}
+            label={item.label}
+            color={systemColor(t, item.accent)}
+            cluster
+          />
         ))}
       </View>
     </View>
@@ -446,15 +544,27 @@ function ChannelMap() {
     <View style={styles.channelPanel}>
       <View style={styles.channelPanelHead}>
         <Text numberOfLines={1} style={styles.channelPanelTitle}>
-          Connected channels
+          Connected systems
         </Text>
         <Text style={styles.channelPanelPill}>Live</Text>
       </View>
       {l.isPhone ? <ChannelCluster /> : <ChannelWeb />}
+      {/* The phone cluster already draws all twelve, so this line would only
+          repeat itself there. */}
+      {l.isPhone ? null : (
+        <View style={styles.channelMore}>
+          <Text style={styles.channelMoreLabel}>Also connected</Text>
+          <Text style={styles.channelMoreText}>
+            {SYSTEMS.slice(WIRED)
+              .map((item) => item.label)
+              .join(" · ")}
+          </Text>
+        </View>
+      )}
       <View style={styles.channelPanelFoot}>
         <View style={styles.channelPanelDot} />
         <Text numberOfLines={1} style={styles.channelPanelFootText}>
-          All channels connected • synced 2 min ago
+          All systems connected • synced 2 min ago
         </Text>
       </View>
     </View>
@@ -477,24 +587,25 @@ function Hero() {
               Eyebrow → headline → body → CTAs → proof, 75ms apart. */}
           <Stagger mode="enter" step={75} distance={16}>
             {[
-              <SectionLabel key="eyebrow">THE AI GROWTH OPERATING SYSTEM</SectionLabel>,
+              <SectionLabel key="eyebrow">THE AI BUSINESS OPERATING SYSTEM</SectionLabel>,
               // The one h1 on the site root. react-native-web renders every
               // Text as a div, so without this the page ships no heading at all.
               <Heading key="title" level={1} style={styles.heroTitle}>
-                Turn every customer signal into your next growth action.
+                One intelligent platform to run, connect, and grow your business.
               </Heading>,
               <Text key="body" style={styles.heroBody}>
-                Create, connect, sell, and grow with one intelligent workspace across social, email, SMS, ads,
-                commerce, local discovery, and analytics.
+                FlowSmartly helps small and midsize businesses manage their digital presence, automate daily work,
+                serve customers, create content, sell products and services, train teams, and make better
+                decisions — with a secure AI partner working alongside them.
               </Text>,
               <View key="cta" style={styles.heroActions}>
                 <ButtonRow>
                   {/* full-width on phone so every CTA down the page shares one edge */}
                   <PrimaryButton
-                    label="Start growing free"
+                    label="Start building your workspace"
                     size="lg"
                     full={l.isPhone}
-                    trackId="home.hero.start-free"
+                    trackId="home.hero.start-workspace"
                     onPress={() => Linking.openURL(EXTERNAL.signup)}
                   />
                   {/* No demo video exists, so this books a real one rather than
@@ -510,7 +621,7 @@ function Hero() {
                 </ButtonRow>
               </View>,
               <Text key="proof" style={styles.proof}>
-                Human-approved automation • Built for small businesses
+                Human-approved automation · Secure integrations · Role-based access · Built for real businesses
               </Text>,
             ]}
           </Stagger>
@@ -1236,8 +1347,9 @@ export default function HomeScreen() {
   // PageShell — the home page must not build its own chrome, or the two drift.
   return (
     <PageShell
-      title="The AI Growth Operating System"
-      description="Turn every customer signal into your next growth action — one workspace for social, email, SMS, ads, commerce, local discovery and analytics."
+      title="The AI Business Operating System"
+      // 163 chars — the readiness audit fails a description over 165.
+      description="One intelligent platform to run, connect and grow your business: operate, create, serve, sell and understand, with a secure AI partner working alongside your team."
       footer="full"
       // The site root, so it carries the Organization and WebSite records as
       // well as its own breadcrumb.
@@ -1246,8 +1358,15 @@ export default function HomeScreen() {
         webSiteJsonLd(),
         breadcrumbJsonLd([{ name: "Home", path: ROUTES.home }]),
       ]}>
+      {/* Positioning first, then who it is for, then what it is, then the
+          product itself — the proof only lands once a visitor knows what they
+          are being shown. FlowAgent and the controls on it come as a pair. */}
       <Hero />
+      <IndustriesSection />
+      <PillarsSection />
       <Dashboard />
+      <FlowAgentAlongsideSection />
+      <ControlSection />
       <FlowShopSection />
       <CustomerIntelligence />
       <CallAgentSection />
@@ -1277,6 +1396,14 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
   const fluid: ViewStyle = { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0 };
   /** a flex child that fills its line once the layout has stacked */
   const stackedItem: ViewStyle = { flexGrow: 0, flexShrink: 0, flexBasis: "auto", width: "100%", minWidth: 0 };
+
+  /** the shell every command-centre status pill shares */
+  const statusPill: ViewStyle = {
+    flexShrink: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+  };
 
   const chip = (bg: string, color: string): TextStyle => ({
     ...ty.micro,
@@ -1399,8 +1526,35 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     },
     actionCopy: { ...fluid },
     actionTitle: { ...ty.micro, color: t.text, fontWeight: "700" },
-    actionValue: { fontWeight: "500", color: t.textMuted },
-    actionNote: { ...ty.micro, color: t.textSubtle, marginTop: 2 },
+    // Wraps rather than squeezes: the pill drops to its own line instead of
+    // clipping the note beside it.
+    actionMeta: {
+      marginTop: 3,
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      rowGap: 5,
+      gap: 8,
+    },
+    // `flexBasis: "100%"`, deliberately — not the `fluid` shrink-to-fit used
+    // everywhere else on this card. From a zero basis the note shrinks instead
+    // of wrapping, and the hero split leaves it 54px at 1120 and 97px at 768:
+    // wide enough to render, far too narrow to say "12 clients are missing
+    // required documents", so it ellipsized at viewports *wider* than ones
+    // where it fit. Owning the full line pushes the pill onto its own row.
+    //
+    // Full width rather than `auto`, because `auto` wraps per *note*: the one
+    // short row ("37 customers left before checkout") kept its pill inline
+    // while the three long ones dropped theirs, and four rows of a mockup that
+    // disagree about where the status sits read as a bug.
+    actionNote: {
+      ...ty.micro,
+      color: t.textSubtle,
+      flexGrow: 1,
+      flexShrink: 1,
+      flexBasis: "100%",
+      minWidth: 0,
+    },
     actionRealIcon: {
       width: 30,
       height: 30,
@@ -1409,14 +1563,15 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       alignItems: "center",
       justifyContent: "center",
     },
-    ready: {
-      flexShrink: 0,
-      backgroundColor: t.successBg,
-      paddingHorizontal: 8,
-      paddingVertical: 5,
-      borderRadius: 8,
-    },
-    readyText: { ...ty.micro, color: t.successText },
+    // Three tones for one shape. The pill is the only thing on the row that
+    // says whether FlowAgent is waiting on a human, so "Approval required" is
+    // deliberately the one that does not read as green-and-finished.
+    pillReady: { ...statusPill, backgroundColor: t.successBg },
+    pillReadyText: { ...ty.micro, color: t.successText, fontWeight: "700" },
+    pillWarn: { ...statusPill, backgroundColor: t.warnBg },
+    pillWarnText: { ...ty.micro, color: t.warnText, fontWeight: "700" },
+    pillInfo: { ...statusPill, backgroundColor: t.chipBg },
+    pillInfoText: { ...ty.micro, color: t.chipText, fontWeight: "700" },
     // Mirrors PrimaryButton at size "sm" — the mock has to look identical to
     // the real control, it just isn't one.
     mockButton: {
@@ -1466,7 +1621,13 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
       width: l.isPhone ? "100%" : undefined,
       // The panel takes what the map needs and the card absorbs the rest of the
       // row — an uncapped 50/50 split would strand the map in its own middle.
-      maxWidth: l.isPhone ? 460 : heroFill ? 470 : undefined,
+      //
+      // Side by side the cap is hard rather than absent: this column does not
+      // shrink, so without one the "Also connected" line sets the panel's width
+      // from its own longest line and squeezes the FlowAgent card next to it
+      // down to ~275px. 320 is the map (266) plus its padding, with enough
+      // slack for that line to wrap inside the panel instead of widening it.
+      maxWidth: l.isPhone ? 460 : heroFill ? 470 : 320,
       minWidth: heroFill ? 264 : undefined,
       alignSelf: "center",
       borderWidth: 1,
@@ -1486,6 +1647,17 @@ function createStyles(t: ThemeTokens, l: Layout, ty: TypeScale) {
     },
     channelPanelTitle: { ...ty.micro, color: t.text, fontWeight: "800", flexShrink: 1, minWidth: 0 },
     channelPanelPill: chip(t.successBg, t.successText),
+    // Names the six systems the map does not have room to wire. Text rather
+    // than another row of tiles: twelve tiles in a hero panel is a wall, and
+    // the point of the line is breadth, not another six things to look at.
+    channelMore: {
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: t.divider,
+      gap: 4,
+    },
+    channelMoreLabel: { ...ty.micro, color: t.text, fontWeight: "700" },
+    channelMoreText: { ...ty.micro, color: t.textSubtle },
     channelPanelFoot: {
       minHeight: 26,
       paddingTop: 10,

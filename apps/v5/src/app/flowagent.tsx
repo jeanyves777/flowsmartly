@@ -357,7 +357,8 @@ export default function FlowAiPage() {
   return (
     <PageShell
       title="FlowAgent"
-      description="FlowAgent finds the opportunity and prepares the work across content, campaigns, calls and commerce. Nothing launches without your approval."
+      // 161 chars — the readiness audit fails a description over 165.
+      description="FlowAgent understands your goals, systems, permissions and operating rules, then researches, prepares and recommends. Nothing sensitive happens without approval."
       jsonLd={[
         breadcrumbJsonLd([
           { name: 'Home', path: ROUTES.home },
@@ -368,13 +369,14 @@ export default function FlowAiPage() {
       <Section>
         <View style={styles.heroRow}>
           <Reveal style={styles.heroCopy} distance={16}>
-            <SectionLabel>YOUR AI GROWTH OPERATOR</SectionLabel>
+            <SectionLabel>YOUR AI OPERATING PARTNER</SectionLabel>
             <Heading level={1} style={[type.display, styles.heroTitle]}>
-              FlowAgent finds the opportunity. You stay in control.
+              FlowAgent works alongside your business.
             </Heading>
             <Text style={[type.body, styles.heroBody]}>
-              One intelligent assistant that understands your content, customers, campaigns, calls,
-              store, listings, and performance—then prepares the next best actions for approval.
+              FlowAgent understands your goals, business context, connected systems, permissions, and
+              operating rules. It can research, prepare, coordinate, create, automate, and recommend
+              actions — while keeping your team in control.
             </Text>
             <View style={styles.heroButtons}>
               <ButtonRow>

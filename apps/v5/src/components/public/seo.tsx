@@ -13,7 +13,7 @@ import { usePathname } from 'expo-router';
 export const SITE = {
   name: 'FlowSmartly',
   origin: 'https://flowsmartly.com',
-  tagline: 'The AI Growth Operating System',
+  tagline: 'The AI Business Operating System',
   twitter: '@flowsmartly',
   /** shipped in `public/`, used as the default unfurl image */
   ogImage: '/og-default.png',
